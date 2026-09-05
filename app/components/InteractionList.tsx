@@ -14,7 +14,7 @@ import {
   IconTransform,
 } from "@tabler/icons-react";
 import { useMemo, useRef } from "react";
-import type { ExtractCooling } from "../game/extract";
+import type { Extraction } from "../game/extract";
 import type {
   InteractionAction,
   InteractionGroup,
@@ -266,13 +266,13 @@ function actionClass(option: InteractionOption, attacking: boolean): string {
 }
 
 /**
- * How much of a wait has already gone, in milliseconds.
+ * How much of a pull has already been made, in milliseconds.
  *
  * **The one number the bar is drawn from**, and it is a negative
  * `animation-delay` rather than a width: the fill is a keyframe over the whole
- * duration, so starting it this far in is what makes a row rebuilt mid-wait
+ * duration, so starting it this far in is what makes a row rebuilt mid-pull
  * pick the animation up where it already was instead of restarting it. See
- * `fill-wait` in `app.css`.
+ * `fill-progress` in `app.css`.
  *
  * Clamped at both ends rather than trusted, on `statusFraction`'s terms: the
  * remainder and the duration are two numbers off the wire that nothing forces
@@ -282,9 +282,9 @@ function actionClass(option: InteractionOption, attacking: boolean): string {
  * Exported for the test rather than for a second caller — the arithmetic is
  * assertable and the rendering is not.
  */
-export function waitElapsedMs(cooldown: ExtractCooling): number {
-  const elapsed = cooldown.durationMs - cooldown.remainingMs;
-  return Math.max(0, Math.min(cooldown.durationMs, elapsed));
+export function extractionElapsedMs(extraction: Extraction): number {
+  const elapsed = extraction.durationMs - extraction.remainingMs;
+  return Math.max(0, Math.min(extraction.durationMs, elapsed));
 }
 
 /**
@@ -368,44 +368,49 @@ function InteractionBox({
  * Read aloud by the button's own label too — a screen reader cannot see the
  * grey, and a bar cannot say anything.
  *
- * A wait keeps its bar and needs no words on screen; the phrase here is only
- * what it is announced as. See {@link OptionBlock}.
+ * A pull in progress keeps its bar and needs no words on screen; the phrase
+ * here is only what it is announced as. See {@link OptionBlock}.
  */
 function blockReason(blocked: OptionBlock): string {
-  return blocked.kind === "wait" ? "not ready yet" : "no room";
+  if (blocked.kind === "working") return "working";
+  // "In use" rather than "somebody is mining it": the column is eleven pixels
+  // of type wide, and which of the people standing there is holding it is not
+  // something the player can do anything with.
+  if (blocked.kind === "taken") return "in use";
+  return "no room";
 }
 
 /**
- * The bar that fills as a row's wait runs out.
+ * The bar that fills as a pull is made.
  *
- * White, faint, and driven entirely by CSS — see `fill-wait` in `app.css`. The
+ * White, faint, and driven entirely by CSS — see `fill-progress` in `app.css`. The
  * element is given the *whole* duration and a negative delay of however much
  * had already gone when it appeared, so the browser runs it on the compositor
  * and nothing here has to touch it again.
  *
  * **The delay is read once, when the bar appears, and never again.** That is
  * the whole reason this is a component rather than three lines inline. A row is
- * re-rendered for all sorts of reasons while a wait runs — anything that
- * changes the list around it — and `cooldown.remainingMs` is a live number, so
- * a delay recomputed on every render would re-seek a running animation over and
- * over and drive the fill far ahead of the wait it is drawing. It was doing
- * exactly that: an eight-second wait filled its bar in five.
+ * re-rendered for all sorts of reasons while a pull runs — anything that
+ * changes the list around it — and `extraction.remainingMs` is a live number,
+ * so a delay recomputed on every render would re-seek a running animation over
+ * and over and drive the fill far ahead of the pull it is drawing. It was doing
+ * exactly that: an eight-second bar filled in five.
  *
  * Reading it once is also *correct* rather than merely stable, because this
- * mounts exactly when the wait becomes visible to this client — its own start,
+ * mounts exactly when the pull becomes visible to this client — its own start,
  * or a reconnect in the middle of one — and both are moments when the remainder
- * is right. The bar is unmounted when the wait ends, so the next one on the
+ * is right. The bar is unmounted when the pull ends, so the next one on the
  * same row starts a fresh instance and a fresh reading.
  */
-function WaitFill({ cooldown }: { cooldown: ExtractCooling }) {
-  const delayMs = useRef(waitElapsedMs(cooldown)).current;
+function ProgressFill({ extraction }: { extraction: Extraction }) {
+  const delayMs = useRef(extractionElapsedMs(extraction)).current;
 
   return (
     <span
       aria-hidden="true"
-      className="fill-wait pointer-events-none absolute inset-0 bg-paper/20"
+      className="fill-progress pointer-events-none absolute inset-0 bg-paper/20"
       style={{
-        animationDuration: `${cooldown.durationMs}ms`,
+        animationDuration: `${extraction.durationMs}ms`,
         animationDelay: `-${delayMs}ms`,
       }}
     />
@@ -444,7 +449,7 @@ function ActionButton({
 }) {
   const Icon = ICONS[option.action];
   const blocked = option.blocked;
-  const waiting = blocked?.kind === "wait" ? blocked.cooling : null;
+  const working = blocked?.kind === "working" ? blocked.extraction : null;
   // Pointer-driven rather than click-driven: a button has to answer a thumb
   // that is already holding the d-pad, and a click never arrives while it is.
   // See `./useTap`.
@@ -499,12 +504,12 @@ function ActionButton({
         actionClass(option, attacking),
       ].join(" ")}
     >
-      {/* The wait, filling the row from the left as it runs out. Behind the
-          verb rather than under it, because what it is counting down to is
-          *that verb becoming pressable* — a separate track below would be a
-          second thing to look at for one fact. Absent entirely when there is
-          nothing to wait for, rather than drawn empty. */}
-      {waiting ? <WaitFill cooldown={waiting} /> : null}
+      {/* The pull, filling the row from the left as it is made. Behind the
+          verb rather than under it, because what it is filling towards is
+          *that verb paying out* — a separate track below would be a second
+          thing to look at for one fact. Absent entirely when nothing is being
+          pulled, rather than drawn empty. */}
+      {working ? <ProgressFill extraction={working} /> : null}
       <Icon
         size={14}
         stroke={2}
@@ -529,8 +534,8 @@ function ActionButton({
           is left. `shrink-0` so a long verb truncates before the reason does —
           a row reading "Warm your h…" still says why it is grey, where one
           reading "Warm your hands · no r…" says neither thing. Absent for a
-          wait, which has a bar to say it with. */}
-      {blocked && blocked.kind !== "wait" ? (
+          pull in progress, which has a bar to say it with. */}
+      {blocked && blocked.kind !== "working" ? (
         <span
           aria-hidden="true"
           className="relative ml-auto shrink-0 text-[10px] leading-snug tracking-tight"

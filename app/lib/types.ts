@@ -791,6 +791,25 @@ export type PlacedTile = {
    */
   extractsLeft?: number;
   /**
+   * How many of those pulls somebody is part-way through taking right now.
+   *
+   * The reservation half of an extract, and it is here for exactly
+   * {@link extractsLeft}'s reason: a second player walking up to the vein has
+   * to see the same number the first one is already holding, or two people
+   * would each start the last pull of a one-pull vein and one of them would
+   * spend twelve seconds on nothing.
+   *
+   * Absent on everything nobody is working, which is every placement in an
+   * authored map. Unlike {@link extractsLeft} it is *not* durable: a pull that
+   * was in progress when the world went quiet is a pull nobody is taking any
+   * more, so `../game/extract`'s `clearExtractReservations` wipes the field as
+   * the world loads. Stripped on the way to `data/map.json` for the same reason
+   * a half-mined vein is.
+   *
+   * Read through `../lib/interactions`' `extractsReserved`.
+   */
+  extractsReserved?: number;
+  /**
    * What this container is holding, for the placements that hold anything.
    *
    * Here rather than on a session index because a container on the floor *is*

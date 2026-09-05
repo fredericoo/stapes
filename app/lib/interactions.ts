@@ -601,15 +601,18 @@ export const MAX_EXTRACT_SLOTS = 4;
  * everybody who walks up to it, and what everybody takes out of it comes out of
  * one shared {@link durability}. Two people mining one vein race each other.
  *
- * That makes it the only interaction with **two clocks pointing opposite ways**,
- * and the pair is what the whole design rests on:
+ * That makes it the only interaction where **the act itself takes time and can
+ * be taken away from you**, and that pairing is what the whole design rests on:
  *
  * - {@link durability} is the world's, spent by anybody, held on the placement
  *   ({@link PlacedTile.extractsLeft}) so every client and the checkpoint see the
  *   same number.
- * - {@link cooldownMs} is one player's, spent only by them, held on their actor
- *   and never on the board — so a bush somebody has just picked is still full
- *   for the person walking up behind them.
+ * - {@link durationMs} is how long one pull takes to *make*. It runs while the
+ *   player stands there, it hands nothing over until it finishes, and a step, a
+ *   shove or a blow ends it with nothing to show for it.
+ * - and for as long as it runs, the pull it is going to take is held out of the
+ *   shared count ({@link PlacedTile.extractsReserved}), so two people can work
+ *   one vein at once and three cannot take four pulls out of a three-pull vein.
  *
  * **Nothing here says how the resource comes back**, and that is deliberate:
  * {@link tileId} hands the placement to machinery that already exists. A bush
@@ -652,19 +655,18 @@ export type ExtractInteraction = {
    */
   tileId: string;
   /**
-   * How long this player must wait before working **this placement** again, in
-   * wall-clock milliseconds.
+   * How long one pull takes, in wall-clock milliseconds.
    *
-   * Per player *and* per placement, which is the only pairing that makes a
-   * shared resource pace right. One clock per player would stop somebody picking
-   * berries because they had just mined a crystal on the other side of the map;
-   * one clock per placement would be the world's rather than theirs, and the
-   * second person to walk up to a bush would be told to wait for the first.
+   * The player stands there for the whole of it and gets nothing until it ends:
+   * a step, a shove or a blow cancels the pull, frees the reservation it was
+   * holding and leaves them with nothing. That is what makes a rich vein worth
+   * clearing a room for, and what makes mining one somebody else's problem to
+   * interrupt.
    *
-   * Zero is legal and means what it says: pull it as fast as you can press,
-   * until the durability runs out.
+   * Zero is legal and means what it says: the pull lands on the tap, and the
+   * only thing pacing the resource is its durability.
    */
-  cooldownMs: number;
+  durationMs: number;
   /**
    * What a pull might yield, in the order it is rolled. At most
    * {@link MAX_EXTRACT_SLOTS}. See {@link ExtractSlot}.
@@ -753,16 +755,15 @@ export const DEFAULT_TRANSMUTE: TransmuteInteraction = {
 };
 
 /**
- * Long enough that a resource is something you work rather than something you
- * hold a button on, short enough that clearing one is not a chore. It is per
- * placement, so a player with two bushes in front of them alternates rather
- * than waits.
+ * Long enough that a pull is something you commit to and can be knocked off,
+ * short enough that a bush is not a chore. Every authored resource sets its
+ * own; this is only what a freshly switched-on block starts at.
  */
-const DEFAULT_EXTRACT_COOLDOWN_MS = 3_000;
+const DEFAULT_EXTRACT_DURATION_MS = 3_000;
 
 /**
  * A bush, which is the shape this was authored for: three pulls, a handful of
- * something each time, and a short wait between them.
+ * something each time, and a moment spent standing there for each one.
  *
  * The yield is left blank on purpose, exactly as a status grant's id is: only
  * the author knows what this thing is made of, and a resolver that refused an
@@ -773,7 +774,7 @@ export const DEFAULT_EXTRACT: ExtractInteraction = {
   actionName: "",
   durability: 3,
   tileId: "",
-  cooldownMs: DEFAULT_EXTRACT_COOLDOWN_MS,
+  durationMs: DEFAULT_EXTRACT_DURATION_MS,
   slots: [{ tileId: "", chance: MAX_EXTRACT_CHANCE }],
 };
 
@@ -1082,8 +1083,9 @@ const extractSchema = v.object({
   // Permissive where every other target is `minLength(1)`, because blank is
   // this block's "remove me" — a mined-out crystal is simply not there.
   tileId: v.string(),
-  // Zero is legal and means "as fast as you can press it".
-  cooldownMs: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  // Zero is legal and means the pull lands on the tap, with nothing to
+  // interrupt.
+  durationMs: v.pipe(v.number(), v.integer(), v.minValue(0)),
   slots: v.pipe(
     v.array(v.fallback(v.nullable(extractSlotSchema), null)),
     v.transform((slots) =>
@@ -1149,6 +1151,28 @@ export function extractsLeft(
     return extract.durability;
   }
   return Math.max(0, Math.min(extract.durability, Math.floor(left)));
+}
+
+/**
+ * How many of this placement's pulls somebody is part-way through taking.
+ *
+ * The other half of {@link extractsLeft}, and it is on the placement for the
+ * same reason: everybody has to agree about it. A player who starts a pull
+ * holds one of the vein's remaining pulls for as long as they are standing
+ * there, so the person walking up behind them sees a vein with one fewer to
+ * offer rather than discovering at the end of their own twelve seconds that
+ * there was nothing left.
+ *
+ * Absent on everything nobody is working, which is every placement in an
+ * authored map and every placement in a world at rest. Cleared when a world
+ * loads — see `../game/extract`'s `clearExtractReservations` — because a
+ * reservation is a fact about who is standing there *now*, and nobody is
+ * standing anywhere in a checkpoint.
+ */
+export function extractsReserved(placed: PlacedTile): number {
+  const held = placed.extractsReserved;
+  if (typeof held !== "number" || !Number.isFinite(held)) return 0;
+  return Math.max(0, Math.floor(held));
 }
 
 /**
@@ -1743,7 +1767,7 @@ export function interactionsForSave(
           ...(extractActionName ? { actionName: extractActionName } : {}),
           durability: Math.max(1, Math.round(extract.durability)),
           tileId: extract.tileId.trim(),
-          cooldownMs: Math.max(0, Math.round(extract.cooldownMs)),
+          durationMs: Math.max(0, Math.round(extract.durationMs)),
           slots: savedSlots.slice(0, MAX_EXTRACT_SLOTS),
         }
       : undefined;

@@ -2,12 +2,14 @@ import type { ExtractInteraction, ExtractSlot } from "../lib/interactions";
 import {
   MAX_EXTRACT_CHANCE,
   extractsLeft,
+  extractsReserved,
   resolveExtract,
 } from "../lib/interactions";
 import { resolveContainer, resolveItem } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
-import { getStack } from "../lib/mapData";
+import { getStack, listCoords, replaceStack } from "../lib/mapData";
 import { stow } from "../lib/piles";
+import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
 import {
   coveredBySomething,
@@ -23,16 +25,19 @@ import { cellKey } from "./pressurePlates";
  * Working a thing for what it is made of — the rules, with no world to run them
  * against.
  *
- * **Three clocks meet here and only one of them is the board's**, which is the
- * whole reason this is a module rather than three lines inside the session:
+ * **A pull is something you are part-way through**, which is the whole reason
+ * this is a module rather than three lines inside the session. Three things
+ * meet here and only one of them is a clock:
  *
  * - the placement's remaining pulls, which everybody shares and which
- *   `../lib/interactions`' `extractsLeft` reads off the map;
- * - this player's wait on this placement, which is theirs alone and reaches
- *   here as a set of {@link extractKey}s rather than as a clock, because
- *   whether it has run out is the only thing any of these rules ask;
+ *   `../lib/interactions`' `extractsLeft` reads off the map, minus the ones
+ *   people are already part-way through taking (`extractsReserved`). The
+ *   difference is what a fourth person walking up may still start;
+ * - one player's {@link Extraction}, which is the pull they are making right
+ *   now — a remainder and the duration it is a fraction of, so a bar can draw
+ *   it. At most one, because a person mines one thing at a time;
  * - the roll, which is not a clock at all and happens exactly once, on the
- *   server, at the moment a pull is actually taken.
+ *   server, at the moment the pull finishes.
  *
  * Pure, and read by both ends on `./transmute`'s terms: the client to decide
  * whether to offer the row, the server to validate the message it is sent.
@@ -41,19 +46,18 @@ import { cellKey } from "./pressurePlates";
  */
 
 /**
- * Which placement a player's wait belongs to, as a string.
+ * Which placement a player's pull is being made out of, as a string.
  *
  * Cell plus tile id, and deliberately not the stack index, on exactly the
  * grounds `../game/decay`'s `entryKey` gives: an index shifts the moment
- * anything is placed under or over it, so a bush would forget it had been
+ * anything is placed under or over it, so a bush would forget it was being
  * picked every time somebody dropped a torch beside it.
  *
- * Including the tile id is what makes the key follow a resource through its own
- * life without following it into the next one. A picked bush and a full bush are
- * two tiles, so the wait a player owes the bush they just emptied does not carry
- * over to the one that grows back in its place — which is right: what the wait
- * paces is *pulls*, and there is nothing left to pull until it has regrown
- * anyway.
+ * Including the tile id is what ends a pull the moment the thing being pulled
+ * from stops being that thing. A picked bush and a full bush are two tiles, so
+ * a player half way through picking a bush somebody else just emptied is
+ * working something that is no longer there — which is exactly when the pull
+ * should be taken off them.
  */
 export function extractKey(cell: Coord, tileId: string): string {
   return `${cellKey(cell)}|${tileId}`;
@@ -206,9 +210,8 @@ export function extractFits(
 }
 
 /**
- * The resource here worth walking up to, or null — leaving aside both whether
- * this actor could carry what comes out and whether they have waited long
- * enough.
+ * The resource here worth walking up to, or null — leaving aside every fact
+ * about the player and about who else is already working it.
  *
  * **Two refusals and neither of them distinguished**, on `canRewardFrom`'s
  * terms: out of reach, or spent. Both are facts about the *world*, and a row
@@ -216,14 +219,19 @@ export function extractFits(
  * there is no row and no outline, and a bush somebody has stripped bare reads
  * as a bush rather than as something withholding.
  *
- * **What is left out is everything that is a fact about the player**, and that
+ * **What is left out is everything a row could still usefully say**, and that
  * split is the whole reason this is its own function. A bush you have no room
- * for is still a bush worth walking up to; so is one you are counting down on.
- * Neither may be *pulled* — that is {@link canWorkNow}'s answer and the
- * server's — but taking the row away for either tells a player who did nothing
- * that the world changed, which is the one thing a list of affordances must
- * never do. So the row is offered and the reason travels beside it, as
+ * for is still a bush worth walking up to; so is one you are half way through
+ * picking; so is one whose last pull the person beside you is already taking.
+ * None of the three may be *started* — that is {@link canBeginExtract}'s
+ * answer and the server's — but taking the row away for any of them tells a
+ * player that the world changed, which is the one thing a list of affordances
+ * must never do. So the row is offered and the reason travels beside it, as
  * `./interactionOptions`' `OptionBlock`.
+ *
+ * Note that a placement whose every remaining pull is reserved is *offered*
+ * here: what is left in the vein is the world's answer, and who is holding it
+ * is a fact about the room that resolves itself the moment they step away.
  */
 export function extractOfferedAt(
   map: MapFile,
@@ -238,16 +246,36 @@ export function extractOfferedAt(
 }
 
 /**
- * Is there a resource here this actor could work — leaving aside whether they
- * have waited long enough?
+ * How many pulls at this slot nobody has started on, which is what a player
+ * walking up may still take.
  *
- * {@link extractOfferedAt}'s two refusals plus the third one, which is room:
- * all or nothing against the best roll, on {@link extractFits}' terms. Together
- * they are **permission** — what the session asks before it spends a pull and
- * what the server asks before it believes a message — where the two halves
- * apart are what the list draws. The client asks both, through
- * {@link canWorkNow}, which is what stops it offering a pull the server would
- * refuse.
+ * The shared count minus the ones being held. Two people may work a three-pull
+ * vein at once and a third may not, which is the whole of the arrangement: a
+ * pull that is being made is a pull that is gone, and finding that out twelve
+ * seconds later would be the same bug as two players looting one chest.
+ */
+export function pullsFreeAt(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  extract: ExtractInteraction,
+  ref: ObjectRef,
+): number {
+  const placed = placementAt(map, ref);
+  if (!placed) return 0;
+  const left = pullsLeftAt(map, tilesById, extract, ref);
+  return Math.max(0, left - extractsReserved(placed));
+}
+
+/**
+ * Is there a resource here this actor could start working — leaving aside
+ * whether they are already part-way through a pull of their own?
+ *
+ * {@link extractOfferedAt}'s two refusals plus the two that decide whether a
+ * pull can be *begun*: room, all or nothing against the best roll on
+ * {@link extractFits}' terms, and a free pull to hold. Together they are
+ * **permission** — what the session asks before it reserves anything and what
+ * the server asks before it believes a message — where the halves apart are
+ * what the list draws.
  */
 export function canExtractFrom(
   map: MapFile,
@@ -258,82 +286,142 @@ export function canExtractFrom(
 ): boolean {
   const extract = extractOfferedAt(map, tilesById, actor, ref);
   if (!extract) return false;
+  if (pullsFreeAt(map, tilesById, extract, ref) <= 0) return false;
   return extractFits(extract, tilesById, equipment);
 }
 
 /**
- * What this actor still owes the placement at this slot, or null when they may
- * work it now.
+ * The pull this actor is making out of the placement at this slot, or null when
+ * they are not making one out of *this* one.
  *
  * Read off the tile standing there rather than off the ref alone, because the
- * key names both — see {@link extractKey}. A cell holding no placement owes
- * nothing, on the same terms it offers nothing.
+ * key names both — see {@link extractKey}. A cell holding no placement is
+ * nobody's pull, on the same terms it offers nothing.
  */
-export function extractCooldownAt(
+export function extractionAt(
   map: MapFile,
-  cooling: CoolingResources,
+  extracting: Extraction | null,
   ref: ObjectRef,
-): ExtractCooling | null {
+): Extraction | null {
+  if (!extracting) return null;
   const placed = placementAt(map, ref);
   if (!placed) return null;
-  return cooling.get(extractKey(ref, placed.tileId)) ?? null;
+  return extracting.key === extractKey(ref, placed.tileId) ? extracting : null;
 }
 
 /**
- * May this actor take a pull right now?
+ * May this actor *start* a pull here right now?
  *
- * The two halves read together, which is what the session and the server ask
- * and what the client asks before it lets a tap through. Everything that
- * decides it is above; this only joins them, in one place, so no caller can
- * remember one and forget the other.
+ * The halves read together, which is what the session and the server ask and
+ * what the client asks before it lets a tap through. Everything that decides it
+ * is above; this only joins them, in one place, so no caller can remember one
+ * and forget the other.
+ *
+ * A pull already running on this placement is the last refusal, and it is the
+ * only one that is about the actor's own hands: the row is drawing their bar,
+ * and a second tap on it must not start the pull over. Starting one *elsewhere*
+ * is allowed and abandons this one — see `GameSession.extract` — because a
+ * player who has changed their mind about which crystal to mine should not have
+ * to walk away to say so.
  */
-export function canWorkNow(
+export function canBeginExtract(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   actor: Actor,
   equipment: Equipment,
   ref: ObjectRef,
-  cooling: CoolingResources,
+  extracting: Extraction | null,
 ): boolean {
   if (!canExtractFrom(map, tilesById, actor, equipment, ref)) return false;
-  return extractCooldownAt(map, cooling, ref) === null;
+  return extractionAt(map, extracting, ref) === null;
 }
 
 /**
- * One wait, as the player it belongs to sees it.
+ * One pull in progress, as the player making it sees it.
  *
  * **Both halves travel, and the second one is what draws the bar.** The
- * remainder alone says whether the row can be pressed; the duration beside it
- * says how far through the wait that is, which is the difference between a
- * disabled row and one that visibly answers "how long". Exactly the pairing
- * `StatusPatch` makes, and for exactly its reason: a client that never saw the
- * wait start cannot work the second number out from the first.
+ * remainder alone says how much longer; the duration beside it says how far
+ * through the pull that is, which is the difference between a row that is
+ * merely busy and one that visibly answers "how much longer". Exactly the
+ * pairing `StatusPatch` makes, and for exactly its reason: a client that never
+ * saw the pull start cannot work the second number out from the first.
  *
- * **Wound in place, never replaced.** One object is the entry in the owner's
- * map *and* the entry in the list handed out — see
- * `GameSession.setExtractCooldowns` — so a tick advancing the wait costs no
- * allocation and leaves the list's identity alone. That identity is the change
- * signal the renderer gates its whole interaction list on, so a fresh array per
- * tick would rebuild the list thirty times a second for a set that changes
- * twice a pull. Same bargain a `walk` or a `strike` is handed over on.
+ * **Wound in place, never replaced.** One object is the runtime's and the one
+ * handed out — see `GameSession.setExtraction` — so a tick advancing the pull
+ * costs no allocation and leaves the value's identity alone. That identity is
+ * the change signal the renderer gates its whole interaction list on, so a
+ * fresh object per tick would rebuild the list thirty times a second for
+ * something that changes twice a pull. Same bargain a `walk` or a `strike` is
+ * handed over on.
+ *
+ * At most one per actor, unlike the set of waits this replaced: a person mines
+ * one thing at a time, and the whole point of the redesign is that working a
+ * resource is something you are *doing* rather than something you have done.
  */
-export type ExtractCooling = {
+export type Extraction = {
   /** Which placement, as {@link extractKey}. */
   key: string;
-  /** How much of the wait is left. Wound to zero, never below. */
+  /** How much of the pull is left to make. Wound to zero, never below. */
   remainingMs: number;
-  /** How long the whole wait was, so a bar knows what it is a fraction of. */
+  /** How long the whole pull takes, so a bar knows what it is a fraction of. */
   durationMs: number;
 };
 
 /**
- * The waits one actor owes, as something to ask.
+ * The placement with one more, or one fewer, pull held out of its count.
  *
- * A lookup rather than a `Map`, which is what lets each end hold it in the
- * shape it already has: the server's truth is a `Map<key, ExtractCooling>` on
- * the actor, and the client's is one built from the list it was sent.
+ * The field goes entirely rather than sitting at zero, on
+ * {@link PlacedTile.extractsLeft}'s terms: a vein nobody is working is as small
+ * on the wire and in the checkpoint as it was before reservations existed, and
+ * a `0` left behind would be a cell patch saying nothing.
  */
-export type CoolingResources = { get(key: string): ExtractCooling | undefined };
+export function withReservation(placed: PlacedTile, delta: number): PlacedTile {
+  const held = extractsReserved(placed) + delta;
+  if (held > 0) return { ...placed, extractsReserved: held };
+  return withoutReservations(placed);
+}
+
+/** The placement with nothing held out of its count at all. */
+export function withoutReservations(placed: PlacedTile): PlacedTile {
+  const { extractsReserved: _held, ...rest } = placed;
+  return rest;
+}
+
+/**
+ * The map with every reservation dropped.
+ *
+ * Run once as a world loads, because a reservation says somebody is standing
+ * there *this second* and nobody is standing anywhere in a checkpoint. Without
+ * it, a world that went down while three people were mining would come back
+ * with three pulls held for ever by nobody, and the vein would be unworkable
+ * until it respawned.
+ *
+ * A sweep, and it is bounded by the map and runs once — the standing rule
+ * against sweeping is about answering *local* questions in the tick loop, which
+ * this is not. Returns the same map object when nothing was held, which is
+ * every load of a world that shut down cleanly.
+ */
+export function clearExtractReservations(map: MapFile): MapFile {
+  let next = map;
+  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+    // Read off `map` rather than `next`, on `mintItemIds`' terms: the only edit
+    // is a field coming off a placement, so nothing moves out from under the
+    // walk.
+    for (const { x, y, stack } of listCoords(map, z)) {
+      if (!stack.some((placed) => placed.extractsReserved != null)) continue;
+      next = replaceStack(
+        next,
+        x,
+        y,
+        z,
+        stack.map((placed) =>
+          placed.extractsReserved == null ? placed : withoutReservations(placed),
+        ),
+      );
+    }
+  }
+  return next;
+}
 
 /** Did this slot's chance come up? Certain is certain; zero is never. */
 function drawn(slot: ExtractSlot, random: () => number): boolean {
@@ -367,8 +455,13 @@ export function rollExtract(
 }
 
 /**
- * The placement after a pull has been taken out of it, or null when it is spent
- * and should be swapped for the tile the author named.
+ * The placement after a pull has been finished out of it, or null when it is
+ * spent and should be swapped for the tile the author named.
+ *
+ * **Both counts move**, because the pull that just landed was one the finisher
+ * had been holding: it comes out of the vein and out of the reservations in the
+ * same write, so a vein with one pull left and one person on it never looks
+ * momentarily free to the third person watching.
  *
  * The count is written down only once it *means* something — a placement with
  * pulls still on the def's own number carries no field, so the first pull out of
@@ -381,5 +474,5 @@ export function placementAfterPull(
 ): PlacedTile | null {
   const left = extractsLeft(placed, extract) - 1;
   if (left <= 0) return null;
-  return { ...placed, extractsLeft: left };
+  return { ...withReservation(placed, -1), extractsLeft: left };
 }

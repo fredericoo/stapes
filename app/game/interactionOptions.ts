@@ -37,11 +37,11 @@ import { pileTally } from "../lib/piles";
 import { bodyNameFor } from "./displayName";
 import type { Equipment } from "./equipment";
 import {
-  extractCooldownAt,
   extractFits,
   extractOfferedAt,
-  type CoolingResources,
-  type ExtractCooling,
+  extractionAt,
+  pullsFreeAt,
+  type Extraction,
 } from "./extract";
 import { offeredTransmutations } from "./transmute";
 import type { ActorSnapshot, PlaySession } from "./GameSession";
@@ -176,23 +176,37 @@ export type InteractionOption = {
 /**
  * Why a row is offered and still cannot be pressed.
  *
- * Two arms, and the split is what each one gives the player to do about it: a
- * wait resolves on its own and is drawn as a bar running out, where a refusal
- * stands until they go and fix it and has to be said in words. Nothing here
- * grants anything — see {@link InteractionOption.blocked}.
+ * Three arms, and the split is what each one gives the player to do about it: a
+ * pull already running is drawn as a bar filling, one somebody else is making
+ * resolves on its own and is said in words, and a refusal about what they are
+ * carrying stands until they go and fix it. Nothing here grants anything — see
+ * {@link InteractionOption.blocked}.
  */
 export type OptionBlock =
-  /** A clock this player owes this placement. See `./extract`'s `ExtractCooling`. */
-  | { kind: "wait"; cooling: ExtractCooling }
+  /**
+   * This player is part-way through this very pull. See `./extract`'s
+   * {@link Extraction}, which is what the bar is a fraction of.
+   */
+  | { kind: "working"; extraction: Extraction }
   /**
    * Nothing they are carrying could hold what comes out of it.
    *
    * A bag with no square left in it, or no bag at all — one arm for both,
-   * because they are one fact to the player: the bush is pickable and they are
-   * not in a state to pick it. Which of the two it is, they can see by looking
-   * at what they are wearing.
+   * because they are one fact to the player, who can see which by looking at
+   * what they are wearing.
    */
-  | { kind: "noRoom" };
+  | { kind: "noRoom" }
+  /**
+   * Every pull still in it is one somebody else is already making.
+   *
+   * The one arm here that is about *other people* rather than about the player,
+   * and it earns its row for the reason the others do: the vein is standing
+   * there with something left in it, so a row that vanished would read as a
+   * crystal that had stopped being a crystal. It resolves itself the moment
+   * they finish or are knocked off, which is why it is ranked below
+   * {@link noRoom}.
+   */
+  | { kind: "taken" };
 
 const LABELS: Record<InteractionAction, string> = {
   target: "Target",
@@ -243,14 +257,14 @@ const LABELS: Record<InteractionAction, string> = {
 const CLOSE_LABEL = "Close";
 
 /**
- * What a caller with no cooling list to offer gets.
+ * What a caller with no pull of the viewer's own to report gets.
  *
- * Everything ready, rather than every resource disabled: a list built without
- * the viewer's waits should show the world as it is and let the far end refuse
- * the one tap that is early, which is strictly better than greying out rows
- * nobody has said are grey.
+ * Nobody working anything, rather than every resource disabled: a list built
+ * without the viewer's own pull should show the world as it is and let the far
+ * end refuse the one tap that is wrong, which is strictly better than greying
+ * out rows nobody has said are grey.
  */
-const NOTHING_COOLING: CoolingResources = { get: () => undefined };
+const NOTHING_EXTRACTING: Extraction | null = null;
 
 /**
  * What a target row says while the sword is out.
@@ -409,12 +423,13 @@ const LEVEL_DISTANCE_WEIGHT = 100;
  *   *called* and nothing else about it. See {@link ATTACK_LABEL}. Defaulted, so
  *   a caller that has no stance to report gets the neutral verb rather than
  *   having to invent an answer.
- * @param cooling the resources this viewer may not work yet, as
- *   `./extract`'s `extractKey`s. Their own, exactly as {@link tags} is theirs:
- *   the bush somebody just picked is still on offer to everybody else.
- *   Defaulted to nothing cooling, so a caller with no wire to hear it over — the
- *   local simulation's own snapshot carries one, but a test need not — gets the
- *   rows rather than having to invent an answer.
+ * @param extracting the pull this viewer is part-way through, if any — see
+ *   `./extract`'s {@link Extraction}. Theirs alone, exactly as {@link tags} is:
+ *   what somebody else is half way through mining reaches this list through the
+ *   board instead, as the reservation it is holding. Defaulted to none, so a
+ *   caller with no wire to hear it over — the local simulation's own snapshot
+ *   carries one, but a test need not — gets the rows rather than having to
+ *   invent an answer.
  */
 export function listInteractionOptions(
   map: MapFile,
@@ -426,7 +441,7 @@ export function listInteractionOptions(
   openedRef: ObjectRef | null = null,
   tags: readonly string[] = [],
   attacking: boolean = false,
-  cooling: CoolingResources = NOTHING_COOLING,
+  extracting: Extraction | null = NOTHING_EXTRACTING,
   conversation: Conversation | null = null,
 ): InteractionOption[] {
   const bodies = bodiesByCell(self, visibleActors);
@@ -442,7 +457,7 @@ export function listInteractionOptions(
       equipment,
       openedRef,
       tags,
-      cooling,
+      extracting,
     ),
   ].sort(
     (a, b) =>
@@ -665,7 +680,7 @@ function objectOptions(
   equipment: Equipment,
   openedRef: ObjectRef | null,
   tags: readonly string[],
-  cooling: CoolingResources,
+  extracting: Extraction | null,
 ): InteractionOption[] {
   const out: InteractionOption[] = [];
   const zMin = Math.max(MIN_LEVEL, self.z - INTERACT_LEVEL_SLACK);
@@ -700,7 +715,7 @@ function objectOptions(
               { x, y, z, stackIndex },
               openedRef,
               tags,
-              cooling,
+              extracting,
             ),
           );
         }
@@ -721,7 +736,7 @@ function slotOptions(
   ref: ObjectRef,
   openedRef: ObjectRef | null,
   tags: readonly string[],
-  cooling: CoolingResources,
+  extracting: Extraction | null,
 ): InteractionOption[] {
   const placed = getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex];
   if (!placed) return [];
@@ -778,7 +793,7 @@ function slotOptions(
     // tap names — the verb is still "Pick", it simply cannot be pressed.
     const blocked =
       action === "extract"
-        ? extractBlock(map, tilesById, self, equipment, ref, cooling)
+        ? extractBlock(map, tilesById, self, equipment, ref, extracting)
         : null;
     add(action, objectActionLabel(action, tilesById[placed.tileId]), false, blocked);
   }
@@ -851,12 +866,17 @@ function slotOptions(
 /**
  * What is standing between this player and a pull, or null when nothing is.
  *
- * **The refusal is ranked above the wait**, which is the only ordering that
- * says something useful: a wait runs out on its own, so a row that showed the
- * bar while the bag was full would count down to a verb that still does not
- * work. Whichever is shown, the other is still true and still checked — this
- * decides what the row *says*, and `./extract`'s `canWorkNow` decides what may
- * happen.
+ * **Ranked, and the order is what makes each answer worth reading.** The pull
+ * they are already making comes first, because that is what the row is drawing
+ * and everything else about it is beside the point while it runs. Then the bag,
+ * because a refusal about what they are carrying stands until they go and fix
+ * it. Then the reservation, last, because it is the only one that resolves
+ * itself: a row saying "in use" while the bag was full would be pointing at
+ * somebody else's problem instead of theirs.
+ *
+ * Whichever is shown, the others are still true and still checked — this
+ * decides what the row *says*, and `./extract`'s `canBeginExtract` decides what
+ * may happen.
  */
 function extractBlock(
   map: MapFile,
@@ -864,13 +884,15 @@ function extractBlock(
   self: ActorSnapshot,
   equipment: Equipment,
   ref: ObjectRef,
-  cooling: CoolingResources,
+  extracting: Extraction | null,
 ): OptionBlock | null {
   const extract = extractOfferedAt(map, tilesById, self, ref);
   if (!extract) return null;
+  const mine = extractionAt(map, extracting, ref);
+  if (mine) return { kind: "working", extraction: mine };
   if (!extractFits(extract, tilesById, equipment)) return { kind: "noRoom" };
-  const wait = extractCooldownAt(map, cooling, ref);
-  return wait ? { kind: "wait", cooling: wait } : null;
+  if (pullsFreeAt(map, tilesById, extract, ref) <= 0) return { kind: "taken" };
+  return null;
 }
 
 function objectAction(
@@ -892,9 +914,9 @@ function objectAction(
   }
   if (canSwitchFrom(map, tilesById, self, ref)) return "switch";
   if (canAddStatusFrom(map, tilesById, self, ref)) return "addStatus";
-  // Neither the wait nor the room is asked here. A resource somebody is
-  // counting down on — or has nowhere to put — is still the row a tap on it
-  // names; it simply cannot be pressed, which is
+  // Neither the pull in progress nor the room is asked here. A resource
+  // somebody is already working — or that this player has nowhere to put — is
+  // still the row a tap on it names; it simply cannot be pressed, which is
   // {@link InteractionOption.blocked}'s job to say.
   if (extractOfferedAt(map, tilesById, self, ref)) return "extract";
   if (equipSlot) return "equip";

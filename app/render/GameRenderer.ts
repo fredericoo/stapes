@@ -34,7 +34,7 @@ import {
   topInteractionAt,
   type InteractionOption,
 } from "../game/interactionOptions";
-import type { ExtractCooling } from "../game/extract";
+import type { Extraction } from "../game/extract";
 import { describedNearby } from "./nearbyDescriptions";
 import { WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
@@ -389,20 +389,20 @@ export class GameRenderer {
    */
   private interactionsTags: readonly string[] | null = null;
   /**
-   * Which resources the viewer was waiting on when the list was last built.
+   * The pull the viewer was part-way through when the list was last built.
    *
    * In the gate on exactly the tags' terms, and it is the one signal a resource
-   * row has in either direction: working a bush changes the board, but the
-   * *wait* coming to an end changes nothing anybody can see — the map keeps its
-   * identity, nobody has moved, and without this the row would stay hidden until
-   * something else happened.
+   * row has in either direction: a pull landing changes the board, but a pull
+   * *starting* changes nothing anybody can see — the map keeps its identity for
+   * the viewer's own reservation, nobody has moved, and without this the row
+   * would draw no bar until something else happened.
    *
-   * Identity rather than contents, because the session replaces the list only
-   * when the *set* changes and winds the entries in place in between — so this
-   * fires when a row starts or stops waiting and never on the ticks that merely
-   * advance one. See `GameSnapshot.extractCooling`.
+   * Identity rather than contents, because the session replaces the value only
+   * when a pull starts or ends and winds it in place in between — so this fires
+   * twice a pull and never on the ticks that merely advance one. See
+   * `GameSnapshot.extracting`.
    */
-  private interactionsCooling: readonly ExtractCooling[] | null = null;
+  private interactionsExtracting: Extraction | null = null;
   private onOpenedContainer:
     | ((container: OpenedContainer | null) => void)
     | null = null;
@@ -862,7 +862,7 @@ export class GameRenderer {
     this.interactionsKey = "";
     this.interactionsEquipment = null;
     this.interactionsTags = null;
-    this.interactionsCooling = null;
+    this.interactionsExtracting = null;
     this.interactionsSent = [];
   }
 
@@ -2178,13 +2178,13 @@ export class GameRenderer {
       health === this.interactionsHealth &&
       snap.equipment === this.interactionsEquipment &&
       snap.tags === this.interactionsTags &&
-      snap.extractCooling === this.interactionsCooling
+      snap.extracting === this.interactionsExtracting
     ) {
       return;
     }
     this.interactionsEquipment = snap.equipment;
     this.interactionsTags = snap.tags;
-    this.interactionsCooling = snap.extractCooling;
+    this.interactionsExtracting = snap.extracting;
     this.interactionsMap = snap.map;
     this.interactionsAt = at;
     this.interactionsHealth = health;
@@ -2199,14 +2199,9 @@ export class GameRenderer {
       this.openedRef,
       snap.tags,
       snap.attacking,
-      // Built here rather than carried on the snapshot, because a lookup is a
-      // shape only the rules want: the session replaces the *list* wholesale so
-      // that its identity can be the change signal, and this is the one place
-      // that turns one into the other — on the frames the gate above let
-      // through, which is twice a pull rather than sixty times a second. The
-      // entries are shared rather than copied, so a wait wound in place is
-      // wound here too.
-      new Map(snap.extractCooling.map((entry) => [entry.key, entry])),
+      // Handed on as it arrived rather than copied, so the value the row's bar
+      // is drawn from is the one the session winds in place.
+      snap.extracting,
       snap.conversation,
     );
     // Held whether or not it is handed on, because the *references* inside it go

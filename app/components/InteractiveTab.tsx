@@ -119,12 +119,12 @@ const MAX_DECAY_SECONDS = 3600;
 const MAX_DURABILITY = 99;
 
 /**
- * Longest a resource may make one player wait, in seconds.
+ * Longest one use of a resource may take, in seconds.
  *
  * The same number the decay field takes, because it is the same kind of
  * question and an author should not have to learn two ceilings.
  */
-const MAX_COOLDOWN_SECONDS = MAX_DECAY_SECONDS;
+const MAX_EXTRACT_SECONDS = MAX_DECAY_SECONDS;
 
 const KIND_OPTIONS: Array<{ value: TileKind; label: string }> = [
   { value: "prop", label: "Prop" },
@@ -696,7 +696,7 @@ export function InteractiveTab({
             )
           }
           label="Extract"
-          info="Each use rolls every yield slot and hands over what came up. Uses are shared — the placement is the same vein for everybody. The cooldown is per player, per placement."
+          info="A use takes time: the player stands there for the whole of it, and a step, a shove or a blow cancels it with nothing handed over. Only when it finishes does it roll every yield slot. Uses are shared — the placement is the same vein for everybody, and a use somebody is part-way through is held out of the count so nobody else can start on it."
         />
 
         {extract ? (
@@ -723,21 +723,21 @@ export function InteractiveTab({
               </label>
 
               <label className="flex flex-col gap-1 text-xs">
-                <FieldLabel info="Per player, per placement — nobody else sees it. 0 is no wait.">
-                  Cooldown (s)
+                <FieldLabel info="How long one use takes. The player must stand still and unharmed for all of it; anything that moves or hurts them cancels it. 0 hands it over on the tap.">
+                  Time (s)
                 </FieldLabel>
                 <NumberInput
                   min={0}
-                  max={MAX_COOLDOWN_SECONDS}
+                  max={MAX_EXTRACT_SECONDS}
                   step={1}
-                  value={extract.cooldownMs / MS_PER_SECOND}
+                  value={extract.durationMs / MS_PER_SECOND}
                   onChange={(seconds) =>
                     patchExtract({
-                      cooldownMs: Math.round(seconds * MS_PER_SECOND),
+                      durationMs: Math.round(seconds * MS_PER_SECOND),
                     })
                   }
                   className="w-20"
-                  aria-label="Cooldown in seconds"
+                  aria-label="Time to extract in seconds"
                 />
               </label>
             </div>

@@ -3087,40 +3087,74 @@ the draught was fine. A merchant who buys bottles is exactly somebody who does.
   would put the residue search on every frame that lists the options, for a
   refusal that is rare and already explained.
 
-## An extract spends the world, and the wait is yours alone
+## An extract is a pull you are part-way through, and it can be taken off you
 
 `interactions.extract` is the third arrangement of "this tile gives you
 something", and it is the one a *resource* wants: a crystal you mine, a bush you
 pick. Read it against the two beside it, because the whole design is the
 contrast.
 
-|            | who it is spent by      | what runs out              | what stops you |
-| ---------- | ----------------------- | -------------------------- | -------------- |
-| reward     | one player, once        | nothing on the board       | a tag on you   |
-| transmute  | anybody, repeatedly     | nothing on the board       | your bag       |
-| extract    | everybody, together     | the placement's durability | a wait of yours |
+|            | who it is spent by      | what runs out              | what stops you        |
+| ---------- | ----------------------- | -------------------------- | --------------------- |
+| reward     | one player, once        | nothing on the board       | a tag on you          |
+| transmute  | anybody, repeatedly     | nothing on the board       | your bag              |
+| extract    | everybody, together     | the placement's durability | anything that moves or hurts you |
 
-- **Two clocks, pointing opposite ways.** Durability is the world's: it lives on
-  the placement (`PlacedTile.extractsLeft`), anybody's pull spends it, and two
-  people working one vein race each other. The cooldown is one player's *and*
-  per placement: it lives on their `ActorRuntime` and nothing on the board
-  carries it, so a bush somebody has just stripped is still full for the person
-  walking up behind them. Getting either half wrong collapses it into a reward
-  (all per player) or into a switch (all shared).
-- **Durability is on the placement, and a decay deadline deliberately is not.**
+- **The cost is paid in front, not after.** A tap buys a place at the vein and
+  nothing else: `durationMs` runs while the player stands there, and only when
+  it finishes are the dice thrown and anything handed over. This replaced a
+  cooldown charged *after* a pull that landed instantly, which made a rich vein
+  a thing to tap and walk away from. Paying in front makes it a thing to hold a
+  room for — you clear the cave and then mine it, or you bring a friend.
+- **A pull ends the moment its owner does anything else.** Standing still is the
+  whole rule and it is checked as one thing rather than as a list of the ways a
+  body can move: `holdsExtraction` compares the actor's cell against the one
+  they started in, so a step of their own, a shove and a fall are all covered by
+  one comparison and nothing new can slip past it. Beside that: `!idle`, so a
+  motion that has been asked for but not committed already counts; the resource
+  itself, re-asked every tick, so a bush that turned into a picked bush or
+  disappeared under a crate takes its own pull away; and a blow, which cancels
+  from inside `applyDamage` rather than on the next tick. Nothing is handed over
+  and the reservation goes back in the vein.
+- **`advanceExtractions` runs late in the tick**, after the bodies have moved
+  and after `applyDueDecay`. It is the one clock whose right to continue depends
+  on what the rest of the tick did, so winding it beside the swing cooldowns —
+  where it started — gave a player who stepped away one more tick of progress
+  and noticed a rotting bush a tick late.
+- **Two people may work one vein; three may not take four pulls out of three.**
+  A pull being made is held out of the shared count as
+  `PlacedTile.extractsReserved`, and what somebody walking up may still start is
+  `extractsLeft − extractsReserved` (`pullsFreeAt`). Anything less would let
+  four people each start the last pull of a one-pull crystal and leave three of
+  them fourteen seconds poorer for nothing.
+- **The reservation is on the placement for exactly the reason durability is.**
   The rule is not "runtime state stays off the map" — it is *who has to agree
-  about it*. Everybody has to see the same vein, so it rides the cell patch and
-  the checkpoint for free, exactly as a chest's `contents` do. A decay deadline
-  is nobody's business but the session's, which is why that one is held beside
-  the map. `authoredPlacement` strips `extractsLeft` on the way to
-  `data/map.json` on `itemId`'s terms: a half-mined vein is a state of play, not
-  something anybody typed.
+  about it*, and everybody standing at the vein has to see the same number, so
+  it rides the cell patch for free. It differs from durability in one way and
+  it is the important one: it is **not durable**. A reservation says somebody is
+  standing there *this second*, and nobody is standing anywhere in a checkpoint,
+  so `clearExtractReservations` wipes the field as the world loads. Left in, a
+  world that went down while three people were mining would come back with three
+  pulls held for ever by nobody. `authoredPlacement` strips it on the way to
+  `data/map.json` alongside `extractsLeft`, one step further along the same
+  argument.
+- **Durability is on the placement, and a decay deadline deliberately is not.**
+  Everybody has to see the same vein, so it rides the cell patch and the
+  checkpoint, exactly as a chest's `contents` do. A decay deadline is nobody's
+  business but the session's, which is why that one is held beside the map.
 - **A fresh placement carries no number at all.** `extractsLeft(placed, extract)`
   falls back to the def's `durability`, so a map full of untouched bushes costs
   the file and the wire nothing, and the field only appears once somebody has
   taken from one. It is clamped to the def as well, so lowering `durability` in
   `tiles.json` shortens every vein in the world including the ones already
   started — the def is the authority on what a thing is worth.
+- **One pull per person.** `ActorRuntime.extraction` is a single value, not a
+  map: a person mines one thing at a time. Tapping a *different* vein abandons
+  whatever was running rather than being refused, because a player who taps a
+  second crystal has said which one they want and a refusal there would have
+  nothing on screen explaining it. Tapping the one already running is refused —
+  that row is drawing their bar, and restarting it would be a way to never
+  finish.
 - **The yield is a drop table, on a kit's terms.** Up to `MAX_EXTRACT_SLOTS`
   slots of `{tileId, chance}`, each drawn for independently, on the same percent
   scale and with the same fixed-draw-count discipline `KitEntry` argues for.
@@ -3129,31 +3163,29 @@ contrast.
   come up, because a skipped draw would make one player's luck change what the
   next creature in the world rolled.
 - **Room is checked against the best possible roll, never the actual one.** The
-  roll has not happened when room is asked about and must not — drawing to decide
-  whether to draw would make the answer flicker while nothing moved, and would
-  spend the world's dice on a question. So room is found for every authored slot.
-  All-or-nothing on `rewardFits`' terms and for a sharper reason: a pull spends
-  shared durability, so anything that would not fit would have been destroyed on
-  everybody's behalf. Nothing an extract yields is ever dropped on the floor.
+  roll happens at the *end* of the pull and room is asked about at the start, so
+  room is found for every authored slot. All-or-nothing on `rewardFits`' terms
+  and for a sharper reason: a pull spends shared durability, so anything that
+  would not fit would have been destroyed on everybody's behalf. Nothing an
+  extract yields is ever dropped on the floor. The bag can move during the
+  fourteen seconds; `giveExtracted` finding no room then is a race, and it
+  refuses rather than inventing somewhere to put things.
 - **What comes out pours.** The bush yields berries and berries are what pile, so
   a check that counted empty squares would refuse to pick one because you were
   already carrying some. `stowExtracted` is *both* the check and the run — see
   the counter-example under "Food piles" above — so the arrangement that allowed
   the row is the arrangement the pull produces, and there is no second one to
   disagree with it. `MAX_EXTRACT_SLOTS` is four because that is what the largest
-  bag holds with nothing to pour into; a wider table would be a resource only
-  somebody with an empty pack could work.
-- **The wait is charged whatever came up.** A crystal that yields nothing on a
-  bad roll has still been chipped at — the durability went into the swing, not
-  into what came out of it — and a pull that cost nothing when it gave nothing
-  would be a free re-roll. It does not hide the row while it runs; see below.
+  bag holds with nothing to pour into.
+- **A finished pull is spent whatever came up.** A crystal that yields nothing on
+  a bad roll has still been chipped at — the seconds went into the swing, not
+  into what came out of it.
 - **Regrowth is deliberately not authored here.** `tileId` hands the spent
   placement to machinery that already exists, and there are two answers because
   there are two shapes: a bush becomes `picked-bush`, and the *picked bush*
   decays back into a bush; a crystal names nothing, so the placement is removed
   and its own `respawn` spawn point notices the empty cell. A third countdown in
-  this block would be competing with two that work. It also means a resource that
-  names neither is a one-shot, which is a perfectly good thing to author.
+  this block would be competing with two that work.
 - **No new inbound message.** A resource is reached by a plain tap, so
   `GameSession.interact` routes it — below every authored swap, above everything
   to do with carrying — and there is no `PlaySession.extract` that could disagree
@@ -3161,108 +3193,120 @@ contrast.
   because one placement offers several recipes; a bush offers one thing, which is
   the bush.
 
-### The row greys rather than vanishing whenever the refusal is about the player
+### What the arcane caves are tuned to
+
+The three crystals are the whole of what this exists for, and the levels are
+what tell them apart: **every crystal on -1 is small, every one on -2 medium,
+every one on -3 large.** Deeper is richer and slower, and a player can tell
+which is which by which floor they are standing on rather than by looking.
+
+| tile               | uses | one pull | yield slots           | shards per pull |
+| ------------------ | ---- | -------- | --------------------- | --------------- |
+| `arcane-crystal-1` | 2    | 2.5s     | 40%                   | 0–1             |
+| `arcane-crystal-2` | 3    | 6s       | 70, 50                | 0–2             |
+| `arcane-crystal-3` | 4    | 14s      | 100, 100, 60, 40      | 2–4             |
+
+The small one is quick and swingy — something to chip at while you are passing.
+The large one is the point of the mechanic: fourteen seconds of standing still
+is long enough that anything alive in the room will reach you, and it never pays
+nothing, so it is worth clearing the room or bringing somebody to watch the
+door. This is only how *these* caves work; another dungeon is free to want
+something else.
+
+### The row greys rather than vanishing whenever the refusal is not about the world
 
 **A missing row and a greyed row are different facts, and the list has to say
 which.** A refusal in `listInteractionOptions` that is about the *world* removes
 the row — an emptied chest, a recipe you cannot pay for, a crate out of reach —
 and that is right, because all of those say the same thing: there is nothing here
-worth walking up to. A refusal about the *player* is not that. The bush is still
-full and still worth crossing the field for; it is the player who is not in a
-state to work it, and a row that vanished under them would read as a broken bush
-rather than as something they can go and fix. So the row stays, goes grey, and
-says what is in the way.
+worth walking up to. Anything else is not that. The bush is still full and still
+worth crossing the field for; it is the player, or the room, that is not in a
+state for it, and a row that vanished under them would read as a broken bush
+rather than as something they can go and fix or wait out. So the row stays, goes
+grey, and says what is in the way.
 
-Two of those exist, and `InteractionOption.blocked` carries either:
+Three of those exist, and `InteractionOption.blocked` carries any of them:
 
 | `OptionBlock` | what is in the way | how the row says it |
 | ------------- | ------------------ | ------------------- |
-| `wait`        | this player's cooldown on this placement | a bar running out under the verb |
-| `noRoom`      | nothing they carry could hold the yield  | "no room" beside the verb |
+| `working`     | this player's own pull, running | a bar filling across the verb |
+| `noRoom`      | nothing they carry could hold the yield | "no room" beside the verb |
+| `taken`       | every pull left is somebody else's | "in use" beside the verb |
 
-That split is what `extractOfferedAt`, `canExtractFrom` and `canWorkNow` being
-three functions is for. The first is the board's answer alone — reach and pulls
-left — and is what puts the row there. The second adds room and is *permission*:
-what the session spends a pull on and what the server believes. The third adds
-the wait, and is what the client's own tap asks before anything happens.
+That split is what `extractOfferedAt`, `canExtractFrom` and `canBeginExtract`
+being three functions is for. The first is the board's answer alone — reach and
+pulls left, ignoring reservations, so a vein everybody is working still draws a
+row. The second adds room and a free pull, and is *permission*: what the session
+reserves against and what the server believes. The third adds "not the one you
+are already on", and is what the client's own tap asks.
 
-- **The refusal is ranked above the wait**, because a wait runs out on its own: a
-  row that drew the bar while the bag was full would be counting down to a verb
-  that still does not work.
-- **A row carrying either is not actionable**: `topInteractionAt` passes over it,
-  so the pointer outlines nothing and a click on the world does nothing;
+- **They are ranked, and the order is what makes each answer worth reading.**
+  The pull in progress first, because that is what the row is drawing and
+  everything else is beside the point while it runs. Then the bag, because that
+  refusal stands until the player goes and fixes it. Then the reservation, last,
+  because it is the only one that resolves itself — "in use" while the bag is
+  full would be pointing at somebody else's problem instead of theirs.
+- **A row carrying any of them is not actionable**: `topInteractionAt` passes
+  over it, so the pointer outlines nothing and a click on the world does nothing;
   `applyInteraction` refuses it; and the button is `aria-disabled` with the
   reason read out after the verb. Four refusals for one press is the spell bar's
   discipline, and it is why the grey is not a lie.
 - **`noRoom` is one arm for two states** — a full bag and no bag at all — because
   they are one fact to the player, who can see which by looking at what they are
-  wearing. It was the last silent refusal in the list: a player carrying four
-  things found no row on any bush in the world and nothing saying why.
+  wearing.
 - **The field is not extract-shaped.** Nothing else uses it yet, but the next
   mechanism that tells a player "not you, not now" should add an arm here rather
   than inventing a second way to be grey.
-- **The bar is a CSS keyframe with a negative delay** (`fill-wait` in `app.css`),
+- **The bar is a CSS keyframe with a negative delay** (`fill-progress` in `app.css`),
   given the whole `durationMs` and started `durationMs - remainingMs` in. That is
-  the whole reason a cooling row costs nothing: the browser runs it on the
-  compositor, React is not re-rendered between the wait starting and ending, and
-  a row rebuilt mid-wait picks the fill up where it already was rather than
-  restarting it. `waitElapsedMs` clamps both ends, because the two numbers arrive
-  separately and nothing forces them into a ratio.
+  the whole reason a row with a pull on it costs nothing: the browser runs it on
+  the compositor, React is not re-rendered between the pull starting and ending,
+  and a row rebuilt mid-pull picks the fill up where it already was rather than
+  restarting it. `extractionElapsedMs` clamps both ends, because the two numbers
+  arrive separately and nothing forces them into a ratio.
 - **The renderer's option key carries the *kind* of block and never the
   remainder.** A key with the number in it would hand React a new list thirty
   times a second to redraw a bar CSS is already animating; a key without the kind
   would never tell it the row had gone grey at all.
 
-### The cooling list is a per-player channel, sent twice a pull
+### The pull in progress is a per-player channel, sent twice a pull
 
 The client is told on exactly the terms it is told its tags: a `Set` of changed
 actor ids drained out of the session, a whole-state message to the one socket it
-is about (`extractCooling`), and the same list on `hello`, because a reconnecting
-player's waits are still running on the body they left.
+is about (`extracting`), and the same value on `hello`, because a reconnecting
+player's pull is still running on the body they left.
 
 - **Two messages a pull and none in between.** Both halves of the fraction
   travel — `remainingMs` and `durationMs`, the pairing `StatusPatch` makes — so
   the client has everything it needs to draw the bar filling without being told
-  where it is. `advanceExtractCooldowns` announces only a start and an expiry.
-- **The entries are wound in place, and the list holds the map's own objects.**
-  `setExtractCooldowns` rebuilds the array only when the *set* changes, so the
-  array's identity is the change signal the renderer gates its whole interaction
-  list on, and a tick advancing a wait costs no allocation and no rebuild. The
-  same hand-over-by-reference a `walk` or a `strike` already travels on.
-  `RemoteSession.windExtractCooling` does the same against the render clock —
-  which is not a prediction of anything, since only the server's message ever
-  clears an entry; it keeps the *number* true between the two messages.
-- **A lookup, not a `Set`,** is what the rules take (`CoolingResources`), which
-  lets each end hold it in the shape it already has: a `Map<key, ExtractCooling>`
-  on the server's actor, one built from the list on the client.
+  where it is. `advanceExtraction` announces only a start and an end.
+- **The value is wound in place, and the snapshot holds the runtime's own
+  object.** `setExtraction` replaces it only when a pull starts or ends, so its
+  identity is the change signal the renderer gates its whole interaction list on,
+  and a tick advancing a pull costs no allocation and no rebuild. The same
+  hand-over-by-reference a `walk` or a `strike` already travels on.
+  `RemoteSession.windExtraction` does the same against the render clock — which
+  is not a prediction of anything, since only the server's message ever clears
+  it; it keeps the *number* true between the two messages.
+- **What everybody else is working travels on the board instead**, as the
+  reservation on the placement. That is the whole reason there is no second
+  per-player channel carrying other people's pulls: a cell patch already goes to
+  everybody, and a client that knows the vein has nothing free knows enough to
+  grey the row.
 - **Not durable.** `hp`'s bargain rather than a tag's: a tag records that
-  something *happened* and can never be rebuilt, where a wait records that
-  something happened *recently*, and a world unloaded long enough to lose it has
-  been unloaded for longer than any wait worth authoring.
-- **It holds the world awake.** The wait is wound by the tick loop and by nothing
-  else, so `isAtRest` returns false while any actor owes one — exactly the clause
-  a cooling stone has, and for its reason: falling asleep on one would leave the
-  row grey and the bar frozen until somebody happened to move.
+  something *happened* and can never be rebuilt, where this records something
+  that is happening, and a world that has gone quiet is a world where nobody is
+  standing at the vein any more.
+- **It holds the world awake.** The pull is wound by the tick loop and by nothing
+  else, so `isAtRest` returns false while any actor is making one — exactly the
+  clause a cooling stone has and sharper, because somebody is standing there
+  waiting to be paid.
 - **The key is cell-plus-tile**, `decay`'s `entryKey` and not the stack index,
   for its reason: an index shifts the moment anything is placed under or over it.
-  Including the tile id means the wait a player owes a bush does not follow it
-  into the picked bush it becomes — which is right, since there is nothing left
-  to pull until it has grown back anyway.
-
-### Adding a respawn to a tile does not reach a world already running
-
-Worth knowing before authoring a resource that regrows by removal. The spawn
-registry is derived from the map **once**, at first load, and thereafter read
-back from storage; `reloadContent` — the path a tile or status save takes —
-explicitly does not re-derive it, because a content save changes what the tiles
-mean and not where anything is. Only `replaceWorld` (a map save, `POST /api/map`)
-and `resetWorld` rebuild it.
-
-So seeding a tile that has newly gained a `respawn` leaves every placement of it
-already on the board with no spawn point: mine it and it is gone for good. The
-fix is a map save or a reset, and it is the same "the world prefers its own
-checkpoint" caveat `CLAUDE.md` states, one step sharper.
-
+  Including the tile id is also what makes "the thing you were working stopped
+  being that thing" a check rather than a special case, and it is what stops a
+  reservation being handed back to whatever tile replaced the one it was taken
+  from.
 ## Decay is a switch whose input is time
 
 `DecayInteraction` turns a placement into another tile, or into nothing, once it
