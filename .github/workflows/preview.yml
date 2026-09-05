@@ -51,7 +51,25 @@ jobs:
       # needs the hostname before the deploy has finished.
       PREVIEW_ORIGIN: https://pr-${{ github.event.number }}.${{ vars.PREVIEW_DOMAIN }}
     steps:
+      # **The head commit, because that is what Coolify deploys.** Left to
+      # itself, `checkout` takes `refs/pull/N/merge` on a pull-request event —
+      # the branch already merged into main — so the client built below carried
+      # main's code while the server beside it carried the branch's. The two
+      # only ever disagree about something that matters when main has moved,
+      # and `PROTOCOL_VERSION` is the case that bites: #150 bumped it 4 → 5,
+      # and every preview on a branch cut before that served a v5 client to a
+      # v4 server, which closed the socket with 4001 and never let anybody in.
+      #
+      # Nothing else in this job reads the tree — the deploy is Coolify's, the
+      # seed is the container's own `data/`, and every remaining step talks to
+      # the origin over HTTP — so nothing here wanted the merge result. The
+      # thing being given up is real but belongs elsewhere: a preview no longer
+      # says anything about how the branch behaves once merged. `deploy.yml` is
+      # where that is found out, and required checks on the merge ref are where
+      # it should be found out sooner.
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       # Production and every preview share one machine, so the count is worth
       # saying out loud. This is a **warning and not a gate**: the container is
