@@ -64,6 +64,22 @@ Every PR here is squash-merged, so the PR title *is* the commit message on
 `git log`, or writing release notes will ever read. Branch commits are for the
 reviewer; the PR title is for everybody who comes after.
 
+### A task is finished when there is a draft PR
+
+Green tests on a local branch are not a delivered change. **Every task ends in
+a pull request, and every pull request opens as a draft** — `gh pr create
+--draft`, no exceptions, however small or however certain the change. Then hand
+back the URL and stop. Marking a PR ready asks a reviewer to spend time on it,
+and only the author should decide when to ask.
+
+Pushing agent work to a branch whose PR is already marked ready leaves
+unreviewed changes under that label, so convert it back: `gh pr ready --undo`.
+There is no `--draft` flag on `gh pr edit`; it fails after the push has landed,
+and the PR stays marked ready.
+
+The description is a different document with its own rules — see the
+`pull-request-standards` skill in `.claude/skills/`.
+
 ### Commit messages
 
 Conventional commits, `type(scope): summary`:
