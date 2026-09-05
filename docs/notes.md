@@ -173,6 +173,24 @@ Accepted-then-closed rather than refused at the upgrade, because a browser hands
 a rejected upgrade to the page as an indistinguishable failure — a client refused
 that way cannot tell "reload me" from "the server is down".
 
+**A preview builds both halves from the head commit, and is checked for it.**
+`preview.yml` used to build its client from `refs/pull/N/merge`, which is what
+`actions/checkout` takes on a pull-request event, while Coolify built the server
+from the branch head. That only matters when main has moved, and the version is
+the thing that notices: a branch cut before a `PROTOCOL_VERSION` bump got a
+merge-ref client speaking the new version and a head server speaking the old
+one, so the preview served its page and then closed every socket with 4001. It
+happened on #119 after #118, and again on #152 after #150. Both halves now come
+from the head sha.
+
+**And the workflow asks them afterwards whether they agree.** Health alone could
+never catch this — which is why both those previews went green: a world nobody
+can enter answers `/api/health` with `ok` like any other. The server is asked
+from `/api/session`. The client is asked by following the served page to its
+route manifest to the `online-main` chunk and reading the `?v=` it sets, which
+is the chain a browser follows, so a client that failed to activate is caught by
+the same step.
+
 ## The simulation holds N actors
 
 `GameSession` runs any number of actors. `/play` runs exactly one and never
