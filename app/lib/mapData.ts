@@ -715,6 +715,28 @@ export function updatePlacedDirection(
 }
 
 /**
+ * Set (or clear, with an empty string) which face a placement wears.
+ * See {@link PlacedTile.variant}.
+ *
+ * A free-text field rather than one validated against the tile, because the
+ * catalogue and the map are saved separately: a face renamed in the tile editor
+ * would make every placement naming the old one invalid at the moment of the
+ * rename, and there is nothing useful to do about that from here. The resolver
+ * falls back to the first authored face instead, so a stale name is wrong art
+ * rather than a missing tile.
+ */
+export function updatePlacedVariant(
+  map: MapFile,
+  x: number,
+  y: number,
+  z: number,
+  stackIndex: number,
+  variant: string,
+): MapFile {
+  return updatePlacedText(map, x, y, z, stackIndex, "variant", variant);
+}
+
+/**
  * Every signal channel named anywhere in the map, sorted.
  *
  * There is no channel registry — a channel exists because some placement says
@@ -740,11 +762,11 @@ export function listChannels(map: MapFile): string[] {
  * Cleared means *absent*, not empty: the map is hand-editable and lives in
  * version control, so an abandoned field should leave no line behind.
  *
- * **Returns the same map when nothing changes.** Both fields here are committed
- * on blur, which fires on every focus-out whether or not a character was typed
- * — so without this, tabbing through the panel minted a map identity, an undo
- * entry and a geometry diff per field touched. A mutation that changes nothing
- * must return the same object; see docs/notes.md.
+ * **Returns the same map when nothing changes.** The text fields here are
+ * committed on blur, which fires on every focus-out whether or not a character
+ * was typed — so without this, tabbing through the panel minted a map identity,
+ * an undo entry and a geometry diff per field touched. A mutation that changes
+ * nothing must return the same object; see docs/notes.md.
  */
 function updatePlacedText(
   map: MapFile,
@@ -752,7 +774,7 @@ function updatePlacedText(
   y: number,
   z: number,
   stackIndex: number,
-  key: "channel" | "description",
+  key: "channel" | "description" | "variant",
   value: string,
 ): MapFile {
   const current = getStack(map, x, y, z);

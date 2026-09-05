@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { replaceStack } from "../lib/mapData";
 import type { MapFile } from "../lib/types";
-import { floodCoords } from "./tools";
+import { floodCoords, stacksEqual } from "./tools";
 
 function mapWith(
   cells: Array<{ x: number; y: number; tiles: Array<{ tileId: string; direction?: "n" | "e" | "s" | "w" }> }>,
@@ -66,5 +66,22 @@ describe("floodCoords", () => {
   it("refuses to fill empty space", () => {
     const map = mapWith([{ x: 1, y: 1, tiles: [{ tileId: "grass" }] }]);
     expect(floodCoords(map, 0, 0, 0)).toEqual([]);
+  });
+});
+
+describe("a variant tile's face is part of what makes two stacks equal", () => {
+  it("stops a fill at the seam between two faces of one tile", () => {
+    expect(
+      stacksEqual(
+        [{ tileId: "hole", variant: "planks" }],
+        [{ tileId: "hole", variant: "sand" }],
+      ),
+    ).toBe(false);
+  });
+
+  it("treats an unnamed face as its own thing, not as any named one", () => {
+    expect(
+      stacksEqual([{ tileId: "hole" }], [{ tileId: "hole", variant: "grass" }]),
+    ).toBe(false);
   });
 });

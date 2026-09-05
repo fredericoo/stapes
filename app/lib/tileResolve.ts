@@ -3,6 +3,7 @@ import {
   resolveAutotileSlice,
 } from "./autotile";
 import { pickScatterSprite, resolveScatterIndex } from "./scatter";
+import { pickVariantSprite, variantKeys } from "./variant";
 import {
   facingKeysFor,
   frameAtTime,
@@ -73,6 +74,19 @@ export function resolveTileSprite(
       tile.sprites?.[cardinal] ??
       tile.sprites?.s
     );
+  }
+  if (tile.type === "variant") {
+    // The placement's own answer and nothing else — no coordinates to hash and
+    // no neighbours to read, which is the whole of what this type is.
+    //
+    // The key is settled against *idle* before either holder is asked, so a
+    // placement that names no face draws the same one in every state. Letting
+    // each holder answer "first authored" for itself would make a tile whose
+    // `moving` state lists its faces in another order change face the moment it
+    // moved, and change back on the way down — the same mistake as letting a
+    // state outrank facing, in variant clothing.
+    const key = ctx.variant ?? variantKeys(tile)[0];
+    return override?.variants?.[key ?? ""] ?? pickVariantSprite(tile, key);
   }
   if (tile.type === "scatter") {
     // Counted off idle even when a state is drawing, so a bush keeps its
@@ -150,6 +164,10 @@ export function tileLightSignature(tile: TileDef): string {
       for (const d of facingKeysFor(tile)) {
         pushSprite(`${prefix}${d}`, from.sprites?.[d]);
       }
+    } else if (tile.type === "variant") {
+      for (const [k, s] of Object.entries(from.variants ?? {})) {
+        pushSprite(`${prefix}${k}`, s);
+      }
     } else if (tile.type === "scatter") {
       from.scatter?.forEach((s, i) => pushSprite(`${prefix}${i}`, s));
     } else if (from.slices) {
@@ -172,6 +190,7 @@ export type PlacementLightCtx = {
   y: number;
   z: number;
   direction?: Direction;
+  variant?: string;
   timeMs?: number;
 };
 
@@ -187,6 +206,7 @@ export function resolvePlacementLight(
       y: ctx.y,
       z: ctx.z,
       direction: ctx.direction,
+      variant: ctx.variant,
     },
     ctx.timeMs ?? 0,
   );

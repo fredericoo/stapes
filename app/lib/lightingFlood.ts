@@ -471,7 +471,7 @@ export function computeLightingFlood(
       const def = tilesById[placed.tileId];
       if (!def) continue;
       // Asked of the tile before the placement, because almost nothing emits:
-      // `resolveLight` has to pick the variant and the frame before it can say
+      // `resolveLight` has to pick the face and the frame before it can say
       // no, and it was being made to say no for every wall and floor tile in
       // the domain. Whether a tile *can* emit is a property of the def alone,
       // so it is answered once per catalogue rather than once per placement.
@@ -484,6 +484,7 @@ export function computeLightingFlood(
           y: c.y,
           z: c.z,
           direction: placed.direction,
+          variant: placed.variant,
         },
         timeMs,
       );

@@ -16,7 +16,7 @@ import type {
   TileSprite,
   TileType,
   TilesetDef,
-  VariantKey,
+  FacingKey,
 } from "../lib/types";
 import {
   DEFAULT_PARTICLES,
@@ -44,6 +44,7 @@ import {
   withSpritePhase,
 } from "../lib/types";
 import { resolveScatterIndex } from "../lib/scatter";
+import { variantKeys } from "../lib/variant";
 import { SpriteSelector } from "./SpriteSelector";
 import { TilePreview } from "./TilePreview";
 import {
@@ -116,7 +117,7 @@ function blankTile(tilesets: TilesetDef[]): TileDef {
 
 function expandClimbFrom(tile: TileDef): NonNullable<TileDef["climbFrom"]> {
   // Four cardinals however wide the art is. @see Octant
-  const keys: VariantKey[] = isDirectional(tile) ? [...DIRECTIONS] : ["default"];
+  const keys: FacingKey[] = isDirectional(tile) ? [...DIRECTIONS] : ["default"];
   const out: NonNullable<TileDef["climbFrom"]> = {};
   for (const key of keys) {
     out[key] = resolveClimbFrom(tile, key);
@@ -159,7 +160,8 @@ function spriteHolder(draft: TileDef, state: SpriteState): StateSprites {
 type SpriteCursor = {
   dir: Octant;
   slice: AutotileSlice;
-  variant: number;
+  face: number;
+  variant: string;
 };
 
 function currentSprite(
@@ -170,7 +172,8 @@ function currentSprite(
   const from = spriteHolder(draft, state);
   if (draft.type === "simple") return from.sprite;
   if (isDirectional(draft)) return from.sprites?.[at.dir];
-  if (draft.type === "scatter") return from.scatter?.[at.variant];
+  if (draft.type === "scatter") return from.scatter?.[at.face];
+  if (draft.type === "variant") return from.variants?.[at.variant];
   return from.slices?.[at.slice];
 }
 
@@ -188,8 +191,11 @@ function patchHolder(
   }
   if (draft.type === "scatter") {
     const scatter = [...(from.scatter ?? [])];
-    scatter[at.variant] = sprite;
+    scatter[at.face] = sprite;
     return { scatter };
+  }
+  if (draft.type === "variant") {
+    return { variants: { ...from.variants, [at.variant]: sprite } };
   }
   return { slices: { ...from.slices, [at.slice]: sprite } };
 }
@@ -217,6 +223,7 @@ function idleSprites(draft: TileDef): StateSprites {
   if (draft.type === "simple") return { sprite: draft.sprite };
   if (isDirectional(draft)) return { sprites: draft.sprites };
   if (draft.type === "scatter") return { scatter: draft.scatter };
+  if (draft.type === "variant") return { variants: draft.variants };
   return { slices: draft.slices };
 }
 
@@ -233,6 +240,11 @@ function stateSpriteList(
   }
   if (draft.type === "scatter") {
     return (from.scatter ?? []).filter((s): s is TileSprite => s != null);
+  }
+  if (draft.type === "variant") {
+    return Object.values(from.variants ?? {}).filter(
+      (s): s is TileSprite => s != null,
+    );
   }
   return Object.values(from.slices ?? {}).filter(
     (s): s is TileSprite => s != null,
@@ -285,7 +297,14 @@ function footprintMismatch(
   }
   if (draft.type === "scatter") {
     for (let i = 0; i < (override.scatter?.length ?? 0); i++) {
-      const err = check(`variant ${i + 1}`, idle.scatter?.[i], override.scatter?.[i]);
+      const err = check(`face ${i + 1}`, idle.scatter?.[i], override.scatter?.[i]);
+      if (err) return err;
+    }
+    return null;
+  }
+  if (draft.type === "variant") {
+    for (const key of Object.keys(override.variants ?? {})) {
+      const err = check(key, idle.variants?.[key], override.variants?.[key]);
       if (err) return err;
     }
     return null;
@@ -368,6 +387,31 @@ function sanitizeSprite(sprite: TileSprite): TileSprite {
  */
 const MAX_SCATTER_SEED = 0x7fffffff;
 
+/** What the first face of a freshly converted variant tile is called. */
+const FIRST_VARIANT_NAME = "default";
+
+/**
+ * A face name a placement can carry and a person can read.
+ *
+ * Letters, digits, `-` and `_`, because the name is written into every
+ * placement wearing it in `data/map.json` and the file is hand-edited. A purely
+ * numeric name is refused separately: object keys that parse as array indices
+ * sort ahead of everything else whatever order they were written in, which
+ * would silently move which face "first authored" means.
+ */
+const VARIANT_NAME_PATTERN = /^[A-Za-z0-9_-]+$/;
+
+function variantNameError(name: string, taken: readonly string[]): string | null {
+  const trimmed = name.trim();
+  if (!trimmed) return "A face needs a name";
+  if (!VARIANT_NAME_PATTERN.test(trimmed)) {
+    return "Letters, digits, - and _ only";
+  }
+  if (/^\d+$/.test(trimmed)) return "A name cannot be only digits";
+  if (taken.includes(trimmed)) return `There is already a face called ${trimmed}`;
+  return null;
+}
+
 /** The type dropdown's list, in the order a tile's art gets more elaborate. */
 const TILE_TYPE_OPTIONS: Array<{ value: TileType; label: string }> = [
   { value: "simple", label: "Simple" },
@@ -375,6 +419,7 @@ const TILE_TYPE_OPTIONS: Array<{ value: TileType; label: string }> = [
   { value: "directional8", label: "8-way" },
   { value: "autotile", label: "Autotile" },
   { value: "scatter", label: "Scatter" },
+  { value: "variant", label: "Variant" },
 ];
 
 /**
@@ -440,7 +485,8 @@ export function TileEditorDialog({
   const [tab, setTab] = useState(TAB_TILE);
   const [dir, setDir] = useState<Octant>("n");
   const [slice, setSlice] = useState<AutotileSlice>(0);
-  const [variant, setVariant] = useState(0);
+  const [face, setFace] = useState(0);
+  const [variantKey, setVariantKey] = useState("");
   const [state, setState] = useState<SpriteState>("idle");
   const [frameIndex, setFrameIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -452,13 +498,14 @@ export function TileEditorDialog({
     setTab(TAB_TILE);
     setDir("n");
     setSlice(0);
-    setVariant(0);
+    setFace(0);
+    setVariantKey(variantKeys(next)[0] ?? "");
     setState("idle");
     setFrameIndex(0);
     setError(null);
   }, [open, tile, tilesets]);
 
-  const at: SpriteCursor = { dir, slice, variant };
+  const at: SpriteCursor = { dir, slice, face, variant: variantKey };
   const sprite = currentSprite(draft, state, at);
   const frames = sprite?.frames ?? [];
   const frame = frames[frameIndex] ?? frames[0];
@@ -562,6 +609,7 @@ export function TileEditorDialog({
       draft.sprites?.s ??
       draft.slices?.[0] ??
       draft.scatter?.[0] ??
+      Object.values(draft.variants ?? {})[0] ??
       emptySprite(ts);
 
     if (type === "simple") {
@@ -578,6 +626,7 @@ export function TileEditorDialog({
         sprites: undefined,
         slices: undefined,
         scatter: undefined,
+        variants: undefined,
         states: undefined,
         climbFrom: {
           default: resolveClimbFrom(
@@ -600,7 +649,7 @@ export function TileEditorDialog({
           draft.sprites?.[d] ?? draft.sprite ?? from,
         );
       }
-      // Four, always: see the note on {@link climbVariant}.
+      // Four, always: see the note on {@link climbFacing}.
       for (const d of DIRECTIONS) climbFrom[d] = { ...climbBase };
       setDraft({
         ...draft,
@@ -609,6 +658,7 @@ export function TileEditorDialog({
         sprites,
         slices: undefined,
         scatter: undefined,
+        variants: undefined,
         states: undefined,
         climbFrom,
       });
@@ -621,13 +671,31 @@ export function TileEditorDialog({
         sprites: undefined,
         slices: undefined,
         // Whatever was already drawn becomes the first face rather than the
-        // only one: a scatter tile with one variant is a simple tile that has
+        // only one: a scatter tile with one face is a simple tile that has
         // paid for a hash, so the panel opens on something to add to.
         scatter: [structuredClone(from)],
+        variants: undefined,
         states: undefined,
         climbFrom: { default: resolveClimbFrom(draft, "default") },
       });
-      setVariant(0);
+      setFace(0);
+    } else if (type === "variant") {
+      setDraft({
+        ...draft,
+        type: "variant",
+        sprite: undefined,
+        sprites: undefined,
+        slices: undefined,
+        scatter: undefined,
+        // Whatever was already drawn becomes the first face, under a name that
+        // says nothing: the author is about to rename it to the material it is
+        // a hole in, and a placeholder they have to clear reads as a decision
+        // somebody made.
+        variants: { [FIRST_VARIANT_NAME]: structuredClone(from) },
+        states: undefined,
+        climbFrom: { default: resolveClimbFrom(draft, "default") },
+      });
+      setVariantKey(FIRST_VARIANT_NAME);
     } else {
       setDraft({
         ...draft,
@@ -636,6 +704,7 @@ export function TileEditorDialog({
         sprites: undefined,
         slices: { 0: structuredClone(from) },
         scatter: undefined,
+        variants: undefined,
         states: undefined,
         climbFrom: { default: resolveClimbFrom(draft, "default") },
       });
@@ -679,17 +748,17 @@ export function TileEditorDialog({
   // four, so an eight-way tile's corners share their neighbouring cardinal's
   // climb flags rather than getting variants of their own. Climbing is a
   // four-way question and stays one. @see Octant
-  const climbVariant: VariantKey = isDirectional(draft)
+  const climbFacing: FacingKey = isDirectional(draft)
     ? nearestCardinal(dir)
     : "default";
-  const climbFlags = resolveClimbFrom(draft, climbVariant);
+  const climbFlags = resolveClimbFrom(draft, climbFacing);
 
   const setClimbSide = (side: Direction, value: boolean) => {
     setDraft({
       ...draft,
       climbFrom: {
         ...draft.climbFrom,
-        [climbVariant]: { ...climbFlags, [side]: value },
+        [climbFacing]: { ...climbFlags, [side]: value },
       },
     });
   };
@@ -757,19 +826,36 @@ export function TileEditorDialog({
         }
       }
     } else if (draft.type === "scatter") {
-      const variants = draft.scatter ?? [];
-      if (!variants.length) {
-        setError("Add at least one scatter variant");
+      const faces = draft.scatter ?? [];
+      if (!faces.length) {
+        setError("Add at least one scatter face");
         return;
       }
-      for (let i = 0; i < variants.length; i++) {
-        if (!variants[i]?.frames.length) {
-          setError(`Variant ${i + 1}: at least one frame is required`);
+      for (let i = 0; i < faces.length; i++) {
+        if (!faces[i]?.frames.length) {
+          setError(`Face ${i + 1}: at least one frame is required`);
           return;
         }
-        const err = validateFrameLights(variants[i]!.frames);
+        const err = validateFrameLights(faces[i]!.frames);
         if (err) {
-          setError(`Variant ${i + 1}: ${err}`);
+          setError(`Face ${i + 1}: ${err}`);
+          return;
+        }
+      }
+    } else if (draft.type === "variant") {
+      const entries = Object.entries(draft.variants ?? {});
+      if (!entries.length) {
+        setError("Add at least one variant face");
+        return;
+      }
+      for (const [key, sprite] of entries) {
+        if (!sprite?.frames.length) {
+          setError(`${key}: at least one frame is required`);
+          return;
+        }
+        const err = validateFrameLights(sprite.frames);
+        if (err) {
+          setError(`${key}: ${err}`);
           return;
         }
       }
@@ -813,13 +899,13 @@ export function TileEditorDialog({
     }
 
     setError(null);
-    const climbByVariant: Partial<
-      Record<VariantKey, Record<Direction, boolean>>
+    const climbByFacing: Partial<
+      Record<FacingKey, Record<Direction, boolean>>
     > = {};
     // Four cardinals however wide the art is — climbing is a four-way question.
-    const keys: VariantKey[] = isDirectional(draft) ? [...DIRECTIONS] : ["default"];
+    const keys: FacingKey[] = isDirectional(draft) ? [...DIRECTIONS] : ["default"];
     for (const key of keys) {
-      climbByVariant[key] = resolveClimbFrom(draft, key);
+      climbByFacing[key] = resolveClimbFrom(draft, key);
     }
 
     const saved: TileDef = {
@@ -845,7 +931,7 @@ export function TileEditorDialog({
         draft.type === "scatter" && draft.scatterSeed
           ? draft.scatterSeed
           : undefined,
-      climbFrom: climbFromForSave(draft, climbByVariant),
+      climbFrom: climbFromForSave(draft, climbByFacing),
       particles: draft.particles,
       interactions: interactionsForSave(draft.interactions),
       states: savedStates,
@@ -865,6 +951,10 @@ export function TileEditorDialog({
       saved.sprites = sprites;
     } else if (draft.type === "scatter" && draft.scatter) {
       saved.scatter = draft.scatter.map(sanitizeSprite);
+    } else if (draft.type === "variant" && draft.variants) {
+      saved.variants = Object.fromEntries(
+        Object.entries(draft.variants).map(([k, v]) => [k, sanitizeSprite(v)]),
+      );
     } else if (draft.type === "autotile" && draft.slices) {
       const slices: Partial<Record<AutotileSlice, TileSprite>> = {};
       for (const [k, s] of Object.entries(draft.slices)) {
@@ -996,7 +1086,7 @@ export function TileEditorDialog({
       <p className="text-[11px] leading-snug text-muted">
         {phase.x === 0 && phase.y === 0
           ? "Every placement shows the same frame. Give this a value so neighbouring tiles fall out of step — water blinking as one reads as wallpaper."
-          : "Neighbouring placements start this many frames apart, so the animation travels across them. Applies to every variant of this tile."}
+          : "Neighbouring placements start this many frames apart, so the animation travels across them. Applies to every face of this tile."}
       </p>
     </div>
   ) : null;
@@ -1172,7 +1262,8 @@ export function TileEditorDialog({
             state={state}
             direction={isDirectional(draft) ? dir : undefined}
             autotileSlice={draft.type === "autotile" ? slice : undefined}
-            scatterIndex={draft.type === "scatter" ? variant : undefined}
+            scatterIndex={draft.type === "scatter" ? face : undefined}
+            variantKey={draft.type === "variant" ? variantKey : undefined}
           />
         </div>
       </div>
@@ -1294,7 +1385,7 @@ export function TileEditorDialog({
     </div>
   );
 
-  const variants = draft.scatter ?? [];
+  const faces = draft.scatter ?? [];
 
   /**
    * The scatter author's surface: the faces, the seed, and a patch of ground
@@ -1306,7 +1397,7 @@ export function TileEditorDialog({
       <div className="flex flex-col gap-2">
         <div className="flex flex-col gap-0.5">
           <span className="text-xs font-bold uppercase text-muted">
-            Variants ({variants.length})
+            Faces ({faces.length})
           </span>
           <p className="text-[11px] leading-snug text-muted">
             Every placement picks one, decided by where it stands — so a field
@@ -1318,23 +1409,23 @@ export function TileEditorDialog({
         <div
           className="flex flex-wrap items-center gap-1"
           role="listbox"
-          aria-label="Scatter variants"
+          aria-label="Scatter faces"
         >
-          {variants.map((_, i) => (
+          {faces.map((_, i) => (
             <button
               key={i}
               type="button"
               role="option"
-              aria-selected={variant === i}
-              aria-label={`Variant ${i + 1}`}
-              title={`Variant ${i + 1}`}
+              aria-selected={face === i}
+              aria-label={`Face ${i + 1}`}
+              title={`Face ${i + 1}`}
               onClick={() => {
-                setVariant(i);
+                setFace(i);
                 setFrameIndex(0);
               }}
               className={[
                 "relative border-2 p-0.5",
-                variant === i
+                face === i
                   ? "border-accent bg-paper"
                   : "border-border bg-panel hover:border-ink",
               ].join(" ")}
@@ -1351,7 +1442,7 @@ export function TileEditorDialog({
               <span
                 className={[
                   "pointer-events-none absolute right-0 bottom-0 px-0.5 font-mono text-[9px] leading-none",
-                  variant === i ? "bg-accent text-paper" : "bg-paper/90 text-ink",
+                  face === i ? "bg-accent text-paper" : "bg-paper/90 text-ink",
                 ].join(" ")}
               >
                 {i + 1}
@@ -1366,19 +1457,19 @@ export function TileEditorDialog({
               // on the same grounds the autotile grid clones slice 0: a second
               // bush is the first bush with a few pixels moved.
               const base =
-                variants[variant] ?? variants[0] ?? emptySprite(tilesets[0]?.id ?? "");
+                faces[face] ?? faces[0] ?? emptySprite(tilesets[0]?.id ?? "");
               setDraft({
                 ...draft,
-                scatter: [...variants, structuredClone(base)],
+                scatter: [...faces, structuredClone(base)],
               });
-              setVariant(variants.length);
+              setFace(faces.length);
               setFrameIndex(0);
             }}
           >
-            + Variant
+            + Face
           </Button>
         </div>
-        {variants.length > 1 ? (
+        {faces.length > 1 ? (
           <Button
             size="sm"
             variant="danger"
@@ -1388,19 +1479,19 @@ export function TileEditorDialog({
               // authored this one has to lose it too or its list slides out
               // from under idle's.
               const drop = (list: TileSprite[] | undefined) =>
-                list ? list.filter((_, i) => i !== variant) : undefined;
+                list ? list.filter((_, i) => i !== face) : undefined;
               const states = Object.fromEntries(
                 Object.entries(draft.states ?? {}).map(([key, sprites]) => [
                   key,
                   sprites ? { ...sprites, scatter: drop(sprites.scatter) } : sprites,
                 ]),
               ) as TileDef["states"];
-              setDraft({ ...draft, scatter: drop(variants), states });
-              setVariant(Math.max(0, variant - 1));
+              setDraft({ ...draft, scatter: drop(faces), states });
+              setFace(Math.max(0, face - 1));
               setFrameIndex(0);
             }}
           >
-            Remove variant {variant + 1}
+            Remove face {face + 1}
           </Button>
         ) : null}
       </div>
@@ -1457,7 +1548,7 @@ export function TileEditorDialog({
                   tilesets={tilesets}
                   size={SCATTER_SAMPLE_CELL_PX}
                   state={state}
-                  scatterIndex={resolveScatterIndex(x, y, 0, draft, variants.length)}
+                  scatterIndex={resolveScatterIndex(x, y, 0, draft, faces.length)}
                   chrome={false}
                   still
                 />
@@ -1470,12 +1561,186 @@ export function TileEditorDialog({
     </div>
   );
 
+  const variantNames = variantKeys(draft);
+
+  const renameVariant = (from: string, to: string) => {
+    const trimmed = to.trim();
+    if (trimmed === from) return;
+    const problem = variantNameError(
+      trimmed,
+      variantNames.filter((k) => k !== from),
+    );
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    setError(null);
+    // Rebuilt in order rather than deleted and re-added, so renaming the first
+    // face does not silently make it the last one — and with it, which face
+    // every placement that names nothing is wearing.
+    const rekey = (holder: StateSprites): Record<string, TileSprite> | undefined =>
+      holder.variants
+        ? Object.fromEntries(
+            Object.entries(holder.variants).map(([k, v]) => [
+              k === from ? trimmed : k,
+              v,
+            ]),
+          )
+        : undefined;
+    const states = Object.fromEntries(
+      Object.entries(draft.states ?? {}).map(([key, sprites]) => [
+        key,
+        sprites ? { ...sprites, variants: rekey(sprites) } : sprites,
+      ]),
+    ) as TileDef["states"];
+    setDraft({ ...draft, variants: rekey(draft), states });
+    setVariantKey(trimmed);
+  };
+
+  /**
+   * The variant author's surface: the faces and their names, and nothing about
+   * where they go. Which face a placement wears is a map question, answered in
+   * the stack panel — this dialog only says what there is to choose from.
+   */
+  const variantSection = (
+    <div className="flex flex-col gap-3">
+      {climbPad}
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-xs font-bold uppercase text-muted">
+            Faces ({variantNames.length})
+          </span>
+          <p className="text-[11px] leading-snug text-muted">
+            One tile drawn several ways, and the placement picks which — so a
+            hole cut through planks and a hole cut through sand are one tile
+            that falls, lights and blocks identically. Nothing derives the pick:
+            arm the tile and choose a face, or change it on a placement from the
+            selected-stack panel.
+          </p>
+        </div>
+        <div
+          className="flex flex-wrap items-center gap-1"
+          role="listbox"
+          aria-label="Variant faces"
+        >
+          {variantNames.map((key) => (
+            <button
+              key={key}
+              type="button"
+              role="option"
+              aria-selected={variantKey === key}
+              aria-label={`Face ${key}`}
+              title={key}
+              onClick={() => {
+                setVariantKey(key);
+                setFrameIndex(0);
+              }}
+              className={[
+                "flex flex-col items-center gap-0.5 border-2 p-0.5",
+                variantKey === key
+                  ? "border-accent bg-paper"
+                  : "border-border bg-panel hover:border-ink",
+              ].join(" ")}
+            >
+              <TilePreview
+                tile={draft}
+                tilesets={tilesets}
+                size={36}
+                state={state}
+                variantKey={key}
+                chrome={false}
+                still
+              />
+              <span className="max-w-[64px] truncate font-mono text-[9px] leading-none">
+                {key}
+              </span>
+            </button>
+          ))}
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              const base =
+                draft.variants?.[variantKey] ??
+                Object.values(draft.variants ?? {})[0] ??
+                emptySprite(tilesets[0]?.id ?? "");
+              // Numbered from the count rather than from the length, so adding
+              // a face after one was renamed does not collide with a name
+              // already in use.
+              let n = variantNames.length + 1;
+              while (variantNames.includes(`face-${n}`)) n++;
+              const key = `face-${n}`;
+              setDraft({
+                ...draft,
+                variants: { ...draft.variants, [key]: structuredClone(base) },
+              });
+              setVariantKey(key);
+              setFrameIndex(0);
+            }}
+          >
+            + Face
+          </Button>
+        </div>
+        {variantKey ? (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase text-muted">Name</span>
+            {/* Committed on blur and on Enter rather than per keystroke: a
+                rename rewrites the key every placement in the map points at, so
+                typing "wood" one letter at a time would walk through four names
+                nothing is called. */}
+            <Input
+              key={variantKey}
+              defaultValue={variantKey}
+              aria-label={`Name for face ${variantKey}`}
+              className="w-40"
+              onBlur={(e) => renameVariant(variantKey, e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+              }}
+            />
+            <span className="text-[11px] text-muted">
+              Placements already wearing this name follow the rename.
+            </span>
+          </div>
+        ) : null}
+        {variantNames.length > 1 ? (
+          <Button
+            size="sm"
+            variant="danger"
+            className="w-fit"
+            onClick={() => {
+              const drop = (
+                holder: StateSprites,
+              ): Record<string, TileSprite> | undefined => {
+                if (!holder.variants) return undefined;
+                const { [variantKey]: _gone, ...rest } = holder.variants;
+                return rest;
+              };
+              const states = Object.fromEntries(
+                Object.entries(draft.states ?? {}).map(([key, sprites]) => [
+                  key,
+                  sprites ? { ...sprites, variants: drop(sprites) } : sprites,
+                ]),
+              ) as TileDef["states"];
+              setDraft({ ...draft, variants: drop(draft), states });
+              setVariantKey(variantNames.find((k) => k !== variantKey) ?? "");
+              setFrameIndex(0);
+            }}
+          >
+            Remove face {variantKey}
+          </Button>
+        ) : null}
+      </div>
+      {frameEditor}
+    </div>
+  );
+
   /**
    * The sprite table for whichever axis this tile's type uses.
    *
-   * Early returns rather than a ternary chain four deep: the four are
-   * alternatives, not a nesting, and reading which one a `scatter` tile lands
-   * in should not mean counting colons.
+   * Early returns rather than a ternary chain five deep: they are alternatives,
+   * not a nesting, and reading which one a `scatter` tile lands in should not
+   * mean counting colons.
    */
   const spriteSection = (() => {
     if (draft.type === "simple") return frameEditor;
@@ -1495,6 +1760,7 @@ export function TileEditorDialog({
       );
     }
     if (draft.type === "scatter") return scatterSection;
+    if (draft.type === "variant") return variantSection;
     return autotileSection;
   })();
 

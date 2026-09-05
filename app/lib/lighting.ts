@@ -649,7 +649,14 @@ function collectOverrideEmitters(
       if (!def) continue;
       const light = resolveLight(
         def,
-        { map, x: ov.x, y: ov.y, z: ov.z, direction: placed.direction },
+        {
+          map,
+          x: ov.x,
+          y: ov.y,
+          z: ov.z,
+          direction: placed.direction,
+          variant: placed.variant,
+        },
         timeMs,
       );
       if (!light) continue;
