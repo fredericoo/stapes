@@ -79,3 +79,52 @@ describe("HeldDirections", () => {
     });
   });
 });
+
+/**
+ * A clicked walk is one more thing pressing a direction, and this is where the
+ * two are settled — the same "latest wins" rule the keys order themselves by,
+ * with the click as a press nobody will ever let go of. @see ./walkTo
+ */
+describe("a clicked direction against the keys", () => {
+  it("outranks a key that was already down", () => {
+    const { input, latest } = recorder();
+    input.press("e");
+    input.setAuto("n");
+    expect(latest()!.directions).toEqual(["n"]);
+  });
+
+  it("hands the keys back rather than emptying the input", () => {
+    const { input, latest } = recorder();
+    input.press("e");
+    input.setAuto("n");
+    input.setAuto(null);
+    // The key was never released, so this is what the player's hand is still
+    // asking for. Emptying here is a key gone dead in their hand.
+    expect(latest()!.directions).toEqual(["e"]);
+  });
+
+  it("is dropped by a press, and does not come back", () => {
+    const { input, latest } = recorder();
+    input.setAuto("n");
+    input.press("e");
+    expect(latest()!.directions).toEqual(["e"]);
+    expect(input.autoPressed).toBe(false);
+  });
+
+  it("goes with the keys when the window does", () => {
+    const { input, latest } = recorder();
+    input.setAuto("n");
+    input.clear();
+    // Nobody is going to release it, and a body walking itself across town in
+    // a tab that is not in front of anybody is the stuck key this guards.
+    expect(latest()!.directions).toEqual([]);
+    expect(input.autoPressed).toBe(false);
+  });
+
+  it("says nothing when asked for the direction it is already walking", () => {
+    const { input, sent } = recorder();
+    input.setAuto("n");
+    input.setAuto("n");
+    expect(sent).toHaveLength(1);
+  });
+});
