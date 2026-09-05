@@ -10033,6 +10033,10 @@
         },
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "blacksmith",
+          "direction": "e"
         }
       ],
       "-30,-4": [
@@ -36392,6 +36396,11 @@
       "-4,-2": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "sign",
+          "direction": "e",
+          "description": "The Clothier\nCloth, leather and plate."
         }
       ],
       "-4,-1": [
@@ -37376,6 +37385,10 @@
         },
         {
           "tileId": "cobblestone"
+        },
+        {
+          "tileId": "armourer",
+          "direction": "s"
         }
       ],
       "-3,-1": [

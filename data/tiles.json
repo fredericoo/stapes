@@ -14999,6 +14999,2750 @@
     }
   },
   {
+    "id": "blacksmith",
+    "name": "Blacksmith",
+    "height": 4,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "interactions": {
+      "dialog": {
+        "script": [
+          {
+            "kind": "say",
+            "text": "Mind the sparks, {partner}. Everything on that rack I made myself."
+          },
+          {
+            "kind": "anchor",
+            "name": "main"
+          },
+          {
+            "kind": "choices",
+            "options": [
+              {
+                "label": "Swords",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Blades. Twenty for the plain one, fifty for a knight's, ninety-five for the tempered."
+                  },
+                  {
+                    "kind": "anchor",
+                    "name": "swords"
+                  },
+                  {
+                    "kind": "choices",
+                    "options": [
+                      {
+                        "label": "Iron Sword — 20",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Iron Sword. Straight, quick, asks Blade 6 of you."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 20
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "iron-sword",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Keep the edge off the stone. Anything else on the rack?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "swords"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "It'll keep. Anything else on the rack?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "swords"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Knight's Sword — 50",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Knight's Sword. Truer than the iron and slower with it — Blade 20."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 50
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "knights-sword",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "That one has a name where it came from. Anything else on the rack?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "swords"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "It'll keep. Anything else on the rack?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "swords"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Tempered Longsword — 95",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Folded and quenched twice. Blade 34, and worth every point of it."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 95
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "tempered-longsword",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Best blade on the rack, and you know it. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "swords"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "It'll keep. Anything else on the rack?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "swords"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Back",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Suit yourself. What else?"
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "main"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "label": "Axes",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Axes, then. They land wilder than a blade and they land harder."
+                  },
+                  {
+                    "kind": "anchor",
+                    "name": "axes"
+                  },
+                  {
+                    "kind": "choices",
+                    "options": [
+                      {
+                        "label": "Simple Axe — 20",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "A woodsman's axe. Blade 8, and it swings like a chore."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 20
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "simple-axe",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Mind your shins. Anything else on the rack?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "axes"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "It'll keep. Anything else on the rack?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "axes"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Broad Axe — 50",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Broad Axe — a hand's width of edge. Blade 20 and Toughness 8 to hold it up."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 50
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "broad-axe",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Heavy at the head, that's the point of it. Anything else on the rack?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "axes"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "It'll keep. Anything else on the rack?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "axes"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Battleaxe — 95",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Two bits, two hands. Blade 34 and Toughness 16, and nothing stands after it."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 95
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "battleaxe",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "You'll need both hands and both feet. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "axes"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "It'll keep. Anything else on the rack?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "axes"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Back",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Fair enough. What else?"
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "main"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "label": "Hammers",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Blunt work. Nothing clever about it, and it never turns on the bone."
+                  },
+                  {
+                    "kind": "anchor",
+                    "name": "hammers"
+                  },
+                  {
+                    "kind": "choices",
+                    "options": [
+                      {
+                        "label": "Simple Hammer — 20",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "My own pattern. Blunt 5, and it does the same thing every time."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 20
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "simple-hammer",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "It'll not surprise you. Anything else on the rack?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "hammers"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "It'll keep. Anything else on the rack?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "hammers"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Iron Mace — 50",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Flanged head, iron through. Blunt 18."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 50
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "iron-mace",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "That'll dent a helm. Anything else on the rack?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "hammers"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "It'll keep. Anything else on the rack?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "hammers"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "War Maul — 95",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Both hands. Blunt 32 and Toughness 16 — it's more weight than weapon."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 95
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "war-maul",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Swing it once and mean it. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "hammers"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "It'll keep. Anything else on the rack?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "hammers"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Back",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Right you are. What else?"
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "main"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "label": "Bows",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "I string them, I don't shoot them. Reach is what you're paying for."
+                  },
+                  {
+                    "kind": "anchor",
+                    "name": "bows"
+                  },
+                  {
+                    "kind": "choices",
+                    "options": [
+                      {
+                        "label": "Simple Bow — 20",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Six cells and a prayer. Ranged 5."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 20
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "simple-bow",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Buy the arrows off somebody else. Anything else on the rack?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "bows"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "It'll keep. Anything else on the rack?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "bows"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Hunting Bow — 50",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Eight cells, and it goes where you point it. Ranged 18."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 50
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "hunting-bow",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "That's a bow you can eat off. Anything else on the rack?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "bows"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "It'll keep. Anything else on the rack?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "bows"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "War Bow — 95",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Ten cells, and a heavier arrow at the end of them. Ranged 32."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 95
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "war-bow",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Give yourself room. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "bows"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "It'll keep. Anything else on the rack?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "bows"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Back",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "As you like. What else?"
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "main"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "label": "Shields",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Shields. A shield is held, so it costs you a hand and pays you back on every blow."
+                  },
+                  {
+                    "kind": "anchor",
+                    "name": "shields"
+                  },
+                  {
+                    "kind": "choices",
+                    "options": [
+                      {
+                        "label": "Buckler — 20",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "A buckler. One point of defence and it weighs nothing."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 20
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "buckler",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Small, but it's there. Anything else on the rack?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "shields"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "It'll keep. Anything else on the rack?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "shields"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Wooden Shield — 50",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Boards and a rim. Two points, off every blow that lands."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 50
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "wooden-shield",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "It'll split before you do. Anything else on the rack?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "shields"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "It'll keep. Anything else on the rack?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "shields"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Iron Shield — 95",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Three points. Carry one in each hand if you like — they add."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 95
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "iron-shield",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Now let them come. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "shields"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "It'll keep. Anything else on the rack?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "shields"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Back",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Please yourself. What else?"
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "main"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "label": "What are shards worth to you?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Twenty a rung, and three rungs to every rack. Crystals come out of the caves."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "Bring me shards, I'll bring you something that outlives you."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Nothing",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Come back when you've something to spend, {partner}."
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "brain": {
+        "initial": "idle",
+        "states": {
+          "idle": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "serving": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "idle",
+            "if": {
+              "cond": "talking"
+            },
+            "to": "serving"
+          },
+          {
+            "from": "serving",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "talking"
+                }
+              ]
+            },
+            "to": "idle"
+          }
+        ]
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "smith",
+                  "rect": {
+                    "x": 4,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "smith",
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "smith",
+                  "rect": {
+                    "x": 0,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "smith",
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "smith",
+                  "rect": {
+                    "x": 4,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "smith",
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "smith",
+                  "rect": {
+                    "x": 0,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "smith",
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "smith",
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "smith",
+                  "rect": {
+                    "x": 4,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "smith",
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "smith",
+                  "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "smith",
+                  "rect": {
+                    "x": 4,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "smith",
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "smith",
+                  "rect": {
+                    "x": 0,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "smith",
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "smith",
+              "rect": {
+                "x": 2,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "smith",
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "smith",
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "smith",
+              "rect": {
+                "x": 2,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "armourer",
+    "name": "Armourer",
+    "height": 4,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "interactions": {
+      "dialog": {
+        "script": [
+          {
+            "kind": "say",
+            "text": "Cloth, leather or plate, {partner}? I stitch all three and I sell all three."
+          },
+          {
+            "kind": "anchor",
+            "name": "main"
+          },
+          {
+            "kind": "choices",
+            "options": [
+              {
+                "label": "Body",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Body first — it is the piece that is hit. Every point comes off every blow that lands."
+                  },
+                  {
+                    "kind": "anchor",
+                    "name": "body"
+                  },
+                  {
+                    "kind": "choices",
+                    "options": [
+                      {
+                        "label": "Cloth Tunic — 15",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Cloth Tunic. One point, and it is better than a shirt."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 15
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "cloth-tunic",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "It'll keep the wind off, at least. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "body"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "On the rail it stays. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "body"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Warded Robe — 45",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Warded Robe. One point, and six against anything arcane."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 45
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "warded-robe",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Let them throw fire at you. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "body"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "On the rail it stays. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "body"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Padded Gambeson — 50",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Padded Gambeson. Two points, and four more against blunt."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 50
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "padded-gambeson",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "A club will not find much in that. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "body"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "On the rail it stays. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "body"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Leather Jerkin — 50",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Leather Jerkin. Two points, and two each against blade and arrow."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 50
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "leather-jerkin",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Turns a point better than it turns a hammer. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "body"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "On the rail it stays. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "body"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Tunic of Flames — 55",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Tunic of Flames. Two points, and it makes you a fire creature on the wheel."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 55
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "tunic-of-flames",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Careful what you stand next to. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "body"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "On the rail it stays. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "body"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Mantle of Brambles — 55",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Mantle of Brambles. Two points, and it makes you nature on the wheel."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 55
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "mantle-of-brambles",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Green suits you. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "body"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "On the rail it stays. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "body"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Chain Mail — 65",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Chain Mail. Three points, and four more against a blade."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 65
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "chain-mail",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Rings turn an edge. They do nothing for a maul. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "body"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "On the rail it stays. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "body"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Steel Plate — 95",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Steel Plate. Five points, three each against blade and arrow. The best I have."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 95
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "steel-plate",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Now let them try. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "body"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "On the rail it stays. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "body"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Back",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Right. What else?"
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "main"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "label": "Head",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Heads. Cheap next to what is under them."
+                  },
+                  {
+                    "kind": "anchor",
+                    "name": "head"
+                  },
+                  {
+                    "kind": "choices",
+                    "options": [
+                      {
+                        "label": "Leather Cap — 15",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Leather Cap. One point."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 15
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "leather-cap",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Better than your hair. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "head"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "On the rail it stays. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "head"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Iron Helm — 40",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Iron Helm. Two points, and two more against blunt."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 40
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "iron-helm",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "That is what a helm is for. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "head"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "On the rail it stays. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "head"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Knight's Helm — 60",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Knight's Helm. Three points, and three more against a blade."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 60
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "knights-helm",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "You'll see less and live longer. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "head"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "On the rail it stays. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "head"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Back",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "As you like. What else?"
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "main"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "label": "Feet",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Boots. Nobody thinks about boots until something lands on them."
+                  },
+                  {
+                    "kind": "anchor",
+                    "name": "feet"
+                  },
+                  {
+                    "kind": "choices",
+                    "options": [
+                      {
+                        "label": "Worn Boots — 15",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Worn Boots. One point, and somebody else wore them first."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 15
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "worn-boots",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "They'll do. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "feet"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "On the rail it stays. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "feet"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Hobnailed Boots — 30",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Hobnailed Boots. One point, and three against blunt."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 30
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "hobnailed-boots",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Nailed through. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "feet"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "On the rail it stays. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "feet"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Steel Sabatons — 40",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Steel Sabatons. Two points, and two against a blade."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 40
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "steel-sabatons",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Heavy, and worth it. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "feet"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "On the rail it stays. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "feet"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Back",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Fair enough. What else?"
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "main"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "label": "Charms",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Charms. None of them is armour and every one of them is defence — read the numbers."
+                  },
+                  {
+                    "kind": "anchor",
+                    "name": "charms"
+                  },
+                  {
+                    "kind": "choices",
+                    "options": [
+                      {
+                        "label": "Copper Ring — 20",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Copper Ring. One flat point, against anything at all."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 20
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "copper-ring",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Small and honest. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "charms"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "On the rail it stays. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "charms"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Bone Charm — 25",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Bone Charm. Four against a fist or a jaw, and nothing else."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 25
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "bone-charm",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Wolves hate it. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "charms"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "On the rail it stays. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "charms"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Jade Amulet — 35",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Jade Amulet. Five against the arcane."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 35
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "jade-amulet",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Against a spell, nothing better this side of the robe. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "charms"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "On the rail it stays. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "charms"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Amulet of Tides — 40",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Amulet of Tides. No armour at all — it makes you water on the wheel."
+                          },
+                          {
+                            "kind": "request_trade",
+                            "take": [
+                              {
+                                "tileId": "arcane-shard",
+                                "count": 40
+                              }
+                            ],
+                            "give": [
+                              {
+                                "tileId": "amulet-of-tides",
+                                "count": 1
+                              }
+                            ],
+                            "min": 1,
+                            "max": 1,
+                            "default": 1,
+                            "traded": [
+                              {
+                                "kind": "say",
+                                "text": "Mind who you fight now. What else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "charms"
+                              }
+                            ],
+                            "cancel": [
+                              {
+                                "kind": "say",
+                                "text": "On the rail it stays. Anything else?"
+                              },
+                              {
+                                "kind": "goto",
+                                "name": "charms"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "label": "Back",
+                        "then": [
+                          {
+                            "kind": "say",
+                            "text": "Suit yourself. What else?"
+                          },
+                          {
+                            "kind": "goto",
+                            "name": "main"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "label": "Which is best?",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "None of them. Armour is not a ladder — every point is taken off every blow, and a resistance only answers the thing it names."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "So the plate is not simply better than the robe. Ask what is hitting you."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Nothing",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Come back before something bites you, {partner}, not after."
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "brain": {
+        "initial": "idle",
+        "states": {
+          "idle": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "serving": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "idle",
+            "if": {
+              "cond": "talking"
+            },
+            "to": "serving"
+          },
+          {
+            "from": "serving",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "talking"
+                }
+              ]
+            },
+            "to": "idle"
+          }
+        ]
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "armourer",
+                  "rect": {
+                    "x": 4,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "armourer",
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "armourer",
+                  "rect": {
+                    "x": 0,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "armourer",
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "armourer",
+                  "rect": {
+                    "x": 4,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "armourer",
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "armourer",
+                  "rect": {
+                    "x": 0,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "armourer",
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "armourer",
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "armourer",
+                  "rect": {
+                    "x": 4,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "armourer",
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "armourer",
+                  "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "armourer",
+                  "rect": {
+                    "x": 4,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "armourer",
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "armourer",
+                  "rect": {
+                    "x": 0,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "armourer",
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "armourer",
+              "rect": {
+                "x": 2,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "armourer",
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "armourer",
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "armourer",
+              "rect": {
+                "x": 2,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
     "id": "sw2",
     "name": "Wall",
     "height": 4,

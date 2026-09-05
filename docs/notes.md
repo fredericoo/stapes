@@ -389,6 +389,57 @@ nothing left to decide. All or nothing, and nothing ever reaches the floor. A
 container is never on either side: the schema refuses it with a catalogue in
 hand, and the runtime refuses it without one.
 
+### A shop with a catalogue is a menu of menus, and two limits shape it
+
+Two shops are authored this way: the blacksmith (`blacksmith`), who sells
+three rungs of each of four weapon families plus a rack of shields, and the
+armourer (`armourer`), who sells every piece of armour there is. The shape
+they settled on is worth knowing before authoring the next one, because two
+authored ceilings decide it.
+
+- **A price cannot exceed `MAX_DIALOG_AMOUNT`, which is ninety-nine.** That
+  bound is on a `TradeSide.count`, so the whole of what one trade takes per
+  unit is capped at it. Ninety-five shards is therefore the most expensive
+  thing anybody can sell for shards in one side, and the ladder is 20 / 50 /
+  95 rather than something that doubles indefinitely. Spelling a higher price
+  as two sides of the same tile would work and would read as two prices in
+  the preview, which is worse than a cheaper top rung.
+- **A family per button, a rung per button under it, is exactly as deep as
+  `MAX_DIALOG_DEPTH` allows.** The nesting runs choices → choices →
+  `request_trade` → its `traded` branch, which is three blocks — the last
+  depth `validateDialog` does not warn about. A fourth level of menu would
+  warn, so a shop that grows a fifth family adds a button rather than a
+  drawer.
+- **Every rung's `traded` and `cancel` go back to their own rack's anchor**,
+  not to the top menu: somebody who has just bought a sword is more likely to
+  want the next sword than the bow list. Each rack carries a last button,
+  Back, whose only job is the `goto main` the branches deliberately do not do.
+- **A rack is only limited in depth, never in width.** `choices` takes as many
+  options as an author writes, which is what lets the armourer put all eight
+  body armours on one menu rather than inventing a sub-menu they do not need.
+
+The weapons are ordinary `item` blocks — see `app/lib/item.ts` — and the
+ladder is a requirement ladder rather than a damage one: roughly 6, 20 and 34
+in the family's mastery, which is what `OUTGROWN_FALLOFF` wants, since
+standing still on one rung stops teaching you long before the next one is out
+of reach.
+
+**Armour is racked by slot rather than by rung, and that follows from armour
+not being a ladder.** Defence is a flat subtraction and a resistance answers
+one mastery, so steel plate is not simply better than a warded robe — see
+*Armour is worn, and it may care what hit it* above. What a rack has to do is
+therefore put the pieces that compete for one square next to each other, so
+the armourer's menus are Body, Head, Feet and Charms, priced off what each
+piece actually does rather than off a rung.
+
+**A shopkeeper is a `prop`, not a `battler`, and that is load-bearing.**
+`resolveActor` is satisfied by a `dialog` alone, so a body that only talks is
+adopted, driven and reachable exactly like one that fights. Being a battler
+would give it hit points, and hit points are killable: a world where somebody
+has punched the blacksmith to death is a world with no way to buy a weapon,
+and nothing respawns him. The potion salesman predates this and is still a
+battler, which is the same exposure.
+
 ### Authoring a dialog is a list of commands, with the real panel beside it
 
 The Dialog tab (`app/components/DialogEditor.tsx`) is one row per command in
@@ -2534,7 +2585,6 @@ world.
 - **The `player` tile is the one refusal that is about the file.** A map is
   allowed exactly one, and `requireSinglePlayer` throws rather than choosing, so
   a second one is a world that cannot be opened again.
-
 ## A reward happens to the player, not to the board
 
 `interactions.reward` hands over a list of items once per player — a quest
