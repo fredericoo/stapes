@@ -3,7 +3,14 @@ import type { Coord, PlacedTile, TileDef, TilesetDef } from "../lib/types";
 import { MAX_DESCRIPTION_LENGTH, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import { MAX_REWARD_ITEMS } from "../lib/interactions";
 import { useEditorStore } from "../editor/store";
-import { Button, Dialog, Input, OptionalNumberInput, Textarea } from "../ui";
+import {
+  Button,
+  Dialog,
+  FieldLabel,
+  Input,
+  OptionalNumberInput,
+  Textarea,
+} from "../ui";
 import { TileIdMultiSelect } from "./TileIdMultiSelect";
 
 /**
@@ -163,46 +170,36 @@ export function PlacementSettingsDialog({
             autoFocus
           />
           <span className="text-[11px] leading-snug text-muted">
-            Shown under the tile’s name when a player holds shift and looks at
-            this placement. It belongs to the spot, not to the tile — swap the
-            tile in this slot and the text stays.
+            Shown under the name on shift-look. Belongs to the cell, not the
+            tile.
           </span>
         </label>
 
         {wired ? (
           <label className="flex flex-col gap-1 text-xs">
-            <span className="font-bold uppercase text-muted">
+            <FieldLabel info="Emitters drive the channel and receivers follow it. Sharing a name is the whole of the wiring.">
               Signal channel
-            </span>
+            </FieldLabel>
             <Input
               list={channelListId}
               placeholder="channel"
               value={channel}
               onChange={(e) => setChannel(e.target.value)}
             />
-            <span className="text-[11px] leading-snug text-muted">
-              Emitters drive the channel and receivers follow it. Sharing a name
-              is the whole of the wiring.
-            </span>
           </label>
         ) : null}
 
         {gives ? (
           <div className="flex flex-col gap-3 border-t-2 border-border pt-4">
             <label className="flex flex-col gap-1 text-xs">
-              <span className="font-bold uppercase text-muted">Reward tag</span>
+              <FieldLabel info="Written on the player when they take it, and hides the reward from them afterwards. Two placements with the same tag are a choice: take one and the other closes.">
+                Reward tag
+              </FieldLabel>
               <Input
                 placeholder="chest-42"
                 value={rewardTag}
                 onChange={(e) => setRewardTag(e.target.value)}
               />
-              <span className="text-[11px] leading-snug text-muted">
-                Written on the player when they take it, and what hides it from
-                them afterwards. Give two placements the <em>same</em> tag to
-                make them a choice: take the left chest and the right one
-                closes. Sharing a tag is the whole of the binding, exactly as it
-                is for a channel.
-              </span>
             </label>
 
             <TileIdMultiSelect
@@ -210,24 +207,19 @@ export function PlacementSettingsDialog({
               tilesets={tilesets}
               selectedIds={rewardTileIds}
               onChange={(ids) => setRewardTileIds(ids.slice(0, MAX_REWARD_ITEMS))}
-              label="Items given"
-              emptyHint="Pick what this one hands over. A tag with nothing to give is not offered at all."
+              label="Items"
+              info={`Up to ${MAX_REWARD_ITEMS}, never a container. The player needs room for all of them at once or is refused.`}
+              emptyHint="None — nothing to give means no row is offered."
             />
-            <span className="text-[11px] leading-snug text-muted">
-              Items only, never a container: a bag cannot go inside a bag, so
-              there would be nowhere to put it. At most {MAX_REWARD_ITEMS},
-              which is the biggest bag there is — the player needs room for the
-              lot at once or they are refused.
-            </span>
           </div>
         ) : null}
 
         {teleports ? (
           <div className="flex flex-col gap-3 border-t-2 border-border pt-4">
             <div className="flex flex-col gap-1 text-xs">
-              <span className="font-bold uppercase text-muted">
+              <FieldLabel info="Belongs to the cell rather than the tile, so one portal tile can be every doorway in the world. Blank axes read as 0; all three blank leads nowhere.">
                 Destination cell
-              </span>
+              </FieldLabel>
               <div className="flex gap-2">
                 {DESTINATION_AXES.map((axis) => (
                   <label key={axis} className="flex flex-1 flex-col gap-1">
@@ -256,12 +248,6 @@ export function PlacementSettingsDialog({
                   </label>
                 ))}
               </div>
-              <span className="text-[11px] leading-snug text-muted">
-                The cell this doorway opens onto, whole. It belongs to the spot
-                rather than to the tile, which is what lets one portal tile be
-                every doorway in the world. Empty all three and this placement
-                leads nowhere.
-              </span>
             </div>
           </div>
         ) : null}

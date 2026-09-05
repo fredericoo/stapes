@@ -5,7 +5,9 @@ import {
   type StatusGrant,
 } from "../lib/item";
 import type { StatusDef } from "../lib/status";
-import { Button, NumberInput, Select, Switch } from "../ui";
+import { Button, FieldLabel, NumberInput, Select, Switch } from "../ui";
+
+const MS_PER_SECOND = 1000;
 
 /**
  * Which statuses a thing hands over, and how long each is worth.
@@ -27,8 +29,8 @@ type Props<Grant extends StatusGrant> = {
   statuses: Grant[];
   statusDefs: Record<string, StatusDef>;
   onChange: (next: Grant[]) => void;
-  /** What this list means for whoever owns it, in the owner's own words. */
-  blurb: ReactNode;
+  /** When the list is rolled and what it lands on — the caption's tooltip. */
+  info: ReactNode;
   /** A fresh entry on the chosen status. The owner decides what else is on one. */
   blank: (id: string) => Grant;
   /** Columns this granter has and the other does not — a weapon's chance. */
@@ -39,7 +41,7 @@ export function StatusGrants<Grant extends StatusGrant>({
   statuses,
   statusDefs,
   onChange,
-  blurb,
+  info,
   blank,
   extra,
 }: Props<Grant>) {
@@ -53,12 +55,11 @@ export function StatusGrants<Grant extends StatusGrant>({
 
   return (
     <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
-      <span className="text-xs font-bold uppercase text-muted">Statuses</span>
-      <p className="max-w-lg text-[11px] leading-snug text-muted">{blurb}</p>
+      <FieldLabel info={info}>Statuses</FieldLabel>
 
       {catalogue.length === 0 ? (
         <p className="text-[11px] text-muted">
-          Nothing authored yet — statuses live on the Statuses page.
+          None authored — see the Statuses page.
         </p>
       ) : null}
 
@@ -71,7 +72,7 @@ export function StatusGrants<Grant extends StatusGrant>({
             className="flex flex-wrap items-end gap-2 border-2 border-border p-2"
           >
             <label className="flex flex-col gap-0.5 text-xs">
-              <span className="font-bold uppercase text-muted">Status</span>
+              <FieldLabel>Status</FieldLabel>
               <Select
                 value={entry.id || null}
                 onValueChange={(id) =>
@@ -84,13 +85,15 @@ export function StatusGrants<Grant extends StatusGrant>({
             {extra?.(entry, (fields) => patchAt(index, fields))}
 
             <label className="flex flex-col gap-0.5 text-xs">
-              <span className="font-bold uppercase text-muted">Own length</span>
+              <FieldLabel info="Off, the status's own duration applies. On, both ends are this granter's.">
+                Override duration
+              </FieldLabel>
               {/* Both ends move together, because half an override would have to
                   be ordered against a number from somewhere else — see
                   `StatusGrant`. */}
               <Switch
                 checked={overriding}
-                ariaLabel="Give this its own duration"
+                ariaLabel="Override duration"
                 onCheckedChange={(on) =>
                   patchAt(
                     index,
@@ -105,7 +108,7 @@ export function StatusGrants<Grant extends StatusGrant>({
             {overriding ? (
               <>
                 <label className="flex flex-col gap-0.5 text-xs">
-                  <span className="font-bold uppercase text-muted">From (ms)</span>
+                  <FieldLabel>From (ms)</FieldLabel>
                   <NumberInput
                     className="w-28"
                     min={0}
@@ -123,7 +126,7 @@ export function StatusGrants<Grant extends StatusGrant>({
                   />
                 </label>
                 <label className="flex flex-col gap-0.5 text-xs">
-                  <span className="font-bold uppercase text-muted">To (ms)</span>
+                  <FieldLabel>To (ms)</FieldLabel>
                   <NumberInput
                     className="w-28"
                     min={0}
@@ -141,8 +144,8 @@ export function StatusGrants<Grant extends StatusGrant>({
             ) : (
               <span className="text-[11px] text-muted">
                 {def
-                  ? `${(def.fromMs / 1000).toFixed(0)}–${(def.toMs / 1000).toFixed(0)}s, as the status says.`
-                  : "Unknown status — it will be skipped."}
+                  ? `${(def.fromMs / MS_PER_SECOND).toFixed(0)}–${(def.toMs / MS_PER_SECOND).toFixed(0)}s (status default)`
+                  : "Unknown status — skipped."}
               </span>
             )}
 
@@ -178,9 +181,8 @@ export function StatusGrants<Grant extends StatusGrant>({
  * list itself.
  *
  * Shaped like the two duration columns beside it rather than as a `StatField`:
- * that component carries a sentence under every box, and one field in a row of
- * plain ones knocks the whole row out of line for a hint the section's own prose
- * already gives.
+ * that component carries a readout under the box, and one field in a row of
+ * plain ones knocks the whole row out of line.
  */
 export function StatusChanceField<Grant extends StatusGrant & { chance: number }>(
   entry: Grant,
@@ -188,7 +190,7 @@ export function StatusChanceField<Grant extends StatusGrant & { chance: number }
 ) {
   return (
     <label className="flex flex-col gap-0.5 text-xs">
-      <span className="font-bold uppercase text-muted">Chance (%)</span>
+      <FieldLabel>Chance (%)</FieldLabel>
       <NumberInput
         className="w-20"
         min={MIN_PERCENT_STAT}

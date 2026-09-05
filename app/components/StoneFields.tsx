@@ -36,7 +36,7 @@ import {
 } from "../lib/element";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
-import { Segmented, Select, Switch } from "../ui";
+import { FieldLabel, Segmented, Select, Switch } from "../ui";
 import { StatusChanceField, StatusGrants } from "./StatusGrants";
 import { StatField } from "./StatField";
 import {
@@ -67,8 +67,8 @@ const EFFECT_OPTIONS: Array<{ value: StoneEffectKind; label: string }> = [
 ];
 
 const SUBJECT_OPTIONS: Array<{ value: StoneSubject; label: string }> = [
-  { value: "caster", label: "The caster" },
-  { value: "target", label: "The target" },
+  { value: "caster", label: "Caster" },
+  { value: "target", label: "Target" },
 ];
 
 /**
@@ -111,6 +111,12 @@ const MS_PER_SECOND = 1000;
 /** And past a minute it reads better still in minutes, which is where the shipped stones live. */
 const SECONDS_PER_MINUTE = 60;
 
+const EFFECT_INFO: Record<StoneEffectKind, string> = {
+  bolt: "Not aimed: no accuracy, no dodge — the cooldown is spent and the stone answers. Scaled by the caster's Arcane and the stone's elements, averaged; the figure is what it does for somebody who has learnt nothing. A harm goes through armour and the wheel. A mend is stopped by neither, stops at full health, and trains by what it actually restored.",
+  conjure:
+    "Places a tile at the target's cell, or in front of the caster with nothing targeted. The player never picks a square.",
+};
+
 export function StoneFields({
   stone,
   onChange,
@@ -149,11 +155,6 @@ export function StoneFields({
     label: tile.name,
   }));
 
-  const statusOptions = Object.values(statusDefs).map((def) => ({
-    value: def.id,
-    label: def.name,
-  }));
-
   // Narrowed where the conjure list is not, and the asymmetry is the rule rather
   // than an inconsistency: anything can be placed on the board, and only an
   // 8-way tile can point where it is going. The one already picked is kept
@@ -167,17 +168,8 @@ export function StoneFields({
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="max-w-lg text-[11px] leading-snug text-muted">
-        <strong>Held and never swung at anybody.</strong> A stone sits out of the
-        swing rotation exactly as a shield does, so carrying one costs a hand
-        rather than a fight: one stone and a sword swings the sword every turn,
-        and two stones falls back to fists. It goes in either hand or on the
-        charm, and what it can do is decided by what you carry and how recently
-        you used it — there is no mana anywhere in this game.
-      </p>
-
       <div className="flex flex-col gap-1 text-xs">
-        <span className="font-bold uppercase text-muted">Effect</span>
+        <FieldLabel info={EFFECT_INFO[effect.kind]}>Effect</FieldLabel>
         <div>
           <Segmented<StoneEffectKind>
             value={effect.kind}
@@ -198,10 +190,10 @@ export function StoneFields({
 
       {effect.kind === "bolt" ? (
         <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-wrap items-start gap-4">
             <StatField
               label="Damage"
-              hint="Health it moves. Negative mends, positive harms, zero moves none."
+              info="Health it moves. Negative mends, positive harms, zero moves none."
               value={effect.damage ?? 0}
               min={-MAX_SPELL_DAMAGE}
               max={MAX_SPELL_DAMAGE}
@@ -217,7 +209,7 @@ export function StoneFields({
             />
             <StatField
               label="Variance"
-              hint="How much one cast varies, as a share of the damage. Zero always does exactly what it says."
+              info="How much one cast varies, as a share of the damage. 0 always does exactly what it says."
               value={effect.variance ?? 0}
               min={MIN_PERCENT_STAT}
               max={MAX_PERCENT_STAT}
@@ -227,42 +219,32 @@ export function StoneFields({
                 })
               }
             />
-          </div>
 
-          <div className="flex flex-col gap-1 text-xs">
-            <span className="font-bold uppercase text-muted">Lands on</span>
-            <div>
-              <Segmented<StoneSubject>
-                value={effect.on}
-                onChange={(on) => onChange({ effect: { ...effect, on } })}
-                options={SUBJECT_OPTIONS}
-                size="sm"
-                ariaLabel="Who the bolt lands on"
-              />
+            <div className="flex flex-col gap-1 text-xs">
+              <FieldLabel info="Caster: needs nothing targeted and never misfires. Target: needs somebody targeted, in range. Worn on the charm it always acts on its wearer.">
+                Subject
+              </FieldLabel>
+              <div>
+                <Segmented<StoneSubject>
+                  value={effect.on}
+                  onChange={(on) => onChange({ effect: { ...effect, on } })}
+                  options={SUBJECT_OPTIONS}
+                  size="sm"
+                  ariaLabel="Who the bolt lands on"
+                />
+              </div>
             </div>
-            <span className="max-w-lg text-[11px] leading-snug text-muted">
-              A bolt at the caster works with nothing targeted and can never
-              misfire at an enemy; one at the target needs somebody targeted and
-              has to be in range. A stone worn on the <strong>charm</strong>{" "}
-              ignores this and always acts on its wearer.
-            </span>
           </div>
 
           <div className="flex flex-col gap-2">
-            <span className="text-xs font-bold uppercase text-muted">
+            <FieldLabel info="A picture only, drawn as a bow's arrow is: the health has moved before the first frame, so it cannot miss in the air. Nothing flies at the caster.">
               Projectile
-            </span>
-            <p className="max-w-lg text-[11px] leading-snug text-muted">
-              What it throws on the way, drawn exactly as a bow&rsquo;s arrow is
-              and just as purely a picture: the health has already moved by the
-              time the first frame appears, so a bolt cannot miss in the air and
-              one that killed still finishes its flight.{" "}
-              <strong>Nothing flies at the caster</strong> &mdash; a bolt at your
-              own body has no distance to cross.
-            </p>
+            </FieldLabel>
             <div className="flex flex-wrap items-end gap-4">
               <label className="flex flex-col gap-1 text-xs">
-                <span className="font-bold uppercase text-muted">Throws</span>
+                <FieldLabel info="8-way tiles only, so it points where it is going.">
+                  Tile
+                </FieldLabel>
                 <Select
                   className="w-56"
                   value={effect.projectile?.tileId ?? ""}
@@ -277,22 +259,18 @@ export function StoneFields({
                     })
                   }
                   options={[
-                    { value: "", label: "Nothing — it simply arrives" },
+                    { value: "", label: "None" },
                     ...projectileTiles.map((tile) => ({
                       value: tile.id,
                       label: tile.name,
                     })),
                   ]}
                 />
-                <span className="max-w-64 text-[11px] leading-snug text-muted">
-                  An 8-way tile, so it points where it is going. Author one on
-                  the Tile tab if the list is empty.
-                </span>
               </label>
               {effect.projectile ? (
                 <StatField
                   label="Speed"
-                  hint="Cells per second. A body walks at five, so a bolt wants to be well past that."
+                  info="Cells per second. A body walks at five."
                   value={effect.projectile.cellsPerSecond}
                   min={MIN_PROJECTILE_SPEED}
                   max={MAX_PROJECTILE_SPEED}
@@ -310,19 +288,6 @@ export function StoneFields({
             </div>
           </div>
 
-          <p className="max-w-lg text-[11px] leading-snug text-muted">
-            <strong>A cast is not aimed.</strong> There is no accuracy and no
-            dodge here &mdash; you spent the cooldown and the stone answered
-            &mdash; so what is left of the dice is the variance above. What the
-            number above is worth in somebody&rsquo;s hands is scaled by their{" "}
-            <strong>Arcane</strong> and by the <strong>elements</strong> this
-            stone asks for, averaged: the figure is what the stone does for
-            somebody who has learnt nothing. A harm then has to get through the
-            subject&rsquo;s armour and is weighed on the wheel; a mend is stopped
-            by neither and stops at a full health bar, and earns what it{" "}
-            <strong>actually restored</strong> rather than what it says.
-          </p>
-
           <StatusGrants
             statuses={effect.statuses ?? []}
             statusDefs={statusDefs}
@@ -335,55 +300,32 @@ export function StoneFields({
               })
             }
             blank={(id) => ({ id, chance: DEFAULT_STONE_STATUS_CHANCE })}
-            blurb={
-              <>
-                What the bolt <strong>leaves on whoever it landed on</strong> —
-                a ward on yourself, a burn on what you were pointing at. Rolled
-                once per entry per cast. <strong>Armour eating the damage does
-                not save anybody from the burn</strong>, exactly as it does not
-                for a weapon; only a body that is not there, or one the same
-                cast killed, gets away with nothing. The chance is the{" "}
-                <strong>stone&rsquo;s own</strong> and no mastery moves it:
-                Arcane and the elements have already had their say on how deep
-                the bolt ran.
-                <br />
-                <br />
-                A bolt needs <strong>one of the two halves</strong> — some
-                damage, or something to leave. With neither it is a spell that
-                spends its cooldown to do nothing, and it will not save.
-              </>
-            }
+            info="Rolled once per entry per cast, on whoever it landed on. Armour eating the damage does not stop it; only a body that is not there, or one the cast killed, escapes. No mastery moves the chance. A bolt needs damage or a status — with neither it will not save."
             extra={StatusChanceField}
           />
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="font-bold uppercase text-muted">Conjures</span>
-            <Select
-              value={effect.tileId || null}
-              onValueChange={(tileId) =>
-                onChange({ effect: { kind: "conjure", tileId: tileId ?? "" } })
-              }
-              options={conjureOptions}
-              placeholder="Pick a tile…"
-              className="w-48"
-              ariaLabel="Tile this stone conjures"
-            />
-            <span className="max-w-lg text-[11px] leading-snug text-muted">
-              Placed at the target&rsquo;s cell, or in front of the caster when
-              nothing is targeted — the player never picks a square.{" "}
-              <strong>Give it a decay lifetime</strong>, or the battlefield fills
-              up with everything anybody has ever cast.
-            </span>
-          </label>
-        </div>
+        <label className="flex flex-col gap-1 text-xs">
+          <FieldLabel info="Give it a decay lifetime, or the battlefield fills with everything anybody has ever cast.">
+            Tile
+          </FieldLabel>
+          <Select
+            value={effect.tileId || null}
+            onValueChange={(tileId) =>
+              onChange({ effect: { kind: "conjure", tileId: tileId ?? "" } })
+            }
+            options={conjureOptions}
+            placeholder="Pick a tile…"
+            className="w-48"
+            ariaLabel="Tile this stone conjures"
+          />
+        </label>
       )}
 
       <div className="flex flex-wrap gap-4 border-t-2 border-border pt-3">
         <StatField
-          label="Cooldown"
-          hint="Seconds before this particular stone can be pressed again."
+          label="Cooldown (s)"
+          info="Per stone, not per kind — two in two hands cool independently. Spent whether or not the cast did anything. A cooling stone is locked in its square until ready."
           value={Math.round(stone.cooldownMs / MS_PER_SECOND)}
           min={MIN_STONE_COOLDOWN_MS / MS_PER_SECOND}
           max={MAX_STONE_COOLDOWN_MS / MS_PER_SECOND}
@@ -394,7 +336,7 @@ export function StoneFields({
         />
         <StatField
           label="Reach"
-          hint="How far it carries across the floor, as a radius in cells. Only read when it acts on somebody else."
+          info={`Radius in cells. Read only when the stone acts on somebody else; at the caster and on the charm it is always at arm's length. Default ${MELEE_REACH.cells}.`}
           value={reach.cells}
           min={0}
           max={MAX_REACH_CELLS}
@@ -404,7 +346,7 @@ export function StoneFields({
         />
         <StatField
           label="Height"
-          hint="How far up or down it carries, in height units — four to a level."
+          info="Height units up or down — four to a level."
           value={reach.height}
           min={0}
           max={MAX_REACH_HEIGHT}
@@ -414,58 +356,21 @@ export function StoneFields({
         />
       </div>
 
-      <p className="max-w-lg text-[11px] leading-snug text-muted">
-        The cooldown belongs to <strong>this stone</strong> and not to the kind of
-        stone — two of these in two hands cool independently — and it is{" "}
-        <strong>spent whether or not the spell accomplished anything</strong>, on
-        the terms a swing costs its wait before the dice are rolled. A cooling
-        stone is locked in its square: it cannot be moved, swapped or put down
-        until it is ready, so nobody beats the wait by rotating stones out of a
-        bag. Reach and height are read only for a stone that acts on somebody
-        else; a spell at its own caster and a charm are always at arm&rsquo;s
-        length. Default is{" "}
-        {MELEE_REACH.cells} cells.
-      </p>
-
-      <label className="flex items-start gap-2 border-t-2 border-border pt-3 text-xs">
+      <label className="flex items-center gap-2 border-t-2 border-border pt-3 text-xs">
         <Switch
           checked={stone.automatic === true}
           onCheckedChange={(automatic) => onChange({ automatic })}
           ariaLabel="Automatic"
         />
-        <span className="flex flex-col gap-1">
-          <span className="font-bold uppercase text-muted">Automatic</span>
-          <span className="max-w-72 text-[11px] leading-snug text-muted">
-            On, it fires by itself the moment it is ready and would not be
-            wasted: a mending bolt waits until its wearer is hurt, a status
-            until they
-            are not already under it. It gets no button, because there is nothing
-            to press — and it may only be worn on the <strong>charm</strong>,
-            since a hand that acted on its own would be a body casting spells
-            nobody asked it to.
-          </span>
-        </span>
+        <FieldLabel info="Fires by itself when ready and not wasted: a mend waits until its wearer is hurt, a status until they are not already under it. No button. Charm only.">
+          Automatic
+        </FieldLabel>
       </label>
 
       <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
-        <span className="text-xs font-bold uppercase text-muted">Requires</span>
-        <p className="max-w-lg text-[11px] leading-snug text-muted">
-          What it takes to cast this at all. Unlike a weapon&rsquo;s
-          requirements, an unmet one <strong>refuses the cast</strong> rather
-          than making it feeble: a stone either answers you or it does not.
-          Arcane is also what casting <em>teaches</em>, so what you ask for here
-          is what the stone stops being worth training on &mdash; though every
-          cast pays a small flat amount whatever the stone is, so a stone that
-          asks nothing is still a way onto the ladder.
-        </p>
-        <p className="max-w-lg text-[11px] leading-snug text-muted">
-          The elements do a second job here: whichever you ask for is what this
-          spell <strong>is made of</strong>. Everybody starts with a point of
-          each, so asking for one is what puts the bottom rung of an element
-          within reach. What a spell is made of is not the same question as what
-          a <em>body</em> is made of &mdash; that is authored on the Battle tab
-          and on what the body is wearing.
-        </p>
+        <FieldLabel info="An unmet requirement refuses the cast outright. Arcane is what casting trains, and every cast pays a small flat amount whatever the stone asks. An element asked for makes this a spell of that element; everybody starts with a point of each.">
+          Requirements
+        </FieldLabel>
         <ElementReading
           elements={spellElements(stone.requirements)}
           harms={
@@ -532,26 +437,24 @@ function describeCooldown(cooldownMs: number): string {
  * What a requirement row is *for*, in the two cases where it is not obvious.
  *
  * Arcane and the elements are the masteries casting pays into, and a number
- * typed against one of them is doing two jobs at once — see the prose above the
+ * typed against one of them is doing two jobs at once — see the tooltip on the
  * grid. Everything else here is an ordinary gate and needs no caption.
  */
-function masteryHint(mastery: Mastery): string {
-  if (mastery === "arcane") return "The mastery casting this trains.";
+function masteryHint(mastery: Mastery): string | undefined {
+  if (mastery === "arcane") return "Trained by casting.";
   if ((ELEMENTS as Mastery[]).includes(mastery)) {
-    const named = MASTERY_LABELS[mastery].toLowerCase();
-    return `Asks it, trains it, and makes this a ${named} spell.`;
+    return `Makes this a ${MASTERY_LABELS[mastery].toLowerCase()} spell.`;
   }
-  return "";
+  return undefined;
 }
 
 /**
- * What the elements typed above come to, in a sentence.
+ * What the elements typed above come to, in a line.
  *
  * **The wheel is arithmetic nobody should have to do in their head.** An author
  * setting Fire on a stone has decided two things at once — what it demands and
  * what it is good and bad against — and the second of those is invisible in a
- * grid of numbers. So it is said out loud, in the same voice the rest of this
- * panel explains itself in.
+ * grid of numbers. So it is said out loud.
  *
  * Absent entirely for a spell made of nothing, which is most of them: a stone of
  * light is magic that is not made of anything, and a line saying so would be a
@@ -584,29 +487,23 @@ function ElementReading({
       elements.some((element) => beats(against, element)),
   );
   const named = (list: Element[]) =>
-    list.map((element) => MASTERY_LABELS[element]).join(" and ");
+    list.map((element) => MASTERY_LABELS[element]).join(", ");
   const edge = Math.round((EFFECTIVENESS_EDGE - 1) * 100);
-  const kind = <strong>{named(elements).toLowerCase()}</strong>;
 
   if (!harms) {
     return (
-      <p className="max-w-lg text-[11px] leading-snug text-muted">
-        A {kind} spell, which here decides only what it trains &mdash; and how
-        deep it runs in your hands. A mend has nobody on the other end of it for
-        an element to be good against.
+      <p className="text-[11px] leading-snug text-muted">
+        A <strong>{named(elements)}</strong> spell. A mend is never weighed on
+        the wheel.
       </p>
     );
   }
 
   return (
-    <p className="max-w-lg text-[11px] leading-snug text-muted">
-      A {kind} spell. Its damage lands {edge}% harder on{" "}
-      {named(strong).toLowerCase()} bodies
-      {weak.length > 0 ? (
-        <> and softer on {named(weak).toLowerCase()} ones</>
-      ) : null}
-      , measured against what the body it hits <em>is</em> and what it has on
-      &mdash; never against what it has practised.
+    <p className="text-[11px] leading-snug text-muted">
+      A <strong>{named(elements)}</strong> spell: {edge}% harder on{" "}
+      {named(strong)} bodies
+      {weak.length > 0 ? <>, softer on {named(weak)}</> : null}.
     </p>
   );
 }

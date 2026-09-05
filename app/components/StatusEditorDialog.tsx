@@ -12,7 +12,15 @@ import {
 import { snapToTick } from "../game/statuses";
 import type { StatusVfx } from "../lib/statusVfx";
 import { defaultBase, type SpriteRef, type TileDef, type TilesetDef } from "../lib/types";
-import { Button, Dialog, Input, NumberInput, Select, Switch } from "../ui";
+import {
+  Button,
+  Dialog,
+  FieldLabel,
+  Input,
+  NumberInput,
+  Select,
+  Switch,
+} from "../ui";
 import { SpritePreview } from "./TilePreview";
 import { SpriteSelector } from "./SpriteSelector";
 import { StatusVfxFields } from "./StatusVfxFields";
@@ -232,17 +240,14 @@ export function StatusEditorDialog({
               panel row and on a strip icon, and the second half of every icon's
               accessible name. */}
           <span className="text-[11px] text-muted">
-            Shown on hover, and read aloud beside the icon. One line.
+            Tooltip on the status, and its accessible name. One line.
           </span>
         </label>
 
-        <div className="flex flex-col gap-1 border-t-2 border-border pt-3">
-          <span className="text-xs font-bold uppercase text-muted">Icon</span>
-          <p className="max-w-lg text-[11px] leading-snug text-muted">
-            Drag a rectangle on the sheet, the same way a tile's sprite is
-            picked. Its own picture rather than a borrowed tile, so it can come
-            from anywhere on any sheet.
-          </p>
+        <div className="border-t-2 border-border pt-3">
+          <FieldLabel info="Its own picture rather than a borrowed tile, so it can come from anywhere on any sheet.">
+            Icon
+          </FieldLabel>
         </div>
         <div className="flex flex-wrap items-start gap-3">
           <div className="flex flex-col gap-2">
@@ -284,13 +289,10 @@ export function StatusEditorDialog({
           </div>
         </div>
 
-        <div className="flex flex-col gap-1 border-t-2 border-border pt-3">
-          <span className="text-xs font-bold uppercase text-muted">Duration</span>
-          <p className="max-w-lg text-[11px] leading-snug text-muted">
-            Drawn once per application, both ends included. Equal ends mean an
-            exact lifetime; an inverted range is malformed and reads as "not a
-            status".
-          </p>
+        <div className="border-t-2 border-border pt-3">
+          <FieldLabel info="Drawn once per application, both ends included. Equal ends for an exact lifetime.">
+            Duration
+          </FieldLabel>
         </div>
         <div className="flex flex-wrap gap-3">
           <MsField
@@ -326,15 +328,10 @@ export function StatusEditorDialog({
           />
         </div>
 
-        <div className="flex flex-col gap-1 border-t-2 border-border pt-3">
-          <span className="text-xs font-bold uppercase text-muted">
+        <div className="border-t-2 border-border pt-3">
+          <FieldLabel info="Signed. Positive heals and clamps at max HP; negative goes through the same damage path as a blow — shows a number, wakes the brains, and can kill.">
             Per period
-          </span>
-          <p className="max-w-lg text-[11px] leading-snug text-muted">
-            Signed: positive heals and clamps at the maximum, negative goes
-            through the same damage the blows do — so it shows a number, tells the
-            brains, and can kill.
-          </p>
+          </FieldLabel>
         </div>
         <div className="flex flex-wrap items-start gap-3">
           <MsField
@@ -350,17 +347,20 @@ export function StatusEditorDialog({
           />
         </div>
 
-        <div className="flex flex-col gap-1 border-t-2 border-border pt-3">
-          <span className="text-xs font-bold uppercase text-muted">
-            While it lasts
-          </span>
-          <p className="max-w-lg text-[11px] leading-snug text-muted">
-            Added to the numbers a fight is fought with, every time they are read.
-            Variables: <code>DURATION_SEC</code>, <code>REMAINING_SEC</code>,{" "}
-            <code>ELAPSED_SEC</code>, <code>MAX_HP</code>, <code>HP</code>.
-            Functions: ceil, floor, round, abs, min, max. Previewed against a
-            16-point body 20 seconds into a 30-second run.
-          </p>
+        <div className="border-t-2 border-border pt-3">
+          <FieldLabel
+            info={
+              <>
+                Added to the fighting stats every time they are read. Variables:{" "}
+                <code>DURATION_SEC</code>, <code>REMAINING_SEC</code>,{" "}
+                <code>ELAPSED_SEC</code>, <code>MAX_HP</code>, <code>HP</code>.
+                Functions: ceil, floor, round, abs, min, max. Previewed against
+                a 16-point body 20 seconds into a 30-second run.
+              </>
+            }
+          >
+            Modifiers
+          </FieldLabel>
         </div>
         <div className="flex flex-wrap gap-3">
           {MODIFIER_KEYS.map((key) => (
@@ -378,16 +378,10 @@ export function StatusEditorDialog({
           ))}
         </div>
 
-        <div className="flex flex-col gap-1 border-t-2 border-border pt-3">
-          <span className="text-xs font-bold uppercase text-muted">
-            What it looks like
-          </span>
-          <p className="max-w-lg text-[11px] leading-snug text-muted">
-            Client-side only, and never on the wire — a body under this is
-            coloured where it is drawn, and the particles are simulated by
-            whoever is watching. Walking off screen and back starts a new plume
-            rather than resuming one, which is what makes it affordable.
-          </p>
+        <div className="border-t-2 border-border pt-3">
+          <FieldLabel info="Client-side only, never on the wire: the tint is applied where the body is drawn and the particles are simulated by whoever is watching. Walking off screen and back starts a fresh plume.">
+            Visuals
+          </FieldLabel>
         </div>
         <div className="flex flex-wrap items-start gap-4">
           <StatusVfxFields

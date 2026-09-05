@@ -1,4 +1,5 @@
-import { NumberInput } from "../ui";
+import type { ReactNode } from "react";
+import { FieldLabel, NumberInput } from "../ui";
 
 /**
  * One numeric stat, with the sentence that says what it does to a fight.
@@ -16,6 +17,7 @@ import { NumberInput } from "../ui";
  */
 export function StatField({
   label,
+  info,
   hint,
   value,
   min,
@@ -25,7 +27,10 @@ export function StatField({
   step = 1,
 }: {
   label: string;
-  hint: string;
+  /** How the simulation reads the number — the caption's tooltip. */
+  info?: ReactNode;
+  /** The unit or the one thing worth saying under the box. Blank for none. */
+  hint?: string;
   value: number;
   min: number;
   max?: number;
@@ -43,7 +48,7 @@ export function StatField({
 }) {
   return (
     <label className="flex flex-col gap-1 text-xs">
-      <span className="font-bold uppercase text-muted">{label}</span>
+      <FieldLabel info={info}>{label}</FieldLabel>
       <NumberInput
         min={min}
         max={max}
@@ -52,10 +57,14 @@ export function StatField({
         value={value}
         onChange={onChange}
       />
-      <span className="max-w-64 text-[11px] leading-snug text-muted">
-        {hint}
-        {readout ? <strong className="block text-ink">{readout}</strong> : null}
-      </span>
+      {hint || readout ? (
+        <span className="max-w-64 text-[11px] leading-snug text-muted">
+          {hint}
+          {readout ? (
+            <strong className="block text-ink">{readout}</strong>
+          ) : null}
+        </span>
+      ) : null}
     </label>
   );
 }

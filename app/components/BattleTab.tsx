@@ -6,7 +6,6 @@ import { hasAnyInteraction, type TileInteractions } from "../lib/interactions";
 import type { WeaponItem } from "../lib/item";
 import { MAX_PERCENT_STAT } from "../lib/item";
 import {
-  MASTERIES,
   MAX_MASTERY,
   type Mastery,
   masteryLevel,
@@ -15,6 +14,7 @@ import {
 import type { Kit } from "../lib/kit";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
+import { FieldLabel, SectionTitle } from "../ui";
 import { ElementFields } from "./ElementFields";
 import { KitEditor } from "./KitEditor";
 import { StatField } from "./StatField";
@@ -32,46 +32,22 @@ type Props = {
   statusDefs?: Record<string, StatusDef>;
 };
 
-const MASTERY_FIELDS: Array<{ mastery: Mastery; label: string; hint: string }> = [
-  {
-    mastery: "toughness",
-    label: "Toughness",
-    hint: "Hit points. Earned by taking blows worth taking.",
-  },
-  {
-    mastery: "agility",
-    label: "Agility",
-    hint: "Getting out of the way. Earned by dodging, and a little by landing blows.",
-  },
-  {
-    mastery: "fist",
-    label: "Fist",
-    hint: "Bare hands, and anything else answering to Fist.",
-  },
-  { mastery: "blade", label: "Blade", hint: "Swords, knives, anything edged." },
-  { mastery: "blunt", label: "Blunt", hint: "Clubs, axes, anything heavy." },
-  { mastery: "ranged", label: "Ranged", hint: "Bows and thrown things." },
-  { mastery: "arcane", label: "Arcane", hint: "Staves, and magic generally." },
+const MASTERY_FIELDS: Array<{ mastery: Mastery; label: string; hint?: string }> = [
+  { mastery: "toughness", label: "Toughness", hint: "Hit points." },
+  { mastery: "agility", label: "Agility", hint: "Flee." },
+  { mastery: "fist", label: "Fist" },
+  { mastery: "blade", label: "Blade" },
+  { mastery: "blunt", label: "Blunt" },
+  { mastery: "ranged", label: "Ranged" },
+  { mastery: "arcane", label: "Arcane" },
   // The elements, which are what this body can *cast* and emphatically not what
-  // it is made of — see the Made of control below, which is the other question.
+  // it is made of — see the Elements control below, which is the other question.
   // Here because the `player` tile's starting point in each of them is what puts
   // the bottom rung of every element within a new player's reach, and a number
   // nobody can see is a number nobody can tune.
-  {
-    mastery: "fire",
-    label: "Fire",
-    hint: "Fire spells this body may cast. Not what it is made of.",
-  },
-  {
-    mastery: "water",
-    label: "Water",
-    hint: "Water spells this body may cast. Not what it is made of.",
-  },
-  {
-    mastery: "nature",
-    label: "Nature",
-    hint: "Nature spells this body may cast. Not what it is made of.",
-  },
+  { mastery: "fire", label: "Fire", hint: "Casting only." },
+  { mastery: "water", label: "Water", hint: "Casting only." },
+  { mastery: "nature", label: "Nature", hint: "Casting only." },
 ];
 
 /**
@@ -82,7 +58,7 @@ const MASTERY_FIELDS: Array<{ mastery: Mastery; label: string; hint: string }> =
 function describeDodge(flee: number): string {
   const typical = Math.round(dodgeChance(flee, 85) * 100);
   const best = Math.round(dodgeChance(flee, MAX_PERCENT_STAT) * 100);
-  return `Dodges % against 85 accuracy, % against 100.`;
+  return `Dodges ${typical}% at 85 accuracy, ${best}% at 100.`;
 }
 
 /**
@@ -101,7 +77,7 @@ function describeDodge(flee: number): string {
  *
  * There used to be six boxes — max HP, attack, defence, accuracy, flee, speed.
  * They are all still real and none of them is authored: hit points and flee come
- * off the masteries, and the other four are the natural weapon's. The preview at
+ * off the masteries, and the other four are the natural weapon's. The readout at
  * the bottom is the same derivation the simulation runs, which is the only
  * honest way to show numbers nobody types — a readout that could disagree with
  * the formula would be worse than none.
@@ -144,98 +120,62 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {} }: Props) {
   return (
     <div className="flex flex-col gap-4">
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
-        <span className="text-sm font-bold">Battler</span>
-        <p className="text-[11px] leading-snug text-muted">
-          This tile has hit points. Every placement starts at full health, can be
-          targeted and attacked, and is <strong>deleted from the map</strong> the
-          moment it reaches zero. Independent of <strong>Actor</strong> and of
-          the brain: what a body can take is a separate question from what drives
-          it.
-        </p>
+        <SectionTitle info="Every placement starts at full health, can be targeted and attacked, and is deleted from the map at zero. Independent of Actor and of the brain.">
+          Battler
+        </SectionTitle>
 
-        <div className="flex flex-col gap-1 border-t-2 border-border pt-3">
-          <span className="text-xs font-bold uppercase text-muted">
+        <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
+          <FieldLabel info="Fixed for a creature — it never improves. Toughness gives hit points and Agility gives flee; the rest scale whatever it is holding.">
             Masteries
-          </span>
-          <p className="max-w-lg text-[11px] leading-snug text-muted">
-            What this body is good at. A creature's are fixed — it never gets
-            better. Toughness and Agility decide what it can take; the rest decide
-            how well it uses whatever it is holding.
-          </p>
+          </FieldLabel>
+          <div className="flex flex-wrap gap-4">
+            {MASTERY_FIELDS.map(({ mastery, label, hint }) => (
+              <StatField
+                key={mastery}
+                label={label}
+                hint={hint}
+                value={masteryLevel(battler.masteries, mastery)}
+                min={MIN_MASTERY}
+                max={MAX_MASTERY}
+                onChange={(level) => setMastery(mastery, level)}
+              />
+            ))}
+          </div>
         </div>
 
-        <div className="flex flex-wrap gap-4">
-          {MASTERY_FIELDS.map(({ mastery, label, hint }) => (
-            <StatField
-              key={mastery}
-              label={label}
-              hint={hint}
-              value={masteryLevel(battler.masteries, mastery)}
-              min={MIN_MASTERY}
-              max={MAX_MASTERY}
-              onChange={(level) => setMastery(mastery, level)}
-            />
-          ))}
+        <div className="border-t-2 border-border pt-3">
+          <ElementFields
+            label="Elements"
+            info="What the body is, for incoming elemental damage — a cave troll is fire, a rat is nothing. Authored here, never read off the masteries: those are what it can cast. Whatever it wears is added."
+            elements={battler.elements}
+            onChange={setElements}
+          />
         </div>
 
-        <div className="flex flex-col gap-1 border-t-2 border-border pt-3">
-          <span className="text-xs font-bold uppercase text-muted">
-            Made of
-          </span>
-        </div>
-
-        <ElementFields
-          elements={battler.elements}
-          onChange={setElements}
-          description="What this body is, for anything elemental thrown at it — a cave troll is fire, a rat is nothing. Authored, never read off the masteries above: what a body has practised is what it can cast, and what it is made of is what magic does to it. Whatever it is wearing is added to this."
-        />
-
-        <div className="flex flex-col gap-1 border-t-2 border-border pt-3">
-          <span className="text-xs font-bold uppercase text-muted">
+        <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
+          <FieldLabel info="Used with empty hands — a bite, a claw, fists. Anything held replaces it rather than adding to it.">
             Natural weapon
-          </span>
-          <p className="max-w-lg text-[11px] leading-snug text-muted">
-            What this body fights with when its hands are empty — a bite, a claw,
-            a pair of fists. Anything it picks up <strong>replaces</strong> this
-            rather than adding to it.
-          </p>
+          </FieldLabel>
+          <WeaponFields
+            weapon={battler.naturalWeapon}
+            onChange={patchWeapon}
+            masteryInfo="Scales this weapon, and is what the body trains by using it."
+            tiles={tiles}
+            statusDefs={statusDefs}
+          />
         </div>
 
-        <WeaponFields
-          weapon={battler.naturalWeapon}
-          onChange={patchWeapon}
-          masteryHint="Which mastery scales this weapon — and which one this body earns by using it."
-          tiles={tiles}
-          statusDefs={statusDefs}
-        />
-
-        <div className="flex flex-col gap-1 border-t-2 border-border pt-3">
-          <span className="text-xs font-bold uppercase text-muted">Kit</span>
-          <p className="max-w-lg text-[11px] leading-snug text-muted">
-            What a body of this kind is born carrying — the same three slots a
-            player drags things between, so a torch here lights the room and a
-            sword here gets swung. Rolled once, when the body is put on the
-            board; a creature that <strong>respawns rolls again</strong>, and
-            anything it is holding when it dies is{" "}
-            <strong>left on the floor where it fell</strong>.
-          </p>
-          <p className="max-w-lg text-[11px] leading-snug text-muted">
-            Several rows may name one slot: they are rolled top down and the
-            first that comes up takes it, which is how a rare thing is written
-            above a common one.
-          </p>
+        <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
+          <FieldLabel info="Rolled once when the body is placed, and again on respawn. Whatever it holds when it dies is dropped where it fell. Several rows on one slot roll top-down; the first hit takes it, so a rare thing goes above a common one.">
+            Starting kit
+          </FieldLabel>
+          <KitEditor kit={battler.kit ?? []} tiles={tiles} onChange={setKit} />
         </div>
 
-        <KitEditor kit={battler.kit ?? []} tiles={tiles} onChange={setKit} />
-
         <div className="flex flex-col gap-1 border-t-2 border-border pt-3">
-          <span className="text-xs font-bold uppercase text-muted">
-            Fights as
-          </span>
-          <p className="max-w-lg text-[11px] leading-snug text-muted">
-            Derived, not authored — the same arithmetic the simulation runs, with
-            this body's bare hands.
-          </p>
+          <FieldLabel info="Not authored: the same arithmetic the simulation runs, bare-handed.">
+            Derived stats
+          </FieldLabel>
           <dl className="mt-1 flex flex-wrap gap-x-6 gap-y-1 text-[11px]">
             <Derived label="Max HP" value={`${stats.maxHp}`} />
             <Derived label="Damage" value={`${stats.damage}`} />

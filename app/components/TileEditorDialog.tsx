@@ -70,6 +70,7 @@ import { tilesByIdFromList } from "../lib/validation";
 import {
   Button,
   Dialog,
+  FieldLabel,
   Input,
   NumberInput,
   OptionalNumberInput,
@@ -451,17 +452,6 @@ type Props = {
   isNew: boolean;
   onSave: (tile: TileDef) => void;
   onDelete?: () => void;
-};
-
-/**
- * What each state means, in the words of what the player will see.
- *
- * Total over {@link SpriteState} rather than a lookup that might miss, so a new
- * state cannot reach this selector without somebody writing down what it is for.
- */
-const STATE_HINTS: Record<SpriteState, string> = {
-  idle: "How this looks at rest. Every other state falls back to it, per direction.",
-  moving: "While it is crossing a cell or falling.",
 };
 
 const TAB_TILE = "tile";
@@ -1031,25 +1021,22 @@ export function TileEditorDialog({
    */
   const statePicker =
     states.length > 1 ? (
-      <div className="flex flex-col gap-1 pt-1">
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-bold uppercase text-muted">State</span>
-          <Segmented<SpriteState>
-            value={state}
-            onChange={changeState}
-            options={states.map((s) => ({
-              value: s,
-              label:
-                s === "idle"
-                  ? "Idle"
-                  : `${s[0]!.toUpperCase()}${s.slice(1)}${draft.states?.[s as OverrideSpriteState] ? " •" : ""}`,
-            }))}
-            size="sm"
-          />
-        </div>
-        <p className="text-[11px] leading-snug text-muted">
-          {STATE_HINTS[state]}
-        </p>
+      <div className="flex items-center gap-3 pt-1">
+        <FieldLabel info="Moving is drawn while crossing a cell or falling. Any state left unset falls back to idle, per direction. • marks a state with its own art.">
+          State
+        </FieldLabel>
+        <Segmented<SpriteState>
+          value={state}
+          onChange={changeState}
+          options={states.map((s) => ({
+            value: s,
+            label:
+              s === "idle"
+                ? "Idle"
+                : `${s[0]!.toUpperCase()}${s.slice(1)}${draft.states?.[s as OverrideSpriteState] ? " •" : ""}`,
+          }))}
+          size="sm"
+        />
       </div>
     ) : null;
 
@@ -1063,35 +1050,28 @@ export function TileEditorDialog({
    * all of them and none of which can use it.
    */
   const phasePicker = isAnimated(draft) ? (
-    <div className="flex flex-col gap-1 pt-1">
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="text-xs font-bold uppercase text-muted">
-          Frames per cell
-        </span>
-        <label className="flex items-center gap-2 text-xs">
-          <span className="text-muted">East</span>
-          <NumberInput
-            className="w-20"
-            step={1}
-            value={phase.x}
-            onChange={(x) => setPhase({ ...phase, x })}
-          />
-        </label>
-        <label className="flex items-center gap-2 text-xs">
-          <span className="text-muted">South</span>
-          <NumberInput
-            className="w-20"
-            step={1}
-            value={phase.y}
-            onChange={(y) => setPhase({ ...phase, y })}
-          />
-        </label>
-      </div>
-      <p className="text-[11px] leading-snug text-muted">
-        {phase.x === 0 && phase.y === 0
-          ? "Every placement shows the same frame. Give this a value so neighbouring tiles fall out of step — water blinking as one reads as wallpaper."
-          : "Neighbouring placements start this many frames apart, so the animation travels across them. Applies to every face of this tile."}
-      </p>
+    <div className="flex flex-wrap items-center gap-3 pt-1">
+      <FieldLabel info="Frames that neighbouring placements start apart, so the animation travels across them. 0 shows every placement the same frame — water blinking as one reads as wallpaper. Applies to every face of this tile.">
+        Phase per cell
+      </FieldLabel>
+      <label className="flex items-center gap-2 text-xs">
+        <span className="text-muted">East</span>
+        <NumberInput
+          className="w-20"
+          step={1}
+          value={phase.x}
+          onChange={(x) => setPhase({ ...phase, x })}
+        />
+      </label>
+      <label className="flex items-center gap-2 text-xs">
+        <span className="text-muted">South</span>
+        <NumberInput
+          className="w-20"
+          step={1}
+          value={phase.y}
+          onChange={(y) => setPhase({ ...phase, y })}
+        />
+      </label>
     </div>
   ) : null;
 
@@ -1113,7 +1093,7 @@ export function TileEditorDialog({
     >
       <div className="flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-2 text-xs">
-          <span className="font-bold uppercase text-muted">Duration ms</span>
+          <FieldLabel>Duration (ms)</FieldLabel>
           <NumberInput
             className="w-24"
             min={1}
@@ -1270,18 +1250,9 @@ export function TileEditorDialog({
     <div className="flex flex-col gap-3">
       {climbPad}
       <div className="flex flex-col gap-2">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-xs font-bold uppercase text-muted">
-            Autotile slices (47)
-          </span>
-          <p className="text-[11px] leading-snug text-muted">
-            Each icon is a neighborhood: dark green = this tile, light
-            green = matching neighbors. Rendering picks the slice from
-            nearby tiles that count as this one — its own id, plus
-            anything under Connects to. Sparse — only define the shapes
-            you need (missing falls back to isolated).
-          </p>
-        </div>
+        <FieldLabel info="Each icon is a neighbourhood: dark green is this tile, light green a matching neighbour — its own id plus anything under Connects to. Sparse: a shape left undefined falls back to isolated.">
+          Autotile slices
+        </FieldLabel>
         <div
           className="grid w-fit gap-1"
           style={{ gridTemplateColumns: "repeat(8, minmax(0, 1fr))" }}
@@ -1371,7 +1342,8 @@ export function TileEditorDialog({
         selectedIds={draft.connectsTo ?? []}
         onChange={(connectsTo) => setDraft({ ...draft, connectsTo })}
         label="Connects to"
-        emptyHint="Only its own id. Pick tiles this one should read as itself when it looks at its neighbours — an opening it should close around, or a window a wall should run through. One-directional: it does not make them read this tile back."
+        info="Tiles this one reads as itself when it looks at its neighbours — a window a wall should run through. One-directional."
+        emptyHint="Only its own id."
       />
       {frameEditor}
     </div>
@@ -1387,17 +1359,9 @@ export function TileEditorDialog({
     <div className="flex flex-col gap-3">
       {climbPad}
       <div className="flex flex-col gap-2">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-xs font-bold uppercase text-muted">
-            Faces ({faces.length})
-          </span>
-          <p className="text-[11px] leading-snug text-muted">
-            Every placement picks one, decided by where it stands — so a field
-            of this tile is laid down once and never repeats a run. The pick is
-            fixed for a cell: walking over it does not reshuffle it, and neither
-            does anything happening nearby.
-          </p>
-        </div>
+        <FieldLabel info="Every placement picks one by its position, and keeps it: nothing happening nearby reshuffles a cell.">
+          Faces ({faces.length})
+        </FieldLabel>
         <div
           className="flex flex-wrap items-center gap-1"
           role="listbox"
@@ -1489,7 +1453,9 @@ export function TileEditorDialog({
       </div>
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-bold uppercase text-muted">Seed</span>
+          <FieldLabel info="Reshuffles which cell gets which face, without changing how often each comes up. The tile's own id is mixed in, so two tiles on one seed still differ.">
+            Seed
+          </FieldLabel>
           <NumberInput
             min={0}
             max={MAX_SCATTER_SEED}
@@ -1511,11 +1477,6 @@ export function TileEditorDialog({
             Reroll
           </Button>
         </div>
-        <p className="text-[11px] leading-snug text-muted">
-          Shuffles which cell gets which face, without changing how often each
-          one comes up. Two scatter tiles left on the same seed still disagree
-          with each other — the tile&rsquo;s own id is mixed in underneath.
-        </p>
         <div
           className="grid w-fit border-2 border-border"
           style={{
@@ -1593,18 +1554,9 @@ export function TileEditorDialog({
     <div className="flex flex-col gap-3">
       {climbPad}
       <div className="flex flex-col gap-2">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-xs font-bold uppercase text-muted">
-            Faces ({variantNames.length})
-          </span>
-          <p className="text-[11px] leading-snug text-muted">
-            One tile drawn several ways, and the placement picks which — so a
-            hole cut through planks and a hole cut through sand are one tile
-            that falls, lights and blocks identically. Nothing derives the pick:
-            arm the tile and choose a face, or change it on a placement from the
-            selected-stack panel.
-          </p>
-        </div>
+        <FieldLabel info="The placement picks which face it wears — set when arming the tile, or on a placement from the selected-stack panel. Nothing derives the pick. All faces fall, light and block identically.">
+          Faces ({variantNames.length})
+        </FieldLabel>
         <div
           className="flex flex-wrap items-center gap-1"
           role="listbox"
@@ -1670,7 +1622,9 @@ export function TileEditorDialog({
         </div>
         {variantKey ? (
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase text-muted">Name</span>
+            <FieldLabel info="Committed on blur or Enter. Placements already wearing this name follow the rename.">
+              Name
+            </FieldLabel>
             {/* Committed on blur and on Enter rather than per keystroke: a
                 rename rewrites the key every placement in the map points at, so
                 typing "wood" one letter at a time would walk through four names
@@ -1685,9 +1639,6 @@ export function TileEditorDialog({
                 if (e.key === "Enter") e.currentTarget.blur();
               }}
             />
-            <span className="text-[11px] text-muted">
-              Placements already wearing this name follow the rename.
-            </span>
           </div>
         ) : null}
         {variantNames.length > 1 ? (
@@ -1826,12 +1777,6 @@ export function TileEditorDialog({
           </TabPanel>
 
           <TabPanel value={TAB_BRAIN} className="flex flex-col gap-3">
-            <p className="text-[11px] leading-snug text-muted">
-              What drives this body when nobody is connected to it — an authored
-              state machine. Authoring one makes the tile an{" "}
-              <strong>Actor</strong>; a malformed brain leaves the creature
-              standing still.
-            </p>
             <BrainEditor
               brain={draft.interactions?.brain}
               tiles={tiles}
@@ -1840,12 +1785,6 @@ export function TileEditorDialog({
           </TabPanel>
 
           <TabPanel value={TAB_DIALOG} className="flex flex-col gap-3">
-            <p className="text-[11px] leading-snug text-muted">
-              What this body does when somebody presses <strong>Talk</strong> — a
-              script of commands run in order: say a line, offer choices, ask for
-              a trade, jump back to a label. Authoring one makes the tile an{" "}
-              <strong>Actor</strong>; a malformed dialog leaves it mute.
-            </p>
             <DialogEditor
               dialog={draft.interactions?.dialog}
               tiles={tiles}
@@ -1991,8 +1930,10 @@ export function TileEditorDialog({
         </div>
 
         {isActor ? (
-          <label className="flex items-center gap-2 text-sm">
-            Step duration
+          <label className="flex items-center gap-2 text-xs">
+            <FieldLabel info="Milliseconds per cell walked — larger is slower. Blank is the player's pace.">
+              Step (ms)
+            </FieldLabel>
             <OptionalNumberInput
               min={1}
               step={10}
@@ -2005,17 +1946,14 @@ export function TileEditorDialog({
               }
               className="w-24"
             />
-            <span className="text-xs text-ink/60">
-              ms per cell — larger is slower
-            </span>
           </label>
         ) : null}
 
         <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase text-muted">
+            <FieldLabel info="Given off by every placement on the board, measured from the tile's own foot — a plume starting at height 4 leaves the top of a full-height tile. Nothing in a bag emits.">
               Particles
-            </span>
+            </FieldLabel>
             <Switch
               checked={draft.particles != null}
               onCheckedChange={(on) =>
@@ -2035,13 +1973,6 @@ export function TileEditorDialog({
           </div>
           {draft.particles ? (
             <>
-              <p className="max-w-lg text-[11px] leading-snug text-muted">
-                Given off by every placement of this tile that is on the board —
-                a chimney, a flame, a torch lying on the floor. Measured from
-                this tile&rsquo;s own foot, so a plume that starts at height 4
-                leaves the top of a full-height tile. Nothing in a bag emits: an
-                inventory draws its own sprites and never the world.
-              </p>
               {/* Beside the controls rather than under them, because what an
                   author is deciding is whether the smoke looks like smoke and
                   fifteen numbers do not answer that. The subject is this tile

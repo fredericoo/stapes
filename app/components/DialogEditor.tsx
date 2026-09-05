@@ -181,8 +181,8 @@ export function DialogEditor({ dialog, tiles, tilesets, statusDefs, onChange }: 
     return (
       <div className="flex flex-col gap-2">
         <p className="text-[11px] leading-snug text-muted">
-          This body has nothing to say. A dialog gives it a <strong>Talk</strong> row and a
-          panel, and makes the tile an actor.
+          None. A dialog gives the body a <strong>Talk</strong> row, and makes the tile an
+          Actor.
         </p>
         <Button onClick={() => onChange({ ...DEFAULT_DIALOG })}>Add dialog</Button>
       </div>

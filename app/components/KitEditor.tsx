@@ -10,7 +10,7 @@ import {
   SLOT_LABELS,
 } from "../lib/kit";
 import type { TileDef } from "../lib/types";
-import { Button, NumberInput, Select } from "../ui";
+import { Button, FieldLabel, NumberInput, Select } from "../ui";
 
 /**
  * What a body is born carrying, as a table an author fills in.
@@ -80,9 +80,7 @@ export function KitEditor({
   return (
     <div className="flex flex-col gap-3">
       {kit.length === 0 ? (
-        <p className="text-[11px] leading-snug text-muted">
-          Nothing — this body is born empty-handed.
-        </p>
+        <p className="text-[11px] leading-snug text-muted">None.</p>
       ) : null}
 
       {kit.map((entry, index) => {
@@ -140,13 +138,11 @@ export function KitEditor({
 
             {size !== undefined ? (
               <div className="flex flex-col gap-2 border-t-2 border-border pt-2">
-                <span className="text-[11px] font-bold uppercase text-muted">
-                  Inside it
-                </span>
-                <p className="max-w-lg text-[11px] leading-snug text-muted">
-                  Each rolled on its own chance, and each lands in the next free
-                  slot. Anything past the {size} this holds is dropped.
-                </p>
+                <FieldLabel
+                  info={`Each rolled on its own chance into the next free square. Anything past the ${size} it holds is dropped.`}
+                >
+                  Contents
+                </FieldLabel>
                 {contents.map((content, contentIndex) => (
                   <div key={contentIndex} className="flex flex-wrap items-end gap-2">
                     <Select
