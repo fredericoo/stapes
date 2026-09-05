@@ -148,7 +148,11 @@ export function SpriteSelector({
   }
 
   return (
-    <div className="overflow-auto border-2 border-border bg-panel shadow-hard">
+    <div className="flex max-w-full flex-col border-2 border-border bg-panel shadow-hard">
+      {/* The sheet scrolls inside its own box, both ways. Bounded in height
+          because a tall sheet at 4× is several screens, and letting it set the
+          dialog's height put the frame controls and the preview off the bottom. */}
+      <div className="max-h-[50vh] max-w-full overflow-auto">
       <canvas
         ref={canvasRef}
         className="pixelated cursor-crosshair"
@@ -219,6 +223,7 @@ export function SpriteSelector({
           }
         }}
       />
+      </div>
       <div className="border-t-2 border-border px-2 py-1 text-xs text-muted">
         Drag to select cells. Click inside selection to set base (yellow).
         {value

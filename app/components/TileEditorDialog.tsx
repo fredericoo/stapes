@@ -1215,8 +1215,12 @@ export function TileEditorDialog({
         ) : null}
       </div>
 
-      <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_180px]">
-        <div className="flex flex-col gap-2">
+      {/* `min-w-0` on the picker's column: a grid track defaults to
+          `min-width: auto`, which is the canvas's full width, so a wide sheet
+          pushed the whole dialog into a horizontal scroll rather than the
+          picker into its own. */}
+      <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px]">
+        <div className="flex min-w-0 flex-col gap-2">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold uppercase text-muted">Tileset</span>
             <Select
