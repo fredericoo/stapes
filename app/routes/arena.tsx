@@ -20,7 +20,7 @@ import type { FightingStats } from "../lib/battler";
 import { isRanged } from "../lib/item";
 import { type StatusDef, statusesById } from "../lib/status";
 import type { TileDef } from "../lib/types";
-import { Button, Input, Segmented } from "../ui";
+import { Button, NumberInput, Segmented } from "../ui";
 
 /**
  * The combat simulator: two bodies, no world, and the arithmetic on the table.
@@ -254,15 +254,12 @@ export default function ArenaPage() {
           />
           <label className="ml-auto flex items-center gap-2 text-xs">
             <span className="font-bold uppercase text-muted">Seed</span>
-            <Input
-              type="number"
+            <NumberInput
               className="w-24"
               aria-label="Seed"
+              step={1}
               value={seed}
-              onChange={(event) => {
-                const next = Number(event.target.value);
-                if (Number.isFinite(next)) setSeed(Math.trunc(next));
-              }}
+              onChange={setSeed}
             />
           </label>
           <Button size="sm" onClick={() => setSeed((last) => last + 1)}>

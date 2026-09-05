@@ -27,8 +27,12 @@ export function Tooltip({
     <BaseTooltip.Root>
       <BaseTooltip.Trigger render={children} />
       <BaseTooltip.Portal>
-        <BaseTooltip.Positioner side={side} sideOffset={6}>
-          <BaseTooltip.Popup className="z-[90] border-2 border-border bg-paper px-2 py-1 text-xs text-ink shadow-hard">
+        {/* The z-index goes on the positioner, which is the element that is
+            actually positioned: on the popup inside it, it only orders the
+            popup within the positioner's own stacking context, and the whole
+            thing sorts under a dialog's `z-50`. */}
+        <BaseTooltip.Positioner side={side} sideOffset={6} className="z-[90]">
+          <BaseTooltip.Popup className="border-2 border-border bg-paper px-2 py-1 text-xs text-ink shadow-hard">
             {content}
           </BaseTooltip.Popup>
         </BaseTooltip.Positioner>

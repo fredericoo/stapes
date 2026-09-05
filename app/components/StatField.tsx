@@ -1,4 +1,5 @@
-import { Input } from "../ui";
+import type { ReactNode } from "react";
+import { FieldLabel, NumberInput } from "../ui";
 
 /**
  * One numeric stat, with the sentence that says what it does to a fight.
@@ -16,6 +17,7 @@ import { Input } from "../ui";
  */
 export function StatField({
   label,
+  info,
   hint,
   value,
   min,
@@ -25,7 +27,10 @@ export function StatField({
   step = 1,
 }: {
   label: string;
-  hint: string;
+  /** How the simulation reads the number — the caption's tooltip. */
+  info?: ReactNode;
+  /** The unit or the one thing worth saying under the box. Blank for none. */
+  hint?: string;
   value: number;
   min: number;
   max?: number;
@@ -43,39 +48,23 @@ export function StatField({
 }) {
   return (
     <label className="flex flex-col gap-1 text-xs">
-      <span className="font-bold uppercase text-muted">{label}</span>
-      <Input
-        type="number"
+      <FieldLabel info={info}>{label}</FieldLabel>
+      <NumberInput
         min={min}
         max={max}
         step={step}
         className="w-24"
         value={value}
-        onChange={(e) => {
-          const next = Number(e.target.value);
-          if (!Number.isFinite(next)) return;
-          onChange(
-            Math.max(min, Math.min(max ?? Infinity, roundToStep(next, step))),
-          );
-        }}
+        onChange={onChange}
       />
-      <span className="max-w-64 text-[11px] leading-snug text-muted">
-        {hint}
-        {readout ? <strong className="block text-ink">{readout}</strong> : null}
-      </span>
+      {hint || readout ? (
+        <span className="max-w-64 text-[11px] leading-snug text-muted">
+          {hint}
+          {readout ? (
+            <strong className="block text-ink">{readout}</strong>
+          ) : null}
+        </span>
+      ) : null}
     </label>
   );
-}
-
-/**
- * The nearest multiple of `step`, without the float dust.
- *
- * `Math.round(v / step) * step` is exact in decimal and not in binary — 0.1
- * steps land on things like `0.30000000000000004`, which is a number an author
- * did not type and would then see written into their file. Going back through
- * the step's own precision is what keeps the value the one on screen.
- */
-function roundToStep(value: number, step: number): number {
-  const decimals = Math.max(0, -Math.floor(Math.log10(step)));
-  return Number((Math.round(value / step) * step).toFixed(decimals));
 }

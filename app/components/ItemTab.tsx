@@ -34,7 +34,14 @@ import { SLOT_LABELS } from "../lib/kit";
 import { MASTERY_LABELS, WEAPON_MASTERIES } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
-import { Input, Segmented, Select, Switch } from "../ui";
+import {
+  FieldLabel,
+  Input,
+  SectionTitle,
+  Segmented,
+  Select,
+  SwitchField,
+} from "../ui";
 import { StatField } from "./StatField";
 import { StatusGrants } from "./StatusGrants";
 import { StoneFields } from "./StoneFields";
@@ -77,6 +84,20 @@ const TYPE_OPTIONS: Array<{ value: ItemType; label: string }> = [
   { value: "artifact", label: "Artifact" },
   { value: "stone", label: "Arcane stone" },
 ];
+
+/** What each type is, for the tooltip beside the type picker. */
+const TYPE_INFO: Record<ItemType, string> = {
+  weapon:
+    "Held. Replaces the wielder's natural weapon entirely — the same block as a creature's on the Battle tab.",
+  armor: "Worn. Its defence adds to everything else worn and held.",
+  shield:
+    "Held, never swung: that hand sits out the attack rotation. Adds to armour and to the other hand. No resists — those are worn.",
+  consumable: "Used up from a bag or a hand.",
+  container: "Holds other items. Containers never nest.",
+  artifact:
+    "Carried only: goes in the off hand, has no stats and cannot be used. A torch — its light is on the sprite's frames.",
+  stone: "Held or worn on the charm, and cast on a cooldown.",
+};
 
 /**
  * What it takes to be carried.
@@ -183,17 +204,12 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
   return (
     <div className="flex flex-col gap-4">
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
-        <span className="text-sm font-bold">Item</span>
-        <p className="text-[11px] leading-snug text-muted">
-          This tile can be picked up. On the floor it is a placement like any
-          other — it falls, it can be shoved — and picking it up lifts it off the
-          board into somebody&rsquo;s bag. Author it flat and{" "}
-          <strong>intangible</strong> on the Tile tab so it lies on the ground
-          without blocking it.
-        </p>
+        <SectionTitle info="Picked up off the board into a bag. On the floor it is a placement like any other. Author it flat and intangible (Tile tab) so it lies on the ground without blocking it.">
+          Item
+        </SectionTitle>
 
         <div className="flex flex-col gap-1 border-t-2 border-border pt-3 text-xs">
-          <span className="font-bold uppercase text-muted">Type</span>
+          <FieldLabel info={TYPE_INFO[item.type]}>Type</FieldLabel>
           <div>
             <Segmented<ItemType>
               value={item.type}
@@ -207,72 +223,41 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
 
         {item.type === "weapon" ? (
           <div className="flex flex-col gap-3">
-            <p className="max-w-lg text-[11px] leading-snug text-muted">
-              These numbers <strong>are</strong> the fight, not a bonus on one.
-              Holding this replaces whatever the wielder&rsquo;s own hands or
-              jaws would have done — see a creature&rsquo;s natural weapon on the
-              Battle tab, which is the same block.
-            </p>
             <WeaponFields
               weapon={item}
               onChange={patchWeapon}
-              masteryHint="Which mastery scales this weapon — and which one the wielder earns by swinging it."
+              masteryInfo="Scales this weapon, and is what the wielder trains by swinging it."
               tiles={tiles}
               statusDefs={statusDefs}
             />
 
-            <label className="flex items-start gap-2 text-xs">
-              <Switch
-                checked={item.twoHanded === true}
-                onCheckedChange={(twoHanded) => patchWeapon({ twoHanded })}
-                ariaLabel="Two handed"
-              />
-              <span className="flex flex-col gap-1">
-                <span className="font-bold uppercase text-muted">
-                  Two handed
-                </span>
-                <span className="max-w-72 text-[11px] leading-snug text-muted">
-                  On, it takes both hands: a greatsword, a bow, a pike. It sits
-                  in one hand and spoken-for the other, so nothing else can be
-                  held — and with no second weapon there is nothing to alternate
-                  with. What it trades that second swing for is whatever you
-                  write above.
-                </span>
-              </span>
-            </label>
+            <SwitchField
+              checked={item.twoHanded === true}
+              onCheckedChange={(twoHanded) => patchWeapon({ twoHanded })}
+              label="Two handed"
+              info="Occupies both hands: nothing else can be held, and there is no second swing to alternate with."
+            />
           </div>
         ) : item.type === "armor" ? (
           <div className="flex flex-col gap-3">
-            <p className="max-w-lg text-[11px] leading-snug text-muted">
-              Worn, and defence is the whole of what it does. It{" "}
-              <strong>adds</strong> to everything else being worn and to whatever
-              is in either hand — a helm, a mail shirt and a shield are three
-              different answers to being hit, and a body with all three gets all
-              three.
-            </p>
-
             <div className="flex flex-col gap-1 text-xs">
-              <span className="font-bold uppercase text-muted">Worn on</span>
+              <FieldLabel info="One of each is worn, so four pieces stack. A slot refuses a piece authored for another.">
+                Slot
+              </FieldLabel>
               <div>
                 <Segmented<ArmorSlot>
                   value={armorSlotOf(item)}
                   onChange={(slot) => patchArmor({ slot })}
                   options={ARMOR_SLOT_OPTIONS}
                   size="sm"
-                  ariaLabel="Worn on"
+                  ariaLabel="Slot"
                 />
               </div>
-              <span className="max-w-lg text-[11px] leading-snug text-muted">
-                Which square it goes in, and the only thing separating a helmet
-                from a breastplate. A body wears one of each, so four pieces
-                stack; the square refuses anything authored for another one, so
-                a helm cannot be worn as boots.
-              </span>
             </div>
 
             <StatField
               label="Defence"
-              hint="Taken off every blow that lands, whatever struck it."
+              info="Subtracted from every blow that lands, whatever struck it."
               value={item.def}
               min={0}
               max={MAX_ARMOR_DEF}
@@ -281,16 +266,9 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
             />
 
             <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
-              <span className="text-xs font-bold uppercase text-muted">
+              <FieldLabel info="Extra defence against blows from weapons of that mastery, on top of Defence.">
                 Resists
-              </span>
-              <p className="max-w-lg text-[11px] leading-snug text-muted">
-                Extra defence against one <strong>kind</strong> of blow, on top
-                of the flat number above — the kind being the attacking
-                weapon&rsquo;s mastery. Mail that shrugs off blades and does
-                nothing about a hammer is armour you choose for the fight in
-                front of you, rather than one more rung on a ladder.
-              </p>
+              </FieldLabel>
 
               <div className="flex flex-wrap gap-4">
                 {WEAPON_MASTERIES.map((mastery) => {
@@ -299,7 +277,6 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
                     <StatField
                       key={mastery}
                       label={MASTERY_LABELS[mastery]}
-                      hint=""
                       value={against}
                       min={0}
                       max={MAX_ARMOR_DEF}
@@ -321,62 +298,60 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
           </div>
         ) : item.type === "consumable" ? (
           <div className="flex flex-col gap-3">
-            <label className="flex flex-col gap-1 text-xs">
-              <span className="font-bold uppercase text-muted">Label</span>
-              <Input
-                type="text"
-                className="w-32"
-                value={item.label ?? ""}
-                placeholder={CONSUME_FALLBACK_VERB}
-                onChange={(e) => patchConsumable({ label: e.target.value })}
+            <div className="flex flex-wrap items-start gap-4">
+              <label className="flex flex-col gap-1 text-xs">
+                <FieldLabel
+                  info={`The verb beside the name wherever the action is offered. Blank reads as “${CONSUME_FALLBACK_VERB}”.`}
+                >
+                  Action label
+                </FieldLabel>
+                <Input
+                  type="text"
+                  className="w-32"
+                  value={item.label ?? ""}
+                  placeholder={CONSUME_FALLBACK_VERB}
+                  onChange={(e) => patchConsumable({ label: e.target.value })}
+                />
+              </label>
+
+              <label className="flex flex-col gap-1 text-xs">
+                <FieldLabel info="Comic-book noise shown over whoever used it. Blank is silent.">
+                  Sound
+                </FieldLabel>
+                <Input
+                  type="text"
+                  className="w-32"
+                  maxLength={MAX_CONSUMABLE_SOUND_LENGTH}
+                  value={item.sound ?? ""}
+                  placeholder="crunch"
+                  onChange={(e) => patchConsumable({ sound: e.target.value })}
+                />
+              </label>
+
+              <StatField
+                label="HP"
+                info="Added to the user's hit points. Negative poisons."
+                value={item.hp}
+                min={-MAX_CONSUMABLE_HP_SHIFT}
+                max={MAX_CONSUMABLE_HP_SHIFT}
+                onChange={(hp) => patchConsumable({ hp })}
+                readout={describeShift(item.hp, "Heals", "Harms")}
               />
-              <span className="max-w-64 text-[11px] leading-snug text-muted">
-                What using it is called — &ldquo;Eat&rdquo; for a cherry,
-                &ldquo;Drink&rdquo; for a potion. Shown beside the tile&rsquo;s
-                name wherever the action is offered. Blank falls back to
-                &ldquo;{CONSUME_FALLBACK_VERB}&rdquo;.
-              </span>
-            </label>
 
-            <label className="flex flex-col gap-1 text-xs">
-              <span className="font-bold uppercase text-muted">Sound</span>
-              <Input
-                type="text"
-                className="w-32"
-                maxLength={MAX_CONSUMABLE_SOUND_LENGTH}
-                value={item.sound ?? ""}
-                placeholder="crunch"
-                onChange={(e) => patchConsumable({ sound: e.target.value })}
+              <StatField
+                label="Pile"
+                info="How many share one square, in a bag or on a tile. One more starts a second pile."
+                value={pileOf(item)}
+                min={MIN_PILE}
+                max={MAX_PILE}
+                onChange={(pile) => patchConsumable({ pile })}
+                readout={
+                  pileOf(item) > MIN_PILE
+                    ? `Up to ${pileOf(item)} per square.`
+                    : "One per square."
+                }
               />
-              <span className="max-w-64 text-[11px] leading-snug text-muted">
-                The noise using it makes, called out over whoever used it — the
-                comic-book kind, since the game has no audio. Blank is silent.
-              </span>
-            </label>
-
-            <StatField
-              label="HP"
-              hint="Added to the eater's hit points. Negative poisons."
-              value={item.hp}
-              min={-MAX_CONSUMABLE_HP_SHIFT}
-              max={MAX_CONSUMABLE_HP_SHIFT}
-              onChange={(hp) => patchConsumable({ hp })}
-              readout={describeShift(item.hp, "Heals", "Harms")}
-            />
-
-            <StatField
-              label="Pile"
-              hint="How many of these share one square, in a bag or on a tile. One more starts a second pile. Food and counted artifacts pile; nothing else does."
-              value={pileOf(item)}
-              min={MIN_PILE}
-              max={MAX_PILE}
-              onChange={(pile) => patchConsumable({ pile })}
-              readout={
-                pileOf(item) > MIN_PILE
-                  ? `Up to ${pileOf(item)} in a square`
-                  : "One per square"
-              }
-            />
+            </div>
 
             <StatusGrants
               statuses={item.statuses ?? []}
@@ -385,21 +360,16 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
                 patchConsumable({ statuses: statuses.length ? statuses : undefined })
               }
               blank={(id) => ({ id })}
-              blurb={
-                <>
-                  What using this <strong>starts</strong>, as opposed to what it
-                  does on the spot. Leave the duration blank to use the
-                  status&rsquo;s own range — set it to make this a bigger meal
-                  than the next thing.
-                </>
-              }
+              info="Started on use, on top of the HP shift. Override the duration to make this a bigger meal than the next thing."
             />
 
             <label className="flex flex-col gap-1 text-xs">
-              <span className="font-bold uppercase text-muted">Leaves</span>
+              <FieldLabel info="Lands where the item was, then in the bag, then in a free hand. With nowhere to put it, the item cannot be used.">
+                Leaves behind
+              </FieldLabel>
               <Select
                 className="w-56"
-                ariaLabel="Leaves"
+                ariaLabel="Leaves behind"
                 value={item.leaves ?? ""}
                 onValueChange={(leaves) =>
                   patchConsumable({ leaves: leaves || undefined })
@@ -412,40 +382,22 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
                   })),
                 ]}
               />
-              <span className="max-w-64 text-[11px] leading-snug text-muted">
-                What is left once it is used &mdash; an empty bottle. It lands
-                where the drink was, then in the bag, then in a free hand, and
-                a body with nowhere to put it cannot drink.
-              </span>
             </label>
           </div>
         ) : item.type === "artifact" ? (
-          <div className="flex flex-col gap-3">
-            <p className="max-w-lg text-[11px] leading-snug text-muted">
-              <strong>Almost nothing to configure, and that is what it is for.</strong>{" "}
-              It can be picked up, carried and held in the off hand, and it does
-              nothing else: it never replaces what its holder fights with, adds
-              no defence, and cannot be used. A torch is the case this exists
-              for &mdash; its light is authored on the sprite&rsquo;s frames,
-              not here &mdash; so anything that lights a room, or is merely
-              worth carrying, belongs on this type rather than on a weapon
-              nobody wants to swing.
-            </p>
-
-            <StatField
-              label="Pile"
-              hint="How many of these share one square. One, the default, means each takes a square of its own — a torch, a key. Set it for a thing that is only ever counted, like a shard."
-              value={item.pile ?? MIN_PILE}
-              min={MIN_PILE}
-              max={MAX_PILE}
-              onChange={(pile) => patchArtifact({ pile })}
-              readout={
-                (item.pile ?? MIN_PILE) > MIN_PILE
-                  ? `Up to ${item.pile} in a square`
-                  : "One per square"
-              }
-            />
-          </div>
+          <StatField
+            label="Pile"
+            info="How many share one square. 1 means each takes a square of its own — a torch, a key. Raise it for a thing that is only ever counted, like a shard."
+            value={item.pile ?? MIN_PILE}
+            min={MIN_PILE}
+            max={MAX_PILE}
+            onChange={(pile) => patchArtifact({ pile })}
+            readout={
+              (item.pile ?? MIN_PILE) > MIN_PILE
+                ? `Up to ${item.pile} per square.`
+                : "One per square."
+            }
+          />
         ) : item.type === "stone" ? (
           <StoneFields
             stone={item}
@@ -454,71 +406,42 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
             statusDefs={statusDefs}
           />
         ) : item.type === "shield" ? (
-          <div className="flex flex-col gap-3">
-            <p className="max-w-lg text-[11px] leading-snug text-muted">
-              Held in the way of a blow, and never swung at anybody. Both hands
-              take turns attacking, so a shield is a kind of its own rather than
-              a weapon with no damage &mdash; a hand holding one simply sits the
-              rotation out, and the other hand fights on alone.
-            </p>
-
-            <StatField
-              label="Defence"
-              hint="Taken off every blow that lands, whatever struck it."
-              value={item.def}
-              min={0}
-              max={MAX_ARMOR_DEF}
-              onChange={(def) => patchShield({ def })}
-              readout={describeDefence(item.def)}
-            />
-
-            <p className="max-w-lg text-[11px] leading-snug text-muted">
-              It <strong>adds</strong> to armour and to whatever is in the other
-              hand. No resists here: what turns aside one <em>kind</em> of blow
-              is worn, not held.
-            </p>
-          </div>
+          <StatField
+            label="Defence"
+            info="Subtracted from every blow that lands, whatever struck it."
+            value={item.def}
+            min={0}
+            max={MAX_ARMOR_DEF}
+            onChange={(def) => patchShield({ def })}
+            readout={describeDefence(item.def)}
+          />
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-start gap-4">
             <StatField
               label="Size"
-              hint="How many things fit inside it."
+              info="Squares inside it."
               value={item.size}
               min={1}
               max={MAX_CONTAINER_SIZE}
               onChange={(size) => patchContainer({ size })}
             />
 
-            <label className="flex items-start gap-2 text-xs">
-              <Switch
-                checked={item.equippable}
-                onCheckedChange={(equippable) => patchContainer({ equippable })}
-                ariaLabel="Equippable"
-              />
-              <span className="flex flex-col gap-1">
-                <span className="font-bold uppercase text-muted">
-                  Equippable
-                </span>
-                <span className="max-w-72 text-[11px] leading-snug text-muted">
-                  On, it is a backpack: it goes in the bag slot and its contents
-                  are the inventory. Off, it is a chest or a body — opened where
-                  it lies and never carried, since a container may not hold
-                  another container.
-                </span>
-              </span>
-            </label>
+            <SwitchField
+              checked={item.equippable}
+              onCheckedChange={(equippable) => patchContainer({ equippable })}
+              label="Equippable"
+              info="On: a backpack — goes in the bag slot and its contents are the inventory. Off: a chest or a body, opened where it lies and never carried."
+            />
           </div>
         )}
 
         {wearable ? (
-          <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
-            <span className="text-xs font-bold uppercase text-muted">
-              Made of
-            </span>
+          <div className="border-t-2 border-border pt-3">
             <ElementFields
+              label="Wearer's elements"
+              info="Added to the wearer's own elements while this is worn or held, for incoming elemental damage — a tunic of flames makes you fire. The receiving side of the wheel, not what a stone asks to cast."
               elements={item.elements}
               onChange={(elements) => setItem({ ...item, elements })}
-              description="What wearing or holding this makes its bearer, for anything elemental thrown at them — a tunic of flames makes you fire for as long as it is on. Added to whatever the body already is. This is the receiving side of the wheel, and is not the same question as what a stone asks to be cast."
             />
           </div>
         ) : null}
@@ -536,7 +459,7 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
  * padded coat or a wall.
  */
 function describeDefence(def: number): string {
-  if (def === 0) return "Nothing on its own — see Resists below.";
+  if (def === 0) return "Nothing on its own.";
   return `Every blow that lands does ${def} less.`;
 }
 
@@ -555,4 +478,3 @@ function describeShift(value: number, up: string, down: string): string {
   if (value === 0) return "No effect.";
   return `${value > 0 ? up : down} by ${Math.abs(value)}.`;
 }
-

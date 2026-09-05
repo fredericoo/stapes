@@ -6,7 +6,7 @@ import {
   type ParticleEmitterDef,
   type RampStop,
 } from "../lib/particleVfx";
-import { Button, Input, Switch } from "../ui";
+import { Button, FieldLabel, Input, NumberInput, Switch } from "../ui";
 
 /**
  * Authoring one plume, wherever it hangs from.
@@ -42,16 +42,19 @@ export function Row({ children }: { children: React.ReactNode }) {
 
 export function Field({
   label,
+  info,
   hint,
   children,
 }: {
   label: string;
+  /** How the simulation reads it — the caption's tooltip. */
+  info?: React.ReactNode;
   hint?: string;
   children: React.ReactNode;
 }) {
   return (
     <label className="flex flex-col gap-0.5">
-      <span className="text-[11px] font-bold uppercase text-muted">{label}</span>
+      <FieldLabel info={info}>{label}</FieldLabel>
       {children}
       {hint ? <span className="text-[11px] text-muted">{hint}</span> : null}
     </label>
@@ -60,6 +63,7 @@ export function Field({
 
 export function NumberField({
   label,
+  info,
   hint,
   value,
   min,
@@ -68,6 +72,7 @@ export function NumberField({
   onChange,
 }: {
   label: string;
+  info?: React.ReactNode;
   hint?: string;
   value: number;
   min: number;
@@ -76,21 +81,18 @@ export function NumberField({
   onChange: (next: number) => void;
 }) {
   return (
-    <Field label={label} hint={hint}>
-      <Input
-        type="number"
+    <Field label={label} info={info} hint={hint}>
+      {/* Bounded here rather than left to the schema, because the schema's
+          answer to an out-of-range number is to drop the whole status — which
+          would mean the Save button going dark with no field saying which one
+          did it. */}
+      <NumberInput
         className="w-24"
         min={min}
         max={max}
         step={step}
         value={value}
-        // Clamped on the way in rather than left to the schema, because the
-        // schema's answer to an out-of-range number is to drop the whole status
-        // — which here would mean the Save button going dark with no field
-        // saying which one did it.
-        onChange={(e) =>
-          onChange(Math.min(max, Math.max(min, Number(e.target.value) || 0)))
-        }
+        onChange={onChange}
       />
     </Field>
   );
@@ -168,12 +170,9 @@ function RampEditor({
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="max-w-lg text-[11px] leading-snug text-muted">
-        The colour over one particle's life. One stop is a constant colour; four
-        is a fire. Stops are sorted when they are drawn, so dragging one past its
-        neighbour reorders the ramp rather than breaking it — and a life before
-        the first stop or after the last holds that stop.
-      </p>
+      <FieldLabel info="Colour over one particle's life. One stop is a constant colour; four is a fire. Stops are sorted when drawn, so one dragged past its neighbour reorders the ramp; before the first stop and after the last, that stop holds.">
+        Colour ramp
+      </FieldLabel>
       {ramp.map((stop, i) => (
         <div key={i} className="flex flex-wrap items-end gap-2">
           <ColorField label={`Stop ${i + 1}`} value={stop.color} onChange={(color) => patch(i, { color })} />
@@ -398,17 +397,17 @@ export function ParticleFields({
 
       <Row>
         <Field
-          label="Lit by the room"
+          label="Affected by lighting"
           hint={
             particles.lit
-              ? "Dark rooms hide these. Right for smoke, gas, dust."
-              : "Its own light source. Right for embers and sparks."
+              ? "Dark rooms hide these: smoke, gas, dust."
+              : "Self-lit: embers, sparks."
           }
         >
           <Switch
             checked={particles.lit}
             onCheckedChange={(lit) => patch({ lit })}
-            ariaLabel="Lit by the room"
+            ariaLabel="Affected by lighting"
           />
         </Field>
       </Row>

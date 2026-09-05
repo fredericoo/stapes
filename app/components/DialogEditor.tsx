@@ -22,7 +22,7 @@ import { resolveContainer, resolveItem } from "../lib/item";
 import type { StatusDef } from "../lib/status";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import { Button, Input, Select, Textarea } from "../ui";
+import { Button, Input, NumberInput, Select, Textarea } from "../ui";
 import { DialogTryOut } from "./DialogTryOut";
 import { DragHandle } from "./DragHandle";
 import { EditorIssues } from "./EditorIssues";
@@ -181,8 +181,8 @@ export function DialogEditor({ dialog, tiles, tilesets, statusDefs, onChange }: 
     return (
       <div className="flex flex-col gap-2">
         <p className="text-[11px] leading-snug text-muted">
-          This body has nothing to say. A dialog gives it a <strong>Talk</strong> row and a
-          panel, and makes the tile an actor.
+          None. A dialog gives the body a <strong>Talk</strong> row, and makes the tile an
+          Actor.
         </p>
         <Button onClick={() => onChange({ ...DEFAULT_DIALOG })}>Add dialog</Button>
       </div>
@@ -542,8 +542,7 @@ function TradeBlocks({
   ctx: EditorContext;
   onChange: (next: DialogCommand) => void;
 }) {
-  const number = (key: "min" | "max" | "default") => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = Math.max(1, Math.min(MAX_DIALOG_AMOUNT, Number(e.target.value) || 1));
+  const number = (key: "min" | "max" | "default") => (value: number) => {
     onChange({ ...trade, [key]: value });
   };
   return (
@@ -552,14 +551,14 @@ function TradeBlocks({
       <TradeSides label="Gives" sides={trade.give} ctx={ctx} onChange={(give) => onChange({ ...trade, give })} />
       <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase text-muted">
         <span>how many: from</span>
-        <Input type="number" min={1} max={MAX_DIALOG_AMOUNT} value={trade.min} onChange={number("min")} className="w-16" aria-label="Least" />
+        <NumberInput min={1} max={MAX_DIALOG_AMOUNT} step={1} value={trade.min} onChange={number("min")} className="w-16" aria-label="Least" />
         <span>to</span>
-        <Input type="number" min={1} max={MAX_DIALOG_AMOUNT} value={trade.max} onChange={number("max")} className="w-16" aria-label="Most" />
+        <NumberInput min={1} max={MAX_DIALOG_AMOUNT} step={1} value={trade.max} onChange={number("max")} className="w-16" aria-label="Most" />
         <span>starting at</span>
-        <Input
-          type="number"
+        <NumberInput
           min={1}
           max={MAX_DIALOG_AMOUNT}
+          step={1}
           value={trade.default ?? trade.min}
           onChange={number("default")}
           className="w-16"
@@ -594,14 +593,12 @@ function TradeSides({
       <span className="w-10 text-[10px] font-bold uppercase text-muted">{label}</span>
       {sides.map((side, i) => (
         <span key={i} className="flex items-center gap-1">
-          <Input
-            type="number"
+          <NumberInput
             min={1}
             max={MAX_DIALOG_AMOUNT}
+            step={1}
             value={side.count}
-            onChange={(e) =>
-              onChange(sides.map((s, j) => (j === i ? { ...s, count: Math.max(1, Number(e.target.value) || 1) } : s)))
-            }
+            onChange={(count) => onChange(sides.map((s, j) => (j === i ? { ...s, count } : s)))}
             className="w-16"
             aria-label="Count"
           />

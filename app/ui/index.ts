@@ -10,3 +10,7 @@ export { Switch } from "./Switch";
 export { Toggle } from "./Toggle";
 export { Tooltip, TooltipProvider } from "./Tooltip";
 export { ScrollArea } from "./ScrollArea";
+export { NumberInput, OptionalNumberInput } from "./NumberInput";
+export { InfoTip } from "./InfoTip";
+export { FieldLabel, SectionTitle } from "./FieldLabel";
+export { SwitchField } from "./SwitchField";

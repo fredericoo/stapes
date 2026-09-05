@@ -46,7 +46,7 @@ import { ConditionTreeEditor } from "./ConditionTreeEditor";
 import { DragHandle } from "./DragHandle";
 import { EditorIssues } from "./EditorIssues";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
-import { Button, Input, Segmented, Select, Switch } from "../ui";
+import { Button, Input, NumberInput, Segmented, Select, Switch } from "../ui";
 
 /**
  * Authoring a brain as two tables rather than JSON.
@@ -221,12 +221,11 @@ export function BrainEditor({ brain, tiles, onChange }: Props) {
     return (
       <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
         <p className="text-[11px] leading-snug text-muted">
-          A brain drives this body when nobody is connected to it. It is a flat
-          state machine: states each run an ordered list of actions, and an
-          ordered list of transitions moves between them — first match wins.
+          None. A brain is a state machine that drives the body when nobody is
+          connected to it, and makes the tile an Actor.
         </p>
         <Button size="sm" className="w-fit" onClick={() => onChange(EMPTY_BRAIN)}>
-          Add a brain
+          Add brain
         </Button>
       </div>
     );
@@ -555,7 +554,7 @@ function TransitionsTable({
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between">
         <span className="text-xs font-bold uppercase text-muted">
-          Transitions (first match wins — order is priority)
+          Transitions (first match wins)
         </span>
         <Button size="sm" variant="secondary" onClick={add}>
           Add transition
@@ -912,11 +911,10 @@ function ParamField({
     return (
       <label className="flex items-center gap-1 text-[10px] uppercase text-muted">
         {spec.label}
-        <Input
-          type="number"
+        <NumberInput
           min={spec.min}
           value={typeof value === "number" ? value : 0}
-          onChange={(e) => onChange(Number(e.target.value) || 0)}
+          onChange={onChange}
           className="w-20"
           aria-label={spec.label}
         />

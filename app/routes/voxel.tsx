@@ -32,7 +32,7 @@ import {
   type VoxelProject,
   type VoxelSize,
 } from "../lib/voxel";
-import { Button, Dialog, Input, Segmented, Select, Switch, useToast } from "../ui";
+import { Button, Dialog, Input, NumberInput, Segmented, Select, Switch, useToast } from "../ui";
 
 const STORAGE_KEY = "stapes-voxel-project";
 const AUTOSAVE_DELAY_MS = 400;
@@ -607,12 +607,11 @@ function FramesPanel({
       </div>
       <label className="flex items-center gap-2 text-xs">
         Duration
-        <Input
-          type="number"
+        <NumberInput
           min={1}
+          step={1}
           value={frame?.durationMs ?? DEFAULT_FRAME_DURATION_MS}
-          onChange={(e) => {
-            const durationMs = Math.max(1, Number(e.target.value) || 1);
+          onChange={(durationMs) => {
             onChange((p) => {
               const frames = p.frames.slice();
               frames[frameIdx] = { ...frames[frameIdx], durationMs };

@@ -37,7 +37,6 @@ import {
   DEFAULT_TRANSMUTE_VERB,
   MAX_EXTRACT_CHANCE,
   MAX_EXTRACT_SLOTS,
-  MAX_REWARD_ITEMS,
   MAX_TRANSMUTATION_OUTPUTS,
   MAX_TRANSMUTATIONS,
   MIN_EXTRACT_CHANCE,
@@ -48,7 +47,16 @@ import { DEFAULT_WEAPON, resolveContainer, resolveItem } from "../lib/item";
 import type { StatusDef } from "../lib/status";
 import type { TileDef, TileKind, TilesetDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL } from "../lib/types";
-import { Button, Input, Segmented, Select, Switch } from "../ui";
+import {
+  Button,
+  FieldLabel,
+  Input,
+  NumberInput,
+  SectionTitle,
+  Segmented,
+  Select,
+  SwitchField,
+} from "../ui";
 import { TileIdMultiSelect } from "./TileIdMultiSelect";
 
 /** Symbols read left-to-right after the "load is" label. */
@@ -68,35 +76,20 @@ const TRIGGER_OPTIONS: Array<{ value: ActivationTrigger; label: string }> = [
 ];
 
 /**
- * What choosing each trigger gets you, in one line under the control.
- *
- * Written for the gesture rather than for the teleport it started on, because
- * both the sections that offer it read the same three lines — what changes
- * between them is what happens afterwards, not how you set it off.
+ * The three triggers in one tooltip, because both the sections that offer
+ * them read the same three lines — what changes between them is what happens
+ * afterwards, not how you set it off.
  */
-const TRIGGER_HINTS: Record<ActivationTrigger, string> = {
-  step: "Walking onto it does it, with nothing to press — a portal you fall through, a fire you walk into. No row, no outline: it has already happened by the time you could read about it.",
-  interact:
-    "Pressing it from the next square over, squarely — the same reach a switch takes. A doorway you step into, a brazier you reach for.",
-  interactOver:
-    "Pressing it while standing on it. A ladder: you walk onto the rungs, then climb.",
-};
+const TRIGGER_INFO =
+  "Step on: fires on entering the cell, with no row to press. Press beside: from an adjacent cell, the reach a switch has. Press on: while standing on it, like a ladder.";
 
 const DESTINATION_OPTIONS: Array<{
   value: TeleportDestinationKind;
   label: string;
 }> = [
-  { value: "relative", label: "An offset" },
-  { value: "absolute", label: "A cell" },
+  { value: "relative", label: "Relative" },
+  { value: "absolute", label: "Absolute" },
 ];
-
-/** Which half of the authoring holds the answer, in one line under the control. */
-const DESTINATION_HINTS: Record<TeleportDestinationKind, string> = {
-  relative:
-    "The same journey wherever this tile is dropped, set here and once. A ladder goes up one floor, whichever ladder it is.",
-  absolute:
-    "A different cell for every placement, set on each one in the map editor. One portal tile can be every doorway in the world.",
-};
 
 const DELTA_AXES = ["x", "y", "z"] as const;
 
@@ -116,14 +109,8 @@ const MS_PER_SECOND = 1000;
  */
 const MAX_DECAY_SECONDS = 3600;
 
-/** A cleared number field reads as the shortest legal lifetime, not as NaN. */
-function secondsFromInput(raw: string): number {
-  const parsed = Number.parseFloat(raw);
-  return Number.isNaN(parsed) ? 1 : parsed;
-}
-
 /**
- * Deepest a resource may be authored, in pulls.
+ * Deepest a resource may be authored, in uses.
  *
  * A sanity bound rather than a balance one, on `MAX_DECAY_SECONDS`' terms: wide
  * enough for anything worth authoring, narrow enough that a typo'd extra digit
@@ -139,36 +126,11 @@ const MAX_DURABILITY = 99;
  */
 const MAX_COOLDOWN_SECONDS = MAX_DECAY_SECONDS;
 
-/** A cleared count field reads as the shallowest legal resource, not as NaN. */
-function durabilityFromInput(raw: string): number {
-  const parsed = Number.parseInt(raw, 10);
-  if (Number.isNaN(parsed)) return 1;
-  return Math.min(MAX_DURABILITY, Math.max(1, parsed));
-}
-
-/**
- * A cleared chance field reads as never, not as NaN — `KitEditor`'s rule and
- * for its reason: emptying a box is somebody on their way to typing a smaller
- * number, and snapping it back to certainty mid-edit would fight them.
- */
-function chanceFromInput(raw: string): number {
-  const parsed = Number.parseFloat(raw);
-  if (Number.isNaN(parsed)) return MIN_EXTRACT_CHANCE;
-  return Math.min(MAX_EXTRACT_CHANCE, Math.max(MIN_EXTRACT_CHANCE, parsed));
-}
-
 const KIND_OPTIONS: Array<{ value: TileKind; label: string }> = [
   { value: "prop", label: "Prop" },
   { value: "battler", label: "Battler" },
   { value: "item", label: "Item" },
 ];
-
-/** What choosing each kind gets you, in one line under the select. */
-const KIND_HINTS: Record<TileKind, string> = {
-  prop: "Scenery and machinery — everything the world is made of. It can still be pushed, switched, wired, and driven by a brain.",
-  battler: "It has hit points, and can be targeted, hurt and killed. Stats are on the Battle tab.",
-  item: "It can be picked up and carried. What it does in a bag or a hand is on the Item tab.",
-};
 
 /**
  * What a reward may hand over — the same rule `rewardFits` enforces in play,
@@ -193,6 +155,56 @@ type Props = {
    */
   statusDefs: Record<string, StatusDef>;
 };
+
+/** A section's on/off row: the switch, then the title with its tooltip. */
+function SectionSwitch({
+  on,
+  onToggle,
+  label,
+  info,
+}: {
+  on: boolean;
+  onToggle: (on: boolean) => void;
+  label: string;
+  info: string;
+}) {
+  return (
+    <SwitchField
+      checked={on}
+      onCheckedChange={onToggle}
+      label={label}
+      info={info}
+      size="section"
+    />
+  );
+}
+
+/** The verb a row shows for this interaction, with what blank falls back to. */
+function ActionLabelField({
+  value,
+  fallback,
+  onChange,
+}: {
+  value: string | undefined;
+  fallback: string;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-1 text-xs">
+      <FieldLabel
+        info={`The verb on the player's row — “Open” on a door, “Cook” at a fire. Blank reads as “${fallback}”.`}
+      >
+        Action label
+      </FieldLabel>
+      <Input
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={fallback}
+        className="w-48"
+      />
+    </label>
+  );
+}
 
 /**
  * Ways the player can interact with this tile in play mode. One section per
@@ -416,15 +428,10 @@ export function InteractiveTab({
       ? teleport.destination.delta
       : DEFAULT_TELEPORT_DELTA;
 
-  /** A cleared axis reads as 0 rather than as NaN, like every number here. */
-  const patchDelta = (axis: (typeof DELTA_AXES)[number], raw: string) => {
+  const patchDelta = (axis: (typeof DELTA_AXES)[number], value: number) => {
     if (teleport?.destination.kind !== "relative") return;
-    const parsed = Number.parseInt(raw, 10);
     patchTeleport({
-      destination: {
-        kind: "relative",
-        delta: { ...delta, [axis]: Number.isInteger(parsed) ? parsed : 0 },
-      },
+      destination: { kind: "relative", delta: { ...delta, [axis]: value } },
     });
   };
 
@@ -481,53 +488,40 @@ export function InteractiveTab({
     setReceive({ ...receive, ...patch });
   };
 
+  const others = tiles.filter((t) => t.id !== draft.id);
+  const giveable = tiles.filter(isGiveable);
+
   return (
     <div className="flex flex-col gap-4">
-      <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
-        <div className="flex flex-col gap-1 text-xs">
-          <span className="text-sm font-bold">Kind</span>
-          <p className="text-[11px] leading-snug text-muted">
-            What this tile <em>is</em>, as opposed to what it does. The three are
-            exclusive, and each opens the tab that configures it. Everything
-            below — push, switch, plates, wires — is available whichever you
-            pick.
-          </p>
-          <div className="pt-1">
-            <Segmented<TileKind>
-              value={draft.kind}
-              onChange={setKind}
-              options={KIND_OPTIONS}
-              size="sm"
-              ariaLabel="Tile kind"
-            />
-          </div>
-          <span className="text-[11px] leading-snug text-muted">
-            {KIND_HINTS[draft.kind]}
-          </span>
+      <section className="flex flex-col gap-2 border-2 border-border bg-panel p-3">
+        <SectionTitle info="Exclusive. Prop is scenery and machinery. Battler has hit points and opens the Battle tab. Item can be carried and opens the Item tab. Every section below is available whichever is picked.">
+          Kind
+        </SectionTitle>
+        <div>
+          <Segmented<TileKind>
+            value={draft.kind}
+            onChange={setKind}
+            options={KIND_OPTIONS}
+            size="sm"
+            ariaLabel="Tile kind"
+          />
         </div>
       </section>
 
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
-        <label className="flex items-center gap-2 text-sm font-bold">
-          <Switch
-            checked={Boolean(push)}
-            onCheckedChange={(on) => setPush(on ? { ...DEFAULT_PUSH } : undefined)}
-            ariaLabel="Pushable"
-          />
-          Push
-        </label>
-        <p className="text-[11px] leading-snug text-muted">
-          Standing next to this object and clicking it shoves it one cell
-          straight away from the player. Never diagonally, never further than
-          one cell — where it goes is decided by where the player stands.
-        </p>
+        <SectionSwitch
+          on={Boolean(push)}
+          onToggle={(on) => setPush(on ? { ...DEFAULT_PUSH } : undefined)}
+          label="Push"
+          info="Clicking it from an adjacent cell moves it one cell directly away from the player. Never diagonal, never further."
+        />
 
         {push ? (
           <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
             <div className="flex flex-col gap-1 text-xs">
-              <span className="font-bold uppercase text-muted">
-                Climb height
-              </span>
+              <FieldLabel info="How far up it can be shoved. Given a step up and a step down it takes the step down. Turn on Affected by gravity (Tile tab) to let it fall off ledges.">
+                Climb
+              </FieldLabel>
               <Segmented<ClimbAbility>
                 value={push.climb}
                 onChange={(climb) => patchPush({ climb })}
@@ -538,12 +532,6 @@ export function InteractiveTab({
                 ]}
                 size="sm"
               />
-              <span className="text-[11px] leading-snug text-muted">
-                How far up it can be shoved. When the cell ahead offers both a
-                step up and a step down it takes the step down. Going down is
-                physics — turn on <strong>Affected by gravity</strong> on the
-                Tile tab to let it be pushed off ledges.
-              </span>
             </div>
 
             <TileIdMultiSelect
@@ -551,132 +539,77 @@ export function InteractiveTab({
               tilesets={tilesets}
               selectedIds={push.moveOnTileIds}
               onChange={(moveOnTileIds) => patchPush({ moveOnTileIds })}
-              label="Move on tiles"
-              emptyHint="Any surface. Pick tiles to confine this object to them — it can only come to rest on top of one of the chosen tiles."
+              label="Allowed surfaces"
+              info="It can only come to rest on top of one of these."
+              emptyHint="Any."
             />
           </div>
         ) : null}
       </section>
 
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
-        <label className="flex items-center gap-2 text-sm font-bold">
-          <Switch
-            checked={Boolean(sw)}
-            onCheckedChange={(on) =>
-              setSwitch(on ? { ...DEFAULT_SWITCH } : undefined)
-            }
-            ariaLabel="Switchable"
-          />
-          Switch
-        </label>
-        <p className="text-[11px] leading-snug text-muted">
-          Clicking this object replaces it with another tile. Put switch on
-          both tiles to toggle (e.g. door closed ↔ open). The swap is refused
-          when the target would not fit in the stack. A tile with both switch
-          and push switches — push is the fallback.
-        </p>
+        <SectionSwitch
+          on={Boolean(sw)}
+          onToggle={(on) => setSwitch(on ? { ...DEFAULT_SWITCH } : undefined)}
+          label="Switch"
+          info="Clicking it replaces it with the target tile. Put a switch on both tiles to toggle (door closed ↔ open). Refused when the target would not fit in the stack. With push as well, switch wins."
+        />
 
         {sw ? (
           <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
             <TileIdMultiSelect
-              tiles={tiles.filter((t) => t.id !== draft.id)}
+              tiles={others}
               tilesets={tilesets}
               selectedIds={sw.targetTileId ? [sw.targetTileId] : []}
               onChange={(ids) =>
                 patchSwitch({ targetTileId: ids[0] ?? "" })
               }
               label="Target tile"
-              emptyHint="Pick the tile this becomes when switched."
+              emptyHint="None."
               single
             />
-            <label className="flex flex-col gap-1 text-xs font-bold">
-              Action name
-              <Input
-                value={sw.actionName ?? ""}
-                onChange={(e) => patchSwitch({ actionName: e.target.value })}
-                placeholder="Switch"
-              />
-              <span className="text-[11px] font-normal leading-snug text-muted">
-                What the player is doing, as they would say it — “Open” on a
-                shut door and “Close” on an open one. Shown wherever the action
-                is offered by name rather than by pointing at it. Leave it blank
-                and it reads as “Switch”.
-              </span>
-            </label>
+            <ActionLabelField
+              value={sw.actionName}
+              fallback="Switch"
+              onChange={(actionName) => patchSwitch({ actionName })}
+            />
           </div>
         ) : null}
       </section>
 
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
-        <label className="flex items-center gap-2 text-sm font-bold">
-          <Switch
-            checked={Boolean(reward)}
-            onCheckedChange={(on) =>
-              setReward(on ? { ...DEFAULT_REWARD } : undefined)
-            }
-            ariaLabel="Gives a reward"
-          />
-          Reward
-        </label>
+        <SectionSwitch
+          on={Boolean(reward)}
+          onToggle={(on) => setReward(on ? { ...DEFAULT_REWARD } : undefined)}
+          label="Reward"
+          info="Gives items once per player: a tag written on the player blocks a second helping, and the tile itself never changes. Offered in purple. Refused when the bag has no room for all of it."
+        />
         <p className="text-[11px] leading-snug text-muted">
-          Hands the player items, <strong>once each</strong>. A quest chest, or
-          a person who gives you something. The tile itself never changes — it
-          is still there, still full, for everybody else — so what stops a
-          second helping is a tag written on the player. Offered in purple, and
-          refused outright when the bag has no room for all of it.
-        </p>
-        <p className="text-[11px] leading-snug text-muted">
-          <strong>What it gives is set per placement</strong>, not here — the
-          same way a signal channel is. One chest tile can be every chest in the
-          world, each with its own loot and its own tag. Select a placement in
-          the map editor and open its settings.
+          Items and tag are set per placement, in the map editor.
         </p>
 
         {reward ? (
           <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
-            <label className="flex flex-col gap-1 text-xs font-bold">
-              Action name
-              <Input
-                value={reward.actionName ?? ""}
-                onChange={(e) => patchReward({ actionName: e.target.value })}
-                placeholder="Take"
-              />
-              <span className="text-[11px] font-normal leading-snug text-muted">
-                What the player is doing, as they would say it — “Open” on a
-                chest, “Receive” from a person. The one part that belongs to the
-                tile rather than to the spot: every chest cut from this tile is
-                opened, whatever is inside them. Leave it blank and it reads as
-                “Take”.
-              </span>
-            </label>
+            <ActionLabelField
+              value={reward.actionName}
+              fallback="Take"
+              onChange={(actionName) => patchReward({ actionName })}
+            />
           </div>
         ) : null}
       </section>
 
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
-        <label className="flex items-center gap-2 text-sm font-bold">
-          <Switch
-            checked={Boolean(transmute)}
-            onCheckedChange={(on) =>
-              setTransmute(on ? { recipes: [...DEFAULT_TRANSMUTE.recipes] } : undefined)
-            }
-            ariaLabel="Transmutes"
-          />
-          Transmute
-        </label>
-        <p className="text-[11px] leading-snug text-muted">
-          Turns one thing the player is carrying into one or more others — a
-          fire that cooks meat, a trader who takes a carcass for a coin. The
-          input is destroyed and what comes back is minted fresh, so this is a
-          recipe rather than an exchange of particular objects.
-        </p>
-        <p className="text-[11px] leading-snug text-muted">
-          <strong>The tile never changes and nothing is spent but the input.</strong>{" "}
-          Unlike a reward it is not once per player: the fire cooks the second
-          steak too, and what limits it is having something to spend. A recipe is
-          only offered while the player is actually carrying its input, so a fire
-          you have nothing to cook at is just a fire.
-        </p>
+        <SectionSwitch
+          on={Boolean(transmute)}
+          onToggle={(on) =>
+            setTransmute(
+              on ? { recipes: [...DEFAULT_TRANSMUTE.recipes] } : undefined,
+            )
+          }
+          label="Transmute"
+          info="Spends one carried item and mints the outputs fresh. Repeatable, and only offered while the input is carried. Outputs go where the input came from, spilling to pack then hands, never the floor — with no room the recipe is not offered."
+        />
 
         {transmute ? (
           <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
@@ -686,9 +619,7 @@ export function InteractiveTab({
                 className="flex flex-col gap-3 border-2 border-border bg-paper p-3"
               >
                 <div className="flex items-start justify-between gap-2">
-                  <span className="text-xs font-bold uppercase text-muted">
-                    Recipe {index + 1}
-                  </span>
+                  <FieldLabel>Recipe {index + 1}</FieldLabel>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -698,36 +629,35 @@ export function InteractiveTab({
                   </Button>
                 </div>
 
-                <label className="flex flex-col gap-1 text-xs font-bold">
-                  Verb
+                <label className="flex flex-col gap-1 text-xs">
+                  <FieldLabel
+                    info={`The row reads as verb plus input — “Cook Raw Meat”. Blank reads as “${DEFAULT_TRANSMUTE_VERB}”.`}
+                  >
+                    Action label
+                  </FieldLabel>
                   <Input
                     value={recipe.verb ?? ""}
                     onChange={(e) => patchRecipe(index, { verb: e.target.value })}
                     placeholder={DEFAULT_TRANSMUTE_VERB}
+                    className="w-48"
                   />
-                  <span className="text-[11px] font-normal leading-snug text-muted">
-                    What the player is doing, as they would say it — “Cook” at a
-                    fire, “Trade” with a salesman. The row reads as the verb and
-                    the thing being spent, so this one says “Cook Raw Meat”. Per
-                    recipe rather than per tile, because one stall may both trade
-                    and cook. Leave it blank and it reads as “{DEFAULT_TRANSMUTE_VERB}”.
-                  </span>
                 </label>
 
                 <TileIdMultiSelect
-                  tiles={tiles.filter(isGiveable)}
+                  tiles={giveable}
                   tilesets={tilesets}
                   selectedIds={recipe.fromTileId ? [recipe.fromTileId] : []}
                   onChange={(ids) =>
                     patchRecipe(index, { fromTileId: ids[0] ?? "" })
                   }
-                  label="Spends"
-                  emptyHint="Pick the item this takes. It is looked for in the player’s hands first, then in their bag."
+                  label="Input"
+                  info="Looked for in the player's hands first, then the bag."
+                  emptyHint="None."
                   single
                 />
 
                 <TileIdMultiSelect
-                  tiles={tiles.filter(isGiveable)}
+                  tiles={giveable}
                   tilesets={tilesets}
                   selectedIds={recipe.toTileIds}
                   onChange={(toTileIds) =>
@@ -735,19 +665,10 @@ export function InteractiveTab({
                       toTileIds: toTileIds.slice(0, MAX_TRANSMUTATION_OUTPUTS),
                     })
                   }
-                  label="Gives back"
-                  emptyHint="Pick what comes back. Nothing here means the recipe does nothing, and it is dropped on save."
+                  label="Outputs"
+                  info={`Up to ${MAX_TRANSMUTATION_OUTPUTS}, never a container.`}
+                  emptyHint="None — the recipe is dropped on save."
                 />
-                <span className="text-[11px] leading-snug text-muted">
-                  <strong>It goes back where the input came from</strong> — the
-                  hand that held it out, or the pack it was taken from, counting
-                  the square the input frees. Whatever will not fit there spills
-                  to the rest of the kit, pack before hands, and{" "}
-                  <strong>never onto the floor</strong>: a recipe with nowhere
-                  left on the body to put its results is not offered at all. Up
-                  to {MAX_TRANSMUTATION_OUTPUTS}, and never a container: nothing
-                  nests.
-                </span>
               </div>
             ))}
 
@@ -757,148 +678,85 @@ export function InteractiveTab({
               </Button>
             ) : (
               <span className="text-[11px] leading-snug text-muted">
-                {MAX_TRANSMUTATIONS} recipes is the most one tile may offer —
-                every runnable one is a row in the player’s list, and a menu
-                longer than this has stopped being something you can scan.
+                Up to {MAX_TRANSMUTATIONS} recipes.
               </span>
             )}
           </div>
         ) : null}
       </section>
 
-
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
-        <label className="flex items-center gap-2 text-sm font-bold">
-          <Switch
-            checked={Boolean(extract)}
-            onCheckedChange={(on) =>
-              setExtract(
-                on
-                  ? { ...DEFAULT_EXTRACT, slots: [...DEFAULT_EXTRACT.slots] }
-                  : undefined,
-              )
-            }
-            ariaLabel="Can be worked for resources"
-          />
-          Extract
-        </label>
-        <p className="text-[11px] leading-snug text-muted">
-          Something the player works for what it is made of — a crystal they
-          mine, a bush they pick. Every pull rolls the yields below and hands
-          over whatever came up.
-        </p>
-        <p className="text-[11px] leading-snug text-muted">
-          <strong>It is shared, and it runs out.</strong> Unlike a reward, which
-          is once per player and leaves the chest standing, the pulls come off
-          the placement itself: the crystal is the same crystal for everybody who
-          walks up to it, and two people working one vein race each other. The{" "}
-          <em>wait</em> is the other way round — it is per player and per
-          placement, so a bush somebody has just picked is still full for the
-          person walking up behind them.
-        </p>
+        <SectionSwitch
+          on={Boolean(extract)}
+          onToggle={(on) =>
+            setExtract(
+              on
+                ? { ...DEFAULT_EXTRACT, slots: [...DEFAULT_EXTRACT.slots] }
+                : undefined,
+            )
+          }
+          label="Extract"
+          info="Each use rolls every yield slot and hands over what came up. Uses are shared — the placement is the same vein for everybody. The cooldown is per player, per placement."
+        />
 
         {extract ? (
           <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
-            <label className="flex flex-col gap-1 text-xs font-bold">
-              Action name
-              <Input
-                value={extract.actionName ?? ""}
-                onChange={(e) => patchExtract({ actionName: e.target.value })}
-                placeholder={DEFAULT_EXTRACT_VERB}
-              />
-              <span className="text-[11px] font-normal leading-snug text-muted">
-                What the player is doing, as they would say it — “Mine” a
-                crystal, “Pick” a bush, “Fell” a tree. Leave it blank and it
-                reads as “{DEFAULT_EXTRACT_VERB}”.
-              </span>
-            </label>
+            <ActionLabelField
+              value={extract.actionName}
+              fallback={DEFAULT_EXTRACT_VERB}
+              onChange={(actionName) => patchExtract({ actionName })}
+            />
 
-            <label className="flex flex-col gap-1 text-xs font-bold">
-              Pulls
-              <Input
-                type="number"
-                min={1}
-                max={MAX_DURABILITY}
-                step={1}
-                value={extract.durability}
-                onChange={(e) =>
-                  patchExtract({
-                    durability: durabilityFromInput(e.target.value),
-                  })
-                }
-                className="w-20"
-              />
-              <span className="text-[11px] font-normal leading-snug text-muted">
-                How many times a fresh placement can be worked before it turns
-                into whatever you name below. Shared: this is the whole vein, not
-                each player’s share of it. Lowering it later shortens every
-                placement in the world, including ones somebody has already
-                started on.
-              </span>
-            </label>
+            <div className="flex flex-wrap items-start gap-3">
+              <label className="flex flex-col gap-1 text-xs">
+                <FieldLabel info="How many times a fresh placement can be worked before it becomes the depleted tile. Shared across players. Lowering it later shortens every placement in the world.">
+                  Uses
+                </FieldLabel>
+                <NumberInput
+                  min={1}
+                  max={MAX_DURABILITY}
+                  step={1}
+                  value={extract.durability}
+                  onChange={(durability) => patchExtract({ durability })}
+                  className="w-20"
+                />
+              </label>
 
-            <label className="flex flex-col gap-1 text-xs font-bold">
-              Wait
-              <span className="flex items-center gap-2">
-                <Input
-                  type="number"
+              <label className="flex flex-col gap-1 text-xs">
+                <FieldLabel info="Per player, per placement — nobody else sees it. 0 is no wait.">
+                  Cooldown (s)
+                </FieldLabel>
+                <NumberInput
                   min={0}
                   max={MAX_COOLDOWN_SECONDS}
                   step={1}
                   value={extract.cooldownMs / MS_PER_SECOND}
-                  onChange={(e) =>
+                  onChange={(seconds) =>
                     patchExtract({
-                      cooldownMs: Math.round(
-                        Math.min(
-                          MAX_COOLDOWN_SECONDS,
-                          Math.max(0, secondsFromInput(e.target.value)),
-                        ) * MS_PER_SECOND,
-                      ),
+                      cooldownMs: Math.round(seconds * MS_PER_SECOND),
                     })
                   }
                   className="w-20"
-                  aria-label="Wait between pulls in seconds"
+                  aria-label="Cooldown in seconds"
                 />
-                <span className="text-xs font-normal text-muted">seconds</span>
-              </span>
-              <span className="text-[11px] font-normal leading-snug text-muted">
-                How long <em>this</em> player must wait before working{" "}
-                <em>this</em> placement again. Nobody else sees it, so it paces a
-                person rather than the world, and somebody with two bushes in
-                front of them alternates rather than waits. Zero means as fast as
-                they can press it, until the pulls run out.
-              </span>
-            </label>
+              </label>
+            </div>
 
             <TileIdMultiSelect
-              tiles={tiles.filter((t) => t.id !== draft.id)}
+              tiles={others}
               tilesets={tilesets}
               selectedIds={extract.tileId ? [extract.tileId] : []}
               onChange={(ids) => patchExtract({ tileId: ids[0] ?? "" })}
-              label="Becomes when spent"
-              emptyHint="Nothing — the placement goes away when the last pull is taken."
+              label="Depleted tile"
+              info="To regrow it, give the depleted tile a decay back to this one, or leave this blank and give this tile a respawn."
+              emptyHint="None — the placement is removed."
               single
             />
-            <span className="text-[11px] leading-snug text-muted">
-              <strong>How it comes back is not set here.</strong> Give the tile
-              it becomes a <em>decay</em> pointing back at this one and a picked
-              bush grows out again; leave this blank and give <em>this</em> tile
-              a <em>respawn</em> and a mined-out crystal is regrown at the spot
-              the map authored it. Both already exist, and either is a better
-              answer than a third countdown.
-            </span>
 
             <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
-              <span className="text-xs font-bold uppercase text-muted">
-                Yield
-              </span>
-              <span className="text-[11px] leading-snug text-muted">
-                Every slot is rolled on its own chance, every pull, whatever the
-                others did — so “one to three berries” is three berry slots at
-                descending chances, and “nothing, or a shard” is one slot on its
-                own. A pull that comes up empty still spends one of the pulls
-                above.
-              </span>
+              <FieldLabel info="Every slot rolls on its own chance, every use. “One to three berries” is three berry slots at descending chances. An empty roll still spends a use.">
+                Yield slots
+              </FieldLabel>
 
               {extract.slots.map((slot, index) => (
                 <div
@@ -909,9 +767,7 @@ export function InteractiveTab({
                   className="flex flex-col gap-2 border-2 border-border bg-paper p-2"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <span className="text-xs font-bold uppercase text-muted">
-                      Slot {index + 1}
-                    </span>
+                    <FieldLabel>Slot {index + 1}</FieldLabel>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -921,37 +777,27 @@ export function InteractiveTab({
                     </Button>
                   </div>
 
-                  <label className="flex flex-col gap-1 text-[11px] font-bold uppercase text-muted">
-                    Chance
-                    <span className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        min={MIN_EXTRACT_CHANCE}
-                        max={MAX_EXTRACT_CHANCE}
-                        step={1}
-                        value={slot.chance}
-                        onChange={(e) =>
-                          patchSlot(index, {
-                            chance: chanceFromInput(e.target.value),
-                          })
-                        }
-                        className="w-20"
-                      />
-                      <span className="text-xs font-normal normal-case text-muted">
-                        %
-                      </span>
-                    </span>
+                  <label className="flex flex-col gap-1 text-xs">
+                    <FieldLabel>Chance (%)</FieldLabel>
+                    <NumberInput
+                      min={MIN_EXTRACT_CHANCE}
+                      max={MAX_EXTRACT_CHANCE}
+                      step={1}
+                      value={slot.chance}
+                      onChange={(chance) => patchSlot(index, { chance })}
+                      className="w-20"
+                    />
                   </label>
 
                   <TileIdMultiSelect
-                    tiles={tiles.filter(isGiveable)}
+                    tiles={giveable}
                     tilesets={tilesets}
                     selectedIds={slot.tileId ? [slot.tileId] : []}
                     onChange={(ids) =>
                       patchSlot(index, { tileId: ids[0] ?? "" })
                     }
-                    label="Gives"
-                    emptyHint="Pick what this slot yields. A slot with nothing chosen is dropped on save."
+                    label="Item"
+                    emptyHint="None — the slot is dropped on save."
                     single
                   />
                 </div>
@@ -963,10 +809,8 @@ export function InteractiveTab({
                 </Button>
               ) : (
                 <span className="text-[11px] leading-snug text-muted">
-                  {MAX_EXTRACT_SLOTS} is the most one pull may hand over — the
-                  row is only offered while there is room in the bag for every
-                  slot at once, so a wider table would be a resource nobody can
-                  work.
+                  Up to {MAX_EXTRACT_SLOTS} slots — the bag must hold every
+                  one at once.
                 </span>
               )}
             </div>
@@ -975,263 +819,173 @@ export function InteractiveTab({
       </section>
 
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
-        <label className="flex items-center gap-2 text-sm font-bold">
-          <Switch
-            checked={Boolean(teleport)}
-            onCheckedChange={(on) =>
-              setTeleport(on ? { ...DEFAULT_TELEPORT } : undefined)
-            }
-            ariaLabel="Teleports"
-          />
-          Teleport
-        </label>
-        <p className="text-[11px] leading-snug text-muted">
-          Puts whoever sets it off somewhere else on the board — a portal, a
-          ladder, a trapdoor. Nothing is spent and nothing is remembered: walk
-          back onto it and you go through again. Refused outright when the
-          traveller would not fit at the far end.
-        </p>
-        <p className="text-[11px] leading-snug text-muted">
-          <strong>Where it leads is set by whichever half actually varies.</strong>{" "}
-          A ladder makes the same journey wherever it is dropped, so its offset
-          lives here and is authored once. A portal leads somewhere different
-          from every doorway, so its target lives on each placement — select one
-          in the map editor and open its settings.
-        </p>
+        <SectionSwitch
+          on={Boolean(teleport)}
+          onToggle={(on) =>
+            setTeleport(on ? { ...DEFAULT_TELEPORT } : undefined)
+          }
+          label="Teleport"
+          info="Moves whoever triggers it. Repeatable, nothing spent. Refused when the traveller would not fit at the far end."
+        />
 
         {teleport ? (
           <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
-            <div className="flex flex-col gap-1 text-xs font-bold">
-              Trigger
-              <Segmented<ActivationTrigger>
-                value={teleport.trigger}
-                onChange={(trigger) => patchTeleport({ trigger })}
-                options={TRIGGER_OPTIONS}
-                size="sm"
-                ariaLabel="Teleport trigger"
-              />
-              <span className="text-[11px] font-normal leading-snug text-muted">
-                {TRIGGER_HINTS[teleport.trigger]}
-              </span>
-            </div>
+            <div className="flex flex-wrap items-start gap-4">
+              <div className="flex flex-col gap-1 text-xs">
+                <FieldLabel info={TRIGGER_INFO}>Trigger</FieldLabel>
+                <Segmented<ActivationTrigger>
+                  value={teleport.trigger}
+                  onChange={(trigger) => patchTeleport({ trigger })}
+                  options={TRIGGER_OPTIONS}
+                  size="sm"
+                  ariaLabel="Teleport trigger"
+                />
+              </div>
 
-            <div className="flex flex-col gap-1 text-xs font-bold">
-              Destination is
-              <Segmented<TeleportDestinationKind>
-                value={teleport.destination.kind}
-                onChange={setDestinationKind}
-                options={DESTINATION_OPTIONS}
-                size="sm"
-                ariaLabel="Teleport destination kind"
-              />
-              <span className="text-[11px] font-normal leading-snug text-muted">
-                {DESTINATION_HINTS[teleport.destination.kind]}
-              </span>
+              <div className="flex flex-col gap-1 text-xs">
+                <FieldLabel info="Relative: an offset authored here, the same for every placement — a ladder. Absolute: a cell set on each placement in the map editor — a portal.">
+                  Destination
+                </FieldLabel>
+                <Segmented<TeleportDestinationKind>
+                  value={teleport.destination.kind}
+                  onChange={setDestinationKind}
+                  options={DESTINATION_OPTIONS}
+                  size="sm"
+                  ariaLabel="Teleport destination kind"
+                />
+              </div>
             </div>
 
             {teleport.destination.kind === "relative" ? (
-              <div className="flex flex-col gap-1 text-xs font-bold">
-                Offset
+              <div className="flex flex-col gap-1 text-xs">
+                <FieldLabel info="Cells from wherever this tile is placed. A ladder up is z +1.">
+                  Offset
+                </FieldLabel>
                 <div className="flex gap-2">
                   {DELTA_AXES.map((axis) => (
-                    <label key={axis} className="flex flex-1 flex-col gap-1">
+                    <label key={axis} className="flex flex-col gap-1">
                       <span className="uppercase text-muted">{axis}</span>
-                      <Input
-                        type="number"
+                      <NumberInput
                         step={1}
-                        value={String(delta[axis])}
-                        onChange={(e) => patchDelta(axis, e.target.value)}
+                        value={delta[axis]}
+                        onChange={(value) => patchDelta(axis, value)}
+                        className="w-20"
                       />
                     </label>
                   ))}
                 </div>
-                <span className="text-[11px] font-normal leading-snug text-muted">
-                  How far this moves somebody, from wherever it is placed. A
-                  ladder up is <strong>z + 1</strong> and a ladder down is{" "}
-                  <strong>z − 1</strong>. Every copy of this tile travels the
-                  same distance, which is what makes a ladder a tile you can
-                  drop anywhere.
-                </span>
               </div>
             ) : null}
 
             {teleport.trigger === "step" ? null : (
-              <label className="flex flex-col gap-1 text-xs font-bold">
-                Action name
-                <Input
-                  value={teleport.actionName ?? ""}
-                  onChange={(e) =>
-                    patchTeleport({ actionName: e.target.value })
-                  }
-                  placeholder="Enter"
-                />
-                <span className="text-[11px] font-normal leading-snug text-muted">
-                  What the player is doing, as they would say it — “Enter” a
-                  portal, “Climb” a ladder. The one part that belongs to the tile
-                  rather than to the spot: every ladder cut from this tile is
-                  climbed, wherever they go. Leave it blank and it reads as
-                  “Enter”.
-                </span>
-              </label>
+              <ActionLabelField
+                value={teleport.actionName}
+                fallback="Enter"
+                onChange={(actionName) => patchTeleport({ actionName })}
+              />
             )}
           </div>
         ) : null}
       </section>
 
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
-        <label className="flex items-center gap-2 text-sm font-bold">
-          <Switch
-            checked={Boolean(addStatus)}
-            onCheckedChange={(on) =>
-              setAddStatus(on ? { ...DEFAULT_ADD_STATUS } : undefined)
-            }
-            ariaLabel="Grants a status"
-          />
-          Status
-        </label>
-        <p className="text-[11px] leading-snug text-muted">
-          Puts a condition on whoever sets it off — a flame that burns, a shrine
-          that blesses. Only a body with hit points takes it: everything a status
-          does is arithmetic on health or on the numbers a fight is fought with,
-          so a crate walking through fire is a crate.
-        </p>
-        <p className="text-[11px] leading-snug text-muted">
-          Nothing is spent and nothing is remembered — walk back in and it
-          happens again. <strong>How long it lasts is the status’s own</strong>,
-          set on the Statuses page, because being burned is being burned however
-          you came to be.
-        </p>
+        <SectionSwitch
+          on={Boolean(addStatus)}
+          onToggle={(on) =>
+            setAddStatus(on ? { ...DEFAULT_ADD_STATUS } : undefined)
+          }
+          label="Apply status"
+          info="Puts a status on whoever triggers it. Only a battler takes one. Repeatable. The duration is the status's own, from the Statuses page."
+        />
 
         {addStatus ? (
           <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
-            <div className="flex flex-col gap-1 text-xs font-bold">
-              Trigger
-              <Segmented<ActivationTrigger>
-                value={addStatus.trigger}
-                onChange={(trigger) => patchAddStatus({ trigger })}
-                options={TRIGGER_OPTIONS}
-                size="sm"
-                ariaLabel="Status trigger"
-              />
-              <span className="text-[11px] font-normal leading-snug text-muted">
-                {TRIGGER_HINTS[addStatus.trigger]}
-              </span>
-            </div>
+            <div className="flex flex-wrap items-start gap-4">
+              <div className="flex flex-col gap-1 text-xs">
+                <FieldLabel info={TRIGGER_INFO}>Trigger</FieldLabel>
+                <Segmented<ActivationTrigger>
+                  value={addStatus.trigger}
+                  onChange={(trigger) => patchAddStatus({ trigger })}
+                  options={TRIGGER_OPTIONS}
+                  size="sm"
+                  ariaLabel="Status trigger"
+                />
+              </div>
 
-            <label className="flex flex-col gap-1 text-xs font-bold">
-              Status
-              {statusOptions.length === 0 ? (
-                <span className="text-[11px] font-normal leading-snug text-muted">
-                  Nothing authored yet — statuses live on the Statuses page.
-                </span>
-              ) : (
-                <>
+              <div className="flex flex-col gap-1 text-xs">
+                <FieldLabel info="Until one is picked the tile grants nothing and offers no row.">
+                  Status
+                </FieldLabel>
+                {statusOptions.length === 0 ? (
+                  <span className="text-[11px] leading-snug text-muted">
+                    None authored — see the Statuses page.
+                  </span>
+                ) : (
                   <Select
+                    ariaLabel="Status"
                     value={addStatus.statusId || null}
                     onValueChange={(id) => id && patchAddStatus({ statusId: id })}
                     options={statusOptions}
                   />
-                  <span className="text-[11px] font-normal leading-snug text-muted">
-                    Which condition this hands over. Until one is picked the tile
-                    grants nothing and offers no row — a block naming no status
-                    reads as unauthored rather than as something that shrugs.
-                  </span>
-                </>
-              )}
-            </label>
+                )}
+              </div>
+            </div>
 
             {addStatus.trigger === "step" ? null : (
-              <label className="flex flex-col gap-1 text-xs font-bold">
-                Action name
-                <Input
-                  value={addStatus.actionName ?? ""}
-                  onChange={(e) =>
-                    patchAddStatus({ actionName: e.target.value })
-                  }
-                  placeholder="Touch"
-                />
-                <span className="text-[11px] font-normal leading-snug text-muted">
-                  What the player is doing, as they would say it — “Touch” a
-                  brazier, “Pray” at a shrine. Leave it blank and it reads as
-                  “Touch”.
-                </span>
-              </label>
+              <ActionLabelField
+                value={addStatus.actionName}
+                fallback="Touch"
+                onChange={(actionName) => patchAddStatus({ actionName })}
+              />
             )}
           </div>
         ) : null}
       </section>
 
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
-        <label className="flex items-center gap-2 text-sm font-bold">
-          <Switch
-            checked={Boolean(decay)}
-            onCheckedChange={(on) =>
-              setDecay(on ? { ...DEFAULT_DECAY } : undefined)
-            }
-            ariaLabel="Decays over time"
-          />
-          Decay
-        </label>
-        <p className="text-[11px] leading-snug text-muted">
-          Switch, but the input is time rather than a click. After its lifetime
-          the placement becomes another tile — or goes away, if you leave the
-          target blank. Chain it by giving that tile a decay of its own (blood →
-          stain → nothing). The swap is refused when the target would not fit
-          under whatever has been stacked on it, and a placement somebody is
-          driving is left alone.
-        </p>
+        <SectionSwitch
+          on={Boolean(decay)}
+          onToggle={(on) => setDecay(on ? { ...DEFAULT_DECAY } : undefined)}
+          label="Decay"
+          info="After its lifetime the placement becomes the target tile, or is removed. Chain by giving the target a decay of its own (blood → stain → nothing). Refused when the target would not fit under what is stacked on it; a placement somebody is driving is left alone. Runs in simulated time and keeps the world ticking — keep it short."
+        />
 
         {decay ? (
           <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
             <div className="flex flex-col gap-1 text-xs">
-              <span className="font-bold uppercase text-muted">Lifetime</span>
+              <FieldLabel info="Drawn once per placement, when it appears. Equal ends for an exact lifetime.">
+                Lifetime (s)
+              </FieldLabel>
               <span className="flex items-center gap-2">
-                <Input
-                  type="number"
+                <NumberInput
                   min={1}
                   max={MAX_DECAY_SECONDS}
                   step={1}
                   value={decay.fromMs / MS_PER_SECOND}
-                  onChange={(e) =>
-                    patchDecayBound("fromMs", secondsFromInput(e.target.value))
-                  }
+                  onChange={(seconds) => patchDecayBound("fromMs", seconds)}
                   className="w-20"
                   aria-label="Shortest lifetime in seconds"
                 />
-                <span className="font-normal text-muted">to</span>
-                <Input
-                  type="number"
+                <span className="text-muted">to</span>
+                <NumberInput
                   min={1}
                   max={MAX_DECAY_SECONDS}
                   step={1}
                   value={decay.toMs / MS_PER_SECOND}
-                  onChange={(e) =>
-                    patchDecayBound("toMs", secondsFromInput(e.target.value))
-                  }
+                  onChange={(seconds) => patchDecayBound("toMs", seconds)}
                   className="w-20"
                   aria-label="Longest lifetime in seconds"
                 />
-                <span className="font-normal text-muted">seconds</span>
-              </span>
-              <span className="text-[11px] font-normal leading-snug text-muted">
-                Each placement draws its own lifetime from this range when it
-                appears, and keeps it. A spread is what stops a burst of blood
-                from one fight vanishing all on the same frame — set both ends
-                the same for an exact lifetime. Counted in simulated time, so it
-                does not run on while the world is empty, and a world with
-                anything decaying in it keeps ticking until the longest of these
-                is up. Keep it short: this is meant for blood and bodies, not
-                for weathering a wall.
               </span>
             </div>
 
             <TileIdMultiSelect
-              tiles={tiles.filter((t) => t.id !== draft.id)}
+              tiles={others}
               tilesets={tilesets}
               selectedIds={decay.tileId ? [decay.tileId] : []}
               onChange={(ids) => patchDecay({ tileId: ids[0] ?? "" })}
               label="Becomes"
-              emptyHint="Nothing — the placement is removed when its time is up. Pick a tile to leave something behind instead."
+              emptyHint="None — the placement is removed."
               single
             />
           </div>
@@ -1239,32 +993,20 @@ export function InteractiveTab({
       </section>
 
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
-        <label className="flex items-center gap-2 text-sm font-bold">
-          <Switch
-            checked={Boolean(plate)}
-            onCheckedChange={(on) =>
-              setPlate(on ? { ...DEFAULT_PRESSURE_PLATE } : undefined)
-            }
-            ariaLabel="Pressure plate"
-          />
-          Pressure plate
-        </label>
-        <p className="text-[11px] leading-snug text-muted">
-          Swaps itself for another tile whenever the load stacked on top of it
-          matches. The player never clicks it — the board pressing on it is the
-          whole input. Put a plate on both tiles to follow the load (unpressed{" "}
-          <strong>≥ 1</strong> → pressed, pressed <strong>≤ 0</strong> →
-          unpressed); leave the pressed tile without one and it stays down for
-          good.
-        </p>
+        <SectionSwitch
+          on={Boolean(plate)}
+          onToggle={(on) =>
+            setPlate(on ? { ...DEFAULT_PRESSURE_PLATE } : undefined)
+          }
+          label="Pressure plate"
+          info={`Swaps to the target tile whenever the load on its own cell matches. Load is in height units — a stool is 1, a half crate 2, a full level ${HEIGHT_PER_LEVEL}; flat and intangible tiles weigh nothing. Put a plate on both tiles to follow the load (≥ 1 → pressed, ≤ 0 → unpressed); without one on the pressed tile it stays down.`}
+        />
 
         {plate ? (
           <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
             <div className="flex flex-wrap items-end gap-3">
               <div className="flex flex-col gap-1 text-xs">
-                <span className="font-bold uppercase text-muted">
-                  Swap when load is
-                </span>
+                <FieldLabel>Swap when load is</FieldLabel>
                 <Segmented<PlateComparison>
                   value={plate.type}
                   onChange={(type) => patchPlate({ type })}
@@ -1275,40 +1017,25 @@ export function InteractiveTab({
               </div>
 
               <label className="flex flex-col gap-1 text-xs">
-                <span className="font-bold uppercase text-muted">Height</span>
-                <Input
-                  type="number"
+                <FieldLabel>Load</FieldLabel>
+                <NumberInput
                   min={0}
                   max={MAX_PLATE_HEIGHT}
                   step={1}
                   value={plate.height}
-                  onChange={(e) => {
-                    const parsed = Number.parseInt(e.target.value, 10);
-                    const height = Number.isNaN(parsed) ? 0 : parsed;
-                    patchPlate({
-                      height: Math.min(MAX_PLATE_HEIGHT, Math.max(0, height)),
-                    });
-                  }}
+                  onChange={(height) => patchPlate({ height })}
                   className="w-16"
                 />
               </label>
             </div>
 
-            <span className="text-[11px] leading-snug text-muted">
-              Load is measured in height units: a stool is 1, a half-height
-              crate is 2 and a full level is {HEIGHT_PER_LEVEL}. Flat and
-              intangible tiles weigh nothing, so <strong>≥ 1</strong> reads as
-              “something solid is standing here”. Only this cell’s own stack
-              counts.
-            </span>
-
             <TileIdMultiSelect
-              tiles={tiles.filter((t) => t.id !== draft.id)}
+              tiles={others}
               tilesets={tilesets}
               selectedIds={plate.tileId ? [plate.tileId] : []}
               onChange={(ids) => patchPlate({ tileId: ids[0] ?? "" })}
-              label="Swap to"
-              emptyHint="Pick the tile this becomes while the comparison holds."
+              label="Target tile"
+              emptyHint="None."
               single
             />
           </div>
@@ -1316,25 +1043,16 @@ export function InteractiveTab({
       </section>
 
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
-        <label className="flex items-center gap-2 text-sm font-bold">
-          <Switch
-            checked={Boolean(emit)}
-            onCheckedChange={(on) => setEmit(on ? { ...DEFAULT_EMIT } : undefined)}
-            ariaLabel="Emits a signal"
-          />
-          Emit
-        </label>
-        <p className="text-[11px] leading-snug text-muted">
-          While this tile sits on a placement with a channel, it drives that
-          channel. The tile <em>is</em> the state, so author both halves — torch
-          lit emits <strong>on</strong>, torch unlit emits <strong>off</strong>{" "}
-          — and let switch or pressure plate move between them. Which channel is
-          picked per placement in the map editor, not here.
-        </p>
+        <SectionSwitch
+          on={Boolean(emit)}
+          onToggle={(on) => setEmit(on ? { ...DEFAULT_EMIT } : undefined)}
+          label="Emit"
+          info="Drives the placement's signal channel while this tile sits there. The tile is the state, so author both halves — lit torch emits on, unlit emits off — and let a switch or plate move between them. The channel is set per placement in the map editor."
+        />
 
         {emit ? (
           <div className="flex flex-col items-start gap-1 border-t-2 border-border pt-3 text-xs">
-            <span className="font-bold uppercase text-muted">Drives channel</span>
+            <FieldLabel>Signal</FieldLabel>
             <Segmented<SignalValue>
               value={emit.value}
               onChange={(value) => setEmit({ value })}
@@ -1350,32 +1068,20 @@ export function InteractiveTab({
       </section>
 
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
-        <label className="flex items-center gap-2 text-sm font-bold">
-          <Switch
-            checked={Boolean(receive)}
-            onCheckedChange={(on) =>
-              setReceive(on ? { ...DEFAULT_RECEIVE } : undefined)
-            }
-            ariaLabel="Receives a signal"
-          />
-          Receive
-        </label>
-        <p className="text-[11px] leading-snug text-muted">
-          Swaps itself for another tile while its channel reads a given way — a
-          pressure plate or lit torch somewhere else on the map is the whole
-          input. Same pairing as a pressure plate: author{" "}
-          <strong>on → open</strong> on the closed door and{" "}
-          <strong>off → closed</strong> on the open one, or it opens once and
-          stays open.
-        </p>
+        <SectionSwitch
+          on={Boolean(receive)}
+          onToggle={(on) =>
+            setReceive(on ? { ...DEFAULT_RECEIVE } : undefined)
+          }
+          label="Receive"
+          info="Swaps to the target tile while its channel reads the chosen value. Pair it like a plate: on → open on the closed door, off → closed on the open one, or it opens once and stays open."
+        />
 
         {receive ? (
           <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
             <div className="flex flex-wrap items-end gap-3">
               <div className="flex flex-col items-start gap-1 text-xs">
-                <span className="font-bold uppercase text-muted">
-                  Swap when channel is
-                </span>
+                <FieldLabel>When signal is</FieldLabel>
                 <Segmented<SignalValue>
                   value={receive.when}
                   onChange={(when) => patchReceive({ when })}
@@ -1389,7 +1095,9 @@ export function InteractiveTab({
               </div>
 
               <div className="flex flex-col gap-1 text-xs">
-                <span className="font-bold uppercase text-muted">Emitters</span>
+                <FieldLabel info="With several emitters on one channel: any reads on as soon as one is on; all waits for every one. No emitters reads off.">
+                  Combine
+                </FieldLabel>
                 <Segmented<SignalMode>
                   value={receive.mode}
                   onChange={(mode) => patchReceive({ mode })}
@@ -1403,19 +1111,13 @@ export function InteractiveTab({
               </div>
             </div>
 
-            <span className="text-[11px] leading-snug text-muted">
-              With several emitters on one channel, <strong>any</strong> reads
-              on as soon as one of them is on; <strong>all</strong> waits for
-              every one. A channel with no emitters at all reads off.
-            </span>
-
             <TileIdMultiSelect
-              tiles={tiles.filter((t) => t.id !== draft.id)}
+              tiles={others}
               tilesets={tilesets}
               selectedIds={receive.tileId ? [receive.tileId] : []}
               onChange={(ids) => patchReceive({ tileId: ids[0] ?? "" })}
-              label="Swap to"
-              emptyHint="Pick the tile this becomes while the channel matches."
+              label="Target tile"
+              emptyHint="None."
               single
             />
           </div>

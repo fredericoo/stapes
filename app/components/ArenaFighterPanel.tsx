@@ -31,7 +31,7 @@ import {
   requirementShare,
 } from "../lib/mastery";
 import type { TileDef, TilesetDef } from "../lib/types";
-import { Input, Select } from "../ui";
+import { NumberInput, Select } from "../ui";
 import { TilePreview } from "./TilePreview";
 
 /**
@@ -178,20 +178,17 @@ function Masteries({
         {MASTERIES.map((mastery) => (
           <label key={mastery} className="flex flex-col gap-0.5 text-[11px]">
             <span className="uppercase text-muted">{mastery}</span>
-            <Input
-              type="number"
+            <NumberInput
               min={MIN_MASTERY}
               max={MAX_MASTERY}
+              step={1}
               className="w-full"
               // Scoped to the side, because the two panels are the same seven
               // fields twice over — "blade" alone names two different boxes,
               // and a reader moving between them has no way to tell which.
               aria-label={`${title} ${mastery}`}
               value={fighter.masteries[mastery] ?? MIN_MASTERY}
-              onChange={(event) => {
-                const next = Number(event.target.value);
-                if (Number.isFinite(next)) set(mastery, Math.round(next));
-              }}
+              onChange={(level) => set(mastery, level)}
             />
           </label>
         ))}

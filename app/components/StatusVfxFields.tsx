@@ -15,7 +15,7 @@ import {
   Row,
   UnitSlider,
 } from "./ParticleFields";
-import { Switch } from "../ui";
+import { FieldLabel, Switch } from "../ui";
 
 /**
  * Authoring what a status looks like: a colour on the body, a light it casts,
@@ -36,11 +36,13 @@ import { Switch } from "../ui";
 /** A toggle that turns half of an effect on, filled in with something visible. */
 function HalfToggle({
   label,
+  info,
   on,
   onToggle,
   children,
 }: {
   label: string;
+  info?: React.ReactNode;
   on: boolean;
   onToggle: (on: boolean) => void;
   children?: React.ReactNode;
@@ -48,7 +50,7 @@ function HalfToggle({
   return (
     <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
       <div className="flex items-center gap-2">
-        <span className="text-xs font-bold uppercase text-muted">{label}</span>
+        <FieldLabel info={info}>{label}</FieldLabel>
         <Switch checked={on} onCheckedChange={onToggle} ariaLabel={label} />
       </div>
       {on ? children : null}
@@ -72,11 +74,12 @@ export function StatusVfxFields({
     <div className="flex min-w-0 flex-1 flex-col gap-3">
       <div className="flex flex-col gap-2">
         <NumberField
-          label="Winds down over the last (ms)"
+          label="Fade over the last (ms)"
+          info="Time left, not a share of the whole, so a poison stacked to ten minutes fades over the same final seconds a ten-second one does. Everything below scales together: particle rate and size, tint strength, light brightness."
           hint={
             vfx.taperMs > 0
-              ? `Full strength until ${(vfx.taperMs / 1000).toFixed(1)}s are left, then fading to nothing.`
-              : "0 never fades — full strength right up to the instant it ends."
+              ? `Full strength until ${(vfx.taperMs / 1000).toFixed(1)}s remain.`
+              : "0 never fades."
           }
           value={vfx.taperMs}
           min={0}
@@ -84,16 +87,10 @@ export function StatusVfxFields({
           step={250}
           onChange={(taperMs) => onChange({ ...vfx, taperMs })}
         />
-        <p className="max-w-lg text-[11px] leading-snug text-muted">
-          Time <em>left</em>, not a share of the whole — so a poison stacked to
-          ten minutes fades over the same final seconds a ten-second one does.
-          Everything below scales together: how many particles are born, how big
-          they are, how hard the colour is worn, and how bright the light is.
-        </p>
       </div>
 
       <HalfToggle
-        label="Colour on the body"
+        label="Tint"
         on={vfx.tint !== null}
         // The default rather than a zeroed block, so turning this on shows
         // something on the canvas immediately. Turning it off keeps nothing —
@@ -137,18 +134,13 @@ export function StatusVfxFields({
       </HalfToggle>
 
       <HalfToggle
-        label="Light it casts"
+        label="Light"
+        info="Cast by the world's light bake from the body carrying this, the same road a torch in a bag travels, and added to everything else lighting the cell. Steady: a flicker would rebake the room every frame."
         on={vfx.light !== null}
         onToggle={(on) => setLight(on ? { ...DEFAULT_GLOW } : null)}
       >
         {vfx.light ? (
           <>
-            <p className="max-w-lg text-[11px] leading-snug text-muted">
-              Cast by the world's own light bake, from the body carrying this —
-              the same road a torch in a bag travels. It accumulates with
-              everything else lighting that cell. Steady, with no flicker: a
-              light that changed every frame would rebake the room every frame.
-            </p>
             <Row>
               <ColorField
                 label="Colour"

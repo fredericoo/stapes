@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { TileDef, TilesetDef } from "../lib/types";
-import { Input, ScrollArea } from "../ui";
+import { FieldLabel, Input, ScrollArea } from "../ui";
 import { TilePreview } from "./TilePreview";
 
 const PREVIEW_SIZE_PX = 24;
@@ -11,7 +11,9 @@ type Props = {
   selectedIds: string[];
   onChange: (ids: string[]) => void;
   label: string;
-  /** Shown when nothing is selected, to explain what "none" means. */
+  /** What the engine does with the pick — the caption's tooltip. */
+  info?: ReactNode;
+  /** Shown when nothing is selected, to say what "none" means. */
   emptyHint: string;
   /** When true, picking a tile replaces the current selection (radio). */
   single?: boolean;
@@ -28,6 +30,7 @@ export function TileIdMultiSelect({
   selectedIds,
   onChange,
   label,
+  info,
   emptyHint,
   single = false,
 }: Props) {
@@ -56,7 +59,7 @@ export function TileIdMultiSelect({
 
   return (
     <div className="flex flex-col gap-1.5 text-xs">
-      <span className="font-bold uppercase text-muted">{label}</span>
+      <FieldLabel info={info}>{label}</FieldLabel>
 
       {selectedIds.length === 0 ? (
         <p className="text-[11px] leading-snug text-muted">{emptyHint}</p>

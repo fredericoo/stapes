@@ -30,7 +30,7 @@ import {
   type WeaponMastery,
 } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
-import { Segmented, Select } from "../ui";
+import { FieldLabel, Segmented, Select } from "../ui";
 import { StatField } from "./StatField";
 import { StatusChanceField, StatusGrants } from "./StatusGrants";
 
@@ -97,9 +97,9 @@ export function describeDodging(accuracy: number): string {
  */
 export function describeReachCells(cells: number): string {
   const whole = Math.floor(cells);
-  if (whole < 1) return "Only its own cell — it cannot reach a neighbour.";
+  if (whole < 1) return "Own cell only — cannot reach a neighbour.";
   const diagonal = cells * cells >= whole * whole * 2 ? ", corners included" : "";
-  return `Reaches ${whole} cell${whole === 1 ? "" : "s"} across the floor${diagonal}.`;
+  return `Reaches ${whole} cell${whole === 1 ? "" : "s"}${diagonal}.`;
 }
 
 /**
@@ -110,10 +110,10 @@ export function describeReachCells(cells: number): string {
  * readout does the halving.
  */
 export function describeReachHeight(height: number): string {
-  if (height <= 0) return "Its own floor only — nothing up a step, nothing down.";
+  if (height <= 0) return "Own floor only.";
   const levels = height / HEIGHT_PER_LEVEL;
   const said = levels === 0.5 ? "half a level" : `${levels} level${levels === 1 ? "" : "s"}`;
-  return `Reaches ${said} up and ${said} down.`;
+  return `Reaches ${said} up and down.`;
 }
 
 /**
@@ -130,7 +130,7 @@ export function describeFlight(reach: Reach, projectile: ProjectileDef): string 
     { x: reach.cells, y: 0, elevAbs: 0 },
     projectile,
   );
-  return `Its longest shot is ${(ms / 1000).toFixed(2)}s in the air.`;
+  return `Longest shot: ${(ms / 1000).toFixed(2)}s in the air.`;
 }
 
 /** What a weapon with no projectile authored is offered when it grows one. */
@@ -139,17 +139,20 @@ const STARTER_PROJECTILE: ProjectileDef = {
   cellsPerSecond: DEFAULT_PROJECTILE_SPEED,
 };
 
+/** The one paragraph of arithmetic behind the requirements grid, as a tooltip. */
+const REQUIREMENTS_INFO = `Zero asks nothing. Requirements are pooled and the lowest ratio gates the weapon: below it, damage, accuracy and speed fall on the cube of what was brought (90% brought is ${Math.round(0.9 ** REQUIREMENT_FALLOFF * 100)}% of the weapon, half is ${Math.round(0.5 ** REQUIREMENT_FALLOFF * 100)}%); above it nothing more is owed. Training runs at full rate up to the requirement and falls away on the sixth power past it.`;
+
 export function WeaponFields({
   weapon,
   onChange,
-  masteryHint,
+  masteryInfo,
   tiles,
   statusDefs = {},
 }: {
   weapon: WeaponItem;
   onChange: (fields: Partial<WeaponItem>) => void;
   /** What answering to this mastery means here — it differs by tab. */
-  masteryHint: string;
+  masteryInfo: string;
   /**
    * The whole library, so the projectile picker can offer the tiles that can
    * actually be one. Handed in rather than looked up, on the terms the kit
@@ -189,7 +192,7 @@ export function WeaponFields({
       <div className="flex flex-wrap gap-4">
         <StatField
           label="Damage"
-          hint="The most one blow can take off, against a foe with no defence."
+          info="The most one blow takes off, before defence."
           value={weapon.damage}
           min={0}
           max={MAX_WEAPON_DAMAGE}
@@ -197,14 +200,13 @@ export function WeaponFields({
         />
         <StatField
           label="Def"
-          hint="Taken off every blow that lands on the wielder, in either hand. What you hold up: a shield, a bracer. What you wear is armour, and has a slot of its own."
+          info="Subtracted from every blow that lands on the wielder, in either hand. What you hold up: a shield, a bracer. What you wear is armour."
           value={weapon.def}
           min={0}
           onChange={(def) => onChange({ def })}
         />
         <StatField
           label="Accuracy"
-          hint="How reliably it finds its target. High for most melee — how risky it is, is Variance."
           value={weapon.accuracy}
           min={MIN_PERCENT_STAT}
           max={MAX_PERCENT_STAT}
@@ -213,7 +215,7 @@ export function WeaponFields({
         />
         <StatField
           label="Variance"
-          hint="How much a connecting blow swings. Zero is always exactly its damage."
+          info="How much a connecting blow swings. 0 is always exactly the damage."
           value={weapon.variance}
           min={MIN_PERCENT_STAT}
           max={MAX_PERCENT_STAT}
@@ -222,7 +224,7 @@ export function WeaponFields({
         />
         <StatField
           label="Spd"
-          hint="How often it can be swung, on a curve rather than a line."
+          info="How often it swings, on a curve rather than a line."
           value={weapon.spd}
           min={MIN_PERCENT_STAT}
           max={MAX_PERCENT_STAT}
@@ -231,7 +233,7 @@ export function WeaponFields({
         />
         <StatField
           label="Reach"
-          hint="How far it carries across the floor, as a radius in cells."
+          info="Radius in cells. Independent of Height — a disc and a lid, not a ball. A blow still needs a clear line to its target."
           value={reach.cells}
           min={0}
           max={MAX_REACH_CELLS}
@@ -241,7 +243,7 @@ export function WeaponFields({
         />
         <StatField
           label="Height"
-          hint="How far up or down it carries, in height units — four to a level."
+          info={`Height units up or down — ${HEIGHT_PER_LEVEL} to a level.`}
           value={reach.height}
           min={0}
           max={MAX_REACH_HEIGHT}
@@ -251,16 +253,8 @@ export function WeaponFields({
         />
       </div>
 
-      <p className="max-w-lg text-[11px] leading-snug text-muted">
-        <strong>Reach is a disc and a lid, not a ball.</strong> The two numbers
-        are independent, which is the only way to say &ldquo;across the yard,
-        but not three storeys straight up&rdquo;. A blow still needs a clear
-        line to land — a wall between you and your target does not stop you
-        pointing at it, only shooting it.
-      </p>
-
       <div className="flex flex-col gap-1 text-xs">
-        <span className="font-bold uppercase text-muted">Mastery</span>
+        <FieldLabel info={masteryInfo}>Mastery</FieldLabel>
         <div>
           <Segmented<WeaponMastery>
             value={weapon.mastery}
@@ -270,26 +264,17 @@ export function WeaponFields({
             ariaLabel="Mastery"
           />
         </div>
-        <span className="text-[11px] leading-snug text-muted">
-          {masteryHint}
-        </span>
       </div>
 
       <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
-        <span className="text-xs font-bold uppercase text-muted">
+        <FieldLabel info="Authoring one is what makes this ranged: no lunge at the target, however close. The flight is a picture — the blow lands on release, so it cannot miss in the air.">
           Projectile
-        </span>
-        <p className="max-w-lg text-[11px] leading-snug text-muted">
-          Authoring one is what makes this a <strong>ranged</strong> weapon:
-          nothing else says so. A weapon that puts something in the air does not
-          lunge at what it is aimed at, however close that is. The flight is
-          purely a picture — the blow lands the moment it is loosed, so an arrow
-          cannot miss on the way and a shot that killed still finishes its
-          flight.
-        </p>
+        </FieldLabel>
         <div className="flex flex-wrap items-end gap-4">
           <label className="flex flex-col gap-1 text-xs">
-            <span className="font-bold uppercase text-muted">Fires</span>
+            <FieldLabel info="8-way tiles only, so the arrow points where it is going.">
+              Tile
+            </FieldLabel>
             <Select
               className="w-56"
               value={projectile?.tileId ?? ""}
@@ -299,22 +284,18 @@ export function WeaponFields({
                   : onChange({ projectile: undefined })
               }
               options={[
-                { value: "", label: "Nothing — melee" },
+                { value: "", label: "None (melee)" },
                 ...projectileTiles.map((tile) => ({
                   value: tile.id,
                   label: tile.name,
                 })),
               ]}
             />
-            <span className="max-w-64 text-[11px] leading-snug text-muted">
-              An 8-way tile, so the arrow points where it is going. Author one on
-              the Tile tab if the list is empty.
-            </span>
           </label>
           {projectile ? (
             <StatField
               label="Speed"
-              hint="Cells per second. A body walks at five, so an arrow wants to be well past that."
+              info="Cells per second. A body walks at five."
               value={projectile.cellsPerSecond}
               min={MIN_PROJECTILE_SPEED}
               max={MAX_PROJECTILE_SPEED}
@@ -331,90 +312,43 @@ export function WeaponFields({
           onChange({ statuses: statuses.length ? statuses : undefined })
         }
         blank={(id) => ({ id, chance: DEFAULT_WEAPON_STATUS_CHANCE })}
-        blurb={
-          <>
-            What a <strong>connecting blow</strong> leaves on whoever it lands
-            on — venom on a fang, a burn on a brand. Rolled once per entry per
-            blow that got through; a miss and a dodge leave nothing, and armour
-            eating the damage does not save anybody from the venom. The chance
-            is the weapon&rsquo;s own and no mastery moves it.
-          </>
-        }
+        info="Rolled once per entry on every blow that lands. A miss or a dodge leaves nothing; armour eating the damage does not stop it. No mastery moves the chance."
         extra={StatusChanceField}
       />
 
-      <div className="flex flex-col gap-1 border-t-2 border-border pt-3">
-        <span className="text-xs font-bold uppercase text-muted">
-          Requirements
-        </span>
+      <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
+        <FieldLabel info={REQUIREMENTS_INFO}>Requirements</FieldLabel>
+        <div className="flex flex-wrap gap-4">
+          {MASTERIES.map((mastery) => {
+            const required = weapon.requirements?.[mastery] ?? 0;
+            return (
+              <StatField
+                key={mastery}
+                label={MASTERY_LABELS[mastery]}
+                hint={mastery === weapon.mastery ? "Trained by this weapon." : undefined}
+                value={required}
+                min={MIN_MASTERY}
+                max={MAX_MASTERY}
+                onChange={(level) =>
+                  onChange({
+                    requirements: { ...weapon.requirements, [mastery]: level },
+                  })
+                }
+                readout={
+                  mastery === weapon.mastery && required > 0
+                    ? `Full rate to ${required}; a fifth past pays ${Math.round((1 / 1.2) ** OUTGROWN_FALLOFF * 100)}%, twice pays ${Math.round(0.5 ** OUTGROWN_FALLOFF * 100)}%.`
+                    : undefined
+                }
+              />
+            );
+          })}
+        </div>
         <p className="max-w-lg text-[11px] leading-snug text-muted">
-          What this asks of whoever swings it. Zero asks nothing.{" "}
-          <strong>The worst ratio decides</strong> — a requirement on a mastery
-          this weapon does not even train is a real gate, so an axe asking Blunt
-          35 and Toughness 20 is held back by whichever of the wielder&rsquo;s is
-          further behind.
+          Mastery adds up to {DAMAGE_AT_MAX_MASTERY} damage and{" "}
+          {ACCURACY_AT_MAX_MASTERY} accuracy flat, plus a quarter of the
+          weapon&rsquo;s own.
         </p>
       </div>
-
-      <div className="flex flex-wrap gap-4">
-        {MASTERIES.map((mastery) => {
-          const required = weapon.requirements?.[mastery] ?? 0;
-          return (
-            <StatField
-              key={mastery}
-              label={MASTERY_LABELS[mastery]}
-              hint={
-                mastery === weapon.mastery
-                  ? "The mastery this weapon trains."
-                  : ""
-              }
-              value={required}
-              min={MIN_MASTERY}
-              max={MAX_MASTERY}
-              onChange={(level) =>
-                onChange({
-                  requirements: { ...weapon.requirements, [mastery]: level },
-                })
-              }
-              readout={
-                mastery === weapon.mastery && required > 0
-                  ? `Teaches at full rate up to ${MASTERY_LABELS[mastery]} ${required}, then falls away fast: a fifth past it pays ${Math.round((1 / 1.2) ** OUTGROWN_FALLOFF * 100)}%, twice it pays ${Math.round(0.5 ** OUTGROWN_FALLOFF * 100)}%.`
-                  : undefined
-              }
-            />
-          );
-        })}
-      </div>
-
-      <p className="max-w-lg text-[11px] leading-snug text-muted">
-        <strong>These numbers are what the weapon is worth with every
-        requirement exactly met.</strong> Requirements are pooled and capped:
-        bringing 45 of the 55 points an axe asks for is 82% of the way there, and
-        a surplus in one mastery never covers a shortfall in another. Below that,
-        damage, accuracy and speed all fall on the cube of what you brought — 90%
-        of the way there is {Math.round(0.9 ** REQUIREMENT_FALLOFF * 100)}% of
-        the weapon, half way there is{" "}
-        {Math.round(0.5 ** REQUIREMENT_FALLOFF * 100)}%. Above it nothing more is
-        owed: a requirement is a gate, not a scale.
-      </p>
-
-      <p className="max-w-lg text-[11px] leading-snug text-muted">
-        <strong>Being good with it is paid separately.</strong> The{" "}
-        {MASTERY_LABELS[weapon.mastery]} mastery adds up to{" "}
-        {DAMAGE_AT_MAX_MASTERY} damage and{" "}
-        {ACCURACY_AT_MAX_MASTERY} accuracy flat, plus a quarter of what the
-        weapon already brings — so a mastered starter weapon is a real weapon
-        rather than a rounding error, and it keeps paying long after its
-        requirements stopped.
-      </p>
-
-      <p className="max-w-lg text-[11px] leading-snug text-muted">
-        <strong>How far it carries a wielder is a separate question.</strong> A
-        weapon teaches at full rate right up to what it asks and then falls away
-        on the sixth power, so there is very little to be had by standing still
-        with it. Climbing means picking up the next weapon rather than swinging
-        this one longer.
-      </p>
     </div>
   );
 }
