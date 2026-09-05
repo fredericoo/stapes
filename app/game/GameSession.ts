@@ -5176,7 +5176,11 @@ export class GameSession implements PlaySession {
       at,
       this.defFor(actor),
       this.tilesById,
-      { allowDrops },
+      // A creature given the flag is one an author wants falling, wherever the
+      // fall lands: a drop is an edge like any other to it. The narrower rule is
+      // the player's, whose click asked to be somewhere rather than to leap.
+      // @see PathOptions.drops
+      { drops: allowDrops ? "anywhere" : "never" },
     );
     // Which limit a refusal hit is not a distinction a brain has anything to do
     // with: unreachable, too far round and given up on all mean the same thing

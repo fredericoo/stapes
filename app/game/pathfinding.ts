@@ -188,15 +188,33 @@ export type PathOutcome =
 
 export type PathOptions = {
   /**
-   * May a leg of the route leave the ground?
+   * May a leg of the route leave the ground, and where may it land?
    *
-   * Off by default, on the same terms the brain action is: the board lets
-   * anybody walk into open air so gravity can pull them through, and whether
-   * that is a route or a mistake is the caller's to decide. Allowed, a drop
-   * becomes a **one-way edge** — the search resolves where gravity would put
-   * the body down and carries on from there, and nothing offers a way back up.
+   * The board lets anybody walk into open air so gravity can pull them through,
+   * and whether that is a route or a mistake is the caller's to decide. A drop
+   * that is allowed is a **one-way edge** — the search resolves where gravity
+   * would put the body down and carries on from there, and nothing offers a way
+   * back up.
+   *
+   * - `"never"` — the default, and what every caller meant before there was
+   *   anything else: a leg that leaves the ground is not an edge at all.
+   * - `"toGoal"` — a drop is allowed only when it lands somewhere
+   *   {@link arrived} accepts, so falling is the last leg of a route and never a
+   *   way through to somewhere else. What that rules out is the reason it
+   *   exists: a fall costs one step like any other leg, so a search free to take
+   *   one anywhere steps off the nearest ledge whenever that is shortest, and
+   *   somebody who asked to walk across a room gets thrown off the balcony on
+   *   the way.
+   * - `"anywhere"` — a drop is an edge like any other, wherever it lands. What
+   *   a creature's `allowDrops` has always meant, and the leaping is fine there
+   *   because a brain that is given the flag is one an author wants falling.
+   *
+   * One setting with three values rather than two booleans side by side,
+   * because "may it fall" and "may it fall on the way" are not independent
+   * questions: three of the four pairs mean something and the fourth means
+   * nothing at all.
    */
-  allowDrops?: boolean;
+  drops?: "never" | "toGoal" | "anywhere";
   /** Cells to give up after taking off the queue. @see PATH_MAX_NODES */
   maxNodes?: number;
   /**
@@ -215,10 +233,15 @@ export type PathOptions = {
   arrive?: "beside" | "on";
 };
 
+/** Which legs may leave the ground. @see PathOptions.drops */
+type Drops = NonNullable<PathOptions["drops"]>;
+
 /** Where a route ends. @see PathOptions.arrive */
 type Arrival = NonNullable<PathOptions["arrive"]>;
 
 const DEFAULT_ARRIVAL: Arrival = "beside";
+
+const DEFAULT_DROPS: Drops = "never";
 
 /**
  * A stack with nobody in it to leave out.
@@ -299,6 +322,30 @@ function dropLanding(
 }
 
 /**
+ * Whether a leg that leaves the ground is an edge, asked of where it lands — or
+ * null when no such leg is an edge at all.
+ *
+ * Built once per search so the three modes are one decision rather than a
+ * condition repeated at every ledge, and `"toGoal"` is expressed as the goal
+ * test itself rather than as a second opinion about what arriving means. It has
+ * to be: a drop landing one cell short under `"beside"`, or onto the floor under
+ * the goal cell under `"on"`, is a fall that got somewhere *else*, and the
+ * search would carry on walking from where it landed.
+ *
+ * Null rather than a predicate that always says no, so `"never"` can be
+ * answered before the column scan {@link dropLanding} costs. @see neighbours
+ */
+function dropRule(
+  drops: Drops,
+  goal: Coord,
+  arrive: Arrival,
+): ((landing: Coord) => boolean) | null {
+  if (drops === "never") return null;
+  if (drops === "anywhere") return () => true;
+  return (landing) => arrived(landing, goal, arrive);
+}
+
+/**
  * Every cell one step from `at`, as the board would allow it.
  *
  * `map` is the board with the searcher's own body already off it — see
@@ -310,7 +357,7 @@ function neighbours(
   at: Coord,
   tileDef: TileDef,
   tilesById: Record<string, TileDef>,
-  opts: PathOptions,
+  mayDropTo: ((landing: Coord) => boolean) | null,
 ): PathStep[] {
   const fromAbs = standingAbs(
     map,
@@ -338,7 +385,11 @@ function neighbours(
         y,
         tilesById,
       ).length > 0;
-    if (!grounded && !opts.allowDrops) continue;
+    // Where this leg would have to land to be worth taking, or null when it is
+    // not a fall at all or when this search does not take them. One value
+    // rather than two, so the question is asked once and answered once.
+    const mayFallTo = grounded ? null : mayDropTo;
+    if (!grounded && !mayFallTo) continue;
 
     const check = canWalk(
       map,
@@ -351,10 +402,10 @@ function neighbours(
 
     // A step the board allows onto nothing at all. `canWalk` says yes so that
     // gravity can pull a body through a drop it could not climb; a route has to
-    // decide for itself whether that is a way through or a way down.
-    if (!grounded) {
+    // decide for itself whether that is a way through, a way down, or neither.
+    if (mayFallTo) {
       const landing = dropLanding(map, x, y, fromAbs, tileDef, tilesById);
-      if (landing) out.push({ direction, to: landing });
+      if (landing && mayFallTo(landing)) out.push({ direction, to: landing });
       continue;
     }
 
@@ -490,6 +541,7 @@ export function findPath(
   const from = { x: start.at.x, y: start.at.y, z: start.at.z };
   const arrive = opts.arrive ?? DEFAULT_ARRIVAL;
   if (arrived(from, goal, arrive)) return { ok: true, route: [] };
+  const mayDropTo = dropRule(opts.drops ?? DEFAULT_DROPS, goal, arrive);
 
   const budget = opts.maxNodes ?? PATH_MAX_NODES;
   // How long a route is still a chase. @see PATH_DETOUR_SLACK
@@ -519,7 +571,7 @@ export function findPath(
 
     if (arrived(node.at, goal, arrive)) return { ok: true, route: unwind(node) };
 
-    const legs = neighbours(board, node.at, tileDef, tilesById, opts);
+    const legs = neighbours(board, node.at, tileDef, tilesById, mayDropTo);
     for (const step of legs) {
       const key = cellKey(step.to);
       const g = node.g + 1;

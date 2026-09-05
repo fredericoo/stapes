@@ -1044,6 +1044,36 @@ describe("watching its footing", () => {
         },
       },
     }),
+    // The same pair again, closing on somebody rather than stepping at random:
+    // the flag has to mean the same thing to a routed action as to a local one.
+    ...(
+      [
+        ["stalker", false],
+        ["pouncer", true],
+      ] as const
+    ).map(([id, allowDrops]) =>
+      tile({
+        id,
+        height: 2,
+        actor: true,
+        affectedByGravity: true,
+        walkable: false,
+        interactions: {
+          brain: {
+            initial: "hunt",
+            states: {
+              hunt: {
+                do: [
+                  { action: "step_toward", of: nearest("player"), allowDrops },
+                  { action: "hold" },
+                ],
+              },
+            },
+            transitions: [],
+          },
+        },
+      }),
+    ),
   ];
 
   /** A one-cell plinth a level up, with open floor all around below. */
@@ -1051,6 +1081,24 @@ describe("watching its footing", () => {
     let map = field(4);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "grass" }, { tileId: creature }]);
     return new GameSession(map, ledgeDwellers, { actorIds: ["alice"] });
+  }
+
+  /**
+   * The same plinth, with somebody on the floor below and three cells off it —
+   * far enough that the fall lands nowhere near them, so getting there means
+   * routing *through* the drop rather than onto the cell it ends at.
+   */
+  function overlooked(creature: string): GameSession {
+    let map = field(4);
+    // The authored spawn marker cleared, so the one player body on this board
+    // is the one the creature is looking down at.
+    map = replaceStack(map, -4, -4, 0, [{ tileId: "grass" }]);
+    map = replaceStack(map, 0, 0, 1, [{ tileId: "grass" }, { tileId: creature }]);
+    map = withPlayerAt(map, 3, 0);
+    return new GameSession(map, ledgeDwellers, {
+      actorIds: ["alice"],
+      spawnAt: { x: -4, y: -4, z: 0, stackIndex: 1 },
+    });
   }
 
   function levelOf(session: GameSession, tileId: string): number {
@@ -1080,6 +1128,35 @@ describe("watching its footing", () => {
       .actorSnapshots()
       .find((a) => a.tileId === "reckless")!;
     expect(landed.fall).toBeNull();
+  });
+
+  /**
+   * And a routed action reads the flag the same way a random step does: a drop
+   * is an edge of the route wherever it lands, not only where the route ends.
+   *
+   * Worth pinning apart from the two above because the route is where the
+   * question got a third answer — a player's click may fall only onto the cell
+   * it was aimed at, and a creature is deliberately not held to that. A brain
+   * told it may take drops is one an author wants coming down off things.
+   * @see ../game/pathfinding's `PathOptions.drops`
+   */
+  it("routes off the plinth after somebody it was told it could drop for", () => {
+    const session = overlooked("pouncer");
+
+    advance(session, BRAIN_TICK_MS * 8);
+
+    // Off the plinth and standing beside them, which is the whole of arriving.
+    expect(levelOf(session, "pouncer")).toBe(0);
+  });
+
+  it("keeps a routing one up there when it was not", () => {
+    const session = overlooked("stalker");
+
+    advance(session, BRAIN_TICK_MS * 8);
+
+    // No way down that is a walk, so no route at all — and a creature with no
+    // route stands still rather than pressing itself against the edge.
+    expect(levelOf(session, "stalker")).toBe(1);
   });
 });
 

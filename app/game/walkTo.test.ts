@@ -51,6 +51,8 @@ const tiles: TileDef[] = [
   tile({ id: "crate", height: 2, walkable: false }),
   /** A full level you can stand on, so the level above it has a floor. */
   tile({ id: "block", height: HEIGHT_PER_LEVEL }),
+  /** Half a level you can stand on: the whole of what a way down on foot is. */
+  tile({ id: "step", height: 2 }),
   tile({
     id: PLAYER_TILE_ID,
     height: 2,
@@ -63,15 +65,20 @@ const tiles: TileDef[] = [
 const tilesById = Object.fromEntries(tiles.map((def) => [def.id, def]));
 const playerDef = tilesById[PLAYER_TILE_ID]!;
 
-/** Flat grass from -half to +half, with the walker standing at the origin. */
-function field(half: number): MapFile {
+/** Flat grass from -half to +half, and nothing standing on any of it. */
+function bare(half: number): MapFile {
   let map = emptyMap();
   for (let x = -half; x <= half; x++) {
     for (let y = -half; y <= half; y++) {
       map = replaceStack(map, x, y, 0, [{ tileId: "grass" }]);
     }
   }
-  return replaceStack(map, 0, 0, 0, [
+  return map;
+}
+
+/** The same, with the walker standing at the origin. */
+function field(half: number): MapFile {
+  return replaceStack(bare(half), 0, 0, 0, [
     { tileId: "grass" },
     { tileId: PLAYER_TILE_ID },
   ]);
@@ -109,8 +116,39 @@ function corridor(half: number): MapFile {
   return map;
 }
 
+/**
+ * A floor of blocks a level up, with one cell of it missing at (2, 0) and the
+ * ground of the world showing at the bottom of the gap. The walker stands on
+ * the floor at the origin.
+ */
+function holed(half: number): MapFile {
+  let map = bare(half);
+  for (let x = -half; x <= half; x++) {
+    for (let y = -half; y <= half; y++) {
+      map = put(map, x, y, "block");
+    }
+  }
+  map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }]);
+  return replaceStack(map, 0, 0, 1, [{ tileId: PLAYER_TILE_ID }]);
+}
+
+/**
+ * A shelf of blocks running east from the walker, with a step off the far end
+ * of it — the one way down that is a walk rather than a fall — over open ground
+ * the shelf's own edges are a drop onto.
+ */
+function shelf(): MapFile {
+  let map = bare(3);
+  for (let x = 0; x <= 2; x++) map = put(map, x, 0, "block");
+  map = put(map, 3, 0, "step");
+  return replaceStack(map, 0, 0, 1, [{ tileId: PLAYER_TILE_ID }]);
+}
+
 /** The walker's own cell, with the slot its body sits in. */
 const HOME = { x: 0, y: 0, z: 0, stackIndex: 1 };
+
+/** The same, for a walker standing a level up on a floor of blocks. */
+const UPSTAIRS = { x: 0, y: 0, z: 1, stackIndex: 0 };
 
 function view(
   map: MapFile,
@@ -368,6 +406,50 @@ describe("a cell with no way to it", () => {
 
     expect(walk.walking).toBe(false);
     expect(walk.drainNotices()).toEqual([noRouteNotice("unreachable")]);
+  });
+});
+
+/**
+ * A fall is allowed to be the last leg of a route and nothing before it.
+ *
+ * Clicking down a hole walks down it; clicking across a floor never steps off
+ * the edge of one on the way, however much shorter that would be. The argument
+ * for the limit is in `./walkTo`; what is pinned here is that both halves of it
+ * hold, because the expensive half — not falling — looks like a longer route
+ * rather than like a bug.
+ */
+describe("a cell below the one it is standing on", () => {
+  it("walks to the bottom of a hole that was clicked", () => {
+    const { walk, last } = walker();
+    const map = holed(4);
+
+    walk.start(ground(2, 0), view(map, { at: UPSTAIRS }));
+
+    expect(walk.drainNotices()).toEqual([]);
+    expect(last()).toEqual(["e"]);
+
+    // On the lip of the hole, with the drop as the only leg still owed. A
+    // refused fall would show here as the walk giving up and the direction
+    // being let go of, one cell short of what was clicked.
+    walk.tick(view(map, { at: { x: 1, y: 0, z: 1, stackIndex: 0 } }));
+    expect(walk.walking).toBe(true);
+    expect(last()).toEqual(["e"]);
+
+    // Landed at the bottom, which is where it was going.
+    walk.tick(view(map, { at: { x: 2, y: 0, z: 0, stackIndex: 1 } }));
+    expect(walk.walking).toBe(false);
+  });
+
+  it("goes the long way down rather than stepping off on the way past", () => {
+    const { walk, last } = walker();
+
+    // Two cells north and a level down. Off the north edge is one fall and one
+    // step; the step at the east end of the shelf is eight legs, and it is the
+    // one a player who pointed at that cell asked for.
+    walk.start(ground(0, -2), view(shelf(), { at: UPSTAIRS }));
+
+    expect(last()).toEqual(["e"]);
+    expect(walk.drainNotices()).toEqual([]);
   });
 });
 
