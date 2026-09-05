@@ -1134,6 +1134,56 @@ new motion goes the same way.
 separately: the map is authoritative and already carries ownership, so there is
 no second copy to drift.
 
+### A client's actor set is its `hello` plus what it is told afterwards
+
+**`RemoteSession` reads a body's *position* off the map, and it does not read
+the *set of bodies* off the map.** It cannot: the notes below on never sweeping
+for the player are the reason, and the set is held as the `motions` map instead
+— seeded from `hello`'s `actorIds` and kept up by events since.
+
+Which used to leave a hole. The only events that added an unknown id were
+`joined`, for a socket, and — by accident — any motion event, since
+`walkStarted` for a body this client has never heard of has to create the entry
+it is about to write into. So every other way a world takes on a body reached a
+client only if that body moved:
+
+- A creature that respawned, which walked within a second or two and healed
+  itself.
+- A body somebody summoned with `/tile`, which healed itself only if it had
+  somewhere to walk to.
+- **A body with a `hold` brain, which never healed at all.** Its tile was drawn
+  — a body is a tile in a stack and cell patches carry it — and everything keyed
+  on the actor was missing: no name over its head, no health bar, no Talk row.
+  A shopkeeper you could see and could not speak to until you reloaded the tab.
+
+`spawned` closes it, and it carries nothing but the id: where the body is comes
+from the cell patches in the same frame, and its bar and its lantern from the
+diffs beside them. The event says only that there is somebody to hang them on.
+
+**It is a separate event from `joined` because a joiner is a person.** `joined`
+carries the headcount the players bar reads, and a rat is not one of the people
+in the world.
+
+**Nothing announces a body leaving, and nothing needs to.** Its tile goes off
+the board in the same frame's cell patches, and `actorSnapshot` finds nobody to
+answer for a stale entry — so a client holding one draws nothing and the next
+snapshot is clean. `left` exists for the other half of `joined`'s headcount, not
+for the set.
+
+**The server's copy of the set (`announcedActors`) is filled where a `hello`
+goes out, not on the first tick.** Seeding it on the first tick looks equivalent
+and is not: a world can be loaded, somebody can summon something, and the tick
+that would have announced it is the same tick that would have seeded the set —
+so the body is silently absorbed and never announced at all. It cost a red test
+to find, which is the shortest description of why the seeding point matters.
+
+A hibernation wake is the one case the set is wrong about, and it is wrong in
+the safe direction: the instance is rebuilt empty while its inherited sockets
+were helloed by an instance that no longer exists, so the next tick announces
+the whole world once. Every one of those is a body the client already holds, and
+`spawned` is written to ignore an id it already has — which it has to be anyway,
+because a socket that connects just after a spawn is told about it twice.
+
 **The world ticks only while there is work** (`isAtRest`). `setInterval` blocks
 hibernation, so an idle world stops ticking and its object can be evicted with
 sockets still open. Going idle checkpoints the runtime map, which is what makes

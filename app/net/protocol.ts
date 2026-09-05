@@ -430,6 +430,30 @@ export type MotionEvent =
   | { kind: "joined"; actorId: string; playerCount: number }
   | { kind: "left"; actorId: string; playerCount: number }
   /**
+   * A body the world has taken on since this client's `hello`.
+   *
+   * **A client's actor set is `hello` plus what it is told afterwards**, and
+   * until this existed the only things it was told about were sockets opening
+   * and closing. Everything else a world adopts at runtime — a creature that
+   * respawned, one somebody summoned with `/tile` — arrived with no
+   * announcement, and reached the client only when it happened to move: a
+   * `walkStarted` for a body it has never heard of is the event that quietly
+   * added it. So a body that never moves was never added at all. Its tile is
+   * drawn, because a body is a tile in a stack and cell patches carry that, and
+   * everything keyed on it is absent: no name over its head, no health bar, no
+   * Talk row. That is a shopkeeper who cannot be spoken to until you reload.
+   *
+   * Distinct from {@link joined} rather than folded into it because a joiner is
+   * a *person*, and the count it carries is the answer to "how many people are
+   * in the world". A rat is not one of them.
+   *
+   * Carries nothing but the id: everything else about the body — where it is,
+   * what it is holding, what it has left — is already on its way in the same
+   * frame, as cell patches and as the hit-point and light diffs. This says only
+   * that there is somebody to hang them on.
+   */
+  | { kind: "spawned"; actorId: string }
+  /**
    * A blow landed, worth this much.
    *
    * An event rather than state, unlike {@link HpPatch}, and the pair is the same
@@ -1320,6 +1344,10 @@ const serverMessageSchema = v.variant("type", [
           playerCount: v.number(),
         }),
         v.object({
+          kind: v.literal("spawned"),
+          actorId: v.string(),
+        }),
+        v.object({
           kind: v.literal("damage"),
           id: v.string(),
           targetId: v.string(),
@@ -1459,7 +1487,7 @@ export const GAME_SOCKET_PATH = "/online/ws";
  * This is deliberately not the build id. A client deploy that changes no
  * messages should not disconnect anybody, and most client deploys are that.
  */
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 5;
 
 /**
  * How often the world says nothing, to keep a proxy from hanging up.

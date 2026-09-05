@@ -585,6 +585,32 @@ export class GameServer {
   private broadcastMap: MapFile | null = null;
   private sentMotion = new Map<string, SentMotion>();
   /**
+   * Every actor this world's clients have been told about.
+   *
+   * **A client's actor set is its `hello` plus what it is told afterwards**, and
+   * what it was told afterwards used to be sockets opening and closing only.
+   * Anything else a world adopts at runtime — a creature that respawned, one
+   * somebody summoned with `/tile` — reached a client by accident: a
+   * `walkStarted` for an unknown id is what quietly added it. So a body that
+   * never moves never arrived. Its tile was drawn, because a body is a tile in a
+   * stack and cell patches carry that, and everything keyed on the actor was
+   * missing — no name over its head, no health bar, no Talk row. That is a
+   * shopkeeper who cannot be spoken to until somebody reloads.
+   *
+   * Filled where a `hello` goes out, because that message is the other way a
+   * client learns a body exists, and diffed in {@link collectMotionEvents}.
+   * Seeding it there rather than on the first tick is what closes the window
+   * where a world loads, somebody summons something, and the tick that would
+   * have announced it is also the tick that would have seeded the set.
+   *
+   * A wake is the one case it is wrong about, and wrong in the safe direction:
+   * the instance is rebuilt with this empty while the sockets it inherited were
+   * helloed by an instance that is gone, so the next tick announces the whole
+   * world once. Every one of those is a body the client already knows, and it
+   * ignores an id it is already holding.
+   */
+  private announcedActors = new Set<string>();
+  /**
    * The hit points each client has been told about, so an unchanged bar costs
    * nothing on the wire. Same discipline as {@link broadcastMap}: everyone is at
    * the same version, so one diff serves every socket.
@@ -1784,6 +1810,9 @@ export class GameServer {
   private sendHello(ws: GameSocket, actorId: string) {
     const session = this.session!;
     const actors = session.actorSnapshots();
+    // Everything named below is a body this socket now knows about, so none of
+    // it is news to announce. @see announcedActors
+    for (const id of session.actorIds()) this.announcedActors.add(id);
     // Recorded as this socket is told, so the stream below hands over what
     // comes into reach *after* this rather than replaying what is in it.
     const chunks = this.subscriptionFor(actorId);
@@ -2540,6 +2569,7 @@ export class GameServer {
     this.session?.despawn(attachment.actorId);
     this.writtenActors.delete(attachment.actorId);
     this.sentMotion.delete(attachment.actorId);
+    this.announcedActors.delete(attachment.actorId);
     // What ground they had been sent, which is only true of a connection. A
     // returning tab is a fresh `hello` and a fresh subscription, so keeping it
     // would be a row per visitor the world has ever had.
@@ -2689,6 +2719,9 @@ export class GameServer {
     this.persistRespawnPending();
     this.scheduleRespawnAlarm();
     this.sentMotion.clear();
+    // Re-seeded by the `hello` every socket is about to be sent: these are the
+    // old world's names, and the next one may reuse them for other bodies.
+    this.announcedActors.clear();
     this.sentHp.clear();
     // Everybody is about to be re-seated in the new world, so every
     // position this instance believed it had written is now a claim about a
@@ -2932,6 +2965,9 @@ export class GameServer {
     // is the per-client bookkeeping, which describes a world these clients are
     // about to stop being in.
     this.sentMotion.clear();
+    // Re-seeded by the `hello` every socket is about to be sent: these are the
+    // old world's names, and the next one may reuse them for other bodies.
+    this.announcedActors.clear();
     this.sentHp.clear();
     this.sentCarriedLights.clear();
     this.sentStatusIds.clear();
@@ -3121,9 +3157,16 @@ export class GameServer {
    * twice.
    */
   private collectMotionEvents(actors: ActorSnapshot[]) {
+    const announced = this.announcedActors;
     const live = new Set<string>();
     for (const actor of actors) {
       live.add(actor.id);
+      // A body nobody has been told about, which is a body that arrived after
+      // every current `hello`. @see announcedActors
+      if (!announced.has(actor.id)) {
+        announced.add(actor.id);
+        this.events.push({ kind: "spawned", actorId: actor.id });
+      }
       const sent = this.sentMotion.get(actor.id);
 
       if (actor.walk && actor.walk !== sent?.walk) {
@@ -3173,6 +3216,11 @@ export class GameServer {
     for (const id of this.sentMotion.keys()) {
       if (!live.has(id)) this.sentMotion.delete(id);
     }
+    // A body that has gone needs no announcement of its own: its tile left the
+    // board in this frame's cell patches, and a client holding a stale entry
+    // simply finds nobody to hang it on. Forgetting it here is what makes the
+    // *next* one under that id an arrival again.
+    for (const id of announced) if (!live.has(id)) announced.delete(id);
   }
 
   /**
@@ -3201,6 +3249,7 @@ export class GameServer {
       const actorId = death.id;
       this.dead.add(actorId);
       this.sentMotion.delete(actorId);
+      this.announcedActors.delete(actorId);
       this.sentHp.delete(actorId);
       this.queuedSteps.delete(actorId);
       // Or the map grows a row per body the world has ever killed, and a world
