@@ -44,6 +44,12 @@ import {
   withSpritePhase,
 } from "../lib/types";
 import { resolveScatterIndex } from "../lib/scatter";
+import {
+  nextFreeTileId,
+  offsetFits,
+  offsetTileSprites,
+  type CellOffset,
+} from "../lib/spriteOffset";
 import { variantKeys } from "../lib/variant";
 import { SpriteSelector } from "./SpriteSelector";
 import { TilePreview } from "./TilePreview";
@@ -462,6 +468,11 @@ type Props = {
   isNew: boolean;
   onSave: (tile: TileDef) => void;
   onDelete?: () => void;
+  /**
+   * Write this tile out under a new id. Given the tile as the draft stands, so
+   * the copy carries edits the original has not been saved with.
+   */
+  onDuplicate?: (tile: TileDef) => void;
 };
 
 const TAB_TILE = "tile";
@@ -482,6 +493,7 @@ export function TileEditorDialog({
   isNew,
   onSave,
   onDelete,
+  onDuplicate,
 }: Props) {
   const [draft, setDraft] = useState<TileDef>(() =>
     withLightingDefaults(tile ?? blankTile(tilesets)),
@@ -494,6 +506,14 @@ export function TileEditorDialog({
   const [state, setState] = useState<SpriteState>("idle");
   const [frameIndex, setFrameIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  /** The copy being named, or null when that dialog is closed. */
+  const [duplicate, setDuplicate] = useState<{ id: string; name: string } | null>(
+    null,
+  );
+  const [duplicateError, setDuplicateError] = useState<string | null>(null);
+  /** The pending sheet offset, or null when that dialog is closed. */
+  const [offset, setOffset] = useState<CellOffset | null>(null);
+  const [offsetError, setOffsetError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -507,6 +527,10 @@ export function TileEditorDialog({
     setState("idle");
     setFrameIndex(0);
     setError(null);
+    setDuplicate(null);
+    setDuplicateError(null);
+    setOffset(null);
+    setOffsetError(null);
   }, [open, tile, tilesets]);
 
   const at: SpriteCursor = { dir, slice, face, variant: variantKey };
@@ -767,18 +791,26 @@ export function TileEditorDialog({
     });
   };
 
-  const handleSave = () => {
+  /**
+   * The tile the draft would be saved as, or null with the reason in the error
+   * banner.
+   *
+   * Separate from the Save button because duplicating writes the same tile under
+   * a different id, and a copy that skipped these checks would put a tile in the
+   * library that the editor itself refuses to save.
+   */
+  const buildSaved = (): TileDef | null => {
     if (!draft.id.trim()) {
       setError("Id is required");
-      return;
+      return null;
     }
     if (!/^[a-z0-9-]+$/.test(draft.id)) {
       setError("Id must be lowercase letters, numbers, and hyphens");
-      return;
+      return null;
     }
     if (!draft.name.trim()) {
       setError("Name is required");
-      return;
+      return null;
     }
 
     // A brain that would load inert is caught here, where it is actionable,
@@ -788,7 +820,7 @@ export function TileEditorDialog({
       const fatal = validateBrain(brain).find((i) => i.severity === "error");
       if (fatal) {
         setError(`Brain: ${fatal.message}`);
-        return;
+        return null;
       }
     }
 
@@ -803,78 +835,78 @@ export function TileEditorDialog({
       const fatal = validateDialog(dialog, catalogue).find((i) => i.severity === "error");
       if (fatal) {
         setError(`Dialog: ${fatal.message}`);
-        return;
+        return null;
       }
     }
 
     if (draft.type === "simple") {
       if (!draft.sprite?.frames.length) {
         setError("At least one frame is required");
-        return;
+        return null;
       }
       const err = validateFrameLights(draft.sprite.frames);
       if (err) {
         setError(err);
-        return;
+        return null;
       }
     } else if (isDirectional(draft)) {
       for (const d of facingKeysFor(draft)) {
         if (!draft.sprites?.[d]?.frames.length) {
           setError(`Missing frames for direction ${d.toUpperCase()}`);
-          return;
+          return null;
         }
         const err = validateFrameLights(draft.sprites[d]!.frames);
         if (err) {
           setError(`${d.toUpperCase()}: ${err}`);
-          return;
+          return null;
         }
       }
     } else if (draft.type === "scatter") {
       const faces = draft.scatter ?? [];
       if (!faces.length) {
         setError("Add at least one scatter face");
-        return;
+        return null;
       }
       for (let i = 0; i < faces.length; i++) {
         if (!faces[i]?.frames.length) {
           setError(`Face ${i + 1}: at least one frame is required`);
-          return;
+          return null;
         }
         const err = validateFrameLights(faces[i]!.frames);
         if (err) {
           setError(`Face ${i + 1}: ${err}`);
-          return;
+          return null;
         }
       }
     } else if (draft.type === "variant") {
       const entries = Object.entries(draft.variants ?? {});
       if (!entries.length) {
         setError("Add at least one variant face");
-        return;
+        return null;
       }
       for (const [key, sprite] of entries) {
         if (!sprite?.frames.length) {
           setError(`${key}: at least one frame is required`);
-          return;
+          return null;
         }
         const err = validateFrameLights(sprite.frames);
         if (err) {
           setError(`${key}: ${err}`);
-          return;
+          return null;
         }
       }
     } else {
       const defined = Object.values(draft.slices ?? {}).filter(Boolean);
       if (!defined.length) {
         setError("Define at least one autotile slice");
-        return;
+        return null;
       }
       for (const [k, s] of Object.entries(draft.slices ?? {})) {
         if (!s?.frames.length) continue;
         const err = validateFrameLights(s.frames);
         if (err) {
           setError(`Slice ${k}: ${err}`);
-          return;
+          return null;
         }
       }
     }
@@ -891,13 +923,13 @@ export function TileEditorDialog({
       );
       if (mismatch) {
         setError(mismatch);
-        return;
+        return null;
       }
       for (const s of stateSpriteList(draft, sprites)) {
         const err = validateFrameLights(s.frames);
         if (err) {
           setError(`${key}: ${err}`);
-          return;
+          return null;
         }
       }
     }
@@ -967,7 +999,53 @@ export function TileEditorDialog({
       saved.slices = slices;
     }
 
-    onSave(saved);
+    return saved;
+  };
+
+  const handleSave = () => {
+    const saved = buildSaved();
+    if (saved) onSave(saved);
+  };
+
+  const openDuplicate = () => {
+    const taken = new Set(tiles.map((t) => t.id));
+    setDuplicate({ id: nextFreeTileId(draft.id, taken), name: draft.name });
+    setDuplicateError(null);
+  };
+
+  const confirmDuplicate = () => {
+    if (!duplicate || !onDuplicate) return;
+    const id = duplicate.id.trim();
+    const name = duplicate.name.trim();
+    if (!/^[a-z0-9-]+$/.test(id)) {
+      setDuplicateError("Id must be lowercase letters, numbers, and hyphens");
+      return;
+    }
+    if (tiles.some((t) => t.id === id)) {
+      setDuplicateError(`${id} already exists`);
+      return;
+    }
+    if (!name) {
+      setDuplicateError("Name is required");
+      return;
+    }
+    const saved = buildSaved();
+    // Closed either way: a draft the editor refuses to save says so in the
+    // banner behind this dialog, which is where the offending field is too.
+    setDuplicate(null);
+    if (!saved) return;
+    onDuplicate({ ...saved, id, name });
+  };
+
+  const applyOffset = () => {
+    if (!offset) return;
+    const problem = offsetFits(draft, offset, tilesets);
+    if (problem) {
+      setOffsetError(problem);
+      return;
+    }
+    setDraft(offsetTileSprites(draft, offset));
+    setOffset(null);
   };
 
   const dirTabs = facingKeysFor(draft).map((d) => ({
@@ -1084,6 +1162,31 @@ export function TileEditorDialog({
       </label>
     </div>
   ) : null;
+
+  /**
+   * Moving the whole tile's art sideways on the sheet.
+   *
+   * Beside the state picker rather than in the frame editor because it is not
+   * an edit to the frame in front of the author: it moves every frame of every
+   * facing at once, which is the point — a character sheet is drawn as one
+   * block and the next character is the block beside it.
+   */
+  const sheetTools = (
+    <div className="flex items-center gap-3 pt-1">
+      <FieldLabel info="Moves every frame of every facing, slice, face and state by the same number of 8px cells — for art copied to the block beside it on the sheet. Lands in the draft; save to keep it.">
+        Sprite sheet
+      </FieldLabel>
+      <Button
+        size="sm"
+        onClick={() => {
+          setOffset({ x: 0, y: 0 });
+          setOffsetError(null);
+        }}
+      >
+        Offset all sprites…
+      </Button>
+    </div>
+  );
 
   const frameEditor = (
     <Tabs
@@ -1720,10 +1823,17 @@ export function TileEditorDialog({
       wide
       footer={
         <>
-          {!isNew && onDelete ? (
-            <Button variant="danger" onClick={onDelete} className="mr-auto">
-              Delete
-            </Button>
+          {!isNew && (onDelete || onDuplicate) ? (
+            <div className="mr-auto flex items-center gap-2">
+              {onDelete ? (
+                <Button variant="danger" onClick={onDelete}>
+                  Delete
+                </Button>
+              ) : null}
+              {onDuplicate ? (
+                <Button onClick={openDuplicate}>Duplicate</Button>
+              ) : null}
+            </div>
           ) : null}
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
@@ -2014,6 +2124,8 @@ export function TileEditorDialog({
 
         {draft.type === "simple" ? climbPad : null}
 
+        {sheetTools}
+
         {statePicker}
 
         {phasePicker}
@@ -2022,6 +2134,108 @@ export function TileEditorDialog({
           </TabPanel>
         </Tabs>
       </div>
+
+      <Dialog
+        open={duplicate !== null}
+        onOpenChange={(o) => {
+          if (!o) setDuplicate(null);
+        }}
+        title="Duplicate tile"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDuplicate(null)}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={confirmDuplicate}>
+              Duplicate
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          {duplicateError ? (
+            <div className="border-2 border-danger bg-danger/10 px-2 py-1 text-sm text-danger">
+              {duplicateError}
+            </div>
+          ) : null}
+          <label className="flex flex-col gap-1 text-xs">
+            <span className="font-bold uppercase text-muted">Id</span>
+            <Input
+              value={duplicate?.id ?? ""}
+              onChange={(e) =>
+                setDuplicate((d) => (d ? { ...d, id: e.target.value } : d))
+              }
+              placeholder="villager-2"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs">
+            <span className="font-bold uppercase text-muted">Name</span>
+            <Input
+              value={duplicate?.name ?? ""}
+              onChange={(e) =>
+                setDuplicate((d) => (d ? { ...d, name: e.target.value } : d))
+              }
+            />
+          </label>
+          <p className="text-xs text-muted">
+            Writes this tile as it stands — including edits it has not been saved
+            with — under the new id, and opens the copy. The original keeps
+            whatever was last saved.
+          </p>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={offset !== null}
+        onOpenChange={(o) => {
+          if (!o) setOffset(null);
+        }}
+        title="Offset sprites"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setOffset(null)}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={applyOffset}>
+              Offset
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          {offsetError ? (
+            <div className="border-2 border-danger bg-danger/10 px-2 py-1 text-sm text-danger">
+              {offsetError}
+            </div>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-4">
+            <label className="flex items-center gap-2 text-xs">
+              <span className="font-bold uppercase text-muted">Right</span>
+              <NumberInput
+                className="w-20"
+                step={1}
+                value={offset?.x ?? 0}
+                onChange={(x) => setOffset((o) => (o ? { ...o, x } : o))}
+              />
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <span className="font-bold uppercase text-muted">Down</span>
+              <NumberInput
+                className="w-20"
+                step={1}
+                value={offset?.y ?? 0}
+                onChange={(y) => setOffset((o) => (o ? { ...o, y } : o))}
+              />
+            </label>
+          </div>
+          <p className="text-xs text-muted">
+            In 8px cells; negative moves left or up. Every frame of every facing,
+            slice, face and state moves together, so the tile keeps drawing the
+            same shape from a different block of the sheet. Refused if any sprite
+            would land off the sheet.
+          </p>
+        </div>
+      </Dialog>
     </Dialog>
   );
 }

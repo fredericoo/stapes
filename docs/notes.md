@@ -3883,6 +3883,37 @@ it. Moving the reset into `@layer base` would fix it globally, and would also
 shrink every button in the app to the size its class asks for — do it on
 purpose, with a visual pass, not by accident.
 
+### Making the second character out of the first
+
+Two operations in the tile editor exist because authoring an NPC meant
+re-picking every sprite of an existing one by hand: four or eight facings times
+however many states, each a drag-select on the sheet that can land a cell off
+without saying so. Both live in `app/lib/spriteOffset.ts`, which is where the
+tests are.
+
+**Duplicate writes the draft, not the file.** The footer's *Duplicate* asks for
+an id and a name, then runs the draft through the same checks Save does and
+writes it under the new id — so a copy carries edits the original has not been
+saved with, and the editor never puts a tile in the library it would itself
+refuse. The default id counts up from whatever number is already on the end
+(`guard` → `guard-2`, `guard-2` → `guard-3`), because these come in rows of
+siblings and `guard-copy-copy` is what appending gives you on the third one.
+The dialog then swaps to the copy, since duplicating is never the whole job.
+
+**Offset moves the whole tile at once.** *Offset all sprites…* shifts every
+frame of every facing, slice, face and state by the same number of 8px cells.
+That is the point: a character sheet is drawn as one block, the next character
+is the block beside it, and one number turns twenty-four drag-selects into a
+copy plus a `+2`. `base` is a cell *within* the rect, so moving the rect carries
+it.
+
+An offset that would put any sprite off its sheet is **refused, not clamped**.
+Clamping moves some sprites and not others, and the result is a character whose
+facings are drawn from different places on the sheet — a bug that shows up in
+the world, not in the editor. A tileset the tile names but that is not in the
+library is skipped: its size is unknown, and a missing tileset is already its
+own problem.
+
 ## Renderer and simulation performance
 
 The game targets **120fps — an 8.3ms frame budget**, and the whole budget is

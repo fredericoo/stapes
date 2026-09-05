@@ -293,6 +293,19 @@ export default function TilesPage() {
           setIsNew(false);
           toast.show("Tile saved");
         }}
+        onDuplicate={(copy) => {
+          const fd = new FormData();
+          fd.set("intent", "save-tile");
+          fd.set("tile", JSON.stringify(copy));
+          fetcher.submit(fd, { method: "post" });
+          // Straight into the copy, because duplicating is never the whole job
+          // — the id is a placeholder and the art is the original's until it is
+          // offset. `isNew` stays false: the tile is written, so saving it again
+          // must update it rather than refuse as a collision.
+          setEditing(copy);
+          setIsNew(false);
+          toast.show(`Duplicated as ${copy.id}`);
+        }}
         onDelete={
           editing
             ? () => {
