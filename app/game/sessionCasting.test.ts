@@ -1475,3 +1475,33 @@ describe("what an elemental cast teaches", () => {
     expect(earned(play, "fire")).toBe(0);
   });
 });
+
+/**
+ * Story: a stone that reaches for somebody looks usable with nobody targeted —
+ * see `../components/SpellBar` — so pressing it has to say what is missing. Every
+ * other refusal the button already draws, and a sentence on top of a picture is
+ * the game repeating itself at whoever is mashing a key.
+ */
+describe("a cast refused for want of a target", () => {
+  it("says what to do, rather than refusing in silence", () => {
+    const play = session({ weapon: "bolt-stone" });
+    expect(play.cast("weapon")).toBe(false);
+    expect(play.drainNotices()).toEqual(["Select a target first"]);
+  });
+
+  it("says nothing about a refusal the button already draws", () => {
+    const play = session({ charm: "adept-stone" });
+    expect(play.cast("charm")).toBe(false);
+    expect(play.drainNotices()).toEqual([]);
+  });
+
+  it("says nothing once somebody is targeted", () => {
+    const at = { x: 2, y: 0, z: 0 };
+    const play = session({ weapon: "bolt-stone" }, spawnRat(world(), at));
+    play.setTarget(ratAt(play, at));
+    expect(play.cast("weapon")).toBe(true);
+    // Not empty — the cast earned a mastery, which has a line of its own. What
+    // matters is that nothing was said about a target.
+    expect(play.drainNotices()).not.toContain("Select a target first");
+  });
+});

@@ -121,7 +121,7 @@
 }
 
 /**
- * The exceptions to the corner above, and there are two of them.
+ * The exceptions to the corner above, and there are three of them.
  *
  * The rule is a house style — everything in this interface is a hard rectangle —
  * and it is stated with `!important` because it has to beat a component library
@@ -136,6 +136,19 @@
  */
 .pad-disc,
 .pad-knob {
+  border-radius: 9999px !important;
+}
+
+/**
+ * A spell button, on the same terms.
+ *
+ * The countdown is an arc around the button's rim, and an arc wants a rim to run
+ * along: on a rectangle it either leaves the corners empty or stops being a
+ * circle, and neither reads as a clock. The stone is round in the hand as well,
+ * so the button and the thing it presses are the same shape. See
+ * `./components/SpellBar.tsx`, which is the only thing that may use this.
+ */
+.spell-disc {
   border-radius: 9999px !important;
 }
 

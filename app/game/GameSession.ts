@@ -91,6 +91,7 @@ import {
   type ObjectRef,
 } from "./affordances";
 import {
+  castRefusalNotice,
   commandRefusalNotice,
   extractNotice,
   masteryNotice,
@@ -4407,7 +4408,16 @@ export class GameSession implements PlaySession {
 
     const stone = stoneIn(actor.equipment, this.tilesById, square);
     if (!stone) return false;
-    if (!castability(context, square).ok) return false;
+
+    const verdict = castability(context, square);
+    if (!verdict.ok) {
+      // Said where the refusal happened, on the terms every other notice is —
+      // and only for the refusals the button does not draw, which today is
+      // exactly one. @see ./notices' castRefusalNotice
+      const notice = castRefusalNotice(verdict.reason);
+      if (notice) this.say(id, notice);
+      return false;
+    }
 
     // What the spell is made of, read once at the top and handed to whichever
     // arm runs: the elements decide what the cast trains and what it is worth

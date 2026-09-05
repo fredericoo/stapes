@@ -43,6 +43,7 @@ import {
   type CastSquare,
   type SpellButton,
 } from "../game/casting";
+import { castRefusalNotice } from "../game/notices";
 import { masteriesFromXp, type MasteryXp } from "../lib/mastery";
 import { canMoveItem, itemInSlot, type SlotRef } from "../game/itemMoves";
 import type { ConsumeSource } from "../game/itemUse";
@@ -363,6 +364,8 @@ export class RemoteSession implements PlaySession {
   private onDead: ((dead: boolean) => void) | null = null;
   /** Told when the world says it is restarting. See {@link setOnRestarting}. */
   private onRestarting: (() => void) | null = null;
+  /** Told which protocol the server speaks. See {@link setOnOutdated}. */
+  private onOutdated: ((serverVersion: number) => void) | null = null;
   /** How many people the server last said were here. */
   private players = 0;
   private onPlayers: ((count: number) => void) | null = null;
@@ -403,6 +406,19 @@ export class RemoteSession implements PlaySession {
    */
   setOnRestarting(cb: (() => void) | null) {
     this.onRestarting = cb;
+  }
+
+  /**
+   * Told what protocol the far end speaks, when it turns out not to be ours.
+   *
+   * The close that follows says only *that* the versions differ, and the two
+   * ways they can differ want opposite advice: a tab older than the server is
+   * fixed by reloading, and a tab *newer* than it is a server that has not
+   * caught up, where reloading is an infinite wait. The number is the only thing
+   * that separates them, so it is carried out to the page. @see PROTOCOL_VERSION
+   */
+  setOnOutdated(cb: ((serverVersion: number) => void) | null) {
+    this.onOutdated = cb;
   }
 
   setOnDead(cb: ((dead: boolean) => void) | null) {
@@ -494,9 +510,9 @@ export class RemoteSession implements PlaySession {
     }
 
     if (message.type === "outdated") {
-      // Nothing to do here — the close that follows carries the code the page
-      // acts on. Consumed so it does not fall through to a warning about a
-      // message this side does not know.
+      // The close that follows carries the code the page acts on; this carries
+      // the only thing that close cannot, which is which side is behind.
+      this.onOutdated?.(message.serverVersion);
       return;
     }
 
@@ -1811,7 +1827,20 @@ export class RemoteSession implements PlaySession {
    */
   cast(square: CastSquare): boolean {
     const context = this.castContext();
-    if (!context || !castability(context, square).ok) return false;
+    if (!context) return false;
+
+    const verdict = castability(context, square);
+    if (!verdict.ok) {
+      // Composed here rather than fetched, and it is the one sentence this side
+      // writes for itself. The refusal genuinely happened here — the message was
+      // never sent, so the server has nothing to say about it — and the words
+      // come from the same file the server's do, so the two cannot drift.
+      // @see ../game/notices' castRefusalNotice
+      const notice = castRefusalNotice(verdict.reason);
+      if (notice) this.pendingNotices.push(notice);
+      return false;
+    }
+
     this.send({ type: "cast", square });
     return true;
   }

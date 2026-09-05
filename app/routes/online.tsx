@@ -8,6 +8,7 @@ import { GameViewport } from "../components/GameViewport";
 import { InkDocument } from "../components/InkDocument";
 import { LightingToggle } from "../components/LightingToggle";
 import { LoadingScreen } from "../components/LoadingScreen";
+import { OutdatedScreen } from "../components/OutdatedScreen";
 import { WorldClock } from "../components/WorldClock";
 import { type Equipment, emptyEquipment } from "../game/equipment";
 import type { Conversation, TalkAction } from "../game/dialogRuntime";
@@ -82,6 +83,12 @@ export default function OnlinePage() {
   // the renderer is not even built until `hello` arrives, since there is nobody
   // to centre the camera on before it.
   const [painted, setPainted] = useState(false);
+  /**
+   * What the server said it speaks, once it has refused us for speaking
+   * something else. Null until then, and null for a refusal that closed without
+   * a word. @see ../components/OutdatedScreen
+   */
+  const [serverVersion, setServerVersion] = useState<number | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const labelRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<GameRenderer | null>(null);
@@ -273,6 +280,11 @@ export default function OnlinePage() {
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     /** Whether the world said it was going before it closed the socket. */
     let restarting = false;
+    /**
+     * What protocol the server said it speaks, when it refused us for speaking
+     * another. Null for every other kind of close.
+     */
+    let refusedVersion: number | null = null;
 
     // Reads `session` at call time, not at construction: a reconnect swaps the
     // session underneath while the same keys are still held.
@@ -327,8 +339,15 @@ export default function OnlinePage() {
       // Read in the close handler below, which is where the difference between
       // "the world went away" and "the world is being replaced" is acted on.
       restarting = false;
+      refusedVersion = null;
       remote.setOnRestarting(() => {
         restarting = true;
+      });
+      // Read in the close handler below, which is where the two ways round of
+      // being out of date are told apart.
+      remote.setOnOutdated((version) => {
+        refusedVersion = version;
+        setServerVersion(version);
       });
       session = remote;
       sessionRef.current = remote;
@@ -386,11 +405,16 @@ export default function OnlinePage() {
         if (disposed) return;
 
         // A stale tab cannot be fixed by reconnecting — the next socket would
-        // be refused the same way — so it reloads instead. Guarded, because a
-        // cached bundle that reloads into the same stale build would loop
-        // forever: the second time round, say so and let the person choose.
+        // be refused the same way — so it reloads instead. Two things stop it:
+        // a reload that already happened, because a cached bundle coming back
+        // the same age it went in would loop forever; and a server that is
+        // *older* than this page, where a newer bundle is not the fix and no
+        // number of reloads will make it one. Either way the screen takes over
+        // and says which. @see ../components/OutdatedScreen
         if (event.code === CLOSE_OUTDATED_CLIENT) {
-          if (sessionStorage.getItem(RELOADED_FOR_VERSION) === "1") {
+          const serverBehind =
+            refusedVersion !== null && refusedVersion < PROTOCOL_VERSION;
+          if (serverBehind || sessionStorage.getItem(RELOADED_FOR_VERSION) === "1") {
             setStatus("outdated");
             return;
           }
@@ -536,7 +560,16 @@ export default function OnlinePage() {
                 tilesets={tilesets}
               />
             ) : null}
-            {painted ? null : <LoadingScreen />}
+            {/* The wait, and the one case where it is not a wait. A refused
+                version is the end of the road for this tab — there is no
+                reconnect pending and no world coming — so it takes the loading
+                screen's place rather than sitting behind it, whether or not the
+                canvas ever painted. */}
+            {status === "outdated" ? (
+              <OutdatedScreen serverVersion={serverVersion} />
+            ) : painted ? null : (
+              <LoadingScreen />
+            )}
           </div>
         </AppShell>
       </div>

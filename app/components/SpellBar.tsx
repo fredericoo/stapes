@@ -1,5 +1,6 @@
 import {
   CAST_REFUSAL_NOTES,
+  type Castability,
   type CastSquare,
   type SpellButton,
 } from "../game/casting";
@@ -26,28 +27,39 @@ import { TilePreview } from "./TilePreview";
  * the reason the keyboard binding stops at `3`. Passives get no button, because
  * there is nothing to press — see `../game/casting`'s `castableStones`.
  *
- * ## One appearance for "no"
+ * ## Three appearances, and the middle one is the point
  *
- * A dimmed button means pressing it now will do nothing, and it means only that:
- * cooling, out of range, nothing targeted and not learnt yet all look identical,
- * because they are identical in the one respect a picture can carry. What
- * separates them is said in words instead — in the tooltip for a pointer, and in
- * the accessible name for anybody who is not looking at it — since a screen
- * reader hearing "unavailable" would be told less than a sighted player can see.
+ * A button once had two: lit, or dimmed for every reason at once. Dimming is
+ * right for a stone you cannot use, and it was wrong for the commonest reason a
+ * stone will not fire — nobody is targeted — because that is not a fact about
+ * the stone at all. A player looking at a greyed row concluded the spell was
+ * broken, or on cooldown, and went to stand somewhere else. So:
  *
- * ## The bar under the sprite is the cooldown and nothing else
+ * - **Ready.** Solid ring, full brightness. Pressing it casts.
+ * - **Cooling.** Dimmed, with an arc around the rim counting down. It is the
+ *   one refusal that ends by itself, and the only one worth drawing a picture
+ *   of: the picture *is* how long is left.
+ * - **Unavailable.** Dashed and faint — not learnt yet, out of range, nothing in
+ *   the square. These stay collapsed into one appearance, because a player can
+ *   do nothing about any of them from where they are standing, and the tooltip
+ *   and the accessible name say which.
+ *
+ * **A stone with nobody targeted looks ready and presses**, and the refusal is
+ * said in words at the foot of the view — see `../game/notices`'
+ * `castRefusalNotice`. That is the trade this makes: one sentence when you press
+ * it, rather than a control that looks broken for as long as you are not in a
+ * fight.
+ *
+ * ## The ring is the cooldown and nothing else
  *
  * Drawn from the numbers the session was last given rather than from a timer of
  * this component's own: the countdown moves in whole seconds, which is the grain
- * the session keeps it at and the grain the wire carries it at. A smoother bar
+ * the session keeps it at and the grain the wire carries it at. A smoother arc
  * would be this side inventing a precision the truth does not have.
  */
 
-/** Where in the square the sprite sits, leaving room for the bar underneath. */
-const SPRITE_SHARE = 0.6;
-
-/** How tall the cooldown bar is, as a share of the button. */
-const BAR_SHARE = 0.12;
+/** Where in the disc the sprite sits, leaving the rim to the ring. */
+const SPRITE_SHARE = 0.55;
 
 /** Which sprite stands for a stone in a button — the one facing the reader. */
 const FRONT: "s" = "s";
@@ -74,6 +86,55 @@ const SPRITE_SIZE_PX = 44;
  * the walking side and a spell is pressed with the other hand.
  */
 const BUTTONS_PER_ROW = 3;
+
+/**
+ * The box the countdown ring is drawn in, in its own units.
+ *
+ * The ring is an SVG laid over the disc at whatever size the row came out at, so
+ * everything below is a share of this rather than a pixel: the button is fluid
+ * and the arc has to be the same weight on a phone and in a desktop column.
+ */
+const RING_BOX = 100;
+
+/** Where the middle of the stroke runs, measured from the centre. */
+const RING_RADIUS = 44;
+
+/** How heavy the stroke is, in the same units. Spans 40 to 48 of the box. */
+const RING_WIDTH = 8;
+
+/** How far round the ring is, which is what a dash pattern is stated in. */
+const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
+
+/**
+ * Which of the three appearances a stone wears. @see SpellBar
+ *
+ * Exported because it is the whole of the decision and it is worth asserting
+ * without a browser: the one that surprises people is `noTarget`, which reads as
+ * ready.
+ */
+export type SpellAppearance = "ready" | "cooling" | "unavailable";
+
+/** @see SpellAppearance */
+export function spellAppearance(castability: Castability): SpellAppearance {
+  if (castability.ok) return "ready";
+  if (castability.reason === "cooling") return "cooling";
+  // Not a fact about the stone but about who you are pointing at, so the button
+  // says nothing about it and the press does. @see `../game/notices`
+  if (castability.reason === "noTarget") return "ready";
+  return "unavailable";
+}
+
+/**
+ * Whether pressing this button sends a cast at all.
+ *
+ * Wider than "would it fire", and deliberately: a stone refused for want of a
+ * target is sent, refused by the session, and answered with a sentence. Every
+ * other refusal is stopped here, because there is nothing to say that the
+ * dimming has not already said.
+ */
+export function spellPressable(castability: Castability): boolean {
+  return castability.ok || castability.reason === "noTarget";
+}
 
 export function SpellBar({
   spells,
@@ -145,7 +206,8 @@ function SpellSquare({
   tilesets: TilesetDef[];
 }) {
   const verdict = spell.castability;
-  const ready = verdict.ok;
+  const appearance = spellAppearance(verdict);
+  const pressable = spellPressable(verdict);
   const key = castKeyLabel(index);
 
   // Pointer-driven rather than click-driven, so a spell still answers a thumb
@@ -154,8 +216,10 @@ function SpellSquare({
   const tap = useTap(() => {
     // Refused here as well as by the session, and the session as well as the
     // server: a dimmed button that quietly sent anyway would be spending a
-    // player's cooldown on a cast that was never going to land.
-    if (ready) onCast(spell.square);
+    // player's cooldown on a cast that was never going to land. A stone with
+    // nobody targeted is the exception and goes through — see
+    // {@link spellPressable}.
+    if (pressable) onCast(spell.square);
   });
 
   const remaining = Math.max(0, spell.cooldownMs);
@@ -166,8 +230,9 @@ function SpellSquare({
 
   // What it is, then whether it can be used and why not — in that order, because
   // the name is what identifies the button and the rest is its state. A refusal
-  // is spelled out rather than collapsed into "unavailable": the picture already
-  // says that much, and this is the half that says which.
+  // is spelled out rather than collapsed into "unavailable": the picture no
+  // longer says which, and for a stone with nothing targeted it does not even
+  // say that there is a which.
   const state = verdict.ok
     ? key
       ? `ready, key ${key}`
@@ -185,17 +250,16 @@ function SpellSquare({
         // vanished from the keyboard's reach whenever it was cooling would be
         // unreachable exactly when somebody wants to know how long is left.
         // Pressing it does nothing, which is what the dimming promises.
-        aria-disabled={!ready}
+        aria-disabled={!pressable}
         {...tap}
         className={[
-          "relative flex aspect-square min-w-0 flex-1 flex-col items-center justify-center border-2 shadow-hard",
+          // Round, which is an exception to the house rectangle and says so at
+          // the same weight the direction pad's does — see `spell-disc` in
+          // `../app.css`. A stone is a disc in the hand, and the countdown it
+          // wears is an arc around its rim, which a corner has nowhere to go.
+          "spell-disc relative flex aspect-square min-w-0 flex-1 flex-col items-center justify-center border-2",
           "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-          ready
-            ? "border-paper/60 bg-paper/10 text-paper hover:border-paper"
-            : // One appearance for every reason it cannot be used — see the
-              // module note. Dashed as well as faint, so the state survives being
-              // looked at on a bright phone outdoors.
-              "border-dashed border-paper/25 bg-transparent text-paper/40 opacity-50",
+          APPEARANCE_CLASSES[appearance],
         ].join(" ")}
         style={{ maxWidth: `calc(100% / ${BUTTONS_PER_ROW})` }}
       >
@@ -214,33 +278,84 @@ function SpellSquare({
           />
         ) : null}
 
-        {/* The number that presses it, in the corner where a shortcut goes.
-            Drawn on both devices rather than hidden behind a media query: a
-            phone with a keyboard attached is a real thing, and the glyph costs
-            one corner of a button nobody is reading closely. Announced by the
-            label above instead of here, so it is not read out twice. */}
+        {/* The number that presses it, at the foot of the disc rather than in a
+            corner the circle has cut off. Drawn on both devices rather than
+            hidden behind a media query: a phone with a keyboard attached is a
+            real thing, and the glyph costs a few pixels of a button nobody is
+            reading closely. Announced by the label above instead of here, so it
+            is not read out twice. */}
         {key ? (
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute top-0.5 left-1 text-[10px] leading-none text-paper/50"
+            className="pointer-events-none absolute bottom-[6%] left-1/2 -translate-x-1/2 text-[10px] leading-none text-paper/50"
           >
             {key}
           </span>
         ) : null}
 
-        {/* The cooldown, along the bottom edge. It empties from the right as the
-            stone comes ready, so a full bar is a spell just cast and no bar at
-            all is one waiting to be. Absent entirely when there is nothing to
-            count down, rather than drawn empty: a permanent hairline under every
-            ready spell would read as part of the button. */}
-        {remaining > 0 ? (
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute bottom-0 left-0 bg-accent"
-            style={{ width: `${share * 100}%`, height: `${BAR_SHARE * 100}%` }}
-          />
-        ) : null}
+        {remaining > 0 ? <CooldownRing share={share} /> : null}
       </button>
     </Tooltip>
+  );
+}
+
+/**
+ * How each of the three states is drawn. @see SpellAppearance
+ *
+ * A table rather than a chain of ternaries, so adding a fourth appearance is a
+ * missing key rather than a branch somebody forgot.
+ */
+const APPEARANCE_CLASSES: Record<SpellAppearance, string> = {
+  ready: "border-paper/60 bg-paper/10 text-paper hover:border-paper",
+  // Solid, unlike the state below it, because the ring around the rim is the
+  // thing to read and a dashed border competes with it for the same pixels.
+  cooling: "border-paper/30 bg-transparent text-paper/40 opacity-60",
+  // Dashed as well as faint, so the state survives being looked at on a bright
+  // phone outdoors.
+  unavailable: "border-dashed border-paper/25 bg-transparent text-paper/40 opacity-50",
+};
+
+/**
+ * How long is left, as an arc around the rim.
+ *
+ * It empties clockwise from the top as the stone comes ready, so a full ring is
+ * a spell just cast and no ring at all is one waiting to be. Absent entirely
+ * when there is nothing to count down, track and all, rather than drawn empty: a
+ * permanent hairline around every ready spell would read as part of the button.
+ *
+ * A dash pattern on one circle rather than a wedge path, because the length that
+ * is showing is then a single number that changes — no arc endpoints to
+ * trigonometry out, and no large-arc flag to get wrong at half a cooldown. The
+ * whole thing is turned a quarter so that zero degrees is noon rather than three
+ * o'clock, which is where a countdown is read from.
+ */
+function CooldownRing({ share }: { share: number }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox={`0 0 ${RING_BOX} ${RING_BOX}`}
+      className="pointer-events-none absolute inset-0 h-full w-full -rotate-90"
+    >
+      {/* The part already served, so the arc is read against a whole circle
+          rather than against the dark behind the button. */}
+      <circle
+        cx={RING_BOX / 2}
+        cy={RING_BOX / 2}
+        r={RING_RADIUS}
+        fill="none"
+        strokeWidth={RING_WIDTH}
+        className="stroke-paper/15"
+      />
+      <circle
+        cx={RING_BOX / 2}
+        cy={RING_BOX / 2}
+        r={RING_RADIUS}
+        fill="none"
+        strokeWidth={RING_WIDTH}
+        className="stroke-accent"
+        strokeDasharray={RING_LENGTH}
+        strokeDashoffset={RING_LENGTH * (1 - share)}
+      />
+    </svg>
   );
 }
