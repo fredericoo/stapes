@@ -71,6 +71,8 @@ import {
   Button,
   Dialog,
   Input,
+  NumberInput,
+  OptionalNumberInput,
   Segmented,
   Select,
   Switch,
@@ -78,11 +80,13 @@ import {
   Tabs,
 } from "../ui";
 
+const DEFAULT_FRAME_DURATION_MS = 200;
+
 function emptyFrame(tilesetId: string): Frame {
   const rect = { x: 0, y: 0, w: 1, h: 1 };
   return {
     sprite: { tilesetId, rect, base: defaultBase(rect) },
-    durationMs: 200,
+    durationMs: DEFAULT_FRAME_DURATION_MS,
   };
 }
 
@@ -1066,20 +1070,20 @@ export function TileEditorDialog({
         </span>
         <label className="flex items-center gap-2 text-xs">
           <span className="text-muted">East</span>
-          <Input
-            type="number"
+          <NumberInput
             className="w-20"
+            step={1}
             value={phase.x}
-            onChange={(e) => setPhase({ ...phase, x: Number(e.target.value) || 0 })}
+            onChange={(x) => setPhase({ ...phase, x })}
           />
         </label>
         <label className="flex items-center gap-2 text-xs">
           <span className="text-muted">South</span>
-          <Input
-            type="number"
+          <NumberInput
             className="w-20"
+            step={1}
             value={phase.y}
-            onChange={(e) => setPhase({ ...phase, y: Number(e.target.value) || 0 })}
+            onChange={(y) => setPhase({ ...phase, y })}
           />
         </label>
       </div>
@@ -1110,13 +1114,12 @@ export function TileEditorDialog({
       <div className="flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-2 text-xs">
           <span className="font-bold uppercase text-muted">Duration ms</span>
-          <Input
-            type="number"
+          <NumberInput
             className="w-24"
-            value={frame?.durationMs ?? 200}
-            onChange={(e) =>
-              updateFrame({ durationMs: Number(e.target.value) || 200 })
-            }
+            min={1}
+            step={1}
+            value={frame?.durationMs ?? DEFAULT_FRAME_DURATION_MS}
+            onChange={(durationMs) => updateFrame({ durationMs })}
           />
         </label>
         {frames.length > 1 ? (
@@ -1167,8 +1170,7 @@ export function TileEditorDialog({
           <div className="flex flex-wrap items-end gap-3">
             <label className="flex flex-col gap-1 text-xs">
               <span className="font-bold uppercase text-muted">Radius</span>
-              <Input
-                type="number"
+              <NumberInput
                 min={1}
                 // The ceiling the bake is built on, shown here so it is visible
                 // while authoring rather than discovered as light that stops.
@@ -1178,35 +1180,21 @@ export function TileEditorDialog({
                 step={1}
                 className="w-20"
                 value={frame.light.radius}
-                onChange={(e) =>
-                  updateFrame({
-                    light: {
-                      ...frame.light!,
-                      radius: Math.min(
-                        MAX_LIGHT_LEVEL,
-                        Number(e.target.value) || 1,
-                      ),
-                    },
-                  })
+                onChange={(radius) =>
+                  updateFrame({ light: { ...frame.light!, radius } })
                 }
               />
             </label>
             <label className="flex flex-col gap-1 text-xs">
               <span className="font-bold uppercase text-muted">Intensity</span>
-              <Input
-                type="number"
+              <NumberInput
                 min={0}
                 max={1}
                 step={0.05}
                 className="w-20"
                 value={frame.light.intensity}
-                onChange={(e) =>
-                  updateFrame({
-                    light: {
-                      ...frame.light!,
-                      intensity: Number(e.target.value),
-                    },
-                  })
+                onChange={(intensity) =>
+                  updateFrame({ light: { ...frame.light!, intensity } })
                 }
               />
             </label>
@@ -1498,17 +1486,12 @@ export function TileEditorDialog({
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold uppercase text-muted">Seed</span>
-          <Input
-            type="number"
-            value={String(draft.scatterSeed ?? 0)}
-            onChange={(e) =>
-              setDraft({
-                ...draft,
-                scatterSeed: Number.isFinite(e.target.valueAsNumber)
-                  ? Math.trunc(e.target.valueAsNumber)
-                  : 0,
-              })
-            }
+          <NumberInput
+            min={0}
+            max={MAX_SCATTER_SEED}
+            step={1}
+            value={draft.scatterSeed ?? 0}
+            onChange={(scatterSeed) => setDraft({ ...draft, scatterSeed })}
             className="w-32"
           />
           <Button
@@ -2006,20 +1989,15 @@ export function TileEditorDialog({
         {isActor ? (
           <label className="flex items-center gap-2 text-sm">
             Step duration
-            <input
-              type="number"
+            <OptionalNumberInput
               min={1}
               step={10}
               // Blank means "the player's pace", which is a different thing from
               // zero and has to survive a round trip through the field.
-              value={draft.walkDurationMs ?? ""}
+              value={draft.walkDurationMs}
               placeholder={String(WALK_DURATION_MS)}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  walkDurationMs:
-                    e.target.value === "" ? undefined : Number(e.target.value),
-                })
+              onChange={(walkDurationMs) =>
+                setDraft({ ...draft, walkDurationMs })
               }
               className="w-24"
             />

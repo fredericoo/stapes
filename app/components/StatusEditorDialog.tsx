@@ -12,7 +12,7 @@ import {
 import { snapToTick } from "../game/statuses";
 import type { StatusVfx } from "../lib/statusVfx";
 import { defaultBase, type SpriteRef, type TileDef, type TilesetDef } from "../lib/types";
-import { Button, Dialog, Input, Select, Switch } from "../ui";
+import { Button, Dialog, Input, NumberInput, Select, Switch } from "../ui";
 import { SpritePreview } from "./TilePreview";
 import { SpriteSelector } from "./SpriteSelector";
 import { StatusVfxFields } from "./StatusVfxFields";
@@ -101,12 +101,12 @@ function MsField({
   return (
     <label className="flex flex-col gap-0.5">
       <span className="text-[11px] font-bold uppercase text-muted">{label}</span>
-      <Input
-        type="number"
+      <NumberInput
         min={0}
         max={MAX_STATUS_DURATION_MS}
+        step={1}
         value={value}
-        onChange={(e) => onChange(Math.max(0, Number(e.target.value) || 0))}
+        onChange={onChange}
       />
       {hint ? <span className="text-[11px] text-muted">{hint}</span> : null}
     </label>

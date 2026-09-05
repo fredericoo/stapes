@@ -10,7 +10,7 @@ import {
   SLOT_LABELS,
 } from "../lib/kit";
 import type { TileDef } from "../lib/types";
-import { Button, Input, Select } from "../ui";
+import { Button, NumberInput, Select } from "../ui";
 
 /**
  * What a body is born carrying, as a table an author fills in.
@@ -26,19 +26,6 @@ const SLOT_OPTIONS = EQUIP_SLOTS.map((slot) => ({
   value: slot,
   label: SLOT_LABELS[slot],
 }));
-
-/**
- * A cleared chance field reads as never, not as NaN.
- *
- * Zero rather than the default, unlike the wait fields elsewhere in the editor:
- * emptying a box is somebody on their way to typing a smaller number, and
- * snapping it back to certainty mid-edit would fight them.
- */
-function chanceFromInput(raw: string): number {
-  const parsed = Number.parseFloat(raw);
-  if (Number.isNaN(parsed)) return MIN_KIT_CHANCE;
-  return Math.min(MAX_KIT_CHANCE, Math.max(MIN_KIT_CHANCE, parsed));
-}
 
 export function KitEditor({
   kit,
@@ -134,17 +121,11 @@ export function KitEditor({
               </label>
               <label className="flex flex-col gap-1 text-[11px] font-bold uppercase text-muted">
                 Chance %
-                <Input
-                  type="number"
+                <NumberInput
                   min={MIN_KIT_CHANCE}
                   max={MAX_KIT_CHANCE}
-                  step="any"
                   value={entry.chance}
-                  onChange={(e) =>
-                    patchEntry(index, {
-                      chance: chanceFromInput(e.target.value),
-                    })
-                  }
+                  onChange={(chance) => patchEntry(index, { chance })}
                   className="w-20"
                   aria-label="Chance this is there, in percent"
                 />
@@ -182,16 +163,12 @@ export function KitEditor({
                       )}
                       placeholder="Pick an item…"
                     />
-                    <Input
-                      type="number"
+                    <NumberInput
                       min={MIN_KIT_CHANCE}
                       max={MAX_KIT_CHANCE}
-                      step="any"
                       value={content.chance}
-                      onChange={(e) =>
-                        patchContent(index, contentIndex, {
-                          chance: chanceFromInput(e.target.value),
-                        })
+                      onChange={(chance) =>
+                        patchContent(index, contentIndex, { chance })
                       }
                       className="w-20"
                       aria-label="Chance this is inside, in percent"

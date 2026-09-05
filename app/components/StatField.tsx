@@ -1,4 +1,4 @@
-import { Input } from "../ui";
+import { NumberInput } from "../ui";
 
 /**
  * One numeric stat, with the sentence that says what it does to a fight.
@@ -44,20 +44,13 @@ export function StatField({
   return (
     <label className="flex flex-col gap-1 text-xs">
       <span className="font-bold uppercase text-muted">{label}</span>
-      <Input
-        type="number"
+      <NumberInput
         min={min}
         max={max}
         step={step}
         className="w-24"
         value={value}
-        onChange={(e) => {
-          const next = Number(e.target.value);
-          if (!Number.isFinite(next)) return;
-          onChange(
-            Math.max(min, Math.min(max ?? Infinity, roundToStep(next, step))),
-          );
-        }}
+        onChange={onChange}
       />
       <span className="max-w-64 text-[11px] leading-snug text-muted">
         {hint}
@@ -65,17 +58,4 @@ export function StatField({
       </span>
     </label>
   );
-}
-
-/**
- * The nearest multiple of `step`, without the float dust.
- *
- * `Math.round(v / step) * step` is exact in decimal and not in binary — 0.1
- * steps land on things like `0.30000000000000004`, which is a number an author
- * did not type and would then see written into their file. Going back through
- * the step's own precision is what keeps the value the one on screen.
- */
-function roundToStep(value: number, step: number): number {
-  const decimals = Math.max(0, -Math.floor(Math.log10(step)));
-  return Number((Math.round(value / step) * step).toFixed(decimals));
 }

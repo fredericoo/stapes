@@ -6,7 +6,7 @@ import {
   type ParticleEmitterDef,
   type RampStop,
 } from "../lib/particleVfx";
-import { Button, Input, Switch } from "../ui";
+import { Button, Input, NumberInput, Switch } from "../ui";
 
 /**
  * Authoring one plume, wherever it hangs from.
@@ -77,20 +77,17 @@ export function NumberField({
 }) {
   return (
     <Field label={label} hint={hint}>
-      <Input
-        type="number"
+      {/* Bounded here rather than left to the schema, because the schema's
+          answer to an out-of-range number is to drop the whole status — which
+          would mean the Save button going dark with no field saying which one
+          did it. */}
+      <NumberInput
         className="w-24"
         min={min}
         max={max}
         step={step}
         value={value}
-        // Clamped on the way in rather than left to the schema, because the
-        // schema's answer to an out-of-range number is to drop the whole status
-        // — which here would mean the Save button going dark with no field
-        // saying which one did it.
-        onChange={(e) =>
-          onChange(Math.min(max, Math.max(min, Number(e.target.value) || 0)))
-        }
+        onChange={onChange}
       />
     </Field>
   );

@@ -46,7 +46,7 @@ import { ConditionTreeEditor } from "./ConditionTreeEditor";
 import { DragHandle } from "./DragHandle";
 import { EditorIssues } from "./EditorIssues";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
-import { Button, Input, Segmented, Select, Switch } from "../ui";
+import { Button, Input, NumberInput, Segmented, Select, Switch } from "../ui";
 
 /**
  * Authoring a brain as two tables rather than JSON.
@@ -912,11 +912,10 @@ function ParamField({
     return (
       <label className="flex items-center gap-1 text-[10px] uppercase text-muted">
         {spec.label}
-        <Input
-          type="number"
+        <NumberInput
           min={spec.min}
           value={typeof value === "number" ? value : 0}
-          onChange={(e) => onChange(Number(e.target.value) || 0)}
+          onChange={onChange}
           className="w-20"
           aria-label={spec.label}
         />

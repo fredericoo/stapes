@@ -5,7 +5,7 @@ import {
   type StatusGrant,
 } from "../lib/item";
 import type { StatusDef } from "../lib/status";
-import { Button, Input, Select, Switch } from "../ui";
+import { Button, NumberInput, Select, Switch } from "../ui";
 
 /**
  * Which statuses a thing hands over, and how long each is worth.
@@ -106,37 +106,35 @@ export function StatusGrants<Grant extends StatusGrant>({
               <>
                 <label className="flex flex-col gap-0.5 text-xs">
                   <span className="font-bold uppercase text-muted">From (ms)</span>
-                  <Input
-                    type="number"
+                  <NumberInput
                     className="w-28"
                     min={0}
+                    step={1}
                     value={entry.fromMs ?? 0}
-                    onChange={(e) => {
-                      const fromMs = Math.max(0, Number(e.target.value) || 0);
-                      // Kept ordered here so nothing authored through this
-                      // screen can land on the inverted range the schema
-                      // refuses.
+                    // Kept ordered here so nothing authored through this
+                    // screen can land on the inverted range the schema
+                    // refuses.
+                    onChange={(fromMs) =>
                       patchAt(index, {
                         fromMs,
                         toMs: Math.max(fromMs, entry.toMs ?? fromMs),
-                      } as Partial<Grant>);
-                    }}
+                      } as Partial<Grant>)
+                    }
                   />
                 </label>
                 <label className="flex flex-col gap-0.5 text-xs">
                   <span className="font-bold uppercase text-muted">To (ms)</span>
-                  <Input
-                    type="number"
+                  <NumberInput
                     className="w-28"
                     min={0}
+                    step={1}
                     value={entry.toMs ?? 0}
-                    onChange={(e) => {
-                      const toMs = Math.max(0, Number(e.target.value) || 0);
+                    onChange={(toMs) =>
                       patchAt(index, {
                         toMs,
                         fromMs: Math.min(toMs, entry.fromMs ?? toMs),
-                      } as Partial<Grant>);
-                    }}
+                      } as Partial<Grant>)
+                    }
                   />
                 </label>
               </>
@@ -191,22 +189,13 @@ export function StatusChanceField<Grant extends StatusGrant & { chance: number }
   return (
     <label className="flex flex-col gap-0.5 text-xs">
       <span className="font-bold uppercase text-muted">Chance (%)</span>
-      <Input
-        type="number"
+      <NumberInput
         className="w-20"
         min={MIN_PERCENT_STAT}
         max={MAX_PERCENT_STAT}
+        step={1}
         value={entry.chance}
-        onChange={(e) => {
-          const next = Number(e.target.value);
-          if (!Number.isFinite(next)) return;
-          patch({
-            chance: Math.max(
-              MIN_PERCENT_STAT,
-              Math.min(MAX_PERCENT_STAT, Math.round(next)),
-            ),
-          } as Partial<Grant>);
-        }}
+        onChange={(chance) => patch({ chance } as Partial<Grant>)}
       />
     </label>
   );

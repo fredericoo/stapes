@@ -3,7 +3,7 @@ import type { Coord, PlacedTile, TileDef, TilesetDef } from "../lib/types";
 import { MAX_DESCRIPTION_LENGTH, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import { MAX_REWARD_ITEMS } from "../lib/interactions";
 import { useEditorStore } from "../editor/store";
-import { Button, Dialog, Input, Textarea } from "../ui";
+import { Button, Dialog, Input, OptionalNumberInput, Textarea } from "../ui";
 import { TileIdMultiSelect } from "./TileIdMultiSelect";
 
 /**
@@ -47,6 +47,11 @@ export function readDestination(draft: TeleportDraft): Coord | null {
   const z = axisValue(draft.z);
   if (x === null || y === null || z === null) return null;
   return { x, y, z };
+}
+
+/** One axis as its box shows it: blank stays blank, so the placeholder shows. */
+function axisDraftValue(raw: string): number | undefined {
+  return raw.trim() ? Number(raw) : undefined;
 }
 
 /** One axis: blank is the zero the placeholder promises, junk is a refusal. */
@@ -229,8 +234,7 @@ export function PlacementSettingsDialog({
                     <span className="font-bold uppercase text-muted">
                       {axis}
                     </span>
-                    <Input
-                      type="number"
+                    <OptionalNumberInput
                       step={1}
                       // The level bounds only, and only on z: x and y run as far
                       // as the world does, which nothing here knows.
@@ -238,11 +242,14 @@ export function PlacementSettingsDialog({
                         ? { min: MIN_LEVEL, max: MAX_LEVEL }
                         : {})}
                       placeholder="0"
-                      value={teleportTo[axis]}
-                      onChange={(e) =>
+                      // The draft keeps strings so a blank axis stays blank —
+                      // see `readDestination`. Only a whole number ever comes
+                      // back out of the box, so junk never reaches the draft.
+                      value={axisDraftValue(teleportTo[axis])}
+                      onChange={(value) =>
                         setTeleportTo((current) => ({
                           ...current,
-                          [axis]: e.target.value,
+                          [axis]: value === undefined ? "" : String(value),
                         }))
                       }
                     />

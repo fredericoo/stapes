@@ -48,7 +48,7 @@ import { DEFAULT_WEAPON, resolveContainer, resolveItem } from "../lib/item";
 import type { StatusDef } from "../lib/status";
 import type { TileDef, TileKind, TilesetDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL } from "../lib/types";
-import { Button, Input, Segmented, Select, Switch } from "../ui";
+import { Button, Input, NumberInput, Segmented, Select, Switch } from "../ui";
 import { TileIdMultiSelect } from "./TileIdMultiSelect";
 
 /** Symbols read left-to-right after the "load is" label. */
@@ -116,12 +116,6 @@ const MS_PER_SECOND = 1000;
  */
 const MAX_DECAY_SECONDS = 3600;
 
-/** A cleared number field reads as the shortest legal lifetime, not as NaN. */
-function secondsFromInput(raw: string): number {
-  const parsed = Number.parseFloat(raw);
-  return Number.isNaN(parsed) ? 1 : parsed;
-}
-
 /**
  * Deepest a resource may be authored, in pulls.
  *
@@ -138,24 +132,6 @@ const MAX_DURABILITY = 99;
  * question and an author should not have to learn two ceilings.
  */
 const MAX_COOLDOWN_SECONDS = MAX_DECAY_SECONDS;
-
-/** A cleared count field reads as the shallowest legal resource, not as NaN. */
-function durabilityFromInput(raw: string): number {
-  const parsed = Number.parseInt(raw, 10);
-  if (Number.isNaN(parsed)) return 1;
-  return Math.min(MAX_DURABILITY, Math.max(1, parsed));
-}
-
-/**
- * A cleared chance field reads as never, not as NaN — `KitEditor`'s rule and
- * for its reason: emptying a box is somebody on their way to typing a smaller
- * number, and snapping it back to certainty mid-edit would fight them.
- */
-function chanceFromInput(raw: string): number {
-  const parsed = Number.parseFloat(raw);
-  if (Number.isNaN(parsed)) return MIN_EXTRACT_CHANCE;
-  return Math.min(MAX_EXTRACT_CHANCE, Math.max(MIN_EXTRACT_CHANCE, parsed));
-}
 
 const KIND_OPTIONS: Array<{ value: TileKind; label: string }> = [
   { value: "prop", label: "Prop" },
@@ -416,15 +392,10 @@ export function InteractiveTab({
       ? teleport.destination.delta
       : DEFAULT_TELEPORT_DELTA;
 
-  /** A cleared axis reads as 0 rather than as NaN, like every number here. */
-  const patchDelta = (axis: (typeof DELTA_AXES)[number], raw: string) => {
+  const patchDelta = (axis: (typeof DELTA_AXES)[number], value: number) => {
     if (teleport?.destination.kind !== "relative") return;
-    const parsed = Number.parseInt(raw, 10);
     patchTeleport({
-      destination: {
-        kind: "relative",
-        delta: { ...delta, [axis]: Number.isInteger(parsed) ? parsed : 0 },
-      },
+      destination: { kind: "relative", delta: { ...delta, [axis]: value } },
     });
   };
 
@@ -815,17 +786,12 @@ export function InteractiveTab({
 
             <label className="flex flex-col gap-1 text-xs font-bold">
               Pulls
-              <Input
-                type="number"
+              <NumberInput
                 min={1}
                 max={MAX_DURABILITY}
                 step={1}
                 value={extract.durability}
-                onChange={(e) =>
-                  patchExtract({
-                    durability: durabilityFromInput(e.target.value),
-                  })
-                }
+                onChange={(durability) => patchExtract({ durability })}
                 className="w-20"
               />
               <span className="text-[11px] font-normal leading-snug text-muted">
@@ -840,20 +806,14 @@ export function InteractiveTab({
             <label className="flex flex-col gap-1 text-xs font-bold">
               Wait
               <span className="flex items-center gap-2">
-                <Input
-                  type="number"
+                <NumberInput
                   min={0}
                   max={MAX_COOLDOWN_SECONDS}
                   step={1}
                   value={extract.cooldownMs / MS_PER_SECOND}
-                  onChange={(e) =>
+                  onChange={(seconds) =>
                     patchExtract({
-                      cooldownMs: Math.round(
-                        Math.min(
-                          MAX_COOLDOWN_SECONDS,
-                          Math.max(0, secondsFromInput(e.target.value)),
-                        ) * MS_PER_SECOND,
-                      ),
+                      cooldownMs: Math.round(seconds * MS_PER_SECOND),
                     })
                   }
                   className="w-20"
@@ -924,17 +884,12 @@ export function InteractiveTab({
                   <label className="flex flex-col gap-1 text-[11px] font-bold uppercase text-muted">
                     Chance
                     <span className="flex items-center gap-2">
-                      <Input
-                        type="number"
+                      <NumberInput
                         min={MIN_EXTRACT_CHANCE}
                         max={MAX_EXTRACT_CHANCE}
                         step={1}
                         value={slot.chance}
-                        onChange={(e) =>
-                          patchSlot(index, {
-                            chance: chanceFromInput(e.target.value),
-                          })
-                        }
+                        onChange={(chance) => patchSlot(index, { chance })}
                         className="w-20"
                       />
                       <span className="text-xs font-normal normal-case text-muted">
@@ -1036,11 +991,10 @@ export function InteractiveTab({
                   {DELTA_AXES.map((axis) => (
                     <label key={axis} className="flex flex-1 flex-col gap-1">
                       <span className="uppercase text-muted">{axis}</span>
-                      <Input
-                        type="number"
+                      <NumberInput
                         step={1}
-                        value={String(delta[axis])}
-                        onChange={(e) => patchDelta(axis, e.target.value)}
+                        value={delta[axis]}
+                        onChange={(value) => patchDelta(axis, value)}
                       />
                     </label>
                   ))}
@@ -1186,28 +1140,22 @@ export function InteractiveTab({
             <div className="flex flex-col gap-1 text-xs">
               <span className="font-bold uppercase text-muted">Lifetime</span>
               <span className="flex items-center gap-2">
-                <Input
-                  type="number"
+                <NumberInput
                   min={1}
                   max={MAX_DECAY_SECONDS}
                   step={1}
                   value={decay.fromMs / MS_PER_SECOND}
-                  onChange={(e) =>
-                    patchDecayBound("fromMs", secondsFromInput(e.target.value))
-                  }
+                  onChange={(seconds) => patchDecayBound("fromMs", seconds)}
                   className="w-20"
                   aria-label="Shortest lifetime in seconds"
                 />
                 <span className="font-normal text-muted">to</span>
-                <Input
-                  type="number"
+                <NumberInput
                   min={1}
                   max={MAX_DECAY_SECONDS}
                   step={1}
                   value={decay.toMs / MS_PER_SECOND}
-                  onChange={(e) =>
-                    patchDecayBound("toMs", secondsFromInput(e.target.value))
-                  }
+                  onChange={(seconds) => patchDecayBound("toMs", seconds)}
                   className="w-20"
                   aria-label="Longest lifetime in seconds"
                 />
@@ -1276,19 +1224,12 @@ export function InteractiveTab({
 
               <label className="flex flex-col gap-1 text-xs">
                 <span className="font-bold uppercase text-muted">Height</span>
-                <Input
-                  type="number"
+                <NumberInput
                   min={0}
                   max={MAX_PLATE_HEIGHT}
                   step={1}
                   value={plate.height}
-                  onChange={(e) => {
-                    const parsed = Number.parseInt(e.target.value, 10);
-                    const height = Number.isNaN(parsed) ? 0 : parsed;
-                    patchPlate({
-                      height: Math.min(MAX_PLATE_HEIGHT, Math.max(0, height)),
-                    });
-                  }}
+                  onChange={(height) => patchPlate({ height })}
                   className="w-16"
                 />
               </label>

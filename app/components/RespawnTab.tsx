@@ -1,7 +1,7 @@
 import type { RespawnInteraction, TileInteractions } from "../lib/interactions";
 import { DEFAULT_RESPAWN, hasAnyInteraction } from "../lib/interactions";
 import type { TileDef } from "../lib/types";
-import { Input, Switch } from "../ui";
+import { NumberInput, Switch } from "../ui";
 
 const MS_PER_SECOND = 1000;
 
@@ -13,12 +13,6 @@ const MS_PER_SECOND = 1000;
  * "the dragon comes back tomorrow".
  */
 const MAX_RESPAWN_SECONDS = 86_400;
-
-/** A cleared number field reads as the shortest legal wait, not as NaN. */
-function secondsFromInput(raw: string): number {
-  const parsed = Number.parseFloat(raw);
-  return Number.isNaN(parsed) ? 1 : parsed;
-}
 
 type Props = {
   draft: TileDef;
@@ -85,28 +79,22 @@ export function RespawnTab({ draft, onChange }: Props) {
             <div className="flex flex-col gap-1 text-xs">
               <span className="font-bold uppercase text-muted">Wait</span>
               <span className="flex items-center gap-2">
-                <Input
-                  type="number"
+                <NumberInput
                   min={1}
                   max={MAX_RESPAWN_SECONDS}
                   step={1}
                   value={respawn.fromMs / MS_PER_SECOND}
-                  onChange={(e) =>
-                    patchBound("fromMs", secondsFromInput(e.target.value))
-                  }
+                  onChange={(seconds) => patchBound("fromMs", seconds)}
                   className="w-20"
                   aria-label="Shortest wait in seconds"
                 />
                 <span className="font-normal text-muted">to</span>
-                <Input
-                  type="number"
+                <NumberInput
                   min={1}
                   max={MAX_RESPAWN_SECONDS}
                   step={1}
                   value={respawn.toMs / MS_PER_SECOND}
-                  onChange={(e) =>
-                    patchBound("toMs", secondsFromInput(e.target.value))
-                  }
+                  onChange={(seconds) => patchBound("toMs", seconds)}
                   className="w-20"
                   aria-label="Longest wait in seconds"
                 />
