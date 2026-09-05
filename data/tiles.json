@@ -21881,6 +21881,389 @@
     }
   },
   {
+    "id": "iron-sword",
+    "name": "Iron Sword",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "weapon",
+        "damage": 15,
+        "def": 0,
+        "accuracy": 88,
+        "variance": 30,
+        "spd": 50,
+        "mastery": "blade",
+        "requirements": {
+          "blade": 6
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 0,
+              "y": 18,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "tempered-longsword",
+    "name": "Tempered Longsword",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "weapon",
+        "damage": 36,
+        "def": 1,
+        "accuracy": 92,
+        "variance": 25,
+        "spd": 40,
+        "mastery": "blade",
+        "requirements": {
+          "blade": 34
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 7,
+              "y": 18,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "broad-axe",
+    "name": "Broad Axe",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "weapon",
+        "damage": 28,
+        "def": 0,
+        "accuracy": 80,
+        "variance": 55,
+        "spd": 36,
+        "mastery": "blade",
+        "requirements": {
+          "blade": 20,
+          "toughness": 8
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 5,
+              "y": 27,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "battleaxe",
+    "name": "Battleaxe",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "weapon",
+        "damage": 44,
+        "def": 1,
+        "accuracy": 78,
+        "variance": 50,
+        "spd": 30,
+        "mastery": "blade",
+        "requirements": {
+          "blade": 34,
+          "toughness": 16
+        },
+        "twoHanded": true
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 2,
+              "y": 29,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "iron-mace",
+    "name": "Iron Mace",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "weapon",
+        "damage": 22,
+        "def": 0,
+        "accuracy": 84,
+        "variance": 25,
+        "spd": 38,
+        "mastery": "blunt",
+        "requirements": {
+          "blunt": 18
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 11,
+              "y": 26,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "war-maul",
+    "name": "War Maul",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "weapon",
+        "damage": 38,
+        "def": 1,
+        "accuracy": 80,
+        "variance": 25,
+        "spd": 30,
+        "mastery": "blunt",
+        "requirements": {
+          "blunt": 32,
+          "toughness": 16
+        },
+        "twoHanded": true
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 10,
+              "y": 27,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "hunting-bow",
+    "name": "Hunting Bow",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "weapon",
+        "damage": 26,
+        "def": 0,
+        "accuracy": 72,
+        "variance": 60,
+        "spd": 40,
+        "mastery": "ranged",
+        "requirements": {
+          "ranged": 18
+        },
+        "reach": {
+          "cells": 8,
+          "height": 5
+        },
+        "projectile": {
+          "tileId": "arrow",
+          "cellsPerSecond": 20
+        },
+        "twoHanded": true
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 23,
+              "y": 27,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "war-bow",
+    "name": "War Bow",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "weapon",
+        "damage": 38,
+        "def": 0,
+        "accuracy": 80,
+        "variance": 50,
+        "spd": 34,
+        "mastery": "ranged",
+        "requirements": {
+          "ranged": 32
+        },
+        "reach": {
+          "cells": 10,
+          "height": 6
+        },
+        "projectile": {
+          "tileId": "arrow",
+          "cellsPerSecond": 24
+        },
+        "twoHanded": true
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 27,
+              "y": 28,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
     "id": "hand-lantern",
     "name": "Torch",
     "height": 0,
