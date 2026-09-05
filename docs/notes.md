@@ -2225,15 +2225,43 @@ which way round the wheel runs.
 ### The interface is absent for almost everybody
 
 One button per non-pressed stone, above the direction pad on a phone and in the
-side column on a desktop, in square order, showing the stone's own sprite and a
-bar counting its cooldown down. **The row is absent entirely for a body carrying
-no stones** — not empty, absent — which is the whole reason casting could be
-added to a layout already carrying a mode strip, an interaction list, a chat bar
-and a pad. An automatic charm gets no button, because there is nothing to press.
+side column on a desktop, in square order, showing the stone's own sprite and an
+arc around its rim counting its cooldown down. **The row is absent entirely for a
+body carrying no stones** — not empty, absent — which is the whole reason casting
+could be added to a layout already carrying a mode strip, an interaction list, a
+chat bar and a pad. An automatic charm gets no button, because there is nothing
+to press.
 
 Casting is server-authoritative with no prediction, exactly as attacking is: the
 client sends "cast the stone in this square" — a square, never an instance id —
 and dims from the kit it is sent back.
+
+#### A stone with nobody targeted looks usable, and says so when pressed
+
+The button had two appearances, lit and dimmed, and dimming stood for every
+refusal at once. That is right for a stone you cannot use and it was wrong for
+the commonest reason a stone will not fire: **nobody is targeted is not a fact
+about the stone.** A player looking at a greyed row concluded the spell was
+broken or still cooling, and went and stood somewhere else. There are now three:
+
+- **Ready** — solid rim, full brightness.
+- **Cooling** — dimmed, with the arc. The one refusal that ends by itself, and
+  the only one worth a picture, because the picture *is* how long is left.
+- **Unavailable** — dashed and faint. Not learnt yet, out of range, nothing in
+  the square: a player can do nothing about any of them from where they are
+  standing, so they stay collapsed into one appearance and the tooltip says
+  which.
+
+A `noTarget` refusal wears the ready appearance and the press goes through to the
+session, which refuses it and answers with a sentence — see `castRefusalNotice`
+in `app/game/notices.ts`, and the notice section below for why that is the right
+shape for a refusal with no picture. **It is the one sentence the client composes
+for itself**: online the message is never sent, so the server has nothing to say
+about it, and both sides read the wording out of the same file.
+
+The button is round, which is an exception to the house rectangle stated at the
+same weight the direction pad's is — see `spell-disc` in `app/app.css`. An arc
+wants a rim to run along.
 
 ### A content save reaches the world it describes
 
@@ -2587,11 +2615,17 @@ not watching, so the mastery bars mattered for one frame while you were looking
 at a rat. Something happened that the board deliberately does not show — a reward
 leaves the chest full and the map untouched, so the only evidence is a line item
 in a bag you may not have open. Or something you asked for did not happen — "You
-cannot fit there", "Your inventory is full" — and a refusal that shows as
-*nothing occurring* is indistinguishable from the input being dropped. Everything
-else already has a better telling: a blow is a number off a head, a status is an
-icon in the strip. Reach for a notice when there is no picture, not when a
-picture would be work.
+cannot fit there", "Your inventory is full", "Select a target first" — and a
+refusal that shows as *nothing occurring* is indistinguishable from the input
+being dropped. Everything else already has a better telling: a blow is a number
+off a head, a status is an icon in the strip. Reach for a notice when there is no
+picture, not when a picture would be work.
+
+That last one is the rule stated as a decision rather than a principle.
+`castRefusalNotice` says a sentence for exactly one of the six ways a cast can be
+refused, and returns null for the other five — because the spell button draws
+those five and deliberately does not draw this one. **A sentence on top of a
+picture is the game repeating itself at whoever is mashing a key.**
 
 There are no levels in this game, so a notice must not name one: "Your blade
 mastery is now 10", never "level 10". @see `app/lib/mastery.ts`.

@@ -7,6 +7,7 @@ import {
   type Mastery,
 } from "../lib/mastery";
 import type { Coord, TileDef } from "../lib/types";
+import type { CastRefusal } from "./casting";
 import {
   COMMAND_USAGE,
   MAX_TILE_COUNT,
@@ -213,6 +214,28 @@ export function otherMasteryNotice(
   level: number,
 ): string {
   return `${name}'s ${mastery} mastery is now ${level}`;
+}
+
+/**
+ * Why a cast did not happen, in words — or nothing, for the ones that need none.
+ *
+ * **Almost every refusal already has a picture**, which is why this returns null
+ * far more often than it returns a sentence. A cooling stone wears an arc, an
+ * unlearnt one is dashed and faint, and a stone out of range is the same: the
+ * button says "not now" and the tooltip says which. A sentence on top of any of
+ * those would be the game repeating itself every time a key was mashed.
+ *
+ * The exception is having nobody targeted, and it is the exception because the
+ * button deliberately does *not* draw it — see `../components/SpellBar`. A stone
+ * that reads as ready and then does nothing is exactly the refusal this file's
+ * second kind is about: indistinguishable from the input being dropped. So it
+ * looks usable, it presses, and this is what it says.
+ *
+ * It names the gesture rather than the rule. "Nothing is targeted" describes the
+ * world; a player who has just pressed a button wants to know what to do next.
+ */
+export function castRefusalNotice(refusal: CastRefusal): string | null {
+  return refusal === "noTarget" ? "Select a target first" : null;
 }
 
 /**

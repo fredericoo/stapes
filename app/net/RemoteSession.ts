@@ -43,6 +43,7 @@ import {
   type CastSquare,
   type SpellButton,
 } from "../game/casting";
+import { castRefusalNotice } from "../game/notices";
 import { masteriesFromXp, type MasteryXp } from "../lib/mastery";
 import { canMoveItem, itemInSlot, type SlotRef } from "../game/itemMoves";
 import type { ConsumeSource } from "../game/itemUse";
@@ -1811,7 +1812,20 @@ export class RemoteSession implements PlaySession {
    */
   cast(square: CastSquare): boolean {
     const context = this.castContext();
-    if (!context || !castability(context, square).ok) return false;
+    if (!context) return false;
+
+    const verdict = castability(context, square);
+    if (!verdict.ok) {
+      // Composed here rather than fetched, and it is the one sentence this side
+      // writes for itself. The refusal genuinely happened here — the message was
+      // never sent, so the server has nothing to say about it — and the words
+      // come from the same file the server's do, so the two cannot drift.
+      // @see ../game/notices' castRefusalNotice
+      const notice = castRefusalNotice(verdict.reason);
+      if (notice) this.pendingNotices.push(notice);
+      return false;
+    }
+
     this.send({ type: "cast", square });
     return true;
   }
