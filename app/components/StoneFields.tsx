@@ -36,7 +36,7 @@ import {
 } from "../lib/element";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
-import { FieldLabel, Segmented, Select, Switch } from "../ui";
+import { FieldLabel, Segmented, Select, SwitchField } from "../ui";
 import { StatusChanceField, StatusGrants } from "./StatusGrants";
 import { StatField } from "./StatField";
 import {
@@ -356,16 +356,14 @@ export function StoneFields({
         />
       </div>
 
-      <label className="flex items-center gap-2 border-t-2 border-border pt-3 text-xs">
-        <Switch
+      <div className="border-t-2 border-border pt-3">
+        <SwitchField
           checked={stone.automatic === true}
           onCheckedChange={(automatic) => onChange({ automatic })}
-          ariaLabel="Automatic"
+          label="Automatic"
+          info="Fires by itself when ready and not wasted: a mend waits until its wearer is hurt, a status until they are not already under it. No button. Charm only."
         />
-        <FieldLabel info="Fires by itself when ready and not wasted: a mend waits until its wearer is hurt, a status until they are not already under it. No button. Charm only.">
-          Automatic
-        </FieldLabel>
-      </label>
+      </div>
 
       <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
         <FieldLabel info="An unmet requirement refuses the cast outright. Arcane is what casting trains, and every cast pays a small flat amount whatever the stone asks. An element asked for makes this a spell of that element; everybody starts with a point of each.">

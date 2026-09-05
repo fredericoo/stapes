@@ -1,7 +1,7 @@
 import type { RespawnInteraction, TileInteractions } from "../lib/interactions";
 import { DEFAULT_RESPAWN, hasAnyInteraction } from "../lib/interactions";
 import type { TileDef } from "../lib/types";
-import { FieldLabel, NumberInput, SectionTitle, Switch } from "../ui";
+import { FieldLabel, NumberInput, SwitchField } from "../ui";
 
 const MS_PER_SECOND = 1000;
 
@@ -54,18 +54,15 @@ export function RespawnTab({ draft, onChange }: Props) {
   return (
     <div className="flex flex-col gap-4">
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
-        <label className="flex items-center gap-2">
-          <Switch
-            checked={Boolean(respawn)}
-            onCheckedChange={(on) =>
-              setRespawn(on ? { ...DEFAULT_RESPAWN } : undefined)
-            }
-            ariaLabel="Respawn"
-          />
-          <SectionTitle info="Once a placement is gone — killed, picked up, decayed — it regrows at its authored cell after the wait. Each placement has its own clock. A creature counts as alive wherever it wandered; an object only in its own cell, so a carried-off sword regrows.">
-            Respawn
-          </SectionTitle>
-        </label>
+        <SwitchField
+          checked={Boolean(respawn)}
+          onCheckedChange={(on) =>
+            setRespawn(on ? { ...DEFAULT_RESPAWN } : undefined)
+          }
+          label="Respawn"
+          info="Once a placement is gone — killed, picked up, decayed — it regrows at its authored cell after the wait. Each placement has its own clock. A creature counts as alive wherever it wandered; an object only in its own cell, so a carried-off sword regrows."
+          size="section"
+        />
 
         {respawn ? (
           <div className="flex flex-col gap-1 border-t-2 border-border pt-3 text-xs">

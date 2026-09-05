@@ -55,7 +55,7 @@ import {
   SectionTitle,
   Segmented,
   Select,
-  Switch,
+  SwitchField,
 } from "../ui";
 import { TileIdMultiSelect } from "./TileIdMultiSelect";
 
@@ -169,10 +169,13 @@ function SectionSwitch({
   info: string;
 }) {
   return (
-    <label className="flex items-center gap-2">
-      <Switch checked={on} onCheckedChange={onToggle} ariaLabel={label} />
-      <SectionTitle info={info}>{label}</SectionTitle>
-    </label>
+    <SwitchField
+      checked={on}
+      onCheckedChange={onToggle}
+      label={label}
+      info={info}
+      size="section"
+    />
   );
 }
 

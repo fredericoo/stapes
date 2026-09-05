@@ -40,7 +40,7 @@ import {
   SectionTitle,
   Segmented,
   Select,
-  Switch,
+  SwitchField,
 } from "../ui";
 import { StatField } from "./StatField";
 import { StatusGrants } from "./StatusGrants";
@@ -231,16 +231,12 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
               statusDefs={statusDefs}
             />
 
-            <label className="flex items-center gap-2 text-xs">
-              <Switch
-                checked={item.twoHanded === true}
-                onCheckedChange={(twoHanded) => patchWeapon({ twoHanded })}
-                ariaLabel="Two handed"
-              />
-              <FieldLabel info="Occupies both hands: nothing else can be held, and there is no second swing to alternate with.">
-                Two handed
-              </FieldLabel>
-            </label>
+            <SwitchField
+              checked={item.twoHanded === true}
+              onCheckedChange={(twoHanded) => patchWeapon({ twoHanded })}
+              label="Two handed"
+              info="Occupies both hands: nothing else can be held, and there is no second swing to alternate with."
+            />
           </div>
         ) : item.type === "armor" ? (
           <div className="flex flex-col gap-3">
@@ -430,16 +426,12 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
               onChange={(size) => patchContainer({ size })}
             />
 
-            <label className="flex items-center gap-2 text-xs">
-              <Switch
-                checked={item.equippable}
-                onCheckedChange={(equippable) => patchContainer({ equippable })}
-                ariaLabel="Equippable"
-              />
-              <FieldLabel info="On: a backpack — goes in the bag slot and its contents are the inventory. Off: a chest or a body, opened where it lies and never carried.">
-                Equippable
-              </FieldLabel>
-            </label>
+            <SwitchField
+              checked={item.equippable}
+              onCheckedChange={(equippable) => patchContainer({ equippable })}
+              label="Equippable"
+              info="On: a backpack — goes in the bag slot and its contents are the inventory. Off: a chest or a body, opened where it lies and never carried."
+            />
           </div>
         )}
 
