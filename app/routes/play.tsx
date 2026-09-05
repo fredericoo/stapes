@@ -370,6 +370,7 @@ export default function PlayPage() {
             masteryXp={masteryXp}
             vitals={vitals}
             statuses={activeStatuses(vitals.statuses, statusDefs)}
+            statusDefs={statusDefs}
             openedContainer={openedContainer}
             onOpenContainer={openContainer}
             canMoveItem={canMoveItem}

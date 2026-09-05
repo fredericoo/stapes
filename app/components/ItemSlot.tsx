@@ -1,11 +1,12 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ComponentType,
 } from "react";
+import { itemCard } from "../game/itemCard";
 import { slotKey, type SlotRef } from "../game/itemMoves";
 import { itemUseFor } from "../game/itemUse";
 import { consumeVerb, equipVerb, resolveConsumable } from "../lib/item";
@@ -13,8 +14,10 @@ import type { ItemInstance } from "../lib/itemInstance";
 import { pileTally } from "../lib/piles";
 import type { MasteryXp } from "../lib/mastery";
 import type { TileDef, TilesetDef } from "../lib/types";
+import type { StatusDef } from "../lib/status";
 import { useCoarsePointer } from "../lib/useMediaQuery";
-import { weaponDemandFor } from "../lib/weaponDemand";
+import { Tooltip } from "../ui";
+import { ItemCard } from "./ItemCard";
 import type { ItemDrag } from "./useItemDrag";
 import { TilePreview } from "./TilePreview";
 
@@ -35,7 +38,7 @@ import { TilePreview } from "./TilePreview";
  *
  * While the eye is on, a slot does nothing: it cannot be tapped to wield or eat
  * what is in it, and it cannot be dragged. What it does instead is describe
- * itself the moment a pointer is over it — see {@link SlotTooltip}.
+ * itself the moment a pointer is over it — see `./ItemCard`.
  *
  * That trade is what makes the description reachable at all on a phone. There is
  * no hover on a touchscreen, so the words have to come from a press; but a press
@@ -44,6 +47,15 @@ import { TilePreview } from "./TilePreview";
  * things rather than doing them" everywhere else on the screen — a tap on the
  * world reads a door instead of opening it — so the kit follows the same rule,
  * and the same gesture is safe because it no longer does the other thing.
+ *
+ * Either gesture produces a whole card rather than three lines — see
+ * `./ItemCard` — drawn through the shared `../ui/Tooltip` and rendered into a
+ * portal. The portal matters: a span positioned inside this button is clipped by
+ * the `overflow-y-auto` column the panels sit in on a phone, which makes
+ * `overflow-x` non-visible as well, so a card anchored on the leftmost square
+ * was cut off at the panel edge. Measuring and nudging fixed that horizontally
+ * only. A portal has no clipping ancestor, and Base UI flips and shifts it into
+ * whatever space exists on both axes.
  */
 
 /** Which sprite stands for a tile in a slot — the one facing the reader. */
@@ -58,6 +70,16 @@ const FRONT: "s" = "s";
  * its way to another slot has crossed six pixels long before this is up.
  */
 const DWELL_MS = 400;
+
+/**
+ * What a surface that has not wired the catalogue gets.
+ *
+ * A shared frozen object rather than a `{}` default written at the parameter,
+ * which builds a fresh one on every render — and the card below is memoised on
+ * this, so a new identity per render would rebuild it on every tick of the world
+ * for every square on screen.
+ */
+const NO_STATUS_DEFS: Record<string, StatusDef> = {};
 
 /**
  * Big enough to read a 2×2 sprite at, small enough to sit four in a row.
@@ -132,6 +154,7 @@ export function ItemSlot({
   drag,
   inspecting = false,
   masteryXp = {},
+  statusDefs = NO_STATUS_DEFS,
   sizePx = ITEM_SLOT_SIZE_PX,
   spilledInto = null,
 }: {
@@ -208,6 +231,17 @@ export function ItemSlot({
    * has never fought is told it can barely handle the sword, which is true.
    */
   masteryXp?: MasteryXp;
+  /**
+   * Every status the world has, by id — what a venom on a blade is *called*.
+   *
+   * Passed in rather than resolved here on the terms every other catalogue in
+   * this component is: a slot is handed the tiles it draws from and is handed
+   * these for the same reason. Defaulted to nothing, so a surface that has not
+   * wired it draws a card whose effects are simply absent rather than one
+   * naming ids at the player — the same silence a renamed status already gets
+   * everywhere else.
+   */
+  statusDefs?: Record<string, StatusDef>;
   /**
    * How big to draw, where the caller has worked that out from the room it has.
    * Defaults to the natural size — see {@link ITEM_SLOT_SIZE_PX}.
@@ -329,16 +363,14 @@ export function ItemSlot({
    * other thing here that touches an item's interactions.
    */
   const asking = inspecting || dwelling;
-  const inspectLines = !asking
-    ? []
-    : [
-        // The count rides on the name rather than taking a line of its own: it
-        // is part of what the thing *is*, and the lines under a name are for
-        // what it says and what it asks of you.
-        [tile?.name ?? instance?.tileId ?? "", tally].filter(Boolean).join(" "),
-        instance?.description?.trim() ?? "",
-        ...(tile ? weaponDemandFor(tile, masteryXp) : []),
-      ].filter((line): line is string => Boolean(line));
+  const inspected = useMemo(() => {
+    if (!asking || !tile) return null;
+    const card = itemCard(tile, instance, masteryXp, statusDefs);
+    // Kept together because they are only ever used together and are always
+    // both present: the card is built from the tile, so one object saves every
+    // reader below a non-null assertion.
+    return card ? { card, tile } : null;
+  }, [asking, tile, instance, masteryXp, statusDefs]);
 
   const held = drag.held;
   /** Being dragged out of this very square, so it is drawn as where it came from. */
@@ -358,9 +390,9 @@ export function ItemSlot({
   // test that the pointer is here; looking wants one, because every square in
   // the bag is in look mode at once and only the pointed-at one has a question.
   const showTooltip =
-    instance != null && (dwelling || (inspecting && pointedAt));
+    inspected != null && (dwelling || (inspecting && pointedAt));
 
-  return (
+  const square = (
     <button
       type="button"
       ref={attach}
@@ -441,8 +473,8 @@ export function ItemSlot({
       // the same swap the sighted reader gets, since a press does nothing and
       // what the thing is and would be like is the whole of what is left to say.
       aria-label={
-        inspecting && instance
-          ? `${label}: ${inspectLines.join(". ")}`
+        inspected
+          ? `${label}: ${inspected.card.speech}`
           : [`${label}: ${name}`, pressHint].filter(Boolean).join(". ")
       }
       // Only where being pressed is a state the slot can be *in*. A bag is open
@@ -499,77 +531,35 @@ export function ItemSlot({
           {tally}
         </span>
       ) : null}
-      {showTooltip ? <SlotTooltip lines={inspectLines} /> : null}
     </button>
   );
-}
 
-/**
- * What a square says while you are looking at it.
- *
- * **Drawn rather than handed to the browser**, which is the whole point of it
- * existing: a `title` waits half a second and never appears under a thumb at
- * all, and look mode's promise is that pointing at something tells you about it
- * now.
- *
- * The name leads and everything after it is quieter, in the order and the shape
- * the world's look label already uses — see `../render/GameRenderer`'s
- * `lookLines`. A sword on the floor and the same sword in your bag are one thing
- * being asked one question, and the answer should not be laid out two ways.
- *
- * Above the square rather than below it, because a bag is a grid and a tooltip
- * hanging downward covers the row a reader is working along. Inert to the
- * pointer, so it cannot come between a finger and the square it is describing —
- * which would take the pointer off the slot and dismiss the very tooltip that
- * had just appeared.
- *
- * **And nudged back on screen when centring would take it off.** It is wider
- * than the square it names and the leftmost column of a phone's panel sits
- * against the edge of the display, so centred it read "asic Bag". One
- * measurement when it appears, not per frame: it is up for as long as a finger
- * rests, and nothing about it moves in between.
- */
-
-/** How close to the edge of the screen a tooltip may come before it is nudged. */
-const TOOLTIP_MARGIN_PX = 8;
-
-function SlotTooltip({ lines }: { lines: string[] }) {
-  const [name, ...rest] = lines;
-  const ref = useRef<HTMLSpanElement>(null);
-  /** How far to slide it back from whichever edge it was about to fall off. */
-  const [shiftPx, setShiftPx] = useState(0);
-
-  // Measured on the way in, while the shift is still zero — the tooltip is
-  // mounted fresh every time it appears, so this reads the centred position
-  // rather than one it has already been moved to.
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const offLeft = TOOLTIP_MARGIN_PX - rect.left;
-    const offRight = rect.right - (window.innerWidth - TOOLTIP_MARGIN_PX);
-    // Left wins a tie, which only happens on a tooltip wider than the screen:
-    // the beginning of a name is the half worth keeping.
-    if (offLeft > 0) setShiftPx(offLeft);
-    else if (offRight > 0) setShiftPx(-offRight);
-  }, [lines]);
-
+  // Wrapped whether or not there is anything to say. A square that gained and
+  // lost a parent as look mode toggled would remount its button, and the button
+  // holds this slot's registration in the page-wide drag. A closed tooltip
+  // mounts no portal, so an idle square costs one context.
   return (
-    <span
-      ref={ref}
-      // Announced by the button's own label instead: to a screen reader this is
-      // a second copy of what `aria-label` already says, and the two together
-      // read the name twice.
-      aria-hidden
-      className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 border border-paper/40 bg-ink px-1 py-0.5 text-center text-[11px] leading-tight whitespace-nowrap text-paper"
-      style={{ transform: `translateX(calc(-50% + ${shiftPx}px))` }}
+    <Tooltip
+      content={
+        inspected ? (
+          <ItemCard
+            card={inspected.card}
+            tile={inspected.tile}
+            tilesets={tilesets}
+          />
+        ) : null
+      }
+      // Above the square: a bag is a grid, and a card hanging downward covers
+      // the row the reader is working along. It flips on its own when there is
+      // no room above — see `../ui/Tooltip`.
+      side="top"
+      open={showTooltip}
+      // Inert to the pointer, so it cannot come between a finger and the square
+      // it describes. That would take the pointer off the slot and dismiss the
+      // card that had just appeared.
+      className="pointer-events-none"
     >
-      {name}
-      {rest.map((line) => (
-        <span key={line} className="block text-paper/70">
-          {line}
-        </span>
-      ))}
-    </span>
+      {square}
+    </Tooltip>
   );
 }
