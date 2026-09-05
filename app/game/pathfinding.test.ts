@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, normalizeTileDef } from "../lib/types";
-import { findPath, PATH_MAX_NODES, type PathStep } from "./pathfinding";
+import {
+  findPath,
+  PATH_MAX_NODES,
+  type PathOutcome,
+  type PathRefusal,
+  type PathStep,
+} from "./pathfinding";
 
 /**
  * Finding a way round.
@@ -81,13 +87,40 @@ function standing(x: number, y: number, z = 0, stackIndex = 1) {
   return { x, y, z, stackIndex };
 }
 
+/**
+ * A creature searching from where it stands, which is the case where the two
+ * halves of `PathStart` name one cell. The pair coming apart is a body mid-step,
+ * and that belongs to `./walkTo`.
+ */
+function search(
+  map: MapFile,
+  from: Coord & { stackIndex: number },
+  to: Coord,
+  opts?: Parameters<typeof findPath>[5],
+): PathOutcome {
+  return findPath(map, { at: from, self: from }, to, rat, tilesById, opts);
+}
+
+/** The legs of a route, or null when there was none. @see refusal */
 function route(
   map: MapFile,
   from: Coord & { stackIndex: number },
   to: Coord,
   opts?: Parameters<typeof findPath>[5],
 ): PathStep[] | null {
-  return findPath(map, from, to, rat, tilesById, opts);
+  const found = search(map, from, to, opts);
+  return found.ok ? found.route : null;
+}
+
+/** Why a search had nothing to offer, or null when it did. */
+function refusal(
+  map: MapFile,
+  from: Coord & { stackIndex: number },
+  to: Coord,
+  opts?: Parameters<typeof findPath>[5],
+): PathRefusal | null {
+  const found = search(map, from, to, opts);
+  return found.ok ? null : found.why;
 }
 
 /** A route as the directions it is walked, for a readable assertion. */
@@ -126,6 +159,77 @@ describe("crossing open ground", () => {
     }
 
     expect(route(map, standing(0, 0), { x: 4, y: 0, z: 0 })).toBeNull();
+  });
+});
+
+/**
+ * Where a route ends is the caller's to choose.
+ *
+ * A creature closing on somebody stops beside them, because a body is not
+ * something you can walk into. A person who pointed at a patch of floor means
+ * *that cell* — stopping one short of it would be walking somewhere they did
+ * not point. The default is the older of the two, so every brain reads exactly
+ * as it did.
+ *
+ * The goal test and the heuristic are checked together here on purpose: they
+ * are two statements of the same fact, and a search whose queue is ordered on
+ * one arrival while its finish line is the other returns routes that are not
+ * the shortest.
+ */
+describe("arriving beside, or on", () => {
+  it("stops one short by default, and walks in when asked", () => {
+    const map = field(6);
+    const goal = { x: 4, y: 0, z: 0 };
+
+    expect(walked(route(map, standing(0, 0), goal))).toEqual(["e", "e", "e"]);
+    expect(
+      walked(route(map, standing(0, 0), goal, { arrive: "on" })),
+    ).toEqual(["e", "e", "e", "e"]);
+  });
+
+  it("still has a step to walk when it is merely beside the cell", () => {
+    const map = field(4);
+    const goal = { x: 1, y: 0, z: 0 };
+
+    // The case the two modes disagree about most sharply: arrived, and not.
+    expect(route(map, standing(0, 0), goal)).toEqual([]);
+    expect(walked(route(map, standing(0, 0), goal, { arrive: "on" }))).toEqual([
+      "e",
+    ]);
+  });
+
+  it("has nothing to walk when it is already standing there", () => {
+    const map = field(4);
+
+    expect(
+      route(map, standing(0, 0), { x: 0, y: 0, z: 0 }, { arrive: "on" }),
+    ).toEqual([]);
+  });
+
+  it("refuses a cell nothing can stand in, next to one anybody can", () => {
+    const map = put(field(4), 2, 0, "wall");
+    const goal = { x: 2, y: 0, z: 0 };
+
+    expect(route(map, standing(0, 0), goal, { arrive: "on" })).toBeNull();
+    expect(walked(route(map, standing(0, 0), goal))).toEqual(["e"]);
+  });
+
+  it("takes the shortest way round in either mode", () => {
+    let map = field(6);
+    for (let y = -2; y <= 2; y++) map = put(map, 1, y, "wall");
+    const goal = { x: 2, y: 0, z: 0 };
+    // A generous budget, so what any refusal means is the board rather than
+    // the cost — the same reason the detour cases below carry one.
+    const budget = { maxNodes: 400 };
+
+    const beside = route(map, standing(0, 0), goal, budget);
+    const onto = route(map, standing(0, 0), goal, { ...budget, arrive: "on" });
+
+    // Round the end of the wall and back, and then one more step to finish
+    // standing in the cell rather than next to it.
+    expect(beside).toHaveLength(7);
+    expect(onto).toHaveLength(8);
+    expect(onto?.at(-1)?.to).toEqual(goal);
   });
 });
 
@@ -312,6 +416,71 @@ describe("what it costs", () => {
 
     expect(expanded).toBeGreaterThan(0);
     expect(expanded).toBeLessThanOrEqual(20);
+  });
+});
+
+/**
+ * Three refusals, and only one of them is about the board.
+ *
+ * They were one null until a player clicked into a room across the square and
+ * was told there was no way there — which the search had never established, and
+ * on the shipped map is usually false. What separates them is inside the loop
+ * either way: an emptied frontier having offered everything is the board's own
+ * answer, an emptied one that turned candidates away at the detour cap is not,
+ * and a queue with cells still in it is the budget having stopped a search that
+ * still had somewhere to look. @see PathRefusal
+ */
+describe("saying which limit was hit", () => {
+  it("calls a sealed target unreachable, having looked everywhere", () => {
+    let map = field(4);
+    for (const [x, y] of [[3, 0], [5, 0], [4, 1], [4, -1]]) {
+      map = put(map, x!, y!, "wall");
+    }
+
+    // A board small enough that the detour cap turns nothing away, which is
+    // what it takes to say this: the whole of it was offered and searched.
+    expect(refusal(map, standing(0, 0), { x: 4, y: 0, z: 0 })).toBe(
+      "unreachable",
+    );
+  });
+
+  it("will not claim it looked everywhere when it turned cells away", () => {
+    // The same sealed target with room around it. The far corners are over the
+    // detour cap and never offered, so the honest answer is the weaker one —
+    // and the sentence it writes is true of a sealed cell as well.
+    let map = field(12);
+    for (const [x, y] of [[3, 0], [5, 0], [4, 1], [4, -1]]) {
+      map = put(map, x!, y!, "wall");
+    }
+
+    expect(
+      refusal(map, standing(0, 0), { x: 4, y: 0, z: 0 }, { maxNodes: 2000 }),
+    ).toBe("detour");
+  });
+
+  it("calls a long way round a detour rather than no way at all", () => {
+    // The wall from "how far out of its way": there is a route, and it is one
+    // this module will not walk. Saying "unreachable" here is the lie.
+    let map = field(12);
+    for (let y = -10; y <= 10; y++) map = put(map, 1, y, "wall");
+
+    expect(
+      refusal(map, standing(0, 0), { x: 2, y: 0, z: 0 }, { maxNodes: 2000 }),
+    ).toBe("detour");
+  });
+
+  it("calls a search it stopped early a budget, not a board", () => {
+    const map = field(40);
+
+    expect(
+      refusal(map, standing(-40, -40), { x: 40, y: 40, z: 0 }, { maxNodes: 8 }),
+    ).toBe("budget");
+  });
+
+  it("has no reason to give when it found a route", () => {
+    expect(refusal(field(4), standing(0, 0), { x: 2, y: 0, z: 0 })).toBeNull();
+    // Including the empty one: arriving is a success, and always was.
+    expect(refusal(field(4), standing(0, 0), { x: 1, y: 0, z: 0 })).toBeNull();
   });
 });
 
