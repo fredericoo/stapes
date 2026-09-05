@@ -872,6 +872,44 @@ highest solid below the feet, so a fall lands on the plate rather than under it.
 And a creature already stranded off its home level is not rescued by this; it
 only stops any more from joining it.
 
+### A tile with no volume does not own the plane it lies on
+
+You could drop an apple on a bush and walk over it. Any hedge, any fence, any
+counter-top — anything non-walkable that a body could reach the top of — was
+passable to anybody carrying food, and it worked with `apple`, `berry`,
+`bread`, `cheese`, `raw-meat`, `cooked-meat`, `stale-berry` and `arcane-shard`.
+
+The tempting reading is "a walkable tile stacked on a non-walkable one wins",
+and it is wrong. Those eight are exactly the tangible tiles of `height: 0` in
+`data/tiles.json`. A zero-height tile adds no volume, so it tops out at
+precisely the height of whatever is under it: an apple on a bush surfaces at 2,
+and so does the bush. **Two tiles claimed one plane, and both helpers that
+answer which of them owns it resolved the tie by stack order.** The apple was
+dropped last, so the apple answered, and apples are walkable. Intangible items
+— every weapon, every stone, all the armour — were never affected, because
+`physicalHeight` already reads them as 0 and both helpers skip them.
+
+It needed fixing in two places because `canWalk` asks two different questions.
+`walkableElevInStack` feeds the climb-band search: it now seals an elevation
+that any solid non-walkable tile tops out at, so a later walkable tile at the
+same elevation cannot claim it. `solidTopOfStack` feeds `surfaceTileAt`, which
+`canWalk`'s walk-into-a-hole fallthrough consults after the band search comes up
+empty: from the topmost solid placement it now walks *down* past anything of
+zero height to the tile that actually has the volume. Fixing only the first one
+left the exploit alive through the second, which is the thing to remember —
+the two must agree, and a fix that closes the band search looks complete.
+
+**Sealing a plane, not condemning the column.** The blunter rule is to scan a
+stack from the base and refuse the whole thing at the first non-walkable tile.
+It closes the hole and the entire suite stays green, and it is still wrong:
+creature bodies are tangible and `walkable: false`, so every cell a wolf stands
+in loses its standing surface and `findWalkableLandingAbs` returns null for it —
+anything falling into an occupied cell finds nothing to land on. It also takes
+away the ground under a bush (a real surface to fall onto) and a `half-stone`
+laid across a `half-wall` (a real thing to walk along), and with it anything set
+on a table or an anvil. A non-walkable tile is a claim about its own top, not
+about the column.
+
 ## A roof over a cave is not what keeps the daylight out of it
 
 Anything underground that is meant to be dark has to be *checked* dark, against
