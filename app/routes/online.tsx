@@ -391,6 +391,11 @@ export default function OnlinePage() {
         renderer.setOnVitals(setVitals);
         renderer.setOnOpenedContainer(setOpenedContainer);
         renderer.setOnFirstFrame(() => setPainted(true));
+        // The keys, the on-screen pad and a click on the world all press the
+        // same list, which is what settles between them: taking the keys back
+        // ends a clicked walk, and neither has to know the other exists. The
+        // list outlives the renderer, so a reconnect hands it to the new one.
+        renderer.setDirections(input);
         rendererRef.current = renderer;
         renderer.start();
         // The fresh session knows nothing about keys held across the reconnect,
