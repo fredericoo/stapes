@@ -127,14 +127,22 @@ describe("learningRate", () => {
   });
 
   /**
-   * The whole point of the sixth power: standing still with one weapon stops
-   * being worth it almost immediately, so climbing means picking up the next
-   * one rather than swinging this one for longer.
+   * The whole point of the exponent: standing still with one weapon stops being
+   * worth it, so climbing means picking up the next one rather than swinging
+   * this one for longer.
+   *
+   * **Stated against the ladder rather than against the exponent**, so it says
+   * what the design promises rather than restating the constant. Requirements
+   * step by half again each rung — 5, 10, 15, 22, 33 — so the two figures below
+   * are "one rung past this weapon" and "two rungs past it", and both have to
+   * be a plainly bad deal or the ladder is decoration.
    */
   it("falls away steeply the moment the requirement is passed", () => {
     expect(learningRate(48, 40)).toBeCloseTo((40 / 48) ** OUTGROWN_FALLOFF, 10);
-    expect(learningRate(48, 40)).toBeLessThan(0.4);
-    expect(learningRate(80, 40)).toBeLessThan(0.02);
+    // One rung past: under a third.
+    expect(learningRate(60, 40)).toBeLessThan(1 / 3);
+    // Two rungs past: under a tenth.
+    expect(learningRate(90, 40)).toBeLessThan(0.1);
   });
 
   it("keeps falling rather than stopping", () => {

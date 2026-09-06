@@ -2608,6 +2608,50 @@ player-facing surfaces *describe* and the arithmetic stays where it decides
 things. That default has exactly one class of exception, and weapon requirements
 are it.
 
+### Every weapon sits on one ladder, and the rungs step by half again
+
+Requirements used to be picked per weapon, which produced a shape nobody had
+intended: 5, 6, 8, 20, 20, 22, 34, 34 on Sharp. Two weapons a point apart at the
+bottom and a fourteen-point cliff in the middle is not a progression — a new
+player swaps a rusty sword for an iron one before they have noticed the rusty
+one, and then swings it for the rest of the game because the next rung is out of
+sight.
+
+The rungs are now **5, 10, 15, 22, 33, 50** — half again each step — and a
+weapon's primary mastery is which rung it stands on. Heavy weapons add a
+secondary requirement rather than a rung of their own: axes, mauls and the
+greatsword ask Toughness, and daggers will ask Agility when they exist.
+`requirementShare` pools those, so the axe path and the sword path arrive at
+different moments even where the pooled totals match.
+
+**A constant ratio is the point, because `learningRate` is a function of the
+ratio.** A constant *difference* — 5, 10, 15, 20 — shrinks in relative terms as
+you climb, so the outgrown falloff bites hardest on the first rung and barely at
+all on the last. On a half-again ladder the weapon below is worth a near-constant
+~40% at the moment the next one becomes worth holding, at every level:
+
+```
+              5->10  10->15  15->22  22->33  33->50
+  ratio        2.00    1.50    1.47    1.50    1.52
+  left at 90%   17%     41%     43%     41%     39%
+```
+
+`OUTGROWN_FALLOFF` moved from 6 to 3 to go with it — see the table in
+`app/lib/mastery.ts`. At six, `5 -> 10` cost 6364 raw experience against 2025 for
+`15 -> 20`: three times the work on the rung a brand new player is standing on.
+
+**You adopt the next weapon at about 90% of what it asks, and that falls out
+rather than being arranged.** Scanning the crossover — where the next sword
+actually out-damages the one below against a fixed foe — puts it at 90–95% of the
+new requirement, and it stays there whatever `REQUIREMENT_FALLOFF` is set to,
+because on a ladder this tight you are never more than a few points short and the
+cube barely bites. That is why the cube was left alone: the behaviour people
+wanted from it comes from the ladder.
+
+Measured on the wolves, a player upgrading as each sword becomes worth holding
+picks up the iron sword at fight 12 and the knight's sword at 18, and reaches
+Sharp 27 by fight 120 where the old requirements left them at 12.
+
 ### The sentence, and why it was wrong
 
 Requirements went through three shapes. First a panel under the hand slot
