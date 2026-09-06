@@ -5007,17 +5007,102 @@ by accident — the choice has not been made. Adding a third is a case in
 `server/bots/tanstackModel.ts` and a dependency.
 
 Observability is one JSON line per decision: which bot, a digest of the prompt,
-its size, the actions chosen, the latency and the token counts. The prompt text
+its size, the calls chosen, the latency and the token counts. The prompt text
 itself is never logged — it is a page per decision, several times a minute, per
 bot, and the digest answers the question the text would have.
+
+### A bot remembers the last twenty things that happened, and one sentence it wrote itself
+
+`BotBody.view` **drains** the event log — a notice offered twice is a bot acting
+on it twice — and until `server/bots/memory.ts` existed that drain was the whole
+of a bot's memory. The first live run showed what that costs. One bot asked the
+same person the same question three seconds running, at a prompt whose digest
+was identical each time, because by the second decision `You said: ...` had
+already been read and thrown away and there was no evidence left that it had
+ever spoken.
+
+So the prompt is two documents joined in `BotRunner.decideOnce`. `./view` is a
+pure function of the *world* and is rebuilt every decision; `./memory` is a
+function of this bot's own *history* and is what survives the drain. Keeping
+them apart is what lets the view stay a pure function of a snapshot.
+
+**One flat list of twenty lines, oldest first.** The bot's own calls and the
+sentences the world sent back go in together, interleaved, and the runner writes
+them in two steps: `observed` takes what the drain carried, then `decided` takes
+what the model asked for. That order is what puts them in the order they
+happened. `observed` is called *after* the prompt is rendered, or the same
+sentence would appear under the view's heading and in the log at once.
+
+It was grouped by decision, with headings counting back — "6 turns ago", "One
+turn ago". That is gone. A decision is an artifact of how this runner is built
+and the world has no such unit, and the question a model is trying to answer —
+has the person I spoke to answered me — is a question about the order of a call
+and an event, which two separate lists per decision hide.
+
+**The clock goes in front of every line.** `MS_PER_CLOCK_MINUTE` is 1,000, so a
+game minute is a real second, and at roughly a decision a second the stamps
+differ line to line. That is the measurement that replaces the grouping: it says
+how long ago each thing was, in the same units the world's own sky moves in.
+
+`BotBody.minutesOfDay` computes it from `minutesOfDayAt(Date.now())`, and the
+reason is worth writing down: `RemoteSession.minutesOfDay` is *not* a clock. It
+is the reading the last `hello` carried, and a browser advances it itself from
+that anchor once a frame (`GameRenderer`'s `clockAnchorMinutes`). Reading it
+every decision would stamp every line a bot ever writes with the same minute.
+`minutesOfDayAt` is what `GameServer` computes the `hello` hour with, and the
+bot runner is deployed in the same container, so the two agree exactly. The
+stamp is taken when a line is *recorded*, not when the prompt is rendered — the
+runner reads the clock twice, once either side of the provider round trip.
+
+**Three bounds, and the third is the one that holds.** A line is clamped to
+`MAX_COMMAND_LENGTH` plus room for a speaker's name, so nothing anybody can
+legally say is ever cut; one drain contributes at most ten sentences, so a fight
+cannot push out what the bot said, which is the one thing the log is for. Those
+multiply — twenty clamped lines is over six thousand characters, larger than the
+view they hang off — so the render also has a 3,000-character budget and spends
+it newest line first, dropping the oldest off the far end.
+
+An earlier version of this clamped much harder: 120 characters a line, six lines
+a decision, a 900-character total. That was compressing an input nobody had
+measured a problem with, and it cut ordinary sentences in half. The bounds now
+exist only to stop a pathological line or a busy second from taking the prompt.
+
+`describeCall` in `./tools` is the single place a call becomes a sentence,
+because it is written down twice — into the event log by the body, into the
+window by the memory — and two spellings would make one act read as two. It is
+also what lets the window drop an event that merely echoes a call it already
+carries: an action echoes back on the drain after the decision that already
+wrote it down, and the memory holds that decision's sentences between its two
+writes so the echo can be dropped rather than kept twice.
+
+**The goal is a fourth tool.** `set_goal` writes one sentence that is pinned to
+every later prompt until it is replaced. Model-written on purpose: it is then
+readable in the decision log, so what a bot thinks it is doing is a `jq` away.
+It is a `BotCall` but not a `BotAction` — it sends nothing, so the runner applies
+it and `body.ts` never sees it — and it counts as one of the three calls a
+decision may carry.
+
+**What it costs.** Against the fixture town standing in the street, adding the
+memory took the prompt from 5,642 characters to 6,833: the system prompt grew by
+638 to explain the goal and the log, and the log itself was the rest. Dropping
+the grouping and the hard clamping added 417 more. The system prompt went 1,869
+→ 2,005 (+136) to describe a timestamped list instead of turns, and a full log
+of ordinary lines went 683 → 834 — twenty stamped lines where six grouped turns
+carried twelve. So about 7,250 characters, or roughly 1,650 input tokens a
+decision at the 4.4 characters per token this prompt has measured at, against
+1,350 before. The character budget caps the log itself at 3,011.
+
+That is about 300 tokens a decision more than the grouped version, for twenty
+uncut lines in place of twelve clipped ones.
 
 ### Testing it costs nothing and needs no network
 
 `server/bots/view.test.ts` is the pure half, against a synthetic catalogue and
-hand-built cells: the legend covers every character the grid draws, a cell
-behind a wall reads as unknown, a column with nothing in it reads as nothing,
-and a coordinate read back off the rendered ruler resolves to the cell it names.
-That last one would otherwise fail silently and expensively.
+hand-built cells: the legend covers every glyph the grid draws, one two-unit
+ledge reads as somewhere to stand in the open and as no room under a roof, a cell
+behind a wall reads as unknown, a column with nothing in it reads as nothing, and
+a coordinate read back off the rendered ruler resolves to the cell it names. That
+last one would otherwise fail silently and expensively.
 
 `server/bots/runner.test.ts` is the other half: a scripted model in the one slot
 that would cost money, and a real `GameServer` behind `server/testHarness`'s
@@ -5025,15 +5110,26 @@ socket pair for everything else. Which is why the runner takes an injected
 transport — `BotSocket` in `server/bots/transport.ts` is the four members a
 session actually touches, and the harness's pair satisfies it. Every frame a bot
 sends during those cases is put through `parseClientMessage`; that is the
-assertion that silently rots when the protocol changes.
+assertion that silently rots when the protocol changes. One case there is about
+the memory rather than the world: three decisions in, the prompt still carries
+what the bot said on the first, which is the bug the memory exists for.
+
+`server/bots/memory.test.ts` is pure again, and drives the two writes in the
+order the runner makes them — getting that order wrong is the failure the class
+is there to prevent. The clock is a parameter of both writes rather than
+something the class reaches for, which is what lets a case say a line was
+written at 06:15 and read half an hour later and still reads 06:15.
 
 ### Deliberately not built
 
 Stable actor ids across restarts, persistence, rebirth policy, gating bots on a
-human being connected, join linger and stagger, per-bot personas, memory beyond
-the current view, and every combat and item verb. The tracer exists to answer
-one question — whether a fast, cheap model can read this view and move sensibly
-— and each of those is a second question with its own failure modes.
+human being connected, join linger and stagger, per-bot personas, and every
+combat and item verb. The tracer exists to answer one question — whether a fast,
+cheap model can read this view and move sensibly — and each of those is a second
+question with its own failure modes.
+
+Memory was on this list and is now `server/bots/memory.ts`, because the first
+live run showed it was not optional.
 
 ## Testing the world
 

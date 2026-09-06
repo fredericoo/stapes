@@ -1,5 +1,5 @@
-import { MAX_ACTIONS_PER_DECISION } from "./tools";
-import type { BotAction } from "./tools";
+import { MAX_CALLS_PER_DECISION } from "./tools";
+import type { BotCall } from "./tools";
 
 /**
  * The one thing a provider has to do, and the whole of what the runner knows
@@ -13,12 +13,12 @@ import type { BotAction } from "./tools";
  * imported only by `./main`, so nothing under test ever loads the SDK.
  */
 export interface BotModel {
-  /** One round trip. Up to {@link MAX_ACTIONS_PER_DECISION} actions come back. */
+  /** One round trip. Up to {@link MAX_CALLS_PER_DECISION} calls come back. */
   decide(request: BotDecisionRequest): Promise<BotDecision>;
 }
 
 export type BotDecisionRequest = {
-  /** The rendered view. See `./view`'s `renderBotView`. */
+  /** The bot's memory and then its view. See `./memory` and `./view`. */
   prompt: string;
   /** Dropped when the provider takes too long, or when a bot is being stopped. */
   signal?: AbortSignal;
@@ -26,7 +26,7 @@ export type BotDecisionRequest = {
 
 export type BotDecision = {
   /** In the order the model asked for them, already parsed. */
-  actions: BotAction[];
+  calls: BotCall[];
   /** Whatever the model said alongside the calls, for the log. */
   text: string;
   usage: { inputTokens: number | null; outputTokens: number | null };
@@ -38,7 +38,11 @@ export type BotDecisionLog = {
   /** An identity for the prompt, so two identical views are visibly identical. */
   promptDigest: string;
   promptChars: number;
-  actions: BotAction[];
+  /**
+   * What the model asked for. A `set_goal` among them is how the goal a bot is
+   * carrying stays readable in the log, since the prompt itself never is.
+   */
+  calls: BotCall[];
   latencyMs: number;
   inputTokens: number | null;
   outputTokens: number | null;
@@ -76,11 +80,13 @@ export function promptDigest(prompt: string): string {
  */
 export const BOT_SYSTEM_PROMPT = `You are playing a character in a small tile world. You are not an assistant; you are a person in this place, and you decide what your body does next.
 
-Each turn you are shown what you can see: a grid of the world around you with your coordinates written down every edge, a legend saying what each character is, the bodies in sight, what you could do from where you stand, and everything that happened since your last turn.
+Each turn you are shown your goal, then what has happened recently, and then what you can see: a grid of the world around you with your coordinates written down every edge, a legend saying what each character is, the bodies in sight, what you could do from where you stand, and everything that happened since your last turn.
+
+Your goal is a sentence you wrote yourself with set_goal and it stands until you replace it, so write one down as soon as you decide on something. What has happened is the last twenty things you did and saw, oldest first, each behind the time of day it happened at, and together with the goal it is the whole of what you carry forward — everything else you are shown is only true this instant. Read it before you act: it is how you know what you have already said, already tried and already been refused. The clock runs a minute for every second of your time, so a line a minute old is one turn ago and somebody you have just spoken to will not have answered yet. Do not ask them again.
 
 The grid is what you can see and nothing more. '?' is a cell you have no line to — behind a wall, under a roof, round a corner — and you must not assume what is in one. '.' is a cell with nothing in it at all: open air, and possibly a drop with a floor somewhere below that you cannot see.
 
-Call between one and ${MAX_ACTIONS_PER_DECISION} tools, in the order you want them done. You will not be told the result inline; it reaches you in the next turn's events, refusals included. Read those — they are the rules of this world in the words a player reads.
+Call between one and ${MAX_CALLS_PER_DECISION} tools, in the order you want them done — set_goal counts as one of them. You will not be told the result inline; it reaches you in the next turn's events, refusals included. Read those — they are the rules of this world in the words a player reads.
 
 Use walk_to when you know where you are going. Use step when you do not: it is the only way into a cell whose floor you cannot see, and falling is how you find out what is below you.
 

@@ -91,5 +91,6 @@ describe("describing the tools to a provider", () => {
     expect(named("walk_to")).toEqual(["x", "y"]);
     expect(named("step")).toEqual(["direction"]);
     expect(named("say")).toEqual(["text"]);
+    expect(named("set_goal")).toEqual(["text"]);
   });
 });

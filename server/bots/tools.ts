@@ -5,11 +5,19 @@ import type { Direction } from "../../app/lib/types";
 /**
  * Everything a bot may ask for, and the schemas that decide whether it asked.
  *
- * Three verbs, which is the whole of this tracer: get somewhere, find out what
- * is under you, say something. Every combat and item verb is deliberately absent
- * — the question being answered here is whether a fast, cheap model can read the
- * view and move sensibly, and a body that can fight is a second question with
- * its own failure modes.
+ * Three world verbs, which is the whole of this tracer: get somewhere, find out
+ * what is under you, say something. Every combat and item verb is deliberately
+ * absent — the question being answered here is whether a fast, cheap model can
+ * read the view and move sensibly, and a body that can fight is a second
+ * question with its own failure modes.
+ *
+ * ## One of the four does not reach the world
+ *
+ * `set_goal` writes a sentence into the bot's own memory and sends nothing. It
+ * is a {@link BotCall} but not a {@link BotAction}, and the split is not
+ * pedantry: `../bots/body` is the client, and everything it can do is something
+ * a person can do over the same socket. A goal is a note the runner keeps, so
+ * the runner is what applies it — see `./memory`.
  *
  * ## Two ways to move, and both are needed
  *
@@ -51,12 +59,33 @@ const saySchema = v.object({
   text: v.pipe(v.string(), v.minLength(1), v.maxLength(MAX_COMMAND_LENGTH)),
 });
 
+/**
+ * How long a goal may be.
+ *
+ * A goal is pinned into every prompt until it is replaced, so its length is a
+ * cost paid on every decision rather than once. A sentence fits in this; a plan
+ * does not, and a model that wanted to write a plan should be refused here
+ * rather than have it silently cut in the middle of a word.
+ */
+export const MAX_GOAL_LENGTH = 160;
+
+const setGoalSchema = v.object({
+  text: v.pipe(v.string(), v.minLength(1), v.maxLength(MAX_GOAL_LENGTH)),
+});
+
+/** Something the body does, which is something a person could do. */
 export type BotAction =
   | { tool: "walk_to"; x: number; y: number }
   | { tool: "step"; direction: Direction }
   | { tool: "say"; text: string };
 
-export type BotToolName = BotAction["tool"];
+/** A sentence the bot keeps for itself. Nothing is sent to the world. */
+export type BotGoal = { tool: "set_goal"; text: string };
+
+/** One tool call, whichever kind it turned out to be. */
+export type BotCall = BotAction | BotGoal;
+
+export type BotToolName = BotCall["tool"];
 
 /** One tool, in the shape a provider is told about it. */
 export type BotTool = {
@@ -92,17 +121,27 @@ export const BOT_TOOLS: readonly BotTool[] = [
       "a slash is a command rather than speech and is not broadcast.",
     schema: saySchema as v.GenericSchema<Record<string, unknown>>,
   },
+  {
+    name: "set_goal",
+    description:
+      "Write down what you are trying to do, in one sentence. It is shown at " +
+      "the top of every turn from then on, and it is the only thing you carry " +
+      "forward besides the last few things that happened. Set one as soon as " +
+      "you decide on something, and call this again to replace it when you " +
+      "change your mind.",
+    schema: setGoalSchema as v.GenericSchema<Record<string, unknown>>,
+  },
 ];
 
 /**
- * Turn what a provider handed back into an action, or into nothing.
+ * Turn what a provider handed back into a call, or into nothing.
  *
  * Null rather than a throw: a malformed tool call is an ordinary thing for a
  * fast model to produce, and one bad call in a batch of three should cost that
  * call rather than the decision. What was dropped is logged and told back to the
  * model in the next decision's events, which is the only way it learns.
  */
-export function parseBotAction(name: string, input: unknown): BotAction | null {
+export function parseBotCall(name: string, input: unknown): BotCall | null {
   if (name === "walk_to") {
     const parsed = v.safeParse(walkToSchema, input);
     return parsed.success ? { tool: "walk_to", ...parsed.output } : null;
@@ -115,8 +154,33 @@ export function parseBotAction(name: string, input: unknown): BotAction | null {
     const parsed = v.safeParse(saySchema, input);
     return parsed.success ? { tool: "say", ...parsed.output } : null;
   }
+  if (name === "set_goal") {
+    const parsed = v.safeParse(setGoalSchema, input);
+    return parsed.success ? { tool: "set_goal", ...parsed.output } : null;
+  }
   return null;
 }
 
-/** How many actions one decision may carry. */
-export const MAX_ACTIONS_PER_DECISION = 3;
+/**
+ * One call, in the second person and the past tense.
+ *
+ * The one place a call becomes a sentence, because it is written down twice.
+ * `../bots/body` pushes it into the event log so the next decision reads the
+ * request beside whatever the world said about it, and `./memory` keeps it after
+ * that log has drained. Two spellings would make one act look like two.
+ */
+export function describeCall(call: BotCall): string {
+  switch (call.tool) {
+    case "walk_to":
+      return `You set off for (${call.x}, ${call.y}).`;
+    case "step":
+      return `You stepped ${call.direction}.`;
+    case "say":
+      return `You said: ${call.text}`;
+    case "set_goal":
+      return `You set your goal: ${call.text}`;
+  }
+}
+
+/** How many calls one decision may carry. `set_goal` is one of them. */
+export const MAX_CALLS_PER_DECISION = 3;

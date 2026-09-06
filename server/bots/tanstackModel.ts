@@ -11,7 +11,7 @@ import {
   type BotDecisionRequest,
   type BotModel,
 } from "./model";
-import { BOT_TOOLS, parseBotAction, type BotAction } from "./tools";
+import { BOT_TOOLS, parseBotCall, type BotCall } from "./tools";
 
 /**
  * The real provider, behind `./model`'s one-method seam.
@@ -103,7 +103,7 @@ export function botAdapter(config: BotConfig): AnyTextAdapter {
 }
 
 /**
- * The three tools, as the provider is told about them.
+ * The four tools, as the provider is told about them.
  *
  * Built from the same valibot schemas the answers are parsed with — see
  * `./tools` — so the JSON schema a provider is shown and the parser a call goes
@@ -195,12 +195,12 @@ async function collect(stream: ChatStream): Promise<BotDecision> {
     }
   }
 
-  const actions: BotAction[] = [];
+  const calls: BotCall[] = [];
   for (const id of order) {
-    const action = parseBotAction(names.get(id) ?? "", parseJson(args.get(id)));
-    if (action) actions.push(action);
+    const call = parseBotCall(names.get(id) ?? "", parseJson(args.get(id)));
+    if (call) calls.push(call);
   }
-  return { actions, text: text.trim(), usage: { inputTokens, outputTokens } };
+  return { calls, text: text.trim(), usage: { inputTokens, outputTokens } };
 }
 
 function parseJson(raw: string | undefined): unknown {

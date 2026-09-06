@@ -1,10 +1,11 @@
 import type { BotBody } from "./body";
+import { BotMemory } from "./memory";
 import {
   promptDigest,
   type BotDecisionLog,
   type BotModel,
 } from "./model";
-import { MAX_ACTIONS_PER_DECISION } from "./tools";
+import { MAX_CALLS_PER_DECISION } from "./tools";
 import { renderBotView } from "./view";
 
 /**
@@ -127,6 +128,14 @@ export type BotRunnerOptions = {
 export class BotRunner {
   private readonly body: BotBody;
   private readonly model: BotModel;
+  /**
+   * Everything this bot knows that is not in front of it.
+   *
+   * Held here rather than in the body, because the body is a client of the world
+   * and this is not — see `./memory`. It is also what applies `set_goal`, which
+   * is the one call that sends nothing.
+   */
+  private readonly memory = new BotMemory();
   private readonly guard: DecisionGuard;
   private readonly now: () => number;
   private readonly log: (line: BotDecisionLog) => void;
@@ -150,12 +159,17 @@ export class BotRunner {
   }
 
   /**
-   * One round trip: build the view, ask, apply what came back.
+   * One round trip: build the prompt, ask, apply what came back.
    *
    * Everything is applied in the order the model asked for it, and at most
-   * {@link MAX_ACTIONS_PER_DECISION} of them — a model that returned twenty
+   * {@link MAX_CALLS_PER_DECISION} of them — a model that returned twenty
    * calls has misunderstood, and honouring them would be twenty decisions'
    * worth of movement bought with one.
+   *
+   * The prompt is two documents: what this bot remembers, then what its body can
+   * see. They are built separately and joined here because they are true about
+   * different things — the view is a pure function of the world, the memory a
+   * function of this bot's history — and only one of them survives a drain.
    *
    * Returns whether a decision was actually taken, which is what {@link run}
    * needs in order to know it should wait rather than spin.
@@ -174,20 +188,35 @@ export class BotRunner {
     }
     if (this.guard.waitMs(this.now()) > 0) return false;
 
-    const prompt = renderBotView(this.body.view());
+    const view = this.body.view();
+    const prompt = `${this.memory.render()}\n\n${renderBotView(view)}`;
+    // After the prompt, not before it: the view has just rendered these under
+    // its own heading, and a sentence in the memory log as well would be the
+    // same event shown twice in one prompt. Before the request rather than
+    // after, so a provider that fails does not also lose them.
+    //
+    // The clock is read here and again after the answer, rather than once for
+    // the pair, because that is the point of the stamps: the request is what
+    // takes the time, so those two readings are what a decision's length looks
+    // like from inside the log.
+    this.memory.observed(view.events, this.body.minutesOfDay());
     const startedMs = this.now();
     this.guard.noteStart(startedMs);
 
     try {
       const decision = await this.model.decide({ prompt });
-      const actions = decision.actions.slice(0, MAX_ACTIONS_PER_DECISION);
-      for (const action of actions) this.body.apply(action);
+      const calls = decision.calls.slice(0, MAX_CALLS_PER_DECISION);
+      this.memory.decided(calls, this.body.minutesOfDay());
+      // `set_goal` is the one call with nothing to send. See `./tools`.
+      for (const call of calls) {
+        if (call.tool !== "set_goal") this.body.apply(call);
+      }
       this.guard.noteSuccess();
       this.log({
         bot: this.body.name(),
         promptDigest: promptDigest(prompt),
         promptChars: prompt.length,
-        actions,
+        calls,
         latencyMs: this.now() - startedMs,
         inputTokens: decision.usage.inputTokens,
         outputTokens: decision.usage.outputTokens,
@@ -199,7 +228,7 @@ export class BotRunner {
         bot: this.body.name(),
         promptDigest: promptDigest(prompt),
         promptChars: prompt.length,
-        actions: [],
+        calls: [],
         latencyMs: this.now() - startedMs,
         inputTokens: null,
         outputTokens: null,

@@ -3,13 +3,14 @@ import { bodyNameFor } from "../../app/game/displayName";
 import type { GameSnapshot } from "../../app/game/GameSession";
 import { HeldDirections } from "../../app/game/heldDirections";
 import { WalkTo, type WalkView } from "../../app/game/walkTo";
+import { minutesOfDayAt, type MinutesOfDay } from "../../app/lib/clock";
 import { getStack } from "../../app/lib/mapData";
 import { MIN_LEVEL, type Coord, type MapFile, type TileDef } from "../../app/lib/types";
 import { tilesByIdFromList } from "../../app/lib/validation";
 import { RemoteSession } from "../../app/net/RemoteSession";
 import type { BotSocket } from "./transport";
 import { buildBotView, type BotView } from "./view";
-import type { BotAction } from "./tools";
+import { describeCall, type BotAction } from "./tools";
 
 /**
  * One bot's body: a real client of the world, with a controller on top of it.
@@ -141,11 +142,15 @@ export class BotBody {
    * what goes into the log is the request, and the refusal — if there is one —
    * lands beside it in the same list. Together they are the only way a model
    * learns whether anything it did worked.
+   *
+   * The sentence is `describeCall`'s rather than one written here, because
+   * `./memory` writes the same request down a second time and the two must not
+   * read as two different acts.
    */
   apply(action: BotAction) {
+    this.events.push(describeCall(action));
     if (action.tool === "say") {
       this.session.say(action.text);
-      this.events.push(`You said: ${action.text}`);
       return;
     }
     if (action.tool === "step") {
@@ -157,14 +162,12 @@ export class BotBody {
       this.walkTo.cancel();
       this.input.press(action.direction);
       this.input.release(action.direction);
-      this.events.push(`You stepped ${action.direction}.`);
       return;
     }
     const snapshot = this.session.getSnapshot();
     const view = this.walkView(snapshot);
     const on = pickAt(view.map, snapshot.self.z, action.x, action.y);
     this.walkTo.start(on, view);
-    this.events.push(`You set off for (${action.x}, ${action.y}).`);
   }
 
   /**
@@ -184,6 +187,24 @@ export class BotBody {
       snapshot: this.session.getSnapshot(),
       events,
     });
+  }
+
+  /**
+   * What time it is in the world, for stamping a line in `./memory`.
+   *
+   * Computed from the wall clock rather than read off the session, and the
+   * session is the surprise: `RemoteSession.minutesOfDay` is the reading the
+   * last `hello` carried and it never moves again — a browser advances it
+   * itself, from that anchor, once a frame. A bot asking it every decision would
+   * stamp every line it ever writes with the same minute.
+   *
+   * `minutesOfDayAt` is the world's clock by definition: `GameServer` computes
+   * the hour it sends in `hello` the same way, from the same wall clock, and the
+   * runner is deployed in the same container as the world. So this agrees with
+   * the server exactly, with nothing on the wire and no clock to tick.
+   */
+  minutesOfDay(): MinutesOfDay {
+    return minutesOfDayAt(Date.now());
   }
 
   /** What to call this bot in a log line. The same handle everybody else sees. */

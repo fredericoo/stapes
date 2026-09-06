@@ -13,7 +13,7 @@ import {
   DecisionGuard,
   DEFAULT_BOT_LIMITS,
 } from "./runner";
-import type { BotAction } from "./tools";
+import type { BotCall } from "./tools";
 import type { BotSocket } from "./transport";
 
 /**
@@ -75,14 +75,15 @@ afterEach(async () => {
 });
 
 /** Every provider a test needs: one that answers from a list, in order. */
-function scripted(script: BotAction[][]): BotModel {
+function scripted(script: BotCall[][], prompts?: string[]): BotModel {
   let turn = 0;
   return {
-    decide(): Promise<BotDecision> {
-      const actions = script[turn] ?? [];
+    decide(request): Promise<BotDecision> {
+      prompts?.push(request.prompt);
+      const calls = script[turn] ?? [];
       turn += 1;
       return Promise.resolve({
-        actions,
+        calls,
         text: "",
         usage: { inputTokens: 100, outputTokens: 10 },
       });
@@ -278,6 +279,64 @@ describe("a bot in the world", () => {
     expect(events.length).toBeGreaterThan(1);
   });
 
+  it("still knows what it said two decisions after the log dropped it", async () => {
+    // The bug this is about: `body.view` drains the event log, so without a
+    // memory the bot has no evidence by the third decision that it ever spoke —
+    // and in a live run it asked the same person the same question three times
+    // in three seconds, at an identical prompt digest each time.
+    const { body } = await joinBot("bot");
+    const prompts: string[] = [];
+    const runner = new BotRunner({
+      body,
+      model: scripted(
+        [
+          [
+            { tool: "set_goal", text: "find out who lives here" },
+            { tool: "say", text: "What are you doing here, Ivory Anteater?" },
+          ],
+          [{ tool: "step", direction: "n" }],
+          [{ tool: "step", direction: "s" }],
+        ],
+        prompts,
+      ),
+      log: () => {},
+    });
+
+    await settle(runner, body);
+    for (let i = 0; i < 3; i++) {
+      await runner.decideOnce();
+      await frames(runner, BOT_FRAME_MS * 2);
+    }
+
+    // Nothing of it in the first prompt, which is what a memory is for.
+    expect(prompts[0]).not.toContain("Ivory Anteater");
+    const third = prompts[2]!;
+    expect(third).toContain("Ivory Anteater");
+    expect(third).toContain("find out who lives here");
+    // And what it said is written down once, not once per place it arrived from.
+    expect(third.split("Ivory Anteater?")).toHaveLength(2);
+    // Each line behind the world's own clock, which is what replaced counting
+    // back in turns. `body.minutesOfDay` is the source, so this is also the
+    // check that a real body has one.
+    expect(third).toMatch(/\n\d\d:\d\d {2}You said: What are you doing here,/);
+  });
+
+  it("sends nothing to the world for a goal", async () => {
+    const { body, sent } = await joinBot("bot");
+    const runner = new BotRunner({
+      body,
+      model: scripted([[{ tool: "set_goal", text: "find the shop" }]]),
+      log: () => {},
+    });
+
+    await settle(runner, body);
+    const before = sent.length;
+    await runner.decideOnce();
+    await frames(runner, BOT_FRAME_MS * 2);
+
+    expect(sent.slice(before)).toEqual([]);
+  });
+
   it("logs a line per decision", async () => {
     const { body } = await joinBot("bot");
     const lines: BotDecisionLog[] = [];
@@ -291,7 +350,7 @@ describe("a bot in the world", () => {
     await runner.decideOnce();
 
     expect(lines).toHaveLength(1);
-    expect(lines[0]!.actions).toEqual([{ tool: "step", direction: "n" }]);
+    expect(lines[0]!.calls).toEqual([{ tool: "step", direction: "n" }]);
     expect(lines[0]!.inputTokens).toBe(100);
     expect(lines[0]!.promptChars).toBeGreaterThan(0);
     expect(lines[0]!.promptDigest).toMatch(/^[0-9a-f]{8}$/);
