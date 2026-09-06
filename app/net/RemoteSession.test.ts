@@ -879,6 +879,114 @@ describe("RemoteSession prediction", () => {
 
 });
 
+/**
+ * The one step this client must not chain into the next.
+ *
+ * Walking into a hole is a legal step and it lands the body in mid-air — the
+ * fall that follows belongs to the server, and its announcement is a round trip
+ * away. For that round trip the client is holding a direction and standing on
+ * nothing, and it used to take the next step anyway: one cell past the hole,
+ * refused by the server, dragged back. A click into a hole is now an ordinary
+ * thing to ask for (`../game/walkTo`), so this is the path a player reaches.
+ */
+describe("RemoteSession prediction at the lip of a hole", () => {
+  /**
+   * Grass to walk on at x=0 and x=1, nothing at all from x=2 east, and ground
+   * two height units too far down to climb to at every x on the level below.
+   */
+  function pitMap(): FlatMapFile {
+    const above: Record<string, PlacedTile[]> = {};
+    const below: Record<string, PlacedTile[]> = {};
+    for (let x = 0; x < 5; x++) below[`${x},0`] = [grass];
+    above["0,0"] = [grass, player];
+    above["1,0"] = [grass];
+    return {
+      version: 1,
+      levels: { "0": above, "-1": below },
+    } as unknown as FlatMapFile;
+  }
+
+  function connectedAtPit(): { socket: FakeSocket; session: RemoteSession } {
+    const socket = new FakeSocket();
+    const session = new RemoteSession(socket as unknown as WebSocket, tiles);
+    socket.deliver({
+      type: "hello",
+      selfId: SELF,
+      map: pitMap(),
+      actorIds: [SELF],
+      playerCount: 1,
+      minutesOfDay: SERVER_MINUTES,
+      hps: [],
+      carriedLights: [],
+      equipment: emptyEquipment(),
+      tags: [],
+      statuses: [],
+    });
+    return { socket, session };
+  }
+
+  /** Walk east off the lip at x=1 and into the empty column at x=2. */
+  function steppedIn(): { socket: FakeSocket; session: RemoteSession } {
+    const { socket, session } = connectedAtPit();
+    session.setInput({ directions: ["e"] });
+    session.update(WALK_DURATION_MS);
+    session.update(WALK_DURATION_MS);
+    return { socket, session };
+  }
+
+  it("stops on the cell it fell into rather than walking on across the air", () => {
+    const { session } = steppedIn();
+
+    // Nothing has come back from the server: no commit, and above all no
+    // `fallStarted`, which is the only thing that used to stop this. Two steps
+    // is the whole of what the board allows — the second one landed the body in
+    // mid-air, and there is no third step to take from there.
+    expect(session.getSnapshot().self.x).toBe(2);
+    session.update(WALK_DURATION_MS * 3);
+    expect(session.getSnapshot().self.x).toBe(2);
+  });
+
+  it("does not ask the server for a step it is about to refuse", () => {
+    const { socket, session } = steppedIn();
+    session.update(WALK_DURATION_MS * 3);
+
+    // The simulation refuses every step from a falling body, so a third one
+    // here is a `stepRejected` and a snap-back the player watches happen.
+    expect(stepsSent(socket)).toHaveLength(2);
+  });
+
+  it("carries the held direction on once the landing is committed", () => {
+    const { socket, session } = steppedIn();
+
+    // The fall, and the landing that ends it: the body is on the ground at the
+    // bottom of the hole with the key still down.
+    socket.deliver(
+      patch(
+        [
+          { x: 1, y: 0, z: 0, stack: [grass] },
+          { x: 2, y: 0, z: 0, stack: [player] },
+        ],
+        [{ kind: "fallStarted", actorId: SELF, feetAbs: 0, landingAbs: -4 }],
+      ),
+    );
+    session.update(FALL_MS_PER_HEIGHT * 4);
+    socket.deliver(
+      patch([
+        { x: 2, y: 0, z: 0, stack: [] },
+        { x: 2, y: 0, z: -1, stack: [grass, player] },
+      ]),
+    );
+    // Reading the board is what ends the fall, so this is the frame the
+    // renderer draws the landing on. @see `locate`
+    expect(session.getSnapshot().self.z).toBe(-1);
+
+    // Standing on something again, so the direction that has been held all
+    // along is a step once more. A fall must not cost the player their walk.
+    session.update(16);
+    expect(session.getSnapshot().self.walk?.to).toEqual({ x: 3, y: 0, z: -1 });
+  });
+});
+
 describe("RemoteSession headcount", () => {
   const OTHER = "them";
 

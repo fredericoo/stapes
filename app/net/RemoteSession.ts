@@ -34,6 +34,7 @@ import {
   type ObjectRef,
 } from "../game/affordances";
 import { canBeginExtract, type Extraction } from "../game/extract";
+import { gravityPullOn } from "../game/gravity";
 import { type Equipment, emptyEquipment } from "../game/equipment";
 import {
   castability,
@@ -1289,6 +1290,22 @@ export class RemoteSession implements PlaySession {
     if (!def) return;
     const loc = this.locate(this.selfId, motion);
     if (!loc) return;
+
+    // A step into a hole is a legal step — `canWalk` allows it so that gravity
+    // can pull the body through a drop too steep to climb down — and it lands
+    // the body in mid-air. The fall that follows is the server's to announce,
+    // and until it arrives `motion.fall` above says nothing: on a link with any
+    // latency at all this side has already landed the step, still has the
+    // direction pressed, and would chain a second one out of a cell nobody is
+    // standing in. The server refuses that step, because the simulation refuses
+    // every step from a falling body, so what the player sees is their avatar
+    // walking one cell past the hole and being dragged back into it.
+    //
+    // Asking the board is the whole fix, and it is the same question the
+    // simulation asks before it starts a fall. @see ../game/gravity
+    if (gravityPullOn(this.map, loc, def, this.tilesById).kind === "fall") {
+      return;
+    }
 
     const choice = chooseStep(
       this.map,
