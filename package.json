@@ -6,6 +6,7 @@
     "dev": "bun scripts/dev.ts",
     "build": "react-router build",
     "start": "bun run server/index.ts",
+    "bots": "bun run server/bots/main.ts",
     "seed": "bun scripts/seed.ts",
     "typecheck": "react-router typegen && tsc && tsc -p tsconfig.server.json && tsc -p tsconfig.node.json",
     "generate": "bun scripts/generate-tilesets.ts",
@@ -20,6 +21,9 @@
     "test:perf": "playwright test"
   },
   "dependencies": {
+    "@tanstack/ai": "0.53.0",
+    "@tanstack/ai-gemini": "0.29.1",
+    "@tanstack/ai-grok": "0.18.4",
     "@tursodatabase/database": "0.7.2",
     "elysia": "1.4.29",
     "unique-names-generator": "^4.7.1",

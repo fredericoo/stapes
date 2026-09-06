@@ -34,6 +34,11 @@ a world in the way.
   with players standing in a few scenarios, and print what a tick costs and
   how many bytes it puts on the wire. `--scenario <name>` for one,
   `--seconds <n>` for a shorter run
+- `bun run bots` — a second process that joins the running world as LLM-driven
+  players. Does nothing without `BOT_API_KEY`, which is what turns the feature
+  on at all; `BOT_COUNT` (default 0) says how many, `BOT_PROVIDER` picks between
+  `gemini` and `grok`, and `BOT_ORIGIN` says which world to join. Prints a line
+  per decision: what it chose, how long it took and what it cost
 - `bun run seed` — load `data/` into a database that already has content. Rarely
   needed: a fresh one seeds itself on boot
 - `bun run typecheck` — route typegen, then all three tsconfigs

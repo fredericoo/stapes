@@ -4832,6 +4832,157 @@ around a level −1 cutaway that dimmed at dusk. Authoring keeps its paper
 colour, and preview with lighting off keeps it too, where black behind fully
 lit tiles would only read as a hole.
 
+## A bot is a WebSocket client, and that is the whole of the design
+
+`server/bots/` is a second Bun process, run with `bun run bots`. Each bot holds
+one `RemoteSession` — the same class a tab holds — over a socket it opened the
+way a tab opens one: `GET /api/session` for the `HttpOnly` actor cookie, then
+the socket at `GAME_SOCKET_PATH` carrying that cookie and `?v=<PROTOCOL_VERSION>`.
+Bun's `WebSocket` takes headers on the constructor, which is the one place a bot
+and a tab differ mechanically; a browser cannot do that and does not have to,
+because it has a cookie jar.
+
+**No server change and no protocol change.** That is not modesty, it is the
+property the whole thing rests on: a bot can do exactly what a person can,
+because the server has no idea which kind of client it is talking to and
+validates its frames on the same path. Anything a bot turns out to be able to do
+that a player cannot is a bug in the server, not a bot feature.
+
+The runner never opens the database. The exclusive lock is the world's, and
+nothing here wants it.
+
+### The decision loop is a slow policy over a fast controller
+
+One round trip per decision, up to three tool calls back, and the next decision
+starts when the last one ends. Tools are defined **without an `execute`
+function**, so TanStack AI hands the calls back rather than running them and
+looping — a tool with no executor is a client request, and a run made entirely
+of them finishes on the first model turn.
+
+What a tool writes is a *standing intent*, not an instantaneous action:
+`walk_to` sets a destination that `app/game/walkTo.ts` keeps walking towards on
+the body's own 50ms clock, between decisions and for as long as it takes. So a
+latency spike costs a bot its reaction time rather than freezing it mid-stride,
+and there is nothing for the model to wait on inline.
+
+Three guards, for three different failures. A ceiling on decisions per minute
+bounds spend on a bot that is working. Exponential backoff bounds spend on a
+provider that is failing and might recover. A circuit breaker parks a bot —
+standing still, costing nothing — after N consecutive failures, because one that
+is failing and will not recover should stop rather than retry forever. A
+repeat-death loop is none of these and the breaker will not catch it: dying is
+not an error, and the bot is expected to have the death in its events.
+
+### What the model sees, and why it is characters
+
+The view is rebuilt every decision by `server/bots/view.ts`, which is a pure
+function of the board, the catalogue, one snapshot and the sentences that
+arrived since the last decision — so every claim about it is testable without a
+world or a provider.
+
+It applies the two masks a person plays behind, in the renderer's own order:
+the roof cut at the bot's cell (`roofCutFor`), then line of sight
+(`hasLineOfSight`) per cell. The second one matters more than it looks. A bot
+holds the whole patch stream its interest window reaches, so without it a body
+would route round a corner it has no business being able to see, and the grid
+would be a description of the server's board rather than of a player's view.
+
+The grid is single characters with a legend of the real tile ids present in
+*this* view. `data/tiles.json` holds 125 tiles whose ids average about ten
+characters, so a grid of raw ids is several times the tokens; the legend is
+rebuilt per view, so a glyph means whatever this view says it means and the
+model never carries a mapping between turns. Three characters are reserved and
+always explained: `@` is you, `?` is a column nothing can see into, and `.` is a
+column with nothing in it at all — open air, and possibly a drop.
+
+Measured against `fixtureTown` with the real catalogue, a 23×23 view — the same
+square `VIEW_CELLS` gives a player — renders to about 1,200 characters and
+**484 tokens** standing in the street, 416 inside a house where most of the grid
+is `?`. The system prompt is another 279. Roughly 750 input tokens a decision.
+
+Coordinates are written down both edges and ticked every five cells along the
+top and bottom. `walk_to` takes absolute coordinates, so without a ruler the
+model has to produce them by counting characters, which is the one thing it is
+worst at, and a miscount is a body walking somewhere nobody asked for.
+
+Bodies appear twice — a glyph in the grid, a line with name, hit points and
+distance under it — and both are built from one `visibleActors` array, which is
+also what `listInteractionOptions` is handed. So a body cannot be in the grid,
+missing from the list, and targetable all at once.
+
+**Notices go in verbatim.** The server already renders every refusal and outcome
+as English in `app/game/notices.ts`, and with one round trip a model never sees
+a result inline — the event list is the only way it learns whether anything
+worked. A model that has been told "you cannot reach that from here" has learnt
+the rule that is actually in force, where a paragraph in a system prompt is a
+rule somebody wrote down once and may since have changed.
+
+Who swung is deliberately not reported. A `DamageNumber` carries who *took* a
+blow and how much, which is what the number floating over a body needs; naming
+an attacker would mean inventing one.
+
+### A bot must not act on the frame it joins
+
+The first thing the tracer found, and it is a real client behaviour rather than
+a bot one. `hello` gives a joiner the chunks its view can reach and the ticks
+after it carry the rest. While that is still going, a patch can momentarily
+leave the joining body off the board, and `RemoteSession` then throws away the
+step it is holding a guess about (`abandonPrediction`). It is thrown away
+*locally* — the server was already told about that step and walks it anyway —
+so with a direction still pressed the client issues the same step a second time
+and the body ends up one cell past its destination.
+
+A person never sees this, because nobody clicks in the same millisecond the
+world paints. A bot does exactly that every time, which turns a rare race into a
+systematic off-by-one on every `walk_to` issued at join. `BotBody.isSettled`
+holds the first decision for fifteen of the world's ticks, and the runner will
+not decide before it. Reset on a rebirth, since that is answered with a whole
+fresh `hello`.
+
+This is worth remembering when click-to-walk ships for people: the same
+overshoot is available to anybody who clicks during a reconnect.
+
+### Configuration, and the property worth protecting
+
+`server/bots/config.ts` follows `server/config.ts`: **an absent `BOT_API_KEY`
+disables bots entirely**, exactly as an absent `ADMIN_SECRET` makes the admin
+routes 404. `BOT_COUNT` defaults to 0. So a preview deployment and a CI run need
+no secret and no configuration change, and nobody can make this spend money by
+forgetting to set something.
+
+The provider is `gemini` or `grok`, both adapters installed, neither the default
+by accident — the choice has not been made. Adding a third is a case in
+`server/bots/tanstackModel.ts` and a dependency.
+
+Observability is one JSON line per decision: which bot, a digest of the prompt,
+its size, the actions chosen, the latency and the token counts. The prompt text
+itself is never logged — it is a page per decision, several times a minute, per
+bot, and the digest answers the question the text would have.
+
+### Testing it costs nothing and needs no network
+
+`server/bots/view.test.ts` is the pure half, against a synthetic catalogue and
+hand-built cells: the legend covers every character the grid draws, a cell
+behind a wall reads as unknown, a column with nothing in it reads as nothing,
+and a coordinate read back off the rendered ruler resolves to the cell it names.
+That last one would otherwise fail silently and expensively.
+
+`server/bots/runner.test.ts` is the other half: a scripted model in the one slot
+that would cost money, and a real `GameServer` behind `server/testHarness`'s
+socket pair for everything else. Which is why the runner takes an injected
+transport — `BotSocket` in `server/bots/transport.ts` is the four members a
+session actually touches, and the harness's pair satisfies it. Every frame a bot
+sends during those cases is put through `parseClientMessage`; that is the
+assertion that silently rots when the protocol changes.
+
+### Deliberately not built
+
+Stable actor ids across restarts, persistence, rebirth policy, gating bots on a
+human being connected, join linger and stagger, per-bot personas, memory beyond
+the current view, and every combat and item verb. The tracer exists to answer
+one question — whether a fast, cheap model can read this view and move sensibly
+— and each of those is a second question with its own failure modes.
+
 ## Testing the world
 
 `server/` runs under `bun test` (`bun run test:server`), on the runtime it
