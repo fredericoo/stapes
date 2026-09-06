@@ -22,7 +22,7 @@ import type { AttackOutcome } from "./combat";
  * ## Experience goes to the masteries that did the work
  *
  * Not to a pool, and not to whatever the player would like it to go to. You
- * swing a sword, your Blade improves; you get hit, your Toughness does. That is
+ * swing a sword, your Sharp improves; you get hit, your Toughness does. That is
  * also what makes sandbagging pointless — Rating counts your *best* weapon
  * mastery rather than the one you happen to be holding, so there is nothing to
  * be gained by leaving one untrained.

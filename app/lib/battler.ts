@@ -495,7 +495,7 @@ export function weaponReadiness(share: number): number {
 /**
  * What being good with a weapon adds, over and above being *allowed* to use it.
  *
- * **The half of mastery that requirements deliberately do not cover.** A Blade
+ * **The half of mastery that requirements deliberately do not cover.** A Sharp
  * 100 hero holding a requirement-1 dagger has met that requirement a hundred
  * times over and gets nothing for it from {@link weaponReadiness}, which caps at
  * fully-met. This is what pays them instead, and it is keyed to the *absolute*
@@ -615,7 +615,7 @@ export function fightingStats(
   // and then added to, and that placement is the whole rule: what mastery buys
   // you is *more out of this weapon*, so a weapon you cannot lift has nothing
   // more to give. Left ungated, the flat term did not depend on the weapon at
-  // all — a Blade 100 hero picking up something whose Toughness requirement they
+  // all — a Sharp 100 hero picking up something whose Toughness requirement they
   // could not meet still swung it for twenty, which is a gate with a hole cut in
   // it exactly where the strongest players stand.
   // **A weapon authored at no damage does none, however skilled its wielder.**

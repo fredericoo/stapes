@@ -1986,7 +1986,7 @@ describe("player permanence", () => {
    */
   it("hands a returning player back what they have learnt", async () => {
     const who = freshPlayer();
-    const EARNED = { blade: 40_000, toughness: 9_000 };
+    const EARNED = { sharp: 40_000, toughness: 9_000 };
     await runInDurableObject(stub(), async (_instance, state) => {
       await state.storage.put(`mast:${who}`, {
         masteries: EARNED,
@@ -2014,7 +2014,7 @@ describe("player permanence", () => {
     const who = freshPlayer();
     await runInDurableObject(stub(), async (_instance, state) => {
       await state.storage.put(`mast:${who}`, {
-        masteries: { blade: "quite good", agility: -1 },
+        masteries: { sharp: "quite good", agility: -1 },
         savedAt: Date.now(),
       });
     });
@@ -2032,7 +2032,7 @@ describe("player permanence", () => {
     for (const earned of Object.values(written ?? {})) {
       expect(Number.isFinite(earned)).toBe(true);
     }
-    expect(written?.blade).not.toBeNaN();
+    expect(written?.sharp).not.toBeNaN();
   });
 
   /** Capped on the same terms the kits, positions and tags are, and separately. */
@@ -2734,7 +2734,7 @@ describe("resetting the world", () => {
     // Far above anything the authored `player` tile could seed, so a block that
     // had been quietly re-derived from the tile reads as a much smaller number
     // rather than as a pass.
-    const EARNED = { blade: 40_000, toughness: 9_000 };
+    const EARNED = { sharp: 40_000, toughness: 9_000 };
     await runInDurableObject(stub(), async (_instance, state) => {
       await state.storage.put(`mast:${who}`, {
         masteries: EARNED,
@@ -3803,14 +3803,14 @@ describe("commands", () => {
     const who = freshPlayer();
     const { ws } = await connect(who);
 
-    send(ws, { type: "command", text: "/mastery blade 10" });
+    send(ws, { type: "command", text: "/mastery sharp 10" });
 
     // Both halves, because either alone is a half-finished feature: the sentence
     // is what the player reads, and the block is what the panel draws.
     const notice = await nextMessageOfType(ws, "notice");
-    expect(notice.text).toBe("Your blade mastery is now 10");
+    expect(notice.text).toBe("Your sharp mastery is now 10");
     const masteries = await nextMessageOfType(ws, "masteries");
-    expect((masteries.masteryXp as Record<string, number>).blade).toBe(
+    expect((masteries.masteryXp as Record<string, number>).sharp).toBe(
       xpForLevel(10),
     );
   });
@@ -3832,7 +3832,7 @@ describe("commands", () => {
     const { ws } = await connect(who);
     const onlooker = await connect(freshPlayer());
 
-    send(ws, { type: "command", text: "/mastery blade 10" });
+    send(ws, { type: "command", text: "/mastery sharp 10" });
     await nextMessageOfType(ws, "notice");
 
     // The client sorts commands out of speech before they are sent, so this is

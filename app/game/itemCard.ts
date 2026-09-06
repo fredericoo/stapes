@@ -178,7 +178,7 @@ export type ItemCard = {
   elements: Element[];
   /**
    * What kind of thing this is, in the terms the panel puts it in: "Main hand —
-   * Blade", "Off hand — Blunt", "Food", "Container".
+   * Sharp", "Off hand — Blunt", "Food", "Container".
    *
    * Null for an item whose block does not parse, which is the same silence the
    * rest of this structure keeps about one.

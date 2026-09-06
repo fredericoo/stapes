@@ -162,7 +162,7 @@ const tiles: TileDef[] = [
     kind: "item",
     intangible: true,
     interactions: {
-      item: { type: "weapon", damage: SWORD_DAMAGE + DUMMY_DEF, def: 0, accuracy: 100, variance: 0, spd: 100, mastery: "blade" },
+      item: { type: "weapon", damage: SWORD_DAMAGE + DUMMY_DEF, def: 0, accuracy: 100, variance: 0, spd: 100, mastery: "sharp" },
     },
   }),
   tile({
@@ -223,7 +223,7 @@ const tiles: TileDef[] = [
       // weapon is a 24–30 blow, which the bag's twenty points turn into a 4–10
       // one. The weapon is narrow and what gets through is wide, which is the
       // honest behaviour of subtracting armour rather than scaling it.
-      item: { type: "weapon", damage: SWORD_DAMAGE + DUMMY_DEF, def: 2, accuracy: 90, variance: 20, spd: 20, mastery: "blade" },
+      item: { type: "weapon", damage: SWORD_DAMAGE + DUMMY_DEF, def: 2, accuracy: 90, variance: 20, spd: 20, mastery: "sharp" },
     },
   }),
 ];
@@ -548,7 +548,7 @@ describe("a weapon reaches the blow", () => {
       advance(session, 2000);
 
       const xp = session.getSnapshot().masteryXp;
-      expect(xp.blade ?? 0).toBeGreaterThan(0);
+      expect(xp.sharp ?? 0).toBeGreaterThan(0);
       expect(xp.blunt ?? 0).toBeGreaterThan(0);
     });
   });

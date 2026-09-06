@@ -208,15 +208,15 @@ describe("being outnumbered", () => {
    * times over.
    */
   it("takes evasion and armour down together as the crowd grows", () => {
-    const defender = battler({ flee: 60, def: 12, resist: { blade: 8 } });
+    const defender = battler({ flee: 60, def: 12, resist: { sharp: 8 } });
     const crowded = underPressure(defender, 8);
 
     expect(crowded.flee).toBeLessThan(defender.flee / 3);
     expect(crowded.def).toBeLessThan(defender.def / 3);
     // The resistances go with the flat armour, or being surrounded is survivable
     // by wearing the right coat. @see defenceAgainst
-    expect(defenceAgainst(crowded, battler({ mastery: "blade" }))).toBeLessThan(
-      defenceAgainst(defender, battler({ mastery: "blade" })) / 3,
+    expect(defenceAgainst(crowded, battler({ mastery: "sharp" }))).toBeLessThan(
+      defenceAgainst(defender, battler({ mastery: "sharp" })) / 3,
     );
   });
 
@@ -359,10 +359,10 @@ describe("swinging", () => {
  * still striking with a blade, and mail should turn it aside on the same terms.
  */
 describe("resisting a kind of blow", () => {
-  const mailed = battler({ def: 2, resist: { blade: 5 } });
+  const mailed = battler({ def: 2, resist: { sharp: 5 } });
 
   it("adds the matching resistance to the flat defence", () => {
-    expect(defenceAgainst(mailed, battler({ mastery: "blade" }))).toBe(7);
+    expect(defenceAgainst(mailed, battler({ mastery: "sharp" }))).toBe(7);
   });
 
   it("charges the flat defence alone for anything else", () => {
@@ -372,7 +372,7 @@ describe("resisting a kind of blow", () => {
 
   it("is the flat defence for a body wearing nothing opinionated", () => {
     const plain = battler({ def: 3, resist: {} });
-    expect(defenceAgainst(plain, battler({ mastery: "blade" }))).toBe(3);
+    expect(defenceAgainst(plain, battler({ mastery: "sharp" }))).toBe(3);
   });
 
   /**
@@ -385,10 +385,10 @@ describe("resisting a kind of blow", () => {
       variance: 0,
       accuracy: 100,
       hitChance: 1,
-      mastery: "blade",
+      mastery: "sharp",
     });
     const hammer = { ...sword, mastery: "blunt" } as const;
-    const defender = battler({ def: 2, resist: { blade: 5 }, flee: 0 });
+    const defender = battler({ def: 2, resist: { sharp: 5 }, flee: 0 });
 
     let landed = 0;
     for (let seed = 0; seed < 50; seed++) {
@@ -417,13 +417,13 @@ describe("resisting a kind of blow", () => {
    */
   it("costs the swing no extra draws", () => {
     const reference = new Rng(11);
-    rollAttack(battler({ mastery: "blade" }), battler(), reference);
+    rollAttack(battler({ mastery: "sharp" }), battler(), reference);
     const after = reference.save();
 
     const rng = new Rng(11);
     rollAttack(
-      battler({ mastery: "blade" }),
-      battler({ resist: { blade: 40, blunt: 3 } }),
+      battler({ mastery: "sharp" }),
+      battler({ resist: { sharp: 40, blunt: 3 } }),
       rng,
     );
     expect(rng.save()).toBe(after);

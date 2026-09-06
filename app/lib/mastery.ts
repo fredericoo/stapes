@@ -34,8 +34,19 @@ import { type Element, ELEMENTS } from "./element";
  * separate — swinging a staff is how you get better at magic, and being better
  * at magic is what makes the staff work. Splitting them would describe a wizard
  * who trains one and casts with the other.
+ *
+ * `sharp` was `blade`, and the rename is about what the mastery names. It is
+ * read off the *attacker's* weapon on every blow and it keys an armour's
+ * resistances — see `../game/combat`'s `defenceAgainst` — so a bear's claws and
+ * a wolf's teeth answer to it as much as a sword does. `blade` described the
+ * object a swordsman holds, and left every natural weapon in the world filed
+ * under a noun none of them are.
+ *
+ * Nothing migrates a saved `blade`. A stored block is parsed rather than
+ * trusted — see `masteryXpBlockSchema` — and an unknown key is dropped, so a
+ * player who trained it before this rename starts that mastery again.
  */
-export type WeaponMastery = "fist" | "blade" | "blunt" | "ranged" | "arcane";
+export type WeaponMastery = "fist" | "sharp" | "blunt" | "ranged" | "arcane";
 
 /**
  * The masteries nothing is held to practise.
@@ -79,7 +90,7 @@ export type Mastery = WeaponMastery | BodyMastery | ElementMastery;
 
 export const WEAPON_MASTERIES: WeaponMastery[] = [
   "fist",
-  "blade",
+  "sharp",
   "blunt",
   "ranged",
   "arcane",
@@ -106,7 +117,7 @@ export const MASTERIES: Mastery[] = [
  */
 export const MASTERY_LABELS: Record<Mastery, string> = {
   fist: "Fist",
-  blade: "Blade",
+  sharp: "Sharp",
   blunt: "Blunt",
   ranged: "Ranged",
   arcane: "Arcane",
@@ -256,8 +267,8 @@ export const OUTGROWN_FALLOFF = 6;
  * **Only the weapon's own mastery is ever consulted**, by the one caller there
  * is: see `../game/experience`'s `attackerEarnings`, which looks up
  * `requirements[weapon.mastery]` and credits that mastery alone. An axe asking
- * Blade 8 and Toughness 20 is a Blade weapon that is also heavy; leaving
- * Toughness untrained must not turn it into a Blade trainer that never stops
+ * Sharp 8 and Toughness 20 is a Sharp weapon that is also heavy; leaving
+ * Toughness untrained must not turn it into a Sharp trainer that never stops
  * paying.
  */
 export function learningRate(masteryLevel: number, requirement: number): number {
@@ -295,7 +306,7 @@ export type MasteryXp = Partial<Record<Mastery, number>>;
  * a number that accrues.
  *
  * Four, so that a fresh player who is landing blows on rats feels the first
- * point of Blade in about a dozen kills — near enough to the fight that caused
+ * point of Sharp in about a dozen kills — near enough to the fight that caused
  * it to read as cause and effect, and far enough that it is not confetti.
  */
 export const XP_FOR_FIRST_LEVEL = 4;

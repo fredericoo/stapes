@@ -14,10 +14,10 @@ const textsOf = (queue: NoticeQueue, nowMs: number) =>
 describe("what is on screen", () => {
   it("holds a notice for its lifetime and not a moment longer", () => {
     const queue = new NoticeQueue();
-    queue.push("Your blade mastery is now 10", 0);
+    queue.push("Your sharp mastery is now 10", 0);
 
     expect(textsOf(queue, NOTICE_LIFETIME_MS - 1)).toEqual([
-      "Your blade mastery is now 10",
+      "Your sharp mastery is now 10",
     ]);
     expect(textsOf(queue, NOTICE_LIFETIME_MS)).toEqual([]);
   });

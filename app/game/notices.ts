@@ -57,7 +57,7 @@ import {
  *
  * **The word "level" is not in the sentence, and that is the same rule the rest
  * of this file is written under.** There are no levels — a body is a set of
- * masteries, and `../lib/mastery` says so in its first line. "Your blade mastery
+ * masteries, and `../lib/mastery` says so in its first line. "Your sharp mastery
  * is now 10" names the thing that moved and what it reads; "level 10" borrows a
  * noun from a game this is not, and invites the player to look for the others.
  */

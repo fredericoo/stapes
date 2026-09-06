@@ -52,7 +52,7 @@ describe("what the Arena reports", () => {
     const swings = swingsOf(armed("knights-sword", "simple-hammer"), tilesById);
 
     expect(swings).toHaveLength(2);
-    expect(swings.map((swing) => swing.mastery)).toEqual(["blade", "blunt"]);
+    expect(swings.map((swing) => swing.mastery)).toEqual(["sharp", "blunt"]);
     expect(swings[0]!.damage).not.toBe(swings[1]!.damage);
   });
 
@@ -61,7 +61,7 @@ describe("what the Arena reports", () => {
     for (const inert of ["iron-shield", "hand-lantern"]) {
       const swings = swingsOf(armed("knights-sword", inert), tilesById);
       expect(swings).toHaveLength(1);
-      expect(swings[0]!.mastery).toBe("blade");
+      expect(swings[0]!.mastery).toBe("sharp");
     }
   });
 

@@ -228,7 +228,7 @@ describe("transmute", () => {
 
 describe("command", () => {
   it("carries the line as typed, because the grammar is not the wire's business", () => {
-    const message = { type: "command", text: "/mastery blade 10 self" };
+    const message = { type: "command", text: "/mastery sharp 10 self" };
     expect(parsed(message)).toEqual(message);
   });
 

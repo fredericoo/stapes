@@ -72,7 +72,7 @@ const sword = tile({
       accuracy: 100,
       variance: 0,
       spd: 50,
-      mastery: "blade",
+      mastery: "sharp",
     },
   },
 });

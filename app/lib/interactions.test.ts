@@ -354,7 +354,7 @@ describe("interactionsForSave", () => {
     expect(
       interactionsForSave({
         battler: {
-          masteries: { fist: 3, blade: 0, arcane: 0, toughness: 5 },
+          masteries: { fist: 3, sharp: 0, arcane: 0, toughness: 5 },
           naturalWeapon: DEFAULT_BATTLER.naturalWeapon,
         } as BattlerDef,
       })?.battler?.masteries,

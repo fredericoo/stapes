@@ -29,7 +29,7 @@ import { slotTakes } from "./itemMoves";
  * ## What may be overridden, and what may not
  *
  * **Masteries yes, the natural weapon no.** A mastery is a number a body
- * *earns*, so asking "what does this fight look like at Blade 40" is asking
+ * *earns*, so asking "what does this fight look like at Sharp 40" is asking
  * about a body the world can actually produce. A natural weapon is what the
  * creature *is* — a rat's bite is authored fast and light and a snake's slow and
  * heavy, and that axis is the whole reason natural weapons exist at all (see

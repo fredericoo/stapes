@@ -184,7 +184,7 @@ function Masteries({
               step={1}
               className="w-full"
               // Scoped to the side, because the two panels are the same seven
-              // fields twice over — "blade" alone names two different boxes,
+              // fields twice over — "sharp" alone names two different boxes,
               // and a reader moving between them has no way to tell which.
               aria-label={`${title} ${mastery}`}
               value={fighter.masteries[mastery] ?? MIN_MASTERY}

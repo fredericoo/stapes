@@ -65,14 +65,14 @@ const sword = {
   accuracy: 85,
   variance: 30,
   reach: MELEE_REACH,
-  mastery: "blade" as const,
-  requirements: { blade: 5 },
+  mastery: "sharp" as const,
+  requirements: { sharp: 5 },
 };
 
 describe("what a landed blow teaches the swinger", () => {
   it("pays the mastery the weapon answers to", () => {
-    const earned = attackerEarnings(landed, sword, { blade: 5 }, 1);
-    expect(earned.blade).toBeGreaterThan(0);
+    const earned = attackerEarnings(landed, sword, { sharp: 5 }, 1);
+    expect(earned.sharp).toBeGreaterThan(0);
   });
 
   /**
@@ -80,19 +80,19 @@ describe("what a landed blow teaches the swinger", () => {
    * would be the one mastery they cannot practise.
    */
   it("pays agility a small share on top, rather than out of the same pot", () => {
-    const earned = attackerEarnings(landed, sword, { blade: 5 }, 1);
-    expect(earned.agility).toBeCloseTo(earned.blade! * AGILITY_SHARE_OF_OFFENCE, 10);
+    const earned = attackerEarnings(landed, sword, { sharp: 5 }, 1);
+    expect(earned.agility).toBeCloseTo(earned.sharp! * AGILITY_SHARE_OF_OFFENCE, 10);
   });
 
   it("scales with the damage actually dealt", () => {
-    const small = attackerEarnings({ ...landed, damage: 1 }, sword, { blade: 5 }, 1);
-    const large = attackerEarnings({ ...landed, damage: 9 }, sword, { blade: 5 }, 1);
-    expect(large.blade).toBeCloseTo(small.blade! * 9, 10);
+    const small = attackerEarnings({ ...landed, damage: 1 }, sword, { sharp: 5 }, 1);
+    const large = attackerEarnings({ ...landed, damage: 9 }, sword, { sharp: 5 }, 1);
+    expect(large.sharp).toBeCloseTo(small.sharp! * 9, 10);
   });
 
   it("pays nothing for a swing that went nowhere, or one that was avoided", () => {
-    expect(attackerEarnings(missed, sword, { blade: 5 }, 1)).toEqual({});
-    expect(attackerEarnings(dodged, sword, { blade: 5 }, 1)).toEqual({});
+    expect(attackerEarnings(missed, sword, { sharp: 5 }, 1)).toEqual({});
+    expect(attackerEarnings(dodged, sword, { sharp: 5 }, 1)).toEqual({});
   });
 
   /**
@@ -101,10 +101,10 @@ describe("what a landed blow teaches the swinger", () => {
    * deadlock the old wall produced.
    */
   it("fades once the wielder has outgrown the weapon", () => {
-    const met = attackerEarnings(landed, sword, { blade: 5 }, 1);
-    const outgrown = attackerEarnings(landed, sword, { blade: 50 }, 1);
-    expect(outgrown.blade).toBeLessThan(met.blade!);
-    expect(outgrown.blade).toBeGreaterThan(0);
+    const met = attackerEarnings(landed, sword, { sharp: 5 }, 1);
+    const outgrown = attackerEarnings(landed, sword, { sharp: 50 }, 1);
+    expect(outgrown.sharp).toBeLessThan(met.sharp!);
+    expect(outgrown.sharp).toBeGreaterThan(0);
   });
 
   /**
@@ -113,15 +113,15 @@ describe("what a landed blow teaches the swinger", () => {
    * the same difficulty is what deadlocked the wall.
    */
   it("does not also discount a weapon that outclasses the wielder", () => {
-    const novice = attackerEarnings(landed, sword, { blade: 0 }, 1);
-    const met = attackerEarnings(landed, sword, { blade: 5 }, 1);
-    expect(novice.blade).toBe(met.blade);
+    const novice = attackerEarnings(landed, sword, { sharp: 0 }, 1);
+    const met = attackerEarnings(landed, sword, { sharp: 5 }, 1);
+    expect(novice.sharp).toBe(met.sharp);
   });
 
   /** Agility's share is footwork, not weapon handling, so the falloff misses it. */
   it("leaves agility's share alone however outgrown the weapon is", () => {
-    const met = attackerEarnings(landed, sword, { blade: 5 }, 1);
-    const outgrown = attackerEarnings(landed, sword, { blade: 50 }, 1);
+    const met = attackerEarnings(landed, sword, { sharp: 5 }, 1);
+    const outgrown = attackerEarnings(landed, sword, { sharp: 50 }, 1);
     expect(outgrown.agility).toBe(met.agility);
   });
 });

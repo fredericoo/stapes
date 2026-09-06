@@ -171,8 +171,8 @@ describe("what a weapon is worth in the hand", () => {
 
   /**
    * **Being good with a weapon keeps paying after its requirement has stopped.**
-   * The half of mastery a gate cannot express: a hundred-Blade hero and a
-   * five-Blade novice both meet a requirement-1 dagger in full, and should not
+   * The half of mastery a gate cannot express: a hundred-Sharp hero and a
+   * five-Sharp novice both meet a requirement-1 dagger in full, and should not
    * swing it identically.
    */
   it("pays skill on damage and accuracy long past the requirement", () => {
@@ -198,7 +198,7 @@ describe("what a weapon is worth in the hand", () => {
 
   /**
    * **A hole in the gate, closed.** The skill bonus has a flat term that does not
-   * depend on the weapon, and while it sat outside readiness a Blade 100 hero
+   * depend on the weapon, and while it sat outside readiness a Sharp 100 hero
    * could pick up something whose *other* requirement they came nowhere near and
    * still swing it for the whole flat amount. That is a gate with a hole cut in
    * it exactly where the strongest players stand, so readiness now multiplies

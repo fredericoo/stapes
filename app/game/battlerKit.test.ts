@@ -76,7 +76,7 @@ const tiles = tilesByIdFromList([
   itemTile("meat", { type: "consumable", hp: 1 }),
   itemTile("bag", DEFAULT_CONTAINER),
   itemTile("chest", { ...DEFAULT_CONTAINER, equippable: false }),
-  itemTile("mail", { type: "armor", def: 4, resist: { blade: 6 } }),
+  itemTile("mail", { type: "armor", def: 4, resist: { sharp: 6 } }),
   tile("rock"),
 ]);
 
@@ -345,7 +345,7 @@ describe("a body born in armour", () => {
 
     expect(kit.armor?.tileId).toBe("mail");
     expect(dressed.def).toBe(bare.def + 4);
-    expect(dressed.resist.blade).toBe(6);
+    expect(dressed.resist.sharp).toBe(6);
   });
 
   /** And it is worth killing for: worn things go on the floor when a body does. */
