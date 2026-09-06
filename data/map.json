@@ -37642,6 +37642,10 @@
       "-3,15": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "rabbit",
+          "direction": "s"
         }
       ],
       "-3,16": [
@@ -60906,6 +60910,10 @@
       "19,28": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "rabbit",
+          "direction": "s"
         }
       ],
       "19,29": [
@@ -71479,6 +71487,10 @@
       "29,26": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "rabbit",
+          "direction": "s"
         }
       ],
       "29,27": [
@@ -74571,20 +74583,11 @@
       "32,9": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "wooden-floor"
-        },
-        {
-          "tileId": "fence"
         }
       ],
       "32,10": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "fence"
         },
         {
           "tileId": "wooden-floor"
@@ -74601,10 +74604,8 @@
           "tileId": "water"
         },
         {
-          "tileId": "fence"
-        },
-        {
-          "tileId": "wooden-floor"
+          "tileId": "wooden-floor",
+          "foot": 1
         },
         {
           "tileId": "fence"
@@ -74618,10 +74619,8 @@
           "tileId": "water"
         },
         {
-          "tileId": "fence"
-        },
-        {
-          "tileId": "wooden-floor"
+          "tileId": "wooden-floor",
+          "foot": 1
         },
         {
           "tileId": "fence"
@@ -74635,10 +74634,8 @@
           "tileId": "water"
         },
         {
-          "tileId": "fence"
-        },
-        {
-          "tileId": "wooden-floor"
+          "tileId": "wooden-floor",
+          "foot": 1
         },
         {
           "tileId": "fence"
@@ -74647,9 +74644,6 @@
       "32,14": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "fence"
         },
         {
           "tileId": "wooden-floor"
@@ -74661,12 +74655,6 @@
       "32,15": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "wooden-floor"
-        },
-        {
-          "tileId": "fence"
         }
       ],
       "32,16": [
@@ -75684,17 +75672,11 @@
       "33,9": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "wooden-floor"
         }
       ],
       "33,10": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "lift"
         },
         {
           "tileId": "wooden-floor"
@@ -75708,10 +75690,8 @@
           "tileId": "water"
         },
         {
-          "tileId": "lift"
-        },
-        {
-          "tileId": "wooden-floor"
+          "tileId": "wooden-floor",
+          "foot": 1
         }
       ],
       "33,12": [
@@ -75722,10 +75702,8 @@
           "tileId": "water"
         },
         {
-          "tileId": "lift"
-        },
-        {
-          "tileId": "wooden-floor"
+          "tileId": "wooden-floor",
+          "foot": 1
         }
       ],
       "33,13": [
@@ -75736,18 +75714,13 @@
           "tileId": "water"
         },
         {
-          "tileId": "lift"
-        },
-        {
-          "tileId": "wooden-floor"
+          "tileId": "wooden-floor",
+          "foot": 1
         }
       ],
       "33,14": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "lift"
         },
         {
           "tileId": "wooden-floor"
@@ -75756,9 +75729,6 @@
       "33,15": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "wooden-floor"
         }
       ],
       "33,16": [
@@ -76741,6 +76711,10 @@
       "34,2": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "rabbit",
+          "direction": "s"
         }
       ],
       "34,3": [
@@ -76779,20 +76753,11 @@
       "34,9": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "wooden-floor"
-        },
-        {
-          "tileId": "fence"
         }
       ],
       "34,10": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "fence"
         },
         {
           "tileId": "wooden-floor"
@@ -76809,10 +76774,8 @@
           "tileId": "water"
         },
         {
-          "tileId": "fence"
-        },
-        {
-          "tileId": "wooden-floor"
+          "tileId": "wooden-floor",
+          "foot": 1
         },
         {
           "tileId": "fence"
@@ -76826,10 +76789,8 @@
           "tileId": "water"
         },
         {
-          "tileId": "fence"
-        },
-        {
-          "tileId": "wooden-floor"
+          "tileId": "wooden-floor",
+          "foot": 1
         },
         {
           "tileId": "fence"
@@ -76843,10 +76804,8 @@
           "tileId": "water"
         },
         {
-          "tileId": "fence"
-        },
-        {
-          "tileId": "wooden-floor"
+          "tileId": "wooden-floor",
+          "foot": 1
         },
         {
           "tileId": "fence"
@@ -76857,27 +76816,15 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "fence"
-        },
-        {
           "tileId": "wooden-floor"
         },
         {
           "tileId": "fence"
-        },
-        {
-          "tileId": "wooden-floor-inner"
         }
       ],
       "34,15": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "wooden-floor"
-        },
-        {
-          "tileId": "fence"
         }
       ],
       "34,16": [
