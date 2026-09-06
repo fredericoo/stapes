@@ -42,7 +42,7 @@ import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
 import { slideTileMotions } from "./slideMotion";
 import { projectileViews } from "./projectileMotion";
 import { strikeOffset } from "./strikeMotion";
-import { isHiddenFromCamera } from "./cameraSight";
+import { isCellVisible } from "./cameraSight";
 import { labelHeadroomPx } from "./labelHeadroom";
 import { sceneryStack } from "../game/movement";
 import type { EmitterOverride } from "../lib/lighting";
@@ -58,7 +58,6 @@ import { pileTally } from "../lib/piles";
 import {
   type RoofCut,
   type ViewAnchor,
-  cutHides,
   roofCutFor,
   cutProbeChunks,
   sameProbeChunks,
@@ -162,15 +161,6 @@ const TARGET_COLOR = 0xffffff;
  * attack mode off leaves the outline exactly where it was in white.
  */
 const ATTACK_TARGET_COLOR = 0xff3b30;
-
-/**
- * Floors either side of the viewer whose chrome is worth drawing.
- *
- * The same slack the look pick and sight already use. Beyond it a body is
- * behind a floor or a ceiling, and chrome that reported it would be telling the
- * player about something they cannot see.
- */
-const CHROME_LEVEL_SLACK = 1;
 
 /**
  * Looking is blue, acting is yellow. Never both at once: two outlines in two
@@ -1324,29 +1314,33 @@ export class GameRenderer {
   }
 
   /**
-   * Is a floor one the viewer can actually see into?
+   * Is this cell one the viewer can actually see?
    *
    * Chrome is drawn over the finished frame — a name tag and a damage number are
    * elements above the canvas, owing nothing to depth — so without asking this
-   * they report bodies the world has hidden. That is exactly what went wrong when
+   * they report things the world has hidden. That is exactly what went wrong when
    * every battler started being named: the second cat lives two floors up, its
    * sprite is cut away with the roof, and its name hung in the sky over an empty
    * roofline. It reads as a ghost — an invisible thing that is plainly still
    * alive, because it is: a real actor, ticking, just not on screen.
    *
-   * Two rules, and both are needed. The roof-cut is the exact one: anything above
-   * the ceiling is not drawn at all. The slack is the honest approximation for
-   * everything below, where a body *is* drawn but the floor between you and it is
-   * drawn in front — there is no cheap per-pixel answer, and one floor is the
-   * distance the look pick and sight already treat as within reach.
+   * Two rules. The roof-cut takes the geometry above the viewer, and
+   * {@link isHiddenFromCamera} answers the storeys below: is there a floor
+   * painted between the eye and this cell. Its own floor is always visible,
+   * because everything drawn there is drawn in front of nothing.
+   *
+   * This used to be a level slack — one floor either way — and the slack was
+   * always an admission that there was no cheap per-pixel answer. There is one
+   * now, and it is the rule {@link isVisibleBody} already uses. Leaving the
+   * slack over it meant a fight one storey down in a cave rained damage numbers
+   * over the ground above, through rock that was drawn in front of it.
    */
-  private isVisibleLevel(
+  private isVisibleCell(
     snap: GameSnapshot,
     at: { x: number; y: number; z: number },
     cut: RoofCut | undefined,
   ): boolean {
-    if (cutHides(cut, at.x, at.y, at.z)) return false;
-    return Math.abs(at.z - snap.self.z) <= CHROME_LEVEL_SLACK;
+    return isCellVisible(snap.map, this.tilesById, at, snap.self.z, cut);
   }
 
   /**
@@ -1386,22 +1380,10 @@ export class GameRenderer {
     camera: { x: number; y: number },
     cut: RoofCut | undefined,
   ): boolean {
-    // The roof-cut, which is exact — anything above it is not drawn at all.
-    // Deliberately *without* {@link CHROME_LEVEL_SLACK}, which the rest of the
-    // chrome still leans on: that slack exists only because there was no cheap
-    // answer for a body drawn behind the floors below you, and there now is one.
-    // Approximating a floor's worth of doubt on top of an exact answer would
-    // only take back the cases the exact answer got right.
-    if (cutHides(cut, actor.x, actor.y, actor.z)) return false;
-    if (!this.isWithinView(snap.map, actor, camera)) return false;
-    if (actor.z === snap.self.z) return true;
-    return !isHiddenFromCamera(
-      snap.map,
-      this.tilesById,
-      actor,
-      snap.self.z,
-      cut,
-    );
+    // Where the body is standing, on {@link isVisibleCell}'s terms, plus the
+    // one question a cell is never asked: whether it is on screen at all.
+    if (!this.isVisibleCell(snap, actor, cut)) return false;
+    return this.isWithinView(snap.map, actor, camera);
   }
 
   /** Where the targeted actor is standing right now, if they still are. */
@@ -2290,7 +2272,7 @@ export class GameRenderer {
 
     const out: DamageNumberView[] = [];
     for (const hit of snap.damage) {
-      if (!this.isVisibleLevel(snap, hit, cut)) continue;
+      if (!this.isVisibleCell(snap, hit, cut)) continue;
 
       const at = this.damageAnchor(hit, snap.map);
       out.push({

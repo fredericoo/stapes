@@ -432,17 +432,27 @@ export function rayTransmission(
       movedZ = true;
     }
 
+    // Anything solid hard-seals vertical *passage* past it, however short.
+    // Opacity is the sideways question and takes no part in this one.
+    //
+    // **The lid belongs to the upper of the two cells**, because a tile sits on
+    // its own level's floor plane: climbing into z crosses z's lid, and dropping
+    // out of z crosses that same lid. Reading the cell the step *arrived* in
+    // both times checked the right lid going up and the one a storey too low
+    // coming down, so the first floor under a light never blocked it — a torch
+    // lit the cave below the one it was standing in.
+    //
+    // Asked before the arrival break, or the last crossing of a descent is the
+    // one that goes unchecked.
+    if (movedZ) {
+      const lid = occlusion.get(cellKey(x, y, stepZ > 0 ? z : z + 1));
+      if (lid?.sealsLevel) return 0;
+    }
+
     if (x === x1 && y === y1 && z === z1) break;
 
     const cell = occlusion.get(cellKey(x, y, z));
     if (!cell) continue;
-
-    // Anything solid hard-seals vertical *passage* past it, however short.
-    // Opacity is the sideways question and takes no part in this one.
-    if (movedZ && cell.sealsLevel) {
-      if (stepZ < 0 && z1 < z) return 0;
-      if (stepZ > 0 && z1 > z) return 0;
-    }
 
     if (cell.opacity > 0) {
       transmission *= 1 - cell.opacity;
@@ -516,14 +526,16 @@ function castEmitter(
   const xLo = Math.floor(e.x) - rCells;
   const xHi = Math.ceil(e.x) + rCells;
 
-  // The emitter's own cell must not shadow itself; restored below.
+  // The emitter's own cell must not shadow itself *sideways*; restored below.
+  //
+  // Its seal is deliberately left alone. That seal is the floor the emitter is
+  // standing on, and a floor is exactly what should stop the light reaching the
+  // storey below — clearing it is what let a lantern in a cave light the cave
+  // under it. Every authored emitter is `lightPassing`, so the tile itself
+  // never contributes the seal it would then be blocked by.
   const selfIndex = denseIndex(occlusion, e.lx, e.ly, e.lz);
   const savedSelfOpacity = selfIndex < 0 ? 0 : occlusion.opacity[selfIndex]!;
-  const savedSelfSeals = selfIndex < 0 ? 0 : occlusion.seals[selfIndex]!;
-  if (selfIndex >= 0) {
-    occlusion.opacity[selfIndex] = 0;
-    occlusion.seals[selfIndex] = 0;
-  }
+  if (selfIndex >= 0) occlusion.opacity[selfIndex] = 0;
 
   for (let tz = zLo; tz <= zHi; tz++) {
     const floats = floatsByZ.get(tz);
@@ -578,10 +590,7 @@ function castEmitter(
     }
   }
 
-  if (selfIndex >= 0) {
-    occlusion.opacity[selfIndex] = savedSelfOpacity;
-    occlusion.seals[selfIndex] = savedSelfSeals;
-  }
+  if (selfIndex >= 0) occlusion.opacity[selfIndex] = savedSelfOpacity;
 }
 
 /**
@@ -908,18 +917,19 @@ function denseRayTransmission(
       movedZ = true;
     }
 
+    // The lid of the upper cell of the pair, and asked before the arrival
+    // break. See {@link rayTransmission} for why it is that cell and not this
+    // one.
+    if (movedZ) {
+      const lidIndex = denseIndex(o, x, y, stepZ > 0 ? z : z + 1);
+      if (lidIndex >= 0 && o.seals[lidIndex]!) return 0;
+    }
+
     if (x === x1 && y === y1 && z === z1) break;
 
     const i2 = denseIndex(o, x, y, z);
     if (i2 < 0) continue;
     const opacity = o.opacity[i2]!;
-    const seals = o.seals[i2]!;
-    if (!opacity && !seals) continue;
-
-    if (movedZ && seals) {
-      if (stepZ < 0 && z1 < z) return 0;
-      if (stepZ > 0 && z1 > z) return 0;
-    }
     if (opacity > 0) {
       transmission *= 1 - opacity;
       if (transmission < TRANSMISSION_EPSILON) return 0;

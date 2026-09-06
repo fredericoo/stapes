@@ -720,7 +720,7 @@ from there. So the
 question is "who could I single out", whose honest bound is what is on
 screen: choosing your target while walking towards it is how a fight normally
 starts. `GameRenderer` owns that test, because the camera is its business —
-`targetableActors` applies the same two rules the name tags use (`isVisibleLevel`
+`targetableActors` applies the same two rules the name tags use (`isCellVisible`
 plus `isWithinView`, shared with `enforceTargetVisibility`), and keeps whoever
 is already being fought regardless, since on a touch screen the list is the only
 way to call a fight off.
@@ -1469,6 +1469,24 @@ side of a wall beside it, or under the lip of the roof over its head — and a
 name blinking out as a creature walks past a crate reads as a bug rather than as
 cover. On-screen is the whole rule there; occlusion starts mattering a floor
 away.
+
+**Every piece of chrome asks `isCellVisible`, and the one that did not was
+wrong.** The rule — roof-cut, then the viewer's own floor, then
+`isHiddenFromCamera` — lives in `app/render/cameraSight.ts` beside the walk it
+wraps, and `isVisibleBody` is that plus `isWithinView`. Damage numbers used to
+ask a different question: `Math.abs(hit.z - self.z) <= 1`, a level slack from
+before the walk existed. So a fight one storey down inside a cave rained numbers
+over the ground above, through rock that was drawn in front of it. The slack was
+always an admission that there was no cheap per-pixel answer for the floors
+below you; there has been one since `isHiddenFromCamera` was written, and
+approximating a floor's worth of doubt on top of an exact answer only takes back
+the cases the exact answer got right.
+
+Speech and noises are *not* on this rule, and deliberately: the server sends
+them to the speaker's own level only (`sendToLevel`), which is a narrower bound
+than what is on screen. Widening them to match would mean broadcasting to
+everybody and gating on the client, which is a change to who hears what rather
+than a bug fix.
 
 #### A cut is a local question, and underground it is the most expensive one
 
@@ -4762,6 +4780,34 @@ map's surface rather than the fraction of it that happens to be bare.
 
 Measured on the fixture town, the bake is unchanged: p50 ~44ms either way, p95
 47–50ms against a 65ms budget.
+
+#### The lid belongs to the upper of the two cells
+
+A tile sits on its own level's floor plane, so the lid between `z` and `z + 1`
+is the seal of the cell at `z + 1`. Climbing out of `z` crosses that lid and
+dropping out of `z + 1` crosses the same one. All three vertical rays —
+`rayTransmission` and `denseRayTransmission` in `app/lib/lighting.ts`,
+`denseRayTransmission` in `app/lib/lightingFlood.ts` — used to read the seal of
+the cell the step *arrived* in, which names the right lid going up and one a
+storey too low coming down. The first floor under a light therefore never
+blocked it, and the check has to happen *before* the loop breaks on arrival, or
+the last crossing of a descent goes unasked.
+
+The other half of it was in `castEmitter`: the emitter's own cell had both its
+opacity and its seal zeroed so it could not shadow itself. The opacity is right
+— a torch in a wall lights the room — but that seal is the floor the emitter is
+standing on, and it is exactly what should stop the light reaching the storey
+below. Clearing it meant a lantern in a cave lit the cave underneath, straight
+through solid rock. Only the opacity is cleared now, which is safe because every
+emitter in `data/tiles.json` is `lightPassing`: the tile never contributes the
+seal it would then be blocked by. A fixture torch that is *not* `lightPassing`
+is a fixture testing itself, and `app/lib/lighting.test.ts` was changed to match
+the catalogue.
+
+Measured over 400 cave cells on `data/map.json` that have a storey beneath them,
+with a radius-6 lantern at each: the brightest light landing directly below the
+lantern went from 0.53 to 0. What remains is light going down authored holes,
+which is the whole point of a hole.
 
 ### Empty space with nothing under it is void, and void is black
 

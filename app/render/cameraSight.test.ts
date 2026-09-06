@@ -4,7 +4,7 @@ import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import type { RoofCut } from "../lib/levelVisibility";
 import { coordKey } from "../lib/types";
-import { isHiddenFromCamera } from "./cameraSight";
+import { isCellVisible, isHiddenFromCamera } from "./cameraSight";
 
 /**
  * What the camera can see, as opposed to what a body can.
@@ -208,5 +208,46 @@ describe("camera sight", () => {
     const deep = { x: 0, y: 0, z: -2 };
 
     expect(isHiddenFromCamera(map, tilesById, deep, 0, undefined)).toBe(true);
+  });
+});
+
+/**
+ * The rule the chrome actually asks, which is the occlusion walk plus the two
+ * cases it deliberately does not cover. The cases here are the ones a caller
+ * would otherwise have to remember for itself — and the last one is the bug
+ * this function was pulled out to fix.
+ */
+describe("isCellVisible", () => {
+  it("shows the viewer's own floor whatever is standing on it", () => {
+    const map = put(field(), 1, 1, 1, "wall");
+
+    expect(isCellVisible(map, tilesById, origin, 0, undefined)).toBe(true);
+  });
+
+  it("hides a cell the roof-cut has taken", () => {
+    const map = put(field(), 0, 0, 1, "floor");
+    const above = { x: 0, y: 0, z: 1 };
+    const cut = cutting(0, above);
+
+    expect(isCellVisible(map, tilesById, above, 0, cut)).toBe(false);
+  });
+
+  it("hides a blow struck a storey down under a cave roof", () => {
+    // The report: a rat killed at -1 while the viewer stood on the surface, its
+    // damage numbers rising through the rock. One floor of slack said yes; the
+    // floor overhead says no.
+    const map = put(field(-1), 0, 0, 0, "floor");
+
+    expect(isCellVisible(map, tilesById, { x: 0, y: 0, z: -1 }, 0, undefined))
+      .toBe(false);
+  });
+
+  it("still shows a storey down that is open to the sky", () => {
+    // The other half, and why this is not simply "your own level only": a body
+    // in a sunken courtyard is in plain view from the edge of it.
+    const map = field(-1);
+
+    expect(isCellVisible(map, tilesById, { x: 0, y: 0, z: -1 }, 0, undefined))
+      .toBe(true);
   });
 });

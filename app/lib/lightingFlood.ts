@@ -244,6 +244,26 @@ function denseRayTransmission(
       tMaxZ += tDeltaZ;
       movedZ = true;
     }
+    // Anything solid hard-seals vertical passage, however short it stands, and
+    // the lid between two cells belongs to the upper of them — see
+    // `lighting.rayTransmission`. Asked before the arrival break so the last
+    // crossing of a descent counts.
+    if (movedZ) {
+      const lidLz = (stepZ > 0 ? z : z + 1) - dom.z0;
+      const lidLx = x - dom.x0;
+      const lidLy = y - dom.y0;
+      if (
+        lidLx >= 0 &&
+        lidLy >= 0 &&
+        lidLz >= 0 &&
+        lidLx < dom.w &&
+        lidLy < dom.h &&
+        lidLz < dom.d &&
+        seals[idx(dom, lidLx, lidLy, lidLz)]!
+      ) {
+        return 0;
+      }
+    }
     if (x === x1 && y === y1 && z === z1) break;
     const lx = x - dom.x0;
     const ly = y - dom.y0;
@@ -252,11 +272,6 @@ function denseRayTransmission(
       continue;
     }
     const i = idx(dom, lx, ly, lz);
-    // Anything solid hard-seals vertical passage, however short it stands.
-    if (movedZ && seals[i]!) {
-      if (stepZ < 0 && z1 < z) return 0;
-      if (stepZ > 0 && z1 > z) return 0;
-    }
     const op = opacity[i]!;
     if (op > 0) {
       transmission *= 1 - op;
@@ -735,7 +750,6 @@ export function computeLightingFlood(
     const selfLy = e.ly - dom.y0;
     const selfLz = e.lz - dom.z0;
     let savedSelfOp = 0;
-    let savedSelfSeal = 0;
     let hadSelf = false;
     if (
       selfLx >= 0 &&
@@ -745,11 +759,12 @@ export function computeLightingFlood(
       selfLy < dom.h &&
       selfLz < dom.d
     ) {
+      // Opacity only: the emitter must not shadow itself sideways, but the
+      // seal under it is the floor it is standing on and is what keeps its
+      // light out of the storey below. See `lighting.castEmitter`.
       const si = idx(dom, selfLx, selfLy, selfLz);
       savedSelfOp = opacity[si]!;
-      savedSelfSeal = seals[si]!;
       opacity[si] = 0;
-      seals[si] = 0;
       hadSelf = true;
     }
 
@@ -818,9 +833,7 @@ export function computeLightingFlood(
     }
 
     if (hadSelf) {
-      const si = idx(dom, selfLx, selfLy, selfLz);
-      opacity[si] = savedSelfOp;
-      seals[si] = savedSelfSeal;
+      opacity[idx(dom, selfLx, selfLy, selfLz)] = savedSelfOp;
     }
   }
 
