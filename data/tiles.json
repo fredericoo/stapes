@@ -23786,7 +23786,8 @@
         "spd": 42,
         "mastery": "sharp",
         "requirements": {
-          "sharp": 8
+          "sharp": 10,
+          "toughness": 5
         }
       }
     },
@@ -23831,7 +23832,7 @@
         "spd": 42,
         "mastery": "sharp",
         "requirements": {
-          "sharp": 20
+          "sharp": 15
         }
       }
     },
@@ -23878,7 +23879,7 @@
         "mastery": "sharp",
         "requirements": {
           "sharp": 22,
-          "toughness": 14
+          "toughness": 10
         }
       }
     },
@@ -24068,7 +24069,7 @@
         "spd": 50,
         "mastery": "sharp",
         "requirements": {
-          "sharp": 6
+          "sharp": 10
         }
       }
     },
@@ -24113,7 +24114,7 @@
         "spd": 40,
         "mastery": "sharp",
         "requirements": {
-          "sharp": 34
+          "sharp": 33
         }
       }
     },
@@ -24158,8 +24159,8 @@
         "spd": 36,
         "mastery": "sharp",
         "requirements": {
-          "sharp": 20,
-          "toughness": 8
+          "sharp": 15,
+          "toughness": 10
         }
       }
     },
@@ -24204,8 +24205,8 @@
         "spd": 30,
         "mastery": "sharp",
         "requirements": {
-          "sharp": 34,
-          "toughness": 16
+          "sharp": 33,
+          "toughness": 15
         },
         "twoHanded": true
       }
@@ -24251,7 +24252,7 @@
         "spd": 38,
         "mastery": "blunt",
         "requirements": {
-          "blunt": 18
+          "blunt": 15
         }
       }
     },
@@ -24296,8 +24297,8 @@
         "spd": 30,
         "mastery": "blunt",
         "requirements": {
-          "blunt": 32,
-          "toughness": 16
+          "blunt": 33,
+          "toughness": 15
         },
         "twoHanded": true
       }
@@ -24343,7 +24344,7 @@
         "spd": 40,
         "mastery": "ranged",
         "requirements": {
-          "ranged": 18
+          "ranged": 15
         },
         "reach": {
           "cells": 8,
@@ -24397,7 +24398,7 @@
         "spd": 34,
         "mastery": "ranged",
         "requirements": {
-          "ranged": 32
+          "ranged": 33
         },
         "reach": {
           "cells": 10,
