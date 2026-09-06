@@ -192,24 +192,21 @@ describe("offering selectors", () => {
    * Against the library we actually ship, because the picker being *short* is the
    * point: a list with every wall and floor in it would be unusable, and nothing
    * about the filter says so until it meets a real tiles.json.
+   *
+   * The rule, not the roster. Listing the ids made this fail every time somebody
+   * authored an NPC, which says nothing about whether the filter is right. What
+   * the shipped library is here to answer is the one question a fixture cannot:
+   * whether the filter still cuts a hundred tiles down to a handful.
    */
   it("stays short against the shipped library", () => {
     const authored = normalizeTiles(tilesJson as unknown[]);
     const offered = bodyTileIds(authored);
 
-    expect(offered).toEqual([
-      "player",
-      "armourer",
-      "blacksmith",
-      "cat",
-      "cave-troll",
-      "deer",
-      "potion-salesman",
-      "rat",
-      "shopkeeper",
-      "snake",
-      "wolf",
-    ]);
+    expect(offered[0]).toBe("player");
+    // Short, and short because the filter worked rather than because it found
+    // nothing: a filter that returned the hardcoded player alone would pass the
+    // length test on its own.
+    expect(offered.length).toBeGreaterThan(1);
     expect(offered.length).toBeLessThan(authored.length / 4);
   });
 });
