@@ -236,7 +236,7 @@ describe("a bot in the world", () => {
     expect(typesOf(sent)).toContain("command");
   });
 
-  it("applies at most three actions, in the order they were asked for", async () => {
+  it("applies one call a decision, whatever the model asked for", async () => {
     const { body, sent } = await joinBot("bot");
     const runner = new BotRunner({
       body,
@@ -258,7 +258,10 @@ describe("a bot in the world", () => {
       .map((frame) => JSON.parse(frame) as { type: string; text?: string })
       .filter((message) => message.type === "say")
       .map((message) => message.text);
-    expect(said).toEqual(["one", "two", "three"]);
+    // A decision is answered blind — no result comes back inline — so more than
+    // one call is a model hedging rather than a model doing several things.
+    // @see MAX_CALLS_PER_DECISION
+    expect(said).toEqual(["one"]);
   });
 
   it("tells the model what the world said about its last decision", async () => {
@@ -290,10 +293,10 @@ describe("a bot in the world", () => {
       body,
       model: scripted(
         [
-          [
-            { tool: "set_goal", text: "find out who lives here" },
-            { tool: "say", text: "What are you doing here, Ivory Anteater?" },
-          ],
+          // One call a decision, so the goal and the question are two of them.
+          // @see MAX_CALLS_PER_DECISION
+          [{ tool: "set_goal", text: "find out who lives here" }],
+          [{ tool: "say", text: "What are you doing here, Ivory Anteater?" }],
           [{ tool: "step", direction: "n" }],
           [{ tool: "step", direction: "s" }],
         ],
@@ -303,22 +306,26 @@ describe("a bot in the world", () => {
     });
 
     await settle(runner, body);
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       await runner.decideOnce();
       await frames(runner, BOT_FRAME_MS * 2);
     }
 
     // Nothing of it in the first prompt, which is what a memory is for.
     expect(prompts[0]).not.toContain("Ivory Anteater");
-    const third = prompts[2]!;
-    expect(third).toContain("Ivory Anteater");
-    expect(third).toContain("find out who lives here");
+    // The fourth: it was said in the second, so by here the event log has long
+    // since drained it and only the memory is still carrying it. The third
+    // prompt would hold it twice and honestly — once remembered, once as an
+    // event of the decision just gone — which is not what this is about.
+    const later = prompts[3]!;
+    expect(later).toContain("Ivory Anteater");
+    expect(later).toContain("find out who lives here");
     // And what it said is written down once, not once per place it arrived from.
-    expect(third.split("Ivory Anteater?")).toHaveLength(2);
+    expect(later.split("Ivory Anteater?")).toHaveLength(2);
     // Each line behind the world's own clock, which is what replaced counting
     // back in turns. `body.minutesOfDay` is the source, so this is also the
     // check that a real body has one.
-    expect(third).toMatch(/\n\d\d:\d\d {2}You said: What are you doing here,/);
+    expect(later).toMatch(/\n\d\d:\d\d {2}You said: What are you doing here,/);
   });
 
   it("sends nothing to the world for a goal", async () => {

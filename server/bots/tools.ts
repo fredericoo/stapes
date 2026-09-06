@@ -182,5 +182,19 @@ export function describeCall(call: BotCall): string {
   }
 }
 
-/** How many calls one decision may carry. `set_goal` is one of them. */
-export const MAX_CALLS_PER_DECISION = 3;
+/**
+ * How many calls one decision may carry. `set_goal` is one of them.
+ *
+ * **One, because a decision is answered blind.** There is a single round trip
+ * and no result comes back inline — an outcome reaches the model in the next
+ * turn's events. Allowed three calls under that rule, a model hedges: it said
+ * the same thing three times in one decision, in three phrasings, because
+ * nothing told it the first had landed. Three tries at one intention is not
+ * three actions.
+ *
+ * It costs a round trip per action rather than per intention, which is the
+ * trade being made deliberately. What it buys is that every call is chosen
+ * against the outcome of the one before it, which is the only arrangement
+ * under which "read what happened before you act" means anything.
+ */
+export const MAX_CALLS_PER_DECISION = 1;
