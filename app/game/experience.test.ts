@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { defFrom } from "../lib/battler";
+import { type BattlerDef, defFrom } from "../lib/battler";
 import { MELEE_REACH } from "../lib/item";
+import shippedTiles from "../../data/tiles.json";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import {
   levelForXp,
@@ -12,6 +13,7 @@ import {
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import type { AttackOutcome } from "./combat";
+import { effectiveBattler, emptyEquipment } from "./equipment";
 import { TICK_MS } from "./constants";
 import {
   AGILITY_SHARE_OF_OFFENCE,
@@ -20,6 +22,8 @@ import {
   defensiveDecay,
   DEFENSIVE_RECOVERY_MS,
   MIN_DEFENSIVE_DECAY,
+  SIGNIFICANT_THREAT_SHARE,
+  threatRate,
   XP_PER_DAMAGE,
 } from "./experience";
 import { GameSession } from "./GameSession";
@@ -56,6 +60,13 @@ const missed: AttackOutcome = {
   potentialDamage: 0,
   inflicted: [],
 };
+
+/**
+ * A body small enough that a ten-point blow is well past the threshold — so the
+ * threat rate is exactly one and the payouts below read as the plain arithmetic
+ * they are about. The falloff itself is asserted separately.
+ */
+const FRAIL_HP = 10 / SIGNIFICANT_THREAT_SHARE;
 
 const sword = {
   type: "weapon" as const,
@@ -128,13 +139,13 @@ describe("what a landed blow teaches the swinger", () => {
 
 describe("what a blow teaches the body it was aimed at", () => {
   it("pays toughness for one that landed", () => {
-    expect(defenderEarnings(landed, 1, 1)).toEqual({
+    expect(defenderEarnings(landed, 1, 1, FRAIL_HP)).toEqual({
       toughness: landed.potentialDamage * XP_PER_DAMAGE,
     });
   });
 
   it("pays agility for one that was avoided, and nothing to toughness", () => {
-    expect(defenderEarnings(dodged, 1, 1)).toEqual({
+    expect(defenderEarnings(dodged, 1, 1, FRAIL_HP)).toEqual({
       agility: dodged.potentialDamage * XP_PER_DAMAGE,
     });
   });
@@ -146,7 +157,7 @@ describe("what a blow teaches the body it was aimed at", () => {
    * paying Agility for something Agility did not do.
    */
   it("pays nobody for a swing that missed", () => {
-    expect(defenderEarnings(missed, 1, 1)).toEqual({});
+    expect(defenderEarnings(missed, 1, 1, FRAIL_HP)).toEqual({});
   });
 
   /**
@@ -156,9 +167,105 @@ describe("what a blow teaches the body it was aimed at", () => {
    */
   it("counts what the blow could have been rather than what got through", () => {
     const absorbed: AttackOutcome = { ...landed, damage: 1, potentialDamage: 10 };
-    expect(defenderEarnings(absorbed, 1, 1)).toEqual({
+    expect(defenderEarnings(absorbed, 1, 1, FRAIL_HP)).toEqual({
       toughness: absorbed.potentialDamage * XP_PER_DAMAGE,
     });
+  });
+
+  /**
+   * The rule the whole grind turned on. A blow measured against a body it could
+   * genuinely hurt is worth the full payout; the same blow against a body six
+   * times the size is worth a fraction of it, and the payout keeps falling as
+   * the body keeps growing. Before this, Toughness had nothing to outgrow and a
+   * wolf paid a fully armoured player exactly what it paid a novice.
+   */
+  it("pays less the less of you one blow could take off", () => {
+    const felt = defenderEarnings(landed, 1, 1, FRAIL_HP);
+    const shrugged = defenderEarnings(landed, 1, 1, FRAIL_HP * 4);
+    expect(shrugged.toughness).toBeLessThan(felt.toughness!);
+    expect(shrugged.toughness).toBeGreaterThan(0);
+  });
+
+  /**
+   * A dodge you never needed to make is worth as little as a blow you cannot
+   * feel. Exempting Agility would leave the same exploit standing one mastery
+   * over — stand in front of something harmless and watch evasion climb.
+   */
+  it("applies the same falloff to a dodge", () => {
+    const felt = defenderEarnings(dodged, 1, 1, FRAIL_HP);
+    const shrugged = defenderEarnings(dodged, 1, 1, FRAIL_HP * 4);
+    expect(shrugged.agility).toBeLessThan(felt.agility!);
+  });
+
+  /**
+   * **Never a bonus.** Below the threshold the ratio exceeds one, and paying
+   * extra for being small would make the frailest body in the world the fastest
+   * trainer — the same cap `learningRate` puts on the offensive side.
+   */
+  it("never pays more than the plain rate, however frail the body", () => {
+    expect(threatRate(10, 1)).toBe(1);
+    expect(threatRate(10, FRAIL_HP)).toBe(1);
+    expect(threatRate(10, FRAIL_HP * 2)).toBeLessThan(1);
+  });
+});
+
+/**
+ * **Armour is worn to survive, and it must not be a tax on learning to.** Both
+ * inputs to the defensive payout are deliberately blind to it: `potentialDamage`
+ * is rolled before `damageAfterDefence` subtracts anything, and `maxHp` comes
+ * off Toughness alone — `effectiveBattler` overrides `def` and `resist` and
+ * nothing else.
+ *
+ * Asserted through the real resolver against the shipped armour rather than by
+ * reading the formula, because the formula is not where this would break: it
+ * would break the day somebody folded worn defence into `maxHp`, or paid on
+ * `damage` because it read more naturally.
+ */
+describe("what the defender is wearing", () => {
+  const tilesById: Record<string, TileDef> = Object.fromEntries(
+    (shippedTiles as unknown as TileDef[]).map((tile) => [
+      tile.id,
+      normalizeTileDef(tile),
+    ]),
+  );
+  const body: BattlerDef = {
+    masteries: { toughness: 20, agility: 10, fist: 5 },
+    naturalWeapon: {
+      type: "weapon",
+      damage: 4,
+      def: 0,
+      accuracy: 80,
+      variance: 20,
+      spd: 50,
+      mastery: "fist",
+      reach: { ...MELEE_REACH },
+    },
+    sight: { up: 0, down: 0 },
+  };
+  const instance = (tileId: string) => ({ id: tileId, tileId });
+  const armoured = {
+    ...emptyEquipment(),
+    offhand: instance("iron-shield"),
+    armor: instance("steel-plate"),
+    head: instance("knights-helm"),
+    footwear: instance("steel-sabatons"),
+  };
+
+  const bare = effectiveBattler(body, null, tilesById, null);
+  const plated = effectiveBattler(body, armoured, tilesById, null);
+
+  it("is actually being worn, or the rest of this proves nothing", () => {
+    expect(plated.def).toBeGreaterThan(bare.def);
+  });
+
+  it("changes nothing about how big the body is", () => {
+    expect(plated.maxHp).toBe(bare.maxHp);
+  });
+
+  it("pays exactly the same toughness for the same blow", () => {
+    expect(defenderEarnings(landed, 1, 1, plated.maxHp)).toEqual(
+      defenderEarnings(landed, 1, 1, bare.maxHp),
+    );
   });
 });
 

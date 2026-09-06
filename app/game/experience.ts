@@ -64,12 +64,13 @@ export const AGILITY_SHARE_OF_OFFENCE = 0.2;
  * How much of the usual defensive payout the *n*th blow from the same body is
  * worth, and the floor it never goes below.
  *
- * **This does not close AFK-tanking and is not claimed to.** Standing in front
- * of something big is still positive Toughness; what the decay does is stop a
- * rat chewing your ankle from paying for ever, which is the version of the
- * exploit that requires no attention at all. The tighter fix — capping defensive
- * experience against damage you dealt in the same fight — needs per-fight
- * bookkeeping the session does not have.
+ * **This never closed AFK-tanking on its own and was never claimed to.** What
+ * the decay does is stop a rat chewing your ankle from paying for ever, which is
+ * the version of the exploit that requires no attention at all. The part it
+ * could not reach — standing in front of something whose blows you have grown
+ * too big to feel — is now {@link threatRate}'s, and the two compose: the decay
+ * is about *this* attacker having had its turn, and the threat rate is about the
+ * blow being beneath you at all.
  *
  * A tenth rather than zero, because a fight that has genuinely gone long is
  * still a fight, and a payout that reaches exactly nothing turns a hard, drawn
@@ -128,6 +129,76 @@ export function attackerEarnings(
 }
 
 /**
+ * The share of a body's health one blow has to threaten before it teaches at
+ * the full rate.
+ *
+ * A fifth, which is five blows to kill you: anything that could end this fight
+ * that fast is a fight, and anything that could not is practice.
+ *
+ * **Where it lands, rather than how steeply it falls, is what this decides.** It
+ * is the level at which each creature stops being worth standing in front of: a
+ * wolf teaches Toughness at the full rate up to 32, a snake to 29, a cave troll
+ * to 51, and a rat almost never — which is the ladder the world is already
+ * authored on, stated in the one number that produces it.
+ *
+ * **This is the defensive half of a rule the offensive half already had.** A
+ * weapon you have outgrown keeps teaching you and keeps teaching you less — see
+ * `../lib/mastery`'s {@link learningRate} — and until now nothing said the same
+ * about a foe you had outgrown. Toughness had no requirement to outgrow, so it
+ * earned at full rate for ever while the weapon in your hand earned at a
+ * sixtieth, and the gap was not small: on a wolf, in the middle of that grind,
+ * Toughness took twenty-eight times what Sharp did from the same exchanges.
+ */
+export const SIGNIFICANT_THREAT_SHARE = 1 / 5;
+
+/**
+ * How sharply a blow beneath you stops teaching you to take it.
+ *
+ * Four, and deliberately a taper rather than a wall: `../lib/mastery`'s
+ * {@link OUTGROWN_FALLOFF} can be steep because a player who has outgrown a
+ * weapon can put it down and pick up the next one, and there is no equivalent
+ * move here — you cannot take off your Toughness. A cliff would read as a
+ * creature that abruptly stopped counting; this reads as one you are steadily
+ * getting too big for.
+ *
+ * Measured on the wolves, which is the fight that produced the complaint: at
+ * four, Toughness 40 takes 36 of them instead of 26, and a hundred and twenty
+ * leave you at 47 rather than 63.
+ */
+export const THREAT_FALLOFF = 4;
+
+/**
+ * How much of the usual defensive experience a blow this size is worth to a body
+ * this big, as a fraction of 1.
+ *
+ * **Measured against `maxHp` and never against health left**, which is the whole
+ * of what stops this becoming a technique: current health would pay most to
+ * whoever sat at one hit point, and the optimal way to train Toughness would be
+ * to stay nearly dead.
+ *
+ * **Armour is in neither term, and that is a rule rather than an oversight.**
+ * What you are wearing is how you survive a blow; it has no business deciding
+ * what the blow taught you. `potentialDamage` is rolled before
+ * `./combat`'s `damageAfterDefence` subtracts anything, and `maxHp` comes off
+ * Toughness alone — `./equipment`'s `effectiveBattler` overrides `def` and
+ * `resist` and nothing else. Measured against the same wolf: a naked body takes
+ * 7.08 damage a blow, one in full plate takes 0.00, and both earn 17.7452.
+ *
+ * The rule this closes is the other one — a body so *tough* the blow cannot land
+ * a mark still banked the whole payout. At Toughness 40 a wolf does literally
+ * zero damage per blow and, before this, paid as if it had done nine.
+ *
+ * Hit points are the yardstick because hit points are what Toughness buys, and
+ * they accelerate — see `../lib/battler`'s `MASTERY_ACCELERATION` — so the
+ * brake tightens faster than the mastery climbs. That is what makes it
+ * self-limiting rather than one more constant to retune.
+ */
+export function threatRate(potentialDamage: number, maxHp: number): number {
+  const significant = Math.max(1, maxHp) * SIGNIFICANT_THREAT_SHARE;
+  return Math.min(1, potentialDamage / significant) ** THREAT_FALLOFF;
+}
+
+/**
  * What one swing earns the body it was aimed at.
  *
  * **Potential damage on both rows, never actual**, so armour can never starve
@@ -138,6 +209,12 @@ export function attackerEarnings(
  * way of something enormous is worth more than getting out of the way of a
  * scratch.
  *
+ * Scaled by {@link threatRate}, which is the same sentence one level up: a blow
+ * that could take a real bite out of you teaches at the full rate, and one that
+ * could not teaches less the bigger you get. **Both rows, not just Toughness** —
+ * a dodge you never needed to make is worth as little as a blow you cannot feel,
+ * and exempting Agility would leave the whole exploit intact one mastery over.
+ *
  * A miss earns nothing here. The hit chance is the attacker's weapon and the
  * attacker's mastery and nothing else — the defender contributes not one term to
  * it — so paying them for it would be paying Agility for something Agility did
@@ -147,10 +224,24 @@ export function defenderEarnings(
   outcome: AttackOutcome,
   multiplier: number,
   decay: number,
+  /**
+   * The full health of the body being swung at, which is what the blow is
+   * measured against.
+   *
+   * Passed rather than derived, on the same terms the weapon is passed to
+   * {@link attackerEarnings}: this module knows arithmetic and not how a body is
+   * found or what it is wearing.
+   */
+  maxHp: number,
 ): MasteryXp {
   if (outcome.missed || outcome.potentialDamage <= 0) return {};
 
-  const earned = XP_PER_DAMAGE * outcome.potentialDamage * multiplier * decay;
+  const earned =
+    XP_PER_DAMAGE *
+    outcome.potentialDamage *
+    multiplier *
+    decay *
+    threatRate(outcome.potentialDamage, maxHp);
   if (earned <= 0) return {};
 
   return outcome.dodged ? { agility: earned } : { toughness: earned };
