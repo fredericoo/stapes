@@ -1025,43 +1025,67 @@ highest solid below the feet, so a fall lands on the plate rather than under it.
 And a creature already stranded off its home level is not rescued by this; it
 only stops any more from joining it.
 
-### A tile with no volume does not own the plane it lies on
+### The topmost tile decides what a stack is
 
-You could drop an apple on a bush and walk over it. Any hedge, any fence, any
-counter-top — anything non-walkable that a body could reach the top of — was
-passable to anybody carrying food, and it worked with `apple`, `berry`,
-`bread`, `cheese`, `raw-meat`, `cooked-meat`, `stale-berry` and `arcane-shard`.
+`walkableElevInStack` reads the top of a stack and nothing under it. Whatever
+is on top is what a body would put its feet on, so its `walkable` flag answers
+for the whole stack.
 
-The tempting reading is "a walkable tile stacked on a non-walkable one wins",
-and it is wrong. Those eight are exactly the tangible tiles of `height: 0` in
-`data/tiles.json`. A zero-height tile adds no volume, so it tops out at
-precisely the height of whatever is under it: an apple on a bush surfaces at 2,
-and so does the bush. **Two tiles claimed one plane, and both helpers that
-answer which of them owns it resolved the tie by stack order.** The apple was
-dropped last, so the apple answered, and apples are walkable. Intangible items
-— every weapon, every stone, all the armour — were never affected, because
-`physicalHeight` already reads them as 0 and both helpers skip them.
+Two earlier rules got this wrong in opposite directions, and both are worth
+knowing about because both looked correct in isolation.
 
-It needed fixing in two places because `canWalk` asks two different questions.
-`walkableElevInStack` feeds the climb-band search: it now seals an elevation
-that any solid non-walkable tile tops out at, so a later walkable tile at the
-same elevation cannot claim it. `solidTopOfStack` feeds `surfaceTileAt`, which
-`canWalk`'s walk-into-a-hole fallthrough consults after the band search comes up
-empty: from the topmost solid placement it now walks *down* past anything of
-zero height to the tile that actually has the volume. Fixing only the first one
-left the exploit alive through the second, which is the thing to remember —
-the two must agree, and a fix that closes the band search looks complete.
+**Taking the highest walkable top** let a dropped item become the surface. An
+apple is `height: 0`, so it tops out at exactly the height of the bush it was
+laid on, and the search found the apple. Any hedge, fence or counter-top was
+passable to anybody carrying food, with the eight tangible `height: 0` tiles in
+`data/tiles.json` — `apple`, `berry`, `bread`, `cheese`, `raw-meat`,
+`cooked-meat`, `stale-berry`, `arcane-shard`.
 
-**Sealing a plane, not condemning the column.** The blunter rule is to scan a
-stack from the base and refuse the whole thing at the first non-walkable tile.
-It closes the hole and the entire suite stays green, and it is still wrong:
-creature bodies are tangible and `walkable: false`, so every cell a wolf stands
-in loses its standing surface and `findWalkableLandingAbs` returns null for it —
-anything falling into an occupied cell finds nothing to land on. It also takes
-away the ground under a bush (a real surface to fall onto) and a `half-stone`
-laid across a `half-wall` (a real thing to walk along), and with it anything set
-on a table or an anvil. A non-walkable tile is a claim about its own top, not
-about the column.
+**Sealing every elevation a non-walkable tile topped out at** fixed that and
+broke bridges. A deck is a `wooden-floor` over a `fence` over `water`, and the
+fence is exactly what holds the deck up at a height a body can climb to from
+the bank. A rule that lets anything below the top refuse the cell refuses the
+deck too. The three-wide crossing at (32–34, 11–13) in `data/map.json` is built
+this way, with `lift` under the middle lane and `fence` under the two edges.
+
+The current rule handles the railings on that crossing for free: the edge
+stacks are `water, fence, wooden-floor, fence`, so their top is the railing and
+they are closed, while the middle lane's top is the deck and it is open.
+
+**Water is `height: 0` and `walkable: false`, and both matter.** Water over
+grass is two `height: 0` tiles, so nothing but stack order says which one is
+underfoot — it is the case no rule reading elevations alone can decide, and the
+reason the rule reads order instead. Giving water a height of 1 also closed it,
+by a different mechanism, and cost more than it fixed: the water stood proud of
+its own bank, and a deck built on it sat at 3, which is past `MAX_CLIMB_HEIGHT`
+from the bank at 0. Every bridge in the world was unreachable.
+
+**A raised `foot` does not change the answer, and stack order still gives it.**
+A foot only ever lifts a placement and a height is never negative, so
+`elevationAfter` never falls as the walk goes up the stack: the last solid
+placement is also the highest-topped one. The only case where measuring and
+reading backwards could differ is a shared plane — a wooden floor laid flat on a
+bush tops out exactly where the bush does — and there the tile lying on top is
+the one that answers, which is the whole rule. Lifting that same floor clear on
+a `foot: 3` moves the surface from 2 to 3 and changes nothing about which tile
+owns it.
+
+**Two kinds of placement are skipped rather than treated as the top.** An
+intangible tile has no surface, so the search looks through a sword on the
+ground or an open door to the tile beneath — `door-open` is the only tile in
+the catalogue that is both intangible and `walkable: false`, and a rule that
+consulted intangibles would seal every open doorway. A body is somebody
+standing in the cell rather than part of it, so a wolf on grass leaves the
+grass as the surface; without that skip every occupied cell would report no
+surface and nothing could fall onto one. Authored NPCs carry no `owner` until a
+runtime adopts them, so the test is `isPlayerBody(placed) || resolveActor(def)`
+and not the presence of an owner.
+
+**`solidTopOfStack` has to agree with it.** `canWalk` asks one question through
+the climb-band search and the other through its walk-into-a-hole fallthrough,
+so a tie-break in one and not the other shows up as a cell one branch closes
+and the other opens. That is exactly what happened while the sealing rule was
+in place, and it is why the fix has to land in both or neither.
 
 ## A roof over a cave is not what keeps the daylight out of it
 
