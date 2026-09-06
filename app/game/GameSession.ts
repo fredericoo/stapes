@@ -6,6 +6,7 @@ import {
   isWalkableSurfaceAt,
   removeTileAt,
   replaceStack,
+  walkableElevInStack,
 } from "../lib/mapData";
 import type { ExtractInteraction } from "../lib/interactions";
 import {
@@ -4162,6 +4163,11 @@ export class GameSession implements PlaySession {
 
     const placements = carried.map(placementFromInstance);
     const stack = getStack(this.map, at.x, at.y, at.z);
+    // The same rule a drop obeys: a kit is not left on something nothing can
+    // stand on. A body that drowned keeps what it was carrying rather than
+    // spilling it into the water, which is the safe direction — the refusal
+    // below already means "keep the kit".
+    if (walkableElevInStack(stack, this.tilesById) == null) return equipment;
     const room = canReplaceStack(
       this.map,
       at.x,

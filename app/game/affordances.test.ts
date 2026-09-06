@@ -47,6 +47,8 @@ function tile(partial: Record<string, unknown>): TileDef {
 const tiles = [
   tile({ id: "grass" }),
   tile({ id: "rock", height: 2 }),
+  tile({ id: "bush", height: 2, walkable: false }),
+  tile({ id: "water", walkable: false }),
   // Full height and light-blocking, so it stops a line of sight — see `./sight`,
   // where sight is light and you see over anything shorter than a level.
   tile({ id: "wall", height: 4 }),
@@ -603,6 +605,42 @@ describe("canDropAt", () => {
     const map = field();
     expect(canDropAt(map, tilesById, ME, { x: 1, y: 0, z: 3 }, sword)).toBe(
       false,
+    );
+  });
+
+  /**
+   * The topmost tile is what decides whether a stack can be walked on, so a
+   * thing laid on top of a bush would open a way through it. Anybody carrying
+   * food could get past any hedge in the world that way.
+   *
+   * Only players are held to this. The editor puts a plank on a fence to build
+   * a bridge deck, and that is the same stack shape.
+   */
+  it("refuses a cell nothing could stand on", () => {
+    const hedge = replaceStack(field(), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "bush" },
+    ]);
+    expect(canDropAt(hedge, tilesById, ME, { x: 1, y: 0, z: 0 }, sword)).toBe(
+      false,
+    );
+
+    const pond = replaceStack(field(), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "water" },
+    ]);
+    expect(canDropAt(pond, tilesById, ME, { x: 1, y: 0, z: 0 }, sword)).toBe(
+      false,
+    );
+  });
+
+  it("still drops on a cell that already has something walkable on it", () => {
+    const crate = replaceStack(field(), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "rock" },
+    ]);
+    expect(canDropAt(crate, tilesById, ME, { x: 1, y: 0, z: 0 }, sword)).toBe(
+      true,
     );
   });
 

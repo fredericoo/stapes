@@ -984,7 +984,7 @@
   {
     "id": "water",
     "name": "Water",
-    "height": 1,
+    "height": 0,
     "type": "autotile",
     "kind": "prop",
     "attributes": {},

@@ -368,89 +368,90 @@ describe("the floor plane a full-height stack shares with the level above", () =
 });
 
 /**
- * Two tiles can top out at one elevation, and only one of them owns it.
+ * Which tile a body would be standing on, when a stack holds several.
  *
- * A zero-height tile adds no volume, so it surfaces at exactly the height of
- * whatever it was laid on. Resolving that tie by stack order meant drop order
- * decided walkability: a berry dropped on a bush became the surface, berries
- * are walkable, and anybody carrying food could pave a path over any hedge in
- * the world. The tile with the volume owns the plane.
+ * The topmost one, and nothing under it is consulted. Two earlier rules got
+ * this wrong in opposite directions: taking the highest *walkable* top let an
+ * apple dropped on a bush become the surface, and sealing every elevation a
+ * non-walkable tile topped out at closed a bridge deck along with it.
  */
-describe("a tile with no volume does not own the plane it lies on", () => {
+describe("the topmost tile decides what a stack is", () => {
   const tilesById = tilesByIdFromList([
     tile({ id: "grass", height: 0 }),
     tile({ id: "berry", height: 0 }),
+    tile({ id: "water", height: 0, walkable: false }),
+    tile({ id: "wooden-floor", height: 0 }),
     tile({ id: "arrow", height: 0, intangible: true }),
     tile({ id: "bush", height: 2, walkable: false }),
-    tile({ id: "half-wall", height: 2, walkable: false }),
-    tile({ id: "half-stone", height: 2 }),
+    tile({ id: "fence", height: 2, walkable: false }),
+    tile({ id: "box", height: 2 }),
     tile({ id: "wolf", height: 2, walkable: false, actor: true }),
   ]);
 
-  function column(...tileIds: string[]): MapFile {
-    return replaceStack(
+  function elevOf(...tileIds: string[]): number | null {
+    const map = replaceStack(
       emptyMap(),
       0,
       0,
       0,
       tileIds.map((tileId) => ({ tileId })),
     );
+    return walkableElevInStack(getStack(map, 0, 0, 0), tilesById);
   }
 
-  it("keeps the bush as the surface under anything dropped on it", () => {
-    const map = column("grass", "bush", "berry");
-    expect(surfaceTileAt(map, 0, 0, 2, tilesById)).toEqual({ tileId: "bush" });
-    expect(isWalkableSurfaceAt(map, 0, 0, 2, tilesById)).toBe(false);
-    expect(walkableElevInStack(getStack(map, 0, 0, 0), tilesById)).toBe(0);
-  });
-
-  it("answers the same however the two were stacked", () => {
-    // Nothing in the world builds this way, but the rule is about an
-    // elevation rather than an ordering, and an order-dependent answer is one
-    // an editor or a settle pass could still walk into.
-    const map = column("grass", "berry", "bush");
-    expect(isWalkableSurfaceAt(map, 0, 0, 2, tilesById)).toBe(false);
-    expect(walkableElevInStack(getStack(map, 0, 0, 0), tilesById)).toBe(0);
-  });
-
-  it("names the ground, not the item lying on it, as the surface", () => {
-    const map = column("grass", "berry");
-    expect(surfaceTileAt(map, 0, 0, 0, tilesById)).toEqual({ tileId: "grass" });
-    expect(isWalkableSurfaceAt(map, 0, 0, 0, tilesById)).toBe(true);
-    expect(walkableElevInStack(getStack(map, 0, 0, 0), tilesById)).toBe(0);
-  });
-
-  it("looks through an intangible top to the tile beneath it either way", () => {
-    expect(
-      isWalkableSurfaceAt(column("grass", "bush", "arrow"), 0, 0, 2, tilesById),
-    ).toBe(false);
-    expect(
-      isWalkableSurfaceAt(column("grass", "arrow"), 0, 0, 0, tilesById),
-    ).toBe(true);
+  it("closes a stack whose top is not walkable", () => {
+    expect(elevOf("grass", "bush")).toBe(null);
   });
 
   /**
-   * The three cases that rule out the blunter version of this — refusing the
-   * whole column the moment anything non-walkable stands in it. Each of these
-   * is a surface something legitimately stands or lands on, and a stack scan
-   * that gives up at the first non-walkable tile takes all three away.
+   * The case that motivated the change. Both tiles are `height: 0`, so no
+   * elevation separates them and only the order says which is underfoot.
    */
-  it("keeps the ground under a bush as a surface to fall onto", () => {
-    const map = column("grass", "bush");
-    expect(walkableElevInStack(getStack(map, 0, 0, 0), tilesById)).toBe(0);
+  it("closes water laid over walkable ground, with neither tile any taller", () => {
+    expect(elevOf("grass", "water")).toBe(null);
   });
 
-  it("keeps the ground a creature is standing on as a surface", () => {
-    const map = column("grass", "wolf");
-    expect(walkableElevInStack(getStack(map, 0, 0, 0), tilesById)).toBe(0);
+  it("opens a stack whose top is walkable, whatever is under it", () => {
+    expect(elevOf("grass", "berry")).toBe(0);
+    expect(elevOf("grass", "box")).toBe(2);
   });
 
-  it("keeps a slab laid across a low wall walkable", () => {
-    const map = column("grass", "half-wall", "half-stone");
-    expect(surfaceTileAt(map, 0, 0, 4, tilesById)).toEqual({
-      tileId: "half-stone",
-    });
-    expect(isWalkableSurfaceAt(map, 0, 0, 4, tilesById)).toBe(true);
+  /**
+   * A plank over a fence over water. The fence is the thing that would refuse
+   * the cell if anything but the top were consulted, and it is exactly what
+   * holds the deck up.
+   */
+  it("opens a bridge deck laid over something non-walkable", () => {
+    expect(elevOf("water", "fence", "wooden-floor")).toBe(2);
+  });
+
+  it("closes that same deck once a railing is stacked on it", () => {
+    expect(elevOf("water", "fence", "wooden-floor", "fence")).toBe(null);
+  });
+
+  it("looks through an intangible top to the tile beneath", () => {
+    expect(elevOf("grass", "arrow")).toBe(0);
+    expect(elevOf("grass", "bush", "arrow")).toBe(null);
+  });
+
+  /**
+   * A creature is standing in the cell rather than part of it. Without this
+   * skip every occupied cell would report no surface, and nothing could fall
+   * onto one.
+   */
+  it("leaves the ground a creature stands on as the surface", () => {
+    expect(elevOf("grass", "wolf")).toBe(0);
+  });
+
+  it("names the topmost tile as the surface, with no tie-break", () => {
+    const map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "bush" },
+      { tileId: "berry" },
+    ]);
+    expect(surfaceTileAt(map, 0, 0, 2, tilesById)).toEqual({ tileId: "berry" });
+    expect(isWalkableSurfaceAt(map, 0, 0, 2, tilesById)).toBe(true);
+    expect(walkableElevInStack(getStack(map, 0, 0, 0), tilesById)).toBe(2);
   });
 });
 

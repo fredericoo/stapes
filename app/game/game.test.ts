@@ -117,6 +117,11 @@ const tiles: TileDef[] = [
   }),
   tile({ id: "tree", height: 4, walkable: false }),
   tile({ id: "bush", height: 2, walkable: false }),
+  tile({ id: "fence", height: 2, walkable: false }),
+  // Height 0 and non-walkable: the pair that no rule reading
+  // elevations alone can tell apart from the ground under it.
+  tile({ id: "water", height: 0, walkable: false }),
+  tile({ id: "wooden-floor", height: 0 }),
   // A dropped item: no volume of its own, so it tops out wherever it
   // lands. Walkable, like every tile that does not say otherwise.
   tile({ id: "berry", height: 0 }),
@@ -1073,21 +1078,63 @@ describe("walkable surfaces", () => {
   });
 
   /**
-   * Dropping something on a bush used to pave over it.
+   * Water over grass, with neither tile any taller than the other.
    *
-   * A berry has no volume, so it tops out at the bush's own height, and both
-   * helpers that answer "which tile owns this plane" took the last one in the
-   * stack. The berry was dropped last and berries are walkable, so anybody
-   * carrying food could walk over any hedge in the world — and the two helpers
-   * are consulted by different branches of `canWalk`, so fixing one left the
-   * other still saying yes.
+   * Both are `height: 0`, so nothing but stack order says which is underfoot.
+   * Reading the highest walkable top found the grass and let a body walk into
+   * the pond; giving water a height of 1 closed it, but only by making the
+   * water stand proud of its own bank and putting every bridge deck built on
+   * it out of climbing reach.
    */
-  it("does not let a dropped item pave over the non-walkable tile under it", () => {
+  it("does not let walkable ground under water make the water walkable", () => {
     let map = mapWithPlayer({ x: 0, y: 0 });
     map = replaceStack(map, 1, 0, 0, [
       { tileId: "grass" },
-      { tileId: "bush" },
-      { tileId: "berry" },
+      { tileId: "water" },
+    ]);
+    const loc = requireSinglePlayer(map);
+    expect(
+      canWalk(
+        map,
+        { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+        "e",
+        tilesById.player!,
+        tilesById,
+      ).ok,
+    ).toBe(false);
+  });
+
+  /**
+   * A plank over a fence over water. The fence is both the thing that would
+   * refuse the cell if anything but the top were consulted, and the thing
+   * holding the deck up at a height a body can climb to from the bank.
+   */
+  it("walks onto a bridge deck laid over something non-walkable", () => {
+    let map = mapWithPlayer({ x: 0, y: 0 });
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "water" },
+      { tileId: "fence" },
+      { tileId: "wooden-floor" },
+    ]);
+    const loc = requireSinglePlayer(map);
+    expect(
+      canWalk(
+        map,
+        { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+        "e",
+        tilesById.player!,
+        tilesById,
+      ),
+    ).toEqual({ ok: true, to: { x: 1, y: 0, z: 0 } });
+  });
+
+  it("refuses that same deck once a railing is stacked on it", () => {
+    let map = mapWithPlayer({ x: 0, y: 0 });
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "water" },
+      { tileId: "fence" },
+      { tileId: "wooden-floor" },
+      { tileId: "fence" },
     ]);
     const loc = requireSinglePlayer(map);
     expect(

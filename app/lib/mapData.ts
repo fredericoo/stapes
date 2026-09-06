@@ -19,6 +19,7 @@ import {
   levelKey,
   parseCoordKey,
   physicalHeight,
+  resolveActor,
   resolveIntangible,
   resolveWalkable,
 } from "./types";
@@ -336,44 +337,34 @@ export function isSolidPlacement(
 }
 
 /**
- * The tile that owns the stack's top plane. Intangibles don't form a solid
+ * Topmost non-intangible tile in a stack. Intangibles don't form a solid
  * surface — walk/land checks look through them to the tile underneath.
  *
- * **A tile with no volume of its own does not own the plane it lies on.** A
- * zero-height tile tops out at exactly the elevation of whatever is under it,
- * so both share one plane, and answering with the topmost placement resolved
- * that tie by drop order. An apple laid on a bush was the last thing in the
- * stack, so the apple became the surface, and the apple is walkable — which is
- * how anybody carrying food could pave a path over any hedge in the world. The
- * bush has the volume, so the bush owns the plane, whatever gets dropped on it
- * afterwards. See {@link walkableElevInStack}, which has to agree.
+ * The topmost one, with no tie-break between tiles that share an elevation.
+ * This and {@link walkableElevInStack} must agree about which tile a body would
+ * be standing on, because `canWalk` reads one through the climb-band search and
+ * the other through its walk-into-a-hole fallthrough. A version of this that
+ * preferred the lowest tile at a shared elevation made the two disagree, and
+ * the disagreement showed up as a cell the band search closed and the
+ * fallthrough opened.
  *
- * **Said as elevations rather than as a walk down the stack**, which is the
- * same rule stated so that a raised {@link PlacedTile.foot} cannot slip past
- * it: the highest solid top wins, and a tie goes to whichever placement reached
- * it first. Written as "step down past anything of zero height" it was really a
- * test for a shared plane, and stack adjacency stopped standing in for that the
- * moment a flat tile could be lifted clear of the one below it. A wooden floor
- * raised over a bush makes a plane of its own and owns it; laid straight on the
- * bush it does not, and the bush still answers.
+ * **Stack order answers this even though {@link PlacedTile.foot} exists.** A
+ * raised foot only ever lifts a placement, and a height is never negative, so
+ * {@link elevationAfter} never falls as the walk goes up: the last solid
+ * placement is also the highest-topped one, and reading the stack backwards is
+ * the same answer as measuring. Where the two could differ is a shared plane —
+ * a wooden floor laid flat on a bush tops out exactly where the bush does — and
+ * there the tile lying on top is deliberately the one that answers.
  */
 export function solidTopOfStack(
   stack: PlacedTile[],
   tilesById: Record<string, TileDef>,
 ): PlacedTile | null {
-  let elev = 0;
-  let owner: PlacedTile | null = null;
-  let ownerTop = 0;
-
-  for (const placed of stack) {
-    const top = elevationAfter(elev, placed, tilesById);
-    elev = top;
-    if (!isSolidPlacement(placed, tilesById)) continue;
-    if (owner != null && top <= ownerTop) continue;
-    owner = placed;
-    ownerTop = top;
+  for (let i = stack.length - 1; i >= 0; i--) {
+    const placed = stack[i]!;
+    if (isSolidPlacement(placed, tilesById)) return placed;
   }
-  return owner;
+  return null;
 }
 
 /**
@@ -389,44 +380,45 @@ export function absoluteStandingElevation(
 }
 
 /**
- * Elevation (within the level) of the highest walkable tile top in `stack`.
- * Null when no walkable tile is present.
+ * Elevation (within the level) of the stack's standing surface, or null when
+ * nothing in the stack can be stood on.
  *
- * **A plane is walkable only if every solid tile topping out there is.** This
- * is {@link solidTopOfStack}'s rule from the other end, and the two must not
- * disagree: {@link surfaceTileAt} asks which tile owns a plane, this asks which
- * plane a body may stand on, and `canWalk` consults both — the climb-band
- * search through this one, and its walk-into-a-hole fallthrough through the
- * other. Fixing only one left the exploit alive through the other.
+ * **The topmost tile decides, and the tiles under it are not consulted.** What
+ * is on top is what a body puts its feet on, so its `walkable` flag answers for
+ * the whole stack. Water over grass is water underfoot, so the cell is closed
+ * even though both tiles are `height: 0` and grass on its own is walkable. A
+ * wooden floor over a fence over water is a bridge deck, so the cell is open
+ * even though the fence under it is not.
  *
- * Sealing a plane rather than abandoning the whole stack is deliberate. A
- * non-walkable tile is not a claim about the column, only about its own top:
- * the ground under a bush is still a surface a body can fall onto, a wolf
- * standing on grass is not a hole in the world, and a slab laid across a
- * half-wall is still something to walk along. Refusing the column outright
- * takes all three away to fix a tie between two tiles at one elevation.
+ * Two kinds of placement are skipped rather than treated as the top. An
+ * intangible tile has no surface — a sword lying on the ground, an open door —
+ * so the search looks through it to the tile beneath. A body is somebody
+ * standing in the cell rather than part of it, so a wolf on grass leaves grass
+ * as the surface; without that skip, every cell an actor occupied would read as
+ * having no surface and nothing could fall onto it.
+ *
+ * Two earlier rules were wrong in opposite directions, and `docs/notes.md`
+ * records both: taking the highest *walkable* top let an apple dropped on a
+ * bush become the surface, and sealing every elevation a non-walkable tile
+ * topped out at closed the bridge deck along with it.
  */
 export function walkableElevInStack(
   stack: PlacedTile[],
   tilesById: Record<string, TileDef>,
 ): number | null {
   let elev = 0;
-  let best: number | null = null;
-  const sealed = new Set<number>();
+  let topElev: number | null = null;
+  let topWalkable = false;
   for (const p of stack) {
     elev = elevationAfter(elev, p, tilesById);
-    if (isPlayerBody(p)) continue;
     const def = tilesById[p.tileId];
     if (!def) continue;
+    if (isPlayerBody(p) || resolveActor(def)) continue;
     if (resolveIntangible(def)) continue;
-    if (!resolveWalkable(def)) {
-      sealed.add(elev);
-      if (best === elev) best = null;
-      continue;
-    }
-    if (!sealed.has(elev)) best = elev;
+    topElev = elev;
+    topWalkable = resolveWalkable(def);
   }
-  return best;
+  return topWalkable ? topElev : null;
 }
 
 /** Absolute walkable standing elevation for a stack, or null. */

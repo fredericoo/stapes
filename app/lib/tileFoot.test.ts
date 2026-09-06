@@ -13,6 +13,7 @@ import {
   stackHeight,
   surfaceTileAt,
   updatePlacedFoot,
+  walkableElevInStack,
 } from "./mapData";
 import { stackBlockHeight, stackOcclusion } from "./lighting";
 import { fitsFoot, footRange, tilesByIdFromList } from "./validation";
@@ -137,19 +138,21 @@ describe("a raised foot carries the stack up with it", () => {
     ).toBe(false);
   });
 
-  it("owns the plane it makes rather than handing it to what it cleared", () => {
-    // The zero-height rule — a flat tile shares the plane of the thing under it
-    // — stops at a raised foot: the floor is what you are standing on, not the
-    // bush it was lifted over.
-    const stack: PlacedTile[] = [
+  it("makes a plane of its own above what it cleared", () => {
+    // A raised foot lifts the floor clear of the bush, so it tops out at 3
+    // rather than at the bush's 2. Which tile *answers* is not the difference
+    // any more — the topmost one does either way, so a floor laid flat on the
+    // bush is a surface too. @see solidTopOfStack
+    const lifted: PlacedTile[] = [
       { tileId: "bush" },
       { tileId: "floor", foot: 3 },
     ];
-    expect(solidTopOfStack(stack, tilesById)?.tileId).toBe("floor");
-    expect(
-      solidTopOfStack([{ tileId: "bush" }, { tileId: "floor" }], tilesById)
-        ?.tileId,
-    ).toBe("bush");
+    expect(solidTopOfStack(lifted, tilesById)?.tileId).toBe("floor");
+    expect(walkableElevInStack(lifted, tilesById)).toBe(3);
+
+    const flat: PlacedTile[] = [{ tileId: "bush" }, { tileId: "floor" }];
+    expect(solidTopOfStack(flat, tilesById)?.tileId).toBe("floor");
+    expect(walkableElevInStack(flat, tilesById)).toBe(2);
   });
 
   it("is solid to light and to a look", () => {
