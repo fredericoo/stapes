@@ -44,7 +44,14 @@ function pushedFeetAbs(
   );
 }
 
-/** How tall the whole travelling column is. */
+/**
+ * How tall the whole travelling column is.
+ *
+ * A plain sum of the tiles, with no room left for a raised
+ * {@link PlacedTile.foot}, because a shove is a move and a move lets the foot
+ * go — see `../lib/mapData`'s `landedPlacement`. The column arrives stacked
+ * solid however it was authored in the cell it left.
+ */
 function pushedHeight(
   column: readonly PlacedTile[],
   tilesById: Record<string, TileDef>,

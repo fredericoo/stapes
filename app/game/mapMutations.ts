@@ -1,6 +1,7 @@
 import {
   appendTile,
   getStack,
+  landedPlacement,
   removeTileAt,
   replaceStack,
   setStacks,
@@ -93,9 +94,11 @@ export function moveColumn(
   if (moving.length === 0) return map;
 
   // Spread, not rebuilt field by field: a placement carries per-placement state
-  // (its signal channel) that a move has no business dropping.
+  // (its signal channel) that a move has no business dropping. The foot is the
+  // one exception, and `landedPlacement` says why — it addresses a slot in the
+  // column being left, and means nothing in the one being joined.
   const placed: PlacedTile[] = moving.map((entity) => ({
-    ...entity,
+    ...landedPlacement(entity),
     direction: direction ?? entity.direction,
   }));
   // Both cells in one pass. Done as remove-then-place it copies the level

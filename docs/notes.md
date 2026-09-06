@@ -889,6 +889,62 @@ And a non-walkable one is not a hole any more, but it is also not a floor: cover
 it and the cover answers, leave it bare and it answers itself, correctly, as
 something you cannot stand on.
 
+### A placement may say where its own foot is
+
+A stack is a list of things standing on each other, so until now the only
+elevation a placement could have was the sum of what was under it. Half-height
+floors are what breaks that. A wooden floor two units up is a thing an author
+wants directly, and the only way to say it was to bury a two-unit block
+underneath — a tile nobody ever sees, chosen for its height rather than for what
+it is, that every walk over the column has to step past, and that shows up in
+`map.json` as scenery somebody meant to place.
+
+`PlacedTile.foot` is the placement saying where it sits within its level.
+Absent on every placement in the world today, and absent is what it should stay
+wherever the stack already answers correctly.
+
+**It only ever raises, and that is a property of the shape rather than a rule
+the editor keeps.** Every read goes through `footElevation`
+(`../app/lib/mapData`), which takes the greater of the authored number and the
+elevation underneath. So a stale foot — one written before somebody slid a
+taller tile in below it — lifts the placement instead of sinking it into what
+now holds it up, and a hand-edited map cannot express a tile buried inside
+another one. `fitsFoot` (`../app/lib/validation`) enforces the same floor at the
+point of writing, plus a ceiling the read side does not: a lifted placement must
+still end inside its own storey. "Raise this floor" is not allowed to become an
+overflow into the level above with a gap holding it up.
+
+**The gap it leaves is solid.** That is the whole of the model, not a corner cut:
+`stackHeight` counts it, `stackOcclusion` and `stackBlockHeight` count it, and a
+raised placement therefore carries the space beneath it upward for walking, for
+light and for a look alike. Nothing has to answer what a body standing *under* a
+raised floor would be standing on, because there is no under. Solid is not the
+same as drawn, though: the projection has no side faces to give a gap, so a lone
+tile lifted over open ground reads as floating with a hole beneath it. Lifting is
+for a floor with something around it — a wall, a bank, a doorway — and the tile
+under the gap is what fills the picture, not the arithmetic. It matters most in
+`stackBlockHeight`, which measures where a creature's own eyes are as well as
+what is in its way: a rat on a floor raised two units looks out from two units
+up, and disregarding the gap would leave it staring at the inside of everything
+around it.
+
+**Two rules follow, and both were bugs before they were rules.** The
+zero-height tie-break (*A tile with no volume does not own the plane it lies
+on*) stops at a raised foot: a flat tile lifted clear of what is under it made
+the plane it is on, so it owns it, and `solidTopOfStack` no longer walks down
+past it to the bush it was raised over. And **a foot does not travel** —
+`landedPlacement` drops it wherever a placement joins a stack it was not
+authored into, which is `appendTile` and `moveColumn` between them, so every
+walk, fall, shove, drop and spawn. A crate authored two units up and then shoved
+one cell east would otherwise go on hovering two units up over whatever it
+landed on. Copying a whole cell in the editor deliberately goes through neither:
+stamping a column somewhere else is authoring, and the feet are part of what is
+being copied.
+
+The lighting bake reads the field too — `occlusionSignature` carries it, because
+a foot moves both the elevation every emitter above it sits at and the solid gap
+it leaves under it. Leave it out and lifting a floor relights nothing.
+
 ### A ramp between two levels needs a hole above it
 
 `ramp` and `stone-stairs` are two units tall, and two units is exactly

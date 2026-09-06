@@ -7,7 +7,14 @@ import {
   levelKey,
   physicalHeight,
 } from "./types";
-import { elevationAt, getStack, isPlayerBody, stackHeight } from "./mapData";
+import {
+  elevationAfter,
+  elevationAt,
+  getStack,
+  isPlayerBody,
+  landedPlacement,
+  stackHeight,
+} from "./mapData";
 
 export type PlaceResult =
   | { ok: true }
@@ -217,6 +224,58 @@ export function canPlace(
 }
 
 /**
+ * Where a placement's foot may be lifted to, given the stack around it.
+ *
+ * Two bounds, and they are the whole of what {@link PlacedTile.foot} is allowed
+ * to say. The floor is the elevation the placement would sit at with no foot at
+ * all, because a foot only ever raises — see `../lib/mapData`'s
+ * `footElevation`, which enforces the same thing at read time so a hand-edited
+ * map cannot sink a tile into the one below it either. The ceiling is the
+ * level: a lifted placement must still end inside the storey it is stored on,
+ * which is what keeps "raise this floor" from quietly becoming an overflow into
+ * the level above with a gap holding it up.
+ *
+ * `max` below `min` is a stack with no room left, and the caller offers nothing.
+ */
+export function footRange(
+  stack: PlacedTile[],
+  stackIndex: number,
+  tilesById: Record<string, TileDef>,
+): { min: number; max: number } {
+  const placed = stack[stackIndex];
+  if (!placed) return { min: 0, max: -1 };
+  const def = tilesById[placed.tileId];
+  // The foot the placement would have with nothing authored on it — measured
+  // with its own foot taken off, or it would answer with itself.
+  const min = elevationAt(
+    stack.map((p, i) => (i === stackIndex ? landedPlacement(p) : p)),
+    stackIndex,
+    tilesById,
+  );
+  return { min, max: HEIGHT_PER_LEVEL - (def ? physicalHeight(def) : 0) };
+}
+
+/** Whether `foot` is one of the elevations {@link footRange} allows. */
+export function fitsFoot(
+  stack: PlacedTile[],
+  stackIndex: number,
+  foot: number,
+  tilesById: Record<string, TileDef>,
+): PlaceResult {
+  const { min, max } = footRange(stack, stackIndex, tilesById);
+  if (!Number.isInteger(foot)) {
+    return { ok: false, reason: "A foot is a whole number of height units" };
+  }
+  if (foot < min) {
+    return { ok: false, reason: "Nothing can sit below what holds it up" };
+  }
+  if (foot > max) {
+    return { ok: false, reason: "Raised that far it would leave the level" };
+  }
+  return { ok: true };
+}
+
+/**
  * Can `tileDef` stand with feet at absolute elevation `feetAbs` in column (x,y)?
  * Uses volume clearance (works on top of overflowing stacks where {@link fitsTile}
  * would reject because the level above is “occupied” by overflow).
@@ -358,7 +417,8 @@ export function canReplaceStack(
     const def = tilesById[placed.tileId];
     const h = def ? physicalHeight(def) : 0;
     // Height-0 / intangible tiles may sit on a full/overflow stack; only
-    // volume-adding tiles must start below the next-level boundary.
+    // volume-adding tiles must start below the next-level boundary. A raised
+    // foot is measured against, not exempt from, that boundary — see `fitsFoot`.
     if (e >= HEIGHT_PER_LEVEL && h > 0) {
       return {
         ok: false,
@@ -371,7 +431,7 @@ export function canReplaceStack(
       bodies = Math.max(bodies, h);
       continue;
     }
-    e += h;
+    e = elevationAfter(e, placed, tilesById);
   }
   e += bodies;
 

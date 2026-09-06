@@ -14,7 +14,12 @@ import {
   parseCoordKey,
   resolveLightPassing,
 } from "./types";
-import { elevationAt, getStack } from "./mapData";
+import {
+  elevationAt,
+  footElevation,
+  getStack,
+  terrainHeight,
+} from "./mapData";
 import { computeLightingFlood, MAX_LIGHT_LEVEL } from "./lightingFlood";
 import { resolveLight } from "./tileResolve";
 
@@ -282,9 +287,20 @@ export function stackOcclusion(
   stack: PlacedTile[],
   tilesById: Record<string, TileDef>,
 ): CellOcclusion {
+  let elev = 0;
   let blockH = 0;
   let sealsLevel = false;
   for (const placed of stack) {
+    // The gap under a raised placement is solid, whatever the placement itself
+    // lets through — see `PlacedTile.foot`. A window lifted two units up is two
+    // units of wall and then a window.
+    const foot = footElevation(elev, placed);
+    if (foot > elev) {
+      blockH += foot - elev;
+      sealsLevel = true;
+    }
+    elev = foot + terrainHeight(placed, tilesById);
+
     const def = tilesById[placed.tileId];
     if (!def) continue;
     if (resolveLightPassing(def)) continue;
@@ -314,8 +330,18 @@ export function stackBlockHeight(
   stack: PlacedTile[],
   tilesById: Record<string, TileDef>,
 ): number {
+  let elev = 0;
   let blockH = 0;
   for (const placed of stack) {
+    // As in {@link stackOcclusion}: the gap a raised foot leaves is solid. It
+    // matters more here than there, because this is also what measures where a
+    // creature's own eyes are — a rat on a floor raised two units looks out
+    // from two units up, and measuring it from the level base would leave it
+    // staring at the inside of everything around it.
+    const foot = footElevation(elev, placed);
+    blockH += foot - elev;
+    elev = foot + terrainHeight(placed, tilesById);
+
     const def = tilesById[placed.tileId];
     if (!def || resolveLightPassing(def)) continue;
     blockH += def.height;

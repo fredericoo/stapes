@@ -20,7 +20,13 @@ import {
   tileCanEmitLight,
   tileLightVaries,
 } from "./types";
-import { chunkIndexOf, chunkKeyAt, elevationAt } from "./mapData";
+import {
+  chunkIndexOf,
+  chunkKeyAt,
+  elevationAt,
+  footElevation,
+  terrainHeight,
+} from "./mapData";
 import type {
   AnimatedEmitter,
   EmitterOverride,
@@ -129,9 +135,17 @@ function stackOcc(
   stack: PlacedTile[],
   tilesById: Record<string, TileDef>,
 ): { opacity: number; seals: boolean } {
+  let elev = 0;
   let blockH = 0;
   let seals = false;
   for (const placed of stack) {
+    const foot = footElevation(elev, placed);
+    if (foot > elev) {
+      blockH += foot - elev;
+      seals = true;
+    }
+    elev = foot + terrainHeight(placed, tilesById);
+
     const def = tilesById[placed.tileId];
     if (!def) continue;
     if (resolveLightPassing(def)) continue;
