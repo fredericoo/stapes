@@ -190,9 +190,9 @@ export const REQUIREMENTS_MET = 1;
 /**
  * How much of what a weapon asks this body actually brings, as a fraction of 1.
  *
- * **Pooled across every requirement, and capped at each one.** An axe asking
- * Blunt 35 and Toughness 20 asks for fifty-five points in total; a wielder with
- * Blunt 35 and Toughness 10 brings forty-five of them, and is 82% of the way
+ * **Pooled across every requirement, and capped at each one.** A maul asking
+ * Blunt 33 and Toughness 15 asks for forty-eight points in total; a wielder with
+ * Blunt 33 and Toughness 8 brings forty-one of them, and is 85% of the way
  * there. Surplus never carries — `min(required, level)` — so a Blunt 100 brute
  * with no Toughness cannot muscle their way past the half of the weapon that is
  * about being able to hold it.
@@ -232,18 +232,30 @@ export function requirementShare(
 /**
  * How sharply a weapon stops teaching you once you have passed what it asks.
  *
- * **Six, and the steepness is the whole design.** A fifth past the requirement
- * already pays a third of the rate; twice the requirement pays a sixtieth. The
- * intent is that you cannot grind one mastery on one weapon: the thing that
- * makes you better is picking up the next weapon up, so a player who wants to
- * climb has to keep moving rather than keep swinging.
+ * **Three, and it was six.** The intent has not changed — you cannot grind one
+ * mastery on one weapon; the thing that makes you better is picking up the next
+ * one — and at three, twice the requirement still pays only an eighth, which is
+ * a bad enough deal to keep anybody moving.
+ *
+ * What changed is that the requirements now form a ladder with real gaps in it,
+ * and this is a function of the *ratio* rather than the difference. At six, the
+ * cost of climbing one rung was wildly uneven: the first rung, `5 -> 10`,
+ * needed 6364 raw experience against 2025 for `15 -> 20` — three times the work,
+ * on the rung a brand new player is standing on, which is precisely backwards.
+ * Three is the value at which every rung costs about the same:
+ *
+ * ```
+ *   f      5->10   10->15   15->20   20->25   25->30   spread
+ *   6       6364     2460     2025     1987     2065     3.2x
+ *   3       1239     1054     1158     1315     1490     1.4x
+ * ```
  *
  * It replaced a five-point bridge followed by a gentle `ceiling / level` fade,
  * which was far too generous to stand still on — a starter sword taken to
  * mastery 100 was slow but perfectly viable, and "viable" is all a grind needs
  * to be.
  */
-export const OUTGROWN_FALLOFF = 6;
+export const OUTGROWN_FALLOFF = 3;
 
 /**
  * How much of the usual experience a weapon is still worth to you, as a fraction
@@ -267,7 +279,7 @@ export const OUTGROWN_FALLOFF = 6;
  * **Only the weapon's own mastery is ever consulted**, by the one caller there
  * is: see `../game/experience`'s `attackerEarnings`, which looks up
  * `requirements[weapon.mastery]` and credits that mastery alone. An axe asking
- * Sharp 8 and Toughness 20 is a Sharp weapon that is also heavy; leaving
+ * Sharp 15 and Toughness 10 is a Sharp weapon that is also heavy; leaving
  * Toughness untrained must not turn it into a Sharp trainer that never stops
  * paying.
  */
