@@ -22,6 +22,7 @@ import {
   changedCellsInChunk,
   changedCellsOnLevel,
   chunkKeyFor,
+  footElevation,
   getChunk,
   getStack,
   stackHeight,
@@ -2529,6 +2530,10 @@ export class WorldRenderer {
     let elev = 0;
 
     stack.forEach((placed, stackIndex) => {
+      // Lifted before anything is drawn from it: a placement that overrules its
+      // own foot is drawn from there, and the stack carries on from its top.
+      elev = footElevation(elev, placed);
+
       const def = this.tilesById[placed.tileId];
       if (!def) return;
 

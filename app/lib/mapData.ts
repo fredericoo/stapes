@@ -256,24 +256,63 @@ export function terrainHeight(
   return def ? physicalHeight(def) : 0;
 }
 
+/**
+ * Where this placement's foot actually sits, given what the stack reaches under
+ * it. See {@link PlacedTile.foot}.
+ *
+ * **The greater of the two, never the authored number on its own.** That is
+ * what makes "a foot only ever raises" a property of the shape rather than
+ * something the editor has to keep true: slide a taller tile in underneath an
+ * authored foot and the placement rides up with it, instead of ending up buried
+ * inside the tile now holding it.
+ */
+export function footElevation(elevBelow: number, placed: PlacedTile): number {
+  return placed.foot == null ? elevBelow : Math.max(elevBelow, placed.foot);
+}
+
+/**
+ * The elevation a stack reaches after this placement, given what it reached
+ * under it.
+ *
+ * **Every running total over a stack must go through this**, for the reason
+ * {@link terrainHeight} spells out one level down: the walk was `elev +=
+ * terrainHeight(...)` in a dozen places, and a raised foot makes that sum wrong
+ * everywhere it is written by hand. The gap under a raised placement is carried
+ * up with it — see {@link PlacedTile.foot} for why a gap is solid.
+ */
+export function elevationAfter(
+  elevBelow: number,
+  placed: PlacedTile,
+  tilesById: Record<string, TileDef>,
+): number {
+  return footElevation(elevBelow, placed) + terrainHeight(placed, tilesById);
+}
+
 export function stackHeight(
   stack: PlacedTile[],
   tilesById: Record<string, TileDef>,
 ): number {
   let h = 0;
-  for (const p of stack) h += terrainHeight(p, tilesById);
+  for (const p of stack) h = elevationAfter(h, p, tilesById);
   return h;
 }
 
-/** Elevation under the tile at stackIndex (sum of physical heights below it). */
+/**
+ * Elevation the tile at stackIndex stands at — its own {@link footElevation},
+ * which is what the stack raises below it unless the placement overrules it.
+ *
+ * Past the end of the stack this is the whole stack's height, so a caller
+ * asking where a tile appended to the top would sit gets the honest answer.
+ */
 export function elevationAt(
   stack: PlacedTile[],
   stackIndex: number,
   tilesById: Record<string, TileDef>,
 ): number {
   let e = 0;
-  for (let i = 0; i < stackIndex; i++) e += terrainHeight(stack[i]!, tilesById);
-  return e;
+  for (let i = 0; i < stackIndex; i++) e = elevationAfter(e, stack[i]!, tilesById);
+  const placed = stack[stackIndex];
+  return placed ? footElevation(e, placed) : e;
 }
 
 /**
@@ -308,25 +347,33 @@ export function isSolidPlacement(
  * how anybody carrying food could pave a path over any hedge in the world. The
  * bush has the volume, so the bush owns the plane, whatever gets dropped on it
  * afterwards. See {@link walkableElevInStack}, which has to agree.
+ *
+ * **Said as elevations rather than as a walk down the stack**, which is the
+ * same rule stated so that a raised {@link PlacedTile.foot} cannot slip past
+ * it: the highest solid top wins, and a tie goes to whichever placement reached
+ * it first. Written as "step down past anything of zero height" it was really a
+ * test for a shared plane, and stack adjacency stopped standing in for that the
+ * moment a flat tile could be lifted clear of the one below it. A wooden floor
+ * raised over a bush makes a plane of its own and owns it; laid straight on the
+ * bush it does not, and the bush still answers.
  */
 export function solidTopOfStack(
   stack: PlacedTile[],
   tilesById: Record<string, TileDef>,
 ): PlacedTile | null {
-  for (let i = stack.length - 1; i >= 0; i--) {
-    if (!isSolidPlacement(stack[i]!, tilesById)) continue;
+  let elev = 0;
+  let owner: PlacedTile | null = null;
+  let ownerTop = 0;
 
-    let owner = i;
-    while (
-      owner > 0 &&
-      terrainHeight(stack[owner]!, tilesById) === 0 &&
-      isSolidPlacement(stack[owner - 1]!, tilesById)
-    ) {
-      owner--;
-    }
-    return stack[owner]!;
+  for (const placed of stack) {
+    const top = elevationAfter(elev, placed, tilesById);
+    elev = top;
+    if (!isSolidPlacement(placed, tilesById)) continue;
+    if (owner != null && top <= ownerTop) continue;
+    owner = placed;
+    ownerTop = top;
   }
-  return null;
+  return owner;
 }
 
 /**
@@ -367,7 +414,7 @@ export function walkableElevInStack(
   let best: number | null = null;
   const sealed = new Set<number>();
   for (const p of stack) {
-    elev += terrainHeight(p, tilesById);
+    elev = elevationAfter(elev, p, tilesById);
     if (isPlayerBody(p)) continue;
     const def = tilesById[p.tileId];
     if (!def) continue;
@@ -421,7 +468,7 @@ export function walkableTileAtElev(
 ): PlacedTile | null {
   let elev = 0;
   for (const p of stack) {
-    elev += terrainHeight(p, tilesById);
+    elev = elevationAfter(elev, p, tilesById);
     if (isPlayerBody(p)) continue;
     const def = tilesById[p.tileId];
     if (!def) continue;
@@ -653,6 +700,26 @@ export function replaceStack(
   return setStack(map, x, y, z, stack);
 }
 
+/**
+ * A placement as it arrives somewhere, with its authored foot let go.
+ *
+ * {@link PlacedTile.foot} says where a thing sits *in one column*, and nothing
+ * about it survives leaving that column: a crate authored two units up and then
+ * shoved one cell east would go on hovering two units up over whatever it
+ * landed on, and a body that fell onto it would stand in mid-air beside it.
+ *
+ * Called wherever a placement joins a stack it was not authored into —
+ * {@link appendTile} and `../game/mapMutations`' `moveColumn`, which between
+ * them are every walk, fall, shove, drop and spawn. Copying a whole cell in the
+ * editor deliberately goes through neither: stamping a column somewhere else is
+ * authoring, and the feet are part of what is being copied.
+ */
+export function landedPlacement(placed: PlacedTile): PlacedTile {
+  if (placed.foot == null) return placed;
+  const { foot: _foot, ...rest } = placed;
+  return rest;
+}
+
 export function appendTile(
   map: MapFile,
   x: number,
@@ -660,7 +727,7 @@ export function appendTile(
   z: number,
   placed: PlacedTile,
 ): MapFile {
-  const stack = [...getStack(map, x, y, z), placed];
+  const stack = [...getStack(map, x, y, z), landedPlacement(placed)];
   return setStack(map, x, y, z, stack);
 }
 
@@ -818,6 +885,53 @@ export function updatePlacedDescription(
   description: string,
 ): MapFile {
   return updatePlacedText(map, x, y, z, stackIndex, "description", description);
+}
+
+/**
+ * Set where one placement's foot sits within its level, or clear it with
+ * `null`. See {@link PlacedTile.foot}.
+ *
+ * Stored as given rather than clamped, because a foot at or below the elevation
+ * underneath is not an error to be corrected — it is the placement sitting on
+ * what is under it, which is what an absent field already says. So a foot that
+ * would change nothing is dropped instead of written, and `map.json` grows a
+ * line only where somebody actually lifted something.
+ *
+ * What is refused is a foot that would not fit: see `../lib/validation`'s
+ * `fitsFoot`, which the editor asks before calling this. Nothing is enforced
+ * here, on the same terms {@link updatePlacedVariant} validates no face name —
+ * this is a write, and the caller is what decides whether the write is legal.
+ *
+ * **Returns the same map when nothing changes**, on exactly the terms
+ * {@link updatePlacedText} does.
+ */
+export function updatePlacedFoot(
+  map: MapFile,
+  x: number,
+  y: number,
+  z: number,
+  stackIndex: number,
+  foot: number | null,
+  tilesById: Record<string, TileDef>,
+): MapFile {
+  const current = getStack(map, x, y, z);
+  const placed = current[stackIndex];
+  if (!placed) return map;
+
+  const resting = elevationAt(
+    current.map((p, i) => (i === stackIndex ? landedPlacement(p) : p)),
+    stackIndex,
+    tilesById,
+  );
+  const next = foot != null && foot > resting ? foot : undefined;
+  if (placed.foot === next) return map;
+
+  const stack = current.map((p, i) => {
+    if (i !== stackIndex) return { ...p };
+    const { foot: _foot, ...rest } = p;
+    return next != null ? { ...rest, foot: next } : rest;
+  });
+  return setStack(map, x, y, z, stack);
 }
 
 /**

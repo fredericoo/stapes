@@ -15,7 +15,12 @@ import {
   spriteWorldOrigin,
   type DepthBox,
 } from "../app/lib/geometry";
-import { getStack, parseMap, setStacks } from "../app/lib/mapData";
+import {
+  footElevation,
+  getStack,
+  parseMap,
+  setStacks,
+} from "../app/lib/mapData";
 import { getFrames } from "../app/lib/tileResolve";
 import type {
   CellRect,
@@ -72,6 +77,7 @@ for (let z = zMin!; z <= zMax!; z++) {
     for (let x = x0!; x <= x1!; x++) {
       let elev = 0;
       getStack(map, x, y, z).forEach((placed, stackIndex) => {
+        elev = footElevation(elev, placed);
         const def = tilesById[placed.tileId];
         if (!def) return;
         const frame = getFrames(def, {

@@ -21,6 +21,7 @@ import {
 } from "../lib/lighting";
 import { sampleIllumination } from "../lib/clock";
 import {
+  footElevation,
   getStack,
   listCoords,
   stackHeight,
@@ -923,6 +924,7 @@ export class EditorRenderer {
 
       let elev = 0;
       brush.forEach((placed, stackIndex) => {
+        elev = footElevation(elev, placed);
         const def = s.tilesById[placed.tileId];
         const quad = def
           ? this.spriteQuad(placed, def, x, y, z, elev, s.map)
@@ -1010,6 +1012,7 @@ export class EditorRenderer {
 
       let elev = 0;
       brush.forEach((placed, stackIndex) => {
+        elev = footElevation(elev, placed);
         const def = s.tilesById[placed.tileId];
         if (!def) return;
         const quad = this.spriteQuad(placed, def, c.x, c.y, z, elev, s.map);
@@ -1237,6 +1240,8 @@ export class EditorRenderer {
       // same way — see `../render/depthClump`.
       const extents = clumpExtents(cell.stack, this.tilesById);
       cell.stack.forEach((placed, stackIndex) => {
+        // Lifted before anything is drawn from it — see `PlacedTile.foot`.
+        elev = footElevation(elev, placed);
         const def = this.tilesById[placed.tileId];
         const foot = absoluteElevation(z, elev);
 

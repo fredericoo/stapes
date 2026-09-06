@@ -756,8 +756,10 @@ export class ChunkedLighting {
         continue;
       }
       // height drives opacity and sealing; physical height drives the elevation
-      // emitters above sit at; light-passing decides whether it occludes at all.
-      sig += `${def.height},${physicalHeight(def)},${resolveLightPassing(def) ? 1 : 0}|`;
+      // emitters above sit at; light-passing decides whether it occludes at all;
+      // a raised foot moves both the elevation above it and the solid gap it
+      // leaves under it — see `PlacedTile.foot`.
+      sig += `${def.height},${physicalHeight(def)},${resolveLightPassing(def) ? 1 : 0},${placed.foot ?? ""}|`;
     }
     return sig;
   }

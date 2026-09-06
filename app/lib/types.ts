@@ -639,6 +639,37 @@ export type PlacedTile = {
    */
   variant?: string;
   /**
+   * Where this placement's foot sits within its level, overruling the elevation
+   * the stack under it reaches. Absent → whatever the stack reaches, which is
+   * every placement in the world today.
+   *
+   * A stack is a list of things standing on each other, so the only elevation a
+   * placement could have was the sum of what was under it. Half-height floors
+   * are the case that breaks: a wooden floor at two units is a thing an author
+   * wants directly, and the only way to say it was to bury a two-unit block
+   * under it — a tile that is never seen, that anything reading the column has
+   * to walk past, and that has to be chosen for its height rather than for what
+   * it is.
+   *
+   * **It only ever raises.** Read through `../lib/mapData`'s `footElevation`,
+   * which takes the greater of this and the elevation underneath, so a foot can
+   * never sink a placement into the tile below it — not when it is authored,
+   * and not later when somebody slides a taller tile in beneath it. The editor
+   * enforces the same bound at the point of writing, and `fitsFoot` also
+   * refuses a foot that would push the placement out of its level.
+   *
+   * **The gap it leaves is solid**, and that is the whole of the model rather
+   * than a shortcut: a raised placement carries the space beneath it upward, so
+   * `stackHeight`, `stackOcclusion` and `stackBlockHeight` all count it. There
+   * is no way to stand under a raised floor, and nothing has to answer what a
+   * body would be standing on if it were there.
+   *
+   * Dropped whenever a placement changes cell — see `landedPlacement`. It is an
+   * authored fact about a slot in a column, and a crate shoved off a ledge that
+   * kept it would hover at the elevation the crate it left behind gave it.
+   */
+  foot?: number;
+  /**
    * Signal channel this placement is wired to. Emitters drive it, receivers
    * follow it, and sharing a name is the whole of the binding — there is no
    * link table and no per-tile identity to keep alive.

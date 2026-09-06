@@ -19,9 +19,15 @@ import {
   updatePlacedReward,
   updatePlacedTeleport,
   updatePlacedDirection,
+  updatePlacedFoot,
   updatePlacedVariant,
 } from "../lib/mapData";
-import { canPlace, canReplaceStack, tilesByIdFromList } from "../lib/validation";
+import {
+  canPlace,
+  canReplaceStack,
+  fitsFoot,
+  tilesByIdFromList,
+} from "../lib/validation";
 
 export type ToolId =
   | "select"
@@ -158,6 +164,11 @@ export type EditorStore = {
   reorderSelectedStack: (from: number, to: number) => void;
   setStackDirection: (stackIndex: number, direction: Direction) => void;
   setStackVariant: (stackIndex: number, variant: string) => void;
+  /**
+   * Lift one placement clear of what it is resting on; `null` sets it back down.
+   * A foot the stack cannot take is refused and nothing is written.
+   */
+  setStackFoot: (stackIndex: number, foot: number | null) => { ok: boolean; reason?: string };
   setStackChannel: (stackIndex: number, channel: string) => void;
   setStackDescription: (stackIndex: number, description: string) => void;
   setStackReward: (
@@ -534,6 +545,30 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         variant,
       ),
     );
+  },
+
+  setStackFoot: (stackIndex, foot) => {
+    const { map, selected, currentLevel, tilesById } = get();
+    if (!selected) return { ok: false, reason: "No coordinate selected" };
+
+    const stack = getStack(map, selected.x, selected.y, currentLevel);
+    if (foot != null) {
+      const check = fitsFoot(stack, stackIndex, foot, tilesById);
+      if (!check.ok) return { ok: false, reason: check.reason };
+    }
+
+    get().commitMap(
+      updatePlacedFoot(
+        map,
+        selected.x,
+        selected.y,
+        currentLevel,
+        stackIndex,
+        foot,
+        tilesById,
+      ),
+    );
+    return { ok: true };
   },
 
   setStackChannel: (stackIndex, channel) => {

@@ -1,4 +1,4 @@
-import { terrainHeight } from "../lib/mapData";
+import { footElevation, terrainHeight } from "../lib/mapData";
 import type { PlacedTile, TileDef } from "../lib/types";
 
 /** Where a slot is drawn from and to, in height units above its level's base. */
@@ -42,12 +42,15 @@ export function clumpExtents(
 
   // Feet first, as a running total, because a slot's foot is everything the
   // stack raises below it — the same walk `../lib/mapData`'s `elevationAt`
-  // does, done once for the whole stack rather than once per slot.
+  // does, done once for the whole stack rather than once per slot. A placement
+  // that overrules its own foot is lifted here too, or it would be drawn where
+  // it sits and sorted where it does not.
   const feet: number[] = new Array(stack.length);
   const tops: number[] = new Array(stack.length);
   let elev = 0;
   for (let i = 0; i < stack.length; i++) {
     const placed = stack[i]!;
+    elev = footElevation(elev, placed);
     feet[i] = elev;
     tops[i] = elev + (tilesById[placed.tileId]?.height ?? 0);
     elev += terrainHeight(placed, tilesById);
@@ -110,7 +113,9 @@ export function clumpExtentOnArrival(
   tilesById: Record<string, TileDef>,
 ): DepthExtent {
   let foot = 0;
-  for (const placed of stack) foot += terrainHeight(placed, tilesById);
+  for (const placed of stack) {
+    foot = footElevation(foot, placed) + terrainHeight(placed, tilesById);
+  }
   // A tile the catalogue has never heard of takes up nothing, exactly as
   // {@link clumpExtents} reads one.
   let top = foot + (arriving?.height ?? 0);
