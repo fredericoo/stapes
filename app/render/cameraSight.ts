@@ -131,3 +131,38 @@ export function isHiddenFromCamera(
   }
   return false;
 }
+
+/**
+ * Is this cell one the viewer can see, on the terms every piece of chrome uses?
+ *
+ * The whole rule, in one place, because the alternative is what shipped before
+ * it: a name tag asked {@link isHiddenFromCamera} and a damage number asked
+ * whether the blow landed within a floor of the viewer, and the second answered
+ * yes for a fight one storey down inside a cave — numbers rising off solid rock.
+ *
+ * Three parts, and the middle one is the exception rather than a shortcut:
+ *
+ * - the roof-cut, which is exact: geometry it takes is not drawn, so nothing
+ *   standing on it is either;
+ * - the viewer's own floor, which is always visible. Everything drawn there is
+ *   drawn in front of nothing, and asking the occlusion walk about it catches
+ *   furniture instead — a body stepping behind a crate is not in cover;
+ * - {@link isHiddenFromCamera} for every other storey, which is the exact answer
+ *   to "is there something painted between the eye and this cell".
+ *
+ * Whether the cell is *on screen* is a separate question and deliberately not
+ * asked here: a caller that cares (a name over a head) has the camera to ask it
+ * with, and one that does not (a bubble anchored to a cell) would only be
+ * paying for it.
+ */
+export function isCellVisible(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  at: Coord,
+  viewerZ: number,
+  cut: RoofCut | undefined,
+): boolean {
+  if (cutHides(cut, at.x, at.y, at.z)) return false;
+  if (at.z === viewerZ) return true;
+  return !isHiddenFromCamera(map, tilesById, at, viewerZ, cut);
+}

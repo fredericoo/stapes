@@ -720,7 +720,7 @@ from there. So the
 question is "who could I single out", whose honest bound is what is on
 screen: choosing your target while walking towards it is how a fight normally
 starts. `GameRenderer` owns that test, because the camera is its business —
-`targetableActors` applies the same two rules the name tags use (`isVisibleLevel`
+`targetableActors` applies the same two rules the name tags use (`isCellVisible`
 plus `isWithinView`, shared with `enforceTargetVisibility`), and keeps whoever
 is already being fought regardless, since on a touch screen the list is the only
 way to call a fight off.
@@ -1469,6 +1469,24 @@ side of a wall beside it, or under the lip of the roof over its head — and a
 name blinking out as a creature walks past a crate reads as a bug rather than as
 cover. On-screen is the whole rule there; occlusion starts mattering a floor
 away.
+
+**Every piece of chrome asks `isCellVisible`, and the one that did not was
+wrong.** The rule — roof-cut, then the viewer's own floor, then
+`isHiddenFromCamera` — lives in `app/render/cameraSight.ts` beside the walk it
+wraps, and `isVisibleBody` is that plus `isWithinView`. Damage numbers used to
+ask a different question: `Math.abs(hit.z - self.z) <= 1`, a level slack from
+before the walk existed. So a fight one storey down inside a cave rained numbers
+over the ground above, through rock that was drawn in front of it. The slack was
+always an admission that there was no cheap per-pixel answer for the floors
+below you; there has been one since `isHiddenFromCamera` was written, and
+approximating a floor's worth of doubt on top of an exact answer only takes back
+the cases the exact answer got right.
+
+Speech and noises are *not* on this rule, and deliberately: the server sends
+them to the speaker's own level only (`sendToLevel`), which is a narrower bound
+than what is on screen. Widening them to match would mean broadcasting to
+everybody and gating on the client, which is a change to who hears what rather
+than a bug fix.
 
 #### A cut is a local question, and underground it is the most expensive one
 
