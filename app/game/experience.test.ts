@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { defFrom } from "../lib/battler";
+import { type BattlerDef, defFrom } from "../lib/battler";
 import { MELEE_REACH } from "../lib/item";
+import shippedTiles from "../../data/tiles.json";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import {
   levelForXp,
@@ -12,6 +13,7 @@ import {
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import type { AttackOutcome } from "./combat";
+import { effectiveBattler, emptyEquipment } from "./equipment";
 import { TICK_MS } from "./constants";
 import {
   AGILITY_SHARE_OF_OFFENCE,
@@ -204,6 +206,66 @@ describe("what a blow teaches the body it was aimed at", () => {
     expect(threatRate(10, 1)).toBe(1);
     expect(threatRate(10, FRAIL_HP)).toBe(1);
     expect(threatRate(10, FRAIL_HP * 2)).toBeLessThan(1);
+  });
+});
+
+/**
+ * **Armour is worn to survive, and it must not be a tax on learning to.** Both
+ * inputs to the defensive payout are deliberately blind to it: `potentialDamage`
+ * is rolled before `damageAfterDefence` subtracts anything, and `maxHp` comes
+ * off Toughness alone — `effectiveBattler` overrides `def` and `resist` and
+ * nothing else.
+ *
+ * Asserted through the real resolver against the shipped armour rather than by
+ * reading the formula, because the formula is not where this would break: it
+ * would break the day somebody folded worn defence into `maxHp`, or paid on
+ * `damage` because it read more naturally.
+ */
+describe("what the defender is wearing", () => {
+  const tilesById: Record<string, TileDef> = Object.fromEntries(
+    (shippedTiles as unknown as TileDef[]).map((tile) => [
+      tile.id,
+      normalizeTileDef(tile),
+    ]),
+  );
+  const body: BattlerDef = {
+    masteries: { toughness: 20, agility: 10, fist: 5 },
+    naturalWeapon: {
+      type: "weapon",
+      damage: 4,
+      def: 0,
+      accuracy: 80,
+      variance: 20,
+      spd: 50,
+      mastery: "fist",
+      reach: { ...MELEE_REACH },
+    },
+    sight: { up: 0, down: 0 },
+  };
+  const instance = (tileId: string) => ({ id: tileId, tileId });
+  const armoured = {
+    ...emptyEquipment(),
+    offhand: instance("iron-shield"),
+    armor: instance("steel-plate"),
+    head: instance("knights-helm"),
+    footwear: instance("steel-sabatons"),
+  };
+
+  const bare = effectiveBattler(body, null, tilesById, null);
+  const plated = effectiveBattler(body, armoured, tilesById, null);
+
+  it("is actually being worn, or the rest of this proves nothing", () => {
+    expect(plated.def).toBeGreaterThan(bare.def);
+  });
+
+  it("changes nothing about how big the body is", () => {
+    expect(plated.maxHp).toBe(bare.maxHp);
+  });
+
+  it("pays exactly the same toughness for the same blow", () => {
+    expect(defenderEarnings(landed, 1, 1, plated.maxHp)).toEqual(
+      defenderEarnings(landed, 1, 1, bare.maxHp),
+    );
   });
 });
 

@@ -1799,9 +1799,14 @@ in about thirty fights.
 
 Two things compounded it:
 
-- **The payout is on `potentialDamage`, which armour and Toughness never touch.**
-  That part is deliberate: a breastplate halving what reaches you must not halve
-  what you learn from wearing it. But measured over twenty thousand wolf blows, a
+- **The payout is on `potentialDamage`, which armour never touches.** That part
+  is deliberate and survives the fix: what you are wearing is how you survive a
+  blow, and it has no business deciding what the blow taught you. Neither term
+  can see it — `potentialDamage` is rolled before `damageAfterDefence` subtracts
+  anything, and `maxHp` comes off Toughness alone, since `effectiveBattler`
+  overrides `def` and `resist` and nothing else. Against the same wolf a naked
+  body takes 7.08 damage a blow, one in full plate takes 0.00, and both earn
+  17.7452. But measured over twenty thousand wolf blows, a
   player at Toughness 40 in ordinary starting gear takes **0.00 damage per blow**
   and was paid as though it had done 9.29. From there to Toughness 100 the payout
   never fell.

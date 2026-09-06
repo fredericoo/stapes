@@ -176,12 +176,17 @@ export const THREAT_FALLOFF = 4;
  * whoever sat at one hit point, and the optimal way to train Toughness would be
  * to stay nearly dead.
  *
- * Armour is deliberately not in it. What a blow could have done is still what it
- * could have done, so a breastplate halving what reaches you does not halve what
- * you learn from wearing it — the rule this closes is the other one, that a body
- * so tough the blow *cannot* land a mark still banked the whole payout. At
- * Toughness 40 in ordinary starting gear a wolf does literally zero damage per
- * blow and, before this, paid as if it had done nine.
+ * **Armour is in neither term, and that is a rule rather than an oversight.**
+ * What you are wearing is how you survive a blow; it has no business deciding
+ * what the blow taught you. `potentialDamage` is rolled before
+ * `./combat`'s `damageAfterDefence` subtracts anything, and `maxHp` comes off
+ * Toughness alone — `./equipment`'s `effectiveBattler` overrides `def` and
+ * `resist` and nothing else. Measured against the same wolf: a naked body takes
+ * 7.08 damage a blow, one in full plate takes 0.00, and both earn 17.7452.
+ *
+ * The rule this closes is the other one — a body so *tough* the blow cannot land
+ * a mark still banked the whole payout. At Toughness 40 a wolf does literally
+ * zero damage per blow and, before this, paid as if it had done nine.
  *
  * Hit points are the yardstick because hit points are what Toughness buys, and
  * they accelerate — see `../lib/battler`'s `MASTERY_ACCELERATION` — so the
