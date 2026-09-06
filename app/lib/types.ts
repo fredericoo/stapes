@@ -599,7 +599,32 @@ export function climbFromForSave(
 export const HEIGHT_PER_LEVEL = 4;
 
 /** Whether light passes through this tile. Default: blocks (false). */
+/**
+ * Whether this tile is one that may never block light, whatever is authored on
+ * it. Anything carried and anything driven: every `item`, every `battler`, and
+ * every {@link resolveActor} — which is not the same set, because four of the
+ * shipped shopkeepers are authored `kind: "prop"` and still walk about.
+ *
+ * The cost of getting this wrong is paid every frame rather than once. An actor
+ * is left out of the static bake only when it is also light-passing, because
+ * the dynamic overlay is add-only: it can paint a light the bake left out, but
+ * it cannot carve a shadow the bake never knew about, so omitting an occluder
+ * would light straight through it. One light-blocking actor therefore stays in
+ * the bake and re-bakes the chunks around it on every step — measured at ~22ms
+ * per step for the player. An item is never omitted, but a light-blocking one
+ * makes every drop, pickup and decay an occlusion-class edit, which invalidates
+ * the full `LIGHT_APRON` instead of nothing at all.
+ *
+ * Neither is a trade an author should be able to make by ticking a box, so the
+ * box is not offered — see `TileEditorDialog` — and this answers for the tiles
+ * where it was never offered.
+ */
+export function lightPassingForced(def: TileDef): boolean {
+  return def.kind === "item" || def.kind === "battler" || resolveActor(def);
+}
+
 export function resolveLightPassing(def: TileDef): boolean {
+  if (lightPassingForced(def)) return true;
   if (def.lightPassing != null) return def.lightPassing;
   if (def.blocksLight != null) return !def.blocksLight;
   return false;
@@ -1023,11 +1048,28 @@ function readKind(raw: Record<string, unknown>): TileKind {
     : "prop";
 }
 
+/**
+ * The tail every {@link normalizeTileDef} exit goes through.
+ *
+ * {@link lightPassingForced} is applied here as well as in
+ * {@link resolveLightPassing} so the flag is *written* and not only answered
+ * for: a tile saved from the editor and a tile hand-edited into
+ * `data/tiles.json` then say the same thing as each other, and reading the file
+ * tells you what the game will do with it.
+ */
+function settleTileDef(def: TileDef): TileDef {
+  const settled = normalizeTileVfx(def);
+  if (!lightPassingForced(settled) || settled.lightPassing === true) {
+    return settled;
+  }
+  return { ...settled, lightPassing: true };
+}
+
 export function normalizeTileDef(raw: unknown): TileDef {
   const t = raw as Record<string, unknown>;
   if (t && typeof t.type === "string" && TILE_TYPES.includes(t.type as TileType)) {
     const def = raw as TileDef;
-    return normalizeTileVfx({
+    return settleTileDef({
       ...def,
       // `variants` means two things depending on how old the tile is: a
       // `variant` tile's faces, and — on a tile written before `type` existed —
@@ -1083,10 +1125,10 @@ export function normalizeTileDef(raw: unknown): TileDef {
       const frames = legacy.variants?.[d];
       if (frames) sprites[d] = framesToSprite(frames, light);
     }
-    return normalizeTileVfx({ ...base, sprites });
+    return settleTileDef({ ...base, sprites });
   }
 
-  return normalizeTileVfx({
+  return settleTileDef({
     ...base,
     sprite: framesToSprite(legacy.variants?.default, light),
   });

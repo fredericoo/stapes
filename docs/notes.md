@@ -4442,6 +4442,32 @@ A carried light takes the same path from the other end: it is on no cell at all,
 so its override carries its `lights` explicitly rather than looking them up. See
 `EmitterOverride.lights`.
 
+#### Light-passing is not an authoring choice for anything that moves
+
+The two regressions the section above describes were both a missing flag, and
+both were found by measuring rather than by reading: `dynamicLightTileIds`
+returning an empty set cost ~22ms on every player step, and `cat` and `deer`
+carrying no `lightPassing` cost the same again every 200ms while they grazed.
+
+`lightPassingForced` makes that class unrepresentable. Every `item`, every
+`battler` and everything {@link resolveActor} recognises passes light, whatever
+is authored on it, and the tile editor shows a line of text where the checkbox
+used to be. The three sets are not the same — four shipped shopkeepers are
+authored `kind: "prop"` and still walk about — so the rule is the union and not
+the `kind` field alone.
+
+It is applied in two places on purpose. `resolveLightPassing` answers for it, so
+a hand-edited catalogue behaves correctly the moment it is loaded.
+`normalizeTileDef` writes it, so what is on disk says the same thing as what the
+game does with it.
+
+**A prop nothing drives is still free to block light**, which is most of the
+world: a wall, a roof, a closed door. The cost being avoided is specific to
+things that move — an occluder that stays in the static bake and re-bakes the
+chunks around it every time it takes a step — and to items, which are never
+omitted from the bake but make every drop, pickup and decay an occlusion-class
+edit that invalidates the full `LIGHT_APRON` instead of nothing at all.
+
 ### Size an invalidation by what actually changed
 
 Not every edit is the same size. `ChunkedLighting.editReach` classifies a cell's

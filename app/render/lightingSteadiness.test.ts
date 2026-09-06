@@ -25,6 +25,12 @@ import tilesJson from "../../data/tiles.json";
 import { fixtureTown } from "../lib/fixtureTown";
 import { ChunkedLighting } from "../lib/lightingChunks";
 import type { MapFile, TileDef } from "../lib/types";
+import {
+  lightPassingForced,
+  normalizeTileDef,
+  resolveActor,
+  resolveLightPassing,
+} from "../lib/types";
 import { GameSession, LOCAL_ACTOR_ID } from "../game/GameSession";
 import { PLAYER_TILE_ID, TICK_MS } from "../game/constants";
 import { dynamicLightTileIds } from "./WorldRenderer";
@@ -89,5 +95,47 @@ describe("lighting steadiness on the shipped catalogue", () => {
   it("does not rebake while the player walks", () => {
     const session = new GameSession(fixtureTown(), tiles);
     expect(drive(session, true)).toBe(0);
+  });
+});
+
+/**
+ * The same two regressions, made unrepresentable.
+ *
+ * `cat` and `deer` are light-passing in the catalogue today, so the test above
+ * passes and would go on passing right up until somebody unticked the box. The
+ * flag is no longer a box: anything carried or driven passes light because
+ * {@link lightPassingForced} says so, and what is authored is not consulted.
+ */
+describe("light-passing is not an authoring choice for anything that moves", () => {
+  const carriedOrDriven = tiles.filter(
+    (def) => def.kind === "item" || def.kind === "battler" || resolveActor(def),
+  );
+
+  it("covers the whole shipped catalogue of them", () => {
+    // Sixty-eight items and battlers, plus four shopkeepers authored as props
+    // that still walk about. The count is here so that a tile added without a
+    // kind is visible rather than silently uncovered.
+    expect(carriedOrDriven.length).toBeGreaterThan(60);
+  });
+
+  it("answers light-passing even with the flag stripped off", () => {
+    for (const def of carriedOrDriven) {
+      const stripped = { ...def, lightPassing: false, blocksLight: true };
+      expect([def.id, resolveLightPassing(stripped)]).toEqual([def.id, true]);
+    }
+  });
+
+  it("writes the flag back into the tile as well as answering for it", () => {
+    const stripped = normalizeTileDef({
+      ...tilesById.wolf!,
+      lightPassing: undefined,
+    });
+    expect(stripped.lightPassing).toBe(true);
+  });
+
+  /** A wall is still allowed to cast a shadow. */
+  it("leaves a prop that nothing drives free to block light", () => {
+    expect(resolveLightPassing(tilesById["brick-wall"]!)).toBe(false);
+    expect(lightPassingForced(tilesById["brick-wall"]!)).toBe(false);
   });
 });
