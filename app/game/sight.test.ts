@@ -3,6 +3,7 @@ import tilesJson from "../../data/tiles.json";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import {
+  HEIGHT_PER_LEVEL,
   normalizeTileDef,
   normalizeTiles,
   resolveActor,
@@ -445,5 +446,40 @@ describe("the library we ship", () => {
       .filter((tile) => resolveActor(tile) && !resolveLightPassing(tile))
       .map((tile) => tile.id);
     expect(blocking).toEqual([]);
+  });
+
+  /**
+   * The counter with something on it, at the heights the file actually authors.
+   *
+   * A shopkeeper stands behind a counter and people put things down on it, so
+   * seeing over one box is the ordinary case rather than an edge one. The rule
+   * that decides it is tested above against fixtures; what this adds is that the
+   * numbers `data/tiles.json` carries put the real furniture on the right side
+   * of it — a box authored a level tall would blind every NPC behind a counter
+   * and nothing would say so.
+   */
+  it("puts a box within a full-height body's sight and a wall past it", () => {
+    const authoredById = Object.fromEntries(
+      authored.map((tile) => [tile.id, tile]),
+    );
+    const counter = { x: 2, y: 0, z: 0 };
+    const customer = { x: 4, y: 0, z: 0 };
+    let ground = emptyMap();
+    for (let x = 0; x <= 4; x++) {
+      ground = replaceStack(ground, x, 0, 0, [{ tileId: "grass" }]);
+    }
+    const put = (...stacked: string[]) =>
+      replaceStack(ground, counter.x, counter.y, 0, [
+        { tileId: "grass" },
+        ...stacked.map((tileId) => ({ tileId })),
+      ]);
+
+    const EYE = HEIGHT_PER_LEVEL;
+    expect(hasLineOfSight(put("wooden-box"), authoredById, from, customer, EYE)).toBe(true);
+    // Two of them is a full level, and nobody sees over that.
+    expect(
+      hasLineOfSight(put("wooden-box", "wooden-box"), authoredById, from, customer, EYE),
+    ).toBe(false);
+    expect(hasLineOfSight(put("stone-wall"), authoredById, from, customer, EYE)).toBe(false);
   });
 });
