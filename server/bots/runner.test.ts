@@ -6,7 +6,12 @@ import { normalizeTiles, type FlatMapFile, type TileDef } from "../../app/lib/ty
 import { parseClientMessage } from "../../app/net/protocol";
 import { Harness, Pair, type TestSocket } from "../testHarness";
 import { BotBody } from "./body";
-import type { BotDecision, BotDecisionLog, BotModel } from "./model";
+import type {
+  BotDecision,
+  BotDecisionLog,
+  BotDecisionRequest,
+  BotModel,
+} from "./model";
 import {
   BOT_FRAME_MS,
   BotRunner,
@@ -654,11 +659,11 @@ describe("walking to a coordinate rather than to a pointer", () => {
     const runner = new BotRunner({
       body,
       model: {
-        decide: async (request) => {
+        decide: async (request: BotDecisionRequest) => {
           answers.push(request.apply({ tool: "walk_to", x: 4, y: 0 }));
-          return {};
+          return { text: "", usage: { inputTokens: null, outputTokens: null } };
         },
-      } as never,
+      },
       log: () => {},
     });
 
