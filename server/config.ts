@@ -9,8 +9,8 @@ import * as v from "valibot";
  * process at second zero, on the deploy that introduced it.
  *
  * Every value has a development default except the secrets, which deliberately
- * have none: an unset `RESET_SECRET` disables `/api/reset` entirely rather than
- * defaulting to something guessable. See `resetSecret` below.
+ * have none: an unset `ADMIN_SECRET` makes the admin endpoints 404 rather than
+ * defaulting to something guessable. See `ADMIN_SECRET` below.
  */
 const schema = v.object({
   /** Where the server listens. `0` asks the OS for a free port — see `scripts/dev.ts`. */
