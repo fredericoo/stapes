@@ -27824,6 +27824,568 @@
     }
   },
   {
+    "id": "bat",
+    "name": "Bat",
+    "height": 2,
+    "type": "directional",
+    "kind": "battler",
+    "attributes": {},
+    "lightPassing": true,
+    "affectedByGravity": false,
+    "walkable": false,
+    "walkDurationMs": 90,
+    "interactions": {
+      "brain": {
+        "initial": "flitting",
+        "states": {
+          "flitting": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 4
+              }
+            ]
+          },
+          "roosting": {
+            "do": [
+              {
+                "action": "wait",
+                "ms": 2000
+              }
+            ]
+          },
+          "diving": {
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "eee"
+              }
+            ],
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                },
+                "allowDrops": true
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "veering": {
+            "do": [
+              {
+                "action": "step_away_from",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                },
+                "allowDrops": true
+              },
+              {
+                "action": "step_random",
+                "allowDrops": true
+              }
+            ]
+          },
+          "homing": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                },
+                "allowDrops": true
+              },
+              {
+                "action": "step_random",
+                "allowDrops": true
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "bind": {
+              "prey": {
+                "type": "attacker"
+              }
+            },
+            "to": "diving"
+          },
+          {
+            "from": "any",
+            "if": {
+              "cond": "in_los",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileId": "player"
+                }
+              },
+              "cells": 8
+            },
+            "bind": {
+              "prey": {
+                "type": "nearest",
+                "data": {
+                  "tileId": "player"
+                }
+              }
+            },
+            "to": "diving"
+          },
+          {
+            "from": "diving",
+            "if": {
+              "cond": "after",
+              "ms": 1400
+            },
+            "to": "veering"
+          },
+          {
+            "from": "veering",
+            "if": {
+              "cond": "after",
+              "ms": 700
+            },
+            "to": "diving"
+          },
+          {
+            "from": "veering",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "prey"
+                }
+              },
+              "cells": 12
+            },
+            "to": "flitting"
+          },
+          {
+            "from": "diving",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "prey"
+                }
+              },
+              "cells": 12
+            },
+            "to": "flitting"
+          },
+          {
+            "from": "flitting",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 14
+            },
+            "to": "homing"
+          },
+          {
+            "from": "roosting",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 14
+            },
+            "to": "homing"
+          },
+          {
+            "from": "homing",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 2
+            },
+            "to": "flitting"
+          },
+          {
+            "from": "flitting",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "roosting"
+          },
+          {
+            "from": "roosting",
+            "if": {
+              "cond": "after",
+              "ms": 2000
+            },
+            "to": "flitting"
+          }
+        ]
+      },
+      "battler": {
+        "masteries": {
+          "fist": 12,
+          "toughness": 4,
+          "agility": 45
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "damage": 5,
+          "def": 0,
+          "accuracy": 84,
+          "variance": 45,
+          "spd": 62,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "fist"
+        },
+        "sight": {
+          "up": 1,
+          "down": 1
+        },
+        "kit": [
+          {
+            "slot": "offhand",
+            "tileId": "raw-meat",
+            "chance": 10
+          }
+        ]
+      },
+      "respawn": {
+        "fromMs": 150000,
+        "toMs": 300000
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "animals",
+                  "rect": {
+                    "x": 0,
+                    "y": 16,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "tilesetId": "animals",
+                  "rect": {
+                    "x": 2,
+                    "y": 16,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 110
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "animals",
+                  "rect": {
+                    "x": 4,
+                    "y": 16,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "tilesetId": "animals",
+                  "rect": {
+                    "x": 6,
+                    "y": 16,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 110
+              }
+            ]
+          },
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "animals",
+                  "rect": {
+                    "x": 8,
+                    "y": 16,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "tilesetId": "animals",
+                  "rect": {
+                    "x": 10,
+                    "y": 16,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 110
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "animals",
+                  "rect": {
+                    "x": 12,
+                    "y": 16,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 110
+              },
+              {
+                "sprite": {
+                  "tilesetId": "animals",
+                  "rect": {
+                    "x": 14,
+                    "y": 16,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 110
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 0,
+                "y": 16,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 160
+          },
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 2,
+                "y": 16,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 160
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 4,
+                "y": 16,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 160
+          },
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 6,
+                "y": 16,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 160
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 8,
+                "y": 16,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 160
+          },
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 10,
+                "y": 16,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 160
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 12,
+                "y": 16,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 160
+          },
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 14,
+                "y": 16,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 160
+          }
+        ]
+      }
+    }
+  },
+  {
     "id": "cave-troll",
     "name": "Cave Troll",
     "height": 4,

@@ -6,6 +6,7 @@ import { tilesByIdFromList } from "../lib/validation";
 import { TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
 import { findLooseGravityCells, settleGravity } from "./gravity";
+import shippedTiles from "../../data/tiles.json";
 
 /**
  * Passive gravity for the bodies no runtime drives. An actor animates its own
@@ -136,6 +137,51 @@ describe("settling loose gravity", () => {
 
     expect(changed).toEqual([]);
     expect(ids(getStack(map, 0, 0, 1))).toEqual(["box"]);
+  });
+});
+
+/**
+ * The bat is the one body in the world authored to stay up, so it is the one
+ * that proves the flag is read rather than assumed. Built against the *real*
+ * tile rather than a fixture with an invented flag — a fixture here would test
+ * the fixture, and what is being asserted is a fact about the shipped creature.
+ *
+ * The rat stands beside it in every case as the control. Both are creatures,
+ * both are the same shape of block, and the only thing between them is
+ * `affectedByGravity` — so a change that broke this would have to break them
+ * together, which is a much louder failure than one silently dropping.
+ */
+describe("a body that does not fall", () => {
+  const shipped = (id: string): TileDef =>
+    normalizeTileDef(
+      (shippedTiles as unknown as TileDef[]).find((t) => t.id === id)!,
+    );
+  const flying = tilesByIdFromList([...tiles, shipped("bat"), shipped("rat")]);
+  const overTheVoid = (tileId: string) =>
+    replaceStack(emptyMap(), 0, 0, 1, [{ tileId }]);
+
+  it("is not even indexed as something the board could drop", () => {
+    expect(findLooseGravityCells(overTheVoid("bat"), flying)).toEqual([]);
+    expect(findLooseGravityCells(overTheVoid("rat"), flying)).toHaveLength(1);
+  });
+
+  it("stays a level up with a floor right underneath it", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
+    map = replaceStack(map, 0, 0, 1, [{ tileId: "bat" }]);
+
+    const { map: next, changed } = settleGravity(
+      map,
+      findLooseGravityCells(map, flying),
+      flying,
+    );
+
+    expect(changed).toEqual([]);
+    expect(ids(getStack(next, 0, 0, 1))).toEqual(["bat"]);
+  });
+
+  it("is the only difference between it and the rat", () => {
+    expect(shipped("bat").affectedByGravity).toBe(false);
+    expect(shipped("rat").affectedByGravity).toBe(true);
   });
 });
 
