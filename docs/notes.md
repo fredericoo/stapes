@@ -4763,6 +4763,34 @@ map's surface rather than the fraction of it that happens to be bare.
 Measured on the fixture town, the bake is unchanged: p50 ~44ms either way, p95
 47–50ms against a 65ms budget.
 
+#### The lid belongs to the upper of the two cells
+
+A tile sits on its own level's floor plane, so the lid between `z` and `z + 1`
+is the seal of the cell at `z + 1`. Climbing out of `z` crosses that lid and
+dropping out of `z + 1` crosses the same one. All three vertical rays —
+`rayTransmission` and `denseRayTransmission` in `app/lib/lighting.ts`,
+`denseRayTransmission` in `app/lib/lightingFlood.ts` — used to read the seal of
+the cell the step *arrived* in, which names the right lid going up and one a
+storey too low coming down. The first floor under a light therefore never
+blocked it, and the check has to happen *before* the loop breaks on arrival, or
+the last crossing of a descent goes unasked.
+
+The other half of it was in `castEmitter`: the emitter's own cell had both its
+opacity and its seal zeroed so it could not shadow itself. The opacity is right
+— a torch in a wall lights the room — but that seal is the floor the emitter is
+standing on, and it is exactly what should stop the light reaching the storey
+below. Clearing it meant a lantern in a cave lit the cave underneath, straight
+through solid rock. Only the opacity is cleared now, which is safe because every
+emitter in `data/tiles.json` is `lightPassing`: the tile never contributes the
+seal it would then be blocked by. A fixture torch that is *not* `lightPassing`
+is a fixture testing itself, and `app/lib/lighting.test.ts` was changed to match
+the catalogue.
+
+Measured over 400 cave cells on `data/map.json` that have a storey beneath them,
+with a radius-6 lantern at each: the brightest light landing directly below the
+lantern went from 0.53 to 0. What remains is light going down authored holes,
+which is the whole point of a hole.
+
 ### Empty space with nothing under it is void, and void is black
 
 A cell is **void** when its column holds no tile at that level or any level

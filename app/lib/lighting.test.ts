@@ -68,9 +68,14 @@ const ladderTop = tile({
   lightPassing: true,
   intangible: true,
 });
+// `lightPassing`, like every emitter in `data/tiles.json`: a lamp is a thing
+// you see light through, and a torch that sealed its own cell would be a
+// fixture testing itself — it would stop its own light reaching the floor it
+// hangs over.
 const torch = tile({
   id: "torch",
   height: 0,
+  lightPassing: true,
   light: { radius: 4, intensity: 1, color: "#ffffff" },
 });
 
@@ -272,6 +277,20 @@ describe("computeLighting flood fill", () => {
     ]);
     const grid = computeLighting(map, tilesById, [0, 0, 0]);
     expect(sampleLevelLight(grid.levels.get(1)!, 0, 0)[0]).toBe(0);
+  });
+
+  it("does not leak light to the floor below through the floor it stands on", () => {
+    // A torch on a cave floor, with a second cave storey directly beneath it.
+    // The floor it is standing on is the lower storey's ceiling.
+    const map = mapAt([
+      { x: 0, y: 0, z: 0, tiles: ["floor", "torch"] },
+      { x: 1, y: 0, z: 0, tiles: ["floor"] },
+      { x: 0, y: 0, z: -1, tiles: ["floor"] },
+      { x: 1, y: 0, z: -1, tiles: ["floor"] },
+    ]);
+    const grid = computeLighting(map, tilesById, [0, 0, 0]);
+    expect(sampleLevelLight(grid.levels.get(-1)!, 0, 0)[0]).toBe(0);
+    expect(sampleLevelLight(grid.levels.get(-1)!, 1, 0)[0]).toBe(0);
   });
 
   it("lights the floor below from a torch above (open shaft)", () => {
@@ -680,6 +699,33 @@ describe("void", () => {
     const level = computeLighting(map, tilesById, [0, 0, 0]).levels.get(0)!;
     expect(sampleLevelLight(level, 1, 0)[0]).toBe(0);
     expect(sampleLevelLight(level, 2, 0)[0]).toBeGreaterThan(0.1);
+  });
+
+  it("a carried torch does not light the storey below through the floor", () => {
+    // What a player standing in a cave with a lantern actually is: an override
+    // at a cell whose stack is the floor under their feet, and a second cave
+    // storey beneath that floor.
+    const map = mapAt([
+      { x: 0, y: 0, z: 0, tiles: ["floor"] },
+      { x: 1, y: 0, z: 0, tiles: ["floor"] },
+      { x: 0, y: 0, z: -1, tiles: ["floor"] },
+      { x: 1, y: 0, z: -1, tiles: ["floor"] },
+    ]);
+    const base = computeLighting(map, tilesById, [0, 0, 0]);
+    const lit = overlayEmitterOverrides(base, map, tilesById, [
+      {
+        x: 0,
+        y: 0,
+        z: 0,
+        fx: 0.5,
+        fy: 0.5,
+        fz: 0.5,
+        lights: [{ radius: 4, intensity: 1, color: "#ffffff" }],
+      },
+    ]);
+    const below = lit.levels.get(-1)!;
+    expect(sampleLevelLight(below, 0, 0)[0]).toBe(0);
+    expect(sampleLevelLight(below, 1, 0)[0]).toBe(0);
   });
 
   it("a carried torch obeys the same rule on the dynamic path", () => {
