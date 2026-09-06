@@ -239,10 +239,9 @@ import {
 import {
   cellForFeetAbs,
   cellHasLooseGravity,
-  findLandingAbs,
   findLooseGravityCells,
   findWalkableLandingAbs,
-  isSupported,
+  gravityPullOn,
   settleGravity,
 } from "./gravity";
 import {
@@ -7499,37 +7498,23 @@ export class GameSession implements PlaySession {
   }
 
   private maybeStartFall(actor: ActorRuntime) {
-    if (!this.defFor(actor).affectedByGravity) return;
-
     const loc = this.locate(actor);
-    if (
-      isSupported(this.map, loc.x, loc.y, loc.z, loc.stackIndex, this.tilesById)
-    ) {
-      return;
-    }
-
-    const feetAbs = standingAbs(
+    const pull = gravityPullOn(
       this.map,
-      loc.x,
-      loc.y,
-      loc.z,
-      loc.stackIndex,
+      loc,
+      this.defFor(actor),
       this.tilesById,
     );
-    const landing = findLandingAbs(this.map, loc.x, loc.y, feetAbs, this.tilesById, {
-      z: loc.z,
-      stackIndex: loc.stackIndex,
-    });
-    if (landing == null || landing >= feetAbs) return;
-
-    // Drops within climb height are step-downs (same as same-level height
-    // change) — snap onto the surface instead of playing a fall.
-    if (feetAbs - landing <= MAX_CLIMB_HEIGHT) {
-      this.land(actor, landing);
+    if (pull.kind === "stand") return;
+    if (pull.kind === "settle") {
+      this.land(actor, pull.landingAbs);
       return;
     }
-
-    actor.fall = { feetAbs, landingAbs: landing, elapsedMs: 0 };
+    actor.fall = {
+      feetAbs: pull.feetAbs,
+      landingAbs: pull.landingAbs,
+      elapsedMs: 0,
+    };
   }
 
   private tickFall(actor: ActorRuntime, tickMs: number) {

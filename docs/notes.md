@@ -1430,6 +1430,36 @@ new motion goes the same way.
 separately: the map is authoritative and already carries ownership, so there is
 no second copy to drift.
 
+### The client predicts steps and does not predict gravity
+
+A fall is the server's to announce. `RemoteSession` starts one only on
+`fallStarted`, and until that event arrives its `motion.fall` is null — which is
+fine for every fall that happens *to* a player and wrong for the one they walk
+into.
+
+Stepping into a hole is a legal step: `canWalk` allows a cell with nothing to
+stand on precisely so gravity can pull a body through a drop too steep to climb
+down. The client predicts that step like any other and lands the body in
+mid-air, and for one round trip it is holding a direction, standing on nothing,
+and has heard nothing to the contrary. It used to chain the next step out of
+that cell — the server refuses every step from a falling body, so the avatar
+walked one cell past the hole and was dragged back into it. On a local socket
+the `fallStarted` beat the next step and hid this entirely; at 120ms it was
+every time, and click-to-walk made it something a player could ask for rather
+than a way of falling off a ledge by accident.
+
+`predictStep` now asks `gravityPullOn` — the same verdict `maybeStartFall` acts
+on, extracted so the two machines cannot drift — and takes no step from a cell
+the board says the body is about to fall out of. The rule this belongs to is the
+one `chooseStep` is under: **the client re-asks the simulation's own question
+rather than keeping a second opinion about it.** Anything else the simulation
+refuses a step for is a candidate for the same treatment.
+
+Note what this is *not*. `abandonPrediction` is unaffected, and the overshoot
+was never a re-sent step: the client minted a fresh `seq` for ground it had
+genuinely not been told about, from a cell it genuinely believed it was standing
+in. The fault was believing it.
+
 ### A client's actor set is its `hello` plus what it is told afterwards
 
 **`RemoteSession` reads a body's *position* off the map, and it does not read
