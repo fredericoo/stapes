@@ -4887,23 +4887,75 @@ holds the whole patch stream its interest window reaches, so without it a body
 would route round a corner it has no business being able to see, and the grid
 would be a description of the server's board rather than of a player's view.
 
-The grid is single characters with a legend of the real tile ids present in
+Tiles are single characters with a legend of the real tile ids present in
 *this* view. `data/tiles.json` holds 125 tiles whose ids average about ten
 characters, so a grid of raw ids is several times the tokens; the legend is
 rebuilt per view, so a glyph means whatever this view says it means and the
-model never carries a mapping between turns. Three characters are reserved and
-always explained: `@` is you, `?` is a column nothing can see into, and `.` is a
-column with nothing in it at all — open air, and possibly a drop.
+model never carries a mapping between turns. No digit is ever a tile, because
+every number in the view is a coordinate and the ruler is what `walk_to`'s
+arguments come off. Four characters are reserved and always explained: `@` is
+you, `?` is a column nothing can see into, `.` is a column with nothing in it at
+all — open air, and possibly a drop — and `#` follows a tile in a cell no body
+your size could stand in.
 
-Measured against `fixtureTown` with the real catalogue, a 23×23 view — the same
-square `VIEW_CELLS` gives a player — renders to about 1,200 characters and
-**484 tokens** standing in the street, 416 inside a house where most of the grid
-is `?`. The system prompt is another 279. Roughly 750 input tokens a decision.
+**A cell is the top tile, plus whether you could stand there.** The glyph on its
+own cannot answer the question every step turns on: a `stone-wall` and a
+`wooden-floor` under a `stone-wall` look alike from above and are different
+places to walk. Nor can an elevation, which is what the cell carried for one
+commit — a tile two units high is a step up in the open and a shelf with no
+headroom under a floor, and the number is the same both times. Headroom is what
+decides whether a cell is somewhere you can be, and a top-of-stack height cannot
+express headroom.
+
+So `server/bots/view.ts`'s `standingRoom` asks the pair the walk itself asks:
+`listStandingSurfaces` for where feet may go in the column, `fitsAtElevation` for
+whether the body clears what is above one of those surfaces — the pair
+`findPath` goes through in `dropLanding`, rather than a second opinion derived in
+the view. The surfaces are narrowed to the level the cell is drawn from, so a
+marker on a roof is not an answer about the floor inside the house. The size is
+the bot's own tile's, and the fit skips other people on `app/game/movement.ts`'s
+rule that people walk through each other and nothing else does — without that the
+bot's own body would make the one cell it is certainly standing in read as
+nowhere it can be. Bodies are still appended to the cell rather than written over
+it: the cell somebody is standing in is the one you most want the ground of.
+
+Cells are therefore one or two characters plus anybody in them, so the grid is
+padded into columns — each column as wide as the widest cell in it, plus a
+space. Uniform width across the whole grid reads more like a table and costs
+about 20% more in a view that is mostly `?`, which is most indoor views.
+
+**Walkability costs about twice the bare top glyph, and half the heights it
+replaced.** Measured against `fixtureTown` with the real catalogue and
+`gpt-tokenizer`, on the same two 23×23 views — the square `VIEW_CELLS` gives a
+player — a street view is 499 tokens as bare top glyphs, 1,984 as stacks with
+heights, and **1,012** with the marker; inside a house, 425, 1,433 and **1,129**.
+Nearly all of it is the grid, and most of the difference from the bare view is
+padding rather than the `#` itself: the bare view packed 529 one-character cells
+with no separator, and a cell that is sometimes two characters cannot be read
+that way. Marking the cells you *cannot* stand in rather than the ones you can is
+worth having — most cells in most views are walkable. The system prompt is
+another 279, so a decision is roughly 1,300–1,400 input tokens.
+
+The one thing that cannot move to the legend is this marker. A height is a
+property of the tile and could be named once per view; whether you fit is a
+property of the *cell*, which is the whole reason it is worth the padding.
+
+Building the view costs about 2.4ms in the street and 2.2ms indoors, against
+1.6ms and 1.9ms before the marker — 529 extra column scans and fits. A bot
+decides at most `BOT_DECISIONS_PER_MINUTE` times a minute and every decision
+waits on a provider round trip, so this is noise against the network.
 
 Coordinates are written down both edges and ticked every five cells along the
 top and bottom. `walk_to` takes absolute coordinates, so without a ruler the
 model has to produce them by counting characters, which is the one thing it is
-worst at, and a miscount is a body walking somewhere nobody asked for.
+worst at, and a miscount is a body walking somewhere nobody asked for. With
+multi-character cells the ruler ticks the column a cell *starts* in, and the
+test reads the rendered text back the way a reader has to: find the tick, then
+count whitespace-separated cells along from it.
+
+The bot's own name is in the view, from the same `bodyNameFor` the tag over its
+head uses. It is told everybody else's name, and without its own it cannot tell
+whether a line of chat or a notice is about it.
 
 Bodies appear twice — a glyph in the grid, a line with name, hit points and
 distance under it — and both are built from one `visibleActors` array, which is
