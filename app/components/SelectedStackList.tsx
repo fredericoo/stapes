@@ -4,7 +4,8 @@ import { DragDropProvider } from "@dnd-kit/react";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import type { Direction, PlacedTile, TileDef, TilesetDef } from "../lib/types";
 import { isDirectional } from "../lib/types";
-import { getStack, listChannels } from "../lib/mapData";
+import { elevationAt, getStack, listChannels } from "../lib/mapData";
+import { footRange } from "../lib/validation";
 import {
   resolveEmit,
   resolveReceive,
@@ -104,6 +105,27 @@ function isGiveable(def: TileDef): boolean {
   return resolveItem(def) != null && resolveContainer(def) == null;
 }
 
+/**
+ * The elevations one placement may be lifted to, or null when there is no
+ * choice to offer.
+ *
+ * Null covers both ends of "nothing to decide": a stack with no headroom left,
+ * and a placement whose only legal foot is the one it already has. Offering a
+ * single button that cannot change anything is the control-on-a-rock the
+ * channel and reward fields are gated the same way to avoid.
+ */
+function footChoice(
+  stack: PlacedTile[],
+  stackIndex: number,
+  tilesById: Record<string, TileDef>,
+): { value: number; resting: number; options: number[] } | null {
+  const { min, max } = footRange(stack, stackIndex, tilesById);
+  if (max <= min) return null;
+  const options: number[] = [];
+  for (let foot = min; foot <= max; foot++) options.push(foot);
+  return { value: elevationAt(stack, stackIndex, tilesById), resting: min, options };
+}
+
 /** Display is top-first; store reorder uses bottom-first stack indices. */
 function displayIndexToStackIndex(displayIndex: number, length: number): number {
   return length - 1 - displayIndex;
@@ -116,6 +138,7 @@ function SortableStackItem({
   stackIndex,
   placed,
   def,
+  foot,
   giveable,
   tilesets,
   listRef,
@@ -126,6 +149,8 @@ function SortableStackItem({
   stackIndex: number;
   placed: PlacedTile;
   def: TileDef;
+  /** Where this placement may sit within the level; null when it has no say. */
+  foot: ReturnType<typeof footChoice>;
   giveable: TileDef[];
   tilesets: TilesetDef[];
   listRef: RefObject<HTMLUListElement | null>;
@@ -237,6 +262,33 @@ function SortableStackItem({
                 </button>
               );
             })}
+          </div>
+        ) : null}
+        {/* In the row beside the facing and the face, and for the same reason:
+            where a thing sits is what the placement *is*, not something it is
+            wired to. The lowest option is the elevation the stack under it
+            reaches — picking it clears the field rather than writing the number
+            down, so a placement resting on what holds it up leaves no line in
+            `map.json`. */}
+        {foot ? (
+          <div className="mt-1 flex items-center gap-1">
+            <span className="text-[10px] font-bold uppercase text-muted">
+              Foot
+            </span>
+            <Segmented<number>
+              size="sm"
+              ariaLabel={`Foot elevation for ${def.name}`}
+              value={foot.value}
+              onChange={(value) =>
+                useEditorStore
+                  .getState()
+                  .setStackFoot(stackIndex, value === foot.resting ? null : value)
+              }
+              options={foot.options.map((value) => ({
+                value,
+                label: String(value),
+              }))}
+            />
           </div>
         ) : null}
         {/* What the placement carries, rather than the fields themselves: the
@@ -373,6 +425,7 @@ export function SelectedStackList({ stack, tilesById, tilesets }: Props) {
               stackIndex={row.stackIndex}
               placed={row.placed}
               def={def}
+              foot={footChoice(stack, row.stackIndex, tilesById)}
               giveable={giveable}
               tilesets={tilesets}
               listRef={listRef}

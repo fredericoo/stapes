@@ -104,6 +104,31 @@ describe("editor store history", () => {
     ]);
   });
 
+  it("setStackFoot lifts a placement, refuses what will not fit, and undoes", () => {
+    const store = useEditorStore.getState();
+    // `rock` is two units on bare grass, so half a level up is the one lift
+    // that leaves it inside the level.
+    expect(store.setStackFoot(1, 2)).toEqual({ ok: true });
+    expect(getStack(useEditorStore.getState().map, 1, 2, 0)).toEqual([
+      { tileId: "grass" },
+      { tileId: "rock", foot: 2 },
+    ]);
+
+    const tooHigh = useEditorStore.getState().setStackFoot(1, 3);
+    expect(tooHigh.ok).toBe(false);
+    expect(getStack(useEditorStore.getState().map, 1, 2, 0)[1]!.foot).toBe(2);
+
+    // Setting it back down leaves no field behind, the way a blank channel does.
+    useEditorStore.getState().setStackFoot(1, null);
+    expect(getStack(useEditorStore.getState().map, 1, 2, 0)).toEqual([
+      { tileId: "grass" },
+      { tileId: "rock" },
+    ]);
+
+    useEditorStore.getState().undo();
+    expect(getStack(useEditorStore.getState().map, 1, 2, 0)[1]!.foot).toBe(2);
+  });
+
   it("setStackChannel wires, unwires and stays undoable", () => {
     const store = useEditorStore.getState();
     store.setStackChannel(1, "gate-a");
