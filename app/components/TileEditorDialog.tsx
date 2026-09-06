@@ -37,6 +37,7 @@ import {
   isDirectional,
   nearestCardinal,
   resolveClimbFrom,
+  lightPassingForced,
   resolveIntangible,
   resolveLightPassing,
   resolveWalkable,
@@ -951,7 +952,8 @@ export function TileEditorDialog({
       type: draft.type,
       kind: draft.kind,
       attributes: {},
-      lightPassing: draft.lightPassing ? true : undefined,
+      lightPassing:
+        draft.lightPassing || lightPassingForced(draft) ? true : undefined,
       intangible: draft.intangible ? true : undefined,
       affectedByGravity: draft.affectedByGravity ? true : undefined,
       walkable: draft.walkable === false ? false : undefined,
@@ -1984,17 +1986,25 @@ export function TileEditorDialog({
               className="w-fit"
             />
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={draft.lightPassing ?? false}
-              onChange={(e) =>
-                setDraft({ ...draft, lightPassing: e.target.checked })
-              }
-              className="hard-checkbox"
-            />
-            Passes light
-          </label>
+          {lightPassingForced(draft) ? (
+            <p className="text-sm opacity-60">
+              Passes light — items, battlers and anything with a brain always
+              do. One that blocked light would be re-baked on every step it
+              took.
+            </p>
+          ) : (
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={draft.lightPassing ?? false}
+                onChange={(e) =>
+                  setDraft({ ...draft, lightPassing: e.target.checked })
+                }
+                className="hard-checkbox"
+              />
+              Passes light
+            </label>
+          )}
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
