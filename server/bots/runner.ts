@@ -5,7 +5,12 @@ import {
   type BotDecisionLog,
   type BotModel,
 } from "./model";
-import { MAX_CALLS_PER_DECISION } from "./tools";
+import {
+  describeCall,
+  MAX_CALLS_PER_DECISION,
+  NO_CALLS_LEFT_ANSWER,
+  type BotCall,
+} from "./tools";
 import { renderBotView } from "./view";
 
 /**
@@ -159,12 +164,14 @@ export class BotRunner {
   }
 
   /**
-   * One round trip: build the prompt, ask, apply what came back.
+   * One decision: build the prompt, ask, and apply each call as it is made.
    *
-   * Everything is applied in the order the model asked for it, and at most
-   * {@link MAX_CALLS_PER_DECISION} of them — a model that returned twenty
-   * calls has misunderstood, and honouring them would be twenty decisions'
-   * worth of movement bought with one.
+   * The model does not hand back a list any more — it calls {@link applyCall}
+   * from inside its own run and reads the answer, which is why the calls are
+   * collected here rather than read off the result. At most {@link
+   * MAX_CALLS_PER_DECISION} of them: past that they are refused with a sentence
+   * saying so, since a model mid-run is about to choose again and a silent drop
+   * would leave it believing it acted.
    *
    * The prompt is two documents: what this bot remembers, then what its body can
    * see. They are built separately and joined here because they are true about
@@ -203,32 +210,36 @@ export class BotRunner {
     const startedMs = this.now();
     this.guard.noteStart(startedMs);
 
+    // Declared outside the try, because a decision is several requests now and
+    // a provider that fails on the second one fails after the first call has
+    // already moved a body. The list has to reach the catch for that to be
+    // written down; a bot that walked somewhere and does not know it had is the
+    // failure this avoids.
+    const applied: BotCall[] = [];
+    const apply = (call: BotCall) => this.applyCall(applied, call);
+
     try {
-      const decision = await this.model.decide({ prompt });
-      const calls = decision.calls.slice(0, MAX_CALLS_PER_DECISION);
-      this.memory.decided(calls, this.body.minutesOfDay());
-      // `set_goal` is the one call with nothing to send. See `./tools`.
-      for (const call of calls) {
-        if (call.tool !== "set_goal") this.body.apply(call);
-      }
+      const decision = await this.model.decide({ prompt, apply });
+      this.memory.decided(applied, this.body.minutesOfDay());
       this.guard.noteSuccess();
       this.log({
         bot: this.body.name(),
         promptDigest: promptDigest(prompt),
         promptChars: prompt.length,
-        calls,
+        calls: applied,
         latencyMs: this.now() - startedMs,
         inputTokens: decision.usage.inputTokens,
         outputTokens: decision.usage.outputTokens,
       });
       return true;
     } catch (error) {
+      this.memory.decided(applied, this.body.minutesOfDay());
       this.guard.noteFailure(this.now());
       this.log({
         bot: this.body.name(),
         promptDigest: promptDigest(prompt),
         promptChars: prompt.length,
-        calls: [],
+        calls: applied,
         latencyMs: this.now() - startedMs,
         inputTokens: null,
         outputTokens: null,
@@ -236,6 +247,24 @@ export class BotRunner {
       });
       return false;
     }
+  }
+
+  /**
+   * Apply one call the model has just made, and answer it.
+   *
+   * `set_goal` is the one call with nothing to send, so it never reaches the
+   * body — the goal itself is taken by `memory.decided` once the run is over,
+   * and this only has to confirm it. See `./tools`.
+   *
+   * Recorded before it is applied, so a call that reached the world is in the
+   * list even if the body throws on it. A call over the bound is not recorded,
+   * because it never reached anything.
+   */
+  private applyCall(applied: BotCall[], call: BotCall): string {
+    if (applied.length >= MAX_CALLS_PER_DECISION) return NO_CALLS_LEFT_ANSWER;
+    applied.push(call);
+    if (call.tool === "set_goal") return describeCall(call);
+    return this.body.apply(call);
   }
 
   stop() {

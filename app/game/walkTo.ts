@@ -173,6 +173,22 @@ export class WalkTo {
       this.notices.push(noRouteNotice("unreachable"));
       return;
     }
+    this.startAt(destination, view);
+  }
+
+  /**
+   * Set off for a cell already resolved, rather than for whatever a pointer is
+   * over.
+   *
+   * The two are the same request from different inputs and they differ in one
+   * thing: what a *place* means. A pointer names the thing on top of a column —
+   * click a tree and you meant the tree, and being refused is the honest answer.
+   * A caller naming a coordinate means the ground: it has no pointer, nothing
+   * was drawn for it, and the tile that happens to be highest in that column is
+   * not what it was talking about. Resolving is therefore the caller's, and
+   * {@link standingCellOn} is only one way to do it. @see ../../server/bots/body
+   */
+  startAt(destination: Coord, view: WalkView) {
     this.destination = destination;
     // A new destination is a new question from wherever the body happens to be,
     // including the cell the last one was already answered from — so a click

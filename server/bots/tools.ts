@@ -137,9 +137,9 @@ export const BOT_TOOLS: readonly BotTool[] = [
  * Turn what a provider handed back into a call, or into nothing.
  *
  * Null rather than a throw: a malformed tool call is an ordinary thing for a
- * fast model to produce, and one bad call in a batch of three should cost that
- * call rather than the decision. What was dropped is logged and told back to the
- * model in the next decision's events, which is the only way it learns.
+ * fast model to produce, and one bad call should cost that call rather than the
+ * decision. `./tanstackModel` turns the null into a sentence saying the
+ * arguments were not understood, which the model reads before it chooses again.
  */
 export function parseBotCall(name: string, input: unknown): BotCall | null {
   if (name === "walk_to") {
@@ -183,18 +183,35 @@ export function describeCall(call: BotCall): string {
 }
 
 /**
- * How many calls one decision may carry. `set_goal` is one of them.
+ * How many calls one decision may make, one after another. `set_goal` is one of
+ * them.
  *
- * **One, because a decision is answered blind.** There is a single round trip
- * and no result comes back inline — an outcome reaches the model in the next
- * turn's events. Allowed three calls under that rule, a model hedges: it said
- * the same thing three times in one decision, in three phrasings, because
- * nothing told it the first had landed. Three tries at one intention is not
- * three actions.
+ * **A bound on a sequence, not on a batch.** Every call is applied the moment it
+ * is made and answered with what the world said, so the second call is chosen
+ * against the first one's answer — see `./model`'s `BotDecisionRequest.apply`.
+ * That is what stopped the hedging this number was originally set to one for: a
+ * model allowed three blind calls said the same thing three times in three
+ * phrasings, because nothing told it the first had landed.
  *
- * It costs a round trip per action rather than per intention, which is the
- * trade being made deliberately. What it buys is that every call is chosen
- * against the outcome of the one before it, which is the only arrangement
- * under which "read what happened before you act" means anything.
+ * **Three, because the decisions worth chaining are two or three calls long.**
+ * Writing a goal and then acting on it is two. Being refused a route and
+ * stepping instead is two. Doing both is three, and nothing observed so far
+ * wants a fourth.
+ *
+ * It is also the spend. Each call in a chain is another request carrying the
+ * whole prompt again, so this number is the multiple of a decision's input
+ * tokens in the worst case — see `./tanstackModel`, where it is also the
+ * iteration bound the engine is given.
  */
-export const MAX_CALLS_PER_DECISION = 1;
+export const MAX_CALLS_PER_DECISION = 3;
+
+/**
+ * What a call gets back once the decision has spent {@link
+ * MAX_CALLS_PER_DECISION}.
+ *
+ * An answer rather than a dropped call, because the model is mid-run and about
+ * to choose again: told the budget is gone it stops, where a silent drop leaves
+ * it believing it acted.
+ */
+export const NO_CALLS_LEFT_ANSWER =
+  "You have done all you can this turn. Stop now; you will be asked again in a moment.";

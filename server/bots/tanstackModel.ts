@@ -11,7 +11,7 @@ import {
   type BotDecisionRequest,
   type BotModel,
 } from "./model";
-import { BOT_TOOLS, parseBotCall, type BotCall } from "./tools";
+import { BOT_TOOLS, MAX_CALLS_PER_DECISION, parseBotCall } from "./tools";
 
 /**
  * The real provider, behind `./model`'s one-method seam.
@@ -20,18 +20,22 @@ import { BOT_TOOLS, parseBotCall, type BotCall } from "./tools";
  * the runner against a real world with a scripted stub in this slot, so no test
  * loads this file, needs a key, or costs anything.
  *
- * ## One round trip, and the runner applies what comes back
+ * ## The tools execute, so one decision is several requests
  *
- * The tools are defined **without an `execute` function**, so the engine hands
- * the calls back rather than running them and looping — a tool with no executor
- * is a client request, and a run made entirely of them finishes on the first
- * model turn. `maxIterations(1)` says the same thing a second way, so a model
- * that answers with prose instead of a call still costs exactly one call.
+ * Each tool has an `execute` that applies the call and returns what the world
+ * said, so the engine runs it and asks the model again with the answer in hand.
+ * A decision is therefore no longer one request: a turn that calls a tool costs
+ * a second request to read the answer, and a chain of calls costs one apiece,
+ * bounded by {@link MAX_CALLS_PER_DECISION}. A turn that answers with prose and
+ * no call still costs exactly one, because the engine stops the moment a turn
+ * emits no calls.
  *
- * That is not a limitation being worked around; it is the shape. A tool here
- * writes a *standing intent* — a destination the walk controller keeps walking
- * towards between decisions — so the model is a slow policy over a fast
- * controller, and there is nothing for it to wait on inline.
+ * **That cost buys the answers a refusal needs.** The outcome of `walk_to` does
+ * play out over seconds, but its *refusal* is known immediately: `findPath` runs
+ * synchronously. Answered blind, a model hedged — the same `say` three times in
+ * one decision, in three phrasings, because nothing told it the first had
+ * landed. Answering inline is the fix; capping a decision at one call only
+ * stopped the hedging from reaching the world.
  */
 
 /** Which model each provider asks for when nobody has said. */
@@ -139,31 +143,56 @@ export class TanStackBotModel implements BotModel {
       adapter: this.adapter,
       systemPrompts: [BOT_SYSTEM_PROMPT],
       messages: [{ role: "user", content: request.prompt }],
-      tools: TOOL_DEFINITIONS,
-      agentLoopStrategy: maxIterations(1),
+      // Bound to this decision's `apply`, which is why the executors are made
+      // here and the definitions at module load: the conversion below is what
+      // has to happen once, and `.server` only attaches a function to it.
+      tools: TOOL_DEFINITIONS.map((tool) =>
+        tool.server((input: unknown) => answer(request, tool.name, input)),
+      ),
+      // Model turns, and one call fits in a turn, so this is the same bound the
+      // runner and the system prompt state — see MAX_CALLS_PER_DECISION. A call
+      // made on the last turn is applied like any other; what it does not get is
+      // another turn to be read in, and that outcome comes back as an event.
+      agentLoopStrategy: maxIterations(MAX_CALLS_PER_DECISION),
     });
     return collect(stream);
   }
 }
 
 /**
+ * Parse one call the model made, apply it, and hand back what the world said.
+ *
+ * Parsed here rather than trusted, for the reason `./tools` gives: the engine
+ * validates against a JSON *Schema* it was handed, which is a description and
+ * not the parser, so the object arriving is still `unknown`.
+ *
+ * A call that does not parse is answered rather than dropped. It used to be
+ * dropped, because a whole batch came back at once and a bad one in three should
+ * cost that one — but a model that is about to be asked again should be told,
+ * and this is the turn on which telling it is any use.
+ */
+function answer(
+  request: BotDecisionRequest,
+  name: string,
+  input: unknown,
+): string {
+  const call = parseBotCall(name, input);
+  if (!call) return `${name} was not called with arguments it understands.`;
+  return request.apply(call);
+}
+
+/**
  * Read one run off the event stream.
  *
- * The engine speaks AG-UI, so a tool call arrives as a start, a run of argument
- * deltas and an end. Accumulating the deltas per call id rather than reading the
- * end event's `input` is what keeps this working across providers: whether the
- * arguments are already parsed by the time the run ends is a fact about the
- * adapter, and the delta stream is there either way.
+ * The calls themselves are not read here any more: they were applied by the
+ * executors as they arrived, and the runner that passed `apply` in already has
+ * the list. What is left is the text and the cost.
  *
- * A call whose arguments do not parse is dropped rather than thrown on. A fast
- * model producing one bad call out of three is ordinary, and it should cost that
- * call — the drop is reported back in the next decision's events, which is how
- * the model finds out.
+ * **Usage is summed rather than taken from the end**, and that is the whole
+ * point of measuring it: a run reports one `RUN_FINISHED` per model turn, so
+ * reading the last would report a three-request decision as costing one.
  */
 async function collect(stream: ChatStream): Promise<BotDecision> {
-  const names = new Map<string, string>();
-  const args = new Map<string, string>();
-  const order: string[] = [];
   let text = "";
   let inputTokens: number | null = null;
   let outputTokens: number | null = null;
@@ -172,44 +201,22 @@ async function collect(stream: ChatStream): Promise<BotDecision> {
     // Read structurally rather than by narrowing the union. The discriminant is
     // AG-UI's `EventType`, a string enum in a package this one does not depend
     // on, and matching on it would mean taking `@ag-ui/core` as a direct
-    // dependency for four names whose values are the names themselves.
+    // dependency for three names whose values are the names themselves.
     const chunk = event as unknown as { type: string } & Record<string, unknown>;
     const type = chunk.type;
-    if (type === "TOOL_CALL_START") {
-      const id = String(chunk.toolCallId);
-      names.set(id, String(chunk.toolCallName ?? chunk.toolName ?? ""));
-      args.set(id, "");
-      order.push(id);
-    } else if (type === "TOOL_CALL_ARGS") {
-      const id = String(chunk.toolCallId);
-      args.set(id, (args.get(id) ?? "") + String(chunk.delta ?? ""));
-    } else if (type === "TEXT_MESSAGE_CONTENT") {
+    if (type === "TEXT_MESSAGE_CONTENT") {
       text += String(chunk.delta ?? "");
     } else if (type === "RUN_FINISHED" || type === "RUN_ERROR") {
       const usage = readUsage(chunk.usage);
-      inputTokens = usage.inputTokens;
-      outputTokens = usage.outputTokens;
+      inputTokens = add(inputTokens, usage.inputTokens);
+      outputTokens = add(outputTokens, usage.outputTokens);
       if (type === "RUN_ERROR") {
         throw new Error(String(chunk.message ?? "the provider failed"));
       }
     }
   }
 
-  const calls: BotCall[] = [];
-  for (const id of order) {
-    const call = parseBotCall(names.get(id) ?? "", parseJson(args.get(id)));
-    if (call) calls.push(call);
-  }
-  return { calls, text: text.trim(), usage: { inputTokens, outputTokens } };
-}
-
-function parseJson(raw: string | undefined): unknown {
-  if (!raw) return {};
-  try {
-    return JSON.parse(raw) as unknown;
-  } catch {
-    return null;
-  }
+  return { text: text.trim(), usage: { inputTokens, outputTokens } };
 }
 
 /**

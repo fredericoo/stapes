@@ -4851,19 +4851,53 @@ that a player cannot is a bug in the server, not a bot feature.
 The runner never opens the database. The exclusive lock is the world's, and
 nothing here wants it.
 
-### The decision loop is a slow policy over a fast controller
+### Every tool call is applied and answered inline
 
-One round trip per decision, up to three tool calls back, and the next decision
-starts when the last one ends. Tools are defined **without an `execute`
-function**, so TanStack AI hands the calls back rather than running them and
-looping — a tool with no executor is a client request, and a run made entirely
-of them finishes on the first model turn.
+A tool has an `execute` that applies the call to the body and returns what the
+world said about it, so TanStack AI runs it and asks the model again with the
+answer in hand. Up to `MAX_CALLS_PER_DECISION` calls a decision — three — each
+chosen against the previous one's answer, and the next decision starts when the
+last one ends.
 
-What a tool writes is a *standing intent*, not an instantaneous action:
-`walk_to` sets a destination that `app/game/walkTo.ts` keeps walking towards on
-the body's own 50ms clock, between decisions and for as long as it takes. So a
-latency spike costs a bot its reaction time rather than freezing it mid-stride,
-and there is nothing for the model to wait on inline.
+**The answer is the immediate half, and only that.** `WalkTo.start` runs
+`findPath` synchronously, so "There is no way there from here" is knowable
+before `apply` returns; a step goes through the same `canWalk` the server
+validates it with, so a step that goes nowhere is knowable too. How any of it
+*ends* — arriving, falling, being hit, somebody replying — is not, and reaches
+the model as an event on a later decision. `server/bots/model.ts`'s system
+prompt says that split in as many words, because a model that thinks an answer
+is an outcome will wait for one that never comes.
+
+This replaced a single blind round trip, and the bug it fixes is why it is worth
+the tokens. `walk_to` writes a *standing intent* — a destination
+`app/game/walkTo.ts` keeps walking towards on the body's own 50ms clock — which
+made "there is nothing to wait on inline" look true. Its refusal is not a
+standing intent, and answered blind a model hedges: one said the same thing
+three times in one decision, in three phrasings, because nothing told it the
+first had landed. `MAX_CALLS_PER_DECISION` was set to 1 to stop that, which
+treated the symptom. A latency spike still costs a bot its reaction time rather
+than freezing it mid-stride, because the walk it is already on keeps being
+walked.
+
+**It costs about twice as much per decision, sometimes three times.** Measured
+with `gpt-tokenizer` against the shipped map at the spawn, with a full memory
+log: the system prompt is 641 tokens, the tool descriptions 214, and a prompt
+1,439, so a request is 2,294 and each assistant tool call plus its answer adds
+59. A decision that makes no call is one request and costs what it always did;
+one call is two requests, 4,647 tokens; two or three calls are three requests,
+7,059. Before this, every decision was exactly one request at 2,217. At the
+`maxDecisionsPerMinute` ceiling of 30 that is 66.5k input tokens a minute per
+bot before and about 139k after. The system prompt and the tool descriptions are
+an identical prefix on every request, so a provider that caches prefixes gets
+855 of those tokens back at the cached rate.
+
+`maxIterations(MAX_CALLS_PER_DECISION)` bounds the model turns, and the runner
+bounds the calls; a call past the bound is answered with a sentence saying the
+turn is spent rather than silently dropped, because the model is mid-run and
+about to choose again. Note that the two bounds interact: three calls cost the
+same three requests as two, since the third is made on the last turn and the
+model gets no further turn to read its answer in. That is not waste — the call
+was applied like any other, and what came of it arrives as an event.
 
 Three guards, for three different failures. A ceiling on decisions per minute
 bounds spend on a bot that is working. Exponential backoff bounds spend on a
@@ -4933,8 +4967,9 @@ Nearly all of it is the grid, and most of the difference from the bare view is
 padding rather than the `#` itself: the bare view packed 529 one-character cells
 with no separator, and a cell that is sometimes two characters cannot be read
 that way. Marking the cells you *cannot* stand in rather than the ones you can is
-worth having — most cells in most views are walkable. The system prompt is
-another 279, so a decision is roughly 1,300–1,400 input tokens.
+worth having — most cells in most views are walkable. What a whole decision
+costs, prompt and system prompt and every request it takes, is under "Every tool
+call is applied and answered inline" above.
 
 The one thing that cannot move to the legend is this marker. A height is a
 property of the tile and could be named once per view; whether you fit is a
@@ -4963,11 +4998,12 @@ also what `listInteractionOptions` is handed. So a body cannot be in the grid,
 missing from the list, and targetable all at once.
 
 **Notices go in verbatim.** The server already renders every refusal and outcome
-as English in `app/game/notices.ts`, and with one round trip a model never sees
-a result inline — the event list is the only way it learns whether anything
-worked. A model that has been told "you cannot reach that from here" has learnt
-the rule that is actually in force, where a paragraph in a system prompt is a
-rule somebody wrote down once and may since have changed.
+as English in `app/game/notices.ts`. The same sentences are what a tool call is
+answered with when the world refused it straight away, and the event list is
+where the rest of them arrive — the ones nothing could have known at the moment
+of the call. A model that has been told "you cannot reach that from here" has
+learnt the rule that is actually in force, where a paragraph in a system prompt
+is a rule somebody wrote down once and may since have changed.
 
 Who swung is deliberately not reported. A `DamageNumber` carries who *took* a
 blow and how much, which is what the number floating over a body needs; naming

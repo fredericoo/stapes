@@ -5,12 +5,21 @@ import { HeldDirections } from "../../app/game/heldDirections";
 import { WalkTo, type WalkView } from "../../app/game/walkTo";
 import { minutesOfDayAt, type MinutesOfDay } from "../../app/lib/clock";
 import { getStack } from "../../app/lib/mapData";
-import { MIN_LEVEL, type Coord, type MapFile, type TileDef } from "../../app/lib/types";
+import { listStandingSurfaces, standingAbs } from "../../app/game/movement";
+import { fitsAtElevation } from "../../app/lib/validation";
+import {
+  MIN_LEVEL,
+  type Coord,
+  type Direction,
+  type MapFile,
+  type TileDef,
+} from "../../app/lib/types";
 import { tilesByIdFromList } from "../../app/lib/validation";
 import { RemoteSession } from "../../app/net/RemoteSession";
 import type { BotSocket } from "./transport";
 import { buildBotView, type BotView } from "./view";
 import { describeCall, type BotAction } from "./tools";
+import { noRouteNotice } from "../../app/game/notices";
 
 /**
  * One bot's body: a real client of the world, with a controller on top of it.
@@ -135,39 +144,85 @@ export class BotBody {
   }
 
   /**
-   * Do what the model asked, and write down that it was asked.
+   * Do what the model asked, and answer with what the world said about it.
    *
-   * The outcome is not knowable here: with one round trip per decision nothing
-   * comes back inline, and a refusal arrives as a notice on some later frame. So
-   * what goes into the log is the request, and the refusal — if there is one —
-   * lands beside it in the same list. Together they are the only way a model
-   * learns whether anything it did worked.
+   * **Only the immediate half is knowable here**, and it is worth having.
+   * `WalkTo.start` runs `findPath` synchronously, so a route that does not exist
+   * is refused before this returns; a step is chosen by the same `canWalk` the
+   * server validates it with, so a step that goes nowhere is known too. What is
+   * not knowable is how any of it *ends* — arriving, falling, being answered —
+   * and that reaches the model as an event on a later decision.
    *
-   * The sentence is `describeCall`'s rather than one written here, because
-   * `./memory` writes the same request down a second time and the two must not
-   * read as two different acts.
+   * **A refusal answers on its own.** "You set off for (40, 40). There is no way
+   * there from here" says two contradictory things, and the second is the true
+   * one — so when the world refused, the refusal is the whole answer. The event
+   * log still gets both, in the order they happened, because that is the record
+   * `./memory` carries forward and it should show what was asked as well as what
+   * came of it.
+   *
+   * The confirmation is `describeCall`'s wording rather than one written here,
+   * because `./memory` writes the same request down a second time and the two
+   * must not read as two different acts.
    */
-  apply(action: BotAction) {
-    this.events.push(describeCall(action));
+  apply(action: BotAction): string {
+    const asked = describeCall(action);
+    const refusals = this.perform(action);
+    this.events.push(asked, ...refusals);
+    return refusals.length > 0 ? refusals.join(" ") : asked;
+  }
+
+  /** Do it, and say whatever the world had to say about it straight away. */
+  private perform(action: BotAction): string[] {
     if (action.tool === "say") {
       this.session.say(action.text);
-      return;
+      return [];
     }
-    if (action.tool === "step") {
-      // A press and an immediate release, which is a single step: the pipeline
-      // chains a *held* direction into the next step by itself, and a direction
-      // left pressed would be a body walking that way until the next decision.
-      // Going through the same list a key goes through is what makes this the
-      // ordinary step rather than a second kind of movement.
-      this.walkTo.cancel();
-      this.input.press(action.direction);
-      this.input.release(action.direction);
-      return;
-    }
+    if (action.tool === "step") return this.performStep(action.direction);
+    return this.performWalkTo(action.x, action.y);
+  }
+
+  /**
+   * Press one direction once, and say whether the body moved.
+   *
+   * A press and an immediate release, which is a single step: the pipeline
+   * chains a *held* direction into the next step by itself, and a direction left
+   * pressed would be a body walking that way until the next decision. Going
+   * through the same list a key goes through is what makes this the ordinary
+   * step rather than a second kind of movement.
+   *
+   * Whether a step began is read off the prediction the press just made, which
+   * is the client asking `canWalk` — the same question the server answers with.
+   * Two different things leave the body standing: nothing to step onto that way,
+   * and a step already under way, which `predictStep` declines to interrupt.
+   * The sentence names neither, because from here they are the same fact and
+   * inventing a cause for a body that did not move would be worse than not
+   * having one.
+   */
+  private performStep(direction: Direction): string[] {
+    this.walkTo.cancel();
+    const walking = this.session.getSnapshot().self.walk !== null;
+    this.input.press(direction);
+    this.input.release(direction);
+    const stepped = !walking && this.session.getSnapshot().self.walk !== null;
+    return stepped ? [] : [STEP_REFUSED];
+  }
+
+  /**
+   * Set off for a cell, and say so if there is no way to it.
+   *
+   * Drained straight after starting, so what comes back belongs to this call.
+   * `tick` drains the same queue and does run during a decision — the frame
+   * clock is an interval and the decision is awaited beside it — but it cannot
+   * run *between* these two lines, which have nothing to await, so nothing else
+   * can put a sentence in the queue or take this one out of it.
+   */
+  private performWalkTo(x: number, y: number): string[] {
     const snapshot = this.session.getSnapshot();
     const view = this.walkView(snapshot);
-    const on = pickAt(view.map, snapshot.self.z, action.x, action.y);
-    this.walkTo.start(on, view);
+    const destination = groundAt(view, x, y);
+    if (!destination) return [noRouteNotice("unreachable")];
+    this.walkTo.startAt(destination, view);
+    return this.walkTo.drainNotices();
   }
 
   /**
@@ -296,44 +351,43 @@ function forget(seen: Set<string>, live: readonly { id: string }[]) {
 }
 
 /**
- * The stack slot a coordinate names, as a pointer would have named it.
+ * The cell a body would stand in, having gone to that coordinate.
  *
- * `WalkTo.start` is written against a *pick* — the tile somebody pointed at —
- * because a click is what it was built for, and the cell a body ends up standing
- * in is a different one whenever the thing pointed at fills its level. A bot
- * names a column instead, so this is the pick it would have made: the topmost
- * placement of the topmost stack in that column, at or below the level the bot
- * is standing on.
+ * **A coordinate is not a pointer**, and reading it as one is what this
+ * replaces. The click this shares its controller with resolves a *pick* — the
+ * thing on top of a column — and refusing to walk onto a tree is the right
+ * answer to somebody who clicked the tree. A model naming `(x, y)` has clicked
+ * nothing: it read the coordinate off the ruler down the edge of a grid, and it
+ * means the ground there. Resolved as a pick it meant whatever was highest in
+ * that column, which around the spawn is the tree canopy a level above the
+ * street — so every `walk_to` in that part of the map was refused before the
+ * search was ever consulted, about ordinary grass the bot was standing next to.
  *
- * **Bodies are stepped over.** Nothing stands on top of a body, so naming one
- * would have `standingCellOn` find no surface and report the cell unreachable —
- * about a cell whose *ground* is perfectly reachable and merely occupied. Naming
- * the ground instead lets the route search answer the question that was actually
- * asked, and refuse it with a sentence about there being no way through.
- *
- * A column with nothing in it at all still gets a slot handed back, and it is
- * ignored: `standingCellOn` reads an empty column at the walker's own level as a
- * hole and answers with where a body entering it would come to rest. That is the
- * tutorial's first hole, and it is the one case where the pick is not the
- * question.
+ * So the column is asked what a body may stand on, not what is on top of it.
+ * Nearest to the walker's own feet wins, because a coordinate says where on the
+ * plan and never which storey — and of the floors stacked at one `(x, y)`, the
+ * one it means is the one it is already on. `fitsAtElevation` is what keeps a
+ * surface with no headroom out of the answer, the same question the grid's `#`
+ * asks. @see ../../app/game/walkTo startAt
  */
-function pickAt(
-  map: MapFile,
-  fromZ: number,
-  x: number,
-  y: number,
-): Coord & { stackIndex: number } {
-  // One level above the walker as well, because a body standing on a full-level
-  // block is stored on the level below the one it appears to be on — the same
-  // slack a pointer is given.
-  for (let z = fromZ + 1; z >= MIN_LEVEL; z--) {
-    const stack = getStack(map, x, y, z);
-    for (let i = stack.length - 1; i >= 0; i--) {
-      if (stack[i]!.owner !== undefined) continue;
-      return { x, y, z, stackIndex: i };
+function groundAt(view: WalkView, x: number, y: number): Coord | null {
+  const feet = standingAbs(
+    view.map,
+    view.at.x,
+    view.at.y,
+    view.at.z,
+    view.at.stackIndex,
+    view.tilesById,
+  );
+  let best: { abs: number; z: number } | null = null;
+  for (const surface of listStandingSurfaces(view.map, x, y, view.tilesById)) {
+    if (!fitsAtElevation(view.map, x, y, surface.abs, view.def, view.tilesById).ok) {
+      continue;
     }
+    if (best && Math.abs(surface.abs - feet) >= Math.abs(best.abs - feet)) continue;
+    best = surface;
   }
-  return { x, y, z: fromZ, stackIndex: 0 };
+  return best ? { x, y, z: best.z } : null;
 }
 
 /**
@@ -358,3 +412,11 @@ export const BOT_SETTLE_MS = TICK_MS * 15;
 
 /** How often a dead bot may ask for a body back. See {@link BotBody.rebirth}. */
 const REBIRTH_ASK_INTERVAL_MS = 1_000;
+
+/**
+ * What a step that did not happen is answered with.
+ *
+ * No cause, because two of them look identical from here — see {@link
+ * BotBody.performStep} — and neither is a sentence the game says anywhere else.
+ */
+const STEP_REFUSED = "You did not move.";

@@ -13,7 +13,14 @@ import type { BotCall } from "./tools";
  * imported only by `./main`, so nothing under test ever loads the SDK.
  */
 export interface BotModel {
-  /** One round trip. Up to {@link MAX_CALLS_PER_DECISION} calls come back. */
+  /**
+   * Think once, calling {@link BotDecisionRequest.apply} as it goes.
+   *
+   * Not one round trip. A call is applied and answered inline, so a model that
+   * reads its answer and calls again costs another request — up to {@link
+   * MAX_CALLS_PER_DECISION} of them. What was applied is not reported back
+   * here: the caller passed `apply` in and already knows.
+   */
   decide(request: BotDecisionRequest): Promise<BotDecision>;
 }
 
@@ -22,13 +29,28 @@ export type BotDecisionRequest = {
   prompt: string;
   /** Dropped when the provider takes too long, or when a bot is being stopped. */
   signal?: AbortSignal;
+  /**
+   * Do one call now, and answer with what the world said about it.
+   *
+   * The answer is a sentence in the same English a player reads — "You set off
+   * for (4, 0).", "There is no way there from here" — because the whole of what
+   * a model is told about this world is what it is told when it acts.
+   *
+   * It says whether the call was *accepted*, never how it ends: `findPath`
+   * refuses synchronously and so a refused route is knowable here, where
+   * arriving, falling and being answered are not. Those reach the model in the
+   * next decision's events.
+   *
+   * Calls past {@link MAX_CALLS_PER_DECISION} are refused rather than applied,
+   * and say so.
+   */
+  apply(call: BotCall): string;
 };
 
 export type BotDecision = {
-  /** In the order the model asked for them, already parsed. */
-  calls: BotCall[];
   /** Whatever the model said alongside the calls, for the log. */
   text: string;
+  /** Summed over every request the decision took, not just the last. */
   usage: { inputTokens: number | null; outputTokens: number | null };
 };
 
@@ -72,10 +94,11 @@ export function promptDigest(prompt: string): string {
  * What a bot is told it is, once, ahead of every view.
  *
  * Short on purpose. The rules of this world are not written down here and are
- * not meant to be: the server already renders every refusal and outcome as
- * English, and those sentences arrive in the next decision's events. A model
- * that learns "you cannot reach that from here" by being refused has learnt the
- * rule that is actually in force, where a paragraph in a system prompt is a rule
+ * not meant to be: the server and the walk controller already render every
+ * refusal and outcome as English, and those sentences come back as the answer to
+ * the call that caused them or in the next decision's events. A model that
+ * learns "you cannot reach that from here" by being refused has learnt the rule
+ * that is actually in force, where a paragraph in a system prompt is a rule
  * somebody wrote down once and may since have changed.
  */
 export const BOT_SYSTEM_PROMPT = `You are playing a character in a small tile world. You are not an assistant; you are a person in this place, and you decide what your body does next.
@@ -86,7 +109,9 @@ Your goal is a sentence you wrote yourself with set_goal and it stands until you
 
 The grid is what you can see and nothing more. '?' is a cell you have no line to — behind a wall, under a roof, round a corner — and you must not assume what is in one. '.' is a cell with nothing in it at all: open air, and possibly a drop with a floor somewhere below that you cannot see.
 
-Call exactly one tool — set_goal counts as it. You will not be told the result inline; it reaches you in the next turn's events, refusals included. Read those — they are the rules of this world in the words a player reads. One call a turn is why you need not hedge: whatever you do, you will see what came of it before you choose again.
+Every tool you call is answered as soon as you call it, and the answer is what the world said: you set off, or there is no way there; you stepped, or you did not move. So act, read the answer, and decide again — up to ${MAX_CALLS_PER_DECISION} calls a turn, set_goal among them. Stop as soon as this turn's work is done; there is nothing to be had by using the rest.
+
+An answer tells you only whether the world accepted the call, never how it ends. Arriving somewhere, falling, being hit, somebody replying to you: those reach you in the next turn's events, along with everything the world refused you later. Read those — they are the rules of this world in the words a player reads.
 
 Speak rarely. Say something only when there is another person in sight to say it to, and only when you have something new to say. Never ask a question twice — not in other words, not more politely, not "once more". If you have asked and nobody has answered, they are thinking, or busy, or gone: leave it for many turns and get on with something else. Read what you have already said before you speak, and if the thing you are about to say is already there, do not say it. A person who repeats himself every few seconds is not talked to for long.
 

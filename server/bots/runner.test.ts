@@ -13,7 +13,7 @@ import {
   DecisionGuard,
   DEFAULT_BOT_LIMITS,
 } from "./runner";
-import type { BotCall } from "./tools";
+import { NO_CALLS_LEFT_ANSWER, type BotCall } from "./tools";
 import type { BotSocket } from "./transport";
 
 /**
@@ -57,6 +57,28 @@ function fieldMap(): FlatMapFile {
   return { version: 1, levels: { "0": cells } } as FlatMapFile;
 }
 
+/**
+ * The same field, with a tree canopy on the level above the far side of it.
+ *
+ * The shape that broke `walk_to` on the shipped map: the street around the
+ * spawn has trees a level up, and a coordinate resolved as though it were a
+ * pointer named the canopy rather than the ground under it. Nothing here is out
+ * of the ordinary at street level — a body walks from one end to the other — so
+ * a route this refuses is refused for the tree.
+ */
+function canopiedMap(): FlatMapFile {
+  const ground: Record<string, unknown[]> = {};
+  const above: Record<string, unknown[]> = {};
+  for (let x = -2; x <= 6; x++) {
+    for (let y = -2; y <= 2; y++) {
+      ground[`${x},${y}`] = [{ tileId: "grass" }];
+      if (x >= 3) above[`${x},${y}`] = [{ tileId: "tree" }];
+    }
+  }
+  ground["0,0"] = [{ tileId: "grass" }, { tileId: "player", direction: "s" }];
+  return { version: 1, levels: { "0": ground, "1": above } } as FlatMapFile;
+}
+
 let harness: Harness;
 
 beforeEach(async () => {
@@ -74,16 +96,32 @@ afterEach(async () => {
   await harness.dispose();
 });
 
-/** Every provider a test needs: one that answers from a list, in order. */
-function scripted(script: BotCall[][], prompts?: string[]): BotModel {
+/**
+ * One decision, as a scripted model plays it.
+ *
+ * A function rather than a list of calls, because a call is answered the moment
+ * it is made and the interesting decisions are the ones that read the answer
+ * before choosing the next call. {@link calls} is the plain case, for a turn
+ * that does not care.
+ */
+type Turn = (apply: (call: BotCall) => string) => void;
+
+/** A turn that makes these calls in order, whatever the answers say. */
+function calls(...list: BotCall[]): Turn {
+  return (apply) => {
+    for (const call of list) apply(call);
+  };
+}
+
+/** Every provider a test needs: one that plays scripted turns, in order. */
+function scripted(script: Turn[], prompts?: string[]): BotModel {
   let turn = 0;
   return {
     decide(request): Promise<BotDecision> {
       prompts?.push(request.prompt);
-      const calls = script[turn] ?? [];
+      script[turn]?.((call) => request.apply(call));
       turn += 1;
       return Promise.resolve({
-        calls,
         text: "",
         usage: { inputTokens: 100, outputTokens: 10 },
       });
@@ -179,7 +217,7 @@ describe("a bot in the world", () => {
     const { body, sent, rejected } = await joinBot("bot");
     const runner = new BotRunner({
       body,
-      model: scripted([[{ tool: "walk_to", x: 4, y: 0 }]]),
+      model: scripted([calls({ tool: "walk_to", x: 4, y: 0 })]),
       log: () => {},
     });
 
@@ -203,7 +241,7 @@ describe("a bot in the world", () => {
     const { body, sent } = await joinBot("bot");
     const runner = new BotRunner({
       body,
-      model: scripted([[{ tool: "step", direction: "e" }]]),
+      model: scripted([calls({ tool: "step", direction: "e" })]),
       log: () => {},
     });
 
@@ -220,8 +258,8 @@ describe("a bot in the world", () => {
     const runner = new BotRunner({
       body,
       model: scripted([
-        [{ tool: "say", text: "is anybody there" }],
-        [{ tool: "say", text: "/mastery blade 10" }],
+        calls({ tool: "say", text: "is anybody there" }),
+        calls({ tool: "say", text: "/mastery blade 10" }),
       ]),
       log: () => {},
     });
@@ -236,17 +274,74 @@ describe("a bot in the world", () => {
     expect(typesOf(sent)).toContain("command");
   });
 
-  it("applies one call a decision, whatever the model asked for", async () => {
-    const { body, sent } = await joinBot("bot");
+  it("answers every call as it is made", async () => {
+    const { body } = await joinBot("bot");
+    const answers: string[] = [];
     const runner = new BotRunner({
       body,
       model: scripted([
-        [
-          { tool: "say", text: "one" },
-          { tool: "say", text: "two" },
-          { tool: "say", text: "three" },
-          { tool: "say", text: "four" },
-        ],
+        (apply) => {
+          answers.push(apply({ tool: "set_goal", text: "find the shop" }));
+          answers.push(apply({ tool: "say", text: "is anybody there" }));
+          answers.push(apply({ tool: "walk_to", x: 4, y: 0 }));
+        },
+      ]),
+      log: () => {},
+    });
+
+    await settle(runner, body);
+    await runner.decideOnce();
+
+    expect(answers).toEqual([
+      "You set your goal: find the shop",
+      "You said: is anybody there",
+      "You set off for (4, 0).",
+    ]);
+  });
+
+  it("answers a refused walk_to with the refusal, in the same decision", async () => {
+    // The whole reason a call is answered inline: `findPath` refuses
+    // synchronously, so there is nothing to wait for and a model told nothing
+    // hedges. Nowhere near the field, so there is no route to (40, 40).
+    const { body } = await joinBot("bot");
+    const answers: string[] = [];
+    const runner = new BotRunner({
+      body,
+      model: scripted([
+        (apply) => {
+          answers.push(apply({ tool: "walk_to", x: 40, y: 40 }));
+          // Chosen against the answer above, which is the arrangement the whole
+          // change exists for: refused a route, take a blind step instead.
+          if (answers[0]!.includes("no way")) {
+            answers.push(apply({ tool: "step", direction: "e" }));
+          }
+        },
+      ]),
+      log: () => {},
+    });
+
+    await settle(runner, body);
+    await runner.decideOnce();
+    await frames(runner, WALK_DURATION_MS * 3);
+
+    // The refusal alone. "You set off for (40, 40)" would be the opposite of
+    // what happened, and it is the sentence a model would act on.
+    expect(answers[0]).toBe("There is no way there from here");
+    expect(answers[1]).toBe("You stepped e.");
+    expect(await serverCellOf("bot")).toBe("1,0");
+  });
+
+  it("stops applying calls at the bound, and says why", async () => {
+    const { body, sent } = await joinBot("bot");
+    const answers: string[] = [];
+    const runner = new BotRunner({
+      body,
+      model: scripted([
+        (apply) => {
+          for (const text of ["one", "two", "three", "four", "five"]) {
+            answers.push(apply({ tool: "say", text }));
+          }
+        },
       ]),
       log: () => {},
     });
@@ -258,10 +353,14 @@ describe("a bot in the world", () => {
       .map((frame) => JSON.parse(frame) as { type: string; text?: string })
       .filter((message) => message.type === "say")
       .map((message) => message.text);
-    // A decision is answered blind — no result comes back inline — so more than
-    // one call is a model hedging rather than a model doing several things.
     // @see MAX_CALLS_PER_DECISION
-    expect(said).toEqual(["one"]);
+    expect(said).toEqual(["one", "two", "three"]);
+    // Answered rather than dropped: the model is mid-run and about to choose
+    // again, and a silent drop would leave it believing it had spoken.
+    expect(answers.slice(3)).toEqual([
+      NO_CALLS_LEFT_ANSWER,
+      NO_CALLS_LEFT_ANSWER,
+    ]);
   });
 
   it("tells the model what the world said about its last decision", async () => {
@@ -269,7 +368,7 @@ describe("a bot in the world", () => {
     const runner = new BotRunner({
       body,
       // Nowhere near the field, so there is no route and the controller says so.
-      model: scripted([[{ tool: "walk_to", x: 40, y: 40 }]]),
+      model: scripted([calls({ tool: "walk_to", x: 40, y: 40 })]),
       log: () => {},
     });
 
@@ -293,12 +392,13 @@ describe("a bot in the world", () => {
       body,
       model: scripted(
         [
-          // One call a decision, so the goal and the question are two of them.
-          // @see MAX_CALLS_PER_DECISION
-          [{ tool: "set_goal", text: "find out who lives here" }],
-          [{ tool: "say", text: "What are you doing here, Ivory Anteater?" }],
-          [{ tool: "step", direction: "n" }],
-          [{ tool: "step", direction: "s" }],
+          calls({ tool: "set_goal", text: "find out who lives here" }),
+          calls({
+            tool: "say",
+            text: "What are you doing here, Ivory Anteater?",
+          }),
+          calls({ tool: "step", direction: "n" }),
+          calls({ tool: "step", direction: "s" }),
         ],
         prompts,
       ),
@@ -328,11 +428,52 @@ describe("a bot in the world", () => {
     expect(later).toMatch(/\n\d\d:\d\d {2}You said: What are you doing here,/);
   });
 
+  it("remembers a chain of calls once each, in the order it made them", async () => {
+    // Calls arrive one at a time now, so the record they leave is the thing
+    // most likely to come apart: `./memory` writes the request down and
+    // `./body` echoes the same sentence into the event log, and the echo is
+    // dropped on the next drain so one act does not read as two.
+    const { body } = await joinBot("bot");
+    const prompts: string[] = [];
+    const runner = new BotRunner({
+      body,
+      model: scripted(
+        [
+          calls(
+            { tool: "set_goal", text: "find out who lives here" },
+            { tool: "say", text: "is anybody there" },
+            { tool: "walk_to", x: 4, y: 0 },
+          ),
+          calls({ tool: "step", direction: "n" }),
+        ],
+        prompts,
+      ),
+      log: () => {},
+    });
+
+    await settle(runner, body);
+    for (let i = 0; i < 2; i++) {
+      await runner.decideOnce();
+      await frames(runner, BOT_FRAME_MS * 4);
+    }
+
+    const remembered = prompts[1]!.split("\n\n## You")[0]!;
+    const lines = remembered
+      .split("\n")
+      .filter((line) => /^\d\d:\d\d {2}/.test(line))
+      .map((line) => line.slice(7));
+    expect(lines).toEqual([
+      "You set your goal: find out who lives here",
+      "You said: is anybody there",
+      "You set off for (4, 0).",
+    ]);
+  });
+
   it("sends nothing to the world for a goal", async () => {
     const { body, sent } = await joinBot("bot");
     const runner = new BotRunner({
       body,
-      model: scripted([[{ tool: "set_goal", text: "find the shop" }]]),
+      model: scripted([calls({ tool: "set_goal", text: "find the shop" })]),
       log: () => {},
     });
 
@@ -349,7 +490,7 @@ describe("a bot in the world", () => {
     const lines: BotDecisionLog[] = [];
     const runner = new BotRunner({
       body,
-      model: scripted([[{ tool: "step", direction: "n" }]]),
+      model: scripted([calls({ tool: "step", direction: "n" })]),
       log: (line) => lines.push(line),
     });
 
@@ -496,3 +637,38 @@ function nextMessageOfType(
     ws.addEventListener("message", onMessage);
   });
 }
+
+describe("walking to a coordinate rather than to a pointer", () => {
+  it("walks to the ground under a canopy instead of refusing the tree", async () => {
+    // The bug this is about: a coordinate was resolved the way a click is, so
+    // it named the highest thing in the column. Around the shipped spawn that
+    // is a tree a level up, and every walk_to there was refused about ordinary
+    // grass the bot was standing beside.
+    await harness.blobs.put(
+      "map.json",
+      JSON.stringify(canopiedMap()),
+      JSON_TYPE,
+    );
+    const { body } = await joinBot("bot");
+    const answers: string[] = [];
+    const runner = new BotRunner({
+      body,
+      model: {
+        decide: async (request) => {
+          answers.push(request.apply({ tool: "walk_to", x: 4, y: 0 }));
+          return {};
+        },
+      } as never,
+      log: () => {},
+    });
+
+    await settle(runner, body);
+    await runner.decideOnce();
+
+    expect(answers[0]).not.toMatch(/no way|no short way/i);
+    // And it is actually walking: the controller holds a destination and the
+    // frame clock is pressing directions towards it.
+    await frames(runner, BOT_FRAME_MS * 8);
+    expect(body.view().self.x).toBeGreaterThan(0);
+  });
+});
