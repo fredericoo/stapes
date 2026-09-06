@@ -1,4 +1,6 @@
 import { describe, expect, it } from "bun:test";
+import { toJsonSchema } from "@valibot/to-json-schema";
+import { BOT_TOOLS } from "./tools";
 import { readBotConfig } from "./config";
 import { botAdapter } from "./tanstackModel";
 
@@ -53,5 +55,41 @@ describe("choosing a provider", () => {
     expect(() => botAdapter(readBotConfig({ BOT_COUNT: "1" }))).toThrow(
       /BOT_API_KEY/,
     );
+  });
+});
+
+/**
+ * The tools, as a provider has to be shown them.
+ *
+ * Standard Schema says how to *validate*; carrying a JSON Schema conversion is
+ * optional and valibot does not. The engine discovers that at the moment of the
+ * first request — a thread open, every tool described, and then a throw — so it
+ * cost a live run to find. Nothing in the suite had loaded the definitions,
+ * which is why this exists: the conversion is the boundary, and it is checked
+ * here rather than by a provider.
+ */
+describe("describing the tools to a provider", () => {
+  it("converts every schema to an object schema with its arguments named", () => {
+    for (const tool of BOT_TOOLS) {
+      const json = toJsonSchema(tool.schema) as {
+        type?: string;
+        properties?: Record<string, unknown>;
+        required?: string[];
+      };
+      expect(json.type).toBe("object");
+      expect(Object.keys(json.properties ?? {}).length).toBeGreaterThan(0);
+      expect(json.required?.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("keeps the arguments each tool is actually parsed for", () => {
+    const named = (name: string) => {
+      const tool = BOT_TOOLS.find((candidate) => candidate.name === name)!;
+      const json = toJsonSchema(tool.schema) as { properties?: object };
+      return Object.keys(json.properties ?? {}).sort();
+    };
+    expect(named("walk_to")).toEqual(["x", "y"]);
+    expect(named("step")).toEqual(["direction"]);
+    expect(named("say")).toEqual(["text"]);
   });
 });

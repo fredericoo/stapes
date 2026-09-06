@@ -1,4 +1,5 @@
 import { chat, maxIterations, toolDefinition } from "@tanstack/ai";
+import { toJsonSchema } from "@valibot/to-json-schema";
 import type { AnyTextAdapter, ChatStream } from "@tanstack/ai";
 import { createGeminiChat, GEMINI_MODELS } from "@tanstack/ai-gemini";
 import { createGrokText, GROK_CHAT_MODELS } from "@tanstack/ai-grok";
@@ -106,14 +107,27 @@ export function botAdapter(config: BotConfig): AnyTextAdapter {
  *
  * Built from the same valibot schemas the answers are parsed with — see
  * `./tools` — so the JSON schema a provider is shown and the parser a call goes
- * through cannot describe two different things. That is the whole reason
- * Standard Schema is worth having here.
+ * through cannot describe two different things.
+ *
+ * **Converted here rather than handed over as they are.** Standard Schema says
+ * how to *validate*, and only some of its implementations also carry a JSON
+ * Schema conversion — valibot does not, so the engine refuses one at the moment
+ * of the first request, with every tool already described and a thread already
+ * open. `@valibot/to-json-schema` is the conversion valibot leaves out, and
+ * doing it at module load means a schema this cannot express is a process that
+ * does not start rather than a bot that joins and fails on every decision.
  */
 const TOOL_DEFINITIONS = BOT_TOOLS.map((tool) =>
   toolDefinition({
     name: tool.name,
     description: tool.description,
-    inputSchema: tool.schema,
+    // Cast because the two types disagree about one thing neither of these
+    // schemas does: JSON Schema lets a sub-schema be the literal `true` or
+    // `false`, valibot's output models that and the engine's input does not.
+    // Every schema in `./tools` is a flat object of scalars.
+    inputSchema: toJsonSchema(tool.schema) as Parameters<
+      typeof toolDefinition
+    >[0]["inputSchema"],
   }),
 );
 
