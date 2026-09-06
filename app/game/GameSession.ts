@@ -3659,7 +3659,7 @@ export class GameSession implements PlaySession {
     this.notePendingHurt(target.id, attacker.id);
     // Before the damage too, so the killing blow pays for itself — a body that
     // has already left the board has no experience to be given.
-    this.awardExperience(attacker, target, outcome, swung);
+    this.awardExperience(attacker, target, outcome, swung, targetStats.maxHp);
 
     if (outcome.missed) {
       this.floatSwing(target, "miss", 0);
@@ -3784,6 +3784,16 @@ export class GameSession implements PlaySession {
      * fact about the weapon that swung.
      */
     swung: Hand | null,
+    /**
+     * How much health the body being swung at has when it is whole.
+     *
+     * Passed rather than resolved here, on exactly the terms {@link swung} is:
+     * the caller has already asked {@link battlerOf} for this swing and a second
+     * answer is a second answer that can disagree. It is the *unpressured*
+     * maximum, which is the same number either way — being outnumbered costs a
+     * body its guard and never its size.
+     */
+    targetMaxHp: number,
   ) {
     // A miss pays nobody, so there is nothing to work out. Worth the early
     // return rather than falling through the two arithmetics below to zero:
@@ -3822,6 +3832,7 @@ export class GameSession implements PlaySession {
           outcome,
           defensive,
           this.spendDefensiveDecay(target, attacker.id),
+          targetMaxHp,
         ),
       );
     }

@@ -1785,6 +1785,53 @@ thing in the world to walk into.
 the Arena is a duel — one attacker, `guardShare` of exactly one, the same numbers
 they always reported.
 
+### A foe you have outgrown teaches you as little as a weapon you have outgrown
+
+Toughness ran away from every other mastery, and the measurement is worth keeping
+because the cause is not where anybody looks first. Fighting a wolf, the offensive
+and defensive payouts go through the *same* expression —
+`experienceMultiplier(wolfRating, playerRating)` at both call sites in
+`awardExperience`. The only thing that separated them was `learningRate`, which
+throws away everything past a weapon's requirement and has no defensive twin. A
+player on the wolves in the middle of that grind earned **+274 Toughness and +8
+Sharp from the same exchanges** — twenty-eight to one — and reached Toughness 40
+in about thirty fights.
+
+Two things compounded it:
+
+- **The payout is on `potentialDamage`, which armour and Toughness never touch.**
+  That part is deliberate: a breastplate halving what reaches you must not halve
+  what you learn from wearing it. But measured over twenty thousand wolf blows, a
+  player at Toughness 40 in ordinary starting gear takes **0.00 damage per blow**
+  and was paid as though it had done 9.29. From there to Toughness 100 the payout
+  never fell.
+- **Toughness self-brakes weakly.** It is 0.3 of Rating, so 5 → 50 moved R from 6
+  to 26 and dropped the multiplier only 2.00 → 1.16, while hit points went 13 →
+  77. The fights got trivial; the payout barely moved.
+
+`threatRate` in `app/game/experience.ts` is the defensive twin: a blow is worth
+the full rate when it could take `SIGNIFICANT_THREAT_SHARE` (a fifth) of your
+whole health off, and falls off as a fourth power below that. What the share
+decides is where each creature stops being worth standing in front of — a wolf
+teaches Toughness at full rate to 32, a snake to 29, a cave troll to 51, a rat
+almost never — which is the ladder the world is already authored on. It is
+measured against
+`maxHp` rather than health left — current health would pay most to whoever sat at
+one hit point, and the optimal way to train would be to stay nearly dead — and
+hit points are the yardstick because hit points are what Toughness buys, on a
+curve that accelerates, so the brake tightens faster than the mastery climbs.
+The exponent is a taper rather than a wall (4, where the offensive side's is 3
+and could afford to be steeper): a player who has outgrown a weapon can put it
+down, and nobody can take off their Toughness.
+
+On the wolves this moves Toughness 40 from 26 fights to 36, and a hundred and
+twenty of them leave you at 47 rather than 63. The first twenty rats are
+untouched at 6.
+
+It applies to the Agility row too. A dodge you never needed to make is worth as
+little as a blow you cannot feel, and exempting Agility would have left the whole
+thing standing one mastery over.
+
 ### A blow costs the thrower a step
 
 Swinging is automatic and used to cost the body doing it nothing, so the
