@@ -33,12 +33,15 @@ const schema = v.object({
   /**
    * Which provider to ask.
    *
-   * Both adapters are installed and neither is the default by accident — the
-   * choice between a fast Gemini and a fast Grok has not been made, and this is
-   * where it gets made when it is. Adding a third is a case in `./tanstackModel`
-   * and a dependency, and nothing else.
+   * Every adapter is installed and none is the default by accident — which of
+   * the fast, cheap models this game is played by has not been settled, and
+   * this is where it gets settled when it is. Adding another is a case in
+   * `./tanstackModel` and a dependency, and nothing else.
    */
-  BOT_PROVIDER: v.optional(v.picklist(["gemini", "grok"]), "gemini"),
+  BOT_PROVIDER: v.optional(
+    v.picklist(["gemini", "grok", "openai"]),
+    "gemini",
+  ),
 
   /** Which model of that provider. Left to the provider's own default if unset. */
   BOT_MODEL: v.optional(v.string()),

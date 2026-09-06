@@ -24,6 +24,7 @@
     "@tanstack/ai": "0.53.0",
     "@tanstack/ai-gemini": "0.29.1",
     "@tanstack/ai-grok": "0.18.4",
+    "@tanstack/ai-openai": "0.22.5",
     "@tursodatabase/database": "0.7.2",
     "elysia": "1.4.29",
     "unique-names-generator": "^4.7.1",

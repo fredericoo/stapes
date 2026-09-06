@@ -2,6 +2,7 @@ import { chat, maxIterations, toolDefinition } from "@tanstack/ai";
 import type { AnyTextAdapter, ChatStream } from "@tanstack/ai";
 import { createGeminiChat, GEMINI_MODELS } from "@tanstack/ai-gemini";
 import { createGrokText, GROK_CHAT_MODELS } from "@tanstack/ai-grok";
+import { createOpenaiChat, OPENAI_CHAT_MODELS } from "@tanstack/ai-openai";
 import type { BotConfig } from "./config";
 import {
   BOT_SYSTEM_PROMPT,
@@ -36,7 +37,33 @@ import { BOT_TOOLS, parseBotAction, type BotAction } from "./tools";
 const DEFAULT_MODELS = {
   gemini: "gemini-3.8-flash",
   grok: "grok-4.5",
+  // The small one, on the same grounds the other two defaults are small: a bot
+  // decides continuously, so the model it reaches for by default should be the
+  // cheapest one that can read a grid. Any other id in the catalogue is one
+  // `BOT_MODEL` away.
+  openai: "gpt-5-nano",
 } as const;
+
+/**
+ * A model name checked against the catalogue it has to come from.
+ *
+ * `BOT_MODEL` is a string out of the environment, and every provider publishes
+ * the list of what it will answer to — so the alternative to checking is a
+ * process that starts, joins the world, and fails on every decision until
+ * somebody reads the log. The catalogue is the provider's own, which is why
+ * this takes one rather than knowing any names itself.
+ */
+function modelFrom<T extends string>(
+  name: string,
+  catalogue: readonly T[],
+  // The whole phrase rather than the provider's name, because the article
+  // belongs to whoever knows the name: "a Grok", "an OpenAI".
+  described: string,
+): T {
+  const known = catalogue.find((candidate) => candidate === name);
+  if (!known) throw new Error(`${name} is not ${described}`);
+  return known;
+}
 
 /**
  * Turn the configuration into an adapter.
@@ -55,15 +82,23 @@ export function botAdapter(config: BotConfig): AnyTextAdapter {
   if (!apiKey) throw new Error("No BOT_API_KEY, so there is no provider");
   const name = config.BOT_MODEL ?? DEFAULT_MODELS[config.BOT_PROVIDER];
 
-  if (config.BOT_PROVIDER === "grok") {
-    const model = GROK_CHAT_MODELS.find((known) => known === name);
-    if (!model) throw new Error(`${name} is not a Grok chat model`);
-    return createGrokText(model, apiKey) as AnyTextAdapter;
+  switch (config.BOT_PROVIDER) {
+    case "grok":
+      return createGrokText(
+        modelFrom(name, GROK_CHAT_MODELS, "a Grok chat model"),
+        apiKey,
+      ) as AnyTextAdapter;
+    case "openai":
+      return createOpenaiChat(
+        modelFrom(name, OPENAI_CHAT_MODELS, "an OpenAI chat model"),
+        apiKey,
+      ) as AnyTextAdapter;
+    case "gemini":
+      return createGeminiChat(
+        modelFrom(name, GEMINI_MODELS, "a Gemini model"),
+        apiKey,
+      ) as AnyTextAdapter;
   }
-
-  const model = GEMINI_MODELS.find((known) => known === name);
-  if (!model) throw new Error(`${name} is not a Gemini model`);
-  return createGeminiChat(model, apiKey) as AnyTextAdapter;
 }
 
 /**
