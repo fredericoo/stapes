@@ -38,8 +38,8 @@ const SWORD: WeaponItem = {
   variance: 40,
   spd: 52,
   reach: { ...MELEE_REACH },
-  mastery: "blade",
-  requirements: { blade: 20 },
+  mastery: "sharp",
+  requirements: { sharp: 20 },
 };
 
 function tileWith(item: ItemDef, over: Partial<TileDef> = {}): TileDef {
@@ -93,14 +93,14 @@ describe("itemCard", () => {
     // unable to find out what they had picked up.
     expect(card?.name).toBe("Thing");
     expect(card?.description).toBe("Left here by someone");
-    expect(card?.kind).toBe("One hand — Blade");
+    expect(card?.kind).toBe("One hand — Sharp");
   });
 
   it("says how many hands it costs", () => {
     // The fact that decides whether it can be in a kit at all: a two-hander
     // refuses the other square outright — see `../lib/item`'s `twoHanded`.
     const card = itemCard(tileWith({ ...SWORD, twoHanded: true }), null, NOTHING_LEARNT);
-    expect(card?.kind).toBe("Both hands — Blade");
+    expect(card?.kind).toBe("Both hands — Sharp");
   });
 
   /**
@@ -110,7 +110,7 @@ describe("itemCard", () => {
    * number rides alongside as the thing to aim at.
    */
   it("gives the figures the reader would actually get, with the weapon's own beside them", () => {
-    const novice = { blade: xpForLevel(5) };
+    const novice = { sharp: xpForLevel(5) };
     const card = itemCard(tileWith(SWORD), null, novice);
     const yours = fightingStats(
       { masteries: masteriesFromXp(novice), naturalWeapon: SWORD, sight: { up: 0, down: 0 } },
@@ -137,10 +137,10 @@ describe("itemCard", () => {
    * case is a novice and the fast case is a quick body that has met the gate.
    */
   it("reads a shorter wait between blows as the better one", () => {
-    const novice = itemCard(tileWith(SWORD), null, { blade: xpForLevel(5) })!;
+    const novice = itemCard(tileWith(SWORD), null, { sharp: xpForLevel(5) })!;
     expect(statAt(novice.stats, "speed").tone).toBe("bad");
 
-    const quick = { blade: xpForLevel(20), agility: xpForLevel(60) };
+    const quick = { sharp: xpForLevel(20), agility: xpForLevel(60) };
     const card = itemCard(tileWith(SWORD), null, quick)!;
     const hastened = swingIntervalMs(fightingStats(bodyWith(quick), SWORD));
 
@@ -175,7 +175,7 @@ describe("itemCard", () => {
    * one case where the struck-through base is the smaller of the two.
    */
   it("runs past the weapon's own numbers in a master's hands", () => {
-    const master = { blade: xpForLevel(90) };
+    const master = { sharp: xpForLevel(90) };
     const card = itemCard(tileWith(SWORD), null, master)!;
     const yours = fightingStats(bodyWith(master), SWORD);
 
@@ -248,7 +248,7 @@ describe("itemCard", () => {
     // The same reading `masteryRatio` gives it — otherwise a block that had been
     // through the editor and back would grow a row nobody authored.
     const card = itemCard(
-      tileWith({ ...SWORD, requirements: { blade: 0 } }),
+      tileWith({ ...SWORD, requirements: { sharp: 0 } }),
       null,
       NOTHING_LEARNT,
     )!;
@@ -264,7 +264,7 @@ describe("itemCard", () => {
    */
   it("puts how much of the weapon you get in the unit the player asked for", () => {
     const share = (level: number) =>
-      itemCard(tileWith(SWORD), null, { blade: xpForLevel(level) })!.effectiveness;
+      itemCard(tileWith(SWORD), null, { sharp: xpForLevel(level) })!.effectiveness;
 
     expect(share(10)).toBe(percentOf(weaponReadiness(0.5)));
     expect(share(10)).toBe(13);
@@ -328,7 +328,7 @@ describe("itemCard", () => {
 
     it("has nothing to say about the hands wearing it", () => {
       const card = itemCard(tileWith({ type: "armor", def: 4 }), null, {
-        blade: xpForLevel(60),
+        sharp: xpForLevel(60),
       })!;
       expect(card.requirements).toEqual([]);
       expect(card.effectiveness).toBeNull();
@@ -336,24 +336,24 @@ describe("itemCard", () => {
 
     it("gives a resistance as the total, best first", () => {
       const card = itemCard(
-        tileWith({ type: "armor", def: 4, resist: { blunt: 2, blade: 5 } }),
+        tileWith({ type: "armor", def: 4, resist: { blunt: 2, sharp: 5 } }),
         null,
         NOTHING_LEARNT,
       )!;
       // Sorted by what it actually stops rather than by declaration order: what
       // a piece is *for* is the first thing a reader wants off the table.
       expect(card.resists).toEqual([
-        { mastery: "blade", total: 9, extra: 5 },
+        { mastery: "sharp", total: 9, extra: 5 },
         { mastery: "blunt", total: 6, extra: 2 },
       ]);
-      expect(card.speech).toContain("Blade blows lose 9 rather than 4");
+      expect(card.speech).toContain("Sharp blows lose 9 rather than 4");
     });
 
     it("reads a resistance of zero as no resistance at all", () => {
       // An editor round trip writes the key either way, and a row saying this
       // armour is ordinary against blades is the flat number under another name.
       const card = itemCard(
-        tileWith({ type: "armor", def: 4, resist: { blade: 0 } }),
+        tileWith({ type: "armor", def: 4, resist: { sharp: 0 } }),
         null,
         NOTHING_LEARNT,
       )!;
@@ -647,7 +647,7 @@ describe("itemCard", () => {
    * literals, so a rebalance that moves the share moves both or fails here.
    */
   it("agrees with what the world's look label says", () => {
-    const learnt = { blade: xpForLevel(12) };
+    const learnt = { sharp: xpForLevel(12) };
     const card = itemCard(tileWith(SWORD), null, learnt)!;
     const lines = weaponDemandFor(tileWith(SWORD), learnt);
 
@@ -667,10 +667,10 @@ describe("itemCard", () => {
    * `../components/ItemCard`.
    */
   it("says the same thing aloud", () => {
-    const card = itemCard(tileWith(SWORD), null, { blade: xpForLevel(5) })!;
+    const card = itemCard(tileWith(SWORD), null, { sharp: xpForLevel(5) })!;
     expect(card.speech).toContain("Thing");
-    expect(card.speech).toContain("One hand — Blade");
-    expect(card.speech).toContain("Requires Blade 20, you have 5");
+    expect(card.speech).toContain("One hand — Sharp");
+    expect(card.speech).toContain("Requires Sharp 20, you have 5");
     expect(card.speech).toContain(`You get ${card.effectiveness}% out of it`);
     // The item's own figure as a clause, because a screen reader reads "(12)" as
     // "twelve" and the comparison disappears.

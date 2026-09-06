@@ -36,7 +36,7 @@ const MASTERY_FIELDS: Array<{ mastery: Mastery; label: string; hint?: string }> 
   { mastery: "toughness", label: "Toughness", hint: "Hit points." },
   { mastery: "agility", label: "Agility", hint: "Flee." },
   { mastery: "fist", label: "Fist" },
-  { mastery: "blade", label: "Blade" },
+  { mastery: "sharp", label: "Sharp" },
   { mastery: "blunt", label: "Blunt" },
   { mastery: "ranged", label: "Ranged" },
   { mastery: "arcane", label: "Arcane" },

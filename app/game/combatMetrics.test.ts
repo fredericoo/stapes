@@ -30,7 +30,7 @@ function statsOf(over: Partial<FightingStats>): FightingStats {
     damage: 10,
     def: 0,
     resist: {},
-    mastery: "blade",
+    mastery: "sharp",
     accuracy: 80,
     variance: 40,
     spd: 50,

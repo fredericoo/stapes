@@ -2514,7 +2514,7 @@ are it.
 ### The sentence, and why it was wrong
 
 Requirements went through three shapes. First a panel under the hand slot
-listing every mastery against the one you had — "Blade 3 / 5", the worst in red —
+listing every mastery against the one you had — "Sharp 3 / 5", the worst in red —
 which was a spreadsheet. Then one sentence you got by *inspecting* the weapon:
 "You can confidently wield it", "You can mostly wield it", "You can barely wield
 it". The argument was that a number tells you exactly how far short you are,
@@ -2621,7 +2621,7 @@ shifts it into whatever space exists on both axes.
 
 ### A notice is a sentence with nowhere else to go
 
-The bottom of the view carries at most two lines of white text — "Your blade
+The bottom of the view carries at most two lines of white text — "Your sharp
 mastery is now 10", "You open Quest Chest and receive 1 Hand Lantern, 1 Rusty
 Sword" — and they are prose for a fact
 that has no picture. Three kinds qualify. Something crossed a threshold you were
@@ -2641,7 +2641,7 @@ refused, and returns null for the other five — because the spell button draws
 those five and deliberately does not draw this one. **A sentence on top of a
 picture is the game repeating itself at whoever is mashing a key.**
 
-There are no levels in this game, so a notice must not name one: "Your blade
+There are no levels in this game, so a notice must not name one: "Your sharp
 mastery is now 10", never "level 10". @see `app/lib/mastery.ts`.
 
 These are load-bearing:

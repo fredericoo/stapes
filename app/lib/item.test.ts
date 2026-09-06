@@ -126,7 +126,7 @@ describe("resolveItem", () => {
   describe("malformed blocks read as not-an-item", () => {
     const cases: Array<[string, unknown]> = [
       ["an unknown type", { type: "hat", damage: 1 }],
-      ["no type at all", { damage: 1, def: 1, accuracy: 0, variance: 0, spd: 0, mastery: "blade" }],
+      ["no type at all", { damage: 1, def: 1, accuracy: 0, variance: 0, spd: 0, mastery: "sharp" }],
       ["an unknown mastery", { ...DEFAULT_WEAPON, mastery: "sonic" }],
       ["a fractional stat", { ...DEFAULT_WEAPON, damage: 1.5 }],
       ["a negative stat", { ...DEFAULT_WEAPON, damage: -1 }],
@@ -134,8 +134,8 @@ describe("resolveItem", () => {
       ["a percent stat below zero, which is broken rather than worse", { ...DEFAULT_WEAPON, accuracy: -1 }],
       ["a fractional percent stat", { ...DEFAULT_WEAPON, variance: 60.5 }],
       ["damage past the cap", { ...DEFAULT_WEAPON, damage: MAX_WEAPON_DAMAGE + 1 }],
-      ["a weapon missing its accuracy", { type: "weapon", damage: 1, def: 1, variance: 0, spd: 0, mastery: "blade" }],
-      ["a weapon missing its variance", { type: "weapon", damage: 1, def: 1, accuracy: 60, spd: 0, mastery: "blade" }],
+      ["a weapon missing its accuracy", { type: "weapon", damage: 1, def: 1, variance: 0, spd: 0, mastery: "sharp" }],
+      ["a weapon missing its variance", { type: "weapon", damage: 1, def: 1, accuracy: 60, spd: 0, mastery: "sharp" }],
       ["a consumable with no hp at all", { type: "consumable", label: "Eat" }],
       [
         "a noise longer than the cap",
@@ -147,8 +147,8 @@ describe("resolveItem", () => {
       ["armour with a fractional defence", { ...DEFAULT_ARMOR, def: 1.5 }],
       ["armour that makes blows worse", { ...DEFAULT_ARMOR, def: -1 }],
       ["armour past the cap", { ...DEFAULT_ARMOR, def: MAX_ARMOR_DEF + 1 }],
-      ["armour resisting by a fraction", { ...DEFAULT_ARMOR, resist: { blade: 0.5 } }],
-      ["armour resisting a kind negatively", { ...DEFAULT_ARMOR, resist: { blade: -1 } }],
+      ["armour resisting by a fraction", { ...DEFAULT_ARMOR, resist: { sharp: 0.5 } }],
+      ["armour resisting a kind negatively", { ...DEFAULT_ARMOR, resist: { sharp: -1 } }],
       ["a container with no room", { ...DEFAULT_CONTAINER, size: 0 }],
       ["a container past the cap", { ...DEFAULT_CONTAINER, size: MAX_CONTAINER_SIZE + 1 }],
       ["a container missing equippable", { type: "container", size: 2 }],
@@ -305,17 +305,17 @@ describe("itemForSave", () => {
     const draft = {
       type: "armor",
       def: 3,
-      resist: { blade: 4, blunt: 0, fist: 0, ranged: 0, arcane: 0 },
+      resist: { sharp: 4, blunt: 0, fist: 0, ranged: 0, arcane: 0 },
     } as const;
     expect(itemForSave(draft)).toEqual({
       type: "armor",
       def: 3,
-      resist: { blade: 4 },
+      resist: { sharp: 4 },
     });
   });
 
   it("writes no resist block at all when none of them survive", () => {
-    const draft = { type: "armor", def: 3, resist: { blade: 0 } } as const;
+    const draft = { type: "armor", def: 3, resist: { sharp: 0 } } as const;
     expect(itemForSave(draft)).toEqual({ type: "armor", def: 3 });
     expect(itemForSave(draft)).not.toHaveProperty("resist");
   });
@@ -338,7 +338,7 @@ describe("itemForSave", () => {
   });
 
   it("drops a weapon's fields from a draft that has been armour and back", () => {
-    const draft = { ...DEFAULT_ARMOR, mastery: "blade", damage: 9 } as never;
+    const draft = { ...DEFAULT_ARMOR, mastery: "sharp", damage: 9 } as never;
     expect(itemForSave(draft)).toEqual(DEFAULT_ARMOR);
   });
 
@@ -679,9 +679,9 @@ describe("resolveArmor", () => {
 
   it("reads the resistances beside it", () => {
     const def = tile("item", {
-      item: { type: "armor", def: 2, resist: { blade: 4, arcane: 1 } },
+      item: { type: "armor", def: 2, resist: { sharp: 4, arcane: 1 } },
     });
-    expect(resolveArmor(def)?.resist).toEqual({ blade: 4, arcane: 1 });
+    expect(resolveArmor(def)?.resist).toEqual({ sharp: 4, arcane: 1 });
   });
 
   /** An empty block says what no block says, and a round trip must survive it. */
@@ -699,9 +699,9 @@ describe("resolveArmor", () => {
    */
   it("drops a resistance against something no weapon strikes with", () => {
     const def = tile("item", {
-      item: { type: "armor", def: 2, resist: { blade: 4, toughness: 9, sonic: 9 } },
+      item: { type: "armor", def: 2, resist: { sharp: 4, toughness: 9, sonic: 9 } },
     });
-    expect(resolveArmor(def)?.resist).toEqual({ blade: 4 });
+    expect(resolveArmor(def)?.resist).toEqual({ sharp: 4 });
   });
 
   it("is null for a weapon, and for a tile that is not an item", () => {
@@ -735,7 +735,7 @@ describe("resolveItem, for an artifact", () => {
    */
   it("ignores what a block it used to be left behind", () => {
     const def = tile("item", {
-      item: { type: "artifact", damage: 9, mastery: "blade" },
+      item: { type: "artifact", damage: 9, mastery: "sharp" },
     });
     expect(resolveItem(def)).toEqual({ type: "artifact" });
   });

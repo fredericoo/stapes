@@ -25,7 +25,7 @@ import { masteryNotice, rewardNotice } from "./notices";
 
 describe("what a crossing says", () => {
   it("names the mastery and where it now stands", () => {
-    expect(masteryNotice("blade", 10)).toBe("Your blade mastery is now 10");
+    expect(masteryNotice("sharp", 10)).toBe("Your sharp mastery is now 10");
   });
 
   it("never says the word level, because there are none", () => {

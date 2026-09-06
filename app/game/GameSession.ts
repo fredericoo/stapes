@@ -6395,7 +6395,7 @@ export class GameSession implements PlaySession {
    * The target hears what *their* mastery now reads and the author hears what
    * they did, which are two sentences because they are two facts. When they are
    * the same person only the first is said: being told twice that you set your
-   * own blade to 10 reads as a bug.
+   * own sharp to 10 reads as a bug.
    *
    * One quiet edge, and it is `hasExperience`'s rather than this method's:
    * zeroing every mastery leaves a block that reads as *absent* on the next

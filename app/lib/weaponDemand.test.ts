@@ -27,7 +27,7 @@ const sword = (requirements: Record<string, number> | undefined) =>
         accuracy: 80,
         variance: 20,
         spd: 50,
-        mastery: "blade",
+        mastery: "sharp",
         ...(requirements ? { requirements } : {}),
       },
     },
@@ -35,22 +35,22 @@ const sword = (requirements: Record<string, number> | undefined) =>
 
 describe("weaponDemand", () => {
   it("says nothing at all about a weapon that asks nothing", () => {
-    expect(weaponDemand({ blade: 50 }, undefined)).toEqual([]);
-    expect(weaponDemand({ blade: 50 }, {})).toEqual([]);
+    expect(weaponDemand({ sharp: 50 }, undefined)).toEqual([]);
+    expect(weaponDemand({ sharp: 50 }, {})).toEqual([]);
     // A requirement of zero reads as absent, as everywhere else.
-    expect(weaponDemand({ blade: 50 }, { blade: 0 })).toEqual([]);
+    expect(weaponDemand({ sharp: 50 }, { sharp: 0 })).toEqual([]);
   });
 
   /** The question the sentence could not answer: *which* one, and by how much. */
   it("names every requirement and how far short of it you are", () => {
-    const lines = weaponDemand({ blade: 12 }, { blade: 20, toughness: 10 });
-    expect(lines).toContain("Blade 20 — you have 12");
+    const lines = weaponDemand({ sharp: 12 }, { sharp: 20, toughness: 10 });
+    expect(lines).toContain("Sharp 20 — you have 12");
     expect(lines).toContain("Toughness 10 — you have 0");
   });
 
   it("says so when a requirement is met rather than going quiet", () => {
-    const lines = weaponDemand({ blade: 30 }, { blade: 20 });
-    expect(lines).toContain("Blade 20 — met");
+    const lines = weaponDemand({ sharp: 30 }, { sharp: 20 });
+    expect(lines).toContain("Sharp 20 — met");
   });
 
   /**
@@ -59,7 +59,7 @@ describe("weaponDemand", () => {
    * emphatically not most of the weapon.
    */
   it("states the share of the weapon you are actually getting", () => {
-    const lines = weaponDemand({ blade: 10 }, { blade: 20 });
+    const lines = weaponDemand({ sharp: 10 }, { sharp: 20 });
     const share = Math.round(0.5 ** REQUIREMENT_FALLOFF * 100);
     expect(lines).toContain(`You get ${share}% out of it`);
     // And that it is well under the half a linear reading would suggest.
@@ -67,14 +67,14 @@ describe("weaponDemand", () => {
   });
 
   it("reads a hundred percent once everything is met", () => {
-    expect(weaponDemand({ blade: 20, toughness: 10 }, { blade: 20, toughness: 10 })).toContain(
+    expect(weaponDemand({ sharp: 20, toughness: 10 }, { sharp: 20, toughness: 10 })).toContain(
       "You get 100% out of it",
     );
   });
 
   /** A surplus in one mastery never covers a shortfall in another. */
-  it("does not let a mastered blade stand in for missing toughness", () => {
-    const lines = weaponDemand({ blade: 100, toughness: 0 }, { blade: 20, toughness: 20 });
+  it("does not let a mastered sharp stand in for missing toughness", () => {
+    const lines = weaponDemand({ sharp: 100, toughness: 0 }, { sharp: 20, toughness: 20 });
     expect(lines).toContain("Toughness 20 — you have 0");
     expect(lines).not.toContain("You get 100% out of it");
   });
@@ -92,7 +92,7 @@ describe("weaponDemandFor", () => {
    * floor and the sword in your bag cannot disagree about the same hands.
    */
   it("reads the wielder's level out of their experience", () => {
-    const demand = weaponDemandFor(sword({ blade: 20 }), { blade: xpForLevel(12) });
-    expect(demand).toContain("Blade 20 — you have 12");
+    const demand = weaponDemandFor(sword({ sharp: 20 }), { sharp: xpForLevel(12) });
+    expect(demand).toContain("Sharp 20 — you have 12");
   });
 });

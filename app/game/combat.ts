@@ -426,7 +426,7 @@ export function rollAttack(
  * `def` is everything the defender is wearing and holding that stops a blow
  * whatever it was; the resistance is what their armour says about *this kind* of
  * blow, keyed by the attacker's weapon mastery. A mail shirt authored with a
- * blade resistance is why a sword bounces off it and a hammer does not.
+ * sharp resistance is why a sword bounces off it and a hammer does not.
  *
  * Read off the attacker's `mastery` rather than off the wielder's best skill: a
  * novice swinging a sword is still striking with a blade. See

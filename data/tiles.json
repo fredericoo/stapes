@@ -13455,7 +13455,7 @@
       "battler": {
         "masteries": {
           "fist": 5,
-          "blade": 5,
+          "sharp": 5,
           "blunt": 5,
           "ranged": 5,
           "arcane": 5,
@@ -14458,7 +14458,7 @@
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Iron Sword. Straight, quick, asks Blade 6 of you."
+                            "text": "Iron Sword. Straight, quick, asks Sharp 6 of you."
                           },
                           {
                             "kind": "request_trade",
@@ -14505,7 +14505,7 @@
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Knight's Sword. Truer than the iron and slower with it — Blade 20."
+                            "text": "Knight's Sword. Truer than the iron and slower with it — Sharp 20."
                           },
                           {
                             "kind": "request_trade",
@@ -14552,7 +14552,7 @@
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Folded and quenched twice. Blade 34, and worth every point of it."
+                            "text": "Folded and quenched twice. Sharp 34, and worth every point of it."
                           },
                           {
                             "kind": "request_trade",
@@ -14630,7 +14630,7 @@
                         "then": [
                           {
                             "kind": "say",
-                            "text": "A woodsman's axe. Blade 8, and it swings like a chore."
+                            "text": "A woodsman's axe. Sharp 8, and it swings like a chore."
                           },
                           {
                             "kind": "request_trade",
@@ -14677,7 +14677,7 @@
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Broad Axe — a hand's width of edge. Blade 20 and Toughness 8 to hold it up."
+                            "text": "Broad Axe — a hand's width of edge. Sharp 20 and Toughness 8 to hold it up."
                           },
                           {
                             "kind": "request_trade",
@@ -14724,7 +14724,7 @@
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Two bits, two hands. Blade 34 and Toughness 16, and nothing stands after it."
+                            "text": "Two bits, two hands. Sharp 34 and Toughness 16, and nothing stands after it."
                           },
                           {
                             "kind": "request_trade",
@@ -15916,7 +15916,7 @@
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Leather Jerkin. Two points, and two each against blade and arrow."
+                            "text": "Leather Jerkin. Two points, and two each against sharp blows and arrows."
                           },
                           {
                             "kind": "request_trade",
@@ -16057,7 +16057,7 @@
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Chain Mail. Three points, and four more against a blade."
+                            "text": "Chain Mail. Three points, and four more against sharp blows."
                           },
                           {
                             "kind": "request_trade",
@@ -16104,7 +16104,7 @@
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Steel Plate. Five points, three each against blade and arrow. The best I have."
+                            "text": "Steel Plate. Five points, three each against sharp blows and arrows. The best I have."
                           },
                           {
                             "kind": "request_trade",
@@ -16276,7 +16276,7 @@
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Knight's Helm. Three points, and three more against a blade."
+                            "text": "Knight's Helm. Three points, and three more against sharp blows."
                           },
                           {
                             "kind": "request_trade",
@@ -16448,7 +16448,7 @@
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Steel Sabatons. Two points, and two against a blade."
+                            "text": "Steel Sabatons. Two points, and two against sharp blows."
                           },
                           {
                             "kind": "request_trade",
@@ -23735,9 +23735,9 @@
         "accuracy": 86,
         "variance": 40,
         "spd": 52,
-        "mastery": "blade",
+        "mastery": "sharp",
         "requirements": {
-          "blade": 5
+          "sharp": 5
         }
       }
     },
@@ -23780,9 +23780,9 @@
         "accuracy": 82,
         "variance": 60,
         "spd": 42,
-        "mastery": "blade",
+        "mastery": "sharp",
         "requirements": {
-          "blade": 8
+          "sharp": 8
         }
       }
     },
@@ -23825,9 +23825,9 @@
         "accuracy": 90,
         "variance": 30,
         "spd": 42,
-        "mastery": "blade",
+        "mastery": "sharp",
         "requirements": {
-          "blade": 20
+          "sharp": 20
         }
       }
     },
@@ -23871,9 +23871,9 @@
         "accuracy": 74,
         "variance": 30,
         "spd": 34,
-        "mastery": "blade",
+        "mastery": "sharp",
         "requirements": {
-          "blade": 22,
+          "sharp": 22,
           "toughness": 14
         }
       }
@@ -24062,9 +24062,9 @@
         "accuracy": 88,
         "variance": 30,
         "spd": 50,
-        "mastery": "blade",
+        "mastery": "sharp",
         "requirements": {
-          "blade": 6
+          "sharp": 6
         }
       }
     },
@@ -24107,9 +24107,9 @@
         "accuracy": 92,
         "variance": 25,
         "spd": 40,
-        "mastery": "blade",
+        "mastery": "sharp",
         "requirements": {
-          "blade": 34
+          "sharp": 34
         }
       }
     },
@@ -24152,9 +24152,9 @@
         "accuracy": 80,
         "variance": 55,
         "spd": 36,
-        "mastery": "blade",
+        "mastery": "sharp",
         "requirements": {
-          "blade": 20,
+          "sharp": 20,
           "toughness": 8
         }
       }
@@ -24198,9 +24198,9 @@
         "accuracy": 78,
         "variance": 50,
         "spd": 30,
-        "mastery": "blade",
+        "mastery": "sharp",
         "requirements": {
-          "blade": 34,
+          "sharp": 34,
           "toughness": 16
         },
         "twoHanded": true
@@ -24560,7 +24560,7 @@
         "type": "armor",
         "def": 2,
         "resist": {
-          "blade": 2,
+          "sharp": 2,
           "ranged": 2
         }
       }
@@ -24641,7 +24641,7 @@
         "type": "armor",
         "def": 3,
         "resist": {
-          "blade": 4
+          "sharp": 4
         }
       }
     },
@@ -24681,7 +24681,7 @@
         "type": "armor",
         "def": 5,
         "resist": {
-          "blade": 3,
+          "sharp": 3,
           "ranged": 3
         }
       }
@@ -24923,7 +24923,7 @@
         "slot": "head",
         "def": 3,
         "resist": {
-          "blade": 3
+          "sharp": 3
         }
       }
     },
@@ -25043,7 +25043,7 @@
         "slot": "footwear",
         "def": 2,
         "resist": {
-          "blade": 2
+          "sharp": 2
         }
       }
     },

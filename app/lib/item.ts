@@ -1240,7 +1240,7 @@ export const DEFAULT_WEAPON: WeaponItem = {
   // Spread rather than the constant itself, so a draft edited in the tile editor
   // cannot write through this default into every other weapon that took it.
   reach: { ...MELEE_REACH },
-  mastery: "blade",
+  mastery: "sharp",
 };
 
 export const DEFAULT_CONSUMABLE: ConsumableItem = {

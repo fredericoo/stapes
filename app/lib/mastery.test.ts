@@ -30,8 +30,8 @@ import {
 
 describe("requirementShare", () => {
   it("is fully met when a weapon asks nothing", () => {
-    expect(requirementShare({ blade: 0 }, undefined)).toBe(REQUIREMENTS_MET);
-    expect(requirementShare({ blade: 50 }, {})).toBe(REQUIREMENTS_MET);
+    expect(requirementShare({ sharp: 0 }, undefined)).toBe(REQUIREMENTS_MET);
+    expect(requirementShare({ sharp: 50 }, {})).toBe(REQUIREMENTS_MET);
   });
 
   /**
@@ -40,11 +40,11 @@ describe("requirementShare", () => {
    * and back would count a requirement nobody wrote.
    */
   it("ignores a requirement of zero rather than counting it", () => {
-    expect(requirementShare({ blade: 10 }, { blade: 0, blunt: 0 })).toBe(
+    expect(requirementShare({ sharp: 10 }, { sharp: 0, blunt: 0 })).toBe(
       REQUIREMENTS_MET,
     );
     expect(
-      requirementShare({ blade: 10, blunt: 10 }, { blade: 0, blunt: 20 }),
+      requirementShare({ sharp: 10, blunt: 10 }, { sharp: 0, blunt: 20 }),
     ).toBe(0.5);
   });
 
@@ -80,7 +80,7 @@ describe("requirementShare", () => {
   });
 
   it("counts a mastery the wielder has never trained as nothing", () => {
-    expect(requirementShare({ blade: 40 }, { arcane: 20 })).toBe(0);
+    expect(requirementShare({ sharp: 40 }, { arcane: 20 })).toBe(0);
   });
 
   /**
@@ -95,7 +95,7 @@ describe("requirementShare", () => {
   });
 
   it("never goes below zero", () => {
-    expect(requirementShare({}, { blade: 30 })).toBe(0);
+    expect(requirementShare({}, { sharp: 30 })).toBe(0);
   });
 });
 
@@ -105,8 +105,8 @@ describe("requirementShare", () => {
  * This replaced a hard wall, and the reason is worth keeping in front of
  * whoever changes it next: the wall deadlocked in the other direction. A weapon
  * asking anything of a mastery you had none of could never teach that mastery,
- * because you could never land a blow with it — so there was no route from Blade
- * 0 to Blade 1 anywhere in the game.
+ * because you could never land a blow with it — so there was no route from Sharp
+ * 0 to Sharp 1 anywhere in the game.
  */
 describe("learningRate", () => {
   it("pays in full anywhere at or below what the weapon asks", () => {
@@ -181,14 +181,14 @@ describe("the experience curve", () => {
   });
 
   it("survives a round trip through a whole block", () => {
-    const masteries = { blade: 12, toughness: 8, agility: 16 };
+    const masteries = { sharp: 12, toughness: 8, agility: 16 };
     expect(masteriesFromXp(xpFromMasteries(masteries))).toEqual(masteries);
   });
 
   /** Sparse in, sparse out — an untrained mastery is absent, not a zero. */
   it("writes nothing down for a mastery nobody has trained", () => {
-    expect(xpFromMasteries({ blade: 0 })).toEqual({});
-    expect(masteriesFromXp({ blade: 0, blunt: 1 })).toEqual({});
+    expect(xpFromMasteries({ sharp: 0 })).toEqual({});
+    expect(masteriesFromXp({ sharp: 0, blunt: 1 })).toEqual({});
   });
 });
 
@@ -196,7 +196,7 @@ describe("rating", () => {
   /** The weights sum to one, which is what puts ⭐ on the mastery scale. */
   it("rates a body that is 40 at everything at 40", () => {
     const even = Object.fromEntries(
-      ["fist", "blade", "blunt", "ranged", "arcane", "toughness", "agility"].map(
+      ["fist", "sharp", "blunt", "ranged", "arcane", "toughness", "agility"].map(
         (mastery) => [mastery, 40],
       ),
     );
@@ -209,12 +209,12 @@ describe("rating", () => {
    * play.
    */
   it("counts only the best weapon mastery, so a second one is free", () => {
-    const swordsman = { blade: 40, toughness: 10, agility: 10 };
+    const swordsman = { sharp: 40, toughness: 10, agility: 10 };
     expect(rating({ ...swordsman, ranged: 30 })).toBe(rating(swordsman));
   });
 
   it("takes whichever weapon mastery is highest", () => {
-    expect(rating({ blade: 10, blunt: 40 })).toBe(rating({ blade: 40, blunt: 10 }));
+    expect(rating({ sharp: 10, blunt: 40 })).toBe(rating({ sharp: 40, blunt: 10 }));
   });
 
   /** Rating is a divisor, so nothing that fights is allowed to rate nothing. */

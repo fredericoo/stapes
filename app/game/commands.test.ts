@@ -28,23 +28,23 @@ import { GameSession } from "./GameSession";
 
 describe("reading a typed line", () => {
   it("tells an instruction from something said", () => {
-    expect(isCommand("/mastery blade 10")).toBe(true);
+    expect(isCommand("/mastery sharp 10")).toBe(true);
     expect(isCommand("hello")).toBe(false);
     // A slash *inside* a sentence is a sentence. Only the first character sorts.
     expect(isCommand("and/or")).toBe(false);
   });
 
   it("reads a mastery, a level, and nobody in particular", () => {
-    expect(parseCommand("/mastery blade 10")).toEqual({
+    expect(parseCommand("/mastery sharp 10")).toEqual({
       ok: true,
-      command: { name: "mastery", mastery: "blade", level: 10, target: null },
+      command: { name: "mastery", mastery: "sharp", level: 10, target: null },
     });
   });
 
   it("reads self as the same nobody in particular", () => {
     // Two spellings of one request, so the session has one case to handle.
-    expect(parseCommand("/mastery blade 10 self")).toEqual(
-      parseCommand("/mastery blade 10"),
+    expect(parseCommand("/mastery sharp 10 self")).toEqual(
+      parseCommand("/mastery sharp 10"),
     );
   });
 
@@ -87,13 +87,13 @@ describe("reading a typed line", () => {
       ok: false,
       refusal: { kind: "badArguments", command: "mastery" },
     });
-    expect(parseCommand("/mastery blade")).toEqual({
+    expect(parseCommand("/mastery sharp")).toEqual({
       ok: false,
       refusal: { kind: "badArguments", command: "mastery" },
     });
     // The target is the last argument there is, so a fifth word is a typo
     // rather than something to ignore.
-    expect(parseCommand("/mastery blade 10 self please")).toEqual({
+    expect(parseCommand("/mastery sharp 10 self please")).toEqual({
       ok: false,
       refusal: { kind: "badArguments", command: "mastery" },
     });
@@ -158,14 +158,14 @@ describe("reading a typed line", () => {
 
   it("refuses anything that is not a whole level on the scale", () => {
     for (const typed of ["ten", "10.5", "-1", "101", "10abc", ""]) {
-      expect(parseCommand(`/mastery blade ${typed}`)).toMatchObject({
+      expect(parseCommand(`/mastery sharp ${typed}`)).toMatchObject({
         ok: false,
         refusal: { kind: expect.stringMatching(/badLevel|badArguments/) },
       });
     }
     // Both ends of the scale are levels, not edge cases.
-    expect(parseCommand("/mastery blade 0")).toMatchObject({ ok: true });
-    expect(parseCommand("/mastery blade 100")).toMatchObject({ ok: true });
+    expect(parseCommand("/mastery sharp 0")).toMatchObject({ ok: true });
+    expect(parseCommand("/mastery sharp 100")).toMatchObject({ ok: true });
   });
 
   it("reads a tile named with nowhere in particular as here", () => {
@@ -426,21 +426,21 @@ function statusWorld() {
 describe("what a command does to a body", () => {
   it("puts a mastery exactly where it was asked for", () => {
     const session = world();
-    session.runCommand("/mastery blade 10", "me");
+    session.runCommand("/mastery sharp 10", "me");
 
     // The experience is what is written, because the level is derived from it
     // and a second store of one would be a second answer.
-    expect(session.getSnapshot("me").masteryXp.blade).toBe(xpForLevel(10));
+    expect(session.getSnapshot("me").masteryXp.sharp).toBe(xpForLevel(10));
     expect(session.drainNotices("me")).toEqual([
-      "Your blade mastery is now 10",
+      "Your sharp mastery is now 10",
     ]);
   });
 
   it("leaves every other mastery where the tile put it", () => {
     const session = world();
-    session.runCommand("/mastery blade 10", "me");
+    session.runCommand("/mastery sharp 10", "me");
 
-    // The seeded block has to survive the write. A body that learnt Blade and
+    // The seeded block has to survive the write. A body that learnt Sharp and
     // forgot how to stand up is what a missing seed looks like.
     expect(session.getSnapshot("me").masteryXp.toughness).toBe(xpForLevel(5));
   });
@@ -448,7 +448,7 @@ describe("what a command does to a body", () => {
   it("counts for something in the body that fights", () => {
     const session = world();
     const before = session.ratingIn("me");
-    session.runCommand("/mastery blade 60", "me");
+    session.runCommand("/mastery sharp 60", "me");
 
     // Rating is read off the derived body, so this is the memo being dropped as
     // much as it is the number moving: a stale `earnedBody` would answer with
@@ -458,13 +458,13 @@ describe("what a command does to a body", () => {
 
   it("queues the change for whoever has to be told", () => {
     const session = world();
-    session.runCommand("/mastery blade 10", "me");
+    session.runCommand("/mastery sharp 10", "me");
     expect(session.drainMasteryChanges()).toContain("me");
   });
 
   it("says nothing out loud", () => {
     const session = world();
-    session.runCommand("/mastery blade 10", "me");
+    session.runCommand("/mastery sharp 10", "me");
     // A command is not speech, and the client sends it down a different message
     // for exactly this reason — nothing here should have a bubble to draw.
     expect(session.drainSpeech()).toEqual([]);
@@ -491,14 +491,14 @@ describe("what a command does to a body", () => {
 
   it("says it once when the somebody else is you", () => {
     const session = world();
-    session.runCommand("/mastery blade 10 self", "me");
+    session.runCommand("/mastery sharp 10 self", "me");
     expect(session.drainNotices("me")).toHaveLength(1);
   });
 
   it("names the body that does not learn", () => {
     const session = world();
     const deer = session.actorIds().find((id) => id !== "me")!;
-    session.runCommand(`/mastery blade 10 ${deer}`, "me");
+    session.runCommand(`/mastery sharp 10 ${deer}`, "me");
 
     // A creature's masteries are authored and there is no runtime block to
     // write to. The refusal names the deer rather than explaining the engine.
@@ -508,7 +508,7 @@ describe("what a command does to a body", () => {
 
   it("names the id nobody answers to", () => {
     const session = world();
-    session.runCommand("/mastery blade 10 nobody", "me");
+    session.runCommand("/mastery sharp 10 nobody", "me");
     expect(session.drainNotices("me")).toEqual([
       'Nobody here answers to "nobody"',
     ]);
@@ -516,7 +516,7 @@ describe("what a command does to a body", () => {
 
   it("hands back the grammar when the line was not one", () => {
     const session = world();
-    session.runCommand("/mastery blade", "me");
+    session.runCommand("/mastery sharp", "me");
     // The one thing this whole feature is for: a command typed blind that does
     // nothing is indistinguishable from a command that never arrived.
     expect(session.drainNotices("me")).toEqual([

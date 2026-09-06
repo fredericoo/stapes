@@ -1679,7 +1679,7 @@ export class GameRenderer {
    *
    * The demand goes last because it is the only part that is not a fact about
    * the object: the name and the writing on it are the same for everybody who
-   * walks past, where "Blade 20 — you have 12" is about the person doing the
+   * walks past, where "Sharp 20 — you have 12" is about the person doing the
    * looking. See `../lib/weaponDemand` for why it is a table of numbers rather
    * than the sentence it replaced.
    */

@@ -136,7 +136,7 @@ const armed = (body: BattlerDef, weaponId: string) =>
 
 describe("learning a weapon", () => {
   const SWORD = "rusty-sword";
-  const required = weaponOf(SWORD).requirements?.blade ?? 0;
+  const required = weaponOf(SWORD).requirements?.sharp ?? 0;
 
   it("asks something of the wielder at all", () => {
     // The rest of this file is meaningless if the starter sword is free.
@@ -144,7 +144,7 @@ describe("learning a weapon", () => {
   });
 
   /**
-   * The progression, as a curve rather than as two points. Every step of Blade
+   * The progression, as a curve rather than as two points. Every step of Sharp
    * is worth something until the requirement is met — a plateau in the middle
    * would mean levels the player earns and cannot feel.
    */
@@ -158,8 +158,8 @@ describe("learning a weapon", () => {
    */
   it("never goes backwards on the way to the requirement", () => {
     const curve = [];
-    for (let blade = 0; blade <= required; blade++) {
-      curve.push(damagePerSecond(armed(playerAt("blade", blade), SWORD)));
+    for (let sharp = 0; sharp <= required; sharp++) {
+      curve.push(damagePerSecond(armed(playerAt("sharp", sharp), SWORD)));
     }
 
     for (let i = 1; i < curve.length; i++) {
@@ -176,14 +176,14 @@ describe("learning a weapon", () => {
    * good than it could be — actually worse than not drawing it.
    */
   it("leaves an unlearnt sword worse than bare fists", () => {
-    const novice = playerAt("blade", 0);
+    const novice = playerAt("sharp", 0);
     expect(damagePerSecond(armed(novice, SWORD))).toBeLessThan(
       damagePerSecond(fists(novice)),
     );
   });
 
   it("makes the same sword clearly better once its requirement is met", () => {
-    const trained = playerAt("blade", required);
+    const trained = playerAt("sharp", required);
     expect(damagePerSecond(armed(trained, SWORD))).toBeGreaterThan(
       damagePerSecond(fists(trained)),
     );
@@ -199,13 +199,13 @@ describe("learning a weapon", () => {
    * The two axes, in one comparison: readiness caps the moment the requirement
    * is met, so speed never moves again — but skill keeps paying damage and
    * accuracy for the whole rest of the scale, which is what makes a
-   * hundred-Blade hero with a starter sword something other than a novice with
+   * hundred-Sharp hero with a starter sword something other than a novice with
    * a starter sword.
    */
   it("keeps paying the wielder past the requirement, but not the weapon", () => {
-    const met = armed(playerAt("blade", required), SWORD);
-    const double = armed(playerAt("blade", required * 2), SWORD);
-    const tenfold = armed(playerAt("blade", required * 10), SWORD);
+    const met = armed(playerAt("sharp", required), SWORD);
+    const double = armed(playerAt("sharp", required * 2), SWORD);
+    const tenfold = armed(playerAt("sharp", required * 10), SWORD);
 
     expect(damagePerSecond(double)).toBeGreaterThan(damagePerSecond(met));
     expect(damagePerSecond(tenfold)).toBeGreaterThan(damagePerSecond(double));
@@ -250,7 +250,7 @@ describe("the authored ladder", () => {
 
   /** Learning the sword is what turns the snake from a death into a fight. */
   it("turns the snake winnable once the sword is learnt", () => {
-    const trained = playerAt("blade", weaponOf("rusty-sword").requirements?.blade ?? 0);
+    const trained = playerAt("sharp", weaponOf("rusty-sword").requirements?.sharp ?? 0);
     const snake = fists(bodyOf("snake"));
 
     expect(winRate(armed(trained, "rusty-sword"), snake)).toBeGreaterThan(
@@ -388,16 +388,16 @@ describe("the wolf", () => {
    */
   it("is out of reach until the right sword is earned, and then a real fight", () => {
     const fresh = winRate(fists(bodyOf("player")), fists(wolf));
-    const starter = winRate(armed(playerAt("blade", 22), "rusty-sword"), fists(wolf));
+    const starter = winRate(armed(playerAt("sharp", 22), "rusty-sword"), fists(wolf));
 
     const earned = {
       ...bodyOf("player"),
-      masteries: { ...bodyOf("player").masteries, blade: 20, toughness: 20, agility: 20 },
+      masteries: { ...bodyOf("player").masteries, sharp: 20, toughness: 20, agility: 20 },
     };
     const properly = winRate(armed(earned, "knights-sword"), fists(wolf));
 
     expect(fresh).toBeLessThan(0.05);
-    // A starter blade is no longer an answer to a wolf, whatever your Blade is.
+    // A starter blade is no longer an answer to a wolf, whatever your Sharp is.
     expect(starter).toBeLessThan(0.1);
     // The right weapon in trained hands makes it a coin-toss rather than a
     // formality in either direction.

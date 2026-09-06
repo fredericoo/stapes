@@ -44,7 +44,7 @@ const bottle = tile({
 const sword = tile({
   id: "sword",
   interactions: {
-    item: { type: "weapon", damage: 1, def: 0, accuracy: 100, variance: 0, spd: 50, mastery: "blade" },
+    item: { type: "weapon", damage: 1, def: 0, accuracy: 100, variance: 0, spd: 50, mastery: "sharp" },
   },
 });
 const bag = tile({

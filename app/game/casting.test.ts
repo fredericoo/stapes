@@ -148,7 +148,7 @@ const tiles: TileDef[] = [
         accuracy: 90,
         variance: 0,
         spd: 50,
-        mastery: "blade",
+        mastery: "sharp",
       },
     },
   }),

@@ -1231,7 +1231,7 @@ describe("a bolt thrown at somebody", () => {
   /**
    * And armour is the half that *is* consulted. A bolt answers to Arcane — see
    * `GameSession`'s `ARCANE_BLOW` — so mail authored with an arcane resistance
-   * is a body warded against magic, on exactly the terms a blade resistance is a
+   * is a body warded against magic, on exactly the terms a sharp resistance is a
    * body a sword bounces off.
    */
   it("has to get through what the target is wearing against magic", () => {

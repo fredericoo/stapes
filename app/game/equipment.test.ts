@@ -939,13 +939,13 @@ describe("taking turns between two hands", () => {
    */
   it("gives each hand its own blow, speed and mastery", () => {
     const mixed = held("rusty-sword", "simple-hammer");
-    const blade = effectiveBattler(base, mixed, tiles, "weapon");
+    const sharp = effectiveBattler(base, mixed, tiles, "weapon");
     const blunt = effectiveBattler(base, mixed, tiles, "offhand");
 
-    expect(blade.mastery).toBe("blade");
+    expect(sharp.mastery).toBe("sharp");
     expect(blunt.mastery).toBe("blunt");
-    expect(blade.damage).not.toBe(blunt.damage);
-    expect(blade.spd).not.toBe(blunt.spd);
+    expect(sharp.damage).not.toBe(blunt.damage);
+    expect(sharp.spd).not.toBe(blunt.spd);
   });
 
   /**
@@ -955,14 +955,14 @@ describe("taking turns between two hands", () => {
    */
   it("leaves what the body is alone", () => {
     const mixed = held("rusty-sword", "simple-hammer");
-    const blade = effectiveBattler(base, mixed, tiles, "weapon");
+    const sharp = effectiveBattler(base, mixed, tiles, "weapon");
     const blunt = effectiveBattler(base, mixed, tiles, "offhand");
 
-    expect(blunt.maxHp).toBe(blade.maxHp);
-    expect(blunt.flee).toBe(blade.flee);
-    expect(blunt.haste).toBe(blade.haste);
+    expect(blunt.maxHp).toBe(sharp.maxHp);
+    expect(blunt.flee).toBe(sharp.flee);
+    expect(blunt.haste).toBe(sharp.haste);
     // Defence is both hands plus what is worn, so it does not move either.
-    expect(blunt.def).toBe(blade.def);
+    expect(blunt.def).toBe(sharp.def);
   });
 
   /** Both hands' `def` counts, whichever one is swinging. */
@@ -1020,7 +1020,7 @@ describe("a weapon that needs both hands", () => {
       expect(handToSwing(kit, tiles, preferred)).toBe("weapon");
     }
     expect(fightsWithBothHands(kit, tiles)).toBe(false);
-    expect(effectiveBattler(base, kit, tiles, "weapon").mastery).toBe("blade");
+    expect(effectiveBattler(base, kit, tiles, "weapon").mastery).toBe("sharp");
   });
 
   /** Its guard counts once, because one hand is holding one thing. */
@@ -1126,7 +1126,7 @@ describe("the other worn squares", () => {
    */
   it("sums the resistances too, kind by kind", () => {
     const both = worn({ head: on("iron-helm"), armor: on("chain-mail") });
-    expect(armorResistances(both, shipped)).toEqual({ blunt: 2, blade: 4 });
+    expect(armorResistances(both, shipped)).toEqual({ blunt: 2, sharp: 4 });
 
     // Two squares with an opinion about the same kind add, rather than one
     // quietly deciding what the other is worth.
@@ -1134,7 +1134,7 @@ describe("the other worn squares", () => {
       head: on("knights-helm"),
       footwear: on("steel-sabatons"),
     });
-    expect(armorResistances(doubled, shipped).blade).toBe(3 + 2);
+    expect(armorResistances(doubled, shipped).sharp).toBe(3 + 2);
   });
 
   /** A charm that stops nothing flat and a great deal of one kind is the choice. */
@@ -1216,7 +1216,7 @@ describe("resisting a kind of blow", () => {
 
   it("carries the armour's own block through to the fight", () => {
     const mailed = effectiveBattler(player, wearing("chain-mail"), shipped, firstHand(wearing("chain-mail"), shipped));
-    expect(mailed.resist.blade).toBe(4);
+    expect(mailed.resist.sharp).toBe(4);
     expect(mailed.resist.blunt).toBeUndefined();
   });
 
@@ -1237,7 +1237,7 @@ describe("resisting a kind of blow", () => {
       .flatMap((armor) => Object.keys(armor.resist ?? {}));
     expect(new Set(kinds).size).toBeGreaterThan(1);
     expect(kinds).toContain("blunt");
-    expect(kinds).toContain("blade");
+    expect(kinds).toContain("sharp");
     expect(kinds).toContain("arcane");
   });
 });
