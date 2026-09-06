@@ -1,5 +1,9 @@
 import { resolveDialog } from "../lib/dialog";
-import { absoluteStandingElevation, getStack } from "../lib/mapData";
+import {
+  absoluteStandingElevation,
+  getStack,
+  walkableElevInStack,
+} from "../lib/mapData";
 import { hasLineOfSight } from "./sight";
 import type {
   AddStatusInteraction,
@@ -703,6 +707,14 @@ export function dropDestinationAt(
   ) {
     return { kind: "contents", ref: { ...to, stackIndex } };
   }
+
+  // Nothing is laid on top of something that cannot be stood on. The topmost
+  // tile decides a stack's walkability, so without this a berry dropped on a
+  // bush becomes the top of it and opens a way through — which is how anybody
+  // carrying food used to get past any hedge in the world. Asked here rather
+  // than in `canReplaceStack` on purpose: the editor asks that one too, and an
+  // author stacking a plank on a fence is building a bridge, not cheating.
+  if (walkableElevInStack(stack, tilesById) == null) return null;
 
   const next = [...stack, { tileId: def.id }];
   if (!canReplaceStack(map, to.x, to.y, to.z, next, tilesById).ok) return null;

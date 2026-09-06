@@ -1087,6 +1087,23 @@ so a tie-break in one and not the other shows up as a cell one branch closes
 and the other opens. That is exactly what happened while the sealing rule was
 in place, and it is why the fix has to land in both or neither.
 
+### Players do not put things down where nothing can stand
+
+Because the topmost tile decides, a berry dropped on a bush would make the bush
+walkable. The rule is enforced where a *player* acts — `dropDestinationAt` in
+`app/game/affordances.ts`, and `dropKit` in `GameSession`, which is a body
+dying — and deliberately not in `canReplaceStack`, which the editor asks too.
+An author stacking a plank on a fence is building a bridge deck, and that is
+the same stack shape.
+
+The other ways a thing reaches a cell need nothing: an `extract` yield goes
+into the puller's kit rather than onto the board, and `push` picks its
+destination from `listStandingSurfaces`, which has no entry for a cell with no
+standing surface. A body dies where it was standing, which is walkable by
+definition, so the `dropKit` check only fires for a death somewhere a body
+arrived by falling — into water, most likely — and it keeps the kit rather than
+spilling it.
+
 ## A roof over a cave is not what keeps the daylight out of it
 
 Anything underground that is meant to be dark has to be *checked* dark, against
