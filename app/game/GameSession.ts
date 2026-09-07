@@ -48,6 +48,7 @@ import { MIN_LEVEL, isDirectional, resolveActor } from "../lib/types";
 import {
   canPlace,
   canReplaceStack,
+  fitsAtElevation,
   tilesByIdFromList,
 } from "../lib/validation";
 import {
@@ -106,7 +107,9 @@ import {
 } from "./notices";
 import { leaveResidue } from "./residue";
 import {
+  GOTO_COMMAND,
   HEALTH_COMMAND,
+  MOVE_COMMAND,
   MASTERY_COMMAND,
   parseCommand,
   resolveCell,
@@ -255,6 +258,7 @@ import {
   canWalk,
   destCellAfterStep,
   DIR_DELTA,
+  listStandingSurfaces,
   resolveWalkDurationMs,
   standingAbs,
   surfacesInClimbBand,
@@ -6704,7 +6708,125 @@ export class GameSession implements PlaySession {
         return this.runStatusCommand(command, id);
       case HEALTH_COMMAND:
         return this.runHealthCommand(command, id);
+      case GOTO_COMMAND:
+        return this.runGotoCommand(command, id);
+      case MOVE_COMMAND:
+        return this.runMoveCommand(command, id);
     }
+  }
+
+  /**
+   * Could this body stand in that cell — really stand, not merely fit?
+   *
+   * **A stricter question than `teleportFits`, and the difference is worth
+   * naming.** A portal's fit is about *volume*: is there room in the column for
+   * a body this tall. That is right for a portal, which an author placed and
+   * pointed somewhere they meant, and wrong for a coordinate somebody typed —
+   * it says yes to a cell with nothing under it, and to one another body is
+   * already standing in. Both of those put a player somewhere the game has no
+   * good answer for: falling out of the bottom of the world, or inside a deer.
+   *
+   * So this asks what the walk loop asks. A level is somewhere to be when the
+   * column has a standing surface at it and the body fits with its feet on
+   * that surface — which is `./pathfinding`'s `dropLanding` reduced to one
+   * level, and counts other bodies as walls for the same reason `canWalk`
+   * does.
+   */
+  private canStandIn(actor: ActorRuntime, to: Coord): boolean {
+    const def = this.defFor(actor);
+    const surface = listStandingSurfaces(this.map, to.x, to.y, this.tilesById).find(
+      (candidate) => candidate.z === to.z,
+    );
+    if (!surface) return false;
+    return fitsAtElevation(
+      this.map,
+      to.x,
+      to.y,
+      surface.abs,
+      def,
+      this.tilesById,
+    ).ok;
+  }
+
+  /**
+   * `/goto` — stand in the cell somebody named, read exactly as they typed it.
+   *
+   * Refused rather than forced when there is nowhere to stand, because a
+   * debugging tool that creates the bug it was reached for is worse than none:
+   * `noRoom` already says which cell would not take it. @see canStandIn, which
+   * is a stricter question than the one a portal asks, and {@link putBodyAt},
+   * which is what both of these verbs actually do.
+   */
+  private runGotoCommand(
+    command: Extract<Command, { name: typeof GOTO_COMMAND }>,
+    id: string,
+  ): CommandRefusal | null {
+    const actor = this.actors.get(id);
+    const loc = actor ? this.tryLocate(actor) : null;
+    // No body, so there is no "here" for a relative coordinate to be relative
+    // *to* — and the sign grammar means even an absolute-looking command may
+    // have one in it.
+    if (!actor || !loc) return { kind: "nowhereToPlace" };
+
+    // An absent level means the one being stood on, which is a fact about the
+    // body and so is filled in here rather than in the parser.
+    return this.putBodyAt(actor, loc, {
+      x: command.at.x,
+      y: command.at.y,
+      z: command.at.z ?? loc.z,
+    });
+  }
+
+  /**
+   * `/move` — the same landing, counted from where the body is standing.
+   *
+   * The other half of {@link runGotoCommand}, and it is two lines because the
+   * split between them is in the *grammar* rather than in what either does: one
+   * reads its numbers as places and the other as distances, and after that they
+   * are the same command. @see putBodyAt
+   */
+  private runMoveCommand(
+    command: Extract<Command, { name: typeof MOVE_COMMAND }>,
+    id: string,
+  ): CommandRefusal | null {
+    const actor = this.actors.get(id);
+    const loc = actor ? this.tryLocate(actor) : null;
+    if (!actor || !loc) return { kind: "nowhereToPlace" };
+
+    return this.putBodyAt(actor, loc, {
+      x: loc.x + command.by.x,
+      y: loc.y + command.by.y,
+      z: loc.z + command.by.z,
+    });
+  }
+
+  /**
+   * Put a body in a cell, or say why it cannot go there.
+   *
+   * Shared by both verbs so there is one answer to "what happens when you
+   * arrive" rather than one per command.
+   *
+   * The move itself is {@link moveThrough}, the same one a portal makes — it
+   * drops whatever motion was in flight, re-indexes both cells and announces
+   * the arrival — so a body that walks somewhere and a body that types its way
+   * there land in exactly one state and the client animates both the same way.
+   * A second kind of relocation is how the two come to disagree about what a
+   * body mid-step is.
+   */
+  private putBodyAt(
+    actor: ActorRuntime,
+    loc: ActorLocation,
+    to: Coord,
+  ): CommandRefusal | null {
+    if (to.x === loc.x && to.y === loc.y && to.z === loc.z) return null;
+    if (!this.canStandIn(actor, to)) return { kind: "noRoom", at: to };
+
+    this.moveThrough(actor, to);
+    // Whatever the new cell does to somebody arriving on it — a burn, a pad,
+    // a portal — happens on the same terms it would to somebody who walked.
+    this.statusOnArrival(actor);
+    this.settleBoardNow();
+    return null;
   }
 
   /**

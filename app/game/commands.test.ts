@@ -918,3 +918,119 @@ describe("moving health by hand", () => {
     expect(session.drainNotices("me")).toEqual([`Say ${COMMAND_USAGE.health}`]);
   });
 });
+
+/**
+ * `/goto` and `/move`, which are one command split down the middle.
+ *
+ * The split is the design: one verb reads its numbers as places and the other
+ * as distances, so neither has to spell which it meant inside an argument. What
+ * these cases pin is that `-11` means opposite things under the two verbs, that
+ * the level may be left off either way, and that a body is only ever put
+ * somewhere it could actually stand.
+ */
+describe("going somewhere", () => {
+  it("reads /goto as a cell of the map, minus sign and all", () => {
+    expect(parseCommand("/goto -11 -55")).toMatchObject({
+      ok: true,
+      // The whole reason this is not one command with a sign in it: nearly
+      // every coordinate anybody wants to go to on this map is negative.
+      command: { name: "goto", at: { x: -11, y: -55, z: null } },
+    });
+  });
+
+  it("reads /move as a distance from where you stand", () => {
+    expect(parseCommand("/move -11 -55")).toMatchObject({
+      ok: true,
+      command: { name: "move", by: { x: -11, y: -55, z: 0 } },
+    });
+  });
+
+  it("takes a third number as the level, either way", () => {
+    expect(parseCommand("/goto 4 9 2")).toMatchObject({
+      ok: true,
+      command: { at: { x: 4, y: 9, z: 2 } },
+    });
+    expect(parseCommand("/move 0 0 -1")).toMatchObject({
+      ok: true,
+      command: { by: { x: 0, y: 0, z: -1 } },
+    });
+  });
+
+  it("forgives a plus nobody needed to type", () => {
+    expect(parseCommand("/move +0 +3")).toMatchObject({
+      ok: true,
+      command: { by: { x: 0, y: 3, z: 0 } },
+    });
+  });
+
+  it("goes to an absolute cell", () => {
+    const session = world();
+    session.runCommand("/goto 2 2", "me");
+    const me = session.actorSnapshots().find((a) => a.id === "me")!;
+    expect({ x: me.x, y: me.y, z: me.z }).toEqual({ x: 2, y: 2, z: 0 });
+    expect(session.drainNotices("me")).toEqual([]);
+  });
+
+  it("keeps the level it was standing on when none is given", () => {
+    const session = world();
+    session.runCommand("/goto 2 2", "me");
+    expect(session.actorSnapshots().find((a) => a.id === "me")!.z).toBe(0);
+  });
+
+  it("counts a move from wherever the body now stands", () => {
+    const session = world();
+    // South rather than east, because the deer is standing east of the origin
+    // and a body standing there is what the next case is about.
+    session.runCommand("/move 0 1", "me");
+    session.runCommand("/move 0 1", "me");
+    const me = session.actorSnapshots().find((a) => a.id === "me")!;
+    // Twice from where it now stands rather than twice from the origin, which
+    // is the whole of what a distance has to mean for it to be worth typing.
+    expect({ x: me.x, y: me.y }).toEqual({ x: 0, y: 2 });
+  });
+
+  it("refuses a cell another body is standing in, and says which", () => {
+    const session = world();
+    session.runCommand("/goto 1 0", "me");
+    expect(session.drainNotices("me")).toEqual(["Nothing will fit at 1, 0, 0"]);
+    const me = session.actorSnapshots().find((a) => a.id === "me")!;
+    expect({ x: me.x, y: me.y }).toEqual({ x: 0, y: 0 });
+  });
+
+  it("refuses a cell off the edge of the board", () => {
+    const session = world();
+    session.runCommand("/goto 40 40", "me");
+    expect(session.drainNotices("me")).toEqual(["Nothing will fit at 40, 40, 0"]);
+  });
+
+  it("refuses a move onto nothing on the same terms", () => {
+    const session = world();
+    session.runCommand("/move 40 40", "me");
+    expect(session.drainNotices("me")).toEqual(["Nothing will fit at 40, 40, 0"]);
+  });
+
+  it("says nothing when you are already there", () => {
+    const session = world();
+    session.runCommand("/move 0 0", "me");
+    expect(session.drainNotices("me")).toEqual([]);
+    const me = session.actorSnapshots().find((a) => a.id === "me")!;
+    expect({ x: me.x, y: me.y }).toEqual({ x: 0, y: 0 });
+  });
+
+  it("hands back the grammar of the verb that was typed", () => {
+    const session = world();
+    session.runCommand("/goto 1", "me");
+    expect(session.drainNotices("me")).toEqual([`Say ${COMMAND_USAGE.goto}`]);
+    session.runCommand("/move 1 2 3 4", "me");
+    expect(session.drainNotices("me")).toEqual([`Say ${COMMAND_USAGE.move}`]);
+  });
+
+  it("names the word that is not a number, under either verb", () => {
+    for (const line of ["/goto north 2", "/move north 2"]) {
+      expect(parseCommand(line)).toEqual({
+        ok: false,
+        refusal: { kind: "badCoordinate", typed: "north" },
+      });
+    }
+  });
+});

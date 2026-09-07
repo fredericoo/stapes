@@ -3238,6 +3238,55 @@ world.
   authored and there is no runtime block to write to, so `/mastery` on a deer
   says "Deer does not learn" rather than explaining the engine.
 
+### `/goto` is absolute, `/move` is relative, and that is why they are two
+
+`/tile` spells the difference between a cell of the map and a step from where
+you stand *inside* an argument: a bare number is a column, a signed one is an
+offset. That works there, because a tile is usually put down near you and both
+readings are wanted in one line.
+
+**Going somewhere is not like that, and the first version of this got it wrong
+by copying it.** A destination is nearly always absolute, and nearly every
+coordinate on this map that anybody wants to reach is negative — the city runs
+from `x = -45` and the goblin field sits at `y = -55`. Under the sign grammar
+`/goto -11 -55` did not go to the goblin camp; it went eleven west and
+fifty-five south of wherever you were standing, and *no* absolute negative could
+be written at all. A teleport that cannot name half the map is not one.
+
+So the verb carries what the sign used to. `/goto -11 -55` is a place, `/move
+-11 -55` is a distance, and neither has to spell which inside an argument. It
+costs two commands instead of one and it is worth it: the alternative is a
+third spelling — a `~` prefix, an `=` prefix — that has to be learnt, explained,
+and then applied to `/tile` as well to stay coherent.
+
+`/tile` keeps its own grammar and this is deliberate. Two ways of writing a
+coordinate is a real cost, but the argument for changing `/tile` is much weaker
+than the argument for changing this was: it is pointed at things near you, where
+the offsets are what you want anyway.
+
+**The level may be left off, and then means the one you are on.** By far the
+most-omitted argument, since most of the world is one storey — and defaulting it
+to the ground would send somebody who typed two numbers to a different floor
+than the one they were looking at. `/move 0 0 -1` is the storey below.
+
+**Where they may put you is a stricter question than where a portal may.**
+`teleportFits` asks about volume — is there room in the column for a body this
+tall — which is right for a destination an author placed and pointed at, and
+wrong for one somebody typed. It says yes to a cell with nothing underneath and
+to one another body is already standing in, so the first version of this put a
+player inside a deer and then off the edge of the world. `canStandIn` asks what
+the walk loop asks instead: a standing surface at that level, the body fitting
+with its feet on it, and other bodies counting as walls.
+
+Both verbs land through one `putBodyAt`, which moves with `moveThrough` — the
+same one a portal makes — so a body that walks somewhere and a body that types
+its way there end in one state and the client animates both the same way.
+
+**Neither is reachable in `/play`.** Commands are typed into the chat field and
+`/play` never passes `onSay`, so single-player has no chat and therefore no
+commands at all. That is true of `/tile` and `/health` too and predates these;
+it is worth knowing before going looking for the field in single-player.
+
 ### `/tile` puts anything anywhere, on the editor's own terms
 
 - **The sign is the whole of the coordinate grammar.** `3` is the third column
