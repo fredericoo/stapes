@@ -94,7 +94,13 @@ function ChatComposer({
         aria-label="Say something"
         autoComplete="off"
         autoFocus={autoFocus}
-        className="min-w-0 flex-1 border-2 border-paper/40 bg-ink px-2 py-1 text-sm text-paper placeholder:text-paper/40 focus:border-paper focus:outline-none"
+        // 16px on a finger, and it has to be. Safari on iOS zooms the page in
+        // when a text field it focuses is set smaller than that, and the page
+        // sets `initial-scale=1` with no maximum — so nothing zooms it back out
+        // and the game is left cropped and off-centre for the rest of the
+        // session. The desktop bar keeps `text-sm`; no desktop browser does
+        // this, and the row is sized around that face.
+        className="min-w-0 flex-1 border-2 border-paper/40 bg-ink px-2 py-1 text-sm text-paper placeholder:text-paper/40 pointer-coarse:text-base focus:border-paper focus:outline-none"
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Escape") {

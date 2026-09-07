@@ -139,6 +139,26 @@ break by accident:
   become the live page, and a tab that loaded five minutes ago must still be able
   to fetch *its* chunks — so old builds stay resident and are still served.
 
+## A field the phone focuses has to be 16px
+
+Safari on iOS zooms the page in when it focuses a text field whose font is
+smaller than 16px, and `app/root.tsx` sets `width=device-width, initial-scale=1`
+with no maximum and no `user-scalable=no` — so the page has no way back out. A
+player who tapped the talk button was left playing a cropped, off-centre board
+for the rest of the session.
+
+The chat field therefore carries `pointer-coarse:text-base` on top of its
+`text-sm` (`app/components/ChatBar.tsx`). The variant rather than a breakpoint,
+because the phone shape of the interface is chosen on `(pointer: coarse)` and
+not on width — see `useCoarsePointer`. **Any new field a finger can reach needs
+the same thing.** The shared `app/ui/Input` and `Textarea` are still `text-sm`
+and would zoom the same way; they are only used by editor surfaces nobody opens
+on a phone, which is the reason and not an argument that the rule is optional.
+
+Adding a maximum scale to the viewport meta would also stop the zoom, and is the
+wrong fix: it takes pinch-zoom away from everybody, including anybody who needs
+it to read.
+
 ## Known: a rebirth inherits the status that killed you
 
 **Not fixed, and deliberately left for a design decision.** Reported from the
