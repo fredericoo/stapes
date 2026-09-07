@@ -66,6 +66,10 @@ const SCENARIOS: Record<string, ReadonlyArray<Coord | null>> = {
   den1: [{ x: -10, y: 23, z: -1 }],
   /** One player on the bottom cave floor, among the rats and well away from the troll. */
   den3: [{ x: -10, y: 19, z: -3 }],
+  /** One player on the track north of the city wall, a few cells past the gate. */
+  track: [{ x: -3, y: -60, z: 0 }],
+  /** One player at the goblins' fire, two hundred cells further north. */
+  camp: [{ x: -1, y: -260, z: 0 }],
   /** Six players spread over every floor of the world. */
   spread: [
     null,
