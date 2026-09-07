@@ -23858,6 +23858,144 @@
     }
   },
   {
+    "id": "crude-dagger",
+    "name": "Crude Dagger",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "weapon",
+        "damage": 5,
+        "def": 0,
+        "accuracy": 88,
+        "variance": 25,
+        "spd": 66,
+        "mastery": "sharp",
+        "requirements": {
+          "sharp": 5,
+          "agility": 5
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 0,
+              "y": 3,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "iron-dagger",
+    "name": "Iron Dagger",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "weapon",
+        "damage": 9,
+        "def": 0,
+        "accuracy": 90,
+        "variance": 20,
+        "spd": 64,
+        "mastery": "sharp",
+        "requirements": {
+          "sharp": 10,
+          "agility": 5
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 0,
+              "y": 2,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "stiletto",
+    "name": "Stiletto",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "weapon",
+        "damage": 11,
+        "def": 0,
+        "accuracy": 93,
+        "variance": 15,
+        "spd": 62,
+        "mastery": "sharp",
+        "requirements": {
+          "sharp": 15,
+          "agility": 10
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 1,
+              "y": 2,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
     "id": "greatsword",
     "name": "Greatsword",
     "height": 0,

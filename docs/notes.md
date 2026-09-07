@@ -2983,9 +2983,30 @@ sight.
 The rungs are now **5, 10, 15, 22, 33, 50** — half again each step — and a
 weapon's primary mastery is which rung it stands on. Heavy weapons add a
 secondary requirement rather than a rung of their own: axes, mauls and the
-greatsword ask Toughness, and daggers will ask Agility when they exist.
-`requirementShare` pools those, so the axe path and the sword path arrive at
-different moments even where the pooled totals match.
+greatsword ask Toughness, and daggers ask Agility. `requirementShare` pools
+those, so the axe path and the sword path arrive at different moments even where
+the pooled totals match.
+
+**The daggers are the first weapons written to that shape rather than fitted to
+it**, and what they are for is the case a sword is bad at. Crude Dagger, Iron
+Dagger and Stiletto stand on Sharp 5, 10 and 15 beside the three swords, ask
+Agility 5, 5 and 10 alongside, and deal about two thirds of the sword's damage
+at about two thirds of the interval:
+
+```
+              dmg   interval   dmg/s   dmg/s vs def 3
+  Rusty Sword   8      1833      4.4         2.7
+  Crude Dagger  5       967      5.2         2.1
+  Iron Sword   15      2000      7.5         6.0
+  Iron Dagger   9      1033      8.7         5.8
+```
+
+**The flip in that last column is the whole design.** Defence is subtracted from
+each blow rather than shared over a second, so a fast weak weapon loses far more
+of itself to armour than a slow strong one — which means a dagger has to be
+*better* than its sword in the open to be worth carrying at all, and is worse
+than it against anything wearing mail. Raw damage per second that merely matched
+the sword would be a weapon with no case for existing.
 
 **A constant ratio is the point, because `learningRate` is a function of the
 ratio.** A constant *difference* — 5, 10, 15, 20 — shrinks in relative terms as
