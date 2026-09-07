@@ -1205,16 +1205,18 @@ out of either reads as no route at all, deliberately: a half-explored search has
 a best-so-far cell it could head for, and walking towards that is exactly how a
 creature ends up pressed against the nearest wall having made progress.
 
-**Nothing is kept between two decisions.** A route is recomputed each brain
-tick rather than followed, because a kept plan is a plan about a world that has
+**Nothing is kept between two decisions.** A route is recomputed for every leg
+rather than followed, because a kept plan is a plan about a world that has
 since moved — the target walked on, a crate was shoved into the third step,
-another creature filled the fourth. At one decision per step the check that a
+another creature filled the fourth. At one search per step the check that a
 kept route was still true would cost about what recomputing it does.
 
-**Fleeing is still greedy, and that is not an oversight.** `step_away_from` has
-no destination to route to; "away" is a direction rather than a place, so the
-question a fleeing animal asks really is the local one. Inventing a goal cell to
-run at would be the pathfinder deciding where something wants to hide.
+**Fleeing used to be greedy, and this section used to argue that it should be.**
+The argument was that "away" is a direction rather than a place, so the question
+a fleeing animal asks is the local one, and inventing a goal cell to run at
+would be the pathfinder deciding where something wants to hide. It is a sound
+argument for a worse animal — see "Running away is a flood, not a direction"
+below, which is what replaced it and why.
 
 ## Clicking a cell walks to it, and nothing new travels
 
@@ -1314,6 +1316,145 @@ client making up where it is allowed to go.
     than `unreachable`; the sentence for it — "there is no short way there" — is
     true of a long way round and of no way at all. Being wrong the other way
     stops a player who could have walked round the back.
+
+## A step used to wait for a decision, which set the pace of every creature
+
+`step_toward` pressed one direction and returned, so a creature took a step per
+brain round. `BRAIN_TICK_MS` is one walk at the standard pace, and the effect of
+that pairing was not the cap it looks like — it was a **rounding**, up to a
+whole number of rounds, and it caught the slow creatures as well as the fast:
+
+| authored | walked at |
+| --- | --- |
+| bat 90ms | 200ms |
+| wolf 140, rat 150, rabbit 150, deer 170 | 200ms |
+| troll 300, snake 320 | 400ms |
+| cat 400 | 400ms |
+
+Of everything we ship only the cat, authored at exactly two rounds, ever moved
+at the pace its tile says. The bat spent half of every round standing still,
+which is what read as a stutter; the snake merely walked a quarter slower than
+anybody authoring it believed, which read as nothing at all and is the half of
+this that was easy to miss.
+
+**A creature now holds an order rather than taking a step.** `walkTo` writes
+down *where* a creature is going and returns whether it is going anywhere;
+`GameSession.driveWalkOrder` presses the next leg from the motion loop, every
+tick the body comes free. The brain keeps the decision that is actually its own
+— whom to follow — and reconsiders it every round, at the cadence it always did.
+
+- **The goal is a body, not a cell, wherever a body was named.** Every selector
+  but `home` resolves to somebody, so the order holds the id and re-reads where
+  they are on every leg. A wolf follows a player across a courtyard instead of
+  walking to where they were standing when it decided.
+- **An order lives exactly one round unless it is asked for again.** It is
+  dropped at the top of every turn, before any transition or action runs. The
+  motion loop cannot know what a creature is thinking, so an order left behind
+  by a state the creature has transitioned out of would be walked out in full —
+  a body carrying on to somewhere it decided against, with nothing able to
+  notice.
+- **A dozing creature's order is not pressed between its turns.** The doze
+  budget is the only term in a round's cost that the size of the map reaches,
+  and pressing legs at the tick rate for every distant body with somewhere to be
+  would put that straight back. A creature nobody is near walks exactly as
+  slowly as it did.
+- **Nothing about holes changed.** A leg is a fresh `findPath` with the same
+  `drops` the action carried, so a chase still refuses to leave the ground
+  unless its author said otherwise, and both places that press a leg ask `idle`
+  first, which a falling body fails.
+
+**It made the tail cheaper, which is not what I expected.** One search per step
+rather than one per round is more searches, and the median tick shows it: 0.26ms
+to 0.36ms on the town scenario. But the p95 goes from 2.86ms to 2.40ms and the
+worst tick from 11.3ms to 6.0ms, because the searches are no longer all due on
+the same tick — a brain round used to do everybody's pathfinding at once, and
+now the legs in between carry their own. The wire grows 3.5%, 40.2 to 41.6 KB/s,
+which is creatures genuinely covering more ground.
+
+**What it cost is a release that is read once a round.** A transition is checked
+per round while a body may now take more than one leg in that time, so a
+condition that says "stop when you are two cells away" can be overshot by one.
+The rats show it: four of them in a yard sit adjacent on 57% of beats where they
+used to sit on 47%. Retuning the release does not recover it — at three cells
+the pack gets *worse*, because releasing earlier only means re-acquiring sooner
+— and the pathology the release actually exists to prevent, the diagonal chain
+that shuffles on the spot, halved instead. See `brain.test.ts`, "gathers without
+piling up".
+
+## A creature that has left the board must not be given a turn
+
+`tickOneBrain` asked `defFor` before anything else, and `defFor` goes through
+`locate`, which throws. An actor outlives its body for as long as it takes
+something to notice — killed by a status, or fallen out of the world — and until
+then it is still in `actors` and still comes round in the doze budget. So the
+next round it got was an exception out of `tick`, which on the server is the
+world going down.
+
+It reproduced on `bun run bench:server` against the shipped map, in the town
+scenario, within twenty simulated seconds. The bench was simply failing rather
+than reporting, which is how it went unnoticed for as long as it did. Asked
+through `tryLocate` now, on exactly the terms `buildTileIndex` and `attentive`
+have always asked: no body on the board, no turn.
+
+## Running away is a flood, not a direction
+
+`step_away_from` scored the four neighbouring cells and took whichever opened
+the distance most. Two things went wrong with that, and both of them were
+visible in the game rather than in a number.
+
+**A wall defeated it.** A rabbit backed into a pocket has no neighbour that
+gains anything — the only way out runs past you before it leads anywhere — so
+the search found nothing, the action failed, and `stuck` put the animal in
+`cornered`, which holds until you walk eight cells away. On a three-walled
+pocket it stood still for fourteen rounds without moving a cell while somebody
+walked up to it.
+
+**And it flickered.** The best of four cells flips between two of them as the
+threat moves, and nothing was committed to, so an animal that re-decided every
+round shuffled on the spot instead of running.
+
+`findRefuge` floods outward from the animal instead, scores every cell it
+reaches, and hands back the route to the best one — so choosing somewhere to run
+and working out how to get there are one search, off the came-from tree the
+flood already built. It is `findPath` inside out: no goal to aim at, therefore
+no heuristic to order a frontier by, therefore a flood rather than an A*.
+
+- **Distance from the threat first, out of its sight to break a tie.** Distance
+  is what fleeing means; sight is what makes it hiding. A tie-break rather than
+  a term of its own, so an animal never doubles back towards a threat for the
+  sake of a wall. Line of sight is asked only about cells already at least as
+  far as the best so far, which is a handful over a whole flood rather than one
+  per cell — and it is measured at the *fleeing animal's* height, because a flee
+  is given a position rather than a body and a line between two cells is very
+  nearly symmetric.
+- **A refuge is kept until it is reached or cut off.** This is the half that
+  stops the flickering, and it is worth being clear that the flood is not: an
+  animal that re-flooded every round would get a different best cell every time
+  you moved and would shuffle between them exactly as before. Dropped when it is
+  reached, when it is no longer further from the threat than the animal already
+  is — which is what both "you got between us" and "you followed me" look like
+  — or when there was nowhere better to begin with.
+- **`REFUGE_MAX_NODES` is 64, which is about six cells.** Enough to round the
+  corner of a building or find the gap in a fence, and nowhere near enough to
+  know the layout of a town. That is the same limit `PATH_DETOUR_SLACK` puts on
+  a chase, arrived at from the other side: a creature is allowed to see what is
+  around it and not allowed to have worked out where the doors are. Unlike the
+  chase's budget it is spent *every time* — a flood has nothing to prune with —
+  so it is what a flee costs rather than a ceiling it rarely reaches.
+- **An empty route means cornered**, on the terms an empty route has always
+  meant arrived. The `cornered` state authors already wrote still happens; what
+  it means has changed. It used to be reached after two steps of hill-climbing
+  and is now reached having looked at everywhere within six cells.
+
+**The cost is a spike when a herd startles, and almost nothing after.** Measured
+on a penned yard of fifteen deer and rabbits with somebody standing among them:
+nine floods in nine hundred ticks, because commitment means an animal floods
+once per escape rather than once per round. The worst tick is the one where all
+fifteen notice at once — 10.9ms against the greedy version's 2.5ms — and after
+that the worst is 3.4ms against 2.5ms. The spike scales with how many animals
+startle on the same round, which is the bound worth remembering. On the shipped
+map it does not show up in `bun run bench:server` at all: town and spread are
+unchanged, because nothing like fifteen fleeing animals is ever near one player.
 
 ## A creature thinks every round only while somebody could notice it
 

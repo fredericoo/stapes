@@ -259,7 +259,7 @@ import {
   standingAbs,
   surfacesInClimbBand,
 } from "./movement";
-import { findPath } from "./pathfinding";
+import { findPath, findRefuge } from "./pathfinding";
 import { brainReach, resolveBrain } from "../lib/brain";
 import { resolveDialog } from "../lib/dialog";
 import {
@@ -280,6 +280,8 @@ import {
   type BrainMemory,
   type Sound,
   type Utterance,
+  type WalkGoal,
+  type WalkOrderState,
 } from "./brainRuntime";
 import type { ConsumeSource } from "./itemUse";
 import { canTransmuteFrom, planTransmute, runTransmute } from "./transmute";
@@ -1210,6 +1212,74 @@ type ActorRuntime = {
    */
   brainDeferredMs: number;
   /**
+   * Where this creature is walking to, or null for one going nowhere.
+   *
+   * **The one piece of a decision that outlives the round that took it**, and it
+   * exists because the two clocks are not the same one. A brain decides every
+   * `BRAIN_TICK_MS`, which is one walk at the standard pace; a body walks at its
+   * own `walkDurationMs`, which for a bat is 90ms and for a wolf 140. An action
+   * that pressed one direction per round capped every creature at the brain's
+   * pace, so the bat crossed ground at 200ms a cell — 2.2× slower than it was
+   * authored to — and stood still for the other 110ms of every round, which is
+   * what the stutter was.
+   *
+   * What is kept is the *intent*, never a route: {@link driveWalkOrder} searches
+   * afresh for every leg, so `docs/notes.md`'s "nothing is kept between two
+   * decisions" is untouched. The goal is a body rather than a cell wherever a
+   * body was named, so a chase re-reads where its quarry is on every leg instead
+   * of walking to where they stood when it decided.
+   *
+   * **Dropped at the top of every one of this creature's turns**, so an order
+   * only stands while the state that wanted it keeps asking — see
+   * {@link tickOneBrain}. Without that, a creature that transitioned out of
+   * chasing would walk out a plan nothing believes in any more.
+   *
+   * Not durable, on {@link brain}'s terms: it is a state of play, and a world
+   * coming back from a save has every creature decide again. Null for every
+   * player and for the great majority of creatures at any moment, so nothing is
+   * allocated for a body standing still.
+   */
+  walkOrder: {
+    goal: WalkGoal;
+    allowDrops: boolean | undefined;
+    /**
+     * Where the walk ends. You stop *beside* a body and *in* a cell, which is
+     * the difference between closing on somebody and getting somewhere.
+     *
+     * Explicit rather than derived from the goal's shape, because `home` is a
+     * cell too and a creature has always stopped beside it. @see
+     * PathOptions.arrive
+     */
+    arrive: "beside" | "on";
+  } | null;
+  /**
+   * The cell this creature is running to, or null for one not fleeing.
+   *
+   * **Kept across rounds on purpose, and it is the only thing here that is.** A
+   * refuge is chosen by a flood over everywhere within reach — see
+   * `./pathfinding`'s `findRefuge` — and re-choosing one every round is what
+   * made a fleeing animal shuffle: the best cell flips as the threat moves, and
+   * an animal that acts on the flip is one that never actually goes anywhere.
+   * Committing to somewhere is what a run *is*.
+   *
+   * Dropped when it is reached, when the threat has come between the animal and
+   * it, or when there was nowhere better to begin with. Not durable, on
+   * {@link brain}'s terms, and null for everything that is not at this moment
+   * running away from something.
+   */
+  refuge: Coord | null;
+  /**
+   * Could anybody notice this creature, as of its last round?
+   *
+   * Cached from {@link attentive} rather than asked again, because what reads it
+   * is {@link maybeStartWalk} — once per actor per *tick*, where the predicate
+   * is a scan of every connected player. It is what keeps a standing order from
+   * turning the doze budget back into a per-creature cost: a dozing creature's
+   * order is pressed only on the turns the budget hands it, which is exactly the
+   * pace it walked at before any of this. @see BRAIN_DOZE_BUDGET
+   */
+  brainAttentive: boolean;
+  /**
    * Who this body is talking to and where in their dialog it is, or null.
    *
    * The *player's* state, not the NPC's — see `./dialogRuntime`'s
@@ -1964,6 +2034,9 @@ export class GameSession implements PlaySession {
       assailants: null,
       brain: null,
       brainDeferredMs: 0,
+      walkOrder: null,
+      refuge: null,
+      brainAttentive: false,
       conversation: null,
       home: residentHome(id),
       // Restored where a returning player had any, and null otherwise — null
@@ -2671,7 +2744,11 @@ export class GameSession implements PlaySession {
     const dozing: ActorRuntime[] = [];
     for (const actor of this.actors.values()) {
       if (!actor.resident) continue;
-      if (this.attentive(actor, players)) {
+      // Written down rather than only branched on: a standing walk order is
+      // pressed at the tick rate, and this is the flag that decides whether a
+      // dozing creature's is. @see ActorRuntime.brainAttentive
+      actor.brainAttentive = this.attentive(actor, players);
+      if (actor.brainAttentive) {
         this.tickOneBrain(actor, sounds, BRAIN_TICK_MS + actor.brainDeferredMs);
         actor.brainDeferredMs = 0;
       } else {
@@ -3020,14 +3097,27 @@ export class GameSession implements PlaySession {
     sounds: readonly Sound[],
     tickMs: number,
   ) {
+    // Nothing left to decide with. An actor outlives its body for as long as it
+    // takes something to notice — a creature killed by a status, or one that
+    // fell out of the world — and until then it is still in {@link actors} and
+    // still comes round in the doze budget. Asked through `tryLocate` on
+    // exactly the terms {@link buildTileIndex} and {@link attentive} ask, both
+    // of which have always skipped a body that is not on the board.
+    const loc = this.tryLocate(actor);
+    if (!loc) return;
+
     // A body with no brain, or one whose authored brain did not hold together,
     // simply stands there. Resolving is memoised on def identity, so asking
     // every tick costs a map lookup rather than a parse.
     const brain = resolveBrain(this.defFor(actor));
     if (!brain) return;
 
-    const loc = this.locate(actor);
     actor.brain ??= initialMemory(brain);
+    // Before anything decides anything: a standing order is worth exactly one
+    // round unless this turn asks for it again, so a creature that has
+    // transitioned out of chasing stops rather than walking out a plan the
+    // state that wanted it has left. @see ActorRuntime.walkOrder
+    actor.walkOrder = null;
     stepBrain(brain, actor.brain, tickMs, {
       busy: !this.idle(actor),
       rng: this.rng,
@@ -3038,7 +3128,9 @@ export class GameSession implements PlaySession {
       wouldDrop: (direction) => this.stepLeavesGround(loc, direction),
       step: (direction) =>
         this.applyStepRequest(actor, { directions: [direction] }),
-      routeTo: (at, allowDrops) => this.routeStep(actor, loc, at, allowDrops),
+      walkTo: (goal, allowDrops) => this.setWalkOrder(actor, goal, allowDrops),
+      fleeFrom: (threat, allowDrops) =>
+        this.setFleeOrder(actor, loc, threat, allowDrops),
       say: (text) => this.recordSpeech(actor, loc, text),
       noise: (text) => this.recordNoise(actor.id, loc, text),
       canSee: (at) => this.canSeeFrom(actor, loc, at),
@@ -5163,6 +5255,7 @@ export class GameSession implements PlaySession {
     loc: ActorLocation,
     at: Coord,
     allowDrops: boolean | undefined,
+    arrive: "beside" | "on" = "beside",
   ): Direction | "arrived" | null {
     // A creature decides where to go while standing still, so the cell it
     // searches from and the body to leave off the board are the same one. They
@@ -5179,7 +5272,7 @@ export class GameSession implements PlaySession {
       // fall lands: a drop is an edge like any other to it. The narrower rule is
       // the player's, whose click asked to be somewhere rather than to leap.
       // @see PathOptions.drops
-      { drops: allowDrops ? "anywhere" : "never" },
+      { drops: allowDrops ? "anywhere" : "never", arrive },
     );
     // Which limit a refusal hit is not a distinction a brain has anything to do
     // with: unreachable, too far round and given up on all mean the same thing
@@ -5187,6 +5280,202 @@ export class GameSession implements PlaySession {
     // that needs them apart is the player's. @see PathRefusal
     if (!found.ok) return null;
     return found.route[0]?.direction ?? "arrived";
+  }
+
+  /**
+   * Take a creature's order for somewhere to be, and answer what came of it.
+   *
+   * The brain's half of a standing walk, and it is deliberately thin: it writes
+   * the intent down and then asks {@link driveWalkOrder} the same question every
+   * later leg will be asked. What that buys is one answer rather than two — a
+   * route refused on the round it was ordered reads exactly as one refused four
+   * legs in, so an author's priority list falls through on the same terms
+   * either way.
+   *
+   * A body already in motion is not asked. It is walking where it was told to,
+   * and the order has just been re-affirmed, so there is nothing to decide and
+   * no search to pay for — the leg it is on will ask when it lands. That is also
+   * what keeps the cost honest: one search per *step*, not one per step plus one
+   * per round.
+   */
+  private setWalkOrder(
+    actor: ActorRuntime,
+    goal: WalkGoal,
+    allowDrops: boolean | undefined,
+  ): WalkOrderState {
+    actor.walkOrder = { goal, allowDrops, arrive: "beside" };
+    if (!this.idle(actor)) return "walking";
+    return this.driveWalkOrder(actor);
+  }
+
+  /**
+   * Press the next leg of a standing order, or say why there is not one.
+   *
+   * The whole of what makes a creature walk at its own pace: called both by the
+   * round that gave the order and by {@link maybeStartWalk} on every tick the
+   * body comes free, which is where the two clocks come apart. A bat's next leg
+   * is pressed 90ms after the last one landed rather than at the next round.
+   *
+   * **A route per leg, and never a route kept.** The search is run again from
+   * wherever the body now stands, against a board that has moved and a quarry
+   * that has walked on — the argument `docs/notes.md` makes for recomputing a
+   * chase, which is unchanged by any of this because it was always one search
+   * per step. What is new is only that a step is no longer the same thing as a
+   * round.
+   *
+   * Every ending clears the order. Arriving, losing the target off the board, a
+   * board with no way there and a leg the walk loop refuses all leave the
+   * creature with no intent — and the next round decides again, which is at most
+   * `BRAIN_TICK_MS` away and is the cadence a blocked creature already stood at.
+   */
+  private driveWalkOrder(actor: ActorRuntime): WalkOrderState {
+    const order = actor.walkOrder;
+    if (!order) return "blocked";
+
+    const at = this.walkGoalCell(order.goal);
+    const loc = this.tryLocate(actor);
+    // Nothing left to walk to, or nobody left to walk it: the quarry stepped
+    // off the board, or this body did.
+    if (!at || !loc) {
+      actor.walkOrder = null;
+      return "blocked";
+    }
+
+    const direction = this.routeStep(
+      actor,
+      loc,
+      at,
+      order.allowDrops,
+      order.arrive,
+    );
+    if (direction === null || direction === "arrived") {
+      actor.walkOrder = null;
+      return direction === "arrived" ? "arrived" : "blocked";
+    }
+
+    // A leg the board turns down — most often another body in the doorway,
+    // which `canWalk` reads as a wall. Reported rather than retried, so the
+    // creature's next round gets the chance to do something else about it.
+    if (!this.applyStepRequest(actor, { directions: [direction] })) {
+      actor.walkOrder = null;
+      return "blocked";
+    }
+    return "walking";
+  }
+
+  /**
+   * Point a creature away from something, and keep it pointed there.
+   *
+   * {@link setWalkOrder}'s opposite number. The order it writes is an ordinary
+   * one — a cell to get to, walked out a leg at a time by
+   * {@link driveWalkOrder} — and everything particular to fleeing is in how the
+   * cell is chosen and how long it is kept.
+   *
+   * **A refuge is kept until it is reached or cut off.** The three conditions
+   * below are the whole rule, and each is a different way of having stopped
+   * being somewhere worth running to:
+   *
+   * - standing in it, so there is nothing left to walk;
+   * - no longer further from the threat than the animal already is, which is
+   *   what "the threat got between us" and "the threat followed me" both look
+   *   like from here;
+   * - never chosen, because there was nowhere better.
+   *
+   * Anything else keeps it, and that is what makes a run read as a run. Asking
+   * the flood again every round would hand back a different best cell every
+   * time the threat moved, and an animal that acted on each one would shuffle
+   * between two of them and go nowhere — which is the behaviour this replaced.
+   *
+   * `"blocked"` means cornered: everywhere within reach was looked at and none
+   * of it is better than standing still. The author's next line gets its turn,
+   * and for the deer and the rabbit that is the `stuck` that puts them in
+   * `cornered`. What the state means has changed even though nothing about it
+   * has: it used to be reached after two steps of hill-climbing.
+   */
+  private setFleeOrder(
+    actor: ActorRuntime,
+    loc: ActorLocation,
+    threat: Coord,
+    allowDrops: boolean | undefined,
+  ): WalkOrderState {
+    const here = { x: loc.x, y: loc.y, z: loc.z };
+    if (!this.stillWorthRunningTo(actor.refuge, here, threat)) {
+      actor.refuge = this.findRefugeFor(actor, loc, threat, allowDrops);
+    }
+    if (!actor.refuge) return "blocked";
+
+    // `"on"` rather than `"beside"`: a refuge is a patch of ground to stand in,
+    // and stopping one cell short of it would leave the animal never arriving
+    // and so never asking for anywhere better.
+    actor.walkOrder = {
+      goal: { of: "cell", at: actor.refuge },
+      allowDrops,
+      arrive: "on",
+    };
+    if (!this.idle(actor)) return "walking";
+    const state = this.driveWalkOrder(actor);
+    // The route ran out on the way — a door shut, or somebody filled the gap.
+    // Reported as cornered rather than retried on this tick: the next round
+    // floods again from wherever the animal is standing, which is the same
+    // answer a tick later and one search instead of two.
+    if (state !== "walking") actor.refuge = null;
+    return state === "arrived" ? "walking" : state;
+  }
+
+  /** Is this still somewhere worth running to? @see setFleeOrder */
+  private stillWorthRunningTo(
+    refuge: Coord | null,
+    here: Coord,
+    threat: Coord,
+  ): boolean {
+    if (!refuge) return false;
+    if (refuge.x === here.x && refuge.y === here.y && refuge.z === here.z) {
+      return false;
+    }
+    return this.stepsApart(refuge, threat) > this.stepsApart(here, threat);
+  }
+
+  private stepsApart(a: Coord, b: Coord): number {
+    return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+  }
+
+  /**
+   * The best cell within reach to run to, or null for an animal with none.
+   *
+   * The session's half of the flood, thin for the reason {@link routeStep} is:
+   * the search is a question about a board, and this is only the place that
+   * happens to hold one and to know who can see what.
+   *
+   * **Sight is measured at the fleeing animal's own height**, which is an
+   * approximation and worth naming. The honest question is whether the *threat*
+   * can see the cell, and answering it would mean knowing which body the threat
+   * is — but a flee is given a position rather than a body, because "away" has
+   * always been measured against a place. A line between two cells is very
+   * nearly symmetric, and being wrong about it costs a rabbit a slightly worse
+   * hiding place rather than anything a player could notice.
+   */
+  private findRefugeFor(
+    actor: ActorRuntime,
+    loc: ActorLocation,
+    threat: Coord,
+    allowDrops: boolean | undefined,
+  ): Coord | null {
+    const self = { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex };
+    const def = this.defFor(actor);
+    const found = findRefuge(this.map, { at: self, self }, threat, def, this.tilesById, {
+      drops: allowDrops ? "anywhere" : "never",
+      seenFrom: (cell) =>
+        hasLineOfSight(this.map, this.tilesById, threat, cell, def.height),
+    });
+    // An empty route is an animal with nowhere better than where it stands, on
+    // the terms an empty route always means arrived. @see findRefuge
+    if (!found.ok || found.route.length === 0) return null;
+    return found.route[found.route.length - 1]!.to;
+  }
+
+  /** Where a standing order is aimed, right now. @see WalkGoal */
+  private walkGoalCell(goal: WalkGoal): Coord | null {
+    return goal.of === "cell" ? goal.at : this.actorCell(goal.id);
   }
 
   /**
@@ -7391,8 +7680,27 @@ export class GameSession implements PlaySession {
     return false;
   }
 
+  /**
+   * Whatever this body wants to do with the step it is now free to take.
+   *
+   * Held input first, and that ordering is the arbitration: a direction
+   * somebody is physically holding outranks a standing order, on the same rule
+   * `./heldDirections` uses for a click a player has walked in on. Nothing
+   * exercises it today — an order is a creature's and input is a person's —
+   * but the two must not be able to both press on one tick, and this is the one
+   * place that could happen.
+   *
+   * **A dozing creature's order is not pressed here.** It is walked out on the
+   * turns the round's budget hands it and nowhere else, so a creature nobody is
+   * near costs what it always did: the doze budget is the only term in a round
+   * that the size of the map reaches, and pressing legs at the tick rate for
+   * every distant body with somewhere to be would put that cost straight back.
+   * @see ActorRuntime.brainAttentive
+   */
   private maybeStartWalk(actor: ActorRuntime) {
     this.applyStepRequest(actor, actor.input);
+    if (actor.walk || !actor.walkOrder || !actor.brainAttentive) return;
+    this.driveWalkOrder(actor);
   }
 
   /**

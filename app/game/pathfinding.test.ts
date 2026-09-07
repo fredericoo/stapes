@@ -4,7 +4,9 @@ import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, normalizeTileDef } from "../lib/types";
 import {
   findPath,
+  findRefuge,
   PATH_MAX_NODES,
+  REFUGE_MAX_NODES,
   type PathOutcome,
   type PathRefusal,
   type PathStep,
@@ -579,5 +581,178 @@ describe("a route stays under a floor", () => {
   it("climbs out where the column over the step is open", () => {
     const map = replaceStack(underFloor(), 0, 0, 0, []);
     expect(walked(route(map, standing(0, 0, -1), { x: 2, y: 0, z: 0 }))).toEqual(["e"]);
+  });
+});
+
+/**
+ * Running away, which is the same module inside out.
+ *
+ * A chase knows where it wants to be; a flee knows only what it wants to be
+ * away from. So there is no goal to aim at, no heuristic to order a frontier
+ * by, and what the search does instead is flood outward and score what it
+ * reaches. These cases pin the scoring and the two limits on it.
+ *
+ * The behaviour they are here for is the one that made this necessary: a rabbit
+ * backed into a pocket had no neighbouring cell that opened the distance, so
+ * the greedy version this replaced gave up and stood there while somebody
+ * walked up to it.
+ */
+describe("finding somewhere to run", () => {
+  /** Where a flood ends up, or null for an animal that stayed put. */
+  function refuge(
+    map: MapFile,
+    from: Coord & { stackIndex: number },
+    threat: Coord,
+    opts?: Parameters<typeof findRefuge>[5],
+  ): Coord | null {
+    const found = findRefuge(map, { at: from, self: from }, threat, rat, tilesById, opts);
+    if (!found.ok || found.route.length === 0) return null;
+    return found.route[found.route.length - 1]!.to;
+  }
+
+  function stepsApart(a: Coord, b: Coord): number {
+    return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+  }
+
+  it("runs away, and hands back the way there", () => {
+    const map = field(12);
+    const found = findRefuge(
+      map,
+      { at: standing(0, 0), self: standing(0, 0) },
+      { x: -4, y: 0, z: 0 },
+      rat,
+      tilesById,
+    );
+
+    expect(found.ok).toBe(true);
+    const route = found.ok ? found.route : [];
+    // Every leg is a real leg, and the last of them lands on the refuge — the
+    // route comes out of the same came-from tree the flood built, so picking
+    // somewhere and working out how to get there are not two searches.
+    expect(route.length).toBeGreaterThan(0);
+    const arrived = route[route.length - 1]!.to;
+    expect(stepsApart(arrived, { x: -4, y: 0, z: 0 })).toBeGreaterThan(4);
+  });
+
+  /**
+   * The case the greedy version could not answer, and the reason this exists.
+   *
+   * Walls on three sides and the threat in the mouth of the pocket. No
+   * neighbouring cell opens the distance — the only way out runs *past* the
+   * threat before it leads anywhere — so a search that scored the four
+   * neighbours found nothing and reported cornered. A flood sees the cells
+   * beyond.
+   */
+  it("leaves a pocket whose only way out passes the threat", () => {
+    let map = field(12);
+    map = put(map, 1, 0, "wall");
+    map = put(map, 0, -1, "wall");
+    map = put(map, 0, 1, "wall");
+
+    const found = refuge(map, standing(0, 0), { x: -3, y: 0, z: 0 });
+
+    expect(found).not.toBeNull();
+    expect(stepsApart(found!, { x: -3, y: 0, z: 0 })).toBeGreaterThan(3);
+  });
+
+  /**
+   * Genuinely nowhere to go, which is a different answer from not having
+   * looked. An empty route on the terms an empty route always means arrived:
+   * the animal itself is the best cell the flood found.
+   */
+  it("stays put when it is walled in, and says so with an empty route", () => {
+    let map = field(12);
+    for (const [x, y] of [[1, 0], [-1, 0], [0, -1], [0, 1]]) {
+      map = put(map, x!, y!, "wall");
+    }
+
+    const found = findRefuge(
+      map,
+      { at: standing(0, 0), self: standing(0, 0) },
+      { x: -3, y: 0, z: 0 },
+      rat,
+      tilesById,
+    );
+
+    expect(found).toEqual({ ok: true, route: [] });
+  });
+
+  /**
+   * Sight breaks a tie and never more than that.
+   *
+   * Told that everywhere north is out of sight, an animal with two equally
+   * distant ways to run takes the northern one. Told nothing, it is free to
+   * take either — which is why the case is written as "north when hidden" and
+   * not "south when not": the flood's own tie-break is which cell it reached
+   * first, and that is an ordering this test has no business pinning.
+   */
+  it("prefers a refuge the threat cannot see, where two are equally far", () => {
+    const map = field(12);
+    const found = refuge(map, standing(0, 0), { x: 0, y: 0, z: 0 }, {
+      seenFrom: (cell) => cell.y >= 0,
+    });
+
+    expect(found).not.toBeNull();
+    expect(found!.y).toBeLessThan(0);
+  });
+
+  /**
+   * And never at the price of distance. Everywhere *near* is hidden and
+   * everywhere far is not; the animal still runs.
+   */
+  it("does not double back towards a threat for the sake of a wall", () => {
+    const map = field(12);
+    const threat = { x: -6, y: 0, z: 0 };
+    const found = refuge(map, standing(0, 0), threat, {
+      seenFrom: (cell) => stepsApart(cell, threat) > 8,
+    });
+
+    expect(found).not.toBeNull();
+    expect(stepsApart(found!, threat)).toBeGreaterThan(8);
+  });
+
+  /**
+   * The budget is spent every time, unlike the chase's.
+   *
+   * A route search has an admissible heuristic and stops the moment it arrives;
+   * a flood has nothing to prune with and nowhere to stop, so `maxNodes` is
+   * what a flee costs rather than a ceiling it rarely reaches. Which is why the
+   * number is small, and why how far an animal can see to run is set by it.
+   */
+  it("looks no further than its budget lets it", () => {
+    const map = field(30);
+    const near = refuge(map, standing(0, 0), { x: 0, y: 0, z: 0 }, { maxNodes: 8 });
+    const far = refuge(map, standing(0, 0), { x: 0, y: 0, z: 0 }, { maxNodes: REFUGE_MAX_NODES });
+
+    expect(stepsApart(near!, { x: 0, y: 0, z: 0 })).toBeLessThan(
+      stepsApart(far!, { x: 0, y: 0, z: 0 }),
+    );
+  });
+
+  /**
+   * A ledge is not a way out unless the animal is allowed to take it, on the
+   * same `drops` every other search here is under. The deer and the rabbit are
+   * both authored to jump, which is what makes the far side of a drop a refuge
+   * for them and a wall for anything else.
+   */
+  it("takes a drop only when the animal is allowed to", () => {
+    // A one-cell-wide ledge a level above open ground, with the threat at the
+    // far end of it. The ledge is the only footing at that level, so running
+    // along it is all there is unless the animal may go over the side.
+    let map = field(6);
+    for (let y = 0; y <= 6; y++) {
+      map = replaceStack(map, 0, y, 0, [{ tileId: "grass" }, { tileId: "block" }]);
+    }
+    const on = { x: 0, y: 3, z: 1, stackIndex: 0 };
+    const threat = { x: 0, y: 6, z: 1 };
+
+    // Stuck on the ledge: it runs to the far end of it and no further.
+    const along = refuge(map, on, threat, { drops: "never" })!;
+    expect(along.z).toBe(1);
+    // Over the side and away across the ground, which gets it further from the
+    // threat than the ledge ever could have.
+    const leapt = refuge(map, on, threat, { drops: "anywhere" })!;
+    expect(leapt.z).toBe(0);
+    expect(stepsApart(leapt, threat)).toBeGreaterThan(stepsApart(along, threat));
   });
 });

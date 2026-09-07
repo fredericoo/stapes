@@ -125,6 +125,23 @@ export type ActionStatus = "success" | "failure" | "running";
  * this is how a registry of small declarative verbs would quietly become a
  * scripting language.
  */
+/**
+ * Somewhere a creature has set off for.
+ *
+ * A body or a place, because those are the only two things a selector can name
+ * — every selector but `home` resolves to somebody, and `home` is a cell. The
+ * distinction is kept all the way through rather than flattened to a coordinate
+ * at the moment of asking, and that is the point of the type: a chase re-reads
+ * where its quarry *is* on every leg, so a wolf follows a player across a
+ * courtyard instead of walking to where they were standing when it decided.
+ */
+export type WalkGoal =
+  | { readonly of: "body"; readonly id: string }
+  | { readonly of: "cell"; readonly at: Coord };
+
+/** What became of a standing walk order. @see BrainContext.walkTo */
+export type WalkOrderState = "walking" | "arrived" | "blocked";
+
 export type BrainContext = {
   /** Still finishing a walk, a fall, or a shove. */
   busy: boolean;
@@ -169,17 +186,57 @@ export type BrainContext = {
    */
   step(direction: Direction): boolean;
   /**
-   * Which way to set off, to end up standing beside `at`.
+   * Set off for `goal`, and keep going until told otherwise.
    *
-   * A question about the board, so it belongs to whoever holds the board — the
-   * same split `canSee` is under, and for the same reason: this side only
-   * decides what to do with the answer.
+   * **The one action here that outlives the turn that asked for it**, and the
+   * reason is the clock. A brain decides every `BRAIN_TICK_MS`; an action that
+   * pressed one direction per decision therefore took a step per *round*, which
+   * rounded every creature's pace up to a whole number of rounds. A bat
+   * authored at 90ms walked at 200, a snake authored at 320 walked at 400, and
+   * of everything we ship only the cat — authored at exactly 400 — moved at the
+   * pace it was written to.
+   *
+   * So this states an intent rather than taking a step. The session holds it
+   * and presses the next leg the moment the body is free, at whatever pace that
+   * body walks — see `GameSession.driveWalkOrder`. What the brain keeps is the
+   * decision that is actually its own: *whom* to follow, reconsidered every
+   * round.
+   *
+   * **The intent lives exactly one round unless it is asked for again.** Every
+   * turn starts with the standing order dropped, so a creature that transitions
+   * out of chasing stops chasing rather than walking out a plan the state that
+   * wanted it has left. @see GameSession.tickOneBrain
    *
    * Three answers, and the difference between the last two is what a priority
-   * list reads: a direction to take, `"arrived"` for a creature already there,
-   * and null for somewhere there is no way to. @see ./pathfinding
+   * list reads: `"walking"` for a body on its way, `"arrived"` for one already
+   * standing beside what it wanted, and `"blocked"` for somewhere there is no
+   * way to. Only the first is a line that ran. @see ./pathfinding
    */
-  routeTo(at: Coord, allowDrops: boolean | undefined): Direction | "arrived" | null;
+  walkTo(goal: WalkGoal, allowDrops: boolean | undefined): WalkOrderState;
+  /**
+   * Set off away from `threat`, and keep going.
+   *
+   * {@link walkTo}'s opposite number and the same kind of thing — an intent the
+   * session holds and presses the legs of — but the question it asks the board
+   * is inside out. There is no goal, so what happens is a flood outward from the
+   * animal that scores every cell it reaches and runs to the best: furthest from
+   * the threat, and out of its sight where two are equally far.
+   * @see ./pathfinding's `findRefuge`
+   *
+   * **The refuge is kept until it is reached or cut off**, which is the half of
+   * this that stops the flickering. An animal that re-decided every round took
+   * whichever of four cells was momentarily best, and that flips between two of
+   * them as the threat moves — a rabbit shuffling on the spot rather than one
+   * running. Committing to somewhere is what a run is.
+   *
+   * Two answers rather than three, and the missing one is the point: arriving is
+   * not something this reports, because an animal that reaches its refuge with
+   * the threat still about has simply not finished fleeing, and the next flood
+   * is run from where it now stands. `"blocked"` is the only failure, and it
+   * means genuinely nowhere better than here — the `stuck` an author transitions
+   * on to get to a cornered state.
+   */
+  fleeFrom(threat: Coord, allowDrops: boolean | undefined): WalkOrderState;
   /**
    * Say something over this creature's head.
    *
@@ -414,6 +471,27 @@ function locate(
   return id === null ? null : ctx.positionOf(id);
 }
 
+/**
+ * What a selector names as somewhere to walk to.
+ *
+ * The sibling of {@link locate}, and the difference between them is the whole
+ * of why a chase keeps up: `locate` answers where the subject is *now*, which
+ * is what a flight has to measure against, while this answers *what* to follow
+ * and leaves the looking-up to whoever presses the next leg. @see WalkGoal
+ */
+function aim(
+  selector: Selector,
+  memory: BrainMemory,
+  ctx: BrainContext,
+): WalkGoal | null {
+  // The one selector that is already a place, on {@link locate}'s terms.
+  if (selector.type === "home") {
+    return ctx.home ? { of: "cell", at: ctx.home } : null;
+  }
+  const id = identify(selector, memory, ctx);
+  return id === null ? null : { of: "body", id };
+}
+
 /** Steps apart on the plan, ignoring elevation. */
 function stepsApart(a: Coord, b: Coord): number {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
@@ -631,85 +709,56 @@ function struckBy(memory: BrainMemory, ctx: BrainContext): boolean {
 }
 
 /**
- * Set off along a route to `target`.
+ * Set off for `goal`, and let the body get on with it.
  *
- * The whole of what A* buys a creature, and it is one line here because the
- * search belongs to the board — see `./pathfinding`. What matters at this level
- * is that all three of its answers are ones a priority list already knows how
- * to read:
+ * One line, because the deciding is somewhere else in both directions: the
+ * search belongs to the board (`./pathfinding`), and the walking belongs to the
+ * session, which presses a leg every time this body is free rather than once a
+ * round. What is left here is reading the answer the way a priority list does.
  *
- * - a direction, which is a step to take;
- * - `"arrived"`, for a creature already standing beside its target, which
- *   **fails** so the line below it gets its turn — the same thing the old
- *   greedy version did when no step could get it any closer, and what lets
- *   "hit them, else close on them, else hold" read straight down;
- * - null for somewhere with no way there at all, which also fails, and is the
- *   improvement worth naming. A creature shut out by a wall now gives up and
- *   goes `stuck` rather than pressing itself against the nearest side of it.
+ * Both failures read the same to an author and that is deliberate — `"arrived"`
+ * for a creature already standing beside its target and `"blocked"` for one
+ * with no way there both fall through, which is what lets "hit them, else close
+ * on them, else hold" read straight down the list. They are still two facts:
+ * only the second is a `stuck` a transition can watch for.
  *
- * Only the first leg is used, and the rest is thrown away rather than
- * remembered. A route held across ticks is a plan about a world that has since
- * moved — the target walked on, a crate was shoved into the third step, another
- * creature filled the fourth — and re-asking is both cheaper to reason about
- * and, at one decision per step, barely more expensive than checking whether
- * the kept one is still true.
+ * There is no `busy` check any more. A body mid-step is a body already walking
+ * where it was told to, so the order it is walking out *is* the answer; asking
+ * again would be this line reporting on the state of a leg rather than on
+ * whether the creature is going anywhere.
  */
-function stepAlongRoute(
-  target: Coord,
+function walkAlongRoute(
+  goal: WalkGoal,
   allowDrops: boolean | undefined,
   ctx: BrainContext,
 ): ActionStatus {
-  if (ctx.busy) return "running";
-
-  const direction = ctx.routeTo(target, allowDrops);
-  if (direction === null || direction === "arrived") return "failure";
-  return ctx.step(direction) ? "success" : "failure";
+  return ctx.walkTo(goal, allowDrops) === "walking" ? "running" : "failure";
 }
 
 /**
- * Step so as to open the distance to `target` — cornered when nothing does.
+ * Run from `target`, and keep running.
  *
- * Deliberately greedy, and deliberately not the search {@link stepAlongRoute}
- * runs: fleeing has no destination to route to. "Away" is a direction rather
- * than a place, so the question a fleeing animal asks really is the local one,
- * and inventing a goal cell to run at would be this module deciding where
- * something wants to hide.
+ * One line for the same reason {@link walkAlongRoute} is: the search belongs to
+ * the board and the walking belongs to the session. What is left here is that a
+ * flee has one failure rather than two — there is nowhere better than where it
+ * stands — and that failure is what an author's `stuck` reads to put an animal
+ * in a cornered state.
  *
- * Only directions that genuinely improve matters are tried, and that filter is
- * doing real work — without it a cornered creature would take a sideways or
- * backward step, which reads as one changing its mind rather than one with
- * nowhere to go. Failing instead lets the priority list fall through to
- * whatever the author put underneath.
+ * **This used to be greedy and is not any more.** It scored the four
+ * neighbouring cells, took whichever opened the distance most, and failed when
+ * none of them did. A wall defeated it: a rabbit in a corner has no neighbour
+ * that gains anything, so it gave up after two steps of hill-climbing having
+ * never looked at the gap it could have run through — and while it still had
+ * somewhere to go it shuffled between two cells, because the best of four flips
+ * as the threat moves and nothing was committed to. @see ./pathfinding's
+ * `findRefuge`, which is where the argument for the change is written down.
  */
-function stepAwayFrom(
+function fleeAlongRoute(
   target: Coord,
   allowDrops: boolean | undefined,
   ctx: BrainContext,
 ): ActionStatus {
-  if (ctx.busy) return "running";
-
-  const now = stepsApart(ctx.self, target);
-
-  // Shuffled before sorting, so the tie between two equally good directions —
-  // which is most of the board when a target is diagonal — breaks differently
-  // each time rather than always favouring north. Still reproducible: the
-  // shuffle is the world's own seeded dice.
-  const candidates = footing(ctx.rng.shuffle([...DIRECTIONS]), allowDrops, ctx)
-    .map((direction) => {
-      const { dx, dy } = DIR_DELTA[direction];
-      const after = stepsApart(
-        { x: ctx.self.x + dx, y: ctx.self.y + dy, z: ctx.self.z },
-        target,
-      );
-      return { direction, gain: after - now };
-    })
-    .filter((candidate) => candidate.gain > 0)
-    .sort((a, b) => b.gain - a.gain);
-
-  for (const { direction } of candidates) {
-    if (ctx.step(direction)) return "success";
-  }
-  return "failure";
+  return ctx.fleeFrom(target, allowDrops) === "walking" ? "running" : "failure";
 }
 
 /**
@@ -772,15 +821,22 @@ function runAction(
       if (id === null) return "failure";
       return ctx.attack(id) ? "success" : "failure";
     }
-    case "step_toward":
+    case "step_toward": {
+      const goal = aim(action.of, memory, ctx);
+      // Nobody to go to. A failure rather than a stand-still, so the author's
+      // next line gets its turn.
+      if (!goal) return "failure";
+      return walkAlongRoute(goal, action.allowDrops, ctx);
+    }
     case "step_away_from": {
+      // Where the threat *is*, not who it is: a flee measures against a
+      // position and re-measures it every time it picks somewhere to run,
+      // which is the one place {@link locate} is still the right question and
+      // {@link aim} is not.
       const at = locate(action.of, memory, ctx);
-      // Nobody to move relative to. A failure rather than a stand-still, so the
-      // author's next line gets its turn.
+      // Nobody to move relative to, on {@link walkAlongRoute}'s terms.
       if (!at) return "failure";
-      return action.action === "step_toward"
-        ? stepAlongRoute(at, action.allowDrops, ctx)
-        : stepAwayFrom(at, action.allowDrops, ctx);
+      return fleeAlongRoute(at, action.allowDrops, ctx);
     }
   }
 }
