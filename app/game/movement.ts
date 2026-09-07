@@ -1,8 +1,9 @@
 import {
   absoluteStandingElevation,
-  absoluteWalkableElevation,
   climbFromSourceAt,
+  footingOfStack,
   getStack,
+  planeCoveredBy,
   stackHeight,
   surfaceTileAt,
   walkableFloorAbove,
@@ -81,6 +82,14 @@ export type StandingSurface = {
 /**
  * All walkable standing surfaces in column (x,y): highest walkable tile top
  * per stack, and floors formed by a full level below.
+ *
+ * **A plane something unstandable is lying on is not one of them, whoever else
+ * claims it.** Water is `height: 0`, so a pond contributes no surface of its
+ * own and used only to be a claim nobody made — leaving a full walkable level
+ * under it to answer for the cell with the very plane the water sits in, which
+ * is how you could walk across a pond laid on a stone floor. Collected as the
+ * scan goes and applied at the end, because a plane is closed from *above* and
+ * the level that claims it comes round first. @see planeCoveredBy
  */
 export function listStandingSurfaces(
   map: MapFile,
@@ -89,6 +98,8 @@ export function listStandingSurfaces(
   tilesById: Record<string, TileDef>,
 ): StandingSurface[] {
   const out: StandingSurface[] = [];
+  /** Planes a level's own stack has closed. @see planeCoveredBy */
+  let closed: number[] | undefined;
 
   // Same abs can be claimed by a lower stack top and an upper-level floor /
   // height-0 tile. Prefer the highest level — that owns the plane.
@@ -104,8 +115,11 @@ export function listStandingSurfaces(
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     const stack = getStack(map, x, y, z);
     if (stack.length > 0) {
-      const walkAbs = absoluteWalkableElevation(z, stack, tilesById);
-      if (walkAbs != null) add(walkAbs, z);
+      // One scan for both questions, and read before anything else can ask
+      // again — the footing object is reused. @see footingOfStack
+      const footing = footingOfStack(stack, tilesById);
+      if (planeCoveredBy(footing)) (closed ??= []).push(z * HEIGHT_PER_LEVEL);
+      if (footing?.walkable) add(z * HEIGHT_PER_LEVEL + footing.elev, z);
     }
     if (z > MIN_LEVEL) {
       const below = getStack(map, x, y, z - 1);
@@ -113,7 +127,8 @@ export function listStandingSurfaces(
       if (floorAbs != null) add(floorAbs, z);
     }
   }
-  return out;
+  if (!closed) return out;
+  return out.filter((surface) => !closed.includes(surface.abs));
 }
 
 /**

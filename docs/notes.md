@@ -1107,6 +1107,20 @@ so a tie-break in one and not the other shows up as a cell one branch closes
 and the other opens. That is exactly what happened while the sealing rule was
 in place, and it is why the fix has to land in both or neither.
 
+**A plane is closed from above, and by something with no height of its own.**
+Water is `height: 0` and `walkable: false`, so a stack of nothing but water adds
+nothing to its column and has no walkable elevation to offer — it used to say
+nothing at all about the plane it lies in. That was fine over grass, where the
+grass is in the same stack and the topmost-tile rule settles it, and wrong the
+moment the ground was a *level* rather than a tile: a full walkable level below
+claims the plane twice over, once as the top of its own stack and once as the
+floor it forms above itself, and both claims went unopposed. A pond laid on a
+stone roof was dry ground, and 183 cells of `data/map.json` could be walked
+across. `planeCoveredAt` is the rule that closes it: what is lying in a plane is
+what a body's feet would be in, whoever else claims that plane. Only a placement
+that tops out *on* the plane counts — a wall standing on a floor leaves it a
+floor, and what keeps a body out of that cell is the fit check.
+
 ### Players do not put things down where nothing can stand
 
 Because the topmost tile decides, a berry dropped on a bush would make the bush

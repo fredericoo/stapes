@@ -406,20 +406,55 @@ export function walkableElevInStack(
   stack: PlacedTile[],
   tilesById: Record<string, TileDef>,
 ): number | null {
+  const footing = footingOfStack(stack, tilesById);
+  return footing?.walkable ? footing.elev : null;
+}
+
+/** What a body in this cell has underfoot: where it tops out, and whether it holds. */
+export type Footing = {
+  /** Elevation within the level of the placement's top. */
+  elev: number;
+  /** Whether a body may stand on it. */
+  walkable: boolean;
+};
+
+/** @see footingOfStack, which hands this same object back every time. */
+const reusedFooting: Footing = { elev: 0, walkable: false };
+
+/**
+ * The placement a body in this cell would be standing on, or null for a stack
+ * with nothing solid in it.
+ *
+ * {@link walkableElevInStack} used to be this, and the two questions it now
+ * answers were one: *what is on top*. They came apart over water, which tops
+ * out at the plane it lies in and cannot be stood on, so the stack it is in has
+ * no walkable elevation while very much having something in that plane. Both
+ * callers have to settle a stack the same way — see {@link solidTopOfStack} for
+ * what a second opinion about the topmost tile costs — so there is one scan.
+ *
+ * **The returned object is reused between calls.** This runs per direction per
+ * node of a route search, and a fresh one per solid placement showed up as a
+ * doubling of what a column costs. Read what you need before asking again.
+ */
+export function footingOfStack(
+  stack: PlacedTile[],
+  tilesById: Record<string, TileDef>,
+): Footing | null {
   let elev = 0;
-  let topElev: number | null = null;
-  let topWalkable = false;
+  let found = false;
   for (const p of stack) {
     elev = elevationAfter(elev, p, tilesById);
     const def = tilesById[p.tileId];
     if (!def) continue;
     if (isPlayerBody(p) || resolveActor(def)) continue;
     if (resolveIntangible(def)) continue;
-    topElev = elev;
-    topWalkable = resolveWalkable(def);
+    found = true;
+    reusedFooting.elev = elev;
+    reusedFooting.walkable = resolveWalkable(def);
   }
-  return topWalkable ? topElev : null;
+  return found ? reusedFooting : null;
 }
+
 
 /** Absolute walkable standing elevation for a stack, or null. */
 export function absoluteWalkableElevation(
@@ -436,6 +471,10 @@ export function absoluteWalkableElevation(
  * When `below` at `zBelow` is an exactly-full level whose walkable top seals
  * the level, returns the floor abs at the base of `zBelow + 1`.
  * Non-walkable fillers (e.g. a lone tree) do not form a floor.
+ *
+ * Says nothing about what is lying on that floor — a pond over a full level of
+ * stone is still a floor here, and it is {@link planeCoveredAt} that closes it.
+ * The two are separate because the same plane is claimed from two sides.
  */
 export function walkableFloorAbove(
   zBelow: number,
@@ -447,6 +486,42 @@ export function walkableFloorAbove(
   const floorAbs = (zBelow + 1) * HEIGHT_PER_LEVEL;
   if (walkAbs !== floorAbs) return null;
   return floorAbs;
+}
+
+/**
+ * Is something lying on the plane at `abs` that nobody can stand on?
+ *
+ * Water is the case, and a lilypad is the other one: `height: 0` and
+ * `walkable: false`, so it adds nothing to its column. The stack it is in has
+ * therefore no standing surface of its own and used to say nothing at all about
+ * the plane it sits on — while the level below, if it is a full walkable one,
+ * claims that same plane twice over, as the top of its own stack and as the
+ * floor above it. A pond over a full level of stone was dry ground you could
+ * walk across. What is lying on a plane is what a body's feet would be in, so
+ * it closes that plane against every other claim on it.
+ *
+ * Only a placement that tops out *on* the plane counts. A wall standing on it
+ * leaves the floor a floor; what keeps a body out of that cell is that there is
+ * no room, which is a fit check and a different question. And only a plane that
+ * is a level's floor can be covered at all, because that is the only elevation
+ * a `height: 0` tile can sit at.
+ */
+export function planeCoveredAt(
+  map: MapFile,
+  x: number,
+  y: number,
+  abs: number,
+  tilesById: Record<string, TileDef>,
+): boolean {
+  if (abs % HEIGHT_PER_LEVEL !== 0) return false;
+  const z = abs / HEIGHT_PER_LEVEL;
+  if (z < MIN_LEVEL || z > MAX_LEVEL) return false;
+  return planeCoveredBy(footingOfStack(getStack(map, x, y, z), tilesById));
+}
+
+/** {@link planeCoveredAt} for a caller that already has the level's footing. */
+export function planeCoveredBy(footing: Footing | null): boolean {
+  return footing != null && footing.elev === 0 && !footing.walkable;
 }
 
 /**

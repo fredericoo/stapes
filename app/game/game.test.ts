@@ -1105,6 +1105,32 @@ describe("walkable surfaces", () => {
   });
 
   /**
+   * The same pond, roofing a cave.
+   *
+   * Water is `height: 0`, so a stack holding nothing else has no standing
+   * surface and says nothing about the plane it lies in. A full walkable level
+   * below then claims that plane twice — as the top of its own stack, and as
+   * the floor it forms above itself — and both claims went unopposed, so a pond
+   * over anything full-height was dry ground. What lies in a plane is what a
+   * body's feet would be in, whoever else claims it.
+   */
+  it("does not let a full level below make water over it walkable", () => {
+    let map = mapWithPlayer({ x: 0, y: 0 });
+    map = replaceStack(map, 1, 0, -1, [{ tileId: "slab" }, { tileId: "slab" }]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "water" }]);
+    const loc = requireSinglePlayer(map);
+    expect(
+      canWalk(
+        map,
+        { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+        "e",
+        tilesById.player!,
+        tilesById,
+      ).ok,
+    ).toBe(false);
+  });
+
+  /**
    * A plank over a fence over water. The fence is both the thing that would
    * refuse the cell if anything but the top were consulted, and the thing
    * holding the deck up at a height a body can climb to from the bank.
