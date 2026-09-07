@@ -66,6 +66,8 @@ export const MASTERY_COMMAND = "mastery";
 export const TILE_COMMAND = "tile";
 export const STATUS_COMMAND = "status";
 export const HEALTH_COMMAND = "health";
+export const GOTO_COMMAND = "goto";
+export const MOVE_COMMAND = "move";
 
 /** The argument that takes everything off instead of putting something on. */
 export const STATUS_CLEAR_ARGUMENT = "clear";
@@ -75,7 +77,9 @@ export type CommandName =
   | typeof MASTERY_COMMAND
   | typeof TILE_COMMAND
   | typeof STATUS_COMMAND
-  | typeof HEALTH_COMMAND;
+  | typeof HEALTH_COMMAND
+  | typeof GOTO_COMMAND
+  | typeof MOVE_COMMAND;
 
 /**
  * How each command is written, in one place.
@@ -102,6 +106,16 @@ export const COMMAND_USAGE: Record<CommandName, string> = {
   // things to do to them, and somebody debugging a fight wants both without
   // learning two verbs.
   [HEALTH_COMMAND]: `${COMMAND_PREFIX}${HEALTH_COMMAND} <n | +n | -n> [player id]`,
+  // Two verbs rather than one with a sign in it. `/tile` spells the difference
+  // between a cell of the map and a step from where you stand *inside* an
+  // argument, which works there because a tile is usually put down near you and
+  // both readings are wanted in one line. Going somewhere is not like that: a
+  // destination is nearly always absolute, and this map's interesting
+  // coordinates are nearly all negative — so a leading minus has to be able to
+  // mean column -11 rather than eleven cells back. The verb carries what the
+  // sign used to.
+  [GOTO_COMMAND]: `${COMMAND_PREFIX}${GOTO_COMMAND} <x> <y> [z]`,
+  [MOVE_COMMAND]: `${COMMAND_PREFIX}${MOVE_COMMAND} <east> <south> [up]`,
 };
 
 /**
@@ -149,6 +163,32 @@ export const MAX_COMMAND_HP = MAX_CONSUMABLE_HP_SHIFT;
  * is the session's question, and it is asked once, where the world is.
  */
 export type Command =
+  | {
+      name: typeof GOTO_COMMAND;
+      /**
+       * The cell to stand in, read exactly as typed — `-11` is column -11 and
+       * nothing else.
+       *
+       * `z` is null when it was left off, which means *the level you are on*
+       * rather than the ground. Kept as null rather than filled in with a
+       * default here, because the answer is where the body is standing and the
+       * parser has no business knowing that. @see GameSession's `runGotoCommand`
+       */
+      at: { x: number; y: number; z: number | null };
+    }
+  | {
+      name: typeof MOVE_COMMAND;
+      /**
+       * How far to go from where you are standing, in cells: east, south, and
+       * up. An absent third is zero, so `/move 0 3` is three cells south on the
+       * level you are already on and `/move 0 0 -1` is the storey below.
+       *
+       * South and up rather than y and z, because a sign is only readable
+       * against a direction: `/move 0 -2` is two cells *north*, and nobody
+       * types that thinking about which way the y axis runs.
+       */
+      by: Coord;
+    }
   | {
       name: typeof MASTERY_COMMAND;
       mastery: Mastery;
@@ -283,6 +323,10 @@ export function parseCommand(raw: string): CommandParse {
       return parseStatusArguments(args);
     case HEALTH_COMMAND:
       return parseHealthArguments(args);
+    case GOTO_COMMAND:
+      return parseGotoArguments(args);
+    case MOVE_COMMAND:
+      return parseMoveArguments(args);
     default:
       return {
         ok: false,
@@ -551,6 +595,83 @@ function parseCoordinate(token: string): Coordinate | null {
   if (!Number.isSafeInteger(magnitude)) return null;
   if (sign === "") return { kind: "absolute", value: magnitude };
   return { kind: "relative", offset: sign === "-" ? -magnitude : magnitude };
+}
+
+/**
+ * Read two or three whole numbers, or say which word was not one.
+ *
+ * What both of the commands below take. They differ in what the numbers *mean*
+ * and not at all in how they are written, which is the whole point of splitting
+ * them: `-11` is a perfectly good number in either, and the verb in front of it
+ * decides whether it is a column of the map or eleven cells back.
+ */
+function parseOffsets(
+  args: string[],
+  command: CommandName,
+): { ok: true; values: number[] } | { ok: false; refusal: CommandRefusal } {
+  if (args.length < 2 || args.length > 3) {
+    return { ok: false, refusal: { kind: "badArguments", command } };
+  }
+
+  const values: number[] = [];
+  for (const token of args) {
+    const match = COORDINATE_PATTERN.exec(token);
+    const magnitude = match ? Number(match[2]) : Number.NaN;
+    if (!match || !Number.isSafeInteger(magnitude)) {
+      return { ok: false, refusal: { kind: "badCoordinate", typed: token } };
+    }
+    values.push(match[1] === "-" ? -magnitude : magnitude);
+  }
+  return { ok: true, values };
+}
+
+/**
+ * `/goto <x> <y> [z]` — stand in that cell of the map, read exactly as typed.
+ *
+ * Absolute, wholly. `-11` is column -11, which is the reason this is a separate
+ * verb from {@link parseMoveArguments} rather than one command with a sign in
+ * it: nearly every coordinate on this map that anybody wants to go to is
+ * negative, and a grammar where a leading minus meant "backwards" could not
+ * name any of them.
+ *
+ * The level may be left off and then means the one you are on. It is by far the
+ * most-omitted argument — most of the world is one storey — and defaulting it
+ * to the ground would send somebody who typed two numbers to a different floor
+ * than the one they were looking at.
+ *
+ * No target argument, on either of these. The other commands take a
+ * `[player id]` because they are things done *to* a body; these are commands
+ * about going, and a version that sent somebody else is a different verb with a
+ * different sentence to say afterwards.
+ */
+function parseGotoArguments(args: string[]): CommandParse {
+  const parsed = parseOffsets(args, GOTO_COMMAND);
+  if (!parsed.ok) return parsed;
+
+  const [x, y, z] = parsed.values;
+  return {
+    ok: true,
+    command: { name: GOTO_COMMAND, at: { x: x!, y: y!, z: z ?? null } },
+  };
+}
+
+/**
+ * `/move <east> <south> [up]` — go that far from where you are standing.
+ *
+ * {@link parseGotoArguments}'s other half, and the split is the whole design:
+ * one verb reads its numbers as places and the other reads them as distances,
+ * so neither has to spell which it meant inside an argument.
+ *
+ * Named for directions rather than axes because a sign is only readable against
+ * one. `/move 0 -2` is two cells north, and nobody types that having first
+ * worked out which way `y` runs.
+ */
+function parseMoveArguments(args: string[]): CommandParse {
+  const parsed = parseOffsets(args, MOVE_COMMAND);
+  if (!parsed.ok) return parsed;
+
+  const [x, y, z] = parsed.values;
+  return { ok: true, command: { name: MOVE_COMMAND, by: { x: x!, y: y!, z: z ?? 0 } } };
 }
 
 /**
