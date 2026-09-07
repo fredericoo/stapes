@@ -31894,7 +31894,7 @@
                 "sprite": {
                   "tilesetId": "animals",
                   "rect": {
-                    "x": 4,
+                    "x": 12,
                     "y": 10,
                     "w": 2,
                     "h": 2
@@ -31910,7 +31910,7 @@
                 "sprite": {
                   "tilesetId": "animals",
                   "rect": {
-                    "x": 6,
+                    "x": 14,
                     "y": 10,
                     "w": 2,
                     "h": 2

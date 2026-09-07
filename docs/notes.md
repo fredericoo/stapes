@@ -2282,6 +2282,24 @@ sends. They come back at the door they came in by, on full hit points, wearing a
 empty bag, with everything they were carrying lying where they died. The walk
 back is the cost.
 
+### A walk cycle in the wrong row is a bug only a person can see
+
+Nothing in the codebase can tell that a creature's `moving` frames for one
+facing are drawn from another facing's row: the rects are valid, the tileset
+exists, the animation plays. The rabbit walked north in its west-facing frames
+from the day it was authored, which nobody noticed while `step_away_from` was
+greedy and a fleeing rabbit almost always ran straight away from you. Fleeing
+became a flood (see *Running away is a flood, not a direction*), refuges started
+coming out sideways, and the same art became a rabbit bolting away with its head
+turned to watch you.
+
+What is checkable is that no two facings of one walk are drawn from the same
+frames — `app/lib/tileArt.test.ts`, against the real catalogue. Symmetric
+scenery reuses art on purpose and is excluded by asking only about tiles that
+animate a walk: a sign, a roof and an anvil all draw north and south from one
+rect and there is nothing to tell apart, while a body has a front. A repeated
+facing on a body is always a row somebody copied and forgot to move.
+
 ## Magic is a stone you carry, and there is nothing else to it
 
 There is no mana, no spell book and no spell slots. What a caster can do is
