@@ -103,7 +103,8 @@ export type EditorStore = {
    * placement already down should notice.
    */
   armedVariant: string | null;
-  zoom: number;
+  /** Always one of {@link ZOOM_LEVELS}: `setZoom` snaps whatever it is given. */
+  zoom: ZoomLevel;
   /** Camera top-left in world pixels. */
   camera: { x: number; y: number };
   shapePreview: {

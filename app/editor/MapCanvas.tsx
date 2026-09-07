@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { EditorRenderer } from "./EditorRenderer";
+import { createMapApi } from "./mapApi";
 import type { EditorPerfProbe } from "./perf";
 import { useEditorStore } from "./store";
 
@@ -27,8 +28,15 @@ export function MapCanvas({
     };
     window.__editorPerf = probe;
 
+    // See `./mapApi`: driving the view from the console, so a script can say
+    // where to look. Installed with the renderer because it needs the canvas
+    // size to work out what "centred" means.
+    const map = createMapApi(() => renderer.getViewportSize());
+    window.map = map;
+
     return () => {
       if (window.__editorPerf === probe) delete window.__editorPerf;
+      if (window.map === map) delete window.map;
       renderer.dispose();
       rendererRef.current = null;
     };

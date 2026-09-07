@@ -4462,6 +4462,58 @@ the world, not in the editor. A tileset the tile names but that is not in the
 library is skipped: its size is unknown, and a missing tileset is already its
 own problem.
 
+## Moving the editor's camera
+
+The view is two numbers in `app/editor/store.ts`: `camera`, the world-pixel
+offset of the canvas's top-left corner, and `zoom`, CSS pixels per world pixel
+and always one of `ZOOM_LEVELS`. Everything that moves the view writes those
+two, and the math is `app/editor/camera.ts` — pure and tested, because every
+function in it is an inverse of `screenToCoord` and a sign error there puts the
+view a cell out per level travelled rather than visibly wrong.
+
+**One finger draws and two move the map.** A phone has no middle button and no
+space bar, so the two ways to pan a desktop editor are both unavailable and the
+one gesture a finger has is already spoken for by the tool. The second finger
+landing is therefore a takeover: the stroke in progress is committed — those
+cells were asked for, and one undo takes them back together — a shape preview
+is dropped, since its far corner is wherever the finger happened to be, and the
+gesture belongs to the camera until a finger lifts. Nothing paints on the way
+out of a pinch, which is why `onPointerUp` returns early while the gesture is
+still running.
+
+**A pinch banks travel, because zoom is four steps and not a slider.** The
+tipping point is √2, the geometric midpoint between two neighbouring steps, so
+the pinch lands on whichever step its spread is now nearer; a linear threshold
+would step early one way and late the other. The spread is then re-based on
+where the fingers are *now* rather than where they started, or the second step
+would cost only the fraction left over from the first. Both directions anchor
+on the point between the fingers (`cameraAnchoredAtZoom`) — without that the
+map grows out of the middle of the canvas and slides away from the pinch.
+
+**A trackpad pinch is a wheel event with `ctrlKey` set**, synthesised by the
+browser with no Ctrl key held. Before this, every wheel event panned, so
+pinching a trackpad shoved the map sideways. One notch is a quarter step: the
+gesture arrives as a stream of small deltas, and a whole step per notch crosses
+a four-step scale before the fingers have moved a centimetre.
+
+**Safari's page pinch is cancelled on the canvas and nowhere else.** The page
+deliberately allows pinch-zoom — `app/root.tsx` sets no maximum scale, for the
+same reason the 16px field note gives — and `touch-action: none` does not cover
+it, so the canvas also swallows `gesturestart` and friends. Everything else in
+the editor still magnifies.
+
+**`window.map` drives the view from a script** — `setCenter({x, y, z})`,
+`setZoom`, `getView`, defined in `app/editor/mapApi.ts`. The editor has no
+address bar: where you are looking is store state, so "show me the well at
+118,64" is a drag across a canvas and there is no way to say it in words. That
+is fine for a person and useless to anything scripting the page — an agent
+asked to look at a corner of the map, a screenshot taken the same way twice.
+It ships in production builds, because driving the deployed editor is the
+point, and it writes view state only: the worst a caller can do is look
+somewhere unhelpful. Coordinates are parsed rather than trusted, since a `NaN`
+in the camera leaves every later pan and screen-to-cell conversion producing
+`NaN` too, which reads as a dead canvas rather than as a bad argument.
+
 ## Renderer and simulation performance
 
 The game targets **120fps — an 8.3ms frame budget**, and the whole budget is
