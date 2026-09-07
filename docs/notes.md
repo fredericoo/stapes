@@ -1185,10 +1185,10 @@ out of either reads as no route at all, deliberately: a half-explored search has
 a best-so-far cell it could head for, and walking towards that is exactly how a
 creature ends up pressed against the nearest wall having made progress.
 
-**Nothing is kept between two decisions.** A route is recomputed each brain
-tick rather than followed, because a kept plan is a plan about a world that has
+**Nothing is kept between two decisions.** A route is recomputed for every leg
+rather than followed, because a kept plan is a plan about a world that has
 since moved — the target walked on, a crate was shoved into the third step,
-another creature filled the fourth. At one decision per step the check that a
+another creature filled the fourth. At one search per step the check that a
 kept route was still true would cost about what recomputing it does.
 
 **Fleeing is still greedy, and that is not an oversight.** `step_away_from` has
@@ -1294,6 +1294,70 @@ client making up where it is allowed to go.
     than `unreachable`; the sentence for it — "there is no short way there" — is
     true of a long way round and of no way at all. Being wrong the other way
     stops a player who could have walked round the back.
+
+## A step used to wait for a decision, which set the pace of every creature
+
+`step_toward` pressed one direction and returned, so a creature took a step per
+brain round. `BRAIN_TICK_MS` is one walk at the standard pace, and the effect of
+that pairing was not the cap it looks like — it was a **rounding**, up to a
+whole number of rounds, and it caught the slow creatures as well as the fast:
+
+| authored | walked at |
+| --- | --- |
+| bat 90ms | 200ms |
+| wolf 140, rat 150, rabbit 150, deer 170 | 200ms |
+| troll 300, snake 320 | 400ms |
+| cat 400 | 400ms |
+
+Of everything we ship only the cat, authored at exactly two rounds, ever moved
+at the pace its tile says. The bat spent half of every round standing still,
+which is what read as a stutter; the snake merely walked a quarter slower than
+anybody authoring it believed, which read as nothing at all and is the half of
+this that was easy to miss.
+
+**A creature now holds an order rather than taking a step.** `walkTo` writes
+down *where* a creature is going and returns whether it is going anywhere;
+`GameSession.driveWalkOrder` presses the next leg from the motion loop, every
+tick the body comes free. The brain keeps the decision that is actually its own
+— whom to follow — and reconsiders it every round, at the cadence it always did.
+
+- **The goal is a body, not a cell, wherever a body was named.** Every selector
+  but `home` resolves to somebody, so the order holds the id and re-reads where
+  they are on every leg. A wolf follows a player across a courtyard instead of
+  walking to where they were standing when it decided.
+- **An order lives exactly one round unless it is asked for again.** It is
+  dropped at the top of every turn, before any transition or action runs. The
+  motion loop cannot know what a creature is thinking, so an order left behind
+  by a state the creature has transitioned out of would be walked out in full —
+  a body carrying on to somewhere it decided against, with nothing able to
+  notice.
+- **A dozing creature's order is not pressed between its turns.** The doze
+  budget is the only term in a round's cost that the size of the map reaches,
+  and pressing legs at the tick rate for every distant body with somewhere to be
+  would put that straight back. A creature nobody is near walks exactly as
+  slowly as it did.
+- **Nothing about holes changed.** A leg is a fresh `findPath` with the same
+  `drops` the action carried, so a chase still refuses to leave the ground
+  unless its author said otherwise, and both places that press a leg ask `idle`
+  first, which a falling body fails.
+
+**It made the tail cheaper, which is not what I expected.** One search per step
+rather than one per round is more searches, and the median tick shows it: 0.26ms
+to 0.36ms on the town scenario. But the p95 goes from 2.86ms to 2.40ms and the
+worst tick from 11.3ms to 6.0ms, because the searches are no longer all due on
+the same tick — a brain round used to do everybody's pathfinding at once, and
+now the legs in between carry their own. The wire grows 3.5%, 40.2 to 41.6 KB/s,
+which is creatures genuinely covering more ground.
+
+**What it cost is a release that is read once a round.** A transition is checked
+per round while a body may now take more than one leg in that time, so a
+condition that says "stop when you are two cells away" can be overshot by one.
+The rats show it: four of them in a yard sit adjacent on 57% of beats where they
+used to sit on 47%. Retuning the release does not recover it — at three cells
+the pack gets *worse*, because releasing earlier only means re-acquiring sooner
+— and the pathology the release actually exists to prevent, the diagonal chain
+that shuffles on the spot, halved instead. See `brain.test.ts`, "gathers without
+piling up".
 
 ## A creature that has left the board must not be given a turn
 

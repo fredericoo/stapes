@@ -280,6 +280,8 @@ import {
   type BrainMemory,
   type Sound,
   type Utterance,
+  type WalkGoal,
+  type WalkOrderState,
 } from "./brainRuntime";
 import type { ConsumeSource } from "./itemUse";
 import { canTransmuteFrom, planTransmute, runTransmute } from "./transmute";
@@ -1210,6 +1212,46 @@ type ActorRuntime = {
    */
   brainDeferredMs: number;
   /**
+   * Where this creature is walking to, or null for one going nowhere.
+   *
+   * **The one piece of a decision that outlives the round that took it**, and it
+   * exists because the two clocks are not the same one. A brain decides every
+   * `BRAIN_TICK_MS`, which is one walk at the standard pace; a body walks at its
+   * own `walkDurationMs`, which for a bat is 90ms and for a wolf 140. An action
+   * that pressed one direction per round capped every creature at the brain's
+   * pace, so the bat crossed ground at 200ms a cell — 2.2× slower than it was
+   * authored to — and stood still for the other 110ms of every round, which is
+   * what the stutter was.
+   *
+   * What is kept is the *intent*, never a route: {@link driveWalkOrder} searches
+   * afresh for every leg, so `docs/notes.md`'s "nothing is kept between two
+   * decisions" is untouched. The goal is a body rather than a cell wherever a
+   * body was named, so a chase re-reads where its quarry is on every leg instead
+   * of walking to where they stood when it decided.
+   *
+   * **Dropped at the top of every one of this creature's turns**, so an order
+   * only stands while the state that wanted it keeps asking — see
+   * {@link tickOneBrain}. Without that, a creature that transitioned out of
+   * chasing would walk out a plan nothing believes in any more.
+   *
+   * Not durable, on {@link brain}'s terms: it is a state of play, and a world
+   * coming back from a save has every creature decide again. Null for every
+   * player and for the great majority of creatures at any moment, so nothing is
+   * allocated for a body standing still.
+   */
+  walkOrder: { goal: WalkGoal; allowDrops: boolean | undefined } | null;
+  /**
+   * Could anybody notice this creature, as of its last round?
+   *
+   * Cached from {@link attentive} rather than asked again, because what reads it
+   * is {@link maybeStartWalk} — once per actor per *tick*, where the predicate
+   * is a scan of every connected player. It is what keeps a standing order from
+   * turning the doze budget back into a per-creature cost: a dozing creature's
+   * order is pressed only on the turns the budget hands it, which is exactly the
+   * pace it walked at before any of this. @see BRAIN_DOZE_BUDGET
+   */
+  brainAttentive: boolean;
+  /**
    * Who this body is talking to and where in their dialog it is, or null.
    *
    * The *player's* state, not the NPC's — see `./dialogRuntime`'s
@@ -1964,6 +2006,8 @@ export class GameSession implements PlaySession {
       assailants: null,
       brain: null,
       brainDeferredMs: 0,
+      walkOrder: null,
+      brainAttentive: false,
       conversation: null,
       home: residentHome(id),
       // Restored where a returning player had any, and null otherwise — null
@@ -2671,7 +2715,11 @@ export class GameSession implements PlaySession {
     const dozing: ActorRuntime[] = [];
     for (const actor of this.actors.values()) {
       if (!actor.resident) continue;
-      if (this.attentive(actor, players)) {
+      // Written down rather than only branched on: a standing walk order is
+      // pressed at the tick rate, and this is the flag that decides whether a
+      // dozing creature's is. @see ActorRuntime.brainAttentive
+      actor.brainAttentive = this.attentive(actor, players);
+      if (actor.brainAttentive) {
         this.tickOneBrain(actor, sounds, BRAIN_TICK_MS + actor.brainDeferredMs);
         actor.brainDeferredMs = 0;
       } else {
@@ -3036,6 +3084,11 @@ export class GameSession implements PlaySession {
     if (!brain) return;
 
     actor.brain ??= initialMemory(brain);
+    // Before anything decides anything: a standing order is worth exactly one
+    // round unless this turn asks for it again, so a creature that has
+    // transitioned out of chasing stops rather than walking out a plan the
+    // state that wanted it has left. @see ActorRuntime.walkOrder
+    actor.walkOrder = null;
     stepBrain(brain, actor.brain, tickMs, {
       busy: !this.idle(actor),
       rng: this.rng,
@@ -3046,7 +3099,7 @@ export class GameSession implements PlaySession {
       wouldDrop: (direction) => this.stepLeavesGround(loc, direction),
       step: (direction) =>
         this.applyStepRequest(actor, { directions: [direction] }),
-      routeTo: (at, allowDrops) => this.routeStep(actor, loc, at, allowDrops),
+      walkTo: (goal, allowDrops) => this.setWalkOrder(actor, goal, allowDrops),
       say: (text) => this.recordSpeech(actor, loc, text),
       noise: (text) => this.recordNoise(actor.id, loc, text),
       canSee: (at) => this.canSeeFrom(actor, loc, at),
@@ -5195,6 +5248,86 @@ export class GameSession implements PlaySession {
     // that needs them apart is the player's. @see PathRefusal
     if (!found.ok) return null;
     return found.route[0]?.direction ?? "arrived";
+  }
+
+  /**
+   * Take a creature's order for somewhere to be, and answer what came of it.
+   *
+   * The brain's half of a standing walk, and it is deliberately thin: it writes
+   * the intent down and then asks {@link driveWalkOrder} the same question every
+   * later leg will be asked. What that buys is one answer rather than two — a
+   * route refused on the round it was ordered reads exactly as one refused four
+   * legs in, so an author's priority list falls through on the same terms
+   * either way.
+   *
+   * A body already in motion is not asked. It is walking where it was told to,
+   * and the order has just been re-affirmed, so there is nothing to decide and
+   * no search to pay for — the leg it is on will ask when it lands. That is also
+   * what keeps the cost honest: one search per *step*, not one per step plus one
+   * per round.
+   */
+  private setWalkOrder(
+    actor: ActorRuntime,
+    goal: WalkGoal,
+    allowDrops: boolean | undefined,
+  ): WalkOrderState {
+    actor.walkOrder = { goal, allowDrops };
+    if (!this.idle(actor)) return "walking";
+    return this.driveWalkOrder(actor);
+  }
+
+  /**
+   * Press the next leg of a standing order, or say why there is not one.
+   *
+   * The whole of what makes a creature walk at its own pace: called both by the
+   * round that gave the order and by {@link maybeStartWalk} on every tick the
+   * body comes free, which is where the two clocks come apart. A bat's next leg
+   * is pressed 90ms after the last one landed rather than at the next round.
+   *
+   * **A route per leg, and never a route kept.** The search is run again from
+   * wherever the body now stands, against a board that has moved and a quarry
+   * that has walked on — the argument `docs/notes.md` makes for recomputing a
+   * chase, which is unchanged by any of this because it was always one search
+   * per step. What is new is only that a step is no longer the same thing as a
+   * round.
+   *
+   * Every ending clears the order. Arriving, losing the target off the board, a
+   * board with no way there and a leg the walk loop refuses all leave the
+   * creature with no intent — and the next round decides again, which is at most
+   * `BRAIN_TICK_MS` away and is the cadence a blocked creature already stood at.
+   */
+  private driveWalkOrder(actor: ActorRuntime): WalkOrderState {
+    const order = actor.walkOrder;
+    if (!order) return "blocked";
+
+    const at = this.walkGoalCell(order.goal);
+    const loc = this.tryLocate(actor);
+    // Nothing left to walk to, or nobody left to walk it: the quarry stepped
+    // off the board, or this body did.
+    if (!at || !loc) {
+      actor.walkOrder = null;
+      return "blocked";
+    }
+
+    const direction = this.routeStep(actor, loc, at, order.allowDrops);
+    if (direction === null || direction === "arrived") {
+      actor.walkOrder = null;
+      return direction === "arrived" ? "arrived" : "blocked";
+    }
+
+    // A leg the board turns down — most often another body in the doorway,
+    // which `canWalk` reads as a wall. Reported rather than retried, so the
+    // creature's next round gets the chance to do something else about it.
+    if (!this.applyStepRequest(actor, { directions: [direction] })) {
+      actor.walkOrder = null;
+      return "blocked";
+    }
+    return "walking";
+  }
+
+  /** Where a standing order is aimed, right now. @see WalkGoal */
+  private walkGoalCell(goal: WalkGoal): Coord | null {
+    return goal.of === "cell" ? goal.at : this.actorCell(goal.id);
   }
 
   /**
@@ -7399,8 +7532,27 @@ export class GameSession implements PlaySession {
     return false;
   }
 
+  /**
+   * Whatever this body wants to do with the step it is now free to take.
+   *
+   * Held input first, and that ordering is the arbitration: a direction
+   * somebody is physically holding outranks a standing order, on the same rule
+   * `./heldDirections` uses for a click a player has walked in on. Nothing
+   * exercises it today — an order is a creature's and input is a person's —
+   * but the two must not be able to both press on one tick, and this is the one
+   * place that could happen.
+   *
+   * **A dozing creature's order is not pressed here.** It is walked out on the
+   * turns the round's budget hands it and nowhere else, so a creature nobody is
+   * near costs what it always did: the doze budget is the only term in a round
+   * that the size of the map reaches, and pressing legs at the tick rate for
+   * every distant body with somewhere to be would put that cost straight back.
+   * @see ActorRuntime.brainAttentive
+   */
   private maybeStartWalk(actor: ActorRuntime) {
     this.applyStepRequest(actor, actor.input);
+    if (actor.walk || !actor.walkOrder || !actor.brainAttentive) return;
+    this.driveWalkOrder(actor);
   }
 
   /**
