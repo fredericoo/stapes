@@ -183,6 +183,27 @@ function standingOrder(
   return ctx.step(direction) ? "walking" : "blocked";
 }
 
+/**
+ * The stand-in for the session's standing flee order.
+ *
+ * The open board's answer to `findRefuge`, which on an empty field is the same
+ * answer: the cell one step directly away is the furthest thing within reach,
+ * and there is nothing to hide behind. What these cases need from it is the
+ * shape — two outcomes, and a step requested through the same `step` every
+ * other action goes through — rather than the search, which is pinned against
+ * real geometry in `pathfinding.test.ts`.
+ */
+function runningOrder(
+  ctx: Parameters<typeof stepBrain>[3],
+  threat: Coord,
+): WalkOrderState {
+  if (ctx.busy) return "walking";
+  const away = openRoute(threat, ctx.self);
+  // Standing on the threat: there is no direction that is away from here.
+  if (away === null || away === "arrived") return "blocked";
+  return ctx.step(away) ? "walking" : "blocked";
+}
+
 /** Where the one creature is, as a string worth comparing. */
 function deerCell(session: GameSession): string {
   const deer = session
@@ -265,6 +286,7 @@ describe("deciding", () => {
       positionOf: () => null,
       wouldDrop: () => false,
       walkTo: (goal: WalkGoal): WalkOrderState => standingOrder(built, goal),
+      fleeFrom: (threat: Coord): WalkOrderState => runningOrder(built, threat),
       step: vi.fn(() => true),
       say: vi.fn(),
       noise: vi.fn(),
@@ -999,6 +1021,7 @@ describe("giving up", () => {
       positionOf: () => null,
       wouldDrop: () => false,
       walkTo: (): WalkOrderState => "blocked",
+      fleeFrom: (): WalkOrderState => "blocked",
       step: () => false,
       say: () => {},
       noise: () => {},
@@ -1210,6 +1233,7 @@ describe("actions that take time", () => {
       positionOf: () => null,
       wouldDrop: () => false,
       walkTo: (goal: WalkGoal): WalkOrderState => standingOrder(built, goal),
+      fleeFrom: (threat: Coord): WalkOrderState => runningOrder(built, threat),
       step: vi.fn(() => true),
       say: vi.fn(),
       noise: vi.fn(),
@@ -1644,6 +1668,7 @@ describe("a deer that yelps", () => {
       positionOf: () => null,
       wouldDrop: () => false,
       walkTo: (): WalkOrderState => "blocked",
+      fleeFrom: (): WalkOrderState => "blocked",
       step: () => true,
       say,
       noise: vi.fn(),
@@ -1720,6 +1745,7 @@ describe("a deer that yelps", () => {
       positionOf: () => null,
       wouldDrop: () => false,
       walkTo: (): WalkOrderState => "blocked",
+      fleeFrom: (): WalkOrderState => "blocked",
       step: () => false,
       say: vi.fn(),
       noise: vi.fn(),
@@ -2372,6 +2398,7 @@ describe("composing conditions", () => {
       positionOf: () => ({ x: 0, y: 0, z: 0 }),
       wouldDrop: () => false,
       walkTo: (): WalkOrderState => "arrived",
+      fleeFrom: (threat: Coord): WalkOrderState => runningOrder(built, threat),
       step: vi.fn(() => true),
       say: vi.fn(),
       noise: vi.fn(),
@@ -3065,6 +3092,7 @@ describe("knowing where it belongs", () => {
       positionOf: () => null,
       wouldDrop: () => false,
       walkTo: (goal: WalkGoal): WalkOrderState => standingOrder(built, goal),
+      fleeFrom: (threat: Coord): WalkOrderState => runningOrder(built, threat),
       step: vi.fn(() => true),
       say: vi.fn(),
       noise: vi.fn(),
@@ -3377,6 +3405,49 @@ describe("the vermin we ship", () => {
     expect(snake).toBeLessThan(msToArrive("rat") * 2);
     // Two rounds a cell is what the rounding used to cost it.
     expect(snake).toBeLessThan(BRAIN_TICK_MS * 2 * 6);
+  });
+
+  /**
+   * A pocket with walls on three sides and you in the mouth of it.
+   *
+   * The complaint this answers: rabbits and deer were easily cornered and gave
+   * up. `step_away_from` scored the four neighbouring cells and took whichever
+   * opened the distance most, so in here nothing qualified — the only way out
+   * runs past you before it leads anywhere — and the animal stood still for as
+   * long as you cared to look at it. Fourteen rounds of it, in this exact
+   * board, without moving a cell.
+   *
+   * It now floods outward and runs to the best cell it can reach, which is
+   * somewhere round the outside of the wall. @see ./pathfinding's `findRefuge`
+   */
+  it("leaves a pocket instead of giving up in it", () => {
+    let map = emptyMap();
+    for (let x = -14; x <= 14; x++) {
+      for (let y = -14; y <= 14; y++) {
+        map = replaceStack(map, x, y, 0, [{ tileId: "dirt" }]);
+      }
+    }
+    for (const [x, y] of [[1, 0], [0, -1], [0, 1]] as const) {
+      map = replaceStack(map, x, y, 0, [{ tileId: "dirt" }, { tileId: "stone-wall" }]);
+    }
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "dirt" }, { tileId: "rabbit" }]);
+    map = replaceStack(map, -3, 0, 0, [
+      { tileId: "dirt" },
+      { tileId: "player", direction: "e", owner: "alice" },
+    ]);
+    const session = new GameSession(map, authored, {
+      actorIds: ["alice"],
+      spawnAt: { x: 14, y: 14, z: 0, stackIndex: 1 },
+      seed: YARD_SEED,
+    });
+
+    advance(session, BRAIN_TICK_MS * 8);
+
+    const rabbit = bodies(session, "rabbit")[0]!;
+    // Out of the pocket, and further from the person in its mouth than the
+    // pocket could ever have put it.
+    expect(rabbit.x).toBeGreaterThan(1);
+    expect(Math.abs(rabbit.x - -3) + Math.abs(rabbit.y - 0)).toBeGreaterThan(3);
   });
 
   /**

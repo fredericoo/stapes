@@ -259,7 +259,7 @@ import {
   standingAbs,
   surfacesInClimbBand,
 } from "./movement";
-import { findPath } from "./pathfinding";
+import { findPath, findRefuge } from "./pathfinding";
 import { brainReach, resolveBrain } from "../lib/brain";
 import { resolveDialog } from "../lib/dialog";
 import {
@@ -1239,7 +1239,35 @@ type ActorRuntime = {
    * player and for the great majority of creatures at any moment, so nothing is
    * allocated for a body standing still.
    */
-  walkOrder: { goal: WalkGoal; allowDrops: boolean | undefined } | null;
+  walkOrder: {
+    goal: WalkGoal;
+    allowDrops: boolean | undefined;
+    /**
+     * Where the walk ends. You stop *beside* a body and *in* a cell, which is
+     * the difference between closing on somebody and getting somewhere.
+     *
+     * Explicit rather than derived from the goal's shape, because `home` is a
+     * cell too and a creature has always stopped beside it. @see
+     * PathOptions.arrive
+     */
+    arrive: "beside" | "on";
+  } | null;
+  /**
+   * The cell this creature is running to, or null for one not fleeing.
+   *
+   * **Kept across rounds on purpose, and it is the only thing here that is.** A
+   * refuge is chosen by a flood over everywhere within reach — see
+   * `./pathfinding`'s `findRefuge` — and re-choosing one every round is what
+   * made a fleeing animal shuffle: the best cell flips as the threat moves, and
+   * an animal that acts on the flip is one that never actually goes anywhere.
+   * Committing to somewhere is what a run *is*.
+   *
+   * Dropped when it is reached, when the threat has come between the animal and
+   * it, or when there was nowhere better to begin with. Not durable, on
+   * {@link brain}'s terms, and null for everything that is not at this moment
+   * running away from something.
+   */
+  refuge: Coord | null;
   /**
    * Could anybody notice this creature, as of its last round?
    *
@@ -2007,6 +2035,7 @@ export class GameSession implements PlaySession {
       brain: null,
       brainDeferredMs: 0,
       walkOrder: null,
+      refuge: null,
       brainAttentive: false,
       conversation: null,
       home: residentHome(id),
@@ -3100,6 +3129,8 @@ export class GameSession implements PlaySession {
       step: (direction) =>
         this.applyStepRequest(actor, { directions: [direction] }),
       walkTo: (goal, allowDrops) => this.setWalkOrder(actor, goal, allowDrops),
+      fleeFrom: (threat, allowDrops) =>
+        this.setFleeOrder(actor, loc, threat, allowDrops),
       say: (text) => this.recordSpeech(actor, loc, text),
       noise: (text) => this.recordNoise(actor.id, loc, text),
       canSee: (at) => this.canSeeFrom(actor, loc, at),
@@ -5224,6 +5255,7 @@ export class GameSession implements PlaySession {
     loc: ActorLocation,
     at: Coord,
     allowDrops: boolean | undefined,
+    arrive: "beside" | "on" = "beside",
   ): Direction | "arrived" | null {
     // A creature decides where to go while standing still, so the cell it
     // searches from and the body to leave off the board are the same one. They
@@ -5240,7 +5272,7 @@ export class GameSession implements PlaySession {
       // fall lands: a drop is an edge like any other to it. The narrower rule is
       // the player's, whose click asked to be somewhere rather than to leap.
       // @see PathOptions.drops
-      { drops: allowDrops ? "anywhere" : "never" },
+      { drops: allowDrops ? "anywhere" : "never", arrive },
     );
     // Which limit a refusal hit is not a distinction a brain has anything to do
     // with: unreachable, too far round and given up on all mean the same thing
@@ -5271,7 +5303,7 @@ export class GameSession implements PlaySession {
     goal: WalkGoal,
     allowDrops: boolean | undefined,
   ): WalkOrderState {
-    actor.walkOrder = { goal, allowDrops };
+    actor.walkOrder = { goal, allowDrops, arrive: "beside" };
     if (!this.idle(actor)) return "walking";
     return this.driveWalkOrder(actor);
   }
@@ -5309,7 +5341,13 @@ export class GameSession implements PlaySession {
       return "blocked";
     }
 
-    const direction = this.routeStep(actor, loc, at, order.allowDrops);
+    const direction = this.routeStep(
+      actor,
+      loc,
+      at,
+      order.allowDrops,
+      order.arrive,
+    );
     if (direction === null || direction === "arrived") {
       actor.walkOrder = null;
       return direction === "arrived" ? "arrived" : "blocked";
@@ -5323,6 +5361,116 @@ export class GameSession implements PlaySession {
       return "blocked";
     }
     return "walking";
+  }
+
+  /**
+   * Point a creature away from something, and keep it pointed there.
+   *
+   * {@link setWalkOrder}'s opposite number. The order it writes is an ordinary
+   * one — a cell to get to, walked out a leg at a time by
+   * {@link driveWalkOrder} — and everything particular to fleeing is in how the
+   * cell is chosen and how long it is kept.
+   *
+   * **A refuge is kept until it is reached or cut off.** The three conditions
+   * below are the whole rule, and each is a different way of having stopped
+   * being somewhere worth running to:
+   *
+   * - standing in it, so there is nothing left to walk;
+   * - no longer further from the threat than the animal already is, which is
+   *   what "the threat got between us" and "the threat followed me" both look
+   *   like from here;
+   * - never chosen, because there was nowhere better.
+   *
+   * Anything else keeps it, and that is what makes a run read as a run. Asking
+   * the flood again every round would hand back a different best cell every
+   * time the threat moved, and an animal that acted on each one would shuffle
+   * between two of them and go nowhere — which is the behaviour this replaced.
+   *
+   * `"blocked"` means cornered: everywhere within reach was looked at and none
+   * of it is better than standing still. The author's next line gets its turn,
+   * and for the deer and the rabbit that is the `stuck` that puts them in
+   * `cornered`. What the state means has changed even though nothing about it
+   * has: it used to be reached after two steps of hill-climbing.
+   */
+  private setFleeOrder(
+    actor: ActorRuntime,
+    loc: ActorLocation,
+    threat: Coord,
+    allowDrops: boolean | undefined,
+  ): WalkOrderState {
+    const here = { x: loc.x, y: loc.y, z: loc.z };
+    if (!this.stillWorthRunningTo(actor.refuge, here, threat)) {
+      actor.refuge = this.findRefugeFor(actor, loc, threat, allowDrops);
+    }
+    if (!actor.refuge) return "blocked";
+
+    // `"on"` rather than `"beside"`: a refuge is a patch of ground to stand in,
+    // and stopping one cell short of it would leave the animal never arriving
+    // and so never asking for anywhere better.
+    actor.walkOrder = {
+      goal: { of: "cell", at: actor.refuge },
+      allowDrops,
+      arrive: "on",
+    };
+    if (!this.idle(actor)) return "walking";
+    const state = this.driveWalkOrder(actor);
+    // The route ran out on the way — a door shut, or somebody filled the gap.
+    // Reported as cornered rather than retried on this tick: the next round
+    // floods again from wherever the animal is standing, which is the same
+    // answer a tick later and one search instead of two.
+    if (state !== "walking") actor.refuge = null;
+    return state === "arrived" ? "walking" : state;
+  }
+
+  /** Is this still somewhere worth running to? @see setFleeOrder */
+  private stillWorthRunningTo(
+    refuge: Coord | null,
+    here: Coord,
+    threat: Coord,
+  ): boolean {
+    if (!refuge) return false;
+    if (refuge.x === here.x && refuge.y === here.y && refuge.z === here.z) {
+      return false;
+    }
+    return this.stepsApart(refuge, threat) > this.stepsApart(here, threat);
+  }
+
+  private stepsApart(a: Coord, b: Coord): number {
+    return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+  }
+
+  /**
+   * The best cell within reach to run to, or null for an animal with none.
+   *
+   * The session's half of the flood, thin for the reason {@link routeStep} is:
+   * the search is a question about a board, and this is only the place that
+   * happens to hold one and to know who can see what.
+   *
+   * **Sight is measured at the fleeing animal's own height**, which is an
+   * approximation and worth naming. The honest question is whether the *threat*
+   * can see the cell, and answering it would mean knowing which body the threat
+   * is — but a flee is given a position rather than a body, because "away" has
+   * always been measured against a place. A line between two cells is very
+   * nearly symmetric, and being wrong about it costs a rabbit a slightly worse
+   * hiding place rather than anything a player could notice.
+   */
+  private findRefugeFor(
+    actor: ActorRuntime,
+    loc: ActorLocation,
+    threat: Coord,
+    allowDrops: boolean | undefined,
+  ): Coord | null {
+    const self = { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex };
+    const def = this.defFor(actor);
+    const found = findRefuge(this.map, { at: self, self }, threat, def, this.tilesById, {
+      drops: allowDrops ? "anywhere" : "never",
+      seenFrom: (cell) =>
+        hasLineOfSight(this.map, this.tilesById, threat, cell, def.height),
+    });
+    // An empty route is an animal with nowhere better than where it stands, on
+    // the terms an empty route always means arrived. @see findRefuge
+    if (!found.ok || found.route.length === 0) return null;
+    return found.route[found.route.length - 1]!.to;
   }
 
   /** Where a standing order is aimed, right now. @see WalkGoal */

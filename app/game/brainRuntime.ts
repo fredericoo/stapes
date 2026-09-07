@@ -214,6 +214,30 @@ export type BrainContext = {
    */
   walkTo(goal: WalkGoal, allowDrops: boolean | undefined): WalkOrderState;
   /**
+   * Set off away from `threat`, and keep going.
+   *
+   * {@link walkTo}'s opposite number and the same kind of thing — an intent the
+   * session holds and presses the legs of — but the question it asks the board
+   * is inside out. There is no goal, so what happens is a flood outward from the
+   * animal that scores every cell it reaches and runs to the best: furthest from
+   * the threat, and out of its sight where two are equally far.
+   * @see ./pathfinding's `findRefuge`
+   *
+   * **The refuge is kept until it is reached or cut off**, which is the half of
+   * this that stops the flickering. An animal that re-decided every round took
+   * whichever of four cells was momentarily best, and that flips between two of
+   * them as the threat moves — a rabbit shuffling on the spot rather than one
+   * running. Committing to somewhere is what a run is.
+   *
+   * Two answers rather than three, and the missing one is the point: arriving is
+   * not something this reports, because an animal that reaches its refuge with
+   * the threat still about has simply not finished fleeing, and the next flood
+   * is run from where it now stands. `"blocked"` is the only failure, and it
+   * means genuinely nowhere better than here — the `stuck` an author transitions
+   * on to get to a cornered state.
+   */
+  fleeFrom(threat: Coord, allowDrops: boolean | undefined): WalkOrderState;
+  /**
    * Say something over this creature's head.
    *
    * The only capability here that is not a question or a step: an effect, run on
@@ -712,49 +736,29 @@ function walkAlongRoute(
 }
 
 /**
- * Step so as to open the distance to `target` — cornered when nothing does.
+ * Run from `target`, and keep running.
  *
- * Deliberately greedy, and deliberately not the search {@link walkAlongRoute}
- * runs: fleeing has no destination to route to. "Away" is a direction rather
- * than a place, so the question a fleeing animal asks really is the local one,
- * and inventing a goal cell to run at would be this module deciding where
- * something wants to hide.
+ * One line for the same reason {@link walkAlongRoute} is: the search belongs to
+ * the board and the walking belongs to the session. What is left here is that a
+ * flee has one failure rather than two — there is nowhere better than where it
+ * stands — and that failure is what an author's `stuck` reads to put an animal
+ * in a cornered state.
  *
- * Only directions that genuinely improve matters are tried, and that filter is
- * doing real work — without it a cornered creature would take a sideways or
- * backward step, which reads as one changing its mind rather than one with
- * nowhere to go. Failing instead lets the priority list fall through to
- * whatever the author put underneath.
+ * **This used to be greedy and is not any more.** It scored the four
+ * neighbouring cells, took whichever opened the distance most, and failed when
+ * none of them did. A wall defeated it: a rabbit in a corner has no neighbour
+ * that gains anything, so it gave up after two steps of hill-climbing having
+ * never looked at the gap it could have run through — and while it still had
+ * somewhere to go it shuffled between two cells, because the best of four flips
+ * as the threat moves and nothing was committed to. @see ./pathfinding's
+ * `findRefuge`, which is where the argument for the change is written down.
  */
-function stepAwayFrom(
+function fleeAlongRoute(
   target: Coord,
   allowDrops: boolean | undefined,
   ctx: BrainContext,
 ): ActionStatus {
-  if (ctx.busy) return "running";
-
-  const now = stepsApart(ctx.self, target);
-
-  // Shuffled before sorting, so the tie between two equally good directions —
-  // which is most of the board when a target is diagonal — breaks differently
-  // each time rather than always favouring north. Still reproducible: the
-  // shuffle is the world's own seeded dice.
-  const candidates = footing(ctx.rng.shuffle([...DIRECTIONS]), allowDrops, ctx)
-    .map((direction) => {
-      const { dx, dy } = DIR_DELTA[direction];
-      const after = stepsApart(
-        { x: ctx.self.x + dx, y: ctx.self.y + dy, z: ctx.self.z },
-        target,
-      );
-      return { direction, gain: after - now };
-    })
-    .filter((candidate) => candidate.gain > 0)
-    .sort((a, b) => b.gain - a.gain);
-
-  for (const { direction } of candidates) {
-    if (ctx.step(direction)) return "success";
-  }
-  return "failure";
+  return ctx.fleeFrom(target, allowDrops) === "walking" ? "running" : "failure";
 }
 
 /**
@@ -825,10 +829,14 @@ function runAction(
       return walkAlongRoute(goal, action.allowDrops, ctx);
     }
     case "step_away_from": {
+      // Where the threat *is*, not who it is: a flee measures against a
+      // position and re-measures it every time it picks somewhere to run,
+      // which is the one place {@link locate} is still the right question and
+      // {@link aim} is not.
       const at = locate(action.of, memory, ctx);
       // Nobody to move relative to, on {@link walkAlongRoute}'s terms.
       if (!at) return "failure";
-      return stepAwayFrom(at, action.allowDrops, ctx);
+      return fleeAlongRoute(at, action.allowDrops, ctx);
     }
   }
 }

@@ -534,6 +534,164 @@ function exhausted(pruned: boolean): PathOutcome {
  * tick is blocked by different cells the next, and the route it is handed says
  * so.
  */
+/**
+ * How many cells a flee may look at before running with the best it has found.
+ *
+ * Deliberately well under {@link PATH_MAX_NODES}, and the reason is behaviour
+ * rather than cost. A flood of this size reaches about six cells in the open,
+ * which is enough to round the corner of a building or find the gap in a fence
+ * and nowhere near enough to know the layout of a town. That is the same limit
+ * {@link PATH_DETOUR_SLACK} puts on a chase, arrived at from the other side: a
+ * creature here is allowed to see what is around it and not allowed to have
+ * worked out where the doors are.
+ *
+ * It is also a *hard* bound in a way the chase's is not. A chase has an
+ * admissible heuristic and settles in seven to twenty-five cells; a flood has
+ * nothing to prune with and always spends its whole budget, so this number is
+ * what a flee costs every time rather than a ceiling it rarely reaches.
+ */
+export const REFUGE_MAX_NODES = 64;
+
+export type RefugeOptions = {
+  /** @see PathOptions.drops */
+  drops?: Drops;
+  /** Cells to look at before running. @see REFUGE_MAX_NODES */
+  maxNodes?: number;
+  /**
+   * Can the threat see this cell?
+   *
+   * Optional, and the whole of the difference between an animal that runs and
+   * one that hides. Asked only about cells that are already at least as far
+   * from the threat as the best found so far — a handful over a whole flood —
+   * because a line of sight costs a walk down a column and the answer changes
+   * nothing for a cell that is not in the running.
+   */
+  seenFrom?: (cell: Coord) => boolean;
+};
+
+/** A cell worth running to, and why it is the best one so far. */
+type Refuge = {
+  node: Node;
+  /** Steps from the threat, which is what a refuge is mostly judged on. */
+  away: number;
+  /** Out of the threat's sight, which is how a tie is broken. */
+  hidden: boolean;
+};
+
+/**
+ * Somewhere to run, and the way there — or an empty route for an animal with
+ * nowhere better than where it stands.
+ *
+ * **The other shape of search in this module, and it is inside out from
+ * {@link findPath}.** A chase knows where it wants to be and looks for the way
+ * there; a flee knows only what it wants to be away from, so there is no goal
+ * to aim at and no heuristic to order a frontier by. What it does instead is
+ * flood outward from the animal, score every cell it reaches, and hand back the
+ * route to the best one — which is why picking the refuge and routing to it are
+ * one call rather than two. The came-from tree is already there.
+ *
+ * ## Fleeing used to be greedy, and this is why it stopped being
+ *
+ * `step_away_from` scored the four neighbouring cells and took whichever one
+ * opened the distance most. That is defeated by any wall: a rabbit backed into
+ * a corner has no neighbour that gains anything, gives up, and stands there —
+ * and before it gives up it shuffles, because the best of four cells flips
+ * between two of them as the threat moves and the animal re-decides from
+ * scratch every round.
+ *
+ * `docs/notes.md` used to argue that this was right, on the grounds that "away"
+ * is a direction rather than a place and inventing a goal cell would be the
+ * pathfinder deciding where something wants to hide. The argument is sound and
+ * the behaviour it produced was worse: an animal that flickers in a corner and
+ * quits reads as broken, and one that puts a building between you and it reads
+ * as an animal.
+ *
+ * ## What makes one cell better than another
+ *
+ * Steps from the threat first, and out of its sight to break a tie. Distance is
+ * what fleeing means; sight is what turns a run into hiding, and it is a
+ * tie-break rather than a term of its own so that an animal never doubles back
+ * towards a threat for the sake of a wall. @see RefugeOptions.seenFrom
+ *
+ * Ties beyond that go to whichever cell was reached first, which the flood
+ * gives for nothing: cells come off the queue in order of how many steps away
+ * they are, so the earliest of two equally good refuges is the nearer one. An
+ * animal should not run the long way round to somewhere no better.
+ *
+ * **An empty route means cornered**, on exactly the terms an empty route from
+ * `findPath` means arrived: nowhere the animal can reach improves on where it
+ * is standing. The caller reads it as a failure and the author's next line gets
+ * its turn — which for the deer and the rabbit is the `stuck` that puts them in
+ * `cornered`. The difference from before is what that state now means. It used
+ * to be reached after two steps of hill-climbing; it is now reached having
+ * looked at everywhere within six cells.
+ */
+export function findRefuge(
+  map: MapFile,
+  start: PathStart,
+  threat: Coord,
+  tileDef: TileDef,
+  tilesById: Record<string, TileDef>,
+  opts: RefugeOptions = {},
+): PathOutcome {
+  const board = removeTileAt(
+    map,
+    start.self.x,
+    start.self.y,
+    start.self.z,
+    start.self.stackIndex,
+  );
+  const from = { x: start.at.x, y: start.at.y, z: start.at.z };
+  // Nothing is ruled out by where the animal is going, because it is not going
+  // anywhere in particular: a drop it is allowed to take is allowed wherever it
+  // lands, and one it is not is not an edge. The middle mode `findPath` has is
+  // about a goal, and there is no goal here.
+  const mayDropTo = (opts.drops ?? DEFAULT_DROPS) === "never" ? null : () => true;
+
+  const frontier = new Frontier();
+  const best = new Map<string, number>();
+  const root: Node = { at: from, g: 0, f: 0, cameFrom: null, step: null };
+  frontier.push(root);
+  best.set(cellKey(from), 0);
+
+  // Where it already is, which every candidate has to beat. Seeded rather than
+  // left null so that "nowhere better" needs no case of its own: the animal
+  // stays the best answer and the route back to itself is empty.
+  let refuge: Refuge = {
+    node: root,
+    away: stepsApart(from, threat),
+    hidden: opts.seenFrom ? !opts.seenFrom(from) : false,
+  };
+
+  for (let expanded = 0; expanded < (opts.maxNodes ?? REFUGE_MAX_NODES); expanded++) {
+    const node = frontier.pop();
+    if (!node) break;
+    if (node.g > (best.get(cellKey(node.at)) ?? Infinity)) continue;
+
+    const away = stepsApart(node.at, threat);
+    // Only a cell already in the running is worth asking about sight, which is
+    // what keeps the line-of-sight checks to a handful across a whole flood.
+    if (away >= refuge.away) {
+      const hidden = opts.seenFrom ? !opts.seenFrom(node.at) : false;
+      if (away > refuge.away || (hidden && !refuge.hidden)) {
+        refuge = { node, away, hidden };
+      }
+    }
+
+    for (const step of neighbours(board, node.at, tileDef, tilesById, mayDropTo)) {
+      const key = cellKey(step.to);
+      const g = node.g + 1;
+      if (g >= (best.get(key) ?? Infinity)) continue;
+      best.set(key, g);
+      // No heuristic: there is nowhere to measure towards, so the queue is
+      // ordered on steps taken alone and the flood comes off it in rings.
+      frontier.push({ at: step.to, g, f: g, cameFrom: node, step });
+    }
+  }
+
+  return { ok: true, route: unwind(refuge.node) };
+}
+
 export function findPath(
   map: MapFile,
   start: PathStart,

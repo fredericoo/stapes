@@ -1191,10 +1191,12 @@ since moved — the target walked on, a crate was shoved into the third step,
 another creature filled the fourth. At one search per step the check that a
 kept route was still true would cost about what recomputing it does.
 
-**Fleeing is still greedy, and that is not an oversight.** `step_away_from` has
-no destination to route to; "away" is a direction rather than a place, so the
-question a fleeing animal asks really is the local one. Inventing a goal cell to
-run at would be the pathfinder deciding where something wants to hide.
+**Fleeing used to be greedy, and this section used to argue that it should be.**
+The argument was that "away" is a direction rather than a place, so the question
+a fleeing animal asks is the local one, and inventing a goal cell to run at
+would be the pathfinder deciding where something wants to hide. It is a sound
+argument for a worse animal — see "Running away is a flood, not a direction"
+below, which is what replaced it and why.
 
 ## Clicking a cell walks to it, and nothing new travels
 
@@ -1373,6 +1375,66 @@ scenario, within twenty simulated seconds. The bench was simply failing rather
 than reporting, which is how it went unnoticed for as long as it did. Asked
 through `tryLocate` now, on exactly the terms `buildTileIndex` and `attentive`
 have always asked: no body on the board, no turn.
+
+## Running away is a flood, not a direction
+
+`step_away_from` scored the four neighbouring cells and took whichever opened
+the distance most. Two things went wrong with that, and both of them were
+visible in the game rather than in a number.
+
+**A wall defeated it.** A rabbit backed into a pocket has no neighbour that
+gains anything — the only way out runs past you before it leads anywhere — so
+the search found nothing, the action failed, and `stuck` put the animal in
+`cornered`, which holds until you walk eight cells away. On a three-walled
+pocket it stood still for fourteen rounds without moving a cell while somebody
+walked up to it.
+
+**And it flickered.** The best of four cells flips between two of them as the
+threat moves, and nothing was committed to, so an animal that re-decided every
+round shuffled on the spot instead of running.
+
+`findRefuge` floods outward from the animal instead, scores every cell it
+reaches, and hands back the route to the best one — so choosing somewhere to run
+and working out how to get there are one search, off the came-from tree the
+flood already built. It is `findPath` inside out: no goal to aim at, therefore
+no heuristic to order a frontier by, therefore a flood rather than an A*.
+
+- **Distance from the threat first, out of its sight to break a tie.** Distance
+  is what fleeing means; sight is what makes it hiding. A tie-break rather than
+  a term of its own, so an animal never doubles back towards a threat for the
+  sake of a wall. Line of sight is asked only about cells already at least as
+  far as the best so far, which is a handful over a whole flood rather than one
+  per cell — and it is measured at the *fleeing animal's* height, because a flee
+  is given a position rather than a body and a line between two cells is very
+  nearly symmetric.
+- **A refuge is kept until it is reached or cut off.** This is the half that
+  stops the flickering, and it is worth being clear that the flood is not: an
+  animal that re-flooded every round would get a different best cell every time
+  you moved and would shuffle between them exactly as before. Dropped when it is
+  reached, when it is no longer further from the threat than the animal already
+  is — which is what both "you got between us" and "you followed me" look like
+  — or when there was nowhere better to begin with.
+- **`REFUGE_MAX_NODES` is 64, which is about six cells.** Enough to round the
+  corner of a building or find the gap in a fence, and nowhere near enough to
+  know the layout of a town. That is the same limit `PATH_DETOUR_SLACK` puts on
+  a chase, arrived at from the other side: a creature is allowed to see what is
+  around it and not allowed to have worked out where the doors are. Unlike the
+  chase's budget it is spent *every time* — a flood has nothing to prune with —
+  so it is what a flee costs rather than a ceiling it rarely reaches.
+- **An empty route means cornered**, on the terms an empty route has always
+  meant arrived. The `cornered` state authors already wrote still happens; what
+  it means has changed. It used to be reached after two steps of hill-climbing
+  and is now reached having looked at everywhere within six cells.
+
+**The cost is a spike when a herd startles, and almost nothing after.** Measured
+on a penned yard of fifteen deer and rabbits with somebody standing among them:
+nine floods in nine hundred ticks, because commitment means an animal floods
+once per escape rather than once per round. The worst tick is the one where all
+fifteen notice at once — 10.9ms against the greedy version's 2.5ms — and after
+that the worst is 3.4ms against 2.5ms. The spike scales with how many animals
+startle on the same round, which is the bound worth remembering. On the shipped
+map it does not show up in `bun run bench:server` at all: town and spread are
+unchanged, because nothing like fifteen fleeing animals is ever near one player.
 
 ## A creature thinks every round only while somebody could notice it
 
