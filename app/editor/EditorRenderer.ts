@@ -48,8 +48,13 @@ import { getFrames, resolveTileSprite, tileLightSignature } from "../lib/tileRes
 import { cellPhaseMs } from "../lib/types";
 import { AnimationTable, NO_ANIMATION } from "../render/animTable";
 import { canPlace, canReplaceStack } from "../lib/validation";
-import { useEditorStore, type ToolId } from "./store";
-import { panCameraByWheel } from "./camera";
+import { useEditorStore, type ToolId, type ZoomLevel } from "./store";
+import {
+  cameraAnchoredAtZoom,
+  panCameraByWheel,
+  pinchZoomSteps,
+  steppedZoom,
+} from "./camera";
 import type { EditorPerfMeasure, EditorPerfSnapshot } from "./perf";
 import { floodCoords, stacksEqual } from "./tools";
 import {
@@ -111,8 +116,33 @@ const LIGHTING_DEBOUNCE_MS = 50;
  */
 const LIGHT_MAP_CELL_OFFSET = 0.5;
 
+/**
+ * Zoom steps one notch of a trackpad pinch is worth.
+ *
+ * A pinch fires a stream of small `ctrlKey` wheel events, so one notch cannot
+ * be a whole step of a four-step scale — the map would snap from ×1 to ×8
+ * before the fingers had moved a centimetre. A quarter means about four
+ * notches per step, which measures like a slow, deliberate zoom.
+ */
+const WHEEL_PINCH_STEP = 0.25;
+
 /** Fade of the fused "other levels" image over the floor being edited. */
 const OTHER_LEVELS_OPACITY = 0.35;
+
+/**
+ * A two-finger drag in progress.
+ *
+ * `spreadAtZoom` is the distance between the fingers when the zoom last
+ * changed, not when the gesture began: zoom is four discrete steps, so a pinch
+ * has to bank travel until it has earned the next one and then start counting
+ * again from there. Measuring against the start instead would make the second
+ * step need only as much spread as the fraction left over from the first.
+ */
+type PinchGesture = {
+  /** Client-space midpoint at the last move — the pan is its travel. */
+  mid: { x: number; y: number };
+  spreadAtZoom: number;
+};
 
 type LevelVisibility = "hidden" | "solid" | "ghost";
 
@@ -144,6 +174,41 @@ function levelVisibility(
   if (z <= current) return "solid";
   if (!showOther) return "hidden";
   return "ghost";
+}
+
+/**
+ * Safari's own pinch, which is not covered by `touch-action: none`.
+ *
+ * The page allows pinch-zoom on purpose — `app/root.tsx` sets no maximum scale,
+ * so anybody who needs to magnify the interface can (see the notes on the 16px
+ * field). On the map canvas that is the wrong answer: a two-finger drag there
+ * is meant to move the map, and Safari zooming the whole page instead leaves an
+ * editor cropped off the screen with no way back to the canvas. Cancelled only
+ * on the canvas, so the rest of the editor still magnifies.
+ */
+const SAFARI_GESTURE_EVENTS = [
+  "gesturestart",
+  "gesturechange",
+  "gestureend",
+] as const;
+
+function preventDefault(e: Event) {
+  e.preventDefault();
+}
+
+/** Midpoint between two touch points, in whatever space they were given in. */
+function midpointOf(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+): { x: number; y: number } {
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+function spreadOf(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+): number {
+  return Math.hypot(b.x - a.x, b.y - a.y);
 }
 
 function disposeObject3D(obj: THREE.Object3D) {
@@ -212,6 +277,11 @@ export class EditorRenderer {
   private painting = false;
   private shapeAnchor: { x: number; y: number } | null = null;
   private lastPaintKey = "";
+  /** Live touch points, by pointer id — a pinch needs two at once. */
+  private touches = new Map<number, { x: number; y: number }>();
+  private pinch: PinchGesture | null = null;
+  /** Sub-step zoom banked from a trackpad pinch, which arrives in small deltas. */
+  private zoomDebt = 0;
   private disposed = false;
   private magentaTex: THREE.DataTexture;
   private whiteTex: THREE.DataTexture;
@@ -410,8 +480,12 @@ export class EditorRenderer {
     this.canvas.removeEventListener("pointerdown", this.onPointerDown);
     this.canvas.removeEventListener("pointermove", this.onPointerMove);
     this.canvas.removeEventListener("pointerup", this.onPointerUp);
+    this.canvas.removeEventListener("pointercancel", this.onPointerUp);
     this.canvas.removeEventListener("pointerleave", this.onPointerUp);
     this.canvas.removeEventListener("wheel", this.onWheel);
+    for (const type of SAFARI_GESTURE_EVENTS) {
+      this.canvas.removeEventListener(type, preventDefault);
+    }
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
     this.levelTarget?.dispose();
@@ -439,6 +513,12 @@ export class EditorRenderer {
     });
     this.resizeObserver.observe(this.canvas);
     this.updateCanvasSize();
+  }
+
+  /** Canvas size in CSS pixels — the space `zoom` and the camera are measured in. */
+  getViewportSize(): { width: number; height: number } {
+    this.updateCanvasSize();
+    return { width: this.canvasW, height: this.canvasH };
   }
 
   private updateCanvasSize() {
@@ -1699,8 +1779,12 @@ export class EditorRenderer {
     this.canvas.addEventListener("pointerdown", this.onPointerDown);
     this.canvas.addEventListener("pointermove", this.onPointerMove);
     this.canvas.addEventListener("pointerup", this.onPointerUp);
+    this.canvas.addEventListener("pointercancel", this.onPointerUp);
     this.canvas.addEventListener("pointerleave", this.onPointerUp);
     this.canvas.addEventListener("wheel", this.onWheel, { passive: false });
+    for (const type of SAFARI_GESTURE_EVENTS) {
+      this.canvas.addEventListener(type, preventDefault, { passive: false });
+    }
     window.addEventListener("keydown", this.onKeyDown);
     window.addEventListener("keyup", this.onKeyUp);
   }
@@ -1791,13 +1875,148 @@ export class EditorRenderer {
     }
   };
 
+  /**
+   * A trackpad pinch arrives as a wheel event with `ctrlKey` set — the browser
+   * synthesises it, and no real Ctrl key is held. Panning it, which is what
+   * every wheel event used to do, made a pinch shove the map sideways.
+   */
   private onWheel = (e: WheelEvent) => {
     e.preventDefault();
+    if (e.ctrlKey) {
+      this.zoomBy(-Math.sign(e.deltaY) * WHEEL_PINCH_STEP, {
+        x: e.clientX,
+        y: e.clientY,
+      });
+      return;
+    }
     panCameraByWheel(e, { width: this.canvasW, height: this.canvasH });
   };
 
+  /** Canvas-relative position of a client-space point. */
+  private toLocal(point: { x: number; y: number }): { x: number; y: number } {
+    const rect = this.canvas.getBoundingClientRect();
+    return { x: point.x - rect.left, y: point.y - rect.top };
+  }
+
+  private capturePointer(pointerId: number) {
+    try {
+      this.canvas.setPointerCapture(pointerId);
+    } catch {
+      /* the pointer has already gone up — the gesture ends either way */
+    }
+  }
+
+  private releasePointer(pointerId: number) {
+    try {
+      this.canvas.releasePointerCapture(pointerId);
+    } catch {
+      /* not captured — nothing to release */
+    }
+  }
+
+  /**
+   * Zoom by whole steps, leaving whatever is under `anchor` under it.
+   *
+   * Fractional steps accumulate rather than rounding to nothing, so a trackpad
+   * that reports a pinch in small deltas still gets there. Returns the zoom it
+   * settled on.
+   */
+  private zoomBy(steps: number, anchor: { x: number; y: number }): ZoomLevel {
+    const store = useEditorStore.getState();
+    this.zoomDebt += steps;
+    const whole = Math.trunc(this.zoomDebt);
+    if (whole === 0) return store.zoom;
+    this.zoomDebt -= whole;
+
+    const zoom = steppedZoom(store.zoom, whole);
+    if (zoom === store.zoom) return zoom;
+    store.setCamera(
+      cameraAnchoredAtZoom(store.camera, this.toLocal(anchor), store.zoom, zoom),
+    );
+    store.setZoom(zoom);
+    return zoom;
+  }
+
+  /**
+   * Take the gesture off the tool and give it to the camera.
+   *
+   * A stroke already painted is committed rather than rolled back — the cells
+   * under the first finger were asked for, and one undo takes them all back
+   * together. A shape in progress is dropped, because its second corner is
+   * wherever the finger happened to be when the other one landed.
+   */
+  private beginPinch() {
+    const store = useEditorStore.getState();
+    if (this.painting) {
+      this.painting = false;
+      store.endStroke();
+    }
+    if (this.shapeAnchor) {
+      this.shapeAnchor = null;
+      store.setShapePreview(null);
+    }
+    this.panning = false;
+    this.updateCursor();
+    store.setHover(null);
+
+    // Both fingers, not just the one that arrived: either straying over the
+    // toolbar or off the canvas would otherwise stop reporting mid-gesture.
+    for (const id of this.touches.keys()) this.capturePointer(id);
+    this.zoomDebt = 0;
+    this.rebasePinch();
+  }
+
+  /**
+   * Measure the gesture afresh from the fingers that are down now.
+   *
+   * Called when it starts and whenever the pair changes under it — a third
+   * finger landing, or one of three lifting. The midpoint and the spread are
+   * both differences from the last sample, so a pair swapped underneath them
+   * would read as one enormous move.
+   */
+  private rebasePinch() {
+    const [a, b] = [...this.touches.values()];
+    if (!a || !b) {
+      this.pinch = null;
+      return;
+    }
+    this.pinch = { mid: midpointOf(a, b), spreadAtZoom: spreadOf(a, b) };
+  }
+
+  /** Pan by the midpoint's travel, then spend whatever spread has been earned. */
+  private applyPinch() {
+    const pinch = this.pinch;
+    const [a, b] = [...this.touches.values()];
+    if (!pinch || !a || !b) return;
+
+    const store = useEditorStore.getState();
+    const mid = midpointOf(a, b);
+    store.setCamera({
+      x: store.camera.x - (mid.x - pinch.mid.x) / store.zoom,
+      y: store.camera.y - (mid.y - pinch.mid.y) / store.zoom,
+    });
+    pinch.mid = mid;
+
+    const spread = spreadOf(a, b);
+    const steps = pinchZoomSteps(spread / pinch.spreadAtZoom);
+    if (steps === 0) return;
+    // Rebased even when the zoom was already at its limit, so pinching back
+    // the other way starts from the fingers where they are now.
+    pinch.spreadAtZoom = spread;
+    this.zoomBy(steps, mid);
+  }
+
   private onPointerDown = (e: PointerEvent) => {
     const store = useEditorStore.getState();
+    if (e.pointerType === "touch") {
+      this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      // One finger draws, two move the map — so the second one arriving takes
+      // the gesture off whatever tool the first started.
+      if (this.touches.size >= 2) {
+        this.beginPinch();
+        return;
+      }
+    }
     if (e.button === 1 || (e.button === 0 && this.spaceDown)) {
       this.panning = true;
       this.panLast = { x: e.clientX, y: e.clientY };
@@ -1906,6 +2125,14 @@ export class EditorRenderer {
   private onPointerMove = (e: PointerEvent) => {
     const store = useEditorStore.getState();
 
+    if (e.pointerType === "touch" && this.touches.has(e.pointerId)) {
+      this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.pinch) {
+        this.applyPinch();
+        return;
+      }
+    }
+
     if (this.panning) {
       const dx = (e.clientX - this.panLast.x) / store.zoom;
       const dy = (e.clientY - this.panLast.y) / store.zoom;
@@ -1946,6 +2173,16 @@ export class EditorRenderer {
 
   private onPointerUp = (e: PointerEvent) => {
     const store = useEditorStore.getState();
+    if (e.pointerType === "touch") {
+      this.touches.delete(e.pointerId);
+      this.releasePointer(e.pointerId);
+      // The finger still down is not the start of a new stroke: a pinch that
+      // ends one finger at a time would otherwise paint on the way out.
+      if (this.pinch) {
+        this.rebasePinch();
+        return;
+      }
+    }
     if (this.panning) {
       this.panning = false;
       this.updateCursor();
