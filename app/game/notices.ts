@@ -13,6 +13,7 @@ import {
   MAX_TILE_COUNT,
   type CommandRefusal,
 } from "./commands";
+import type { PathRefusal } from "./pathfinding";
 
 /**
  * The things the game says to the player in words.
@@ -355,6 +356,62 @@ export function tileNotice(name: string, at: Coord, count = 1): string {
  */
 export function noRoomToLeaveNotice(name: string): string {
   return `There is nowhere to put ${name}`;
+}
+
+/**
+ * Why a walk did not set off: nothing the search found leads to the cell that
+ * was pointed at.
+ *
+ * A click is the one input in the game with no key to hold and no row to read,
+ * so a refused one shows as the avatar simply not moving — indistinguishable
+ * from the click having missed the canvas. That is the same argument "You cannot
+ * fit there" is written under, and it is why the click needs a sentence where a
+ * pressed key into a wall does not: pressing again tells you what a wall is,
+ * clicking again tells you nothing.
+ *
+ * **Three refusals, two sentences, and the split is by what is proved rather
+ * than by what happened.** Only `"unreachable"` is a fact about the board: the
+ * search walked everywhere a body could get to and the cell was not among it.
+ * The other two are `./pathfinding` declining to spend more — one at the detour
+ * cap, one at the node budget — and neither establishes that there is no way,
+ * only that no short one turned up. Saying "there is no way there" for those
+ * told a player looking straight into a room across the square to stop trying.
+ *
+ * They share a sentence because a refusal must not claim anything it has not
+ * shown, and *distance* is the thing neither of them shows. Proving a cell
+ * unreachable means exhausting the reachable board, which costs more than
+ * `PATH_MAX_NODES` allows on anything the size of a real map — so the budget
+ * runs out on a cell sealed two steps away exactly as it does on one across the
+ * world, and a sentence about distance is false in the first case and useless
+ * in both. @see PathRefusal
+ */
+export function noRouteNotice(why: PathRefusal): string {
+  switch (why) {
+    case "unreachable":
+      return "There is no way there from here";
+    case "detour":
+      // Deliberately not "there is no way": the search turned down every route
+      // that went a long way round, and one of them may well have arrived. It
+      // is also the sentence a sealed cell gets whenever anything at all was
+      // turned down, which is why it claims no long way round *exists* — only
+      // that there is no short one, which is true either way.
+      return "There is no short way there";
+    case "budget":
+      // The same sentence as a detour, and it has to be: this refusal says the
+      // search stopped without an answer, and it says *nothing* about distance.
+      // Proving a cell unreachable means walking every cell that can be reached
+      // from here, which passes PATH_MAX_NODES long before it finishes on any
+      // real board — so a cell walled in on four sides two steps away exhausts
+      // the budget exactly as a cell across the map does. A sentence about
+      // being too far told a player standing beside a sealed room to walk
+      // nearer, which is both false and the one instruction that cannot help.
+      //
+      // What is true of both is that nothing short was found, so both say so.
+      // The three refusals stay separate in `./pathfinding` because they are
+      // three different facts about the search; how many *sentences* they
+      // deserve is this file's question, and the answer is two.
+      return "There is no short way there";
+  }
 }
 
 /** What a body is told when a status is put on it by hand. */

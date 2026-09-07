@@ -13,9 +13,25 @@ import type { Direction } from "../lib/types";
  * Latest press wins, which is why this is an ordered list and not a set: a
  * player holding right and then pressing up expects to go up, and to go back to
  * right when they let go of up.
+ *
+ * A clicked walk is one more thing that presses a direction, and it presses it
+ * here — see {@link HeldDirections.setAuto} and `./walkTo`. Arbitrating it
+ * anywhere else is a second copy of the rule this module exists to hold once,
+ * and the copy loses the things the list already knows: which keys are down
+ * under the click, and which modifiers are being held with them.
  */
 export class HeldDirections {
   private readonly held: Direction[] = [];
+  /**
+   * The direction a clicked walk is asking for, or null when none is.
+   *
+   * Outranks the keys while it is set, on the same "latest wins" rule they
+   * order themselves by: clicking somewhere is a later decision than a key that
+   * was already down. It is not *in* the list because it is not a key and
+   * nobody will let go of it — {@link setAuto} is both its press and its
+   * release, and the walk that set it is the only thing that can say either.
+   */
+  private auto: Direction | null = null;
   private faceOnly = false;
   private preferDescend = false;
 
@@ -23,9 +39,46 @@ export class HeldDirections {
 
   /** Idempotent: a repeat press moves the direction to the front, once. */
   press(direction: Direction) {
+    // Taking the keys back is a decision to walk yourself, so a clicked walk
+    // ends here rather than fighting this list for the input. The walk sees it
+    // and stops asking. @see auto, ./walkTo
+    this.auto = null;
     this.remove(direction);
     this.held.push(direction);
     this.sync();
+  }
+
+  /**
+   * Walk this direction until something else is asked for, or hand the input
+   * back to whatever keys are down.
+   *
+   * `null` is the release, and it is why nothing outside needs to remember
+   * whether a click is what filled the input: the keys are still in the list
+   * underneath, so handing back is putting them into force rather than emptying
+   * anything. A player who held right through a clicked walk carries on walking
+   * right when it ends, which is what their hand is asking for.
+   *
+   * @see auto for who outranks whom, and {@link autoPressed} for how a walk
+   * finds out it lost.
+   */
+  setAuto(direction: Direction | null) {
+    if (direction === this.auto) return;
+    this.auto = direction;
+    this.sync();
+  }
+
+  /**
+   * Is a clicked direction still the one in force?
+   *
+   * The one thing `./walkTo` reads rather than is told, and it is read rather
+   * than pushed because there is nothing to push: {@link press} and
+   * {@link clear} drop the auto direction as a consequence of what they already
+   * mean, and a callback out to whoever set it would be this class knowing what
+   * a walk is. False having set one is how a walk learns it has been taken over
+   * — a key, or the window going away — and it costs a comparison a frame.
+   */
+  get autoPressed(): boolean {
+    return this.auto !== null;
   }
 
   release(direction: Direction) {
@@ -48,10 +101,23 @@ export class HeldDirections {
   /**
    * Drop everything. Losing the window drops every key, and without this a held
    * direction sticks and the avatar walks off on its own.
+   *
+   * A clicked walk goes with them, for the same reason and one more: nobody is
+   * going to release it, and a body left walking itself across town while the
+   * tab is not even in front of the player is the same fault as a stuck key.
+   * The walk reads {@link autoPressed} on its next frame and gives up.
    */
   clear() {
-    if (this.held.length === 0 && !this.faceOnly && !this.preferDescend) return;
+    if (
+      this.held.length === 0 &&
+      this.auto === null &&
+      !this.faceOnly &&
+      !this.preferDescend
+    ) {
+      return;
+    }
     this.held.length = 0;
+    this.auto = null;
     this.faceOnly = false;
     this.preferDescend = false;
     this.sync();
@@ -74,9 +140,21 @@ export class HeldDirections {
     return true;
   }
 
+  /**
+   * Say what is being asked for now.
+   *
+   * The clicked direction stands in for the whole list rather than joining it:
+   * a walk is one direction at a time by construction, and the keys under it
+   * are held rather than pressed — they come back the moment it is handed back.
+   *
+   * The modifiers ride along either way, which is the point of arbitrating here
+   * rather than beside this class: shift means "turn, do not walk" and alt
+   * means "take the lower surface" whoever chose the direction, and a click
+   * that wrote the input itself silently dropped both.
+   */
   private sync() {
     this.apply({
-      directions: [...this.held],
+      directions: this.auto ? [this.auto] : [...this.held],
       faceOnly: this.faceOnly,
       preferDescend: this.preferDescend,
     });

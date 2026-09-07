@@ -1167,10 +1167,13 @@ carry it.
   the two are not both null: the first falls through to the next line of the
   priority list, and so does the second, but only the second is a `stuck` an
   author can transition on.
-- **A drop is a one-way edge and it is opt-in**, on the same `allowDrops` the
-  action already carried. Where gravity would put the body down is resolved as
+- **A drop is a one-way edge, and which legs may take one is one setting with
+  three values.** `PathOptions.drops` is `"never"` (the default), `"toGoal"` or
+  `"anywhere"`; a creature's `allowDrops` maps onto the outer two and reads
+  exactly as it always did. Where gravity would put the body down is resolved as
   part of the edge, because a route planned from mid-air is a route about a cell
-  nobody is ever standing in.
+  nobody is ever standing in. `"toGoal"` is a click's answer and is written
+  below.
 
 **Two caps, doing two different jobs, and it is worth not confusing them.**
 `PATH_DETOUR_SLACK` is about *behaviour*: a route far longer than the gap is not
@@ -1192,6 +1195,105 @@ kept route was still true would cost about what recomputing it does.
 no destination to route to; "away" is a direction rather than a place, so the
 question a fleeing animal asks really is the local one. Inventing a goal cell to
 run at would be the pathfinder deciding where something wants to hide.
+
+## Clicking a cell walks to it, and nothing new travels
+
+`app/game/walkTo.ts` holds a destination and hands the step pipeline one
+direction per leg. It is entirely client-side, and deliberately: `findPath` is a
+pure question about a board, the browser holds every argument to it, and the
+direction it produces goes in through `HeldDirections` — the same list a held
+key presses. So a clicked leg is predicted, sent and validated by exactly the
+machinery a keypress already used, `canWalk` on the server included. There is
+nothing on the wire that says a walk was clicked, and there is no version of a
+client making up where it is allowed to go.
+
+- **`findPath` gained `arrive`, and the two halves of it move together.**
+  `"beside"` is the default and is what closing on a body means; `"on"` is what
+  a cell somebody pointed at means. The mode is read by the goal test *and* by
+  the heuristic the queue is ordered on, and the dangerous half is the
+  overestimate: measuring to the goal itself while stopping beside it is one
+  step too many, which returns routes that are not the shortest and prunes
+  legitimate ones against `PATH_DETOUR_SLACK`.
+- **A fall may be the last leg of a clicked route, and nothing before it.**
+  `WalkTo` passes `drops: "toGoal"`, so a leg that leaves the ground is an edge
+  only when the cell gravity resolves it to is the cell that was clicked — asked
+  with the same `arrived` the search finishes on, rather than with a second
+  opinion about what arriving means. Click into a hole and the walk goes down it; click across a
+  balcony and the walk goes round by the stairs. **Not pathing through a hole is
+  deliberate, and it is not the next obvious feature.** A leg costs one step
+  whether it walks or falls and there is nothing else to pay — this game does
+  not hurt you for landing — so a search free to fall anywhere takes the drop
+  the moment it is the shorter line, and a click meant to cross a room throws
+  the player off the edge of it and leaves them to find the stairs back up.
+  Lifting the limit is not a flag: it is deciding what a fall is worth, which
+  means costing the climb back out of it, and nothing has measured that yet.
+- **A pick names a tile; a body wants the cell it would stand in.** The two
+  differ for anything filling its own level — the block a floor is made of is
+  stored on the level below the one you stand on it at — so the destination goes
+  through `standingCellOn`, which matches the picked tile's top against
+  `listStandingSurfaces`. Skip it and the floor of a building is a place nobody
+  can click their way into. A wall, a tree or a body has no top anybody stands
+  on, and gets the refusal rather than an offer to stand at its foot.
+- **The leg handed over during a step is the one *after* it**, and that is why
+  `findPath` takes where to search from and whose body to ignore as two facts.
+  The prediction chains a landed step straight into the next from inside its own
+  frame, carrying the overshoot; a controller that waited to see the walk finish
+  before naming the next direction would spend a frame standing still at every
+  cell, and click-walking would get slower as the frame rate dropped. So the next
+  leg is routed from the cell the current one is landing in — while the body is
+  still placed in the cell it is leaving, because a walk commits to the map on
+  landing. `PathStart` names both; told only one, the search has the walker's own
+  body as a wall behind it, and turning round in a one-wide corridor comes back
+  as no route at all. The body is taken off the board for the length of the
+  search rather than skipped by stack index, since it obstructs cells it is not
+  the source of: about 12µs of the 170µs an eight-step route across
+  `app/lib/fixtureTown.ts` takes, `bun` on an M2 Pro.
+- **The route is recomputed every step and never kept**, which is the chase
+  argument above turned up rather than repeated. A walk across town is twenty
+  steps where a chase is three, so a kept plan has twenty steps of world to go
+  stale in, and other bodies are walls to `canWalk` — the things between here and
+  a cell across the square are exactly the things that move.
+  - *What that costs is bounded by the frame, not by the step.* The controller
+    searches when the body has somewhere new to think from or when the map is a
+    different object, and the second half is a weak guard: map identity changes
+    on any commit anywhere in the world, so a busy world defeats it every frame
+    and a still one never does. The honest bound is one search per frame while a
+    walk is under way, each of them the cheap end of what `PATH_MAX_NODES` is
+    sized for.
+  - *It can end a walk halfway, and only a static board says otherwise.* On a
+    board nobody has touched the allowance cannot tighten: `PATH_DETOUR_SLACK`
+    permits the plan distance plus a constant, and walking a step of an optimal
+    route lowers what is still owed by one while lowering the plan distance by at
+    most one. But a moving board is the whole reason the route is not kept. Shut
+    the door it went through and every way left may be over the allowance, and
+    the walk stops where it stands — silently, because what stops a route halfway
+    is ordinary traffic and a sentence for each is a line of text every time
+    anybody walks anywhere.
+- **A key cancels it, and a click never clears a key**, and neither of them
+  knows about the other: `HeldDirections` holds one direction a click is asking
+  for beside the list of keys that are down, on the same "latest wins" rule the
+  keys already order themselves by. A press drops the clicked direction, so a
+  walk taken over stops — the walk finds that out by asking, which is why the
+  page wires nothing up. Handing the input back puts the keys into force again
+  rather than emptying it, so a key held through a clicked walk still walks when
+  the walk ends, and the modifiers ride along either way: a click writing the
+  input itself silently dropped shift and alt.
+- **The refusal is a notice, and it is the one sentence composed on the client.**
+  A click has no key to hold and no row to read, so a refused one shows as the
+  avatar not moving, which is indistinguishable from having missed the canvas. It
+  is drained beside `PlaySession.drainNotices` in the render loop.
+  - *It says which limit was hit*, because two of the three are ours rather than
+    the board's. `findPath` reports `unreachable` (everywhere reachable was
+    searched and offered), `detour` (it ran out of cells having turned some away
+    at `PATH_DETOUR_SLACK`, so a long way round may exist) or `budget`
+    (`PATH_MAX_NODES` ran out with cells still queued). One null for all three
+    told a player looking straight into a room across the square that there was
+    no way there.
+  - *And it leans towards understating.* Any open board has far corners over the
+    detour cap, so a genuinely sealed cell usually comes back as `detour` rather
+    than `unreachable`; the sentence for it — "there is no short way there" — is
+    true of a long way round and of no way at all. Being wrong the other way
+    stops a player who could have walked round the back.
 
 ## A creature thinks every round only while somebody could notice it
 
@@ -1327,6 +1429,36 @@ new motion goes the same way.
 `RemoteSession` reads actor positions off the map rather than tracking them
 separately: the map is authoritative and already carries ownership, so there is
 no second copy to drift.
+
+### The client predicts steps and does not predict gravity
+
+A fall is the server's to announce. `RemoteSession` starts one only on
+`fallStarted`, and until that event arrives its `motion.fall` is null — which is
+fine for every fall that happens *to* a player and wrong for the one they walk
+into.
+
+Stepping into a hole is a legal step: `canWalk` allows a cell with nothing to
+stand on precisely so gravity can pull a body through a drop too steep to climb
+down. The client predicts that step like any other and lands the body in
+mid-air, and for one round trip it is holding a direction, standing on nothing,
+and has heard nothing to the contrary. It used to chain the next step out of
+that cell — the server refuses every step from a falling body, so the avatar
+walked one cell past the hole and was dragged back into it. On a local socket
+the `fallStarted` beat the next step and hid this entirely; at 120ms it was
+every time, and click-to-walk made it something a player could ask for rather
+than a way of falling off a ledge by accident.
+
+`predictStep` now asks `gravityPullOn` — the same verdict `maybeStartFall` acts
+on, extracted so the two machines cannot drift — and takes no step from a cell
+the board says the body is about to fall out of. The rule this belongs to is the
+one `chooseStep` is under: **the client re-asks the simulation's own question
+rather than keeping a second opinion about it.** Anything else the simulation
+refuses a step for is a candidate for the same treatment.
+
+Note what this is *not*. `abandonPrediction` is unaffected, and the overshoot
+was never a re-sent step: the client minted a fresh `seq` for ground it had
+genuinely not been told about, from a cell it genuinely believed it was standing
+in. The fault was believing it.
 
 ### A client's actor set is its `hello` plus what it is told afterwards
 

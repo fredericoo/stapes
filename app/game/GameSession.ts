@@ -239,10 +239,9 @@ import {
 import {
   cellForFeetAbs,
   cellHasLooseGravity,
-  findLandingAbs,
   findLooseGravityCells,
   findWalkableLandingAbs,
-  isSupported,
+  gravityPullOn,
   settleGravity,
 } from "./gravity";
 import {
@@ -5165,16 +5164,29 @@ export class GameSession implements PlaySession {
     at: Coord,
     allowDrops: boolean | undefined,
   ): Direction | "arrived" | null {
-    const path = findPath(
+    // A creature decides where to go while standing still, so the cell it
+    // searches from and the body to leave off the board are the same one. They
+    // are not for a body mid-step — see `./pathfinding`'s `PathStart`, and
+    // `./walkTo`, which is where the two come apart.
+    const self = { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex };
+    const found = findPath(
       this.map,
-      { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+      { at: self, self },
       at,
       this.defFor(actor),
       this.tilesById,
-      { allowDrops },
+      // A creature given the flag is one an author wants falling, wherever the
+      // fall lands: a drop is an edge like any other to it. The narrower rule is
+      // the player's, whose click asked to be somewhere rather than to leap.
+      // @see PathOptions.drops
+      { drops: allowDrops ? "anywhere" : "never" },
     );
-    if (path === null) return null;
-    return path[0]?.direction ?? "arrived";
+    // Which limit a refusal hit is not a distinction a brain has anything to do
+    // with: unreachable, too far round and given up on all mean the same thing
+    // to a creature, which is that this is not the action to take. The sentence
+    // that needs them apart is the player's. @see PathRefusal
+    if (!found.ok) return null;
+    return found.route[0]?.direction ?? "arrived";
   }
 
   /**
@@ -7486,37 +7498,23 @@ export class GameSession implements PlaySession {
   }
 
   private maybeStartFall(actor: ActorRuntime) {
-    if (!this.defFor(actor).affectedByGravity) return;
-
     const loc = this.locate(actor);
-    if (
-      isSupported(this.map, loc.x, loc.y, loc.z, loc.stackIndex, this.tilesById)
-    ) {
-      return;
-    }
-
-    const feetAbs = standingAbs(
+    const pull = gravityPullOn(
       this.map,
-      loc.x,
-      loc.y,
-      loc.z,
-      loc.stackIndex,
+      loc,
+      this.defFor(actor),
       this.tilesById,
     );
-    const landing = findLandingAbs(this.map, loc.x, loc.y, feetAbs, this.tilesById, {
-      z: loc.z,
-      stackIndex: loc.stackIndex,
-    });
-    if (landing == null || landing >= feetAbs) return;
-
-    // Drops within climb height are step-downs (same as same-level height
-    // change) — snap onto the surface instead of playing a fall.
-    if (feetAbs - landing <= MAX_CLIMB_HEIGHT) {
-      this.land(actor, landing);
+    if (pull.kind === "stand") return;
+    if (pull.kind === "settle") {
+      this.land(actor, pull.landingAbs);
       return;
     }
-
-    actor.fall = { feetAbs, landingAbs: landing, elapsedMs: 0 };
+    actor.fall = {
+      feetAbs: pull.feetAbs,
+      landingAbs: pull.landingAbs,
+      elapsedMs: 0,
+    };
   }
 
   private tickFall(actor: ActorRuntime, tickMs: number) {

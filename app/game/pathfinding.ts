@@ -6,6 +6,7 @@ import {
   surfacesInClimbBand,
 } from "./movement";
 import { cellKey } from "./pressurePlates";
+import { removeTileAt } from "../lib/mapData";
 import { fitsAtElevation } from "../lib/validation";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { DIRECTIONS } from "../lib/types";
@@ -46,6 +47,28 @@ import { MAX_CLIMB_HEIGHT } from "./constants";
  * balcony above worth walking a staircase for. Standing under them is not
  * standing beside them, and a route that thought otherwise would stop dead at
  * the bottom of the stairs.
+ *
+ * A player walking to a cell they pointed at wants the other answer — the cell
+ * itself, not a neighbour of it — so {@link PathOptions.arrive} chooses, and
+ * "beside" is the default because every caller that predates the option means
+ * a body it is walking up to. @see ../game/walkTo
+ *
+ * ## Two facts about the searcher, not one
+ *
+ * Where a search starts and where the searcher's body is are different
+ * questions, and {@link PathStart} makes a caller answer both. They are the same
+ * cell for anything standing still, which is why they were one parameter for as
+ * long as only brains asked — and they are two cells for a body mid-step, which
+ * commits to the board only on landing. @see PathStart.self
+ *
+ * ## Saying which limit was hit
+ *
+ * A search comes back with a route or with a reason ({@link PathOutcome}), and
+ * the reasons are not interchangeable: nowhere left to look is a fact about the
+ * board, while the two caps below are facts about what this module is willing to
+ * spend. A caller with a sentence to write needs to know which — see
+ * `./notices`' `noRouteNotice`, which said "there is no way there" about a room
+ * the player was looking straight into for as long as all three were one null.
  */
 
 /**
@@ -63,10 +86,12 @@ import { MAX_CLIMB_HEIGHT } from "./constants";
  * building, and about five milliseconds spent on somebody unreachable rather
  * than twenty.
  *
- * Giving up reads as no route at all, deliberately. A half-explored search has
- * a best-so-far cell it could walk towards, and following it is how a creature
- * ends up pressed against the wall nearest you having "made progress" — which
- * is the behaviour this module exists to remove.
+ * Giving up hands back no route at all, deliberately. A half-explored search
+ * has a best-so-far cell it could walk towards, and following it is how a
+ * creature ends up pressed against the wall nearest you having "made progress"
+ * — which is the behaviour this module exists to remove. What it does say is
+ * that this is the limit it hit rather than the board: `"budget"`, not
+ * `"unreachable"`. @see PathRefusal
  */
 export const PATH_MAX_NODES = 128;
 
@@ -96,20 +121,135 @@ export const PATH_DETOUR_SLACK = 16;
 /** One leg of a route: the direction to press, and where it lands. */
 export type PathStep = { direction: Direction; to: Coord };
 
+/** Who is searching, and from where. */
+export type PathStart = {
+  /** The cell the first leg is taken from. */
+  at: Coord;
+  /**
+   * The searcher's own body on the board, which is not a wall to itself.
+   *
+   * Left out of the board for the length of the search, so the cell it stands
+   * in is measured as the cell rather than as an occupied one — its own
+   * standing surface included, since a body standing on its own head is the
+   * elevation nonsense this removes.
+   *
+   * **Not the same cell as {@link at} whenever a step is in flight.** A walk
+   * commits to the map on landing, so a body mid-step is still placed in the
+   * cell it is leaving while the next leg is owed from the cell it is landing
+   * in. Told only one of the two, the search treats the walker's own body as a
+   * wall behind it: in a one-wide corridor there is then no way back the way it
+   * came, and the walk is refused with a sentence about a route that plainly
+   * exists. Anything standing still passes the same cell twice, which is what
+   * the parameter looked like when only brains asked.
+   */
+  self: Coord & { stackIndex: number };
+};
+
+/**
+ * Why a search has no route to offer.
+ *
+ * Three different facts, and a caller that has to say something out loud needs
+ * them apart: only one of them is about the board.
+ *
+ * - `"unreachable"` — everywhere a body could get to from here was searched and
+ *   offered, and the goal was not among it. The board's own answer, and the
+ *   only one of the three that is.
+ * - `"detour"` — the search ran out of cells having turned some away at
+ *   {@link PATH_DETOUR_SLACK}, so it has not seen the whole board and a way
+ *   round may exist. The cap is a rule about what counts as going *towards*
+ *   something, not about what exists.
+ * - `"budget"` — {@link PATH_MAX_NODES} ran out with cells still queued. The
+ *   search stopped before it had an answer, and nothing was established either
+ *   way.
+ *
+ * **`"detour"` swallows a good many sealed cells**, and deliberately. Any open
+ * board has far corners whose detour is over the cap, so a goal that is truly
+ * walled off is usually reported as a detour rather than as unreachable — the
+ * search turned cells away and cannot honestly say it looked everywhere. The
+ * error is deliberately in that direction: `./notices` writes `"detour"` as
+ * "there is no short way there", which is true of a long way round and of no
+ * way at all, while "there is no way there" about a room with a door round the
+ * back is false and stops a player who could have walked to it.
+ */
+export type PathRefusal = "unreachable" | "detour" | "budget";
+
+/**
+ * What a search found: a route, or why there is not one.
+ *
+ * An **empty** route is a success and not a failure — it is a body that has
+ * already arrived — and telling that from having no route is what lets a brain
+ * fall through to whatever it does once it is standing next to somebody. That
+ * distinction predates this type and is the reason it is `ok` with an empty
+ * list rather than a fourth refusal.
+ */
+export type PathOutcome =
+  | { ok: true; route: PathStep[] }
+  | { ok: false; why: PathRefusal };
+
 export type PathOptions = {
   /**
-   * May a leg of the route leave the ground?
+   * May a leg of the route leave the ground, and where may it land?
    *
-   * Off by default, on the same terms the brain action is: the board lets
-   * anybody walk into open air so gravity can pull them through, and whether
-   * that is a route or a mistake is the caller's to decide. Allowed, a drop
-   * becomes a **one-way edge** — the search resolves where gravity would put
-   * the body down and carries on from there, and nothing offers a way back up.
+   * The board lets anybody walk into open air so gravity can pull them through,
+   * and whether that is a route or a mistake is the caller's to decide. A drop
+   * that is allowed is a **one-way edge** — the search resolves where gravity
+   * would put the body down and carries on from there, and nothing offers a way
+   * back up.
+   *
+   * - `"never"` — the default, and what every caller meant before there was
+   *   anything else: a leg that leaves the ground is not an edge at all.
+   * - `"toGoal"` — a drop is allowed only when it lands somewhere
+   *   {@link arrived} accepts, so falling is the last leg of a route and never a
+   *   way through to somewhere else. What that rules out is the reason it
+   *   exists: a fall costs one step like any other leg, so a search free to take
+   *   one anywhere steps off the nearest ledge whenever that is shortest, and
+   *   somebody who asked to walk across a room gets thrown off the balcony on
+   *   the way.
+   * - `"anywhere"` — a drop is an edge like any other, wherever it lands. What
+   *   a creature's `allowDrops` has always meant, and the leaping is fine there
+   *   because a brain that is given the flag is one an author wants falling.
+   *
+   * One setting with three values rather than two booleans side by side,
+   * because "may it fall" and "may it fall on the way" are not independent
+   * questions: three of the four pairs mean something and the fourth means
+   * nothing at all.
    */
-  allowDrops?: boolean;
+  drops?: "never" | "toGoal" | "anywhere";
   /** Cells to give up after taking off the queue. @see PATH_MAX_NODES */
   maxNodes?: number;
+  /**
+   * Where the route ends: beside the goal cell, or in it.
+   *
+   * `"beside"` by default, which is what closing on a body means and what every
+   * caller before this option existed asked for. `"on"` is for a cell somebody
+   * pointed at: a patch of floor is not something you stop next to.
+   *
+   * The mode is read by {@link arrived} *and* by {@link remaining}, and the two
+   * cannot be changed apart. `remaining` is the heuristic the queue is ordered
+   * on, so a search that gave up one step early while measuring the distance to
+   * the cell after it would order the frontier by a figure the goal test
+   * disagrees with, and return a route that is not the shortest.
+   */
+  arrive?: "beside" | "on";
 };
+
+/** Which legs may leave the ground. @see PathOptions.drops */
+type Drops = NonNullable<PathOptions["drops"]>;
+
+/** Where a route ends. @see PathOptions.arrive */
+type Arrival = NonNullable<PathOptions["arrive"]>;
+
+const DEFAULT_ARRIVAL: Arrival = "beside";
+
+const DEFAULT_DROPS: Drops = "never";
+
+/**
+ * A stack with nobody in it to leave out.
+ *
+ * What every cell of a search is, since the one body that would have had a slot
+ * to skip is taken off the board before the first step. @see PathStart.self
+ */
+const NOBODY_IN_THIS_STACK = -1;
 
 /** Steps apart on the plan, ignoring elevation. */
 function stepsApart(a: Coord, b: Coord): number {
@@ -117,25 +257,40 @@ function stepsApart(a: Coord, b: Coord): number {
 }
 
 /**
- * Close enough to have arrived: beside them, on their floor.
+ * Close enough to have arrived: beside them on their floor, or standing in the
+ * goal cell itself. @see PathOptions.arrive
  *
  * `<= 1` rather than `=== 1` so a body somehow sharing a cell with its target
  * is finished rather than searching the world for a cell it is already in.
+ *
+ * The level has to match in both modes, and for the same reason: standing under
+ * somebody is not standing beside them, and the floor below a cell is not that
+ * cell.
  */
-function arrived(at: Coord, goal: Coord): boolean {
-  return at.z === goal.z && stepsApart(at, goal) <= 1;
+function arrived(at: Coord, goal: Coord, arrive: Arrival): boolean {
+  if (at.z !== goal.z) return false;
+  const steps = stepsApart(at, goal);
+  return arrive === "on" ? steps === 0 : steps <= 1;
 }
 
 /**
  * Steps still owed at best, from here.
  *
- * Plan distance to the cell *beside* the goal, since that is what arriving
- * means — and it stays admissible for the same reason `stepsApart` does: every
- * step moves exactly one cell on the plan, whatever it does to elevation, so no
- * route can be shorter than the cells between here and there.
+ * Plan distance to whichever cell {@link arrived} would accept — the goal
+ * itself, or one short of it — and it stays admissible for the same reason
+ * `stepsApart` does: every step moves exactly one cell on the plan, whatever it
+ * does to elevation, so no route can be shorter than the cells between here and
+ * there.
+ *
+ * Moves with the mode rather than being written once, and the dangerous half is
+ * the *over*estimate: the plan distance to the goal itself is one step more than
+ * a route that stops beside it owes, and A* handed a figure that is too big
+ * returns a route that is not the shortest — as well as pruning legitimate ones
+ * against {@link PATH_DETOUR_SLACK}, which is measured in the same figure.
  */
-function remaining(at: Coord, goal: Coord): number {
-  return Math.max(0, stepsApart(at, goal) - 1);
+function remaining(at: Coord, goal: Coord, arrive: Arrival): number {
+  const steps = stepsApart(at, goal);
+  return arrive === "on" ? steps : Math.max(0, steps - 1);
 }
 
 /**
@@ -146,7 +301,18 @@ function remaining(at: Coord, goal: Coord): number {
  * a fall settles onto — asked here so a route that takes a ledge knows which
  * cell it continues from rather than planning the rest of the way from mid-air.
  */
-function dropLanding(
+/**
+ * Where a body entering this column from `fromAbs` comes to rest, or null when
+ * nothing down there will hold it.
+ *
+ * Exported because a click into a hole asks exactly this question — see
+ * `./walkTo`'s `standingCellOn`. The pointer names whatever is *visible* at the
+ * bottom, which is not the same as what a body lands on: a sealed surface under
+ * a half-wall is drawn and cannot be stood on, so the fall carries past it. One
+ * definition, because a click that aimed somewhere the search would not put the
+ * body is a route to a cell nobody ends up in.
+ */
+export function dropLanding(
   map: MapFile,
   x: number,
   y: number,
@@ -167,21 +333,51 @@ function dropLanding(
 }
 
 /**
+ * Whether a leg that leaves the ground is an edge, asked of where it lands — or
+ * null when no such leg is an edge at all.
+ *
+ * Built once per search so the three modes are one decision rather than a
+ * condition repeated at every ledge, and `"toGoal"` is expressed as the goal
+ * test itself rather than as a second opinion about what arriving means. It has
+ * to be: a drop landing one cell short under `"beside"`, or onto the floor under
+ * the goal cell under `"on"`, is a fall that got somewhere *else*, and the
+ * search would carry on walking from where it landed.
+ *
+ * Null rather than a predicate that always says no, so `"never"` can be
+ * answered before the column scan {@link dropLanding} costs. @see neighbours
+ */
+function dropRule(
+  drops: Drops,
+  goal: Coord,
+  arrive: Arrival,
+): ((landing: Coord) => boolean) | null {
+  if (drops === "never") return null;
+  if (drops === "anywhere") return () => true;
+  return (landing) => arrived(landing, goal, arrive);
+}
+
+/**
  * Every cell one step from `at`, as the board would allow it.
  *
- * `stackIndex` is the searcher's own slot in its *starting* cell and only means
- * anything there — a body is not standing in any of the cells further along, so
- * there is nothing to leave out of those stacks.
+ * `map` is the board with the searcher's own body already off it — see
+ * {@link PathStart.self} — so every cell here, the one being stood in included,
+ * is measured as it is rather than as somewhere somebody is.
  */
 function neighbours(
   map: MapFile,
   at: Coord,
-  stackIndex: number,
   tileDef: TileDef,
   tilesById: Record<string, TileDef>,
-  opts: PathOptions,
+  mayDropTo: ((landing: Coord) => boolean) | null,
 ): PathStep[] {
-  const fromAbs = standingAbs(map, at.x, at.y, at.z, stackIndex, tilesById);
+  const fromAbs = standingAbs(
+    map,
+    at.x,
+    at.y,
+    at.z,
+    NOBODY_IN_THIS_STACK,
+    tilesById,
+  );
   const out: PathStep[] = [];
 
   for (const direction of DIRECTIONS) {
@@ -200,11 +396,15 @@ function neighbours(
         y,
         tilesById,
       ).length > 0;
-    if (!grounded && !opts.allowDrops) continue;
+    // Where this leg would have to land to be worth taking, or null when it is
+    // not a fall at all or when this search does not take them. One value
+    // rather than two, so the question is asked once and answered once.
+    const mayFallTo = grounded ? null : mayDropTo;
+    if (!grounded && !mayFallTo) continue;
 
     const check = canWalk(
       map,
-      { ...at, stackIndex },
+      { ...at, stackIndex: NOBODY_IN_THIS_STACK },
       direction,
       tileDef,
       tilesById,
@@ -213,10 +413,10 @@ function neighbours(
 
     // A step the board allows onto nothing at all. `canWalk` says yes so that
     // gravity can pull a body through a drop it could not climb; a route has to
-    // decide for itself whether that is a way through or a way down.
-    if (!grounded) {
+    // decide for itself whether that is a way through, a way down, or neither.
+    if (mayFallTo) {
       const landing = dropLanding(map, x, y, fromAbs, tileDef, tilesById);
-      if (landing) out.push({ direction, to: landing });
+      if (landing && mayFallTo(landing)) out.push({ direction, to: landing });
       continue;
     }
 
@@ -252,6 +452,11 @@ type Node = {
  */
 class Frontier {
   private heap: Node[] = [];
+
+  /** Nowhere left to look — which is a different answer from having stopped. */
+  get empty(): boolean {
+    return this.heap.length === 0;
+  }
 
   private before(a: Node, b: Node): boolean {
     return a.f === b.f ? a.g > b.g : a.f < b.f;
@@ -300,12 +505,28 @@ function unwind(node: Node): PathStep[] {
 }
 
 /**
- * A route from `from` to somewhere beside `goal`, or null when there is no way
- * there within {@link PATH_MAX_NODES}.
+ * What an emptied frontier means.
  *
- * An **empty** route is not a failure: it is a body that has already arrived,
- * and telling the two apart is what lets a caller fall through to whatever it
- * does once it is standing next to somebody.
+ * Nowhere left to look is only "there is no way there" when everywhere was
+ * *offered*: a search that turned candidates away at {@link PATH_DETOUR_SLACK}
+ * has not seen the whole board and must not claim to have. @see PathRefusal
+ */
+function exhausted(pruned: boolean): PathOutcome {
+  return { ok: false, why: pruned ? "detour" : "unreachable" };
+}
+
+/**
+ * A route from `start.at` to somewhere beside `goal` — or into it, on
+ * {@link PathOptions.arrive} — or the reason there is not one.
+ *
+ * The searcher's own body comes off the board first and stays off for the whole
+ * search, which is the one place the two facts in {@link PathStart} are used
+ * and why they have to be given apart. Off the board rather than skipped by
+ * index, because the body obstructs cells it is not the *source* of: a walker
+ * mid-step has to be able to route back through the cell it is leaving. It
+ * costs one copy-on-write cell edit per search — about 12µs of the 170µs an
+ * eight-step route across `app/lib/fixtureTown.ts` takes, measured with `bun`
+ * on an M2 Pro.
  *
  * Other bodies count as walls, because `canWalk` counts them as walls — which
  * is right for a route asked afresh every time somebody decides where to go,
@@ -315,57 +536,71 @@ function unwind(node: Node): PathStep[] {
  */
 export function findPath(
   map: MapFile,
-  from: Coord & { stackIndex: number },
+  start: PathStart,
   goal: Coord,
   tileDef: TileDef,
   tilesById: Record<string, TileDef>,
   opts: PathOptions = {},
-): PathStep[] | null {
-  const start = { x: from.x, y: from.y, z: from.z };
-  if (arrived(start, goal)) return [];
+): PathOutcome {
+  const board = removeTileAt(
+    map,
+    start.self.x,
+    start.self.y,
+    start.self.z,
+    start.self.stackIndex,
+  );
+  const from = { x: start.at.x, y: start.at.y, z: start.at.z };
+  const arrive = opts.arrive ?? DEFAULT_ARRIVAL;
+  if (arrived(from, goal, arrive)) return { ok: true, route: [] };
+  const mayDropTo = dropRule(opts.drops ?? DEFAULT_DROPS, goal, arrive);
 
   const budget = opts.maxNodes ?? PATH_MAX_NODES;
   // How long a route is still a chase. @see PATH_DETOUR_SLACK
-  const longest = remaining(start, goal) + PATH_DETOUR_SLACK;
+  const longest = remaining(from, goal, arrive) + PATH_DETOUR_SLACK;
   const frontier = new Frontier();
   const best = new Map<string, number>();
+  /** Whether anything was turned away at `longest`. @see exhausted */
+  let pruned = false;
 
   frontier.push({
-    at: start,
+    at: from,
     g: 0,
-    f: remaining(start, goal),
+    f: remaining(from, goal, arrive),
     cameFrom: null,
     step: null,
   });
-  best.set(cellKey(start), 0);
+  best.set(cellKey(from), 0);
 
   for (let expanded = 0; expanded < budget; expanded++) {
     const node = frontier.pop();
-    if (!node) break;
+    if (!node) return exhausted(pruned);
 
     // Stale: a cheaper way to this cell was queued after it and has already
     // been expanded. Skipping is what a decrease-key would have done, without
     // a heap that has to find an entry it already gave away.
     if (node.g > (best.get(cellKey(node.at)) ?? Infinity)) continue;
 
-    if (arrived(node.at, goal)) return unwind(node);
+    if (arrived(node.at, goal, arrive)) return { ok: true, route: unwind(node) };
 
-    // Only the starting cell holds the searcher's own body, so only it has a
-    // stack slot to leave out.
-    const stackIndex = node.cameFrom === null ? from.stackIndex : -1;
-    const legs = neighbours(map, node.at, stackIndex, tileDef, tilesById, opts);
+    const legs = neighbours(board, node.at, tileDef, tilesById, mayDropTo);
     for (const step of legs) {
       const key = cellKey(step.to);
       const g = node.g + 1;
       if (g >= (best.get(key) ?? Infinity)) continue;
       // `f` is the shortest this route could still turn out to be, so a node
       // over the cap cannot lead anywhere under it.
-      const f = g + remaining(step.to, goal);
-      if (f > longest) continue;
+      const f = g + remaining(step.to, goal, arrive);
+      if (f > longest) {
+        pruned = true;
+        continue;
+      }
       best.set(key, g);
       frontier.push({ at: step.to, g, f, cameFrom: node, step });
     }
   }
 
-  return null;
+  // The queue decides which of the two limits this was: cells still waiting is
+  // the budget stopping a search that had somewhere to go, and an empty one is
+  // the board or the detour cap having already answered on the last expansion.
+  return frontier.empty ? exhausted(pruned) : { ok: false, why: "budget" };
 }

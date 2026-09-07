@@ -12,6 +12,7 @@ import {
 import { pourInto } from "../lib/piles";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
+import { MAX_CLIMB_HEIGHT } from "./constants";
 import { placeEntityOnSurface, removeEntity } from "./mapMutations";
 import { sceneryStack, standingAbs } from "./movement";
 
@@ -134,6 +135,55 @@ export function findWalkableLandingAbs(
   }
 
   return best;
+}
+
+/**
+ * What gravity is about to do to a body standing in a cell.
+ *
+ * `"stand"` covers both a body held up by something solid and one over open
+ * void — nothing below to land on is not a fall, it is a body that stays where
+ * it is. `"settle"` is a drop short enough to be a step down, taken whole in
+ * the tick that finds it. Only `"fall"` is animated.
+ */
+export type GravityPull =
+  | { kind: "stand" }
+  | { kind: "settle"; landingAbs: number }
+  | { kind: "fall"; feetAbs: number; landingAbs: number };
+
+/**
+ * Ask the board what gravity has to say about a body standing here.
+ *
+ * The one place the rule lives, because two machines have to agree on it. The
+ * simulation runs it to start a fall; the online client runs it to know that a
+ * step it predicted has left the body in the air, and that the next step is
+ * therefore one the server is going to refuse. A client that guessed instead
+ * walks on out of a hole it is already dropping into, and every one of those
+ * steps is a visible snap-back. @see ../net/RemoteSession's `predictStep`
+ */
+export function gravityPullOn(
+  map: MapFile,
+  at: Coord & { stackIndex: number },
+  def: TileDef,
+  tilesById: Record<string, TileDef>,
+): GravityPull {
+  if (!def.affectedByGravity) return { kind: "stand" };
+  if (isSupported(map, at.x, at.y, at.z, at.stackIndex, tilesById)) {
+    return { kind: "stand" };
+  }
+
+  const feetAbs = standingAbs(map, at.x, at.y, at.z, at.stackIndex, tilesById);
+  const landingAbs = findLandingAbs(map, at.x, at.y, feetAbs, tilesById, {
+    z: at.z,
+    stackIndex: at.stackIndex,
+  });
+  if (landingAbs == null || landingAbs >= feetAbs) return { kind: "stand" };
+
+  // Drops within climb height are step-downs, exactly as a same-level height
+  // change is — snap onto the surface rather than playing a fall.
+  if (feetAbs - landingAbs <= MAX_CLIMB_HEIGHT) {
+    return { kind: "settle", landingAbs };
+  }
+  return { kind: "fall", feetAbs, landingAbs };
 }
 
 /**

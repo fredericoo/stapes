@@ -5,7 +5,7 @@ import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
-import { findLooseGravityCells, settleGravity } from "./gravity";
+import { findLooseGravityCells, gravityPullOn, settleGravity } from "./gravity";
 import shippedTiles from "../../data/tiles.json";
 
 /**
@@ -92,6 +92,69 @@ const tiles: TileDef[] = [
 const byId = tilesByIdFromList(tiles);
 
 const ids = (stack: { tileId: string }[]) => stack.map((p) => p.tileId);
+
+/**
+ * The verdict both machines read.
+ *
+ * The simulation asks it to start a fall; the online client asks it to know
+ * that a step it predicted has left the body in the air and the next one would
+ * be refused. The three answers are genuinely different outcomes rather than
+ * degrees of one — a settle happens in the tick that finds it, a fall is
+ * animated, and standing over a bottomless column is neither.
+ */
+describe("what gravity is about to do", () => {
+  const playerDef = byId.player!;
+
+  it("leaves a body standing on something alone", () => {
+    const map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "player" },
+    ]);
+
+    expect(
+      gravityPullOn(map, { x: 0, y: 0, z: 0, stackIndex: 1 }, playerDef, byId),
+    ).toEqual({ kind: "stand" });
+  });
+
+  it("calls a drop within climbing range a settle, not a fall", () => {
+    // Half a level down: the same height change a walk takes in its stride, so
+    // it is taken whole rather than animated.
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "rock" }]);
+    map = replaceStack(map, 0, 0, 1, [{ tileId: "player" }]);
+
+    expect(
+      gravityPullOn(map, { x: 0, y: 0, z: 1, stackIndex: 0 }, playerDef, byId),
+    ).toEqual({ kind: "settle", landingAbs: 2 });
+  });
+
+  it("calls a drop too steep to climb down a fall", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
+    map = replaceStack(map, 0, 0, 1, [{ tileId: "player" }]);
+
+    expect(
+      gravityPullOn(map, { x: 0, y: 0, z: 1, stackIndex: 0 }, playerDef, byId),
+    ).toEqual({ kind: "fall", feetAbs: 4, landingAbs: 0 });
+  });
+
+  it("leaves a body over a column with nothing in it where it is", () => {
+    // Nothing to land on is not a fall. The simulation has always held such a
+    // body still, and a client that read it as falling would refuse to walk.
+    const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "player" }]);
+
+    expect(
+      gravityPullOn(map, { x: 0, y: 0, z: 0, stackIndex: 0 }, playerDef, byId),
+    ).toEqual({ kind: "stand" });
+  });
+
+  it("says nothing about a tile gravity does not act on", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
+    map = replaceStack(map, 0, 0, 1, [{ tileId: "rock" }]);
+
+    expect(
+      gravityPullOn(map, { x: 0, y: 0, z: 1, stackIndex: 0 }, byId.rock!, byId),
+    ).toEqual({ kind: "stand" });
+  });
+});
 
 describe("settling loose gravity", () => {
   it("drops an unsupported body onto what is below it", () => {
