@@ -4595,6 +4595,103 @@ somewhere unhelpful. Coordinates are parsed rather than trusted, since a `NaN`
 in the camera leaves every later pan and screen-to-cell conversion producing
 `NaN` too, which reads as a dead canvas rather than as a bad argument.
 
+## A generator is a plan, and the plan is the preview
+
+The **procedural** button on the map toolbar opens a list of generators and
+their settings; pressing Place arms a tool that builds one out of a dragged
+rectangle. There is one generator so far — a house — and the shape of it is
+what the second one should copy.
+
+**One pure function answers everything.** `planHouse` (`app/editor/house.ts`)
+takes the map, the rectangle, the level and the settings, and returns either
+the list of `StackEdit`s that build the house or the reason it cannot be built.
+Nothing else knows how a house is put together: the drag preview draws that
+list, the commit writes that list through one `setStacks`, and the refusal the
+toast shows is that same reason. The alternative — a builder and a separate
+"would this fit" predicate — is two descriptions of one house that drift, and
+the way it fails is a preview that shows something the click does not build.
+
+**One `setStacks`, so a house is one revert.** Several hundred cells across
+half a dozen levels arrive as a single `commitMap`, which is a single entry in
+the undo stack. A generator that wrote its storeys one at a time would need six
+presses of ⌘Z to take back one mistake.
+
+**The preview is resolved against the map the plan makes, not the one it starts
+from.** Walls and floors are autotiles, and an autotile drawn against the map
+as it stands has no neighbours yet — so a ghost built the obvious way is a
+picket fence of isolated posts rather than a house. `setStacks` is copy-on-write
+and the overlay is rebuilt only when the rectangle or the settings change, so
+building a provisional map per drag step is affordable. Past
+`MAX_HOUSE_GHOST_CELLS` the drag shows its footprint and nothing else, for the
+same reason the shape tools stop ghosting at `MAX_GHOST_CELLS`: one mesh per
+sprite.
+
+### The site has to be level, and everything above it empty
+
+Two different questions, and they are different because the ground floor and
+the storeys above it are in different situations.
+
+- **The ground floor is laid on top of the site, never in place of it.** A house
+  dropped on a road keeps its road, and one on grass keeps its grass — the floor
+  tile goes on the end of the stack that is already there. What it asks of the
+  site is that every cell in the footprint stands the *same* number of units,
+  because a floor across two heights is a floor with a step in it. Any height
+  counts, not only zero: a plinth of half-blocks is a level site.
+- **Everything above the ground floor has to be empty.** That is what makes a
+  roof overhead refuse the whole house rather than growing through it, and it is
+  why a house cannot be dropped on top of another one.
+
+**A storey is one level, so the site plus the floor plus the wall has to fit in
+`HEIGHT_PER_LEVEL`.** Full-height walls therefore only stand on a flat site; on
+a two-unit plinth the walls have to be two units too (`half-wall`). The plan
+says that in those words rather than letting `canReplaceStack` report it as an
+overflow into the level the next storey is being written to — the arithmetic is
+the useful half of the message, and the validator's version names the wrong
+cause.
+
+### The grammar is the one the two example buildings already define
+
+Copied from the cottage at (12,3) and the shop at (7,-8) in `data/map.json`,
+which is why those two are worth keeping intact.
+
+- **A storey is a ring of `[floor, wall]` around an inside of `[floor]`.** The
+  door replaces the wall in one ground-floor cell; a window replaces it in
+  several, on every storey.
+- **The roof steps in one cell a side per level** until the span runs out. The
+  low edge wears the eave facing the ridge and the high edge the one facing
+  back at it (`e`/`w` for a north-south ridge, `s`/`n` for an east-west one),
+  and the cells between them are two `plaster`, which is four units and so
+  exactly the floor the next roof level stands on. A span that comes down to a
+  single cell gets the two-unit ridge cap instead — `roof-3`/`roof-5`/`roof-6`,
+  which are the red, yellow and blue caps for the `roof-1`/`roof-2`/`roof-4`
+  eaves. So a five-wide roof is three levels and a six-wide one is three as
+  well, ending in two opposing eaves rather than a cap.
+- **A window is drawn on the face the camera can see.** `window-1` has two
+  sprites wearing four names: `n`/`s` is the face of a wall running east-west,
+  `e`/`w` the face of one running north-south. North walls get windows like any
+  other; the sprite is the same one the south wall wears.
+
+**"N tiles away" means an index distance of N along the wall run.** The door
+keeps two from each corner, which is what puts the door of a five-wide wall
+dead centre — where the cottage's is — and what makes a four-wide wall have
+nowhere to put one, so a house that small gets none rather than a door in its
+corner. Windows keep one from the corners and two from each other, and two from
+the door: one would only say "not the door's own cell", which the door already
+says for itself.
+
+**The door's placement is two coordinates, not eight directions.** A row
+(north / centre / south) and a column (west / centre / east). The row picks the
+wall wherever it names one and the column picks which end of it; a centred row
+leaves the choice to the column. Both centred names no wall at all, which is
+why the middle of the grid is the one square that cannot be pressed.
+
+**Settings live in `localStorage`, not in the map.** A row of blue-roofed
+cottages is nine placements of one form, so the settings belong to the person
+building rather than to the world being built. They are parsed on the way back
+in (`app/editor/proceduralSettings.ts`) and checked against the tile catalogue:
+a saved wall tile that no longer exists reads as "no saved settings" instead of
+arming the tool with an id nothing can draw.
+
 ## Renderer and simulation performance
 
 The game targets **120fps — an 8.3ms frame budget**, and the whole budget is

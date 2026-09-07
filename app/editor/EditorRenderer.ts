@@ -24,6 +24,7 @@ import {
   footElevation,
   getStack,
   listCoords,
+  setStacks,
   stackHeight,
   terrainHeight,
 } from "../lib/mapData";
@@ -57,6 +58,7 @@ import {
 } from "./camera";
 import type { EditorPerfMeasure, EditorPerfSnapshot } from "./perf";
 import { floodCoords, stacksEqual } from "./tools";
+import { planHouse } from "./house";
 import {
   type LevelAnimUniforms,
   type LevelLightUniforms,
@@ -107,6 +109,15 @@ const BACKGROUND_COLOR = 0xb8b09e;
 const GHOST_OPACITY = 0.55;
 /** Big shapes fall back to outlines only — one mesh per sprite gets costly. */
 const MAX_GHOST_CELLS = 256;
+/**
+ * The same cliff for a generator, further out.
+ *
+ * A house is several storeys and a stepped roof over one footprint, so its
+ * plan runs to two or three cells written per cell dragged — and the ghost is
+ * the whole point of the tool, so it is worth more meshes than a rectangle of
+ * one tile is. Past this a drag shows its footprint and nothing else.
+ */
+const MAX_HOUSE_GHOST_CELLS = 512;
 
 /** Debounce lighting recompute while painting. */
 const LIGHTING_DEBOUNCE_MS = 50;
@@ -938,6 +949,7 @@ export class EditorRenderer {
       sel ? `${sel.x},${sel.y}` : "",
       s.armedTileId ?? "",
       sp ? `${sp.kind}:${sp.x0},${sp.y0},${sp.x1},${sp.y1}` : "",
+      s.houseConfigVersion,
       frames,
     ].join("|");
   }
@@ -1046,6 +1058,74 @@ export class EditorRenderer {
       });
     }
 
+    // A generator's preview is its own plan, drawn where it would land: the
+    // same `planHouse` the commit runs, so what the drag shows and what the
+    // click writes cannot describe different houses.
+    if (s.shapePreview?.kind === "procedural") {
+      const { x0, y0, x1, y1 } = s.shapePreview;
+      const plan = planHouse(
+        s.map,
+        s.tilesById,
+        { x0, y0, x1, y1 },
+        z,
+        s.houseConfig,
+      );
+      const minX = Math.min(x0, x1);
+      const minY = Math.min(y0, y1);
+      const origin = baseCellWorldOrigin(minX, minY, z, 0);
+      addRectOutline(
+        origin.x,
+        origin.y,
+        (Math.abs(x1 - x0) + 1) * CELL_SIZE,
+        (Math.abs(y1 - y0) + 1) * CELL_SIZE,
+        plan.ok ? 0x2d6a4f : 0xff4d4d,
+        true,
+      );
+
+      if (plan.ok && plan.edits.length <= MAX_HOUSE_GHOST_CELLS) {
+        // Resolved against the map the plan *makes*: an autotiled wall drawn
+        // against the map as it stands is an isolated post, and the preview
+        // would show a picket fence rather than the house being built.
+        const built = setStacks(s.map, plan.edits);
+        for (const edit of plan.edits) {
+          const already = getStack(s.map, edit.x, edit.y, edit.z).length;
+          let elev = 0;
+          edit.stack.forEach((placed, stackIndex) => {
+            elev = footElevation(elev, placed);
+            const def = s.tilesById[placed.tileId];
+            if (!def) return;
+            // The ground floor keeps the site under it, and the site is already
+            // on screen — ghosting it again only dims what is there.
+            if (stackIndex >= already) {
+              const quad = this.spriteQuad(
+                placed,
+                def,
+                edit.x,
+                edit.y,
+                edit.z,
+                elev,
+                built,
+              );
+              if (quad) {
+                addSprite(quad, {
+                  color: 0xffffff,
+                  opacity: GHOST_OPACITY,
+                  blending: THREE.NormalBlending,
+                  renderOrder: drawOrder(
+                    edit.x,
+                    edit.y,
+                    absoluteElevation(edit.z, elev),
+                    stackIndex,
+                  ),
+                });
+              }
+            }
+            elev += terrainHeight(placed, s.tilesById);
+          });
+        }
+      }
+    }
+
     const targets = this.brushTargets(s);
     const showGhosts = brush.length > 0 && targets.length <= MAX_GHOST_CELLS;
     for (const c of targets) {
@@ -1122,6 +1202,8 @@ export class EditorRenderer {
   ): Array<{ x: number; y: number }> {
     if (s.shapePreview) {
       const { kind, x0, y0, x1, y1 } = s.shapePreview;
+      // A generator draws its own ghost from its plan; it has no brush.
+      if (kind === "procedural") return [];
       return kind === "rect"
         ? this.rectList(x0, y0, x1, y1)
         : this.circleList(x0, y0, x1, y1);
@@ -2059,6 +2141,19 @@ export class EditorRenderer {
       return;
     }
 
+    if (tool === "procedural") {
+      this.shapeAnchor = coord;
+      store.setShapePreview({
+        kind: "procedural",
+        x0: coord.x,
+        y0: coord.y,
+        x1: coord.x,
+        y1: coord.y,
+      });
+      this.canvas.setPointerCapture(e.pointerId);
+      return;
+    }
+
     if (tool === "rect" || tool === "circle") {
       if (!store.selected && !store.armedTileId) {
         useEditorStore.setState({ lastToast: "No tile armed" });
@@ -2201,17 +2296,24 @@ export class EditorRenderer {
 
     if (this.shapeAnchor && store.shapePreview) {
       const { kind, x0, y0, x1, y1 } = store.shapePreview;
-      const coords =
-        kind === "rect"
-          ? this.rectList(x0, y0, x1, y1)
-          : this.circleList(x0, y0, x1, y1);
-      const result = store.stampMany(coords);
-      if (result.skipped > 0) {
-        useEditorStore.setState({
-          lastToast: `Skipped ${result.skipped} cell(s)${
-            result.reason ? `: ${result.reason}` : ""
-          }`,
-        });
+      if (kind === "procedural") {
+        const result = store.placeHouse({ x0, y0, x1, y1 });
+        if (!result.ok && result.reason) {
+          useEditorStore.setState({ lastToast: result.reason });
+        }
+      } else {
+        const coords =
+          kind === "rect"
+            ? this.rectList(x0, y0, x1, y1)
+            : this.circleList(x0, y0, x1, y1);
+        const result = store.stampMany(coords);
+        if (result.skipped > 0) {
+          useEditorStore.setState({
+            lastToast: `Skipped ${result.skipped} cell(s)${
+              result.reason ? `: ${result.reason}` : ""
+            }`,
+          });
+        }
       }
       store.setShapePreview(null);
       this.shapeAnchor = null;

@@ -76,8 +76,10 @@ function CanvasStatus() {
     <div className="relative z-10 shrink-0 border-2 border-border bg-paper/90 px-2 py-1 text-xs shadow-hard">
       {hover ? `${hover.x},${hover.y}` : "—"} · z{currentLevel} · ×{zoom}
       {previewMode ? <span className="text-accent"> · preview</span> : null}
+      {/* A generator brings its own tiles, so it is never short of one. */}
       {tool !== "select" &&
       tool !== "erase" &&
+      tool !== "procedural" &&
       !selected &&
       !armedTileId ? (
         <span className="text-danger"> · no tile armed</span>
