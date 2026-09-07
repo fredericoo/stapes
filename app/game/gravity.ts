@@ -5,6 +5,7 @@ import {
   getStack,
   isSolidPlacement,
   listCoords,
+  planeCoveredAt,
   replaceStack,
   stackHeight,
   walkableFloorAbove,
@@ -98,6 +99,10 @@ export function findLandingAbs(
 /**
  * Highest walkable surface absolute elevation strictly below `feetAbs`.
  * Skips non-walkable solid tops (fall-through after a failed slide).
+ *
+ * A plane with water lying on it is one of those tops, on the same terms
+ * `./movement`'s `listStandingSurfaces` refuses to offer it: a body cannot end
+ * up standing somewhere it could not have walked to. @see planeCoveredAt
  */
 export function findWalkableLandingAbs(
   map: MapFile,
@@ -108,6 +113,11 @@ export function findWalkableLandingAbs(
   exclude?: { z: number; stackIndex: number },
 ): number | null {
   let best: number | null = null;
+  const consider = (abs: number) => {
+    if (abs >= feetAbs) return;
+    if (planeCoveredAt(map, x, y, abs, tilesById)) return;
+    best = best == null ? abs : Math.max(best, abs);
+  };
 
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     let stack = getStack(map, x, y, z);
@@ -117,9 +127,7 @@ export function findWalkableLandingAbs(
 
     if (stack.length > 0) {
       const walkAbs = absoluteWalkableElevation(z, stack, tilesById);
-      if (walkAbs != null && walkAbs < feetAbs) {
-        best = best == null ? walkAbs : Math.max(best, walkAbs);
-      }
+      if (walkAbs != null) consider(walkAbs);
     }
 
     if (z > MIN_LEVEL) {
@@ -128,9 +136,7 @@ export function findWalkableLandingAbs(
         below = sceneryStack(map, x, y, z - 1, exclude.stackIndex);
       }
       const floorAbs = walkableFloorAbove(z - 1, below, tilesById);
-      if (floorAbs != null && floorAbs < feetAbs) {
-        best = best == null ? floorAbs : Math.max(best, floorAbs);
-      }
+      if (floorAbs != null) consider(floorAbs);
     }
   }
 
