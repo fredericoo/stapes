@@ -3020,13 +3020,21 @@ export class GameSession implements PlaySession {
     sounds: readonly Sound[],
     tickMs: number,
   ) {
+    // Nothing left to decide with. An actor outlives its body for as long as it
+    // takes something to notice — a creature killed by a status, or one that
+    // fell out of the world — and until then it is still in {@link actors} and
+    // still comes round in the doze budget. Asked through `tryLocate` on
+    // exactly the terms {@link buildTileIndex} and {@link attentive} ask, both
+    // of which have always skipped a body that is not on the board.
+    const loc = this.tryLocate(actor);
+    if (!loc) return;
+
     // A body with no brain, or one whose authored brain did not hold together,
     // simply stands there. Resolving is memoised on def identity, so asking
     // every tick costs a map lookup rather than a parse.
     const brain = resolveBrain(this.defFor(actor));
     if (!brain) return;
 
-    const loc = this.locate(actor);
     actor.brain ??= initialMemory(brain);
     stepBrain(brain, actor.brain, tickMs, {
       busy: !this.idle(actor),

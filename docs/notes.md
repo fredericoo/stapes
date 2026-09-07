@@ -1295,6 +1295,21 @@ client making up where it is allowed to go.
     true of a long way round and of no way at all. Being wrong the other way
     stops a player who could have walked round the back.
 
+## A creature that has left the board must not be given a turn
+
+`tickOneBrain` asked `defFor` before anything else, and `defFor` goes through
+`locate`, which throws. An actor outlives its body for as long as it takes
+something to notice — killed by a status, or fallen out of the world — and until
+then it is still in `actors` and still comes round in the doze budget. So the
+next round it got was an exception out of `tick`, which on the server is the
+world going down.
+
+It reproduced on `bun run bench:server` against the shipped map, in the town
+scenario, within twenty simulated seconds. The bench was simply failing rather
+than reporting, which is how it went unnoticed for as long as it did. Asked
+through `tryLocate` now, on exactly the terms `buildTileIndex` and `attentive`
+have always asked: no body on the board, no turn.
+
 ## A creature thinks every round only while somebody could notice it
 
 `GameSession.tickBrains` used to give every resident brain a turn every round,
