@@ -148,11 +148,17 @@ export function roofLevelsFor(span: number): number {
   return Math.max(0, Math.ceil(span / 2));
 }
 
-/** The face of a window set into a wall running `wall`-wards. */
+/**
+ * The face of a window set into a wall running `wall`-wards.
+ *
+ * `window-1` has two sprites under four names — the north/south pair and the
+ * east/west pair — so a wall running east-west shows its south face and one
+ * running north-south its east face. That is the convention every window in
+ * `data/map.json` is authored with, and it is why a window does not simply
+ * wear its own wall the way the door does: the picture is the same either way,
+ * and matching what is already down is worth more than the symmetry.
+ */
 function windowDirectionFor(wall: Direction): Direction {
-  // The two window sprites are the north/south pair and the east/west pair:
-  // a wall running east-west shows its south face, one running north-south
-  // shows its east face.
   return wall === "n" || wall === "s" ? "s" : "e";
 }
 
@@ -313,7 +319,14 @@ function storeyEdits(
           x,
           y,
           z,
-          stack: [...under, { ...floor }, placed(config.doorTileId, tilesById)],
+          stack: [
+            ...under,
+            { ...floor },
+            // A door faces out of the house, so it wears the wall it is set
+            // into: the north wall's door faces north. `DoorSpot.wall` is
+            // already that outward normal.
+            placed(config.doorTileId, tilesById, door.wall),
+          ],
         });
         continue;
       }

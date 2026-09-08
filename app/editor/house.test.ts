@@ -292,6 +292,24 @@ describe("planHouse", () => {
     expect(ids(built, 3, 3, 2)).toEqual(["plaster", "plaster"]);
   });
 
+  it("faces the door out of the house", () => {
+    const map = siteMap(-2, -2, 12, 12);
+    const cases: Array<[HouseConfig["doorRow"], HouseConfig["doorColumn"], number, number, string]> = [
+      ["north", "centre", 3, 0, "n"],
+      ["south", "centre", 3, 6, "s"],
+      ["centre", "west", 0, 3, "w"],
+      ["centre", "east", 6, 3, "e"],
+    ];
+    for (const [doorRow, doorColumn, x, y, face] of cases) {
+      const built = build(map, { x0: 0, y0: 0, x1: 6, y1: 6 }, {
+        doorRow,
+        doorColumn,
+      });
+      expect(ids(built, x, y, 0)).toContain("door-closed");
+      expect(facing(built, x, y, 0)).toBe(face);
+    }
+  });
+
   it("only cuts a door into the ground floor", () => {
     const map = siteMap(-2, -2, 12, 12);
     const built = build(map, { x0: 0, y0: 0, x1: 6, y1: 6 }, { storeys: 2 });
