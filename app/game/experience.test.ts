@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type BattlerDef, defFrom } from "../lib/battler";
+import { type BattlerDef, DEFAULT_BASE_HP, defFrom } from "../lib/battler";
 import { MELEE_REACH } from "../lib/item";
 import shippedTiles from "../../data/tiles.json";
 import { emptyMap, replaceStack } from "../lib/mapData";
@@ -229,6 +229,7 @@ describe("what the defender is wearing", () => {
     ]),
   );
   const body: BattlerDef = {
+    baseHp: DEFAULT_BASE_HP,
     masteries: { toughness: 20, agility: 10, fist: 5 },
     naturalWeapon: {
       type: "weapon",
@@ -359,7 +360,7 @@ const tiles: TileDef[] = [
     walkable: false,
     variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
     interactions: {
-      battler: { masteries: EVENLY_MATCHED, naturalWeapon: claws({}) },
+      battler: { baseHp: 8, masteries: EVENLY_MATCHED, naturalWeapon: claws({}) },
     },
   }),
   // Rated with the player and durable enough to be hit all day. No brain: what
@@ -370,7 +371,7 @@ const tiles: TileDef[] = [
     actor: true,
     walkable: false,
     interactions: {
-      battler: { masteries: EVENLY_MATCHED, naturalWeapon: claws({}) },
+      battler: { baseHp: 8, masteries: EVENLY_MATCHED, naturalWeapon: claws({}) },
     },
   }),
   // Swings constantly and cannot connect: its weapon finds nothing, so almost
@@ -382,6 +383,7 @@ const tiles: TileDef[] = [
     walkable: false,
     interactions: {
       battler: {
+        baseHp: 8,
         masteries: EVENLY_MATCHED,
         naturalWeapon: claws({ accuracy: 0 }),
       },

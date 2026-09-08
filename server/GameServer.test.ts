@@ -2909,6 +2909,7 @@ describe("what a flush writes", () => {
       // empty kit would never have written anyway.
       interactions: {
         battler: {
+          baseHp: 8,
           masteries: { toughness: 4 },
           naturalWeapon: {
             type: "weapon",
@@ -3957,6 +3958,7 @@ describe("casting", () => {
           interactions: {
             ...interactions,
             battler: {
+              baseHp: 8,
               ...battler,
               kit: [
                 ...((battler.kit as unknown[]) ?? []),
@@ -4115,6 +4117,7 @@ describe("saving authored content", () => {
           interactions: {
             ...interactions,
             battler: {
+              baseHp: 8,
               ...battler,
               kit: [
                 ...((battler.kit as unknown[]) ?? []),

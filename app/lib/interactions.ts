@@ -1873,6 +1873,10 @@ export function interactionsForSave(
   const savedKit = kitForSave(battler?.kit);
   const savedBattler = battler
     ? {
+        // Written unconditionally, and never dropped when it matches the
+        // editor's default: it is a required field on the way back in, so a
+        // block saved without one would not parse as a battler at all.
+        baseHp: battler.baseHp ?? DEFAULT_BATTLER.baseHp,
         masteries: Object.fromEntries(
           MASTERIES.filter((mastery) => (battler.masteries?.[mastery] ?? 0) > 0).map(
             (mastery) => [mastery, battler.masteries[mastery]],

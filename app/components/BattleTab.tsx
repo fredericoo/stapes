@@ -1,5 +1,10 @@
 import type { BattlerDef } from "../lib/battler";
-import { DEFAULT_BATTLER, fightingStats } from "../lib/battler";
+import {
+  DEFAULT_BATTLER,
+  fightingStats,
+  MAX_BASE_HP,
+  MIN_BASE_HP,
+} from "../lib/battler";
 import { attackIntervalMs, dodgeChance } from "../game/combat";
 import type { Element } from "../lib/element";
 import { hasAnyInteraction, type TileInteractions } from "../lib/interactions";
@@ -76,14 +81,22 @@ function describeDodge(flee: number): string {
  * ## Why there are no stats to edit here any more
  *
  * There used to be six boxes — max HP, attack, defence, accuracy, flee, speed.
- * They are all still real and none of them is authored: hit points and flee come
- * off the masteries, and the other four are the natural weapon's. The readout at
- * the bottom is the same derivation the simulation runs, which is the only
- * honest way to show numbers nobody types — a readout that could disagree with
- * the formula would be worse than none.
+ * They are all still real and only one of them is authored: flee comes off the
+ * masteries, four are the natural weapon's, and hit points are the masteries'
+ * plus the one number an author still types. Base HP is that number, and it is
+ * here because how big a body is does not fall out of what it has practised —
+ * see `../lib/battler`'s {@link BattlerDef.baseHp}. The readout at the bottom is
+ * the same derivation the simulation runs, which is the only honest way to show
+ * numbers nobody types — a readout that could disagree with the formula would be
+ * worse than none.
  */
 export function BattleTab({ draft, onChange, tiles, statusDefs = {} }: Props) {
   const battler = draft.interactions?.battler ?? DEFAULT_BATTLER;
+  // A draft loaded from a file authored before `baseHp` existed carries none,
+  // and this tab is shown on the Kind select's answer rather than on a
+  // successful parse — so the box needs something to render while the author
+  // fixes what `resolveBattler` is meanwhile reading as "not a battler".
+  const baseHp = battler.baseHp ?? DEFAULT_BATTLER.baseHp;
 
   const setBattler = (next: BattlerDef) => {
     const merged: TileInteractions = { ...draft.interactions, battler: next };
@@ -92,6 +105,8 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {} }: Props) {
       interactions: hasAnyInteraction(merged) ? merged : undefined,
     });
   };
+
+  const setBaseHp = (baseHp: number) => setBattler({ ...battler, baseHp });
 
   const setMastery = (mastery: Mastery, level: number) => {
     setBattler({
@@ -123,6 +138,18 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {} }: Props) {
         <SectionTitle info="Every placement starts at full health, can be targeted and attacked, and is deleted from the map at zero. Independent of Actor and of the brain.">
           Battler
         </SectionTitle>
+
+        <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
+          <StatField
+            label="Base HP"
+            info="Hit points at Toughness zero. Added to what Toughness buys rather than scaling it, so a point of Toughness is worth the same to a rat and to a boss. This is how big the body is, not how trained."
+            hint="How much killing this body takes untrained."
+            value={baseHp}
+            min={MIN_BASE_HP}
+            max={MAX_BASE_HP}
+            onChange={setBaseHp}
+          />
+        </div>
 
         <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
           <FieldLabel info="Fixed for a creature — it never improves. Toughness gives hit points and Agility gives flee; the rest scale whatever it is holding.">

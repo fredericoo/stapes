@@ -3,6 +3,7 @@ import {
   ACCURACY_AT_MAX_MASTERY,
   castingSkill,
   DAMAGE_AT_MAX_MASTERY,
+  DEFAULT_BASE_HP,
   DEFAULT_BATTLER,
   fightingStats,
   fleeFrom,
@@ -53,7 +54,7 @@ function body(masteries: Record<string, number>) {
 
 describe("hit points and flee", () => {
   it("grow with the masteries they come from", () => {
-    expect(maxHpFrom(0)).toBeLessThan(maxHpFrom(1));
+    expect(maxHpFrom(DEFAULT_BASE_HP, 0)).toBeLessThan(maxHpFrom(DEFAULT_BASE_HP, 1));
     expect(fleeFrom(0)).toBeLessThan(fleeFrom(1));
   });
 
@@ -62,7 +63,7 @@ describe("hit points and flee", () => {
    * body has to survive long enough to train the thing.
    */
   it("leaves an untrained body something to start with", () => {
-    expect(maxHpFrom(0)).toBeGreaterThan(0);
+    expect(maxHpFrom(DEFAULT_BASE_HP, 0)).toBeGreaterThan(0);
     expect(fleeFrom(0)).toBeGreaterThan(0);
   });
 
@@ -304,7 +305,7 @@ describe("what a weapon is worth in the hand", () => {
       weapon({ requirements: { blunt: 90 } }),
     );
 
-    expect(bare.maxHp).toBe(maxHpFrom(30));
+    expect(bare.maxHp).toBe(maxHpFrom(DEFAULT_BATTLER.baseHp, 30));
     expect(gated.maxHp).toBe(bare.maxHp);
     expect(gated.flee).toBe(bare.flee);
   });

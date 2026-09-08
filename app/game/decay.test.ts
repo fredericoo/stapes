@@ -110,6 +110,7 @@ const tiles: TileDef[] = [
     kind: "battler",
     interactions: {
       battler: {
+        baseHp: 8,
         masteries: { toughness: 8 },
         naturalWeapon: {
           type: "weapon",
@@ -233,6 +234,7 @@ const tiles: TileDef[] = [
     kind: "battler",
     interactions: {
       battler: {
+        baseHp: 8,
         masteries: { toughness: 1 },
         naturalWeapon: {
           type: "weapon",

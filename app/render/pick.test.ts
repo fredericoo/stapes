@@ -89,6 +89,7 @@ const tilesById = tilesByIdFromList([
     kind: "battler",
     interactions: {
       battler: {
+        baseHp: 8,
         masteries: { toughness: 10 },
         naturalWeapon: {
           type: "weapon",

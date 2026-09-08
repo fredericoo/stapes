@@ -83,6 +83,7 @@ const tiles: TileDef[] = [
     variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
     interactions: {
       battler: {
+        baseHp: 8,
         // Toughness alone, since nothing here is ever dodged at or measured for
         // speed as a defender. No Fist either: a weapon that asks nothing is at
         // full readiness for anybody, so the mastery would buy only the flat
@@ -112,6 +113,7 @@ const tiles: TileDef[] = [
       // swings back. Its Toughness now buys armour as well as health — see
       // {@link DUMMY_DEF}, which every blow in this file is written to clear.
       battler: {
+        baseHp: 8,
         masteries: { toughness: DUMMY_TOUGHNESS },
         naturalWeapon: { type: "weapon", damage: 0, def: 0, accuracy: 50, variance: 0, spd: 0, mastery: "fist" },
       },
@@ -128,6 +130,7 @@ const tiles: TileDef[] = [
     walkable: false,
     interactions: {
       battler: {
+        baseHp: 8,
         masteries: { toughness: 1 },
         naturalWeapon: { type: "weapon", damage: 0, def: 0, accuracy: 50, variance: 0, spd: 0, mastery: "fist" },
         kit: [{ slot: "weapon", tileId: "light-sword", chance: 100 }],
@@ -142,6 +145,7 @@ const tiles: TileDef[] = [
     walkable: false,
     interactions: {
       battler: {
+        baseHp: 8,
         masteries: { toughness: 2 },
         naturalWeapon: { type: "weapon", damage: 0, def: 0, accuracy: 50, variance: 0, spd: 0, mastery: "fist" },
       },

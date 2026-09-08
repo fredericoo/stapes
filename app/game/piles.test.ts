@@ -62,6 +62,7 @@ const tiles: TileDef[] = [
     variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
     interactions: {
       battler: {
+        baseHp: 8,
         masteries: { toughness: 20 },
         naturalWeapon: {
           type: "weapon",

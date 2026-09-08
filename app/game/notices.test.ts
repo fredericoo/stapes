@@ -96,7 +96,7 @@ const tiles: TileDef[] = [
     walkable: false,
     variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
     interactions: {
-      battler: { masteries: EVENLY_MATCHED, naturalWeapon: claws },
+      battler: { baseHp: 8, masteries: EVENLY_MATCHED, naturalWeapon: claws },
     },
   }),
   tile({
@@ -105,7 +105,7 @@ const tiles: TileDef[] = [
     actor: true,
     walkable: false,
     interactions: {
-      battler: { masteries: EVENLY_MATCHED, naturalWeapon: claws },
+      battler: { baseHp: 8, masteries: EVENLY_MATCHED, naturalWeapon: claws },
     },
   }),
 ];
@@ -212,6 +212,7 @@ const rewardTiles: TileDef[] = [
     variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
     interactions: {
       battler: {
+        baseHp: 8,
         masteries: { toughness: 8 },
         naturalWeapon: DEFAULT_WEAPON,
         kit: [{ slot: "bag", tileId: BAG_TILE_ID, chance: 100 }],

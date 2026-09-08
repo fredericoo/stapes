@@ -121,8 +121,15 @@ const CERTAIN = { accuracy: 100, spd: 100 };
  * written as `92` and read as `100` in six places, and the day the curve moved,
  * all six were wrong in a way that read as a broken swing.
  */
+/**
+ * What every body in here is worth before Toughness adds any — see
+ * `../lib/battler`'s `baseHp`. One figure for all of them, so a comparison
+ * between two of these fixtures is a comparison of their masteries.
+ */
+const FIXTURE_BASE_HP = 8;
+
 const PLAYER_TOUGHNESS = 92;
-const PLAYER_MAX_HP = maxHpFrom(PLAYER_TOUGHNESS);
+const PLAYER_MAX_HP = maxHpFrom(FIXTURE_BASE_HP, PLAYER_TOUGHNESS);
 const DUMMY_TOUGHNESS = 42;
 const BRAWLER_TOUGHNESS = 22;
 
@@ -160,6 +167,7 @@ const tiles: TileDef[] = [
     variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
     interactions: {
       battler: {
+        baseHp: FIXTURE_BASE_HP,
         masteries: { toughness: PLAYER_TOUGHNESS },
         naturalWeapon: claws({ damage: feltBy(DUMMY_TOUGHNESS), ...CERTAIN }),
       },
@@ -172,7 +180,7 @@ const tiles: TileDef[] = [
     actor: true,
     walkable: false,
     interactions: {
-      battler: { masteries: { toughness: DUMMY_TOUGHNESS }, naturalWeapon: claws({}) },
+      battler: { baseHp: FIXTURE_BASE_HP, masteries: { toughness: DUMMY_TOUGHNESS }, naturalWeapon: claws({}) },
     },
   }),
   // Armoured past anything the player can do to it.
@@ -185,7 +193,7 @@ const tiles: TileDef[] = [
       // Defence is the weapon's here: nothing is worn, and what a held thing
       // turns aside is its own `def`. Armour is the other source — see
       // `./equipment`'s `wornDefence`.
-      battler: { masteries: { toughness: 2 }, naturalWeapon: claws({ def: 99 }) },
+      battler: { baseHp: FIXTURE_BASE_HP, masteries: { toughness: 2 }, naturalWeapon: claws({ def: 99 }) },
     },
   }),
   tile({
@@ -195,6 +203,7 @@ const tiles: TileDef[] = [
     walkable: false,
     interactions: {
       battler: {
+        baseHp: FIXTURE_BASE_HP,
         masteries: { toughness: BRAWLER_TOUGHNESS },
         naturalWeapon: claws({ damage: feltBy(PLAYER_TOUGHNESS), ...CERTAIN }),
       },
@@ -212,6 +221,7 @@ const tiles: TileDef[] = [
     walkable: false,
     interactions: {
       battler: {
+        baseHp: FIXTURE_BASE_HP,
         masteries: { toughness: BRAWLER_TOUGHNESS },
         naturalWeapon: claws({
           // Enough to be felt, because a venom that only ever landed on a blow
@@ -364,7 +374,7 @@ describe("hit points", () => {
 const ENOUGH_SWINGS_MS = TICK_MS * MIN_ATTACK_TICKS * 6;
 
 /** What the punching bag starts at, so "it took damage" is one comparison. */
-const DUMMY_MAX_HP = maxHpFrom(DUMMY_TOUGHNESS);
+const DUMMY_MAX_HP = maxHpFrom(FIXTURE_BASE_HP, DUMMY_TOUGHNESS);
 
 /**
  * Long enough to finish it off, with room for the swings that come to nothing.
@@ -432,6 +442,7 @@ describe("swinging at a target", () => {
             ...t,
             interactions: {
               battler: {
+                baseHp: FIXTURE_BASE_HP,
                 masteries: { toughness: PLAYER_TOUGHNESS },
                 naturalWeapon: claws({ damage: 1, accuracy: 100 }),
               },
@@ -811,6 +822,7 @@ const archerTiles: TileDef[] = tiles.map((t) =>
         ...t,
         interactions: {
           battler: {
+            baseHp: FIXTURE_BASE_HP,
             // No Ranged mastery, deliberately: the bow asks for none, so the
             // level would buy nothing but the flat skill bonus — and these
             // tests are about reach and arrows, not about how hard an archer
@@ -1007,6 +1019,7 @@ describe("venom", () => {
             ...t,
             interactions: {
               battler: {
+                baseHp: FIXTURE_BASE_HP,
                 masteries: { toughness: PLAYER_TOUGHNESS },
                 naturalWeapon: claws({ damage: 5, ...CERTAIN }),
                 kit: [{ slot: "weapon", tileId: "venom-fang", chance: 100 }],
@@ -1097,6 +1110,7 @@ describe("what a swing costs in footwork", () => {
             ...(walkDurationMs == null ? {} : { walkDurationMs }),
             interactions: {
               battler: {
+                baseHp: FIXTURE_BASE_HP,
                 masteries: { toughness: 92 },
                 naturalWeapon: claws({ damage: 5, accuracy: 100, spd: 0 }),
               },

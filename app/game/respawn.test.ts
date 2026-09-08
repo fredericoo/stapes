@@ -80,6 +80,7 @@ const tiles: TileDef[] = [
     interactions: {
       respawn: RESPAWN,
       battler: {
+        baseHp: 8,
         masteries: { toughness: 1 },
         naturalWeapon: DEFAULT_WEAPON,
         kit: [{ slot: "weapon", tileId: "coin", chance: 100 }],

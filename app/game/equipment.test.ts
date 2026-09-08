@@ -235,7 +235,7 @@ describe("effectiveBattler", () => {
     };
     for (const equipment of [null, emptyEquipment(), kit]) {
       const out = effectiveBattler(base, equipment, lightTiles, firstHand(equipment, lightTiles));
-      expect(out.maxHp).toBe(maxHpFrom(20));
+      expect(out.maxHp).toBe(maxHpFrom(base.baseHp, 20));
       expect(out.flee).toBe(fleeFrom(6));
     }
   });

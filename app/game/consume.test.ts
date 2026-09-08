@@ -56,8 +56,9 @@ function tile(partial: Record<string, unknown>): TileDef {
  * more: the curve accelerates, so the last points are worth three each. See
  * `../lib/battler`'s `maxHpFrom`.
  */
+const PLAYER_BASE_HP = 8;
 const PLAYER_TOUGHNESS = 92;
-const PLAYER_MAX_HP = maxHpFrom(PLAYER_TOUGHNESS);
+const PLAYER_MAX_HP = maxHpFrom(PLAYER_BASE_HP, PLAYER_TOUGHNESS);
 
 /** A consumable that grants statuses instead of moving hit points on the spot. */
 function granter(id: string, statuses: StatusGrant[]): TileDef {
@@ -96,6 +97,7 @@ const tiles: TileDef[] = [
     variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
     interactions: {
       battler: {
+        baseHp: PLAYER_BASE_HP,
         masteries: { toughness: PLAYER_TOUGHNESS },
         naturalWeapon: { type: "weapon", damage: 5, def: 0, accuracy: 100, variance: 0, spd: 100, mastery: "fist" },
         // Where the bag on a player's back comes from — see `app/lib/kit.ts`.
