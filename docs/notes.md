@@ -5014,6 +5014,71 @@ the same cave instead of reshuffling the one already on screen. The seed is a
 setting with a Re-roll button beside it, so the same rectangle carves the same
 cave until you ask for a different one.
 
+## A forest is a path and what grows either side of it
+
+The forest generator (`app/editor/forest.ts`) lays a ground tile over the whole
+rectangle, cuts one to three paths edge to edge across it, and plants trees
+everywhere else at a density that rises with the distance from the nearest path.
+
+**The path comes first and everything is measured from it.** Planting a wood
+and then clearing a route through it gives a corridor through noise — a gap of
+constant width with no relationship to what is either side of it. Measuring
+from the path gives a route that opens out where it runs and closes in where it
+does not, which is what a wood with a track through it actually looks like.
+
+Because each path runs edge to edge, **its two ends are the way in.** That
+matters at high densities, where the outer ring of the rectangle is nearly
+solid: the wood reads as a wall of trees from the field beside it, and the
+path's mouths are the gaps.
+
+### What sets the chance of a tree
+
+Four terms, multiplied:
+
+- **Distance from the nearest path**, which is the whole idea. The falloff is
+  proportional — 40% of the rectangle's shorter side, and never under six cells
+  — rather than a fixed number. At a fixed six, everything past a path's verges
+  is at full density and a large wood is a solid block with a corridor in it;
+  the thinning is the point and it has to be visible across the whole thing.
+- **The density setting**, which is the ceiling the rest scales.
+- **A noise field**, so the wood has stands and glades in it. Without it the
+  density is a smooth function of one number, and a smooth function of one
+  number reads as a gradient rather than as trees.
+- **Nearness to the rectangle's own edge**, worth up to half as much again over
+  the outer four cells. A wood you can see into from outside is a copse.
+
+### The same two rules a cave is held to
+
+- **No gap you can walk through is one cell wide.** `widenToTwo` again, and here
+  closing a cell means planting a tree in it. The reason is the camera's, not
+  the wood's: a one-cell gap between two trees is drawn over by the tree in
+  front of it, so it is somewhere you can walk and cannot see.
+- **Nothing you can walk to is unreachable from a path.** `joinRegions` cuts a
+  two-wide track from the path to every glade big enough to be worth one, and
+  what is left over is planted. A glade walled in by trees is, on the map,
+  indistinguishable from a mistake. Filling everything unreachable instead —
+  which is what this did first — turned half of a 40×40 wood into one solid
+  block of trees, because a single path across the middle cannot reach past a
+  dense band on either side of it.
+
+**A path two cells wide has to be thickened at its corners.** Where it steps
+sideways it is a staircase, and the outer corner of a two-wide staircase
+belongs to no clear 2×2 square — so `widenToTwo` would plant a tree in the path
+itself. The two columns either side of a step are given the union of their
+bands, which makes them identical where they meet.
+
+### The path and the water are the same shapes as the cave's
+
+The path tile is laid **on top of** the ground tile, which is the grammar the
+town's own roads use: `grass-2` with `cobblestone` over it. `None` still cuts
+the route and still measures the trees from it — it just leaves it as a
+clearing rather than flooring it.
+
+Water is the same pass a cave uses, and it erodes the same way: a stream that
+runs into a tree takes the tree out, and `cutFords` then breaks it wherever it
+would otherwise cut the wood in two. Undergrowth is the same scatter pass, on
+cells that are neither path nor water.
+
 ## Renderer and simulation performance
 
 The game targets **120fps — an 8.3ms frame budget**, and the whole budget is

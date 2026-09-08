@@ -21,6 +21,12 @@ import {
   type CaveShape,
 } from "./cave";
 import {
+  FOREST_DENSITY_RANGE,
+  PATH_COUNT_RANGE,
+  PATH_WIDTH_RANGE,
+  type ForestConfig,
+} from "./forest";
+import {
   ROOF_COLOUR_IDS,
   WINDOW_SPACING_RANGE,
   type HouseConfig,
@@ -76,16 +82,41 @@ export const DEFAULT_CAVE_CONFIG: CaveConfig = {
   scatter: [],
 };
 
+/**
+ * A wood of the map's own trees on the map's own grass, with a dirt track
+ * through it — the forest at the town's south gate, in other words, which is
+ * what anybody growing a second one is copying.
+ */
+export const DEFAULT_FOREST_CONFIG: ForestConfig = {
+  generator: "forest",
+  seed: 0xf07e57,
+  density: 55,
+  groundTileId: "grass-2",
+  treeTileId: "tree",
+  paths: 1,
+  pathWidth: 2,
+  pathTileId: "dirt",
+  waterTileId: null,
+  waterCoverage: 8,
+  scatter: [{ tileId: "small-bush", chancePercent: 4 }],
+};
+
 export const DEFAULT_PROCEDURAL_SETTINGS: ProceduralSettings = {
   active: "house",
   house: DEFAULT_HOUSE_CONFIG,
   cave: DEFAULT_CAVE_CONFIG,
+  forest: DEFAULT_FOREST_CONFIG,
 };
 
 export const STOREY_RANGE = { min: 1, max: MAX_STOREYS } as const;
 
-/** Every 0–100 control the cave form has, which are all read the same way. */
+/** Every 0–100 control these forms have, which are all read the same way. */
 const PercentSchema = v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(100));
+
+const ScatterSchema = v.pipe(
+  v.array(v.object({ tileId: v.string(), chancePercent: PercentSchema })),
+  v.maxLength(MAX_SCATTER_RULES),
+);
 
 const HouseConfigSchema = v.object({
   generator: v.literal("house"),
@@ -137,10 +168,7 @@ const CaveConfigSchema = v.object({
   accentCoverage: PercentSchema,
   waterTileId: v.nullable(v.string()),
   waterCoverage: PercentSchema,
-  scatter: v.pipe(
-    v.array(v.object({ tileId: v.string(), chancePercent: PercentSchema })),
-    v.maxLength(MAX_SCATTER_RULES),
-  ),
+  scatter: ScatterSchema,
 });
 
 /**
@@ -149,10 +177,40 @@ const CaveConfigSchema = v.object({
  * newer version of the form — or one whose wall tile has since been renamed —
  * costs the cave and not the house saved beside it.
  */
+const ForestConfigSchema = v.object({
+  generator: v.literal("forest"),
+  seed: v.pipe(v.number(), v.integer()),
+  density: v.pipe(
+    v.number(),
+    v.integer(),
+    v.minValue(FOREST_DENSITY_RANGE.min),
+    v.maxValue(FOREST_DENSITY_RANGE.max),
+  ),
+  groundTileId: v.string(),
+  treeTileId: v.string(),
+  paths: v.pipe(
+    v.number(),
+    v.integer(),
+    v.minValue(PATH_COUNT_RANGE.min),
+    v.maxValue(PATH_COUNT_RANGE.max),
+  ),
+  pathWidth: v.pipe(
+    v.number(),
+    v.integer(),
+    v.minValue(PATH_WIDTH_RANGE.min),
+    v.maxValue(PATH_WIDTH_RANGE.max),
+  ),
+  pathTileId: v.nullable(v.string()),
+  waterTileId: v.nullable(v.string()),
+  waterCoverage: PercentSchema,
+  scatter: ScatterSchema,
+});
+
 const SettingsSchema = v.object({
-  active: v.picklist(["house", "cave"] as [GeneratorId, ...GeneratorId[]]),
+  active: v.picklist(["house", "cave", "forest"] as [GeneratorId, ...GeneratorId[]]),
   house: v.unknown(),
   cave: v.unknown(),
+  forest: v.unknown(),
 });
 
 type KnownTileId = (id: string) => boolean;
@@ -186,6 +244,21 @@ function readHouse(raw: unknown, known: KnownTileId): HouseConfig {
   };
 }
 
+function readForest(raw: unknown, known: KnownTileId): ForestConfig {
+  const parsed = v.safeParse(ForestConfigSchema, raw);
+  if (!parsed.success) return DEFAULT_FOREST_CONFIG;
+  const config = parsed.output;
+  if (!known(config.groundTileId) || !known(config.treeTileId)) {
+    return DEFAULT_FOREST_CONFIG;
+  }
+  return {
+    ...config,
+    pathTileId: keptOptionalTile(config.pathTileId, known),
+    waterTileId: keptOptionalTile(config.waterTileId, known),
+    scatter: config.scatter.filter((rule) => known(rule.tileId)),
+  };
+}
+
 function readCave(raw: unknown, known: KnownTileId): CaveConfig {
   const parsed = v.safeParse(CaveConfigSchema, raw);
   if (!parsed.success) return DEFAULT_CAVE_CONFIG;
@@ -212,6 +285,7 @@ export function loadProceduralSettings(known: KnownTileId): ProceduralSettings {
       active: parsed.output.active,
       house: readHouse(parsed.output.house, known),
       cave: readCave(parsed.output.cave, known),
+      forest: readForest(parsed.output.forest, known),
     };
   } catch {
     // Unparseable, or storage is blocked — the defaults build a working house.
