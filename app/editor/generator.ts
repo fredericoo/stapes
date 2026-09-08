@@ -13,9 +13,14 @@
  * their floors with in exactly the same way.
  */
 
-import type { StackEdit } from "../lib/mapData";
-import type { Direction, PlacedTile, TileDef } from "../lib/types";
-import { HEIGHT_PER_LEVEL, isDirectional, physicalHeight } from "../lib/types";
+import { getStack, type StackEdit } from "../lib/mapData";
+import type { Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
+import {
+  HEIGHT_PER_LEVEL,
+  isDirectional,
+  physicalHeight,
+  resolveWalkable,
+} from "../lib/types";
 
 export type Rect = { x0: number; y0: number; x1: number; y1: number };
 
@@ -205,6 +210,165 @@ export function regionsOf(g: CellGrid, mask?: Uint8Array): number[][] {
   }
   regions.sort((a, b) => b.length - a.length);
   return regions;
+}
+
+// ---------------------------------------------------------------------------
+// Joining on to what is already there
+// ---------------------------------------------------------------------------
+
+/**
+ * Whether the cell at `x,y` is ground of the kind this generator lays, and
+ * clear enough to walk in from.
+ *
+ * **The floor has to be the top of the stack, not somewhere in it.** A cave's
+ * rock stands on the same floor its cave does — see `planCave` — so a shell
+ * cell contains the floor tile as surely as an open one does, and a test that
+ * only asked whether the tile was present would read every wall as an
+ * invitation. Anything standing on the floor is an obstruction for the same
+ * reason: a bush is not a way in.
+ */
+export function isJoinableGround(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  z: number,
+  floorTileIds: readonly string[],
+): (x: number, y: number) => boolean {
+  const ours = new Set(floorTileIds);
+  return (x, y) => {
+    const stack = getStack(map, x, y, z);
+    const top = stack[stack.length - 1];
+    if (!top || !ours.has(top.tileId)) return false;
+    const def = tilesById[top.tileId];
+    return def ? resolveWalkable(def) : false;
+  };
+}
+
+/** A cell on the rectangle's border, and the way in from it. */
+export type Connection = {
+  x: number;
+  y: number;
+  inward: { dx: number; dy: number };
+};
+
+/**
+ * Where the rectangle should open on to what is already around it.
+ *
+ * Each side is walked for runs of border cells whose outside neighbour is
+ * ground you could step in from, and **each run gives one opening, at its
+ * middle** rather than one per cell. Opening the whole run would take the
+ * shell off a cave's entire flank, and would strip the dither off a forest's
+ * edge — the point is a way through, not a missing side.
+ */
+export function connectionsAlongBorder(
+  bounds: Bounds,
+  joinable: (x: number, y: number) => boolean,
+): Connection[] {
+  const sides: Array<{
+    /** Along the side, from `lo` to `hi`. */
+    lo: number;
+    hi: number;
+    /** The border cell, and the cell outside it, for a position along the side. */
+    border: (at: number) => { x: number; y: number };
+    outside: (at: number) => { x: number; y: number };
+    inward: { dx: number; dy: number };
+  }> = [
+    {
+      lo: bounds.minX,
+      hi: bounds.maxX,
+      border: (at) => ({ x: at, y: bounds.minY }),
+      outside: (at) => ({ x: at, y: bounds.minY - 1 }),
+      inward: { dx: 0, dy: 1 },
+    },
+    {
+      lo: bounds.minX,
+      hi: bounds.maxX,
+      border: (at) => ({ x: at, y: bounds.maxY }),
+      outside: (at) => ({ x: at, y: bounds.maxY + 1 }),
+      inward: { dx: 0, dy: -1 },
+    },
+    {
+      lo: bounds.minY,
+      hi: bounds.maxY,
+      border: (at) => ({ x: bounds.minX, y: at }),
+      outside: (at) => ({ x: bounds.minX - 1, y: at }),
+      inward: { dx: 1, dy: 0 },
+    },
+    {
+      lo: bounds.minY,
+      hi: bounds.maxY,
+      border: (at) => ({ x: bounds.maxX, y: at }),
+      outside: (at) => ({ x: bounds.maxX + 1, y: at }),
+      inward: { dx: -1, dy: 0 },
+    },
+  ];
+
+  const out: Connection[] = [];
+  for (const side of sides) {
+    let runStart: number | null = null;
+    for (let at = side.lo; at <= side.hi + 1; at++) {
+      const here = at <= side.hi;
+      const joined = here && joinable(side.outside(at).x, side.outside(at).y);
+      if (joined && runStart === null) runStart = at;
+      if (joined || runStart === null) continue;
+      const middle = Math.floor((runStart + at - 1) / 2);
+      out.push({ ...side.border(middle), inward: side.inward });
+      runStart = null;
+    }
+  }
+  return out;
+}
+
+/**
+ * Cut a two-wide way in from `connection` until it meets open ground.
+ *
+ * Two wide for the reason everything here is two wide, and it stops as soon as
+ * the cells ahead of it are already open so that joining on to a cave whose
+ * floor reaches the shell costs one cell rather than a corridor. A run that
+ * never meets anything stops at `maxDepth` and is left for {@link joinRegions},
+ * which is why `maxDepth` wants to be deep enough that the stub is worth
+ * joining rather than filling in.
+ *
+ * Returns the cells it opened, since a forest counts them as another way in
+ * when it decides what is reachable.
+ */
+export function openConnection(
+  g: CellGrid,
+  bounds: Bounds,
+  connection: Connection,
+  maxDepth: number,
+): number[] {
+  const opened: number[] = [];
+  const { dx, dy } = connection.inward;
+  // The brush is anchored so both of its cells stay inside the rectangle.
+  const anchor = (x: number, y: number) => ({
+    x: Math.min(Math.max(x, bounds.minX), Math.max(bounds.minX, bounds.maxX - 1)),
+    y: Math.min(Math.max(y, bounds.minY), Math.max(bounds.minY, bounds.maxY - 1)),
+  });
+  let { x, y } = connection;
+  for (let depth = 0; depth <= maxDepth; depth++) {
+    const at = anchor(x, y);
+    const met =
+      depth > 0 &&
+      isOpen(g, at.x, at.y) &&
+      isOpen(g, at.x + 1, at.y) &&
+      isOpen(g, at.x, at.y + 1) &&
+      isOpen(g, at.x + 1, at.y + 1);
+    for (const cell of [
+      { x: at.x, y: at.y },
+      { x: at.x + 1, y: at.y },
+      { x: at.x, y: at.y + 1 },
+      { x: at.x + 1, y: at.y + 1 },
+    ]) {
+      if (!inGrid(g, cell.x, cell.y)) continue;
+      setOpen(g, cell.x, cell.y, true);
+      opened.push(gridIndex(g, cell.x, cell.y));
+    }
+    if (met) return opened;
+    x += dx;
+    y += dy;
+    if (!inGrid(g, x, y)) return opened;
+  }
+  return opened;
 }
 
 // ---------------------------------------------------------------------------

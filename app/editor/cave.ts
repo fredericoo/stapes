@@ -20,21 +20,25 @@ import {
   MAX_FOOTPRINT,
   type Bounds,
   type CellGrid,
+  type Connection,
   type GeneratedPlan,
   type Rect,
   type ScatterRule,
   boundsOf,
   columnOf,
+  connectionsAlongBorder,
   countOpen,
   cutFords,
   fbm,
   gridIndex,
   gridX,
   gridY,
+  isJoinableGround,
   isOpen,
   mulberry32,
   newGrid,
   openCells,
+  openConnection,
   placed,
   planScatter,
   planWater,
@@ -200,6 +204,16 @@ const JOIN_SAMPLES = 48;
 
 /** Rounds of widening and joining before the leftovers are filled in instead. */
 const JOIN_ATTEMPTS = 4;
+
+/**
+ * How far in a way-in from the neighbouring cave is cut before it gives up and
+ * leaves the rest to {@link joinRegions}.
+ *
+ * Six, so that a stub which meets nothing is twelve cells and comfortably over
+ * {@link MIN_REGION_CELLS} — under it the way in would be filled back in as
+ * not worth reaching, which is the opposite of what it is for.
+ */
+const CONNECTION_DEPTH = 6;
 
 const STEPS = [
   { dx: 0, dy: -1 },
@@ -455,7 +469,11 @@ function boreLine(
 }
 
 /** The grid a shape leaves once it has been widened and joined up. */
-export function carveCave(bounds: Bounds, config: CaveConfig): CellGrid {
+export function carveCave(
+  bounds: Bounds,
+  config: CaveConfig,
+  connections: readonly Connection[] = [],
+): CellGrid {
   const grid = newGrid(bounds);
   const box = inner(bounds);
   if (box.minX > box.maxX || box.minY > box.maxY) return grid;
@@ -463,6 +481,12 @@ export function carveCave(bounds: Bounds, config: CaveConfig): CellGrid {
   if (config.shape === "caverns") carveCaverns(grid, box, config);
   else if (config.shape === "veins") carveVeins(grid, box, config);
   else carveTunnels(grid, box, config);
+
+  // Ways in are cut before the widening, so they are held to the same rules as
+  // the rest of the cave and so joining can reach them.
+  for (const connection of connections) {
+    openConnection(grid, bounds, connection, CONNECTION_DEPTH);
+  }
 
   // Widening and joining each undo a little of the other: widening a corridor
   // to two cells can pinch it shut, and the corridor bored to replace it can
@@ -592,7 +616,20 @@ export function planCave(
     }
   }
 
-  const grid = carveCave(bounds, config);
+  // **Where the rectangle meets a floor of its own kind, it opens on to it.**
+  // That is what lets a big cave be dragged as several rectangles: land the new
+  // one a couple of cells over the old one, and the wall between them is
+  // notched through rather than doubled. The accent floor counts, since it is
+  // the same ground.
+  const ourFloors = [config.floorTileId, config.accentFloorTileId].filter(
+    (id): id is string => id !== null,
+  );
+  const connections = connectionsAlongBorder(
+    bounds,
+    isJoinableGround(map, tilesById, z, ourFloors),
+  );
+
+  const grid = carveCave(bounds, config, connections);
   if (countOpen(grid) === 0) {
     return {
       ok: false,

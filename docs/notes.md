@@ -4935,6 +4935,32 @@ edge — the ledges — are taken only where rock meets floor *inside* the
 rectangle, because a low wall on the shell is a hole in the block-out, and what
 you see over it is whatever the map has outside, which is usually nothing.
 
+### A rectangle opens on to ground of its own kind
+
+**A big cave is several drags, so the rectangles have to join.** Every side of a
+new rectangle is walked for runs of border cells whose outside neighbour is
+ground this generator would lay itself, and each run gets **one** way in, at its
+middle: a two-cell notch bored inward until it meets open ground. One per run
+rather than one per cell — opening the whole run takes the shell off a cave's
+entire flank.
+
+**The floor has to be the top of that stack, not somewhere in it.** A cave's
+rock stands on the same floor its cave does, so a shell cell contains the floor
+tile as surely as an open one; a test that only asked whether the tile was
+present would read every wall as an invitation. Anything standing on the floor
+disqualifies it for the same reason — a bush is not a way in — and so does
+ground of another kind, which is what stops a cave opening on to the grass
+beside it.
+
+**Nothing outside the rectangle is ever written**, which is what sets how far
+the new one has to land over the old. A cave's shell is a cell of rock, and the
+carve just inside it is nearly always rock too — the automaton counts what is
+off the grid as rock, which weights the outermost column solid. Edge to edge
+sees rock; one cell over sees the column behind it, which is also rock. **Two
+cells in is the first place the neighbour's floor reaches.** The drag preview
+shows the notch the moment it is found, so the right overlap is something you
+can see rather than something to remember.
+
 ### Water cuts its own channel
 
 The water is laid over the inside of the rectangle rather than over the floor

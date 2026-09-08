@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
 import tilesRaw from "../../data/tiles.json";
+import { emptyMap, setStacks } from "../lib/mapData";
 import type { TileDef } from "../lib/types";
 import { normalizeTiles } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import {
   columnOf,
+  connectionsAlongBorder,
   cutFords,
   gridIndex,
+  isJoinableGround,
   isOpen,
   newGrid,
+  openConnection,
   planScatter,
   planWater,
   regionsOf,
@@ -284,5 +288,110 @@ describe("planScatter", () => {
       if (tileId !== "small-bush") continue;
       expect(after.get(key)).toBe("small-bush");
     }
+  });
+});
+
+describe("connectionsAlongBorder", () => {
+  const BOUNDS = { minX: 0, maxX: 9, minY: 0, maxY: 9 };
+
+  it("gives one way in per run, at its middle", () => {
+    // Ground along the west side, outside cells (-1, 2) to (-1, 6).
+    const joinable = (x: number, y: number) => x === -1 && y >= 2 && y <= 6;
+    const found = connectionsAlongBorder(BOUNDS, joinable);
+    expect(found).toEqual([
+      { x: 0, y: 4, inward: { dx: 1, dy: 0 } },
+    ]);
+  });
+
+  it("gives each run of ground its own way in", () => {
+    const joinable = (x: number, y: number) =>
+      y === -1 && ((x >= 1 && x <= 3) || (x >= 7 && x <= 8));
+    const found = connectionsAlongBorder(BOUNDS, joinable);
+    expect(found.map((c) => c.x)).toEqual([2, 7]);
+    expect(found.every((c) => c.y === 0 && c.inward.dy === 1)).toBe(true);
+  });
+
+  it("finds nothing when the rectangle stands on its own", () => {
+    expect(connectionsAlongBorder(BOUNDS, () => false)).toEqual([]);
+  });
+});
+
+describe("isJoinableGround", () => {
+  const map = setStacks(emptyMap(), [
+    { x: 0, y: 0, z: 0, stack: [{ tileId: "dirt" }] },
+    // A cave's rock stands on the same floor its cave does.
+    { x: 1, y: 0, z: 0, stack: [{ tileId: "dirt" }, { tileId: "half-stone" }, { tileId: "half-stone" }] },
+    { x: 2, y: 0, z: 0, stack: [{ tileId: "dirt" }, { tileId: "small-bush" }] },
+    { x: 3, y: 0, z: 0, stack: [{ tileId: "dirt" }, { tileId: "water" }] },
+    { x: 4, y: 0, z: 0, stack: [{ tileId: "grass-2" }] },
+  ]);
+  const joinable = isJoinableGround(map, tilesById, 0, ["dirt"]);
+
+  it("takes bare floor of its own kind", () => {
+    expect(joinable(0, 0)).toBe(true);
+  });
+
+  it("refuses a wall standing on that floor", () => {
+    expect(joinable(1, 0)).toBe(false);
+  });
+
+  it("refuses floor with something on it", () => {
+    expect(joinable(2, 0)).toBe(false);
+    expect(joinable(3, 0)).toBe(false);
+  });
+
+  it("refuses ground of another kind, and nothing at all", () => {
+    expect(joinable(4, 0)).toBe(false);
+    expect(joinable(9, 9)).toBe(false);
+  });
+});
+
+describe("openConnection", () => {
+  it("cuts two cells wide, and stops where it meets open ground", () => {
+    const g = gridOf([
+      "########",
+      "########",
+      "##....##",
+      "##....##",
+      "########",
+      "########",
+    ]);
+    openConnection(
+      g,
+      { minX: 0, maxX: 7, minY: 0, maxY: 5 },
+      { x: 0, y: 2, inward: { dx: 1, dy: 0 } },
+      6,
+    );
+    expect(rowsOf(g)).toEqual([
+      "########",
+      "########",
+      "......##",
+      "......##",
+      "########",
+      "########",
+    ]);
+  });
+
+  it("stops at the depth it is given when it meets nothing", () => {
+    // `maxDepth` counts steps inward, and the brush is two cells deep, so two
+    // steps reach four cells in.
+    const g = gridOf([
+      "######",
+      "######",
+      "######",
+      "######",
+    ]);
+    openConnection(
+      g,
+      { minX: 0, maxX: 5, minY: 0, maxY: 3 },
+      { x: 0, y: 1, inward: { dx: 1, dy: 0 } },
+      2,
+    );
+    expect(rowsOf(g)).toEqual([
+      "######",
+      "....##",
+      "....##",
+      "######",
+    ]);
   });
 });

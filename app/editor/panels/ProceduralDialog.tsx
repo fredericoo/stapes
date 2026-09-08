@@ -870,7 +870,8 @@ function CaveForm({
 
       <p className="text-xs text-muted">
         Drag a rectangle on the map to carve it. Everything on the current level
-        inside the rectangle is replaced.
+        inside the rectangle is replaced. Land it a couple of cells over another
+        cave with the same floor and the two are notched through to each other.
       </p>
     </>
   );
