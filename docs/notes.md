@@ -4675,9 +4675,17 @@ which is why those two are worth keeping intact.
 keeps two from each corner, which is what puts the door of a five-wide wall
 dead centre — where the cottage's is — and what makes a four-wide wall have
 nowhere to put one, so a house that small gets none rather than a door in its
-corner. Windows keep one from the corners and two from each other, and two from
-the door: one would only say "not the door's own cell", which the door already
-says for itself.
+corner. Windows keep one from the corners and two from the door: one would only
+say "not the door's own cell", which the door already says for itself.
+
+**How far apart windows sit is authored, not fixed.** It is the one number here
+whose right answer is not a property of the tiles — two cells is a shopfront
+and five is a cottage, and which of those a building is meant to be is the
+thing being decided — so it is a setting, floored at two because one puts a
+window in every wall cell. Whatever fits at that spacing is centred on the
+wall, measuring the leftover against the cells the windows *occupy* rather than
+against the gaps between them; getting that wrong shifts the whole run one cell
+along at wide spacings, which reads as a mistake rather than as a choice.
 
 **The door's placement is two coordinates, not eight directions.** A row
 (north / centre / south) and a column (west / centre / east). The row picks the

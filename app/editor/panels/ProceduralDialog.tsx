@@ -13,6 +13,7 @@ import {
 import {
   ROOF_COLOURS,
   ROOF_COLOUR_IDS,
+  WINDOW_SPACING_RANGE,
   type DoorColumn,
   type DoorRow,
   type HouseConfig,
@@ -462,19 +463,36 @@ export function ProceduralDialog({
         </div>
 
         <div className="flex flex-col gap-1">
-          <FieldLabel info="Set into every storey's walls, clear of the corners and two cells apart. None leaves the walls blank.">
+          <FieldLabel info="Set into every storey's walls, clear of the corners and of the door. None leaves the walls blank.">
             Windows
           </FieldLabel>
-          <TileChoiceRow
-            label="Window tile"
-            tileIds={WINDOW_TILE_IDS}
-            value={draft.windowTileId}
-            onChange={(windowTileId) => patch({ windowTileId })}
-            tiles={tiles}
-            tilesets={tilesets}
-            allowNone
-            direction="s"
-          />
+          <div className="flex flex-wrap items-end gap-3">
+            <TileChoiceRow
+              label="Window tile"
+              tileIds={WINDOW_TILE_IDS}
+              value={draft.windowTileId}
+              onChange={(windowTileId) => patch({ windowTileId })}
+              tiles={tiles}
+              tilesets={tilesets}
+              allowNone
+              direction="s"
+            />
+            <div className="flex flex-col items-start gap-1">
+              <FieldLabel info="Cells from one window to the next along a wall. Bigger is further apart; a wall too short for two gets one.">
+                Spacing
+              </FieldLabel>
+              <NumberInput
+                className="w-20"
+                aria-label="Window spacing"
+                value={draft.windowSpacing}
+                min={WINDOW_SPACING_RANGE.min}
+                max={WINDOW_SPACING_RANGE.max}
+                step={1}
+                disabled={draft.windowTileId === null}
+                onChange={(windowSpacing) => patch({ windowSpacing })}
+              />
+            </div>
+          </div>
         </div>
 
         <div className="flex flex-col gap-1">

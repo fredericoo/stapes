@@ -66,6 +66,8 @@ export type HouseConfig = {
   floorTileId: string;
   /** `null` leaves the walls blank so windows can be placed by hand. */
   windowTileId: string | null;
+  /** Cells between one window and the next along a wall. @see WINDOW_SPACING_RANGE */
+  windowSpacing: number;
   /** `null` leaves the doorway to be cut by hand. */
   doorTileId: string | null;
   doorRow: DoorRow;
@@ -100,7 +102,17 @@ const WINDOW_MIN_FROM_CORNER = 1;
  * between them.
  */
 const WINDOW_MIN_FROM_DOOR = 2;
-const WINDOW_SPACING = 2;
+
+/**
+ * How far apart windows may be set, as an index distance along the wall run.
+ *
+ * Authored rather than fixed, because the right answer is not a property of
+ * the tiles: two is a shopfront and five is a cottage, and which one a house
+ * wants is the thing being decided. The floor is two — one would put windows
+ * in every wall cell — and the ceiling is only there so a number typed by
+ * accident cannot silently mean "one window, somewhere near the middle".
+ */
+export const WINDOW_SPACING_RANGE = { min: 2, max: 12 } as const;
 
 type Bounds = { minX: number; maxX: number; minY: number; maxY: number };
 
@@ -201,26 +213,31 @@ export function doorSpotFor(
 
 /**
  * Window positions along one wall run, centred on it and stepped by
- * {@link WINDOW_SPACING}. `blocked` is the door's position on this same wall,
- * when there is one.
+ * `spacing`. `blocked` is the door's position on this same wall, when there is
+ * one.
  */
 export function windowsAlong(
   lo: number,
   hi: number,
   blocked: number | null,
+  spacing: number,
 ): number[] {
   const first = lo + WINDOW_MIN_FROM_CORNER;
   const last = hi - WINDOW_MIN_FROM_CORNER;
   if (first > last) return [];
 
   const run = last - first + 1;
-  const count = Math.floor((run - 1) / WINDOW_SPACING) + 1;
-  const spread = (count - 1) * WINDOW_SPACING;
-  const start = first + Math.floor((run - spread) / 2);
+  const step = Math.max(WINDOW_SPACING_RANGE.min, Math.floor(spacing));
+  const count = Math.floor((run - 1) / step) + 1;
+  // The windows occupy `spread + 1` cells end to end, so what is left over to
+  // share between the two corners is measured against that and not against the
+  // gaps alone — otherwise a wide spacing pushes the whole run one cell along.
+  const spread = (count - 1) * step;
+  const start = first + Math.floor((run - (spread + 1)) / 2);
 
   const out: number[] = [];
   for (let i = 0; i < count; i++) {
-    const at = start + i * WINDOW_SPACING;
+    const at = start + i * step;
     if (at > last) break;
     if (blocked != null && Math.abs(at - blocked) < WINDOW_MIN_FROM_DOOR) {
       continue;
@@ -234,6 +251,7 @@ export function windowsAlong(
 function windowCells(
   bounds: Bounds,
   door: DoorSpot | null,
+  spacing: number,
 ): Map<string, Direction> {
   const { minX, maxX, minY, maxY } = bounds;
   const out = new Map<string, Direction>();
@@ -245,13 +263,13 @@ function windowCells(
 
   for (const wall of ["n", "s"] as const) {
     const y = wall === "n" ? minY : maxY;
-    for (const x of windowsAlong(minX, maxX, doorAlong(wall))) {
+    for (const x of windowsAlong(minX, maxX, doorAlong(wall), spacing)) {
       out.set(`${x},${y}`, windowDirectionFor(wall));
     }
   }
   for (const wall of ["w", "e"] as const) {
     const x = wall === "w" ? minX : maxX;
-    for (const y of windowsAlong(minY, maxY, doorAlong(wall))) {
+    for (const y of windowsAlong(minY, maxY, doorAlong(wall), spacing)) {
       out.set(`${x},${y}`, windowDirectionFor(wall));
     }
   }
@@ -275,7 +293,9 @@ function storeyEdits(
   standingOn: (x: number, y: number) => readonly PlacedTile[],
 ): StackEdit[] {
   const { minX, maxX, minY, maxY } = bounds;
-  const windows = config.windowTileId ? windowCells(bounds, door) : new Map();
+  const windows = config.windowTileId
+    ? windowCells(bounds, door, config.windowSpacing)
+    : new Map();
   const floor = placed(config.floorTileId, tilesById);
   const edits: StackEdit[] = [];
 

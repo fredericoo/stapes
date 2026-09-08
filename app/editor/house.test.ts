@@ -23,6 +23,7 @@ const BASE: HouseConfig = {
   wallTileId: "sw2",
   floorTileId: "wooden-floor",
   windowTileId: "window-1",
+  windowSpacing: 2,
   doorTileId: "door-closed",
   doorRow: "south",
   doorColumn: "centre",
@@ -141,17 +142,28 @@ describe("doorSpotFor", () => {
 });
 
 describe("windowsAlong", () => {
-  it("keeps clear of the corners and steps by two", () => {
-    expect(windowsAlong(0, 8, null)).toEqual([1, 3, 5, 7]);
+  it("keeps clear of the corners and steps by the spacing it is given", () => {
+    expect(windowsAlong(0, 8, null, 2)).toEqual([1, 3, 5, 7]);
+    expect(windowsAlong(0, 8, null, 3)).toEqual([1, 4, 7]);
+    expect(windowsAlong(0, 8, null, 4)).toEqual([2, 6]);
+  });
+
+  it("centres what fits rather than crowding it against one corner", () => {
+    expect(windowsAlong(0, 10, null, 6)).toEqual([2, 8]);
+    expect(windowsAlong(0, 10, null, 12)).toEqual([5]);
   });
 
   it("leaves a wall cell between a window and the door", () => {
-    expect(windowsAlong(0, 8, 4)).toEqual([1, 7]);
+    expect(windowsAlong(0, 8, 4, 2)).toEqual([1, 7]);
   });
 
   it("has nowhere to put one on a wall three cells long", () => {
-    expect(windowsAlong(0, 2, null)).toEqual([1]);
-    expect(windowsAlong(0, 1, null)).toEqual([]);
+    expect(windowsAlong(0, 2, null, 2)).toEqual([1]);
+    expect(windowsAlong(0, 1, null, 2)).toEqual([]);
+  });
+
+  it("never packs windows tighter than the range's floor", () => {
+    expect(windowsAlong(0, 8, null, 1)).toEqual(windowsAlong(0, 8, null, 2));
   });
 });
 
@@ -300,6 +312,27 @@ describe("planHouse", () => {
     expect(facing(built, 3, 0, 0)).toBe("s");
     expect(ids(built, 0, 3, 0)).toEqual(["grass-2", "wooden-floor", "window-1"]);
     expect(facing(built, 0, 3, 0)).toBe("e");
+  });
+
+  it("spaces windows by the setting rather than by a fixed number", () => {
+    const map = siteMap(-2, -2, 12, 12);
+    const tight = build(map, { x0: 0, y0: 0, x1: 10, y1: 10 }, {
+      doorTileId: null,
+      windowSpacing: 2,
+    });
+    const loose = build(map, { x0: 0, y0: 0, x1: 10, y1: 10 }, {
+      doorTileId: null,
+      windowSpacing: 5,
+    });
+    const northWindows = (m: MapFile) => {
+      const out: number[] = [];
+      for (let x = 0; x <= 10; x++) {
+        if (ids(m, x, 0, 0).includes("window-1")) out.push(x);
+      }
+      return out;
+    };
+    expect(northWindows(tight)).toEqual([1, 3, 5, 7, 9]);
+    expect(northWindows(loose)).toEqual([2, 7]);
   });
 
   it("leaves the walls blank when no window tile is chosen", () => {
