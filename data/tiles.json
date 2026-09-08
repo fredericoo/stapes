@@ -20039,7 +20039,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 16,
+                "x": 14,
                 "y": 10,
                 "w": 2,
                 "h": 2
@@ -20059,7 +20059,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 10,
+                "x": 8,
                 "y": 14,
                 "w": 2,
                 "h": 2
@@ -20079,7 +20079,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 10,
+                "x": 8,
                 "y": 8,
                 "w": 2,
                 "h": 2
@@ -20099,7 +20099,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 12,
+                "x": 10,
                 "y": 8,
                 "w": 2,
                 "h": 2
@@ -20119,7 +20119,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 12,
+                "x": 10,
                 "y": 8,
                 "w": 2,
                 "h": 2
@@ -20139,7 +20139,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 10,
+                "x": 8,
                 "y": 10,
                 "w": 2,
                 "h": 2
@@ -20159,7 +20159,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 16,
+                "x": 14,
                 "y": 12,
                 "w": 2,
                 "h": 2
@@ -20179,7 +20179,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 12,
+                "x": 10,
                 "y": 10,
                 "w": 2,
                 "h": 2
@@ -20199,7 +20199,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 14,
+                "x": 12,
                 "y": 8,
                 "w": 2,
                 "h": 2
@@ -20219,7 +20219,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 14,
+                "x": 12,
                 "y": 8,
                 "w": 2,
                 "h": 2
@@ -20239,7 +20239,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 12,
+                "x": 10,
                 "y": 10,
                 "w": 2,
                 "h": 2
@@ -20259,7 +20259,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 14,
+                "x": 12,
                 "y": 8,
                 "w": 2,
                 "h": 2
@@ -20279,7 +20279,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 14,
+                "x": 12,
                 "y": 8,
                 "w": 2,
                 "h": 2
@@ -20299,7 +20299,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 10,
+                "x": 8,
                 "y": 12,
                 "w": 2,
                 "h": 2
@@ -20319,7 +20319,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 12,
+                "x": 10,
                 "y": 14,
                 "w": 2,
                 "h": 2
@@ -20339,7 +20339,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 16,
+                "x": 14,
                 "y": 14,
                 "w": 2,
                 "h": 2
@@ -20359,7 +20359,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 14,
+                "x": 12,
                 "y": 14,
                 "w": 2,
                 "h": 2
@@ -20379,7 +20379,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 14,
+                "x": 12,
                 "y": 14,
                 "w": 2,
                 "h": 2
@@ -20399,7 +20399,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 12,
+                "x": 10,
                 "y": 12,
                 "w": 2,
                 "h": 2
@@ -20419,7 +20419,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 14,
+                "x": 12,
                 "y": 12,
                 "w": 2,
                 "h": 2
@@ -20439,7 +20439,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 14,
+                "x": 12,
                 "y": 10,
                 "w": 2,
                 "h": 2
@@ -20459,7 +20459,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 16,
+                "x": 14,
                 "y": 8,
                 "w": 2,
                 "h": 2
@@ -20479,7 +20479,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 16,
+                "x": 14,
                 "y": 8,
                 "w": 2,
                 "h": 2
@@ -20499,7 +20499,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 14,
+                "x": 12,
                 "y": 10,
                 "w": 2,
                 "h": 2
@@ -20519,7 +20519,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 16,
+                "x": 14,
                 "y": 8,
                 "w": 2,
                 "h": 2
@@ -20539,7 +20539,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 16,
+                "x": 14,
                 "y": 8,
                 "w": 2,
                 "h": 2
@@ -20559,7 +20559,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 12,
+                "x": 10,
                 "y": 12,
                 "w": 2,
                 "h": 2
@@ -20579,7 +20579,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 14,
+                "x": 12,
                 "y": 12,
                 "w": 2,
                 "h": 2
@@ -20599,7 +20599,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 14,
+                "x": 12,
                 "y": 10,
                 "w": 2,
                 "h": 2
@@ -20619,7 +20619,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 16,
+                "x": 14,
                 "y": 8,
                 "w": 2,
                 "h": 2
@@ -20639,7 +20639,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 16,
+                "x": 14,
                 "y": 8,
                 "w": 2,
                 "h": 2
@@ -20659,7 +20659,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 14,
+                "x": 12,
                 "y": 10,
                 "w": 2,
                 "h": 2
@@ -20679,7 +20679,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 16,
+                "x": 14,
                 "y": 8,
                 "w": 2,
                 "h": 2
@@ -20699,7 +20699,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 16,
+                "x": 14,
                 "y": 8,
                 "w": 2,
                 "h": 2
@@ -20719,7 +20719,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 12,
+                "x": 10,
                 "y": 14,
                 "w": 2,
                 "h": 2
@@ -20739,7 +20739,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 14,
+                "x": 12,
                 "y": 14,
                 "w": 2,
                 "h": 2
@@ -20759,7 +20759,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 14,
+                "x": 12,
                 "y": 14,
                 "w": 2,
                 "h": 2
@@ -20779,7 +20779,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 14,
+                "x": 12,
                 "y": 12,
                 "w": 2,
                 "h": 2
@@ -20799,7 +20799,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 16,
+                "x": 14,
                 "y": 8,
                 "w": 2,
                 "h": 2
@@ -20819,7 +20819,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 16,
+                "x": 14,
                 "y": 8,
                 "w": 2,
                 "h": 2
@@ -20839,7 +20839,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 16,
+                "x": 14,
                 "y": 8,
                 "w": 2,
                 "h": 2
@@ -20859,7 +20859,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 16,
+                "x": 14,
                 "y": 8,
                 "w": 2,
                 "h": 2
@@ -20879,7 +20879,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 14,
+                "x": 12,
                 "y": 12,
                 "w": 2,
                 "h": 2
@@ -20899,7 +20899,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 16,
+                "x": 14,
                 "y": 8,
                 "w": 2,
                 "h": 2
@@ -20919,7 +20919,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 16,
+                "x": 14,
                 "y": 8,
                 "w": 2,
                 "h": 2
@@ -20939,7 +20939,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 16,
+                "x": 14,
                 "y": 8,
                 "w": 2,
                 "h": 2
@@ -20959,7 +20959,7 @@
             "sprite": {
               "tilesetId": "walls",
               "rect": {
-                "x": 16,
+                "x": 14,
                 "y": 8,
                 "w": 2,
                 "h": 2
@@ -21071,7 +21071,7 @@
     "id": "door-closed",
     "name": "Closed door",
     "height": 4,
-    "type": "simple",
+    "type": "directional",
     "kind": "prop",
     "attributes": {},
     "walkable": false,
@@ -21086,32 +21086,94 @@
         "mode": "any"
       }
     },
-    "sprite": {
-      "frames": [
-        {
-          "sprite": {
-            "tilesetId": "walls",
-            "rect": {
-              "x": 18,
-              "y": 6,
-              "w": 2,
-              "h": 2
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "walls",
+              "rect": {
+                "x": 18,
+                "y": 3,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
             },
-            "base": {
-              "x": 1,
-              "y": 1
-            }
-          },
-          "durationMs": 200
-        }
-      ]
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "walls",
+              "rect": {
+                "x": 18,
+                "y": 5,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "walls",
+              "rect": {
+                "x": 18,
+                "y": 3,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "walls",
+              "rect": {
+                "x": 18,
+                "y": 5,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
     }
   },
   {
     "id": "door-open",
     "name": "Open door",
     "height": 4,
-    "type": "simple",
+    "type": "directional",
     "kind": "prop",
     "attributes": {},
     "lightPassing": true,
@@ -21128,25 +21190,87 @@
         "mode": "all"
       }
     },
-    "sprite": {
-      "frames": [
-        {
-          "sprite": {
-            "tilesetId": "walls",
-            "rect": {
-              "x": 18,
-              "y": 3,
-              "w": 2,
-              "h": 3
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "walls",
+              "rect": {
+                "x": 18,
+                "y": 0,
+                "w": 2,
+                "h": 3
+              },
+              "base": {
+                "x": 1,
+                "y": 2
+              }
             },
-            "base": {
-              "x": 1,
-              "y": 2
-            }
-          },
-          "durationMs": 200
-        }
-      ]
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "walls",
+              "rect": {
+                "x": 17,
+                "y": 8,
+                "w": 3,
+                "h": 1
+              },
+              "base": {
+                "x": 2,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "walls",
+              "rect": {
+                "x": 18,
+                "y": 0,
+                "w": 2,
+                "h": 3
+              },
+              "base": {
+                "x": 1,
+                "y": 2
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "walls",
+              "rect": {
+                "x": 17,
+                "y": 8,
+                "w": 3,
+                "h": 1
+              },
+              "base": {
+                "x": 2,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
     }
   },
   {

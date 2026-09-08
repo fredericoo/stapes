@@ -45890,7 +45890,8 @@
         },
         {
           "tileId": "door-closed",
-          "description": "City Watch"
+          "description": "City Watch",
+          "direction": "e"
         }
       ],
       "5,9": [
@@ -52150,6 +52151,9 @@
       ],
       "11,-3": [
         {
+          "tileId": "grass-2"
+        },
+        {
           "tileId": "dirt"
         },
         {
@@ -55359,6 +55363,9 @@
         }
       ],
       "14,-3": [
+        {
+          "tileId": "grass-2"
+        },
         {
           "tileId": "dirt"
         },
