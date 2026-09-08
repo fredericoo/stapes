@@ -4950,7 +4950,7 @@ you see over it is whatever the map has outside, which is usually nothing.
 
 ### A rectangle opens on to ground of its own kind
 
-**A big cave is several drags, so the rectangles have to join.** Every side of a
+**A big cave or a big wood is several drags, so the rectangles have to join.** Every side of a
 new rectangle is walked for runs of border cells whose outside neighbour is
 ground this generator would lay itself, and each run gets **one** way in, at its
 middle: a two-cell notch bored inward until it meets open ground. One per run
@@ -5087,6 +5087,13 @@ Four terms, multiplied:
   every unreachable pocket instead turned the far half of a 40×40 wood into one
   solid block: a single path across the middle cannot reach past a dense band
   either side of it, so nearly everything qualified.
+
+### Joining on to the wood next door
+
+The same pass as the cave's, and for a forest it costs no overlap: the edge of a
+wood is ground you can walk on, so a rectangle laid against another sees it and
+clears a lane through. Those cells count as reachable in the same way a path
+does — walking in from next door is walking in.
 
 ### The path and the water are the same shapes as the cave's
 

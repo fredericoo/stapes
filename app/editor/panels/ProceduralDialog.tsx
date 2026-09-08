@@ -889,7 +889,8 @@ function ForestForm({
 
       <p className="text-xs text-muted">
         Drag a rectangle on the map to grow it. Everything on the current level
-        inside the rectangle is replaced.
+        inside the rectangle is replaced. Lay it against ground of the same kind
+        and a lane is cleared through to it, so a big wood can be several drags.
       </p>
     </>
   );

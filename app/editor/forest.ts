@@ -19,22 +19,26 @@ import {
   MAX_FOOTPRINT,
   type Bounds,
   type CellGrid,
+  type Connection,
   type GeneratedPlan,
   type Rect,
   type ScatterRule,
   boundsOf,
+  connectionsAlongBorder,
   countOpen,
   cutFords,
   fbm,
   gridIndex,
   gridX,
   gridY,
+  isJoinableGround,
   isOpen,
   joinRegions,
   mulberry32,
   stepTowards,
   newGrid,
   openCells,
+  openConnection,
   placed,
   planScatter,
   planWater,
@@ -254,6 +258,14 @@ function inBounds(g: CellGrid, x: number, y: number): boolean {
 }
 
 /**
+ * How far in a way-in from the wood next door is cut before it gives up.
+ *
+ * Shorter than a cave's, because a forest's edge is mostly walkable already —
+ * usually the first cell or two is all that has a tree in it.
+ */
+const CONNECTION_DEPTH = 4;
+
+/**
  * Cells a clearing needs before a track is cut to it from the path.
  *
  * Under it the clearing is left where it is, unreachable — a hollow in a
@@ -300,7 +312,11 @@ export type ForestShape = {
  * the same two rules a cave is: nothing you can walk through is one cell wide,
  * and everything you can walk to is reachable from the path.
  */
-export function growForest(bounds: Bounds, config: ForestConfig): ForestShape {
+export function growForest(
+  bounds: Bounds,
+  config: ForestConfig,
+  connections: readonly Connection[] = [],
+): ForestShape {
   const grid = newGrid(bounds);
   grid.cells.fill(1);
 
@@ -340,6 +356,15 @@ export function growForest(bounds: Bounds, config: ForestConfig): ForestShape {
     if (randomAt(x, y, config.seed) < chance) grid.cells[i] = 0;
   }
 
+  // Where the rectangle meets ground of its own kind, a lane is cleared through
+  // to it — that is what lets a big wood be dragged as several rectangles.
+  const ways = new Set<number>();
+  for (const connection of connections) {
+    for (const i of openConnection(grid, bounds, connection, CONNECTION_DEPTH)) {
+      ways.add(i);
+    }
+  }
+
   // Held to the cave's rule for the same reason: a gap one cell wide between
   // two trees is drawn over by the tree in front of it, so it is somewhere you
   // can walk and cannot see. Closing it here means planting a tree in it.
@@ -351,10 +376,12 @@ export function growForest(bounds: Bounds, config: ForestConfig): ForestShape {
   // are left where they are: a hollow in a thicket you cannot quite get into is
   // a thicket, and planting them over instead is what turned the far half of a
   // dense wood into one solid block.
+  // A way in from the wood next door counts as reachable exactly as a path
+  // does: it is somewhere you can walk in from.
   joinRegions(grid, bounds, config.seed, {
     minRegionCells: MIN_GLADE_CELLS,
     tooSmall: "leave",
-    home: (region) => region.some((i) => path.has(i)),
+    home: (region) => region.some((i) => path.has(i) || ways.has(i)),
   });
   return { grid, path };
 }
@@ -422,7 +449,18 @@ export function planForest(
     }
   }
 
-  const { grid, path } = growForest(bounds, config);
+  // **Where the rectangle meets ground of its own kind, it opens on to it.**
+  // The path tile counts as well as the ground: a track running out of one
+  // wood should meet the track running into the next.
+  const ourGround = [config.groundTileId, config.pathTileId].filter(
+    (id): id is string => id !== null,
+  );
+  const connections = connectionsAlongBorder(
+    bounds,
+    isJoinableGround(map, tilesById, z, ourGround),
+  );
+
+  const { grid, path } = growForest(bounds, config, connections);
   if (countOpen(grid) === 0) {
     return {
       ok: false,

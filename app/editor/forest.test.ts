@@ -399,6 +399,35 @@ describe("planForest", () => {
     expect(one.ok && other.ok && one.edits).not.toEqual(other.ok && other.edits);
   });
 
+  it("joins on to the wood next door, laid edge to edge", () => {
+    // A wood's edge is ground you can walk on, so unlike a cave — whose shell
+    // is rock — two forests need no overlap to meet.
+    const west: Rect = { x0: 0, y0: 0, x1: 25, y1: 25 };
+    const east: Rect = { x0: 26, y0: 0, x1: 51, y1: 25 };
+    const first = planForest(emptyMap(), tilesById, west, 0, BASE);
+    if (!first.ok) throw new Error(first.reason);
+    const one = setStacks(emptyMap(), first.edits);
+    const second = planForest(one, tilesById, east, 0, BASE);
+    if (!second.ok) throw new Error(second.reason);
+    const both = setStacks(one, second.edits);
+
+    const bounds = { minX: 0, maxX: 51, minY: 0, maxY: 25 };
+    const grid = newGrid(bounds);
+    for (let y = 0; y <= 25; y++) {
+      for (let x = 0; x <= 51; x++) {
+        const stack = ids(both, x, y);
+        grid.cells[gridIndex(grid, x, y)] =
+          stack.length > 0 && !stack.includes("tree") ? 1 : 0;
+      }
+    }
+    // The wood keeps its unreachable hollows, so what has to hold is that the
+    // main body of it runs from one rectangle into the other.
+    const biggest = regionsOf(grid)[0]!;
+    const columns = biggest.map((i) => (i % grid.width) + grid.minX);
+    expect(Math.min(...columns)).toBeLessThan(6);
+    expect(Math.max(...columns)).toBeGreaterThan(45);
+  });
+
   it("refuses to grow over somebody standing in it", () => {
     const occupied = setStacks(emptyMap(), [
       { x: 0, y: 10, z: 0, stack: [{ tileId: "grass-2" }, { tileId: "deer" }] },
