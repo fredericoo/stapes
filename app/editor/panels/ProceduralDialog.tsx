@@ -10,6 +10,8 @@ import {
   NumberInput,
   Segmented,
 } from "../../ui";
+import { CAVE_DENSITY_RANGE, CAVE_SHAPES, type CaveConfig, type CaveShape } from "../cave";
+import { MAX_SCATTER_RULES, type ScatterRule } from "../generator";
 import {
   ROOF_COLOURS,
   ROOF_COLOUR_IDS,
@@ -33,6 +35,21 @@ import { useMapAssets } from "./MapAssetsContext";
 const WALL_TILE_IDS = ["sw2", "brick-wall", "half-wall"];
 const WINDOW_TILE_IDS = ["window-1"];
 const DOOR_TILE_IDS = ["door-closed"];
+
+/**
+ * What a cave may be cut out of.
+ *
+ * A column of rock has to fill a level exactly — see `columnOf` — so this is
+ * the short list of tiles whose height divides four: two `half-stone` or one
+ * `stone-wall`. A full-height rock block added to the catalogue belongs here
+ * as a third.
+ */
+const ROCK_TILE_IDS = ["half-stone", "stone-wall"];
+
+/** And what the low wall along its edges may be: half a level, so two units. */
+const LEDGE_TILE_IDS = ["half-stone", "brick-slab"];
+
+const WATER_TILE_IDS = ["water"];
 
 /**
  * A wall drawn as a length of wall rather than as a lone post.
@@ -284,7 +301,8 @@ function DoorPlacementGrid({
  *
  * Whole rather than a short list, because what a floor may be is not a
  * property of the tile the way what a *wall* may be is: anything flat is a
- * floor, and which flat thing this one is is exactly the choice being made.
+ * floor, and which flat thing this cave's floor is is exactly the choice being
+ * made.
  */
 function TileGridPicker({
   label,
@@ -372,6 +390,32 @@ function TileGridPicker({
         })}
       </div>
     </div>
+  );
+}
+
+/** A 0–100 box, which is what every frequency and coverage control here is. */
+function PercentInput({
+  label,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <NumberInput
+      className="w-20"
+      aria-label={label}
+      value={value}
+      min={0}
+      max={100}
+      step={1}
+      disabled={disabled}
+      onChange={onChange}
+    />
   );
 }
 
@@ -536,6 +580,311 @@ function HouseForm({
 }
 
 /**
+ * The props scattered over a cave's floor.
+ *
+ * One shared catalogue grid rather than one per rule: the slots along the top
+ * are the rules, pressing one selects it, and the grid below fills whichever
+ * is selected. Four searchable grids stacked on top of each other is a form
+ * nobody can see the bottom of.
+ */
+function ScatterRules({
+  rules,
+  onChange,
+  tiles,
+  tilesets,
+}: {
+  rules: ScatterRule[];
+  onChange: (rules: ScatterRule[]) => void;
+  tiles: TileDef[];
+  tilesets: TilesetDef[];
+}) {
+  const [selected, setSelected] = useState(0);
+  const rule = rules[selected] ?? null;
+
+  const replace = (index: number, next: ScatterRule) => {
+    onChange(rules.map((r, i) => (i === index ? next : r)));
+  };
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap items-stretch gap-1">
+        {rules.map((r, index) => {
+          const tile = tiles.find((t) => t.id === r.tileId) ?? null;
+          const active = index === selected;
+          return (
+            <button
+              key={`${r.tileId}-${index}`}
+              type="button"
+              aria-pressed={active}
+              title={`${tile?.name ?? r.tileId} — ${r.chancePercent}%`}
+              onClick={() => setSelected(index)}
+              className={[
+                "flex w-16 flex-col items-center gap-1 border-2 p-1 text-[10px]",
+                active
+                  ? "border-accent bg-paper"
+                  : "border-border bg-panel hover:bg-paper",
+              ].join(" ")}
+            >
+              <TilePreview
+                tile={tile}
+                tilesets={tilesets}
+                size={40}
+                chrome={false}
+                still
+              />
+              <span className="max-w-full truncate">{r.chancePercent}%</span>
+            </button>
+          );
+        })}
+        {rules.length < MAX_SCATTER_RULES ? (
+          <Button
+            variant="secondary"
+            onClick={() => {
+              onChange([...rules, { ...DEFAULT_SCATTER_RULE }]);
+              setSelected(rules.length);
+            }}
+          >
+            Add
+          </Button>
+        ) : null}
+      </div>
+
+      {rule ? (
+        <div className="flex flex-col gap-1 border-2 border-border bg-panel p-2">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-col items-start gap-1">
+              <FieldLabel info="Chance this prop lands on any one cell of floor. It is a density rather than a count, so the same number is the same scatter in a small cave and a large one.">
+                Frequency
+              </FieldLabel>
+              <PercentInput
+                label="Scatter frequency"
+                value={rule.chancePercent}
+                onChange={(chancePercent) =>
+                  replace(selected, { ...rule, chancePercent })
+                }
+              />
+            </div>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                onChange(rules.filter((_, i) => i !== selected));
+                setSelected(Math.max(0, selected - 1));
+              }}
+            >
+              Remove
+            </Button>
+          </div>
+          <TileGridPicker
+            label="Scattered tile"
+            value={rule.tileId}
+            onChange={(tileId) =>
+              replace(selected, { ...rule, tileId: tileId ?? rule.tileId })
+            }
+            tiles={tiles}
+            tilesets={tilesets}
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** The cave form. */
+function CaveForm({
+  draft,
+  patch,
+  tiles,
+  tilesets,
+}: {
+  draft: CaveConfig;
+  patch: (next: Partial<CaveConfig>) => void;
+  tiles: TileDef[];
+  tilesets: TilesetDef[];
+}) {
+  const shape = CAVE_SHAPES.find((s) => s.id === draft.shape) ?? CAVE_SHAPES[0]!;
+  return (
+    <>
+      <div className="flex flex-col items-start gap-1">
+        <FieldLabel info="How the rock is carved away. Each is a different kind of place rather than a different setting of one.">
+          Shape
+        </FieldLabel>
+        <Segmented
+          ariaLabel="Cave shape"
+          value={draft.shape}
+          onChange={(next: CaveShape) => patch({ shape: next })}
+          options={CAVE_SHAPES.map((s) => ({ value: s.id, label: s.label }))}
+        />
+        <p className="text-xs text-muted">{shape.hint}</p>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-col items-start gap-1">
+          <FieldLabel info="How much rock the carve leaves. Low is open halls; high is a warren of narrow passages.">
+            Density
+          </FieldLabel>
+          <NumberInput
+            className="w-20"
+            aria-label="Density"
+            value={draft.density}
+            min={CAVE_DENSITY_RANGE.min}
+            max={CAVE_DENSITY_RANGE.max}
+            step={1}
+            onChange={(density) => patch({ density })}
+          />
+        </div>
+        <div className="flex flex-col items-start gap-1">
+          <FieldLabel info="The same rectangle and the same seed always carve the same cave. Re-roll for a different one.">
+            Seed
+          </FieldLabel>
+          <div className="flex items-end gap-1">
+            <NumberInput
+              className="w-28"
+              aria-label="Seed"
+              value={draft.seed}
+              step={1}
+              onChange={(seed) => patch({ seed: Math.round(seed) })}
+            />
+            <Button
+              variant="secondary"
+              onClick={() => patch({ seed: rolledSeed() })}
+            >
+              Re-roll
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <FieldLabel info="What the rectangle is blocked out with. A column of it fills the level exactly, which is what seals the cave to light and to arrows.">
+          Rock
+        </FieldLabel>
+        <TileChoiceRow
+          label="Rock tile"
+          tileIds={ROCK_TILE_IDS}
+          value={draft.wallTileId}
+          onChange={(id) => patch({ wallTileId: id ?? draft.wallTileId })}
+          tiles={tiles}
+          tilesets={tilesets}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <FieldLabel info="A half-height wall taken here and there where rock meets floor, so the edge of the cave is not one flat height all the way round. Never on the outermost ring, which has to stay sealed.">
+          Ledges
+        </FieldLabel>
+        <div className="flex flex-wrap items-end gap-3">
+          <TileChoiceRow
+            label="Ledge tile"
+            tileIds={LEDGE_TILE_IDS}
+            value={draft.ledgeTileId}
+            onChange={(ledgeTileId) => patch({ ledgeTileId })}
+            tiles={tiles}
+            tilesets={tilesets}
+            allowNone
+          />
+          <div className="flex flex-col items-start gap-1">
+            <FieldLabel>Frequency</FieldLabel>
+            <PercentInput
+              label="Ledge frequency"
+              value={draft.ledgeChance}
+              disabled={draft.ledgeTileId === null}
+              onChange={(ledgeChance) => patch({ ledgeChance })}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <FieldLabel info="Laid under every cell you can stand on.">
+          Floor
+        </FieldLabel>
+        <TileGridPicker
+          label="Floor tile"
+          value={draft.floorTileId}
+          onChange={(id) => patch({ floorTileId: id ?? draft.floorTileId })}
+          tiles={tiles}
+          tilesets={tilesets}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <FieldLabel info="A second floor drawn in patches over the first, so the ground is not one tile everywhere. None leaves one floor.">
+          Alternative floor
+        </FieldLabel>
+        <div className="flex flex-col items-start gap-1">
+          <FieldLabel>Coverage</FieldLabel>
+          <PercentInput
+            label="Alternative floor coverage"
+            value={draft.accentCoverage}
+            disabled={draft.accentFloorTileId === null}
+            onChange={(accentCoverage) => patch({ accentCoverage })}
+          />
+        </div>
+        <TileGridPicker
+          label="Alternative floor tile"
+          value={draft.accentFloorTileId}
+          onChange={(accentFloorTileId) => patch({ accentFloorTileId })}
+          tiles={tiles}
+          tilesets={tilesets}
+          allowNone
+        />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <FieldLabel info="Mostly streams, with the occasional basin. Water blocks walking, so wherever a stream would seal a passage off it is broken into a ford.">
+          Water
+        </FieldLabel>
+        <div className="flex flex-wrap items-end gap-3">
+          <TileChoiceRow
+            label="Water tile"
+            tileIds={WATER_TILE_IDS}
+            value={draft.waterTileId}
+            onChange={(waterTileId) => patch({ waterTileId })}
+            tiles={tiles}
+            tilesets={tilesets}
+            allowNone
+          />
+          <div className="flex flex-col items-start gap-1">
+            <FieldLabel>Coverage</FieldLabel>
+            <PercentInput
+              label="Water coverage"
+              value={draft.waterCoverage}
+              disabled={draft.waterTileId === null}
+              onChange={(waterCoverage) => patch({ waterCoverage })}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <FieldLabel info="Props dropped on the floor, each with its own frequency. A cell takes at most one, and anything too tall to stand on the floor is left out.">
+          Scatter
+        </FieldLabel>
+        <ScatterRules
+          rules={draft.scatter}
+          onChange={(scatter) => patch({ scatter })}
+          tiles={tiles}
+          tilesets={tilesets}
+        />
+      </div>
+
+      <p className="text-xs text-muted">
+        Drag a rectangle on the map to carve it. Everything on the current level
+        inside the rectangle is replaced.
+      </p>
+    </>
+  );
+}
+
+/** A scatter rule starts as something that is on the floor of a real cave. */
+const DEFAULT_SCATTER_RULE: ScatterRule = { tileId: "small-bush", chancePercent: 4 };
+
+/** A fresh seed, from the clock rather than from the settings being edited. */
+function rolledSeed(): number {
+  return Math.floor(Math.random() * 0x7fffffff);
+}
+
+/**
  * The procedural generators, and the settings the next placement will use.
  *
  * The form edits a draft rather than the store: closing it with the X leaves
@@ -544,8 +893,8 @@ function HouseForm({
  * is the last thing actually built rather than the last field touched.
  *
  * The draft holds *every* generator's settings rather than the armed one's,
- * so looking at what another generator would do and going back does not lose
- * what was set up first.
+ * so looking at what a cave would do and going back to the house does not
+ * lose the house.
  */
 export function ProceduralDialog({
   open,
@@ -571,6 +920,8 @@ export function ProceduralDialog({
 
   const patchHouse = (next: Partial<HouseConfig>) =>
     setDraft((prev) => ({ ...prev, house: { ...prev.house, ...next } }));
+  const patchCave = (next: Partial<CaveConfig>) =>
+    setDraft((prev) => ({ ...prev, cave: { ...prev.cave, ...next } }));
 
   return (
     <Dialog
@@ -601,12 +952,21 @@ export function ProceduralDialog({
           />
         </div>
 
-        <HouseForm
-          draft={draft.house}
-          patch={patchHouse}
-          tiles={tiles}
-          tilesets={tilesets}
-        />
+        {draft.active === "house" ? (
+          <HouseForm
+            draft={draft.house}
+            patch={patchHouse}
+            tiles={tiles}
+            tilesets={tilesets}
+          />
+        ) : (
+          <CaveForm
+            draft={draft.cave}
+            patch={patchCave}
+            tiles={tiles}
+            tilesets={tilesets}
+          />
+        )}
       </div>
     </Dialog>
   );

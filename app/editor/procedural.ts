@@ -9,10 +9,11 @@
  */
 
 import type { MapFile, TileDef } from "../lib/types";
+import { planCave, type CaveConfig } from "./cave";
 import type { GeneratedPlan, Rect } from "./generator";
 import { planHouse, type HouseConfig } from "./house";
 
-export type ProceduralConfig = HouseConfig;
+export type ProceduralConfig = HouseConfig | CaveConfig;
 
 export type GeneratorId = ProceduralConfig["generator"];
 
@@ -23,18 +24,20 @@ export const GENERATORS: Array<{
   hint: string;
 }> = [
   { id: "house", label: "House", hint: "Build a house from a dragged rectangle" },
+  { id: "cave", label: "Cave", hint: "Carve a cave out of a dragged rectangle" },
 ];
 
 /**
  * Every generator's settings at once, and which of them is armed.
  *
  * Kept together rather than one at a time because switching generators in the
- * dialog to look at what another would do should not lose the one that was set
- * up before it.
+ * dialog to look at what a cave would do should not lose the house that was
+ * set up before it.
  */
 export type ProceduralSettings = {
   active: GeneratorId;
   house: HouseConfig;
+  cave: CaveConfig;
 };
 
 export function activeConfig(settings: ProceduralSettings): ProceduralConfig {
@@ -52,5 +55,8 @@ export function planProcedural(
   z: number,
   config: ProceduralConfig,
 ): GeneratedPlan {
-  return planHouse(map, tilesById, rect, z, config);
+  if (config.generator === "house") {
+    return planHouse(map, tilesById, rect, z, config);
+  }
+  return planCave(map, tilesById, rect, z, config);
 }

@@ -4,6 +4,7 @@ import {
   IconCircle,
   IconEraser,
   IconHome,
+  IconMountain,
   IconPointer,
   IconPencil,
   IconSquare,
@@ -22,6 +23,7 @@ import { ProceduralDialog } from "./ProceduralDialog";
  */
 const GENERATOR_ICONS: Record<GeneratorId, TablerIcon> = {
   house: IconHome,
+  cave: IconMountain,
 };
 
 const TOOLS: Array<{

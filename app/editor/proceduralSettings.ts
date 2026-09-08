@@ -9,11 +9,17 @@
  * as "no saved settings" instead of arming the tool with a tile id that no
  * longer exists.
  *
- * Every generator is parsed on its own, so a saved one whose wall tile has been
- * renamed loses that generator and keeps the others.
+ * Every generator is parsed on its own, so a saved cave whose wall tile has
+ * been renamed loses the cave and keeps the house.
  */
 
 import * as v from "valibot";
+import { MAX_SCATTER_RULES } from "./generator";
+import {
+  CAVE_DENSITY_RANGE,
+  type CaveConfig,
+  type CaveShape,
+} from "./cave";
 import {
   ROOF_COLOUR_IDS,
   WINDOW_SPACING_RANGE,
@@ -49,12 +55,37 @@ export const DEFAULT_HOUSE_CONFIG: HouseConfig = {
   doorColumn: "centre",
 };
 
+/**
+ * A cave of rock and dirt with a stream in it, which is what the animal den
+ * under the south gate is made of — the settings anybody carving a second one
+ * would reach for first.
+ */
+export const DEFAULT_CAVE_CONFIG: CaveConfig = {
+  generator: "cave",
+  seed: 0x5ea11ce,
+  shape: "caverns",
+  density: 50,
+  wallTileId: "half-stone",
+  ledgeTileId: "half-stone",
+  ledgeChance: 20,
+  floorTileId: "dirt",
+  accentFloorTileId: null,
+  accentCoverage: 25,
+  waterTileId: null,
+  waterCoverage: 12,
+  scatter: [],
+};
+
 export const DEFAULT_PROCEDURAL_SETTINGS: ProceduralSettings = {
   active: "house",
   house: DEFAULT_HOUSE_CONFIG,
+  cave: DEFAULT_CAVE_CONFIG,
 };
 
 export const STOREY_RANGE = { min: 1, max: MAX_STOREYS } as const;
+
+/** Every 0–100 control the cave form has, which are all read the same way. */
+const PercentSchema = v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(100));
 
 const HouseConfigSchema = v.object({
   generator: v.literal("house"),
@@ -88,15 +119,40 @@ const HouseConfigSchema = v.object({
   doorColumn: v.picklist(["west", "centre", "east"]),
 });
 
+const CaveConfigSchema = v.object({
+  generator: v.literal("cave"),
+  seed: v.pipe(v.number(), v.integer()),
+  shape: v.picklist(["caverns", "veins", "tunnels"] as [CaveShape, ...CaveShape[]]),
+  density: v.pipe(
+    v.number(),
+    v.integer(),
+    v.minValue(CAVE_DENSITY_RANGE.min),
+    v.maxValue(CAVE_DENSITY_RANGE.max),
+  ),
+  wallTileId: v.string(),
+  ledgeTileId: v.nullable(v.string()),
+  ledgeChance: PercentSchema,
+  floorTileId: v.string(),
+  accentFloorTileId: v.nullable(v.string()),
+  accentCoverage: PercentSchema,
+  waterTileId: v.nullable(v.string()),
+  waterCoverage: PercentSchema,
+  scatter: v.pipe(
+    v.array(v.object({ tileId: v.string(), chancePercent: PercentSchema })),
+    v.maxLength(MAX_SCATTER_RULES),
+  ),
+});
+
 /**
- * The outer shape only: which generator was armed, and each generator's slice
- * left unparsed. The slices are read on their own below so that a saved one
- * from a newer version of the form — or one whose wall tile has since been
- * renamed — costs that generator and not the ones saved beside it.
+ * The outer shape only: which generator was armed, and two slices left
+ * unparsed. Each slice is read on its own below so that a saved cave from a
+ * newer version of the form — or one whose wall tile has since been renamed —
+ * costs the cave and not the house saved beside it.
  */
 const SettingsSchema = v.object({
-  active: v.picklist(["house"] as [GeneratorId, ...GeneratorId[]]),
+  active: v.picklist(["house", "cave"] as [GeneratorId, ...GeneratorId[]]),
   house: v.unknown(),
+  cave: v.unknown(),
 });
 
 type KnownTileId = (id: string) => boolean;
@@ -130,6 +186,22 @@ function readHouse(raw: unknown, known: KnownTileId): HouseConfig {
   };
 }
 
+function readCave(raw: unknown, known: KnownTileId): CaveConfig {
+  const parsed = v.safeParse(CaveConfigSchema, raw);
+  if (!parsed.success) return DEFAULT_CAVE_CONFIG;
+  const config = parsed.output;
+  if (!known(config.wallTileId) || !known(config.floorTileId)) {
+    return DEFAULT_CAVE_CONFIG;
+  }
+  return {
+    ...config,
+    ledgeTileId: keptOptionalTile(config.ledgeTileId, known),
+    accentFloorTileId: keptOptionalTile(config.accentFloorTileId, known),
+    waterTileId: keptOptionalTile(config.waterTileId, known),
+    scatter: config.scatter.filter((rule) => known(rule.tileId)),
+  };
+}
+
 export function loadProceduralSettings(known: KnownTileId): ProceduralSettings {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -139,6 +211,7 @@ export function loadProceduralSettings(known: KnownTileId): ProceduralSettings {
     return {
       active: parsed.output.active,
       house: readHouse(parsed.output.house, known),
+      cave: readCave(parsed.output.cave, known),
     };
   } catch {
     // Unparseable, or storage is blocked — the defaults build a working house.

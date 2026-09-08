@@ -115,9 +115,12 @@ const MAX_GHOST_CELLS = 256;
  * A house is several storeys and a stepped roof over one footprint, so its
  * plan runs to two or three cells written per cell dragged — and the ghost is
  * the whole point of the tool, so it is worth more meshes than a rectangle of
- * one tile is. Past this a drag shows its footprint and nothing else.
+ * one tile is. A cave writes one cell per cell but nearly all of them are
+ * rock, and a cave is the thing you most want to see before you commit it,
+ * which is why this is well past what a house needs. Beyond it a drag shows
+ * its footprint and nothing else.
  */
-const MAX_GENERATOR_GHOST_CELLS = 512;
+const MAX_GENERATOR_GHOST_CELLS = 1200;
 
 /** Debounce lighting recompute while painting. */
 const LIGHTING_DEBOUNCE_MS = 50;
