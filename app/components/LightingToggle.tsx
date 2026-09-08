@@ -17,16 +17,20 @@ import { Toggle, Tooltip } from "../ui";
 export function LightingToggle({
   enabled,
   onChange,
+  shortcut,
 }: {
   enabled: boolean;
   onChange: (enabled: boolean) => void;
+  /** Key that toggles it, named in the tooltip. Only /map binds one. */
+  shortcut?: string;
 }) {
+  const key = shortcut ? ` (${shortcut})` : "";
   return (
     <Tooltip
       content={
         enabled
-          ? "Lighting on — turn it off to draw the art unlit and skip the bake"
-          : "Lighting off — the art is drawn as authored, nothing is baked"
+          ? `Lighting on${key} — turn it off to draw the art unlit and skip the bake`
+          : `Lighting off${key} — the art is drawn as authored, nothing is baked`
       }
     >
       <Toggle pressed={enabled} onPressedChange={onChange} ariaLabel="Lighting">

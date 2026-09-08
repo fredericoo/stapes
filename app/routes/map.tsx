@@ -225,13 +225,17 @@ export default function MapPage() {
               with; the cost is that on a narrow window it wraps with the rest
               of the map's controls instead of folding away with the nav. */}
           <div className="flex items-center gap-1">
-            <Tooltip content="Show other levels (L) — the floors above, ghosted into one fade. Underground it stops at -1">
+            {/* The switch is worded for what turning it on does, so it is the
+                inverse of the flag the store and the renderer keep: other
+                levels are drawn by default, and isolating is the thing you ask
+                for. */}
+            <Tooltip content="Isolate to current level (I) — drop the floors above, which are otherwise ghosted into one fade. Underground that fade stops at -1">
               <Toggle
-                pressed={showOtherLevels}
+                pressed={!showOtherLevels}
                 onPressedChange={(v) =>
-                  useEditorStore.getState().setShowOtherLevels(v)
+                  useEditorStore.getState().setShowOtherLevels(!v)
                 }
-                ariaLabel="Show other levels"
+                ariaLabel="Isolate to current level"
               >
                 <IconStackBackward size={16} stroke={2} aria-hidden="true" />
               </Toggle>
@@ -250,6 +254,7 @@ export default function MapPage() {
             <LightingToggle
               enabled={lightingEnabled}
               onChange={(v) => useEditorStore.getState().setLightingEnabled(v)}
+              shortcut="L"
             />
           </div>
           {/* Nothing reads the hour once lighting is off — the authoring

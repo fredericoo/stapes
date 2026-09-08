@@ -1852,10 +1852,13 @@ export class EditorRenderer {
     if (e.code === "KeyW") {
       store.togglePreviewMode();
     }
+    if (e.code === "KeyL") {
+      store.toggleLightingEnabled();
+    }
     // Live while previewing, where it simply has nothing to do: preview draws
     // every level regardless. A key that refuses is worse than one that lands
     // silently — you set the state you want and see it the moment you leave.
-    if (e.code === "KeyL") {
+    if (e.code === "KeyI") {
       store.toggleShowOtherLevels();
     }
     // `[` / `]` are what the buttons say; `,` / `.` were the binding before
