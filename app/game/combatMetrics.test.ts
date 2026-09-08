@@ -197,11 +197,16 @@ describe("swing odds", () => {
     expect(quick.attacksPerSecond).toBeCloseTo(1000 / quick.intervalMs, 10);
   });
 
+  /**
+   * Armour deep enough that even the shallowest draw is the whole blow — see
+   * `./combat`'s `MIN_GUARD_SHARE`, which is what "deep enough" now means.
+   */
   it("has nothing to say about time to kill when nothing can get through", () => {
     const odds = swingOdds(
       statsOf({ damage: 2, variance: 0, hitChance: 1 }),
       statsOf({ def: 50 }),
     );
+    expect(odds.absorbed).toBeCloseTo(odds.connected, 10);
     expect(odds.secondsToKill).toBeNull();
     expect(odds.swingsToKill).toBeNull();
   });

@@ -471,7 +471,9 @@ class Runtime {
     const damage = event.outcome.damage;
     this.float(at, damage === 0 ? "miss" : "damage", String(damage));
     const absorbed =
-      damage === 0 ? ` (armour ate ${event.outcome.potentialDamage})` : "";
+      damage < event.outcome.potentialDamage
+        ? ` (armour ate ${event.outcome.potentialDamage - damage})`
+        : "";
     this.note(`${arrow} −${damage}${absorbed} → ${event.hpLeft} hp`, damage === 0 ? "miss" : "damage");
 
     for (const grant of event.outcome.inflicted) {

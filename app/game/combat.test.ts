@@ -14,8 +14,13 @@ import {
   damageFraction,
   defenceAgainst,
   dodgeChance,
+  guardBand,
+  guardFraction,
+  GUARD_PEAK,
+  guardRolled,
   guardShare,
   inAttackRange,
+  MIN_GUARD_SHARE,
   rollAttack,
   underPressure,
 } from "./combat";
@@ -189,6 +194,78 @@ describe("dodging", () => {
   });
 });
 
+/**
+ * The guard draw: a band with a hump in it.
+ *
+ * This is the half of armour that is not a number on a tile. A flat draw would
+ * make a mail shirt that turned nothing aside exactly as common as one that
+ * turned aside everything, so what is asserted is the *shape* — where the ends
+ * are, and that the middle is where the weight sits.
+ */
+describe("the guard a blow draws", () => {
+  it("spans the share of its face value the rule names", () => {
+    expect(guardFraction(0)).toBeCloseTo(MIN_GUARD_SHARE, 10);
+    expect(guardFraction(1)).toBeCloseTo(1, 10);
+  });
+
+  it("climbs without a step, all the way along", () => {
+    let previous = guardFraction(0);
+    for (let step = 1; step <= 1000; step++) {
+      const here = guardFraction(step / 1000);
+      expect(here).toBeGreaterThanOrEqual(previous);
+      previous = here;
+    }
+  });
+
+  /**
+   * The peak is where the author put it, and it is a *mode* rather than a mean:
+   * the mean of a triangle sits at the average of its three corners, which is
+   * deliberately not the same number.
+   */
+  it("comes up most often around the peak", () => {
+    const rng = new Rng(4242);
+    const buckets = new Map<number, number>();
+    const TENTHS = 10;
+    for (let i = 0; i < 60_000; i++) {
+      const tenth = Math.min(TENTHS - 1, Math.floor(guardFraction(rng.next()) * TENTHS));
+      buckets.set(tenth, (buckets.get(tenth) ?? 0) + 1);
+    }
+    const commonest = [...buckets.entries()].sort((a, b) => b[1] - a[1])[0]![0];
+    expect(commonest / TENTHS).toBeCloseTo(GUARD_PEAK, 1);
+
+    // And both ends are rare, which is the whole point of there being a hump.
+    const atPeak = buckets.get(Math.floor(GUARD_PEAK * TENTHS))!;
+    expect(buckets.get(Math.floor(MIN_GUARD_SHARE * TENTHS))!).toBeLessThan(atPeak / 2);
+    expect(buckets.get(TENTHS - 1)!).toBeLessThan(atPeak / 2);
+  });
+
+  /**
+   * A triangle's mean is the average of its three corners. Worth stating,
+   * because it is the number an author is really choosing when they type a
+   * defence — what armour is worth on average, rather than at its best.
+   */
+  it("is worth the average of its three corners over many draws", () => {
+    const rng = new Rng(99);
+    let total = 0;
+    const draws = 200_000;
+    for (let i = 0; i < draws; i++) total += guardFraction(rng.next());
+    expect(total / draws).toBeCloseTo((MIN_GUARD_SHARE + GUARD_PEAK + 1) / 3, 2);
+  });
+
+  /** Whole numbers, because hit points are and this is subtracted from one. */
+  it("hands back whole numbers of defence inside the band", () => {
+    const defender = battler({ def: 17 });
+    const attacker = battler({ mastery: "sharp" });
+    const { lowest, highest } = guardBand(defender, attacker);
+    for (let step = 0; step <= 100; step++) {
+      const guard = guardRolled(defender, attacker, step / 100);
+      expect(Number.isInteger(guard)).toBe(true);
+      expect(guard).toBeGreaterThanOrEqual(lowest);
+      expect(guard).toBeLessThanOrEqual(highest);
+    }
+  });
+});
+
 describe("being outnumbered", () => {
   /**
    * The fight every authored number was tuned against. One attacker has to leave
@@ -255,10 +332,15 @@ describe("being outnumbered", () => {
    * End to end through the swing: a bite that armour swallowed on its own draws
    * blood once there are enough of them. This is the fight the player actually
    * had.
+   *
+   * Defence far above the blow, so that even {@link MIN_GUARD_SHARE} of it is
+   * more than the whole bite — the point being made is about the crowd, and a
+   * defence the low end of the band already lets through would make it about the
+   * draw instead.
    */
   it("lets a blow through that one attacker could never land", () => {
     const attacker = battler({ damage: 6, accuracy: 100, hitChance: 1 });
-    const defender = battler({ def: 10, flee: 0 });
+    const defender = battler({ def: 40, flee: 0 });
 
     let aloneDrew = 0;
     let crowdDrew = 0;
@@ -278,38 +360,76 @@ describe("swinging", () => {
    * every probability is floored at {@link MIN_CHANCE}, so no stat block can
    * promise that a given swing connects. What is asserted is the invariant — a
    * blow that cannot get through armour is worth nothing, never a heal.
+   *
+   * Armour twenty times the blow, so that even the shallowest draw is more than
+   * the whole of it. That is what being untouchable costs now: not defence equal
+   * to a blow, but defence whose {@link MIN_GUARD_SHARE} is.
    */
   it("takes defence off the top and never heals", () => {
     const attacker = battler({ damage: 5, accuracy: 100, hitChance: 1 });
     const defender = battler({ def: 100, flee: 0 });
+    expect(guardBand(defender, attacker).lowest).toBeGreaterThanOrEqual(5);
     for (let seed = 0; seed < 50; seed++) {
       expect(rollAttack(attacker, defender, new Rng(seed)).damage).toBe(0);
     }
   });
 
   /**
-   * Every swing that actually lands, rather than every swing: with a floor under
-   * both the whiff and the dodge, some of these fifty come to nothing however the
-   * stats are written. The claim is about the arithmetic of a blow that connects.
+   * And the flip side, which is the whole reason the draw exists: armour worth
+   * exactly the blow no longer stops it. Under the old flat rule this was
+   * immunity, and it was reachable in the starting kit.
    */
-  it("deals exactly damage minus def when the blow connects", () => {
+  it("no longer makes armour worth the blow a wall against it", () => {
     const attacker = battler({
       damage: 9,
       variance: 0,
       accuracy: 100,
       hitChance: 1,
     });
-    const defender = battler({ def: 2, flee: 0 });
+    const defender = battler({ def: 9, flee: 0 });
 
     let landed = 0;
-    for (let seed = 0; seed < 50; seed++) {
+    let wounded = 0;
+    for (let seed = 0; seed < 200; seed++) {
       const outcome = rollAttack(attacker, defender, new Rng(seed));
       if (outcome.missed || outcome.dodged) continue;
       landed++;
-      expect(outcome.damage).toBe(7);
-      expect(outcome.potentialDamage).toBe(9);
+      if (outcome.damage > 0) wounded++;
     }
     expect(landed).toBeGreaterThan(0);
+    expect(wounded).toBeGreaterThan(landed / 2);
+  });
+
+  /**
+   * Every swing that actually lands, rather than every swing: with a floor under
+   * both the whiff and the dodge, some of these come to nothing however the stats
+   * are written. The claim is about the arithmetic of a blow that connects — a
+   * fixed blow against a *drawn* guard, so what is fixed is the band it lands in
+   * and both of that band's ends are reached.
+   */
+  it("takes a draw against defence off a blow that connects", () => {
+    const attacker = battler({
+      damage: 9,
+      variance: 0,
+      accuracy: 100,
+      hitChance: 1,
+    });
+    const defender = battler({ def: 4, flee: 0 });
+    const { lowest, highest } = guardBand(defender, attacker);
+    expect([lowest, highest]).toEqual([1, 4]);
+
+    const drawn = new Set<number>();
+    for (let seed = 0; seed < 400; seed++) {
+      const outcome = rollAttack(attacker, defender, new Rng(seed));
+      if (outcome.missed || outcome.dodged) continue;
+      expect(outcome.potentialDamage).toBe(9);
+      expect(outcome.damage).toBeGreaterThanOrEqual(9 - highest);
+      expect(outcome.damage).toBeLessThanOrEqual(9 - lowest);
+      drawn.add(outcome.damage);
+    }
+    // Every rung of the band, not merely a range that happens to hold: a draw
+    // that never reached one end would be a wobble that is not really there.
+    expect([...drawn].sort((a, b) => a - b)).toEqual([5, 6, 7, 8]);
   });
 
   it("always dodges a defender nothing can touch", () => {
@@ -327,9 +447,9 @@ describe("swinging", () => {
    * always costs the same number of draws. If the count varied with the stats,
    * one creature's accuracy would change what every creature after it rolled.
    */
-  it("costs the same four draws whatever the stats", () => {
+  it("costs the same five draws whatever the stats", () => {
     const reference = new Rng(7);
-    for (let i = 0; i < 4; i++) reference.next();
+    for (let i = 0; i < 5; i++) reference.next();
     const after = reference.save();
 
     for (const stats of [
@@ -390,14 +510,15 @@ describe("resisting a kind of blow", () => {
     const hammer = { ...sword, mastery: "blunt" } as const;
     const defender = battler({ def: 2, resist: { sharp: 5 }, flee: 0 });
 
+    // The same seed both ways round, so the guard draw is the same draw and the
+    // only thing left between the two numbers is which band it was drawn from.
     let landed = 0;
     for (let seed = 0; seed < 50; seed++) {
       const cut = rollAttack(sword, defender, new Rng(seed));
       const thump = rollAttack(hammer, defender, new Rng(seed));
       if (cut.missed || cut.dodged) continue;
       landed++;
-      expect(cut.damage).toBe(2);
-      expect(thump.damage).toBe(7);
+      expect(cut.damage).toBeLessThan(thump.damage);
     }
     expect(landed).toBeGreaterThan(0);
   });
@@ -535,7 +656,7 @@ describe("statuses a weapon inflicts", () => {
    */
   it("costs one draw per authored status, whatever the blow came to", () => {
     const reference = new Rng(7);
-    for (let i = 0; i < 6; i++) reference.next();
+    for (let i = 0; i < 7; i++) reference.next();
     const after = reference.save();
 
     for (const [attacker, defender] of [

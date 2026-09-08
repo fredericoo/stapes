@@ -399,9 +399,17 @@ describe("the wolf", () => {
     expect(fresh).toBeLessThan(0.05);
     // A starter blade is no longer an answer to a wolf, whatever your Sharp is.
     expect(starter).toBeLessThan(0.1);
-    // The right weapon in trained hands makes it a coin-toss rather than a
-    // formality in either direction.
-    expect(properly).toBeGreaterThan(0.35);
+    // The right weapon in trained hands makes it a fight you can lose rather
+    // than a formality in either direction.
+    //
+    // **The floor moved from 0.35 to 0.25 when armour became a draw** — see
+    // `./combat`'s `guardFraction`. Both sides now meet a guard that is usually
+    // below its face value, and the wolf gains more from that than the player
+    // does: it hits for twelve against a player wearing almost nothing, where
+    // the sword was already getting through most of a wolf's three points. The
+    // rung is still a rung — a fresh player loses every time and an equipped one
+    // wins better than a quarter of them — it is a harder one.
+    expect(properly).toBeGreaterThan(0.25);
     expect(properly).toBeLessThan(0.8);
   });
 });

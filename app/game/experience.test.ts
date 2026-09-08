@@ -13,6 +13,7 @@ import {
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import type { AttackOutcome } from "./combat";
+import { guardBand, MIN_GUARD_SHARE } from "./combat";
 import { effectiveBattler, emptyEquipment } from "./equipment";
 import { TICK_MS } from "./constants";
 import {
@@ -328,9 +329,23 @@ function tile(
  */
 const SPARRING_TOUGHNESS = 95;
 
+/**
+ * The guard one of these bodies puts up, at both ends of the draw.
+ *
+ * Armour is a draw rather than a subtraction — see `./combat`'s
+ * {@link MIN_GUARD_SHARE} — so a blow authored against the *whole* guard is
+ * worth three points when the draw comes up highest and fifteen when it does
+ * not, and a fixture built to be hit all day dies in nine seconds. Authored
+ * against the low end instead: three at most, one at least, every blow.
+ */
+const SPARRING_GUARD = guardBand(
+  { def: defFrom(SPARRING_TOUGHNESS), resist: {} },
+  { mastery: "fist" },
+);
+
 const claws = (fields: Record<string, unknown>) => ({
   type: "weapon" as const,
-  damage: defFrom(SPARRING_TOUGHNESS) + 3,
+  damage: SPARRING_GUARD.lowest + 3,
   def: 0,
   accuracy: 90,
   variance: 20,
