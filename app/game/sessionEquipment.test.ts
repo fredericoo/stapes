@@ -6,6 +6,7 @@ import { parseServerMessage } from "../net/protocol";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
+import { guardBand, MIN_GUARD_SHARE } from "./combat";
 import { TICK_MS } from "./constants";
 import { emptyEquipment } from "./equipment";
 import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
@@ -61,6 +62,35 @@ const CERTAIN = { accuracy: 100, variance: 0, spd: 100 };
 const PLAYER_TOUGHNESS = 92;
 const DUMMY_TOUGHNESS = 100;
 const DUMMY_DEF = defFrom(DUMMY_TOUGHNESS);
+
+/**
+ * How much wider than its floor a blow through the dummy's guard can be.
+ *
+ * Every weapon below is authored at `worth + DUMMY_DEF` so that `worth` is what
+ * survives the dummy's armour. That was exact while armour was a subtraction; it
+ * is now a *draw* — see `./combat`'s {@link MIN_GUARD_SHARE} — so what survives
+ * is a band whose floor is still `worth` and whose ceiling is this much above
+ * it. Read off `guardBand` rather than worked out here, so the day the share
+ * moves these tests move with it.
+ */
+const DUMMY_GUARD = guardBand(
+  { def: DUMMY_DEF, resist: {} },
+  { mastery: "fist" },
+);
+const GUARD_SPREAD = DUMMY_GUARD.highest - DUMMY_GUARD.lowest;
+
+/**
+ * A blow authored to be worth `floor` through the dummy, asserted as the band it
+ * actually lands in.
+ *
+ * The floor is the claim in every one of these — what the weapon is worth — and
+ * the ceiling is only there to catch a blow that got through more than the
+ * dummy's whole guard, which would mean the armour was not consulted at all.
+ */
+function expectWorth(dealt: number, floor: number): void {
+  expect(dealt).toBeGreaterThanOrEqual(floor);
+  expect(dealt).toBeLessThanOrEqual(floor + GUARD_SPREAD);
+}
 
 /** What a bare-handed blow should come to once the bag has had its share. */
 const BARE_DAMAGE = 5;
@@ -394,8 +424,8 @@ describe("a weapon reaches the blow", () => {
     const armed = fightingSession();
     arm(armed, "light-sword");
 
-    expect(damageOver(bare, TICK_MS * 3)).toBe(BARE_DAMAGE);
-    expect(damageOver(armed, TICK_MS * 3)).toBe(SWORD_DAMAGE);
+    expectWorth(damageOver(bare, TICK_MS * 3), BARE_DAMAGE);
+    expectWorth(damageOver(armed, TICK_MS * 3), SWORD_DAMAGE);
   });
 
   /**
@@ -413,7 +443,7 @@ describe("a weapon reaches the blow", () => {
     const hit = damageOver(heavy, TICK_MS * 3);
 
     expect(hit).toBeGreaterThanOrEqual(4);
-    expect(hit).toBeLessThanOrEqual(10);
+    expect(hit).toBeLessThanOrEqual(10 + GUARD_SPREAD);
   });
 
   it("swings at its own speed rather than the body's", () => {
@@ -432,7 +462,7 @@ describe("a weapon reaches the blow", () => {
 
   it("leaves an empty-handed body fighting with its natural weapon", () => {
     const session = fightingSession();
-    expect(damageOver(session, TICK_MS * 3)).toBe(BARE_DAMAGE);
+    expectWorth(damageOver(session, TICK_MS * 3), BARE_DAMAGE);
   });
 
   /**
@@ -977,7 +1007,7 @@ index: 0 }, { kind: "weapon" });
     // The sword's damage, not the sword's on top of the body's: drawing a
     // weapon out of the bag has to reach the blow by the same replacement every
     // other path uses.
-    expect(before - after).toBe(SWORD_DAMAGE);
+    expectWorth(before - after, SWORD_DAMAGE);
   });
 
   it("loots a chest on the floor, rewriting the placement it came out of", () => {

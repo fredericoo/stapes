@@ -277,16 +277,124 @@ export function potentialDamageFrom(
 }
 
 /**
+ * The least of its defence a body can have standing between it and a blow, as a
+ * share of {@link defenceAgainst}.
+ *
+ * **Armour used to be a flat subtraction, and flat is what made it an on-off
+ * switch.** A creature's blow lives in a bounded band — a wolf's is authored at
+ * damage 12 and variance 35, so it is *always* worth between 8 and 12 — and
+ * `MAX_ARMOR_DEF` is deliberately the same scale as `MAX_WEAPON_DAMAGE`. Put
+ * those together and defence 12 was not "very good against wolves": it was total
+ * immunity, reachable in the starting kit, and every wolf in the world became
+ * scenery on the same afternoon. A rat never got through a cloth tunic.
+ *
+ * So a blow meets a *draw* from its defender's guard rather than the whole of
+ * it. A quarter is the low end, and the choice of low end is the whole rule
+ * about what can still be shrugged off entirely: **armour stops a blow outright
+ * only when a quarter of it is already the whole blow.** Being untouchable by
+ * rats is still reachable and now costs four times the armour it used to, which
+ * is a rung on the ladder rather than the second-cheapest charm in the game.
+ */
+export const MIN_GUARD_SHARE = 0.25;
+
+/**
+ * Where in that band a guard draw usually lands, as a share of face value.
+ *
+ * **The hump, and it is the same argument {@link damageFraction} makes one
+ * paragraph up.** A flat draw makes a mail shirt that turned nothing aside
+ * exactly as common as one that turned aside everything, which reads as noise
+ * rather than as armour: the number on your chest stops predicting anything, and
+ * a fight becomes a sequence of unrelated surprises. A peak means armour has a
+ * *typical* worth you can plan around, and the two ends stay rare enough to be
+ * events — a blow that got through almost untouched, or one your mail swallowed
+ * whole.
+ *
+ * Above the middle of the band on purpose. Armour that usually performs a little
+ * better than halfway is armour that mostly does what it says, and the interest
+ * is in the tail below it rather than in a symmetric wobble around a number
+ * nobody chose.
+ */
+export const GUARD_PEAK = 0.6;
+
+/**
+ * Where one draw puts a guard, as a share of {@link defenceAgainst}.
+ *
+ * Triangular between {@link MIN_GUARD_SHARE} and the whole of it, peaking at
+ * {@link GUARD_PEAK} — the textbook inverse of a triangular distribution's own
+ * CDF, so a uniform draw comes out humped without anything having to be
+ * resampled or rejected. One draw in, one share out, monotonic in between, which
+ * is what lets `./combatMetrics` find each rung's odds by bisecting this rather
+ * than by knowing what shape it is.
+ *
+ * @param roll one draw in [0, 1), which the caller owns for the reason
+ *   {@link damageFraction}'s two are: this stays a function of its arguments
+ *   rather than a thing that touches the world's dice.
+ */
+export function guardFraction(roll: number): number {
+  const span = 1 - MIN_GUARD_SHARE;
+  const below = GUARD_PEAK - MIN_GUARD_SHARE;
+  const atPeak = below / span;
+  if (roll < atPeak) return MIN_GUARD_SHARE + Math.sqrt(roll * span * below);
+  return 1 - Math.sqrt((1 - roll) * span * (1 - GUARD_PEAK));
+}
+
+/**
+ * The whole numbers of defence a blow of this kind might meet, inclusive.
+ *
+ * The ends of the band rather than a list, because that is all anybody needs:
+ * how often each number inside it comes up is {@link guardFraction}'s shape and
+ * is asked of it. Exported because `./combatMetrics` reports the band and
+ * because a fixture asserting "this blow cannot get through" has to know where
+ * the low end is — see {@link MIN_GUARD_SHARE} for why that number is the rule.
+ */
+export function guardBand(
+  defender: Guarded,
+  attacker: Striking,
+): { lowest: number; highest: number } {
+  const guard = defenceAgainst(defender, attacker);
+  return { lowest: Math.round(guard * MIN_GUARD_SHARE), highest: guard };
+}
+
+/**
+ * How much of its guard this particular blow found, given one draw.
+ *
+ * Rounded, because hit points are whole and this is subtracted from one. That
+ * makes the band a small set of whole numbers whose odds can be worked out
+ * exactly, which is the difference between the Arena quoting a figure and the
+ * Arena sampling one.
+ */
+export function guardRolled(
+  defender: Guarded,
+  attacker: Striking,
+  roll: number,
+): number {
+  return Math.round(guardFraction(roll) * defenceAgainst(defender, attacker));
+}
+
+/**
+ * The sliver of a body that armour is read off — everything
+ * {@link defenceAgainst} looks at, and nothing else.
+ *
+ * Named and narrowed for the reason the attacking side already was: what stops a
+ * blow is two fields, so a caller that has those two fields has enough. It also
+ * makes the band assertable from a fixture that is not a whole fighting body.
+ */
+export type Guarded = Pick<FightingStats, "def" | "resist">;
+
+/** The sliver of a body that says what kind of blow it strikes. */
+export type Striking = Pick<FightingStats, "mastery">;
+
+/**
  * What is left of a blow once the defender's armour has had it.
  *
  * Floors at zero rather than going negative: a blow that cannot get through
  * armour is a blow worth nothing, not a heal.
  *
  * **The attacker is a parameter because armour may care what hit it.** What has
- * to be got through is {@link defenceAgainst} — flat defence plus whatever the
- * defender is wearing that has an opinion about this *kind* of blow — so a
- * caller cannot subtract `defender.def` on its own and quietly forget the
- * resistance.
+ * to be got through is {@link guardRolled} — a draw against the flat defence
+ * plus whatever the defender is wearing that has an opinion about this *kind* of
+ * blow — so a caller cannot subtract `defender.def` on its own and quietly
+ * forget either the resistance or the draw.
  *
  * Named for the same reason {@link landChance} is: `rollAttack` strikes through
  * it and `./combatMetrics` reports through it, so the day mitigation stops being
@@ -295,10 +403,11 @@ export function potentialDamageFrom(
  */
 export function damageAfterDefence(
   potentialDamage: number,
-  defender: FightingStats,
-  attacker: Pick<FightingStats, "mastery">,
+  defender: Guarded,
+  attacker: Striking,
+  guardRoll: number,
 ): number {
-  return Math.max(0, potentialDamage - defenceAgainst(defender, attacker));
+  return Math.max(0, potentialDamage - guardRolled(defender, attacker, guardRoll));
 }
 
 /** What one swing came to. */
@@ -364,8 +473,8 @@ const NOTHING_INFLICTED: readonly WeaponStatus[] = [];
  *
  * Damage floors at zero rather than going negative: a blow that cannot get
  * through armour is a blow worth nothing, not a heal. What counts as armour here
- * is {@link defenceAgainst}, which is the defender's flat defence plus whatever
- * they are wearing that has an opinion about this kind of blow.
+ * is {@link guardRolled} — a draw against the defender's flat defence plus
+ * whatever they are wearing that has an opinion about this kind of blow.
  */
 export function rollAttack(
   attacker: FightingStats,
@@ -375,6 +484,13 @@ export function rollAttack(
   const missRoll = rng.next();
   const dodgeRoll = rng.next();
   const damageRoll: [number, number] = [rng.next(), rng.next()];
+  // How much of its guard the defender has between it and this blow. Drawn with
+  // the rest whether or not the blow ever gets far enough to meet armour, for
+  // the reason the three above are: the count is what has to be constant, not
+  // the reading. Placed with the damage draws because it is the other half of
+  // the same question — what this blow came to — and before the statuses so a
+  // weapon that inflicts nothing keeps them last.
+  const guardRoll = rng.next();
   // One draw per authored status, taken here with the rest and read only if the
   // blow gets that far — the same arrangement the three above are under, for the
   // same reason. The count varies with the *weapon* and never with what
@@ -413,7 +529,7 @@ export function rollAttack(
   return {
     missed: false,
     dodged: false,
-    damage: damageAfterDefence(potentialDamage, defender, attacker),
+    damage: damageAfterDefence(potentialDamage, defender, attacker, guardRoll),
     potentialDamage,
     inflicted: inflictedBy(attacker.statuses, statusRolls),
   };
@@ -437,8 +553,8 @@ export function rollAttack(
  * that reached for `defender.def` on its own.
  */
 export function defenceAgainst(
-  defender: FightingStats,
-  attacker: Pick<FightingStats, "mastery">,
+  defender: Guarded,
+  attacker: Striking,
 ): number {
   return defender.def + (defender.resist[attacker.mastery] ?? 0);
 }

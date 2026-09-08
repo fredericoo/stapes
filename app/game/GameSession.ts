@@ -4804,11 +4804,13 @@ export class GameSession implements PlaySession {
     // What the stone is worth in *these* hands, off Arcane and off the elements
     // the stone asks for. @see `../lib/battler`'s {@link spellPower}
     const power = spellPower(effect.damage, stone.requirements, context.masteries);
-    // The one thing left of a swing's dice. Drawn whichever way the bolt runs and
+    // What is left of a swing's dice: the damage band, and how much of its guard
+    // the subject has in the way. Both drawn whichever way the bolt runs and
     // before either branch, so the world's dice advance by exactly as much for a
     // mend as for a harm — the same property `rollAttack` protects by taking all
-    // its draws up front.
+    // its draws up front. A mend reads neither.
     const roll: [number, number] = [this.rng.next(), this.rng.next()];
+    const guardRoll = this.rng.next();
     const rolled = Math.round(
       power * damageFraction(effect.variance ?? 0, roll),
     );
@@ -4819,7 +4821,12 @@ export class GameSession implements PlaySession {
       // decided after what got through the mail. Read as an arcane blow, because
       // that is what it is — a stone answers to Arcane, so a breastplate warded
       // against magic turns one aside. @see `./combat`'s `defenceAgainst`
-      const through = damageAfterDefence(rolled, context.stats, ARCANE_BLOW);
+      const through = damageAfterDefence(
+        rolled,
+        context.stats,
+        ARCANE_BLOW,
+        guardRoll,
+      );
       const dealt = this.elementalDamage(subject, through, elements);
       if (dealt <= 0) return;
       this.applyDamage(subject, dealt);

@@ -12,6 +12,7 @@ import {
   ASSAILANT_GRACE_MS,
   attackIntervalMs,
   MIN_ATTACK_TICKS,
+  MIN_GUARD_SHARE,
 } from "./combat";
 import { STRIKE_DURATION_MS, TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
@@ -183,7 +184,10 @@ const tiles: TileDef[] = [
       battler: { baseHp: FIXTURE_BASE_HP, masteries: { toughness: DUMMY_TOUGHNESS }, naturalWeapon: claws({}) },
     },
   }),
-  // Armoured past anything the player can do to it.
+  // Armoured past anything the player can do to it. That takes four times the
+  // defence it used to: armour is drawn rather than subtracted, so what has to
+  // outweigh the blow is {@link MIN_GUARD_SHARE} of this and not the whole of
+  // it.
   tile({
     id: "anvil",
     height: 2,
@@ -584,7 +588,12 @@ describe("damage numbers", () => {
 
     const hits = dealt.filter((number) => number.outcome === "hit");
     expect(hits.length).toBeGreaterThan(0);
-    expect(hits[0]).toMatchObject({ amount: 5, x: 1, y: 0, z: 0 });
+    expect(hits[0]).toMatchObject({ x: 1, y: 0, z: 0 });
+    // At least what `feltBy` promises, and no more than the whole blow: defence
+    // is drawn rather than subtracted whole, so the amount is a band and only
+    // its floor is a fact this test can state.
+    expect(hits[0]!.amount).toBeGreaterThanOrEqual(5);
+    expect(hits[0]!.amount).toBeLessThanOrEqual(feltBy(DUMMY_TOUGHNESS));
     // Drained means gone: a second reader would otherwise broadcast it twice.
     expect(session.drainDamage()).toHaveLength(0);
   });
@@ -1258,11 +1267,19 @@ describe("what a swing costs in footwork", () => {
 /**
  * A crowd, on a board.
  *
- * Every one of these swings a blow the target's armour would swallow whole in a
- * duel — `feltBy(DUMMY_TOUGHNESS)` against a player wearing `PLAYER_TOUGHNESS`
- * — so nothing lands here until the crowd itself is what makes it land. That is
- * the exact fight this rule was written for: eight rats gnawing a well-armoured
- * ankle for nothing.
+ * Every one of these swings a blow the target's armour all but stops in a duel —
+ * `feltBy(DUMMY_TOUGHNESS)` against a player wearing `PLAYER_TOUGHNESS` — so
+ * almost nothing lands here until the crowd itself is what makes it land. That
+ * is the exact fight this rule was written for: eight rats gnawing a
+ * well-armoured ankle.
+ *
+ * **The control is a comparison rather than a zero**, and it has to be: armour
+ * is drawn rather than subtracted, so a body would need four times this
+ * fixture's defence before a lone attacker were stopped dead every time — more
+ * than `MAX_MASTERY` Toughness can buy. What `guardShare` claims is a *rate*,
+ * and a rate is only ever measured against another one. The claim that a blow
+ * can be stopped dead alone and land in a crowd is `./combat.test.ts`'s, where
+ * the defence can be written deep enough for it.
  */
 const SURROUNDING_CELLS = [
   [1, 0],
@@ -1305,15 +1322,21 @@ const hpOfMe = (session: GameSession) =>
 
 describe("being outnumbered", () => {
   /**
-   * The control, and the reason the fixture is armoured: one of these cannot
-   * scratch the player however long it swings, so every hit point lost below is
-   * the crowd's doing and nothing else's.
+   * The control, and the reason the fixture is armoured: eight of these take
+   * more off in one round than one of them takes off in eight, which no amount
+   * of counting swings can explain.
    */
-  it("leaves a lone attacker unable to get through armour at all", () => {
-    const { session } = surrounded(1);
+  it("costs a body more per attacker the more of them there are", () => {
+    const alone = surrounded(1);
+    advance(alone.session, ONE_ROUND_MS * SURROUNDING_CELLS.length);
+    const chipped = PLAYER_MAX_HP - hpOfMe(alone.session);
 
-    advance(session, ONE_ROUND_MS * 4);
-    expect(hpOfMe(session)).toBe(PLAYER_MAX_HP);
+    const swarm = surrounded(SURROUNDING_CELLS.length);
+    advance(swarm.session, ONE_ROUND_MS);
+    const mauled = PLAYER_MAX_HP - hpOfMe(swarm.session);
+
+    expect(chipped).toBeGreaterThan(0);
+    expect(mauled).toBeGreaterThan(chipped);
   });
 
   /** The reported fight: eight of the same thing is not one thing, eight times. */
@@ -1340,10 +1363,11 @@ describe("being outnumbered", () => {
     advance(session, ONE_ROUND_MS + ASSAILANT_GRACE_MS);
     const settled = hpOfMe(session);
 
-    // The one left swinging is back to being a lone attacker, which this
-    // fixture's armour eats whole.
+    // The one left swinging is back to being a lone attacker, and what it takes
+    // off over four rounds is a fraction of what the crowd took in one.
     advance(session, ONE_ROUND_MS * 4);
-    expect(hpOfMe(session)).toBe(settled);
+    const chipped = settled - hpOfMe(session);
     expect(settled).toBeGreaterThan(0);
+    expect(chipped).toBeLessThan(PLAYER_MAX_HP - settled);
   });
 });

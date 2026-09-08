@@ -12,6 +12,7 @@ import { statusesById } from "../lib/status";
 import type { Coord, MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
+import { guardBand, MIN_GUARD_SHARE } from "./combat";
 import { TICK_MS } from "./constants";
 import {
   casterEarnings,
@@ -104,8 +105,48 @@ const BOLT_RESIST = 5;
  */
 const RAT_DEF = defFrom(RAT_TOUGHNESS);
 
-/** What a bolt of {@link BOLT_DAMAGE} actually takes off a plain rat. */
-const BOLT_THROUGH = BOLT_DAMAGE - RAT_DEF;
+/**
+ * The guard a plain rat puts up against a bolt, at both ends of the draw.
+ *
+ * Armour is drawn rather than subtracted — see `./combat`'s
+ * {@link MIN_GUARD_SHARE} — so what a bolt takes off is a band and not a figure.
+ * Read off `guardBand` for the reason {@link RAT_DEF} is read off `defFrom`:
+ * the number belongs to the fight, and a copy of it here is a second answer.
+ */
+const RAT_GUARD = guardBand({ def: RAT_DEF, resist: {} }, { mastery: "arcane" });
+
+/**
+ * What a bolt of {@link BOLT_DAMAGE} actually takes off a plain rat, at both
+ * ends of that draw.
+ *
+ * Every case below casts exactly once into a freshly seeded session, so they all
+ * meet the *same* draw and stay comparable with one another. What none of them
+ * may do is name the number: which rung this seed lands on is the dice's
+ * business and not the design's.
+ */
+const BOLT_THROUGH = {
+  least: BOLT_DAMAGE - RAT_GUARD.highest,
+  most: BOLT_DAMAGE - RAT_GUARD.lowest,
+};
+
+/** The same, for a rat wearing mail warded against magic. */
+const MAILED_GUARD = guardBand(
+  { def: RAT_DEF, resist: { arcane: BOLT_RESIST } },
+  { mastery: "arcane" },
+);
+const MAILED_THROUGH = {
+  least: BOLT_DAMAGE - MAILED_GUARD.highest,
+  most: BOLT_DAMAGE - MAILED_GUARD.lowest,
+};
+
+/** A bolt that got through a guard, whichever rung it drew. */
+function expectThrough(
+  took: number,
+  band: { least: number; most: number } = BOLT_THROUGH,
+): void {
+  expect(took).toBeGreaterThanOrEqual(band.least);
+  expect(took).toBeLessThanOrEqual(band.most);
+}
 
 /** Fixed ends, so a rolled burn is a constant and the arithmetic below is exact. */
 const BURN_MS = 4_000;
@@ -212,8 +253,8 @@ const props: TileDef[] = [
   body("mailed-rat", RAT_TOUGHNESS, { actor: true }, [
     { slot: "armor", tileId: "warding-mail" },
   ]),
-  // And one warded deeper than any bolt below is worth, for the case where
-  // nothing gets through at all.
+  // And one warded deeper than any bolt below is worth *even at the shallowest
+  // draw*, for the case where nothing gets through at all.
   body("walled-rat", RAT_TOUGHNESS, { actor: true }, [
     { slot: "armor", tileId: "walling-mail" },
   ]),
@@ -294,7 +335,14 @@ const props: TileDef[] = [
     intangible: true,
     affectedByGravity: true,
     interactions: {
-      item: { type: "armor", def: 0, resist: { arcane: BOLT_DAMAGE * 2 } },
+      // Deep enough that even {@link MIN_GUARD_SHARE} of it is the whole bolt,
+      // which is what "nothing gets through" has to mean now that the guard is
+      // drawn. Derived rather than typed, so it follows the share if it moves.
+      item: {
+        type: "armor",
+        def: 0,
+        resist: { arcane: Math.ceil(BOLT_DAMAGE / MIN_GUARD_SHARE) },
+      },
     },
   }),
   stoneTile("adept-stone", {
@@ -1221,7 +1269,7 @@ describe("a bolt thrown at somebody", () => {
   it("takes the stone's own damage off the target", () => {
     const { play, target, before } = boltAt("bolt-stone");
     expect(play.cast("weapon")).toBe(true);
-    expect(took(play, target, before)).toBe(BOLT_THROUGH);
+    expectThrough(took(play, target, before));
   });
 
   /**
@@ -1233,7 +1281,7 @@ describe("a bolt thrown at somebody", () => {
   it("is never dodged, however nimble the target", () => {
     const { play, target, before } = boltAt("bolt-stone", "nimble-rat");
     expect(play.cast("weapon")).toBe(true);
-    expect(took(play, target, before)).toBe(BOLT_THROUGH);
+    expectThrough(took(play, target, before));
   });
 
   /**
@@ -1243,9 +1291,17 @@ describe("a bolt thrown at somebody", () => {
    * body a sword bounces off.
    */
   it("has to get through what the target is wearing against magic", () => {
+    // The ward is in the arithmetic: every rung of the warded band is below the
+    // matching rung of the bare one, which is `defenceAgainst` having read the
+    // resistance and could not be true if it had not.
+    expect(MAILED_THROUGH.least).toBeLessThan(BOLT_THROUGH.least);
+    expect(MAILED_THROUGH.most).toBeLessThan(BOLT_THROUGH.most);
+
+    // And the cast landed inside it. Not compared against a bare rat's cast:
+    // the two sessions build different boards and so are not on the same draw.
     const { play, target, before } = boltAt("bolt-stone", "mailed-rat");
     expect(play.cast("weapon")).toBe(true);
-    expect(took(play, target, before)).toBe(BOLT_THROUGH - BOLT_RESIST);
+    expectThrough(took(play, target, before), MAILED_THROUGH);
   });
 
   /** And then the wheel, on what got through — the same order a burn is under. */
@@ -1253,12 +1309,14 @@ describe("a bolt thrown at somebody", () => {
     const strong = boltAt("ember-bolt-stone", "nature-rat");
     expect(strong.play.cast("weapon")).toBe(true);
     expect(took(strong.play, strong.target, strong.before)).toBeGreaterThan(
-      BOLT_THROUGH,
+      BOLT_THROUGH.most,
     );
 
     const weak = boltAt("ember-bolt-stone", "water-rat");
     expect(weak.play.cast("weapon")).toBe(true);
-    expect(took(weak.play, weak.target, weak.before)).toBeLessThan(BOLT_THROUGH);
+    expect(took(weak.play, weak.target, weak.before)).toBeLessThan(
+      BOLT_THROUGH.least,
+    );
   });
 
   /**
@@ -1310,7 +1368,7 @@ describe("a bolt thrown at somebody", () => {
     const { play, target, before } = boltAt("brand-bolt-stone");
     expect(play.cast("weapon")).toBe(true);
 
-    expect(took(play, target, before)).toBe(BOLT_THROUGH);
+    expectThrough(took(play, target, before));
     expect(statusIdsOf(play, target)).toContain("burned");
   });
 
@@ -1323,7 +1381,7 @@ describe("a bolt thrown at somebody", () => {
     const { play, target, before } = boltAt("dud-brand-stone");
     expect(play.cast("weapon")).toBe(true);
 
-    expect(took(play, target, before)).toBe(BOLT_THROUGH);
+    expectThrough(took(play, target, before));
     expect(statusIdsOf(play, target)).not.toContain("burned");
   });
 
@@ -1389,7 +1447,7 @@ describe("what a spell is worth in a trained hand", () => {
   }
 
   it("hits harder in the hands of a better arcanist", () => {
-    expect(tookFrom(["/mastery arcane 80"])).toBeGreaterThan(BOLT_THROUGH);
+    expect(tookFrom(["/mastery arcane 80"])).toBeGreaterThan(BOLT_THROUGH.most);
   });
 
   /**

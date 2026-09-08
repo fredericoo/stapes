@@ -4,6 +4,8 @@ import {
   damageAfterDefence,
   defenceAgainst,
   dodgeChance,
+  guardBand,
+  guardRolled,
   landChance,
   potentialDamageFrom,
   swingIntervalMs,
@@ -40,6 +42,13 @@ import {
  * {@link triangularCdf} the right measure and `[t, t]` a faithful probe). Both
  * are asserted in `./combatMetrics.test.ts`, against `Rng` and against
  * `damageFraction` itself.
+ *
+ * The guard draw rests on the first of those and nothing else. It is *not*
+ * uniform over the band — see `./combat`'s `guardFraction`, which humps it — and
+ * this file deliberately does not know what shape it is. It finds each rung's
+ * odds by asking where in the draw that rung begins and ends, which for a
+ * uniform draw is the same thing as how often it comes up. See
+ * {@link guardOdds}.
  */
 
 /** One possible worth of a blow before defence, and how often it comes up. */
@@ -81,7 +90,7 @@ export function potentialDamages(attacker: FightingStats): DamageOdds[] {
   // ends the walk rather than hanging the page that drew it. See the guard on
   // the last line of the loop.
   for (let step = 0; step <= MAX_WEAPON_DAMAGE && value < highest; step++) {
-    const to = firstMeanWorthMoreThan(worthAt, value, from);
+    const to = firstDrawAbove(worthAt, value, from);
     odds.push({ value, chance: triangularCdf(to) - triangularCdf(from) });
     from = to;
     const next = worthAt(to);
@@ -91,6 +100,52 @@ export function potentialDamages(attacker: FightingStats): DamageOdds[] {
   // Everything above the last boundary, which is the top of the band: always
   // full damage, because variance widens the band downward only.
   odds.push({ value, chance: 1 - triangularCdf(from) });
+  return odds;
+}
+
+/** One possible depth of guard a blow might meet, and how often it comes up. */
+export type GuardOdds = {
+  /** Hit points of defence, as {@link guardRolled} produces them. */
+  value: number;
+  /** Fraction of blows of this kind that meet exactly this much. */
+  chance: number;
+};
+
+/**
+ * The exact distribution of what a blow of this kind actually meets.
+ *
+ * **The shape of the draw is not restated here, and that is the point.** The
+ * guard is humped rather than flat, and the day somebody moves the peak — or
+ * replaces the triangle with something else entirely — this has to follow
+ * without being edited. So it asks the same question {@link potentialDamages}
+ * asks: *where in the draw does one whole number of guard become the next?* The
+ * draw is uniform, so the width of that stretch is how often the rung comes up,
+ * and nothing else about the curve has to be known.
+ *
+ * Bisection works because `guardRolled` climbs with its draw. If it ever stops
+ * doing so this walk ends early rather than hanging, on the same guard
+ * {@link potentialDamages} keeps.
+ */
+export function guardOdds(
+  defender: FightingStats,
+  attacker: FightingStats,
+): GuardOdds[] {
+  const guardAt = (roll: number) => guardRolled(defender, attacker, roll);
+  const { lowest, highest } = guardBand(defender, attacker);
+  if (lowest >= highest) return [{ value: highest, chance: 1 }];
+
+  const odds: GuardOdds[] = [];
+  let from = 0;
+  let value = guardAt(0);
+  for (let rung = lowest; rung <= highest && value < highest; rung++) {
+    const to = firstDrawAbove(guardAt, value, from);
+    odds.push({ value, chance: to - from });
+    from = to;
+    const next = guardAt(to);
+    if (next <= value) break;
+    value = next;
+  }
+  odds.push({ value, chance: 1 - from });
   return odds;
 }
 
@@ -104,9 +159,17 @@ export function potentialDamages(attacker: FightingStats): DamageOdds[] {
  */
 const BISECTION_STEPS = 60;
 
-/** The lowest draw-mean at or above `from` worth more than `value`. */
-function firstMeanWorthMoreThan(
-  worthAt: (mean: number) => number,
+/**
+ * The lowest draw at or above `from` that `climbing` answers with more than
+ * `value`.
+ *
+ * Shared by the two bands, which are the same question asked of two different
+ * curves: a damage band's draw-mean and a guard's single draw. Both are
+ * monotonic, so the boundary between one whole number and the next is a single
+ * crossing and bisection finds it to the last bit a double can hold.
+ */
+function firstDrawAbove(
+  climbing: (draw: number) => number,
   value: number,
   from: number,
 ): number {
@@ -114,7 +177,7 @@ function firstMeanWorthMoreThan(
   let above = 1;
   for (let step = 0; step < BISECTION_STEPS; step++) {
     const middle = (below + above) / 2;
-    if (worthAt(middle) > value) above = middle;
+    if (climbing(middle) > value) above = middle;
     else below = middle;
   }
   return above;
@@ -184,16 +247,20 @@ export type SwingOdds = {
   /** Share of swings that reached a body. */
   connected: number;
   /**
-   * Share of swings that reached a body and came to nothing, because defence
-   * was worth at least the whole blow.
+   * Share of swings that reached a body and came to nothing, because the guard
+   * this blow drew was worth at least the whole of it.
    *
    * **The nearest true thing to "blocked", and it is not a separate roll.**
-   * There is no block mechanic: defence is taken off a blow that has already
+   * There is no block mechanic: defence is drawn against a blow that has already
    * landed, so what looks like a block is a blow whose whole worth the armour
    * ate. Worth its own figure precisely because it is invisible in an average —
    * a defence that swallows a third of the blows outright is a very different
    * fight from one that shaves a third off each of them, and the two can produce
    * the same mean.
+   *
+   * Now a property of the *pair of draws* rather than of the stat blocks: the
+   * same armour blocks a blow it drew well against and misses one it did not, so
+   * this is a rate where it used to be a yes or no.
    */
   absorbed: number;
   /** Share of swings that actually took hit points off. */
@@ -250,15 +317,21 @@ export function swingOdds(
   const dodged = lands * dodgeGivenAim;
   const connected = lands * (1 - dodgeGivenAim);
 
+  // Two independent draws, so what a blow comes to is the sum over every pairing
+  // of what it was worth and what it met.
   const band = potentialDamages(attacker);
+  const guards = guardOdds(defender, attacker);
   let absorbedGivenConnect = 0;
   let meanPotential = 0;
   let meanConnectingDamage = 0;
   for (const { value, chance } of band) {
-    const landed = damageAfterDefence(value, defender, attacker);
     meanPotential += value * chance;
-    meanConnectingDamage += landed * chance;
-    if (landed === 0) absorbedGivenConnect += chance;
+    for (const guard of guards) {
+      const together = chance * guard.chance;
+      const landed = Math.max(0, value - guard.value);
+      meanConnectingDamage += landed * together;
+      if (landed === 0) absorbedGivenConnect += together;
+    }
   }
 
   const meanSwingDamage = connected * meanConnectingDamage;
@@ -274,11 +347,15 @@ export function swingOdds(
     connected,
     absorbed: connected * absorbedGivenConnect,
     wounded: connected * (1 - absorbedGivenConnect),
-    minDamage: damageAfterDefence(band[0]?.value ?? 0, defender, attacker),
-    maxDamage: damageAfterDefence(
-      band[band.length - 1]?.value ?? 0,
-      defender,
-      attacker,
+    // The weakest blow against the deepest guard, and the reverse: the band's
+    // ends are the two draws' ends together, not the damage band's alone.
+    minDamage: Math.max(
+      0,
+      (band[0]?.value ?? 0) - (guards[guards.length - 1]?.value ?? 0),
+    ),
+    maxDamage: Math.max(
+      0,
+      (band[band.length - 1]?.value ?? 0) - (guards[0]?.value ?? 0),
     ),
     meanConnectingDamage,
     meanSwingDamage,
