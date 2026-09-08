@@ -1979,6 +1979,26 @@ weaker than it reads. And a resistance keyed to a mastery *every* creature in th
 world strikes with is not a choice, it is a strictly better piece of armour — see
 the note on creature masteries below.
 
+### A creature strikes with the mastery its attack actually is
+
+Every animal in the world used to have its natural weapon authored as `fist`,
+which made `bone-charm` — a `charm` with `resist: { fist: 4 }` and no defence at
+all — worth more against the whole bestiary than four occupied armour slots put
+together. A resistance is only a choice if there is more than one kind of blow to
+choose between.
+
+So a natural weapon now carries the mastery its attack *is*. Teeth and claws are
+`sharp`, which is most animals: rat, cat, snake, bat, wolf. The cave troll swings
+`blunt`. `fist` and `blunt` are where humanoids will mostly sit.
+
+**A creature's `masteries` key has to match its weapon's `mastery`,** and that is
+the trap this exposed. `fightingStats` reads `masteryLevel(masteries, weapon.mastery)`
+for the skill bonus, so a body trained in one thing and swinging another gets no
+bonus at all and nothing says so. The cave troll had `fist: 60` beside a `blunt`
+club and had been fighting at skill zero — fixing the key took it from damage 20
+to 35 and accuracy 80 to 95, which is a change to how dangerous it is and not a
+refactor.
+
 ### A body is born carrying what its tile says
 
 Every battler has a **kit** (`app/lib/kit.ts`), authored on the same block as its

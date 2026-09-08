@@ -13403,14 +13403,14 @@
       },
       "battler": {
         "masteries": {
-          "fist": 9,
+          "sharp": 9,
           "toughness": 7,
           "agility": 28
         },
         "naturalWeapon": {
           "type": "weapon",
           "def": 0,
-          "mastery": "fist",
+          "mastery": "sharp",
           "damage": 4,
           "spd": 60,
           "accuracy": 84,
@@ -26509,7 +26509,7 @@
       },
       "battler": {
         "masteries": {
-          "fist": 4,
+          "sharp": 4,
           "toughness": 3,
           "agility": 24
         },
@@ -26524,7 +26524,7 @@
             "cells": 1.5,
             "height": 2
           },
-          "mastery": "fist"
+          "mastery": "sharp"
         },
         "sight": {
           "up": 0,
@@ -26959,7 +26959,7 @@
       },
       "battler": {
         "masteries": {
-          "fist": 16,
+          "sharp": 16,
           "toughness": 14,
           "agility": 10
         },
@@ -26974,7 +26974,7 @@
             "cells": 1.5,
             "height": 2
           },
-          "mastery": "fist",
+          "mastery": "sharp",
           "statuses": [
             {
               "id": "poison",
@@ -27680,7 +27680,7 @@
       },
       "battler": {
         "masteries": {
-          "fist": 30,
+          "sharp": 30,
           "toughness": 22,
           "agility": 30
         },
@@ -27695,7 +27695,7 @@
             "cells": 1.5,
             "height": 2
           },
-          "mastery": "fist"
+          "mastery": "sharp"
         },
         "sight": {
           "up": 1,
@@ -28178,7 +28178,7 @@
       },
       "battler": {
         "masteries": {
-          "fist": 12,
+          "sharp": 12,
           "toughness": 4,
           "agility": 45
         },
@@ -28193,7 +28193,7 @@
             "cells": 1.5,
             "height": 2
           },
-          "mastery": "fist"
+          "mastery": "sharp"
         },
         "sight": {
           "up": 1,
@@ -28776,7 +28776,7 @@
       },
       "battler": {
         "masteries": {
-          "fist": 60,
+          "blunt": 60,
           "toughness": 66,
           "agility": 6
         },
