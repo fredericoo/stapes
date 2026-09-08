@@ -440,13 +440,21 @@ describe("what a fight feels like", () => {
    * The other half of that, stated rather than left as a gap: the things above
    * your station kill you fast, and *that* is the signal to run. A ladder whose
    * every rung took the same time to lose to would have nothing to read.
+   *
+   * **Eight seconds rather than five**, and the bound moved because the fight
+   * did: every authored blow in the world was cut to 45% of what it was and the
+   * wolf now swings half as often, so a losing fight takes about three times as
+   * long to lose. That was the point of the rescale — a wolf used to finish a
+   * bare-handed player inside two seconds, which is not long enough to read what
+   * is happening and choose to run. What is being asserted is still "fast enough
+   * to be a signal", and five seconds stopped being that number.
    */
   it("ends a fight nobody should have picked quickly", () => {
     const player = fists(bodyOf("player"));
     for (const id of ["snake", "wolf"]) {
       const result = duel(player, fists(bodyOf(id)), new Rng(3));
       expect(result.winner).toBe("b");
-      expect((result.ticks * TICK_MS) / 1000).toBeLessThan(5);
+      expect((result.ticks * TICK_MS) / 1000).toBeLessThan(8);
     }
   });
 });
