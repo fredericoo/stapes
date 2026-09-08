@@ -4657,6 +4657,12 @@ which is why those two are worth keeping intact.
 - **A storey is a ring of `[floor, wall]` around an inside of `[floor]`.** The
   door replaces the wall in one ground-floor cell; a window replaces it in
   several, on every storey.
+- **The ridge runs along the building's longer side**, so the roof steps in
+  across the *short* axis and a hall twice as long as it is wide gets a long low
+  roof rather than a short tall one. That is what the orientation setting's
+  `auto` does, and it is the default; the two explicit values are for the
+  building that means something else by its shape. A square has no long axis
+  and is roofed north-south, which is how the cottage at (12,3) is roofed.
 - **The roof, when there is one, steps in one cell a side per level** until the
   span runs out. The low edge wears the eave facing the ridge and the high edge
   the one facing back at it (`e`/`w` for a north-south ridge, `s`/`n` for an

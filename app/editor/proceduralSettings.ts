@@ -33,7 +33,7 @@ const DEFAULT_WINDOW_SPACING = 4;
 
 export const DEFAULT_HOUSE_CONFIG: HouseConfig = {
   storeys: 1,
-  roofOrientation: "vertical",
+  roofOrientation: "auto",
   roofColour: "red",
   wallTileId: "sw2",
   floorTileId: "wooden-floor",
@@ -51,7 +51,7 @@ const HouseConfigSchema = v.object({
     v.minValue(1),
     v.maxValue(MAX_STOREYS),
   ),
-  roofOrientation: v.picklist(["vertical", "horizontal"]),
+  roofOrientation: v.picklist(["auto", "vertical", "horizontal"]),
   roofColour: v.nullable(
     v.picklist(ROOF_COLOUR_IDS as [RoofColour, ...RoofColour[]]),
   ),

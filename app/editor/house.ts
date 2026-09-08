@@ -32,6 +32,34 @@ import { canReplaceStack } from "../lib/validation";
 /** Which way the ridge runs, named for how the line looks on the map. */
 export type RoofOrientation = "vertical" | "horizontal";
 
+/**
+ * The orientation as it is *authored*: either one of them, or left to the
+ * footprint.
+ */
+export type RoofOrientationSetting = RoofOrientation | "auto";
+
+/**
+ * Which way a roof over `width` x `depth` cells should run.
+ *
+ * A gable's ridge runs along the length of the building, so the roof steps
+ * inward across the *short* axis: a hall twice as long as it is wide gets a
+ * long low roof rather than a short tall one. That is the answer nearly every
+ * time, which is why it is the default rather than a suggestion — the two
+ * explicit settings are there for the building that means something else by
+ * its shape.
+ *
+ * A square has no long axis, and takes the same number of roof levels either
+ * way; it runs north-south, which is how the cottage at (12,3) is roofed.
+ */
+export function resolveRoofOrientation(
+  setting: RoofOrientationSetting,
+  width: number,
+  depth: number,
+): RoofOrientation {
+  if (setting !== "auto") return setting;
+  return width > depth ? "horizontal" : "vertical";
+}
+
 export type RoofColour = "red" | "yellow" | "blue";
 
 /**
@@ -60,7 +88,7 @@ export type DoorColumn = "west" | "centre" | "east";
 export type HouseConfig = {
   /** Storeys of wall, each one level tall. The roof starts above the top one. */
   storeys: number;
-  roofOrientation: RoofOrientation;
+  roofOrientation: RoofOrientationSetting;
   /**
    * `null` tops the walls with nothing at all — a curtain wall, a tower, a
    * yard. The roof is what makes a rectangle of wall a *house*, so leaving it
@@ -368,13 +396,14 @@ function roofEdits(
   bounds: Bounds,
   baseLevel: number,
   config: HouseConfig,
+  orientation: RoofOrientation,
   tilesById: Record<string, TileDef>,
 ): StackEdit[] {
   if (!config.roofColour) return [];
 
   const { minX, maxX, minY, maxY } = bounds;
   const { eaveTileId, ridgeTileId } = ROOF_COLOURS[config.roofColour];
-  const vertical = config.roofOrientation === "vertical";
+  const vertical = orientation === "vertical";
   const span = vertical ? maxX - minX + 1 : maxY - minY + 1;
   const fill: PlacedTile[] = [
     { tileId: ROOF_FILL_TILE_ID },
@@ -530,7 +559,12 @@ export function planHouse(
   }
 
   const roofBase = z + config.storeys;
-  const roofSpan = config.roofOrientation === "vertical" ? width : depth;
+  const orientation = resolveRoofOrientation(
+    config.roofOrientation,
+    width,
+    depth,
+  );
+  const roofSpan = orientation === "vertical" ? width : depth;
   // With no roof the building tops out at its highest storey, and the level
   // that has to exist is that one rather than a ridge above it.
   const topLevel = config.roofColour
@@ -574,7 +608,7 @@ export function planHouse(
       ),
     );
   }
-  edits.push(...roofEdits(bounds, roofBase, config, tilesById));
+  edits.push(...roofEdits(bounds, roofBase, config, orientation, tilesById));
 
   const blocked = occupiedAbove(map, edits, z);
   if (blocked) return { ok: false, reason: blocked };

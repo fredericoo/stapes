@@ -440,7 +440,7 @@ export function ProceduralDialog({
             ].join(" ")}
             aria-hidden={draft.roofColour ? undefined : true}
           >
-            <FieldLabel info="Which way the ridge runs. Vertical gables face north and south; horizontal ones face east and west.">
+            <FieldLabel info="Which way the ridge runs. Auto runs it along the building's longer side, which is where a gable's ridge goes. Vertical gables face north and south; horizontal ones face east and west.">
               Roof orientation
             </FieldLabel>
             <Segmented
@@ -448,6 +448,7 @@ export function ProceduralDialog({
               value={draft.roofOrientation}
               onChange={(roofOrientation) => patch({ roofOrientation })}
               options={[
+                { value: "auto", label: "Auto" },
                 { value: "vertical", label: "Vertical" },
                 { value: "horizontal", label: "Horizontal" },
               ]}

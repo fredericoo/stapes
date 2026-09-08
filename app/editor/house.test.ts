@@ -8,6 +8,7 @@ import {
   MIN_FOOTPRINT,
   doorSpotFor,
   planHouse,
+  resolveRoofOrientation,
   roofLevelsFor,
   windowsAlong,
   type HouseConfig,
@@ -80,6 +81,24 @@ describe("roofLevelsFor", () => {
     expect(roofLevelsFor(3)).toBe(2);
     expect(roofLevelsFor(2)).toBe(1);
     expect(roofLevelsFor(1)).toBe(1);
+  });
+});
+
+describe("resolveRoofOrientation", () => {
+  it("runs the ridge along the building's longer side", () => {
+    // Wider than deep: the ridge runs east-west and the roof steps in over y.
+    expect(resolveRoofOrientation("auto", 12, 6)).toBe("horizontal");
+    // Deeper than wide: the ridge runs north-south.
+    expect(resolveRoofOrientation("auto", 6, 12)).toBe("vertical");
+  });
+
+  it("roofs a square north-south, as the cottage is", () => {
+    expect(resolveRoofOrientation("auto", 5, 5)).toBe("vertical");
+  });
+
+  it("leaves an explicit setting alone whatever the footprint", () => {
+    expect(resolveRoofOrientation("vertical", 12, 6)).toBe("vertical");
+    expect(resolveRoofOrientation("horizontal", 6, 12)).toBe("horizontal");
   });
 });
 
@@ -318,6 +337,20 @@ describe("planHouse", () => {
     expect(ids(built, 2, 0, 3)).toEqual(["roof-6"]);
     expect(facing(built, 2, 0, 3)).toBe("s");
     expect(getStack(built, 2, 2, 4)).toEqual([]);
+  });
+
+  it("picks the orientation from the footprint when it is left to it", () => {
+    const map = siteMap(-2, -2, 20, 20);
+    // Nine wide and five deep, so the ridge should run east-west: the north
+    // and south rows are the eaves and the roof steps in over y.
+    const built = build(map, { x0: 0, y0: 0, x1: 8, y1: 4 }, {
+      roofOrientation: "auto",
+    });
+    expect(facing(built, 4, 0, 1)).toBe("s");
+    expect(facing(built, 4, 4, 1)).toBe("n");
+    // Three roof levels for a five-deep span, and nothing above them.
+    expect(ids(built, 4, 2, 3)).toEqual(["roof-3"]);
+    expect(getStack(built, 4, 2, 4)).toEqual([]);
   });
 
   it("turns the same roof through ninety degrees", () => {
