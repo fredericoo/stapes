@@ -132,6 +132,7 @@ export type EditorStore = {
   togglePreviewMode: () => void;
   setMinutesOfDay: (m: MinutesOfDay) => void;
   setLightingEnabled: (v: boolean) => void;
+  toggleLightingEnabled: () => void;
   setTool: (tool: ToolId) => void;
   setSelected: (sel: { x: number; y: number } | null) => void;
   setHover: (h: { x: number; y: number } | null) => void;
@@ -264,6 +265,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }),
   setLightingEnabled: (v) =>
     set({ lighting: { ...get().lighting, enabled: v } }),
+  toggleLightingEnabled: () =>
+    set({ lighting: { ...get().lighting, enabled: !get().lighting.enabled } }),
   setTool: (tool) => set({ tool }),
   setSelected: (sel) => set({ selected: sel }),
   setHover: (h) => {
