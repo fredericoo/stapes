@@ -18124,6 +18124,9 @@
     "kind": "prop",
     "attributes": {},
     "walkable": false,
+    "connectsTo": [
+      "window-1"
+    ],
     "slices": {
       "0": {
         "frames": [

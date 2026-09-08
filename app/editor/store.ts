@@ -14,6 +14,7 @@ import {
   reorderStack,
   replaceStack,
   serializeMap,
+  setStacks,
   updatePlacedChannel,
   updatePlacedDescription,
   updatePlacedReward,
@@ -28,6 +29,12 @@ import {
   fitsFoot,
   tilesByIdFromList,
 } from "../lib/validation";
+import { planHouse, type HouseConfig, type Rect } from "./house";
+import {
+  DEFAULT_HOUSE_CONFIG,
+  loadHouseConfig,
+  saveHouseConfig,
+} from "./proceduralSettings";
 
 export type ToolId =
   | "select"
@@ -35,7 +42,8 @@ export type ToolId =
   | "pencil"
   | "rect"
   | "circle"
-  | "bucket";
+  | "bucket"
+  | "procedural";
 
 /** Discrete map zoom steps (canvas px per world px). */
 export const ZOOM_LEVELS = [1, 2, 4, 8] as const;
@@ -103,12 +111,22 @@ export type EditorStore = {
    * placement already down should notice.
    */
   armedVariant: string | null;
+  /**
+   * What the procedural tool would build, and a counter that changes whenever
+   * it does.
+   *
+   * The counter is what the renderer's overlay signature reads: a house ghost
+   * is derived from the settings as much as from the rectangle, and without it
+   * changing the roof colour mid-drag would leave the old ghost on screen.
+   */
+  houseConfig: HouseConfig;
+  houseConfigVersion: number;
   /** Always one of {@link ZOOM_LEVELS}: `setZoom` snaps whatever it is given. */
   zoom: ZoomLevel;
   /** Camera top-left in world pixels. */
   camera: { x: number; y: number };
   shapePreview: {
-    kind: "rect" | "circle";
+    kind: "rect" | "circle" | "procedural";
     x0: number;
     y0: number;
     x1: number;
@@ -138,6 +156,7 @@ export type EditorStore = {
   setHover: (h: { x: number; y: number } | null) => void;
   setArmedTileId: (id: string | null) => void;
   setArmedVariant: (variant: string | null) => void;
+  setHouseConfig: (config: HouseConfig) => void;
   setZoom: (z: number) => void;
   setCamera: (c: { x: number; y: number }) => void;
   setShapePreview: (p: EditorStore["shapePreview"]) => void;
@@ -162,6 +181,13 @@ export type EditorStore = {
     coords: Array<{ x: number; y: number }>,
   ) => { skipped: number; reason?: string };
   appendArmed: () => { ok: boolean; reason?: string };
+  /**
+   * Build a house over `rect` on the current level, as one undoable edit.
+   *
+   * All or nothing: a plan that does not fit writes no cell at all, which is
+   * what makes dragging one over a roof safe to try.
+   */
+  placeHouse: (rect: Rect) => { ok: boolean; reason?: string };
   removeFromStack: (stackIndex: number) => void;
   reorderSelectedStack: (from: number, to: number) => void;
   setStackDirection: (stackIndex: number, direction: Direction) => void;
@@ -211,6 +237,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   hover: null,
   armedTileId: null,
   armedVariant: null,
+  houseConfig: DEFAULT_HOUSE_CONFIG,
+  houseConfigVersion: 0,
   zoom: 4,
   camera: { x: -32, y: -32 },
   shapePreview: null,
@@ -224,6 +252,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   hydrate: (map, tiles) => {
     const state = get();
     const tilesById = tilesByIdFromList(tiles);
+    // The saved generator settings are read here rather than at module load:
+    // there is no `localStorage` on the server, and the catalogue they have to
+    // be checked against only exists once tiles have arrived.
+    const houseConfig = loadHouseConfig((id) => id in tilesById);
     // Revalidation after save produces a new map identity with the same
     // contents — keep history and the current map reference so dirty checks
     // against savedMap stay meaningful.
@@ -231,6 +263,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       set({
         tiles,
         tilesById,
+        houseConfig,
         savedMap: state.map,
         dirty: false,
         strokeBase: null,
@@ -241,6 +274,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       map,
       tiles,
       tilesById,
+      houseConfig,
       dirty: false,
       mapVersion: state.mapVersion + 1,
       savedMap: map,
@@ -282,6 +316,13 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setArmedTileId: (id) =>
     set(id === get().armedTileId ? { armedTileId: id } : { armedTileId: id, armedVariant: null }),
   setArmedVariant: (variant) => set({ armedVariant: variant }),
+  setHouseConfig: (config) => {
+    saveHouseConfig(config);
+    set({
+      houseConfig: config,
+      houseConfigVersion: get().houseConfigVersion + 1,
+    });
+  },
   setZoom: (z) => set({ zoom: snapZoom(z) }),
   setCamera: (c) => {
     const prev = get().camera;
@@ -502,6 +543,15 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     get().commitMap(
       appendTile(map, selected.x, selected.y, currentLevel, placed),
     );
+    return { ok: true };
+  },
+
+  placeHouse: (rect) => {
+    const { map, currentLevel, tilesById, houseConfig } = get();
+    const plan = planHouse(map, tilesById, rect, currentLevel, houseConfig);
+    if (!plan.ok) return { ok: false, reason: plan.reason };
+    // One `setStacks`, so the whole house is one entry in the undo stack.
+    get().commitMap(setStacks(map, plan.edits));
     return { ok: true };
   },
 

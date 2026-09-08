@@ -1,8 +1,9 @@
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   IconBucket,
   IconCircle,
   IconEraser,
+  IconHome,
   IconPointer,
   IconPencil,
   IconSquare,
@@ -11,6 +12,8 @@ import {
 import { Button, ScrollArea, Tooltip } from "../../ui";
 import { panCameraByWheel } from "../camera";
 import { useEditorStore, type ToolId } from "../store";
+import type { HouseConfig } from "../house";
+import { ProceduralDialog } from "./ProceduralDialog";
 
 const TOOLS: Array<{
   id: ToolId;
@@ -29,7 +32,21 @@ const TOOLS: Array<{
 /** Floating vertical tool strip — scrolls when the chrome column is short. */
 export function MapToolbar() {
   const tool = useEditorStore((s) => s.tool);
+  const houseConfig = useEditorStore((s) => s.houseConfig);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
+
+  // Placing arms the tool with the settings just chosen and hands the map back
+  // ready to drag. The selected cell goes with it: the shape tools stamp the
+  // selection when there is one, and a generator ignores it, so leaving it set
+  // would leave the tile picker claiming a brush the next drag will not use.
+  const place = (config: HouseConfig) => {
+    const store = useEditorStore.getState();
+    store.setHouseConfig(config);
+    store.setSelected(null);
+    store.setTool("procedural");
+    setDialogOpen(false);
+  };
 
   // Chain wheel to the map whenever the strip can't absorb it (no overflow,
   // or already at the edge). Keeps toolbar hover from trapping map pan.
@@ -70,7 +87,25 @@ export function MapToolbar() {
             </Button>
           </Tooltip>
         ))}
+        <Tooltip content="Procedural — build a house from a dragged rectangle" side="left">
+          <Button
+            size="icon"
+            variant="ghost"
+            active={tool === "procedural"}
+            aria-label="Procedural"
+            aria-haspopup="dialog"
+            onClick={() => setDialogOpen(true)}
+          >
+            <IconHome size={18} aria-hidden="true" />
+          </Button>
+        </Tooltip>
       </div>
+      <ProceduralDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        config={houseConfig}
+        onPlace={place}
+      />
     </ScrollArea>
   );
 }

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Tooltip } from "./Tooltip";
+import { Tooltip, TooltipProvider } from "./Tooltip";
 
 /**
  * A small `i` that opens the engine's side of the story.
@@ -13,29 +13,37 @@ import { Tooltip } from "./Tooltip";
  * A real button rather than a span, so it can be reached and opened from the
  * keyboard. It is not a `title`: those take a second to appear and vanish on
  * the first twitch of the pointer.
+ *
+ * It opens with no delay, which is the opposite of the rule everywhere else.
+ * The delay exists for tooltips nobody asked for — a pointer crossing a toolbar
+ * on its way somewhere. Nobody's pointer ends up on a four-pixel `i` by
+ * accident: reaching one *is* the request, and a wait after it reads as the
+ * control being broken rather than as restraint.
  */
 export function InfoTip({ children }: { children: ReactNode }) {
   return (
-    <Tooltip
-      side="top"
-      content={
-        <span className="block max-w-72 font-normal normal-case leading-snug">
-          {children}
-        </span>
-      }
-    >
-      <button
-        type="button"
-        aria-label="More about this"
-        className={[
-          "inline-flex size-4 shrink-0 items-center justify-center",
-          "border-2 border-border bg-panel font-mono text-[10px] leading-none text-muted",
-          "hover:bg-ink hover:text-paper",
-          "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-        ].join(" ")}
+    <TooltipProvider delay={0}>
+      <Tooltip
+        side="top"
+        content={
+          <span className="block max-w-72 font-normal normal-case leading-snug">
+            {children}
+          </span>
+        }
       >
-        i
-      </button>
-    </Tooltip>
+        <button
+          type="button"
+          aria-label="More about this"
+          className={[
+            "inline-flex size-4 shrink-0 items-center justify-center",
+            "border-2 border-border bg-panel font-mono text-[10px] leading-none text-muted",
+            "hover:bg-ink hover:text-paper",
+            "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+          ].join(" ")}
+        >
+          i
+        </button>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
