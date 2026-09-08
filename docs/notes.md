@@ -4721,6 +4721,15 @@ their settings; pressing Place arms a tool that builds one out of a dragged
 rectangle. There is one generator so far — a house — and the shape of it is
 what the second one should copy.
 
+`app/editor/procedural.ts` is the list they are reached through, and it is the
+only thing the store and the renderer know about: both call `planProcedural`
+with the armed config and neither has heard of a house. Adding a generator is
+a config type with a `generator` tag, a `plan*` function, a row in
+`GENERATORS`, a default in `proceduralSettings.ts` and a form in the dialog.
+The parts more than one of them needs — the rectangle, its bounds, and the
+placement of a tile that may or may not have faces — are in
+`app/editor/generator.ts`.
+
 **One pure function answers everything.** `planHouse` (`app/editor/house.ts`)
 takes the map, the rectangle, the level and the settings, and returns either
 the list of `StackEdit`s that build the house or the reason it cannot be built.

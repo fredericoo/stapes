@@ -58,7 +58,7 @@ import {
 } from "./camera";
 import type { EditorPerfMeasure, EditorPerfSnapshot } from "./perf";
 import { floodCoords, stacksEqual } from "./tools";
-import { planHouse } from "./house";
+import { activeConfig, planProcedural } from "./procedural";
 import {
   type LevelAnimUniforms,
   type LevelLightUniforms,
@@ -117,7 +117,7 @@ const MAX_GHOST_CELLS = 256;
  * the whole point of the tool, so it is worth more meshes than a rectangle of
  * one tile is. Past this a drag shows its footprint and nothing else.
  */
-const MAX_HOUSE_GHOST_CELLS = 512;
+const MAX_GENERATOR_GHOST_CELLS = 512;
 
 /** Debounce lighting recompute while painting. */
 const LIGHTING_DEBOUNCE_MS = 50;
@@ -949,7 +949,7 @@ export class EditorRenderer {
       sel ? `${sel.x},${sel.y}` : "",
       s.armedTileId ?? "",
       sp ? `${sp.kind}:${sp.x0},${sp.y0},${sp.x1},${sp.y1}` : "",
-      s.houseConfigVersion,
+      s.proceduralSettingsVersion,
       frames,
     ].join("|");
   }
@@ -1059,16 +1059,16 @@ export class EditorRenderer {
     }
 
     // A generator's preview is its own plan, drawn where it would land: the
-    // same `planHouse` the commit runs, so what the drag shows and what the
-    // click writes cannot describe different houses.
+    // same `planProcedural` the commit runs, so what the drag shows and what
+    // the click writes cannot describe different things.
     if (s.shapePreview?.kind === "procedural") {
       const { x0, y0, x1, y1 } = s.shapePreview;
-      const plan = planHouse(
+      const plan = planProcedural(
         s.map,
         s.tilesById,
         { x0, y0, x1, y1 },
         z,
-        s.houseConfig,
+        activeConfig(s.proceduralSettings),
       );
       const minX = Math.min(x0, x1);
       const minY = Math.min(y0, y1);
@@ -1082,7 +1082,7 @@ export class EditorRenderer {
         true,
       );
 
-      if (plan.ok && plan.edits.length <= MAX_HOUSE_GHOST_CELLS) {
+      if (plan.ok && plan.edits.length <= MAX_GENERATOR_GHOST_CELLS) {
         // Resolved against the map the plan *makes*: an autotiled wall drawn
         // against the map as it stands is an isolated post, and the preview
         // would show a picket fence rather than the house being built.
@@ -2300,7 +2300,7 @@ export class EditorRenderer {
     if (this.shapeAnchor && store.shapePreview) {
       const { kind, x0, y0, x1, y1 } = store.shapePreview;
       if (kind === "procedural") {
-        const result = store.placeHouse({ x0, y0, x1, y1 });
+        const result = store.placeProcedural({ x0, y0, x1, y1 });
         if (!result.ok && result.reason) {
           useEditorStore.setState({ lastToast: result.reason });
         }

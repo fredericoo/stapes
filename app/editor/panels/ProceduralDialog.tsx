@@ -19,14 +19,9 @@ import {
   type HouseConfig,
   type RoofColour,
 } from "../house";
+import { GENERATORS, type GeneratorId, type ProceduralSettings } from "../procedural";
 import { STOREY_RANGE } from "../proceduralSettings";
 import { useMapAssets } from "./MapAssetsContext";
-
-/**
- * The generators the button offers. One so far, and the list is here rather
- * than inferred so adding a second one is a row plus a form.
- */
-const GENERATORS = [{ id: "house", label: "House" }] as const;
 
 /**
  * The walls a house may be built from.
@@ -284,17 +279,27 @@ function DoorPlacementGrid({
   );
 }
 
-/** A searchable thumbnail grid over the whole catalogue. */
-function FloorTilePicker({
+/**
+ * A searchable thumbnail grid over the whole catalogue.
+ *
+ * Whole rather than a short list, because what a floor may be is not a
+ * property of the tile the way what a *wall* may be is: anything flat is a
+ * floor, and which flat thing this one is is exactly the choice being made.
+ */
+function TileGridPicker({
+  label,
   value,
   onChange,
   tiles,
   tilesets,
+  allowNone,
 }: {
-  value: string;
-  onChange: (id: string) => void;
+  label: string;
+  value: string | null;
+  onChange: (id: string | null) => void;
   tiles: TileDef[];
   tilesets: TilesetDef[];
+  allowNone?: boolean;
 }) {
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => {
@@ -316,8 +321,25 @@ function FloorTilePicker({
       <div
         className="grid max-h-40 grid-cols-[repeat(auto-fill,minmax(56px,1fr))] content-start gap-1 overflow-auto border-2 border-border bg-panel p-1"
         role="radiogroup"
-        aria-label="Floor tile"
+        aria-label={label}
       >
+        {allowNone ? (
+          <button
+            type="button"
+            role="radio"
+            aria-checked={value === null}
+            onClick={() => onChange(null)}
+            className={[
+              "flex flex-col items-center justify-center gap-0.5 border-2 p-0.5 text-[9px]",
+              value === null
+                ? "border-accent bg-paper"
+                : "border-transparent hover:border-border hover:bg-paper",
+            ].join(" ")}
+          >
+            <span className="flex h-8 items-center text-muted">None</span>
+            <span>None</span>
+          </button>
+        ) : null}
         {filtered.map((tile) => {
           const active = tile.id === value;
           return (
@@ -353,39 +375,202 @@ function FloorTilePicker({
   );
 }
 
+/** The house form: everything a {@link HouseConfig} is, and nothing else. */
+function HouseForm({
+  draft,
+  patch,
+  tiles,
+  tilesets,
+}: {
+  draft: HouseConfig;
+  patch: (next: Partial<HouseConfig>) => void;
+  tiles: TileDef[];
+  tilesets: TilesetDef[];
+}) {
+  return (
+    <>
+      <div className="flex flex-wrap gap-4">
+        <div className="flex flex-col gap-1">
+          <FieldLabel info="Storeys of wall. The roof starts on the level above the top one.">
+            Height
+          </FieldLabel>
+          <NumberInput
+            className="w-20"
+            aria-label="Storeys"
+            value={draft.storeys}
+            min={STOREY_RANGE.min}
+            max={STOREY_RANGE.max}
+            step={1}
+            onChange={(storeys) => patch({ storeys })}
+          />
+        </div>
+
+        <div
+          className={[
+            "flex flex-col items-start gap-1",
+            // A ridge with no roof on it has nothing to say, so the control
+            // greys rather than vanishing: the field keeps its place, and
+            // turning a roof back on does not move everything under it.
+            draft.roofColour ? "" : "pointer-events-none opacity-50",
+          ].join(" ")}
+          aria-hidden={draft.roofColour ? undefined : true}
+        >
+          <FieldLabel info="Which way the ridge runs. Auto runs it along the building's longer side, which is where a gable's ridge goes. Vertical gables face north and south; horizontal ones face east and west.">
+            Roof orientation
+          </FieldLabel>
+          <Segmented
+            ariaLabel="Roof orientation"
+            value={draft.roofOrientation}
+            onChange={(roofOrientation) => patch({ roofOrientation })}
+            options={[
+              { value: "auto", label: "Auto" },
+              { value: "vertical", label: "Vertical" },
+              { value: "horizontal", label: "Horizontal" },
+            ]}
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <FieldLabel info="None leaves the walls open at the top — a curtain wall, a tower, a walled yard.">
+          Roof
+        </FieldLabel>
+        <RoofColourRow
+          value={draft.roofColour}
+          onChange={(roofColour) => patch({ roofColour })}
+          tiles={tiles}
+          tilesets={tilesets}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <FieldLabel>Wall</FieldLabel>
+        <TileChoiceRow
+          label="Wall tile"
+          tileIds={WALL_TILE_IDS}
+          value={draft.wallTileId}
+          onChange={(id) => patch({ wallTileId: id ?? draft.wallTileId })}
+          tiles={tiles}
+          tilesets={tilesets}
+          autotileSlice={WALL_RUN_SLICE}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <FieldLabel info="Laid across the whole footprint, on top of whatever is already there.">
+          Floor
+        </FieldLabel>
+        <TileGridPicker
+          label="Floor tile"
+          value={draft.floorTileId}
+          onChange={(id) => patch({ floorTileId: id ?? draft.floorTileId })}
+          tiles={tiles}
+          tilesets={tilesets}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <FieldLabel info="Set into every storey's walls, clear of the corners and of the door. None leaves the walls blank.">
+          Windows
+        </FieldLabel>
+        <div className="flex flex-wrap items-end gap-3">
+          <TileChoiceRow
+            label="Window tile"
+            tileIds={WINDOW_TILE_IDS}
+            value={draft.windowTileId}
+            onChange={(windowTileId) => patch({ windowTileId })}
+            tiles={tiles}
+            tilesets={tilesets}
+            allowNone
+            direction="s"
+          />
+          <div className="flex flex-col items-start gap-1">
+            <FieldLabel info="Cells from one window to the next along a wall. Bigger is further apart; a wall too short for two gets one.">
+              Spacing
+            </FieldLabel>
+            <NumberInput
+              className="w-20"
+              aria-label="Window spacing"
+              value={draft.windowSpacing}
+              min={WINDOW_SPACING_RANGE.min}
+              max={WINDOW_SPACING_RANGE.max}
+              step={1}
+              disabled={draft.windowTileId === null}
+              onChange={(windowSpacing) => patch({ windowSpacing })}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <FieldLabel info="Ground floor only, and never within two cells of a corner — a house too small for that gets none.">
+          Door
+        </FieldLabel>
+        <TileChoiceRow
+          label="Door tile"
+          tileIds={DOOR_TILE_IDS}
+          value={draft.doorTileId}
+          onChange={(doorTileId) => patch({ doorTileId })}
+          tiles={tiles}
+          tilesets={tilesets}
+          allowNone
+        />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <FieldLabel>Door placement</FieldLabel>
+        <DoorPlacementGrid
+          row={draft.doorRow}
+          column={draft.doorColumn}
+          disabled={draft.doorTileId === null}
+          onChange={(doorRow, doorColumn) => patch({ doorRow, doorColumn })}
+        />
+      </div>
+
+      <p className="text-xs text-muted">
+        Drag a rectangle on the map to place it. The site has to be level and
+        nothing may stand above it.
+      </p>
+    </>
+  );
+}
+
 /**
  * The procedural generators, and the settings the next placement will use.
  *
  * The form edits a draft rather than the store: closing it with the X leaves
  * the tool exactly as it was, and only Place commits — which is also what
  * writes the settings to `localStorage`, so what comes back on the next visit
- * is the last house actually built rather than the last field touched.
+ * is the last thing actually built rather than the last field touched.
+ *
+ * The draft holds *every* generator's settings rather than the armed one's,
+ * so looking at what another generator would do and going back does not lose
+ * what was set up first.
  */
 export function ProceduralDialog({
   open,
   onOpenChange,
-  config,
+  settings,
   onPlace,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  config: HouseConfig;
-  onPlace: (config: HouseConfig) => void;
+  settings: ProceduralSettings;
+  onPlace: (settings: ProceduralSettings) => void;
 }) {
   const { tiles, tilesets } = useMapAssets();
-  const [generator, setGenerator] = useState<string>(GENERATORS[0].id);
-  const [draft, setDraft] = useState<HouseConfig>(config);
+  const [draft, setDraft] = useState<ProceduralSettings>(settings);
 
   // The dialog is mounted for the life of the page, so the draft is seeded
   // from the standing settings each time it is opened rather than on mount.
   const [seededFor, setSeededFor] = useState(open);
   if (open !== seededFor) {
     setSeededFor(open);
-    if (open) setDraft(config);
+    if (open) setDraft(settings);
   }
 
-  const patch = (next: Partial<HouseConfig>) =>
-    setDraft((prev) => ({ ...prev, ...next }));
+  const patchHouse = (next: Partial<HouseConfig>) =>
+    setDraft((prev) => ({ ...prev, house: { ...prev.house, ...next } }));
 
   return (
     <Dialog
@@ -408,153 +593,20 @@ export function ProceduralDialog({
           <FieldLabel>Generator</FieldLabel>
           <Segmented
             ariaLabel="Generator"
-            value={generator}
-            onChange={setGenerator}
+            value={draft.active}
+            onChange={(active: GeneratorId) =>
+              setDraft((prev) => ({ ...prev, active }))
+            }
             options={GENERATORS.map((g) => ({ value: g.id, label: g.label }))}
           />
         </div>
 
-        <div className="flex flex-wrap gap-4">
-          <div className="flex flex-col gap-1">
-            <FieldLabel info="Storeys of wall. The roof starts on the level above the top one.">
-              Height
-            </FieldLabel>
-            <NumberInput
-              className="w-20"
-              aria-label="Storeys"
-              value={draft.storeys}
-              min={STOREY_RANGE.min}
-              max={STOREY_RANGE.max}
-              step={1}
-              onChange={(storeys) => patch({ storeys })}
-            />
-          </div>
-
-          <div
-            className={[
-              "flex flex-col items-start gap-1",
-              // A ridge with no roof on it has nothing to say, so the control
-              // greys rather than vanishing: the field keeps its place, and
-              // turning a roof back on does not move everything under it.
-              draft.roofColour ? "" : "pointer-events-none opacity-50",
-            ].join(" ")}
-            aria-hidden={draft.roofColour ? undefined : true}
-          >
-            <FieldLabel info="Which way the ridge runs. Auto runs it along the building's longer side, which is where a gable's ridge goes. Vertical gables face north and south; horizontal ones face east and west.">
-              Roof orientation
-            </FieldLabel>
-            <Segmented
-              ariaLabel="Roof orientation"
-              value={draft.roofOrientation}
-              onChange={(roofOrientation) => patch({ roofOrientation })}
-              options={[
-                { value: "auto", label: "Auto" },
-                { value: "vertical", label: "Vertical" },
-                { value: "horizontal", label: "Horizontal" },
-              ]}
-            />
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <FieldLabel info="None leaves the walls open at the top — a curtain wall, a tower, a walled yard.">
-            Roof
-          </FieldLabel>
-          <RoofColourRow
-            value={draft.roofColour}
-            onChange={(roofColour) => patch({ roofColour })}
-            tiles={tiles}
-            tilesets={tilesets}
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <FieldLabel>Wall</FieldLabel>
-          <TileChoiceRow
-            label="Wall tile"
-            tileIds={WALL_TILE_IDS}
-            value={draft.wallTileId}
-            onChange={(id) => patch({ wallTileId: id ?? draft.wallTileId })}
-            tiles={tiles}
-            tilesets={tilesets}
-            autotileSlice={WALL_RUN_SLICE}
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <FieldLabel info="Laid across the whole footprint, on top of whatever is already there.">
-            Floor
-          </FieldLabel>
-          <FloorTilePicker
-            value={draft.floorTileId}
-            onChange={(floorTileId) => patch({ floorTileId })}
-            tiles={tiles}
-            tilesets={tilesets}
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <FieldLabel info="Set into every storey's walls, clear of the corners and of the door. None leaves the walls blank.">
-            Windows
-          </FieldLabel>
-          <div className="flex flex-wrap items-end gap-3">
-            <TileChoiceRow
-              label="Window tile"
-              tileIds={WINDOW_TILE_IDS}
-              value={draft.windowTileId}
-              onChange={(windowTileId) => patch({ windowTileId })}
-              tiles={tiles}
-              tilesets={tilesets}
-              allowNone
-              direction="s"
-            />
-            <div className="flex flex-col items-start gap-1">
-              <FieldLabel info="Cells from one window to the next along a wall. Bigger is further apart; a wall too short for two gets one.">
-                Spacing
-              </FieldLabel>
-              <NumberInput
-                className="w-20"
-                aria-label="Window spacing"
-                value={draft.windowSpacing}
-                min={WINDOW_SPACING_RANGE.min}
-                max={WINDOW_SPACING_RANGE.max}
-                step={1}
-                disabled={draft.windowTileId === null}
-                onChange={(windowSpacing) => patch({ windowSpacing })}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <FieldLabel info="Ground floor only, and never within two cells of a corner — a house too small for that gets none.">
-            Door
-          </FieldLabel>
-          <TileChoiceRow
-            label="Door tile"
-            tileIds={DOOR_TILE_IDS}
-            value={draft.doorTileId}
-            onChange={(doorTileId) => patch({ doorTileId })}
-            tiles={tiles}
-            tilesets={tilesets}
-            allowNone
-          />
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <FieldLabel>Door placement</FieldLabel>
-          <DoorPlacementGrid
-            row={draft.doorRow}
-            column={draft.doorColumn}
-            disabled={draft.doorTileId === null}
-            onChange={(doorRow, doorColumn) => patch({ doorRow, doorColumn })}
-          />
-        </div>
-
-        <p className="text-xs text-muted">
-          Drag a rectangle on the map to place it. The site has to be level and
-          nothing may stand above it.
-        </p>
+        <HouseForm
+          draft={draft.house}
+          patch={patchHouse}
+          tiles={tiles}
+          tilesets={tilesets}
+        />
       </div>
     </Dialog>
   );

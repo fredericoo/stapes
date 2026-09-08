@@ -18,6 +18,7 @@ const tiles: TileDef[] = normalizeTiles(tilesRaw as unknown[]);
 const tilesById = tilesByIdFromList(tiles);
 
 const BASE: HouseConfig = {
+  generator: "house",
   storeys: 1,
   roofOrientation: "vertical",
   roofColour: "red",

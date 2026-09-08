@@ -12,8 +12,17 @@ import {
 import { Button, ScrollArea, Tooltip } from "../../ui";
 import { panCameraByWheel } from "../camera";
 import { useEditorStore, type ToolId } from "../store";
-import type { HouseConfig } from "../house";
+import { GENERATORS, type GeneratorId, type ProceduralSettings } from "../procedural";
 import { ProceduralDialog } from "./ProceduralDialog";
+
+/**
+ * The face each generator wears on the tool button, which changes with the
+ * armed one — the strip has room for a single procedural button, so the icon
+ * is the only place the armed generator can be read off the toolbar.
+ */
+const GENERATOR_ICONS: Record<GeneratorId, TablerIcon> = {
+  house: IconHome,
+};
 
 const TOOLS: Array<{
   id: ToolId;
@@ -32,7 +41,7 @@ const TOOLS: Array<{
 /** Floating vertical tool strip — scrolls when the chrome column is short. */
 export function MapToolbar() {
   const tool = useEditorStore((s) => s.tool);
-  const houseConfig = useEditorStore((s) => s.houseConfig);
+  const settings = useEditorStore((s) => s.proceduralSettings);
   const [dialogOpen, setDialogOpen] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
 
@@ -40,13 +49,17 @@ export function MapToolbar() {
   // ready to drag. The selected cell goes with it: the shape tools stamp the
   // selection when there is one, and a generator ignores it, so leaving it set
   // would leave the tile picker claiming a brush the next drag will not use.
-  const place = (config: HouseConfig) => {
+  const place = (next: ProceduralSettings) => {
     const store = useEditorStore.getState();
-    store.setHouseConfig(config);
+    store.setProceduralSettings(next);
     store.setSelected(null);
     store.setTool("procedural");
     setDialogOpen(false);
   };
+
+  const activeGenerator =
+    GENERATORS.find((g) => g.id === settings.active) ?? GENERATORS[0]!;
+  const ActiveIcon = GENERATOR_ICONS[activeGenerator.id];
 
   // Chain wheel to the map whenever the strip can't absorb it (no overflow,
   // or already at the edge). Keeps toolbar hover from trapping map pan.
@@ -87,23 +100,23 @@ export function MapToolbar() {
             </Button>
           </Tooltip>
         ))}
-        <Tooltip content="Procedural — build a house from a dragged rectangle" side="left">
+        <Tooltip content={`Procedural — ${activeGenerator.hint.toLowerCase()}`} side="left">
           <Button
             size="icon"
             variant="ghost"
             active={tool === "procedural"}
-            aria-label="Procedural"
+            aria-label={`Procedural: ${activeGenerator.label}`}
             aria-haspopup="dialog"
             onClick={() => setDialogOpen(true)}
           >
-            <IconHome size={18} aria-hidden="true" />
+            <ActiveIcon size={18} aria-hidden="true" />
           </Button>
         </Tooltip>
       </div>
       <ProceduralDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        config={houseConfig}
+        settings={settings}
         onPlace={place}
       />
     </ScrollArea>
