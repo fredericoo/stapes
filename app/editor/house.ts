@@ -218,9 +218,20 @@ export function doorSpotFor(
 }
 
 /**
- * Window positions along one wall run, centred on it and stepped by
- * `spacing`. `blocked` is the door's position on this same wall, when there is
- * one.
+ * Window positions along one wall run, laid out symmetrically about its middle
+ * and stepped by `spacing`. `blocked` is the door's position on this same wall,
+ * when there is one.
+ *
+ * **A wall reads as symmetrical or as a mistake, and there is nothing in
+ * between.** As many windows as fit at the spacing, with the two margins the
+ * same, and whatever the wall cannot divide evenly widening the *middle* gap.
+ * Slack put at one end instead is the version this replaced: an extra blank
+ * cell at the east end of a wall and none at the west looks like the run was
+ * measured from the wrong corner, which is exactly what it was.
+ *
+ * Perfect symmetry is not always available — a lone window on a wall with an
+ * even number of usable cells has no middle gap for the odd cell to go into —
+ * and there it sits one short of the middle.
  */
 export function windowsAlong(
   lo: number,
@@ -232,19 +243,19 @@ export function windowsAlong(
   const last = hi - WINDOW_MIN_FROM_CORNER;
   if (first > last) return [];
 
-  const run = last - first + 1;
   const step = Math.max(WINDOW_SPACING_RANGE.min, Math.floor(spacing));
-  const count = Math.floor((run - 1) / step) + 1;
-  // The windows occupy `spread + 1` cells end to end, so what is left over to
-  // share between the two corners is measured against that and not against the
-  // gaps alone — otherwise a wide spacing pushes the whole run one cell along.
-  const spread = (count - 1) * step;
-  const start = first + Math.floor((run - (spread + 1)) / 2);
+  const count = Math.floor((last - first) / step) + 1;
+  // Cells the run does not use: half at each margin, and the odd one — there is
+  // at most one — into the gap at the middle.
+  const slack = last - first - (count - 1) * step;
+  const margin = Math.floor(slack / 2);
+  const widenedGap = slack - margin * 2;
+  const afterMiddle = Math.ceil(count / 2);
 
   const out: number[] = [];
   for (let i = 0; i < count; i++) {
-    const at = start + i * step;
-    if (at > last) break;
+    const at =
+      first + margin + i * step + (i >= afterMiddle ? widenedGap : 0);
     if (blocked != null && Math.abs(at - blocked) < WINDOW_MIN_FROM_DOOR) {
       continue;
     }

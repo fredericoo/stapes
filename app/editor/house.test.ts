@@ -153,6 +153,33 @@ describe("windowsAlong", () => {
     expect(windowsAlong(0, 10, null, 12)).toEqual([5]);
   });
 
+  it("puts the cell it cannot divide evenly in the middle, not at the far end", () => {
+    // Wall cells 1…9. Two windows five apart leave three over: one at each
+    // margin and one widening the gap between them.
+    expect(windowsAlong(0, 10, null, 5)).toEqual([2, 8]);
+    // Three windows three apart on cells 1…8 leave one over, and it goes
+    // inside rather than leaving cell 8 blank against the corner.
+    expect(windowsAlong(0, 9, null, 3)).toEqual([1, 4, 8]);
+  });
+
+  it("leaves the same margin at both ends of every wall it can fill", () => {
+    for (let wall = 3; wall <= 40; wall++) {
+      for (let spacing = 2; spacing <= 8; spacing++) {
+        const at = windowsAlong(0, wall - 1, null, spacing);
+        if (at.length === 0) continue;
+        const before = at[0]! - 1;
+        const after = wall - 2 - at[at.length - 1]!;
+        // A lone window has no middle gap to absorb an odd cell, so on a wall
+        // with an even number of usable cells it has no symmetric home and
+        // sits one short of the middle. Everything else matches exactly.
+        const slop = at.length === 1 ? 1 : 0;
+        expect({ wall, spacing, off: Math.abs(before - after) <= slop }).toEqual(
+          { wall, spacing, off: true },
+        );
+      }
+    }
+  });
+
   it("leaves a wall cell between a window and the door", () => {
     expect(windowsAlong(0, 8, 4, 2)).toEqual([1, 7]);
   });
@@ -350,7 +377,7 @@ describe("planHouse", () => {
       return out;
     };
     expect(northWindows(tight)).toEqual([1, 3, 5, 7, 9]);
-    expect(northWindows(loose)).toEqual([2, 7]);
+    expect(northWindows(loose)).toEqual([2, 8]);
   });
 
   it("leaves the walls blank when no window tile is chosen", () => {

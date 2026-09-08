@@ -4682,10 +4682,17 @@ say "not the door's own cell", which the door already says for itself.
 whose right answer is not a property of the tiles — two cells is a shopfront
 and five is a cottage, and which of those a building is meant to be is the
 thing being decided — so it is a setting, floored at two because one puts a
-window in every wall cell. Whatever fits at that spacing is centred on the
-wall, measuring the leftover against the cells the windows *occupy* rather than
-against the gaps between them; getting that wrong shifts the whole run one cell
-along at wide spacings, which reads as a mistake rather than as a choice.
+window in every wall cell.
+
+**A wall reads as symmetrical or as a mistake, and there is nothing in
+between.** As many windows as fit at the spacing, the same margin at both ends,
+and whatever the wall cannot divide evenly widening the *middle* gap. Slack put
+at one end instead — which is what centring the run with a floor divide does —
+leaves an extra blank cell at the east end of a wall and none at the west, and
+that looks like the run was measured from the wrong corner. It was. The one
+case with no symmetric answer is a lone window on a wall with an even number of
+usable cells: there is no middle gap for the odd cell to go into, so it sits
+one short of the middle and the margins differ by one.
 
 **The door's placement is two coordinates, not eight directions.** A row
 (north / centre / south) and a column (west / centre / east). The row picks the
