@@ -148,7 +148,7 @@ const tiles: TileDef[] = [
     height: 4,
     actor: true,
     interactions: {
-      battler: { maxHp: 10, atk: 2, def: 0, acc: 50, flee: 0, spd: 50 },
+      battler: { baseHp: 8, maxHp: 10, atk: 2, def: 0, acc: 50, flee: 0, spd: 50 },
     },
   }),
   // A body that is both shovable and fightable, as the player tile is: the one
@@ -160,7 +160,7 @@ const tiles: TileDef[] = [
     actor: true,
     interactions: {
       push: DEFAULT_PUSH,
-      battler: { maxHp: 10, atk: 2, def: 0, acc: 50, flee: 0, spd: 50 },
+      battler: { baseHp: 8, maxHp: 10, atk: 2, def: 0, acc: 50, flee: 0, spd: 50 },
     },
   }),
 ];

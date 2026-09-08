@@ -61,6 +61,7 @@ const tiles = [
     actor: true,
     interactions: {
       battler: {
+        baseHp: 8,
         masteries: { toughness: 8 },
         naturalWeapon: DEFAULT_WEAPON,
         kit: [{ slot: "bag", tileId: BAG_TILE_ID, chance: 100 }],

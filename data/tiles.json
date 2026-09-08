@@ -13402,6 +13402,7 @@
         ]
       },
       "battler": {
+        "baseHp": 8,
         "masteries": {
           "fist": 9,
           "toughness": 7,
@@ -13453,6 +13454,7 @@
     "walkable": false,
     "interactions": {
       "battler": {
+        "baseHp": 8,
         "masteries": {
           "fist": 5,
           "sharp": 5,
@@ -23568,6 +23570,7 @@
         ]
       },
       "battler": {
+        "baseHp": 8,
         "masteries": {
           "toughness": 8,
           "agility": 24
@@ -26508,6 +26511,7 @@
         ]
       },
       "battler": {
+        "baseHp": 8,
         "masteries": {
           "fist": 4,
           "toughness": 3,
@@ -26958,6 +26962,7 @@
         ]
       },
       "battler": {
+        "baseHp": 8,
         "masteries": {
           "fist": 16,
           "toughness": 14,
@@ -27679,6 +27684,7 @@
         ]
       },
       "battler": {
+        "baseHp": 8,
         "masteries": {
           "fist": 30,
           "toughness": 22,
@@ -28177,6 +28183,7 @@
         ]
       },
       "battler": {
+        "baseHp": 8,
         "masteries": {
           "fist": 12,
           "toughness": 4,
@@ -28775,6 +28782,7 @@
         ]
       },
       "battler": {
+        "baseHp": 8,
         "masteries": {
           "fist": 60,
           "toughness": 66,
@@ -31970,6 +31978,7 @@
         ]
       },
       "battler": {
+        "baseHp": 8,
         "masteries": {
           "toughness": 4,
           "agility": 32

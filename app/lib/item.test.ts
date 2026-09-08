@@ -200,6 +200,7 @@ describe("resolveItem", () => {
 
 describe("resolveBattler's kind gate", () => {
   const stats = {
+    baseHp: 8,
     masteries: { fist: 6, toughness: 4 },
     naturalWeapon: { ...DEFAULT_WEAPON, mastery: "fist" },
   };
@@ -225,6 +226,17 @@ describe("resolveBattler's kind gate", () => {
   it("refuses a block from before masteries existed", () => {
     const old = { maxHp: 10, atk: 1, def: 0, acc: 50, flee: 0, spd: 50 };
     expect(resolveBattler(tile("battler", { battler: old }))).toBeNull();
+  });
+
+  /**
+   * `baseHp` is required on exactly the terms the masteries and the weapon are:
+   * how big a body is has no sensible default, and a block that never said
+   * would silently keep whatever the constant happened to be. Every creature in
+   * `data/` was migrated onto the field rather than defaulted.
+   */
+  it("refuses a block with no base hit points", () => {
+    const { baseHp: _dropped, ...noBase } = stats;
+    expect(resolveBattler(tile("battler", { battler: noBase }))).toBeNull();
   });
 
   it("refuses stats on a prop", () => {

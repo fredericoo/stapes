@@ -65,8 +65,15 @@ function stoneTile(id: string, item: Record<string, unknown>): TileDef {
   });
 }
 
+/**
+ * What every body in here is worth before Toughness adds any — see
+ * `../lib/battler`'s `baseHp`. One figure for all of them, so a comparison
+ * between two of these fixtures is a comparison of their masteries.
+ */
+const FIXTURE_BASE_HP = 8;
+
 const PLAYER_TOUGHNESS = 40;
-const PLAYER_MAX_HP = maxHpFrom(PLAYER_TOUGHNESS);
+const PLAYER_MAX_HP = maxHpFrom(FIXTURE_BASE_HP, PLAYER_TOUGHNESS);
 const RAT_TOUGHNESS = 40;
 
 /** A minute, which is what the shipped necklace costs and is easy to count in. */
@@ -139,6 +146,7 @@ function body(
     variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
     interactions: {
       battler: {
+        baseHp: FIXTURE_BASE_HP,
         masteries: { toughness },
         ...(elements.length ? { elements } : {}),
         naturalWeapon: {
@@ -944,7 +952,7 @@ describe("a flame you conjured, burning somebody else", () => {
 
     const before = play.masteryXpOf("local")?.arcane ?? 0;
     run(play, TICKS_PER_SECOND * 2);
-    expect(hpOf(play, rat)!).toBeLessThan(maxHpFrom(RAT_TOUGHNESS));
+    expect(hpOf(play, rat)!).toBeLessThan(maxHpFrom(FIXTURE_BASE_HP, RAT_TOUGHNESS));
     expect(play.masteryXpOf("local")?.arcane ?? 0).toBe(before);
   });
 });

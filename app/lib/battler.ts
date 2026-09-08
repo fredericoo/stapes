@@ -49,6 +49,31 @@ import type { TileDef } from "./types";
  */
 export type BattlerDef = {
   /**
+   * Hit points this body has at Toughness zero, before the mastery adds any.
+   *
+   * **The one part of a body's health an author still types, and Toughness
+   * cannot reach it.** Everything else about a fight now falls out of masteries
+   * and a weapon, which is what stops a rat being a smaller snake — but it also
+   * left the *size* of a body with nowhere to be stated. A boss is not a wolf
+   * that has practised more; it is a bigger thing, and a bigger thing takes more
+   * killing whether or not it has ever trained.
+   *
+   * Added to {@link maxHpFrom}'s curve rather than multiplying it, deliberately:
+   * a multiplier would make the same hundred points of Toughness worth ten times
+   * as much on the boss as on the player, and the mastery would stop meaning one
+   * thing. As a flat term it says what it looks like — this body starts that
+   * much further up — and every point of Toughness anybody trains is still worth
+   * the same to them.
+   *
+   * Required, unlike the optionals below, and that is what the field is for.
+   * Left optional it would default to a number nobody chose, and every creature
+   * in the world would keep the base it had before anybody thought about it. A
+   * block on disk without one fails the schema and reads as "not a battler" —
+   * see {@link resolveBattler} — which is the same bargain `masteries` and
+   * `naturalWeapon` already make.
+   */
+  baseHp: number;
+  /**
    * What this body is good at. Authored and fixed on a creature; earned and
    * stored per actor on a player.
    */
@@ -254,12 +279,27 @@ export type FightingStats = {
 };
 
 /**
- * Hit points a body has before Toughness adds any.
+ * What a body's {@link BattlerDef.baseHp} starts at when the Battler box is
+ * first ticked.
  *
- * Not zero, because a mastery of zero is a novice rather than a corpse: a fresh
- * body with nothing trained still has to survive long enough to train it.
+ * A default for the editor and nothing more — every battler authors its own,
+ * and nothing derives hit points from this constant. Eight, which is what every
+ * body's base used to be when there was only one of them, so a creature
+ * migrated onto the field and left alone fights exactly as it did.
  */
-export const BASE_HP = 8;
+export const DEFAULT_BASE_HP = 8;
+
+/**
+ * The narrowest and widest a body's base may be.
+ *
+ * One rather than zero, because a body whose base is nothing is a body that dies
+ * to the first blow before Toughness has bought it anything, and that reads as a
+ * mis-typed field rather than as a design. The ceiling is well above the
+ * hundreds a boss wants and exists only so a stray keystroke in the editor
+ * cannot author something the health bar has to render.
+ */
+export const MIN_BASE_HP = 1;
+export const MAX_BASE_HP = 100000;
 
 /**
  * Hit points the **first** point of Toughness is worth.
@@ -306,7 +346,7 @@ export const DEF_AT_MAX_TOUGHNESS = 20;
 /**
  * Flee a body has before Agility adds any.
  *
- * Non-zero for the same reason {@link BASE_HP} is: dodging is contested against
+ * Non-zero for the same reason {@link DEFAULT_BASE_HP} is: dodging is contested against
  * the attacker's accuracy, which sits high on most weapons, and a body starting
  * at nothing would spend the whole early game pinned to the floor of the chance
  * band. A mastery that pays nothing until it is a third grown is one nobody can
@@ -390,15 +430,21 @@ export const HP_AT_MAX_TOUGHNESS =
   (HP_PER_TOUGHNESS * MAX_MASTERY * (MASTERY_ACCELERATION + 1)) / 2;
 
 /**
- * Hit points a body with this much Toughness starts at.
+ * Hit points a body of this size with this much Toughness starts at.
+ *
+ * The base is passed in rather than read off a constant, because how big a body
+ * is and how much it has trained are two different facts about it — see
+ * {@link BattlerDef.baseHp}. What Toughness is worth does not depend on which
+ * body is training it, which is why the base is a term and not a factor.
  *
  * Rounded to a whole hit point, which is the only unit health is ever counted
  * in — a fractional maximum would put a health bar at 13.25 and a damage number
- * against it that never quite empties it.
+ * against it that never quite empties it. The base is added after the rounding
+ * because it is already whole.
  */
-export function maxHpFrom(toughness: number): number {
+export function maxHpFrom(baseHp: number, toughness: number): number {
   return (
-    BASE_HP +
+    baseHp +
     Math.round(
       acceleratingTotal(toughness, HP_AT_MAX_TOUGHNESS, MASTERY_ACCELERATION),
     )
@@ -554,6 +600,7 @@ export function hitChanceFrom(accuracy: number): number {
  * default is for.
  */
 export const DEFAULT_BATTLER: BattlerDef = {
+  baseHp: DEFAULT_BASE_HP,
   masteries: { fist: 8, toughness: 8, agility: 8 },
   naturalWeapon: { ...DEFAULT_WEAPON, mastery: "fist", reach: { ...MELEE_REACH } },
   sight: { up: 0, down: 0 },
@@ -636,7 +683,10 @@ export function fightingStats(
       skill * ACCURACY_AT_MAX_MASTERY);
 
   return {
-    maxHp: maxHpFrom(masteryLevel(battler.masteries, "toughness")),
+    maxHp: maxHpFrom(
+      battler.baseHp,
+      masteryLevel(battler.masteries, "toughness"),
+    ),
     flee: fleeFrom(masteryLevel(battler.masteries, "agility")),
     damage: Math.round(damage),
     // The weapon's own plus the body's, which is the first time defence has had
@@ -770,10 +820,20 @@ export function spellPower(
 const levelSlack = v.pipe(v.number(), v.integer(), v.minValue(0));
 
 const battlerSchema = v.object({
-  // Both required, unlike the optionals below: a body with no masteries and no
-  // weapon has no numbers at all, and there is nothing sensible to invent for
-  // it. Anything on disk from before this existed fails here and reads as "not
-  // a battler", which is the correct answer — those tiles have to be re-authored.
+  // All three required, unlike the optionals below: a body with no masteries and
+  // no weapon has no numbers at all, and one with no base has no size, and there
+  // is nothing sensible to invent for either. Anything on disk from before this
+  // existed fails here and reads as "not a battler", which is the correct
+  // answer — those tiles have to be re-authored.
+  //
+  // Whole hit points, because that is the only unit health is counted in — see
+  // {@link maxHpFrom}, which rounds the mastery's share for the same reason.
+  baseHp: v.pipe(
+    v.number(),
+    v.integer(),
+    v.minValue(MIN_BASE_HP),
+    v.maxValue(MAX_BASE_HP),
+  ),
   masteries: masteriesSchema,
   naturalWeapon: weaponSchema,
   // `range` used to sit here, and it is gone rather than tolerated: a body's

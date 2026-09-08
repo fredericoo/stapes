@@ -104,6 +104,7 @@ const tiles: TileDef[] = [
     variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
     interactions: {
       battler: {
+        baseHp: 8,
         masteries: { toughness: 10 },
         naturalWeapon: { type: "weapon", damage: 5, def: 0, accuracy: 100, variance: 0, spd: 100, mastery: "fist" },
         kit: [{ slot: "bag", tileId: "bag", chance: 100 }],

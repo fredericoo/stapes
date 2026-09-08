@@ -303,17 +303,44 @@ describe("interactionsForSave", () => {
     expect(
       interactionsForSave({
         battler: {
+          baseHp: 8,
           masteries: { fist: 9, toughness: 14 },
           naturalWeapon: DEFAULT_BATTLER.naturalWeapon,
         } as BattlerDef,
       }),
     ).toEqual({
       battler: {
+        baseHp: 8,
         masteries: { fist: 9, toughness: 14 },
         naturalWeapon: DEFAULT_BATTLER.naturalWeapon,
         sight: { up: 0, down: 0 },
       },
     });
+  });
+
+  /**
+   * The base is what makes a boss a boss rather than a wolf that has practised,
+   * so it is the one field on the block a save losing would be felt in the
+   * fight rather than in a diff. Asserted at a figure nothing else in here uses,
+   * so a default leaking through would read as a failure rather than as a pass.
+   */
+  it("carries a base far off the default through a save", () => {
+    expect(
+      interactionsForSave({ battler: { ...DEFAULT_BATTLER, baseHp: 400 } })
+        ?.battler?.baseHp,
+    ).toBe(400);
+  });
+
+  /**
+   * A draft loaded from a file authored before the field existed carries none,
+   * and `baseHp` is required on the way back in — so a save that omitted it
+   * would write a block that no longer parses as a battler at all.
+   */
+  it("writes a base for a draft that predates the field", () => {
+    const { baseHp: _dropped, ...old } = DEFAULT_BATTLER;
+    expect(
+      interactionsForSave({ battler: old as BattlerDef })?.battler?.baseHp,
+    ).toBe(DEFAULT_BATTLER.baseHp);
   });
 
   /**
@@ -354,6 +381,7 @@ describe("interactionsForSave", () => {
     expect(
       interactionsForSave({
         battler: {
+          baseHp: 8,
           masteries: { fist: 3, sharp: 0, arcane: 0, toughness: 5 },
           naturalWeapon: DEFAULT_BATTLER.naturalWeapon,
         } as BattlerDef,

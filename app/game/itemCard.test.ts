@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fightingStats, weaponReadiness } from "../lib/battler";
+import { DEFAULT_BASE_HP, fightingStats, weaponReadiness } from "../lib/battler";
 import { MELEE_REACH, type ItemDef, type WeaponItem } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import {
@@ -63,6 +63,9 @@ const NOTHING_LEARNT: MasteryXp = {};
 /** A body carrying nothing but these masteries — what the card is asked *for*. */
 function bodyWith(masteryXp: MasteryXp) {
   return {
+    // Never read: a card is about a weapon, and hit points are the one figure
+    // on it that belongs to whoever is holding it.
+    baseHp: DEFAULT_BASE_HP,
     masteries: masteriesFromXp(masteryXp),
     naturalWeapon: SWORD,
     sight: { up: 0, down: 0 },
@@ -113,7 +116,7 @@ describe("itemCard", () => {
     const novice = { sharp: xpForLevel(5) };
     const card = itemCard(tileWith(SWORD), null, novice);
     const yours = fightingStats(
-      { masteries: masteriesFromXp(novice), naturalWeapon: SWORD, sight: { up: 0, down: 0 } },
+      bodyWith(novice),
       SWORD,
     );
 

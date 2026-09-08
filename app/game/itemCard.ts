@@ -1,5 +1,5 @@
 import type { BattlerDef } from "../lib/battler";
-import { fightingStats, weaponReadiness } from "../lib/battler";
+import { DEFAULT_BASE_HP, fightingStats, weaponReadiness } from "../lib/battler";
 import {
   armorSlotOf,
   consumeVerb,
@@ -252,9 +252,21 @@ function percent(fraction: number): number {
  * is never read on this path — a held weapon replaces it, and here there is
  * nothing else to hold — and putting the real one there means no invented
  * profile can leak into an answer if that ever changes.
+ *
+ * The base is the editor's default for the opposite reason: an item card says
+ * what a *weapon* is worth, never how much killing its holder takes, so the one
+ * field of `fightingStats` this cannot honestly answer is the one nothing here
+ * reads. Anything other than a fixed number would be a body's size leaking into
+ * a card about a sword.
  */
 function bodyWith(masteries: BattlerDef["masteries"], weapon: WeaponItem): BattlerDef {
-  return { masteries, naturalWeapon: weapon, sight: { up: 0, down: 0 }, kit: [] };
+  return {
+    baseHp: DEFAULT_BASE_HP,
+    masteries,
+    naturalWeapon: weapon,
+    sight: { up: 0, down: 0 },
+    kit: [],
+  };
 }
 
 /** A minute, past which seconds stop being the unit anybody reads in. */

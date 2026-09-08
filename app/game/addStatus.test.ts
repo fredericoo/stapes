@@ -46,8 +46,9 @@ function tile(partial: Record<string, unknown>): TileDef {
 /** Fixed ends, so a roll is a constant and the arithmetic below is exact. */
 const BURN_MS = 4_000;
 
+const PLAYER_BASE_HP = 8;
 const PLAYER_TOUGHNESS = 92;
-const PLAYER_MAX_HP = maxHpFrom(PLAYER_TOUGHNESS);
+const PLAYER_MAX_HP = maxHpFrom(PLAYER_BASE_HP, PLAYER_TOUGHNESS);
 
 function body(id: string, extra: Record<string, unknown> = {}): TileDef {
   return tile({
@@ -59,6 +60,7 @@ function body(id: string, extra: Record<string, unknown> = {}): TileDef {
     variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
     interactions: {
       battler: {
+        baseHp: PLAYER_BASE_HP,
         masteries: { toughness: PLAYER_TOUGHNESS },
         naturalWeapon: {
           type: "weapon",
@@ -86,6 +88,7 @@ const tiles: TileDef[] = [
     affectedByGravity: true,
     interactions: {
       battler: {
+        baseHp: PLAYER_BASE_HP,
         masteries: { toughness: PLAYER_TOUGHNESS },
         naturalWeapon: {
           type: "weapon",

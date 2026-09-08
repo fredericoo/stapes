@@ -1834,8 +1834,8 @@ region the computation reads and key on that.
 ## Fighting is stats on a tile, and nothing else
 
 A **battler** is any tile with an `interactions.battler` block (`app/lib/battler.ts`):
-masteries, a natural weapon, what it notices and what it is born carrying, parsed
-rather than trusted like every other interaction. The player,
+base hit points, masteries, a natural weapon, what it notices and what it is born
+carrying, parsed rather than trusted like every other interaction. The player,
 the cat and the deer are battlers; a crate could be one. Being a battler is
 independent of `actor` and of `brain` — what a body can take is a separate
 question from what drives it, and keeping the three apart is what lets the player
@@ -1856,6 +1856,30 @@ survive somebody editing the tile's maximum. What *is* checkpointed is the set o
 **dead actors** — a death is a tile that is *not* on the board, so it leaves no
 evidence to recover, and without carrying it the first hibernation wake would
 find a dead player's socket still open, see no body, and seat them again.
+
+### How big a body is, is the one number masteries could not say
+
+Everything a fight reads now falls out of masteries and a weapon — that is what
+lets a rat be something other than a smaller snake. It also left the *size* of a
+body with nowhere to be stated: two bodies with the same Toughness had the same
+hit points, and the only way to make a boss take more killing was to give it a
+mastery it had not earned.
+
+**`battler.baseHp` is that number, and Toughness cannot reach it.** It is the hit
+points a body has at Toughness zero, and `maxHpFrom(baseHp, toughness)` adds it
+to the mastery's accelerating curve. A term rather than a factor, deliberately: a
+multiplier would make the same hundred points of Toughness worth ten times as
+much to the boss as to the player, and one mastery would stop meaning one thing.
+As a term it says what it looks like — this body starts that much further up —
+and a point of Toughness is worth the same to everybody who trains it.
+
+**Required on the block, not defaulted.** Left optional, every creature in the
+world would keep the base nobody had chosen for it, and the field would exist
+without being authored anywhere. So a block without one fails the schema and
+reads as "not a battler", on the same terms `masteries` and `naturalWeapon`
+already do — and the nine creatures in `data/tiles.json` were migrated onto it at
+8, which is what the constant used to be for all of them. `DEFAULT_BASE_HP` is
+now only the editor's starting value; nothing derives hit points from it.
 
 ### Armour is worn, and it may care what hit it
 
