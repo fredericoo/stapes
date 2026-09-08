@@ -4861,6 +4861,12 @@ an angle that widening then pinches shut — and after four rounds anything stil
 separate is filled back in, because a cave with a room nobody can walk to is
 worse than a slightly smaller cave.
 
+**Joining is done by opening, not by filling** (`joinRegions`, in
+`generator.ts` because the forest wants it too). What the carve left separate
+gets a two-wide corridor bored between the closest pair of cells; what is too
+small to be worth a corridor is filled in instead, because a room reached down
+a long bored passage that turns out to be a 2×2 closet is worse than no room.
+
 ### No passage is ever one cell wide
 
 **A one-cell passage is a passage you cannot see into.** The world is drawn in

@@ -30,6 +30,7 @@ import {
   countOpen,
   cutFords,
   fbm,
+  joinRegions,
   gridIndex,
   gridX,
   gridY,
@@ -198,9 +199,6 @@ const TUNNEL_MAX_STEPS = 6000;
  * worse than one without it.
  */
 const MIN_REGION_CELLS = 10;
-
-/** Cells sampled from each region when looking for the closest pair to join. */
-const JOIN_SAMPLES = 48;
 
 /** Rounds of widening and joining before the leftovers are filled in instead. */
 const JOIN_ATTEMPTS = 4;
@@ -375,99 +373,6 @@ function stepTowards(
   return { dx: 0, dy: Math.sign(dy) || 1 };
 }
 
-/**
- * Fill in what is too small to be worth reaching, and join what is left.
- *
- * Joining is done by digging rather than by filling: the two-wide corridor
- * bored between two regions is where a cave that came out as three rooms gets
- * the passages that make it one cave.
- */
-function joinRegions(g: CellGrid, box: Bounds, seed: number): void {
-  let regions = regionsOf(g);
-  if (regions.length === 0) return;
-
-  for (const region of regions.slice(1)) {
-    if (region.length >= MIN_REGION_CELLS) continue;
-    for (const i of region) g.cells[i] = 0;
-  }
-
-  regions = regionsOf(g);
-  const random = mulberry32(seed ^ 0x30117);
-  for (let n = 1; n < regions.length; n++) {
-    const from = sample(regions[0]!, random);
-    const to = sample(regions[n]!, random);
-    const pair = closestPair(g, from, to);
-    if (pair) boreTunnel(g, box, pair.from, pair.to, random);
-  }
-}
-
-function sample(region: readonly number[], random: () => number): number[] {
-  if (region.length <= JOIN_SAMPLES) return region.slice();
-  const out: number[] = [];
-  for (let i = 0; i < JOIN_SAMPLES; i++) {
-    out.push(region[Math.floor(random() * region.length)]!);
-  }
-  return out;
-}
-
-function closestPair(
-  g: CellGrid,
-  a: readonly number[],
-  b: readonly number[],
-): { from: { x: number; y: number }; to: { x: number; y: number } } | null {
-  let best: { from: { x: number; y: number }; to: { x: number; y: number } } | null = null;
-  let bestDistance = Infinity;
-  for (const i of a) {
-    const from = { x: gridX(g, i), y: gridY(g, i) };
-    for (const j of b) {
-      const to = { x: gridX(g, j), y: gridY(g, j) };
-      const distance = Math.abs(from.x - to.x) + Math.abs(from.y - to.y);
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        best = { from, to };
-      }
-    }
-  }
-  return best;
-}
-
-/** A two-wide L between two cells, turning at a corner picked by the seed. */
-function boreTunnel(
-  g: CellGrid,
-  box: Bounds,
-  from: { x: number; y: number },
-  to: { x: number; y: number },
-  random: () => number,
-): void {
-  const acrossFirst = random() < 0.5;
-  const corner = acrossFirst ? { x: to.x, y: from.y } : { x: from.x, y: to.y };
-  boreLine(g, box, from, corner);
-  boreLine(g, box, corner, to);
-}
-
-function boreLine(
-  g: CellGrid,
-  box: Bounds,
-  from: { x: number; y: number },
-  to: { x: number; y: number },
-): void {
-  const stepX = Math.sign(to.x - from.x);
-  const stepY = Math.sign(to.y - from.y);
-  let { x, y } = from;
-  for (let guard = 0; guard <= g.cells.length; guard++) {
-    for (let dy = 0; dy <= 1; dy++) {
-      for (let dx = 0; dx <= 1; dx++) {
-        const cx = Math.min(box.maxX, Math.max(box.minX, x + dx));
-        const cy = Math.min(box.maxY, Math.max(box.minY, y + dy));
-        setOpen(g, cx, cy, true);
-      }
-    }
-    if (x === to.x && y === to.y) return;
-    x += stepX;
-    y += stepY;
-  }
-}
-
 /** The grid a shape leaves once it has been widened and joined up. */
 export function carveCave(
   bounds: Bounds,
@@ -495,7 +400,7 @@ export function carveCave(
   for (let attempt = 0; attempt < JOIN_ATTEMPTS; attempt++) {
     widenToTwo(grid);
     if (regionsOf(grid).length <= 1) return grid;
-    joinRegions(grid, box, config.seed + attempt);
+    joinRegions(grid, box, config.seed + attempt, MIN_REGION_CELLS);
   }
 
   // Still in pieces after all that, which a handful of seeds in a few hundred
