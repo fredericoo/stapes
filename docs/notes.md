@@ -4916,12 +4916,19 @@ the only thing that refuses the whole plan is somebody standing in the
 footprint. Dragging one over work already there takes it out, and takes one
 press of undo to get back.
 
-A column of rock has to fill `HEIGHT_PER_LEVEL` exactly — a wall short of the
-top is a wall daylight and arrows go over, and one past it overflows into the
-level above — so `columnOf` refuses any tile whose height does not divide four
-rather than rounding either way. Two `half-stone` and one `stone-wall` both do;
-that is why the rock picker is a short list rather than the catalogue, and where
-a full-height rock block belongs when the catalogue gets one.
+**The floor goes under the rock as well as under the cave.** Carving a wall away
+by hand afterwards then leaves ground rather than a hole, which is what makes a
+generated cave something you can keep editing. It costs a quad per wall cell;
+`scripts/carve-caves.ts` makes the opposite trade, because at the scale of the
+animal den those quads run to five figures.
+
+A column of rock plus the floor under it has to fill `HEIGHT_PER_LEVEL` exactly
+— a wall short of the top is a wall daylight and arrows go over, and one past it
+overflows into the level above — so `columnOf` refuses any tile whose height
+does not divide what is left rather than rounding either way. Two `half-stone`
+and one `stone-wall` both divide the four a flat floor leaves; that is why the
+rock picker is a short list rather than the catalogue, and where a full-height
+rock block belongs when the catalogue gets one.
 
 **The outermost ring stays full-height rock.** The low walls that break up the
 edge — the ledges — are taken only where rock meets floor *inside* the

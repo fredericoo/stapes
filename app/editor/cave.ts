@@ -553,17 +553,33 @@ export function planCave(
     };
   }
 
-  const wall = columnOf(config.wallTileId, HEIGHT_PER_LEVEL, tilesById);
-  if (!wall.ok) return wall;
-  const ledge = config.ledgeTileId
-    ? columnOf(config.ledgeTileId, HALF_LEVEL, tilesById)
-    : null;
-  if (ledge && !ledge.ok) return ledge;
-
   const floorDef = tilesById[config.floorTileId];
   if (!floorDef) {
     return { ok: false, reason: `There is no tile called ${config.floorTileId}` };
   }
+
+  // **The floor is laid under the rock as well as under the cave.** Carving a
+  // wall away later then leaves ground rather than a hole, which is what makes
+  // a generated cave something you can keep editing by hand. It costs a quad
+  // per wall cell; `scripts/carve-caves.ts` makes the opposite trade at the
+  // scale of the animal den, where those quads run to five figures.
+  const floorUnder = placed(config.floorTileId, tilesById);
+  const rockHeight = HEIGHT_PER_LEVEL - physicalHeight(floorDef);
+  const ledgeHeight = HALF_LEVEL - physicalHeight(floorDef);
+  if (rockHeight <= 0) {
+    return {
+      ok: false,
+      reason: `${floorDef.name} stands ${physicalHeight(floorDef)} units, leaving no room for rock in the ${HEIGHT_PER_LEVEL} a level holds`,
+    };
+  }
+
+  const wall = columnOf(config.wallTileId, rockHeight, tilesById);
+  if (!wall.ok) return wall;
+  const ledge =
+    config.ledgeTileId && ledgeHeight > 0
+      ? columnOf(config.ledgeTileId, ledgeHeight, tilesById)
+      : null;
+  if (ledge && !ledge.ok) return ledge;
 
   for (let y = bounds.minY; y <= bounds.maxY; y++) {
     for (let x = bounds.minX; x <= bounds.maxX; x++) {
@@ -634,8 +650,13 @@ export function planCave(
           ledge?.ok &&
           isCaveEdge(grid, bounds, x, y) &&
           randomAt(x, y, config.seed ^ 0x1ed6e) * 100 < config.ledgeChance;
-        const stack = low ? ledge.stack : wall.stack;
-        edits.push({ x, y, z, stack: stack.map((p) => ({ ...p })) });
+        const column = low ? ledge.stack : wall.stack;
+        edits.push({
+          x,
+          y,
+          z,
+          stack: [{ ...floorUnder }, ...column.map((p) => ({ ...p }))],
+        });
         continue;
       }
 

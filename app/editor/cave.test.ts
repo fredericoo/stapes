@@ -176,11 +176,17 @@ describe("planCave", () => {
     }
   });
 
-  it("fills a level exactly with rock, however the rock is made of", () => {
+  it("fills a level exactly with rock, on a floor, however the rock is made", () => {
+    // The floor goes under the rock as well as under the cave, so carving a
+    // wall away by hand later leaves ground rather than a hole.
     const halves = build(RECT, { wallTileId: "half-stone" });
-    expect(ids(halves, RECT.x0, RECT.y0)).toEqual(["half-stone", "half-stone"]);
+    expect(ids(halves, RECT.x0, RECT.y0)).toEqual([
+      "dirt",
+      "half-stone",
+      "half-stone",
+    ]);
     const whole = build(RECT, { wallTileId: "stone-wall" });
-    expect(ids(whole, RECT.x0, RECT.y0)).toEqual(["stone-wall"]);
+    expect(ids(whole, RECT.x0, RECT.y0)).toEqual(["dirt", "stone-wall"]);
   });
 
   it("refuses a rock tile that cannot fill a level", () => {
@@ -224,11 +230,12 @@ describe("planCave", () => {
       ].some(([dx, dy]) => isOpen(grid, x + dx!, y + dy!));
       const onRing =
         x === RECT.x0 || x === RECT.x1 || y === RECT.y0 || y === RECT.y1;
+      expect(stack[0]).toBe("dirt");
       if (touchesFloor && !onRing) {
-        expect(stack).toHaveLength(1);
+        expect(stack).toEqual(["dirt", "half-stone"]);
         ledges++;
       } else {
-        expect(stack).toHaveLength(2);
+        expect(stack).toEqual(["dirt", "half-stone", "half-stone"]);
       }
     });
     expect(ledges).toBeGreaterThan(0);
@@ -238,7 +245,16 @@ describe("planCave", () => {
     const map = build(RECT, { ledgeTileId: "half-stone", ledgeChance: 100 });
     const ledge = physicalHeight(tilesById["half-stone"]!);
     expect(ledge * 2).toBe(HEIGHT_PER_LEVEL);
-    expect(ids(map, RECT.x0, RECT.y0)).toHaveLength(2);
+    // The ring is never a ledge, so this corner is full-height rock on a floor.
+    expect(ids(map, RECT.x0, RECT.y0)).toHaveLength(3);
+  });
+
+  it("refuses a floor too tall to leave room for rock over it", () => {
+    const plan = planCave(emptyMap(), tilesById, RECT, 0, {
+      ...BASE,
+      floorTileId: "stone-wall",
+    });
+    expect(!plan.ok && plan.reason).toContain("no room for rock");
   });
 
   it("leaves the floor walkable once the water is in it", () => {
