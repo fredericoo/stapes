@@ -4657,12 +4657,13 @@ which is why those two are worth keeping intact.
 - **A storey is a ring of `[floor, wall]` around an inside of `[floor]`.** The
   door replaces the wall in one ground-floor cell; a window replaces it in
   several, on every storey.
-- **The roof steps in one cell a side per level** until the span runs out. The
-  low edge wears the eave facing the ridge and the high edge the one facing
-  back at it (`e`/`w` for a north-south ridge, `s`/`n` for an east-west one),
-  and the cells between them are two `plaster`, which is four units and so
-  exactly the floor the next roof level stands on. A span that comes down to a
-  single cell gets the two-unit ridge cap instead — `roof-3`/`roof-5`/`roof-6`,
+- **The roof, when there is one, steps in one cell a side per level** until the
+  span runs out. The low edge wears the eave facing the ridge and the high edge
+  the one facing back at it (`e`/`w` for a north-south ridge, `s`/`n` for an
+  east-west one), and the cells between them are two `plaster`, which is four
+  units and so exactly the floor the next roof level stands on. A span that
+  comes down to a single cell gets the two-unit ridge cap instead —
+  `roof-3`/`roof-5`/`roof-6`,
   which are the red, yellow and blue caps for the `roof-1`/`roof-2`/`roof-4`
   eaves. So a five-wide roof is three levels and a six-wide one is three as
   well, ending in two opposing eaves rather than a cap.
@@ -4693,6 +4694,12 @@ that looks like the run was measured from the wrong corner. It was. The one
 case with no symmetric answer is a lone window on a wall with an even number of
 usable cells: there is no middle gap for the odd cell to go into, so it sits
 one short of the middle and the margins differ by one.
+
+**A building may have no roof at all.** A curtain wall, a tower and a walled
+yard are this generator with the roof left off, so the colour picker's first
+swatch is None and the storeys simply stop. Everything else is unchanged: the
+top storey is still a ring of wall around a floor, and the level the fit test
+has to keep clear is that one rather than a ridge above it.
 
 **The door's placement is two coordinates, not eight directions.** A row
 (north / centre / south) and a column (west / centre / east). The row picks the

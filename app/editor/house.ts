@@ -61,7 +61,12 @@ export type HouseConfig = {
   /** Storeys of wall, each one level tall. The roof starts above the top one. */
   storeys: number;
   roofOrientation: RoofOrientation;
-  roofColour: RoofColour;
+  /**
+   * `null` tops the walls with nothing at all — a curtain wall, a tower, a
+   * yard. The roof is what makes a rectangle of wall a *house*, so leaving it
+   * out is how the same generator builds the things that are not one.
+   */
+  roofColour: RoofColour | null;
   wallTileId: string;
   floorTileId: string;
   /** `null` leaves the walls blank so windows can be placed by hand. */
@@ -365,6 +370,8 @@ function roofEdits(
   config: HouseConfig,
   tilesById: Record<string, TileDef>,
 ): StackEdit[] {
+  if (!config.roofColour) return [];
+
   const { minX, maxX, minY, maxY } = bounds;
   const { eaveTileId, ridgeTileId } = ROOF_COLOURS[config.roofColour];
   const vertical = config.roofOrientation === "vertical";
@@ -524,9 +531,16 @@ export function planHouse(
 
   const roofBase = z + config.storeys;
   const roofSpan = config.roofOrientation === "vertical" ? width : depth;
-  const topLevel = roofBase + roofLevelsFor(roofSpan) - 1;
+  // With no roof the building tops out at its highest storey, and the level
+  // that has to exist is that one rather than a ridge above it.
+  const topLevel = config.roofColour
+    ? roofBase + roofLevelsFor(roofSpan) - 1
+    : roofBase - 1;
   if (topLevel > MAX_LEVEL) {
-    return { ok: false, reason: `The roof would pass z${MAX_LEVEL}` };
+    return {
+      ok: false,
+      reason: `The building would pass z${MAX_LEVEL}`,
+    };
   }
 
   const site = measureSite(map, bounds, z, tilesById);

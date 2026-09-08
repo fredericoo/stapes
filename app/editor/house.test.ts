@@ -277,6 +277,29 @@ describe("planHouse", () => {
     if (!plan.ok) expect(plan.reason).toContain("standing");
   });
 
+  it("tops the walls with nothing when no roof colour is chosen", () => {
+    const map = siteMap(-2, -2, 10, 10);
+    const built = build(map, { x0: 0, y0: 0, x1: 4, y1: 4 }, {
+      roofColour: null,
+    });
+    expect(ids(built, 0, 0, 0)).toEqual(["grass-2", "wooden-floor", "sw2"]);
+    for (let y = 0; y <= 4; y++) {
+      for (let x = 0; x <= 4; x++) {
+        expect(getStack(built, x, y, 1)).toEqual([]);
+      }
+    }
+  });
+
+  it("still stacks storeys under an absent roof", () => {
+    const map = siteMap(-2, -2, 12, 12);
+    const built = build(map, { x0: 0, y0: 0, x1: 6, y1: 6 }, {
+      roofColour: null,
+      storeys: 3,
+    });
+    expect(ids(built, 0, 2, 2)).toEqual(["wooden-floor", "sw2"]);
+    expect(getStack(built, 3, 3, 3)).toEqual([]);
+  });
+
   it("roofs a five-wide vertical ridge the way the cottage is roofed", () => {
     const map = siteMap(-2, -2, 10, 10);
     const built = build(map, { x0: 0, y0: 0, x1: 4, y1: 4 }, {

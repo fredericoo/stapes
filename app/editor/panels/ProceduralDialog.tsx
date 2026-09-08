@@ -160,13 +160,32 @@ function RoofColourRow({
   tiles,
   tilesets,
 }: {
-  value: RoofColour;
-  onChange: (colour: RoofColour) => void;
+  value: RoofColour | null;
+  onChange: (colour: RoofColour | null) => void;
   tiles: TileDef[];
   tilesets: TilesetDef[];
 }) {
   return (
     <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="Roof colour">
+      {/* No roof at all is a first-class answer here, not an omission: a
+          curtain wall, a tower and a walled yard are all this generator with
+          the roof left off. */}
+      <button
+        type="button"
+        role="radio"
+        aria-checked={value === null}
+        title="No roof — the walls stop at the top storey"
+        onClick={() => onChange(null)}
+        className={[
+          "flex w-16 flex-col items-center justify-center gap-1 border-2 p-1 text-[10px]",
+          value === null
+            ? "border-accent bg-paper"
+            : "border-border bg-panel hover:bg-paper",
+        ].join(" ")}
+      >
+        <span className="flex h-10 items-center text-muted">None</span>
+        <span>None</span>
+      </button>
       {ROOF_COLOUR_IDS.map((colour) => {
         const { label, eaveTileId, ridgeTileId } = ROOF_COLOURS[colour];
         const eave = tiles.find((t) => t.id === eaveTileId) ?? null;
@@ -411,7 +430,16 @@ export function ProceduralDialog({
             />
           </div>
 
-          <div className="flex flex-col items-start gap-1">
+          <div
+            className={[
+              "flex flex-col items-start gap-1",
+              // A ridge with no roof on it has nothing to say, so the control
+              // greys rather than vanishing: the field keeps its place, and
+              // turning a roof back on does not move everything under it.
+              draft.roofColour ? "" : "pointer-events-none opacity-50",
+            ].join(" ")}
+            aria-hidden={draft.roofColour ? undefined : true}
+          >
             <FieldLabel info="Which way the ridge runs. Vertical gables face north and south; horizontal ones face east and west.">
               Roof orientation
             </FieldLabel>
@@ -428,7 +456,9 @@ export function ProceduralDialog({
         </div>
 
         <div className="flex flex-col gap-1">
-          <FieldLabel>Roof colour</FieldLabel>
+          <FieldLabel info="None leaves the walls open at the top — a curtain wall, a tower, a walled yard.">
+            Roof
+          </FieldLabel>
           <RoofColourRow
             value={draft.roofColour}
             onChange={(roofColour) => patch({ roofColour })}

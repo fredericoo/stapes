@@ -52,7 +52,9 @@ const HouseConfigSchema = v.object({
     v.maxValue(MAX_STOREYS),
   ),
   roofOrientation: v.picklist(["vertical", "horizontal"]),
-  roofColour: v.picklist(ROOF_COLOUR_IDS as [RoofColour, ...RoofColour[]]),
+  roofColour: v.nullable(
+    v.picklist(ROOF_COLOUR_IDS as [RoofColour, ...RoofColour[]]),
+  ),
   wallTileId: v.string(),
   floorTileId: v.string(),
   windowTileId: v.nullable(v.string()),
