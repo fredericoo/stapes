@@ -6,6 +6,7 @@ import { normalizeTiles } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import {
   MIN_FOREST_FOOTPRINT,
+  MIN_GLADE_CELLS,
   growForest,
   planForest,
   type ForestConfig,
@@ -13,6 +14,7 @@ import {
 import {
   MAX_FOOTPRINT,
   gridIndex,
+  newGrid,
   isOpen,
   regionsOf,
   type CellGrid,
@@ -96,26 +98,100 @@ function treeShare(
 }
 
 describe("growForest", () => {
+  /** Cells from every cell to the nearest path cell, by orthogonal steps. */
+  function pathDistance(grid: CellGrid, path: ReadonlySet<number>): Int32Array {
+    const distance = new Int32Array(grid.cells.length).fill(-1);
+    const queue = [...path];
+    for (const i of queue) distance[i] = 0;
+    for (let head = 0; head < queue.length; head++) {
+      const i = queue[head]!;
+      const x = (i % grid.width) + grid.minX;
+      const y = Math.floor(i / grid.width) + grid.minY;
+      for (const [dx, dy] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ]) {
+        const nx = x + dx!;
+        const ny = y + dy!;
+        if (
+          nx < grid.minX ||
+          ny < grid.minY ||
+          nx >= grid.minX + grid.width ||
+          ny >= grid.minY + grid.height
+        ) {
+          continue;
+        }
+        const j = (ny - grid.minY) * grid.width + (nx - grid.minX);
+        if (distance[j] !== -1) continue;
+        distance[j] = distance[i]! + 1;
+        queue.push(j);
+      }
+    }
+    return distance;
+  }
+
   it("thins the trees out towards the path and thickens them away from it", () => {
     const { grid, path } = growForest(BOUNDS, BASE);
-    const nearPath = (x: number, y: number) => {
-      for (let dy = -2; dy <= 2; dy++) {
-        for (let dx = -2; dx <= 2; dx++) {
-          if (path.has(gridIndex(grid, x + dx, y + dy))) return true;
+    const distance = pathDistance(grid, path);
+    const at = (lo: number, hi: number) => (x: number, y: number) => {
+      const d = distance[gridIndex(grid, x, y)] ?? 0;
+      return d >= lo && d < hi;
+    };
+    expect(treeShare(grid, at(1, 4))).toBeLessThan(treeShare(grid, at(4, 9)));
+    expect(treeShare(grid, at(4, 9))).toBeLessThan(treeShare(grid, at(9, 99)));
+  });
+
+  it("varies how thick the wood is from place to place, not just by the edges", () => {
+    // Measured only where the path is far enough away to have stopped mattering,
+    // so what is left is the thicket and clump fields. A wood whose density is
+    // one number plus a border term comes out flat here.
+    for (const seed of [1, 2, 3, 4]) {
+      const { grid, path } = growForest(BOUNDS, { ...BASE, seed });
+      const distance = pathDistance(grid, path);
+      const shares: number[] = [];
+      for (let y = BOUNDS.minY; y + 3 <= BOUNDS.maxY; y += 4) {
+        for (let x = BOUNDS.minX; x + 3 <= BOUNDS.maxX; x += 4) {
+          const window = (cx: number, cy: number) =>
+            cx >= x && cx < x + 4 && cy >= y && cy < y + 4;
+          let far = 0;
+          for (let cy = y; cy < y + 4; cy++) {
+            for (let cx = x; cx < x + 4; cx++) {
+              if ((distance[gridIndex(grid, cx, cy)] ?? 0) >= 12) far++;
+            }
+          }
+          if (far < 16) continue;
+          shares.push(treeShare(grid, window));
         }
       }
-      return false;
-    };
-    const far = (x: number, y: number) =>
-      !nearPath(x, y) &&
-      Math.min(
-        x - BOUNDS.minX,
-        BOUNDS.maxX - x,
-        y - BOUNDS.minY,
-        BOUNDS.maxY - y,
-      ) < 3;
+      expect(shares.length).toBeGreaterThan(3);
+      expect(Math.max(...shares) - Math.min(...shares)).toBeGreaterThan(0.35);
+    }
+  });
 
-    expect(treeShare(grid, nearPath)).toBeLessThan(treeShare(grid, far));
+  it("does not run every path the same way", () => {
+    // A path plotted as an offset from a straight crossing always makes
+    // monotone progress along one axis, which is a wood with a stripe through
+    // it. Over a spread of seeds both axes have to turn up.
+    const axes = new Set<string>();
+    for (let seed = 0; seed < 8; seed++) {
+      const { grid, path } = growForest(BOUNDS, { ...BASE, seed });
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let minY = Infinity;
+      let maxY = -Infinity;
+      for (const i of path) {
+        const x = (i % grid.width) + grid.minX;
+        const y = Math.floor(i / grid.width) + grid.minY;
+        minX = Math.min(minX, x);
+        maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y);
+        maxY = Math.max(maxY, y);
+      }
+      axes.add(maxX - minX > maxY - minY ? "east-west" : "north-south");
+    }
+    expect(axes.size).toBe(2);
   });
 
   it("never leaves a gap one cell wide between trees", () => {
@@ -127,15 +203,38 @@ describe("growForest", () => {
     }
   });
 
-  it("leaves nowhere you can walk that the path does not reach", () => {
+  it("cuts a track to every glade big enough to be worth one", () => {
+    // Smaller ones are left unreachable on purpose: a hollow in a thicket you
+    // cannot quite get into is a thicket, and planting them over is what turned
+    // the far half of a dense wood into one solid block.
     for (const paths of [1, 2, 3]) {
       for (let seed = 0; seed < 6; seed++) {
         const { grid, path } = growForest(BOUNDS, { ...BASE, paths, seed });
-        const regions = regionsOf(grid);
-        expect(regions).toHaveLength(1);
-        expect(regions[0]!.some((i) => path.has(i))).toBe(true);
+        for (const region of regionsOf(grid)) {
+          if (region.length < MIN_GLADE_CELLS) continue;
+          expect(region.some((i) => path.has(i))).toBe(true);
+        }
       }
     }
+  });
+
+  it("dithers the trees out at the edge rather than stopping them dead", () => {
+    // Thinner at the very edge than a few cells in, but not bare: a ring of
+    // empty ground is the rectangle showing through as plainly as a wall of
+    // trees would.
+    const { grid } = growForest(BOUNDS, { ...BASE, density: 80 });
+    const ring = (lo: number, hi: number) => (x: number, y: number) => {
+      const d = Math.min(
+        x - BOUNDS.minX,
+        BOUNDS.maxX - x,
+        y - BOUNDS.minY,
+        BOUNDS.maxY - y,
+      );
+      return d >= lo && d <= hi;
+    };
+    const edge = treeShare(grid, ring(0, 1));
+    expect(edge).toBeGreaterThan(0);
+    expect(edge).toBeLessThan(treeShare(grid, ring(6, 99)));
   });
 
   it("runs each path from one edge of the rectangle to the other", () => {
@@ -254,18 +353,26 @@ describe("planForest", () => {
     expect(felled).toBeGreaterThan(0);
   });
 
-  it("keeps the wood walkable once the water is in it", () => {
+  it("does not let the water strand any part of the wood the path reaches", () => {
     for (const coverage of [10, 40]) {
       const config = { ...BASE, waterTileId: "water", waterCoverage: coverage };
       const map = build(RECT, config);
-      const { grid } = growForest(BOUNDS, config);
-      const walkable = new Uint8Array(grid.cells);
+      const { path } = growForest(BOUNDS, config);
+      const grid = newGrid(BOUNDS);
+      const walkable = new Uint8Array(grid.cells.length);
       eachCell(RECT, (x, y) => {
         const stack = ids(map, x, y);
         const i = gridIndex(grid, x, y);
+        grid.cells[i] = stack.includes("tree") ? 0 : 1;
         walkable[i] = stack.includes("tree") || stack.includes("water") ? 0 : 1;
       });
-      expect(regionsOf(grid, walkable)).toHaveLength(1);
+      // The wood keeps its unreachable hollows, so what has to hold is that
+      // everything the path could reach before the streams it can still reach.
+      const reached = regionsOf(grid, walkable).filter((region) =>
+        region.some((i) => path.has(i)),
+      );
+      expect(reached).toHaveLength(1);
+      expect(reached[0]!.length).toBeGreaterThan(100);
     }
   });
 

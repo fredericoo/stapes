@@ -32,6 +32,7 @@ import {
   isOpen,
   joinRegions,
   mulberry32,
+  stepTowards,
   newGrid,
   openCells,
   placed,
@@ -95,38 +96,54 @@ export const PATH_COUNT_RANGE = { min: 1, max: 3 } as const;
 const PATH_FALLOFF_SHARE = 0.4;
 const MIN_PATH_FALLOFF = 6;
 
-/** Cells across one lobe of the field that clumps the trees into stands. */
-const CLUMP_SCALE = 9;
-const CLUMP_OCTAVES = 2;
-
 /**
- * How much the clumping field moves the local density either side of what the
- * distance from the path asks for. Without it the wood is an even scatter
- * whose density is a smooth function of one number, which reads as a gradient
- * rather than as trees.
+ * Two noise fields set how thick the wood is where you are standing, at two
+ * sizes.
+ *
+ * **Where a wood is thick is not a property of where its edges are.** Density
+ * that rises towards the rectangle makes the rectangle itself the only thing
+ * varying, and what you get is a frame of solid trees around a clearing — the
+ * shape of the tool rather than the shape of a wood. Two fields at different
+ * sizes instead: `THICKET` decides which *parts* of the wood are close country
+ * and which are open, and `CLUMP` puts stands and gaps inside each of them.
  */
+const THICKET_SCALE = 17;
+const THICKET_OCTAVES = 2;
+const THICKET_SWING = 0.55;
+
+const CLUMP_SCALE = 7;
+const CLUMP_OCTAVES = 2;
 const CLUMP_SWING = 0.4;
 
 /**
- * How much thicker the trees are at the rectangle's own edge, and how far in
- * that reaches.
+ * Cells over which the trees dither out at the edge of the rectangle.
  *
- * A wood you can see into from outside is a copse. This is what makes it read
- * as a wall of trees from the field next to it, with the path's two ends as the
- * way in.
+ * **A wood should not end in a straight line.** The rectangle is how the wood
+ * was asked for, not something about the wood, and trees that stop dead along
+ * it read as a hedge somebody planted to a string. Ramping the chance down over
+ * the last few cells scatters them out instead: fewer and fewer the closer to
+ * the edge, so the boundary is ragged and two woods dragged next to each other
+ * grow into one another.
+ *
+ * It ramps down to a *share* of the local density rather than to nothing.
+ * Nothing is not a dither, it is a bare margin — a ring of empty ground four
+ * cells wide, which is the rectangle showing through just as plainly as a wall
+ * of trees would.
  */
-const EDGE_BOOST = 0.45;
-const EDGE_REACH = 4;
+const EDGE_DITHER = 5;
+const EDGE_DITHER_FLOOR = 0.3;
 
-/** How far a path wanders either side of its line, as a share of the crossing. */
-const PATH_WANDER = 0.22;
-
-/** Cells across one lobe of a path's wander. Long, so the path is not a wave. */
-const PATH_WAVE_SCALE = 14;
-const PATH_WAVE_OCTAVES = 2;
-
-/** Where a path may be centred, as a share of the rectangle across its axis. */
-const PATH_CENTRE_RANGE = { lo: 0.25, hi: 0.75 } as const;
+/**
+ * Chance a path strays instead of heading for the far side.
+ *
+ * **A path has to be walked, not plotted.** Offsetting a straight crossing by a
+ * noise field gives a line that bends: it makes monotone progress along one
+ * axis by construction, so a wood with one path in it is a wood with a
+ * horizontal stripe through it. Walking to a mark on the far edge and straying
+ * on the way lets the route double back, cross itself and arrive from an angle
+ * — which is what a track through trees does.
+ */
+const PATH_STRAY_CHANCE = 0.38;
 
 const STEPS = [
   { dx: 0, dy: -1 },
@@ -134,10 +151,6 @@ const STEPS = [
   { dx: 0, dy: 1 },
   { dx: -1, dy: 0 },
 ] as const;
-
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
-}
 
 function clamp01(v: number): number {
   return Math.max(0, Math.min(1, v));
@@ -150,9 +163,15 @@ function clamp(v: number, lo: number, hi: number): number {
 /**
  * The cells one path covers, as grid indices.
  *
- * It runs edge to edge — so the two ends are the way into the wood — and
- * wanders on the way with a noise field rather than a sine, which is the
- * difference between a path and a decorative squiggle.
+ * It is walked rather than plotted: from a point on one edge of the rectangle
+ * to a point on the opposite one, straying as it goes. Both the axis and the
+ * direction come from the seed, so a wood with one path in it is not always a
+ * wood with an east-west path in it.
+ *
+ * The brush is a square of `width`, which is what keeps the route two cells
+ * across in every direction however it turns — the corner of a two-wide
+ * staircase belongs to no clear 2x2 square, and {@link widenToTwo} would plant
+ * a tree in the path itself.
  */
 function carvePath(
   g: CellGrid,
@@ -163,56 +182,44 @@ function carvePath(
 ): Set<number> {
   const cells = new Set<number>();
   const random = mulberry32((seed ^ 0x9a7e) + index * 0x9e37);
-  const acrossX = index % 2 === 0;
-  const alongLo = acrossX ? bounds.minX : bounds.minY;
-  const alongHi = acrossX ? bounds.maxX : bounds.maxY;
-  const acrossLo = acrossX ? bounds.minY : bounds.minX;
-  const acrossHi = acrossX ? bounds.maxY : bounds.maxX;
-  const span = acrossHi - acrossLo;
-  if (span < width) return cells;
+  const horizontal = random() < 0.5;
+  const forward = random() < 0.5;
 
-  const centre =
-    acrossLo +
-    span * lerp(PATH_CENTRE_RANGE.lo, PATH_CENTRE_RANGE.hi, random());
-  const amplitude = span * PATH_WANDER;
-  const half = Math.floor(width / 2);
+  const lastX = bounds.maxX - width + 1;
+  const lastY = bounds.maxY - width + 1;
+  if (lastX < bounds.minX || lastY < bounds.minY) return cells;
+  const anyX = () => bounds.minX + Math.floor(random() * (lastX - bounds.minX + 1));
+  const anyY = () => bounds.minY + Math.floor(random() * (lastY - bounds.minY + 1));
 
-  const band = (along: number): number => {
-    const wave = fbm(
-      along,
-      index * 0x3d1,
-      seed,
-      PATH_WAVE_SCALE,
-      PATH_WAVE_OCTAVES,
-    );
-    const at = Math.round(centre + (wave - 0.5) * 2 * amplitude);
-    return clamp(at - half, acrossLo, acrossHi - width + 1);
-  };
-  const stamp = (along: number, lo: number) => {
-    if (along < alongLo || along > alongHi) return;
-    for (let step = 0; step < width; step++) {
-      const across = lo + step;
-      const x = acrossX ? along : across;
-      const y = acrossX ? across : along;
-      cells.add(gridIndex(g, x, y));
+  const entry = horizontal ? (forward ? bounds.minX : lastX) : (forward ? bounds.minY : lastY);
+  const exit = horizontal ? (forward ? lastX : bounds.minX) : (forward ? lastY : bounds.minY);
+  const at = horizontal
+    ? { x: entry, y: anyY() }
+    : { x: anyX(), y: entry };
+  const mark = horizontal
+    ? { x: exit, y: anyY() }
+    : { x: anyX(), y: exit };
+
+  const stamp = (x: number, y: number) => {
+    for (let dy = 0; dy < width; dy++) {
+      for (let dx = 0; dx < width; dx++) {
+        cells.add(gridIndex(g, x + dx, y + dy));
+      }
     }
   };
 
-  // **Where the path steps sideways, both of its columns get both bands.**
-  // A path that shifts across by one between two steps is a staircase, and the
-  // outer corner of a staircase two cells wide belongs to no clear 2x2 square
-  // — which is exactly the shape {@link widenToTwo} exists to close, so the
-  // path would be planted over in its own corners. Giving the two columns the
-  // union of their bands makes them identical where they meet, and identical
-  // neighbouring columns of two or more cells are all in squares.
-  let previous = band(alongLo);
-  stamp(alongLo, previous);
-  for (let along = alongLo + 1; along <= alongHi; along++) {
-    const lo = band(along);
-    stamp(along - 1, lo);
-    stamp(along, previous);
-    stamp(along, lo);
-    previous = lo;
+  // Long enough for a strayed walk to arrive, short enough that one that never
+  // does gives up rather than hanging the drag preview.
+  const maxSteps = g.cells.length * 4;
+  for (let step = 0; step < maxSteps; step++) {
+    stamp(at.x, at.y);
+    if (at.x === mark.x && at.y === mark.y) break;
+    const towards =
+      random() < PATH_STRAY_CHANCE
+        ? STEPS[Math.floor(random() * STEPS.length)]!
+        : stepTowards(at, mark, random);
+    at.x = clamp(at.x + towards.dx, bounds.minX, lastX);
+    at.y = clamp(at.y + towards.dy, bounds.minY, lastY);
   }
   return cells;
 }
@@ -247,10 +254,13 @@ function inBounds(g: CellGrid, x: number, y: number): boolean {
 }
 
 /**
- * Cells a clearing needs before a track is cut to it rather than it being
- * planted over.
+ * Cells a clearing needs before a track is cut to it from the path.
+ *
+ * Under it the clearing is left where it is, unreachable — a hollow in a
+ * thicket, which is a thicket. Over it, somewhere you can see and cannot get
+ * to reads as a mistake, so it gets a way in.
  */
-const MIN_GLADE_CELLS = 14;
+export const MIN_GLADE_CELLS = 14;
 
 /** How far a cell is from the nearest edge of the rectangle, in cells. */
 function distanceFromEdge(bounds: Bounds, x: number, y: number): number {
@@ -260,6 +270,18 @@ function distanceFromEdge(bounds: Bounds, x: number, y: number): number {
     y - bounds.minY,
     bounds.maxY - y,
   );
+}
+
+/** A field's swing about 1, so it multiplies the density rather than sets it. */
+function swing(
+  x: number,
+  y: number,
+  seed: number,
+  scale: number,
+  octaves: number,
+  amount: number,
+): number {
+  return 1 + (fbm(x, y, seed, scale, octaves) - 0.5) * 2 * amount;
 }
 
 export type ForestShape = {
@@ -308,11 +330,13 @@ export function growForest(bounds: Bounds, config: ForestConfig): ForestShape {
     const x = gridX(grid, i);
     const y = gridY(grid, i);
     const fromPath = clamp01((distance[i] ?? falloff) / falloff);
-    const fromEdge = clamp01(distanceFromEdge(bounds, x, y) / EDGE_REACH);
-    const clump =
-      1 + (fbm(x, y, config.seed ^ 0xc10b, CLUMP_SCALE, CLUMP_OCTAVES) - 0.5) * 2 * CLUMP_SWING;
-    const chance =
-      density * fromPath * clump * (1 + EDGE_BOOST * (1 - fromEdge));
+    const thicket = swing(x, y, config.seed ^ 0x7471, THICKET_SCALE, THICKET_OCTAVES, THICKET_SWING);
+    const clump = swing(x, y, config.seed ^ 0xc10b, CLUMP_SCALE, CLUMP_OCTAVES, CLUMP_SWING);
+    const edge =
+      EDGE_DITHER_FLOOR +
+      (1 - EDGE_DITHER_FLOOR) *
+        clamp01(distanceFromEdge(bounds, x, y) / EDGE_DITHER);
+    const chance = density * fromPath * thicket * clump * edge;
     if (randomAt(x, y, config.seed) < chance) grid.cells[i] = 0;
   }
 
@@ -322,16 +346,16 @@ export function growForest(bounds: Bounds, config: ForestConfig): ForestShape {
   widenToTwo(grid);
   for (const i of path) grid.cells[i] = 1;
 
-  // A glade walled in by trees is a place nobody can get to, which on the map
-  // is indistinguishable from a mistake. The ones worth reaching get a track
-  // cut to them from the path — which is what a wood with tracks in it looks
-  // like — and the rest are planted over.
-  const reachesPath = (region: readonly number[]) => region.some((i) => path.has(i));
-  joinRegions(grid, bounds, config.seed, MIN_GLADE_CELLS, reachesPath);
-  for (const region of regionsOf(grid)) {
-    if (reachesPath(region)) continue;
-    for (const i of region) grid.cells[i] = 0;
-  }
+  // A glade big enough to be worth walking to gets a track cut to it from the
+  // path, which is what a wood with tracks in it looks like. The smaller ones
+  // are left where they are: a hollow in a thicket you cannot quite get into is
+  // a thicket, and planting them over instead is what turned the far half of a
+  // dense wood into one solid block.
+  joinRegions(grid, bounds, config.seed, {
+    minRegionCells: MIN_GLADE_CELLS,
+    tooSmall: "leave",
+    home: (region) => region.some((i) => path.has(i)),
+  });
   return { grid, path };
 }
 

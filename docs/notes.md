@@ -4866,6 +4866,13 @@ worse than a slightly smaller cave.
 gets a two-wide corridor bored between the closest pair of cells; what is too
 small to be worth a corridor is filled in instead, because a room reached down
 a long bored passage that turns out to be a 2×2 closet is worse than no room.
+A forest passes `tooSmall: "leave"` for the same call and keeps its small
+pockets — see below.
+
+The bore's **brush** is clamped into the box, not each of its cells. Clamping
+cell by cell folds the far column onto the near one at the boundary and leaves
+a corridor one cell wide along it, which is the one thing all of this exists to
+avoid.
 
 ### No passage is ever one cell wide
 
@@ -5031,21 +5038,41 @@ matters at high densities, where the outer ring of the rectangle is nearly
 solid: the wood reads as a wall of trees from the field beside it, and the
 path's mouths are the gaps.
 
+**A path is walked, not plotted.** Offsetting a straight crossing by a noise
+field gives a line that bends but makes monotone progress along one axis by
+construction — so a wood with one path in it is a wood with a stripe through it,
+and if the axis comes from the path's index it is always the *same* stripe.
+Instead a path picks its axis and direction from the seed, then walks to a mark
+on the opposite edge, straying about two steps in five. It can double back,
+cross itself and arrive from an angle.
+
+Its brush is a square of the path's width, which is what keeps the route two
+cells across however it turns. The outer corner of a two-wide staircase belongs
+to no clear 2×2 square, so a band-and-offset path was planted over in its own
+corners by the rule below.
+
 ### What sets the chance of a tree
 
 Four terms, multiplied:
 
-- **Distance from the nearest path**, which is the whole idea. The falloff is
-  proportional — 40% of the rectangle's shorter side, and never under six cells
-  — rather than a fixed number. At a fixed six, everything past a path's verges
-  is at full density and a large wood is a solid block with a corridor in it;
-  the thinning is the point and it has to be visible across the whole thing.
 - **The density setting**, which is the ceiling the rest scales.
-- **A noise field**, so the wood has stands and glades in it. Without it the
-  density is a smooth function of one number, and a smooth function of one
-  number reads as a gradient rather than as trees.
-- **Nearness to the rectangle's own edge**, worth up to half as much again over
-  the outer four cells. A wood you can see into from outside is a copse.
+- **Distance from the nearest path**, which is the reason the path is drawn
+  first. The falloff is proportional — 40% of the rectangle's shorter side, and
+  never under six cells — rather than a fixed number. At a fixed six, everything
+  past a path's verges is at full density and a large wood is a solid block with
+  a corridor in it.
+- **Two noise fields at different sizes.** `THICKET` decides which parts of the
+  wood are close country and which are open; `CLUMP` puts stands and gaps inside
+  each of them. **Where a wood is thick is not a property of where its edges
+  are** — the first version raised the density towards the rectangle instead,
+  and what that produces is a frame of solid trees around a clearing, which is
+  the shape of the tool rather than the shape of a wood.
+- **A dither at the edge.** The chance ramps down over the last five cells to
+  three tenths of what it would otherwise be. **A wood should not end in a
+  straight line**: the rectangle is how the wood was asked for, not something
+  about the wood. Ramping to a *share* rather than to nothing matters — to
+  nothing is not a dither, it is a bare margin five cells wide, and that is the
+  rectangle showing through just as plainly.
 
 ### The same two rules a cave is held to
 
@@ -5053,19 +5080,13 @@ Four terms, multiplied:
   closing a cell means planting a tree in it. The reason is the camera's, not
   the wood's: a one-cell gap between two trees is drawn over by the tree in
   front of it, so it is somewhere you can walk and cannot see.
-- **Nothing you can walk to is unreachable from a path.** `joinRegions` cuts a
-  two-wide track from the path to every glade big enough to be worth one, and
-  what is left over is planted. A glade walled in by trees is, on the map,
-  indistinguishable from a mistake. Filling everything unreachable instead —
-  which is what this did first — turned half of a 40×40 wood into one solid
-  block of trees, because a single path across the middle cannot reach past a
-  dense band on either side of it.
-
-**A path two cells wide has to be thickened at its corners.** Where it steps
-sideways it is a staircase, and the outer corner of a two-wide staircase
-belongs to no clear 2×2 square — so `widenToTwo` would plant a tree in the path
-itself. The two columns either side of a step are given the union of their
-bands, which makes them identical where they meet.
+- **Every glade big enough to be worth reaching is reachable.** `joinRegions`
+  cuts a two-wide track from the path to each one. The smaller pockets are left
+  where they are, unreachable, because a hollow in a thicket you cannot quite
+  get into *is* a thicket — and this is the one that took two goes. Planting
+  every unreachable pocket instead turned the far half of a 40×40 wood into one
+  solid block: a single path across the middle cannot reach past a dense band
+  either side of it, so nearly everything qualified.
 
 ### The path and the water are the same shapes as the cave's
 

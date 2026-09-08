@@ -521,6 +521,29 @@ function squareOpen(g: CellGrid, x: number, y: number): boolean {
   );
 }
 
+/**
+ * One orthogonal step from `from` towards `to`.
+ *
+ * The axis is picked in proportion to how far there is left to go on each, so
+ * something with twice as far to travel east as south goes east twice as often
+ * — a rough diagonal, rather than the L that taking the longer axis every time
+ * produces.
+ */
+export function stepTowards(
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  random: () => number,
+): { dx: number; dy: number } {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const horizontal =
+    Math.abs(dx) + Math.abs(dy) === 0
+      ? random() < 0.5
+      : random() * (Math.abs(dx) + Math.abs(dy)) < Math.abs(dx);
+  if (horizontal) return { dx: Math.sign(dx) || 1, dy: 0 };
+  return { dx: 0, dy: Math.sign(dy) || 1 };
+}
+
 // ---------------------------------------------------------------------------
 // Joining up what a carve left separate
 // ---------------------------------------------------------------------------
@@ -541,29 +564,42 @@ const JOIN_SAMPLES = 48;
  * `home` picks which region the others are joined *to*; by default the largest.
  * A forest passes the one its path runs through, since that is what "reachable"
  * means there.
+ *
+ * `tooSmall` is what happens to a region below `minRegionCells`. A cave fills
+ * them: a hole in solid rock that no passage reaches is a hole nobody will ever
+ * know is there, and it costs quads. A forest leaves them, because a hollow in
+ * a thicket that you cannot quite get into is a thicket — and planting them
+ * over instead is what turns the far half of a dense wood into one solid block.
  */
 export function joinRegions(
   g: CellGrid,
   box: Bounds,
   seed: number,
-  minRegionCells: number,
-  home?: (region: readonly number[]) => boolean,
+  options: {
+    minRegionCells: number;
+    tooSmall: "fill" | "leave";
+    home?: (region: readonly number[]) => boolean;
+  },
 ): void {
+  const { minRegionCells, tooSmall, home } = options;
   let regions = regionsOf(g);
   if (regions.length === 0) return;
 
   const homeIndex = home ? Math.max(0, regions.findIndex(home)) : 0;
-  for (let n = 0; n < regions.length; n++) {
-    if (n === homeIndex) continue;
-    if (regions[n]!.length >= minRegionCells) continue;
-    for (const i of regions[n]!) g.cells[i] = 0;
+  if (tooSmall === "fill") {
+    for (let n = 0; n < regions.length; n++) {
+      if (n === homeIndex) continue;
+      if (regions[n]!.length >= minRegionCells) continue;
+      for (const i of regions[n]!) g.cells[i] = 0;
+    }
+    regions = regionsOf(g);
   }
 
-  regions = regionsOf(g);
   const stillHome = home ? Math.max(0, regions.findIndex(home)) : 0;
   const random = mulberry32(seed ^ 0x30117);
   for (let n = 0; n < regions.length; n++) {
     if (n === stillHome) continue;
+    if (regions[n]!.length < minRegionCells) continue;
     const from = sample(regions[stillHome]!, random);
     const to = sample(regions[n]!, random);
     const pair = closestPair(g, from, to);
@@ -625,11 +661,15 @@ function boreLine(
   const stepY = Math.sign(to.y - from.y);
   let { x, y } = from;
   for (let guard = 0; guard <= g.cells.length; guard++) {
+    // The *brush* is clamped into the box, not each of its cells: clamping
+    // cell by cell folds the far column onto the near one at the boundary and
+    // leaves a corridor one cell wide there — which is the one thing every
+    // generator here exists to avoid.
+    const bx = Math.min(Math.max(x, box.minX), Math.max(box.minX, box.maxX - 1));
+    const by = Math.min(Math.max(y, box.minY), Math.max(box.minY, box.maxY - 1));
     for (let dy = 0; dy <= 1; dy++) {
       for (let dx = 0; dx <= 1; dx++) {
-        const cx = Math.min(box.maxX, Math.max(box.minX, x + dx));
-        const cy = Math.min(box.maxY, Math.max(box.minY, y + dy));
-        setOpen(g, cx, cy, true);
+        setOpen(g, Math.min(bx + dx, box.maxX), Math.min(by + dy, box.maxY), true);
       }
     }
     if (x === to.x && y === to.y) return;

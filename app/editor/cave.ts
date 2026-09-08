@@ -46,6 +46,7 @@ import {
   randomAt,
   regionsOf,
   setOpen,
+  stepTowards,
   widenToTwo,
 } from "./generator";
 
@@ -350,29 +351,6 @@ function carveTunnels(g: CellGrid, box: Bounds, config: CaveConfig): void {
   }
 }
 
-/**
- * One orthogonal step from `from` towards `to`.
- *
- * The axis is picked in proportion to how far there is left to go on each, so
- * a digger with twice as far to travel east as south goes east twice as often
- * — which is a rough diagonal rather than the L that taking the longer axis
- * every time produces.
- */
-function stepTowards(
-  from: { x: number; y: number },
-  to: { x: number; y: number },
-  random: () => number,
-): { dx: number; dy: number } {
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const horizontal =
-    Math.abs(dx) + Math.abs(dy) === 0
-      ? random() < 0.5
-      : random() * (Math.abs(dx) + Math.abs(dy)) < Math.abs(dx);
-  if (horizontal) return { dx: Math.sign(dx) || 1, dy: 0 };
-  return { dx: 0, dy: Math.sign(dy) || 1 };
-}
-
 /** The grid a shape leaves once it has been widened and joined up. */
 export function carveCave(
   bounds: Bounds,
@@ -400,7 +378,10 @@ export function carveCave(
   for (let attempt = 0; attempt < JOIN_ATTEMPTS; attempt++) {
     widenToTwo(grid);
     if (regionsOf(grid).length <= 1) return grid;
-    joinRegions(grid, box, config.seed + attempt, MIN_REGION_CELLS);
+    joinRegions(grid, box, config.seed + attempt, {
+      minRegionCells: MIN_REGION_CELLS,
+      tooSmall: "fill",
+    });
   }
 
   // Still in pieces after all that, which a handful of seeds in a few hundred
