@@ -521,6 +521,163 @@ function squareOpen(g: CellGrid, x: number, y: number): boolean {
   );
 }
 
+/**
+ * One orthogonal step from `from` towards `to`.
+ *
+ * The axis is picked in proportion to how far there is left to go on each, so
+ * something with twice as far to travel east as south goes east twice as often
+ * — a rough diagonal, rather than the L that taking the longer axis every time
+ * produces.
+ */
+export function stepTowards(
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  random: () => number,
+): { dx: number; dy: number } {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const horizontal =
+    Math.abs(dx) + Math.abs(dy) === 0
+      ? random() < 0.5
+      : random() * (Math.abs(dx) + Math.abs(dy)) < Math.abs(dx);
+  if (horizontal) return { dx: Math.sign(dx) || 1, dy: 0 };
+  return { dx: 0, dy: Math.sign(dy) || 1 };
+}
+
+// ---------------------------------------------------------------------------
+// Joining up what a carve left separate
+// ---------------------------------------------------------------------------
+
+/** Cells sampled from each region when looking for the closest pair to join. */
+const JOIN_SAMPLES = 48;
+
+/**
+ * Fill in what is too small to be worth reaching, and join what is left.
+ *
+ * **Joining is done by opening, not by filling.** A cave that came out as three
+ * rooms gets the passages that make it one cave, and a wood whose far side the
+ * path cannot reach gets a track to it — rather than either of them losing the
+ * part that ended up separate. What is genuinely too small to be worth a
+ * corridor is filled back in instead, because a room reached down a long bored
+ * passage that turns out to be a 2×2 closet is worse than no room.
+ *
+ * `home` picks which region the others are joined *to*; by default the largest.
+ * A forest passes the one its path runs through, since that is what "reachable"
+ * means there.
+ *
+ * `tooSmall` is what happens to a region below `minRegionCells`. A cave fills
+ * them: a hole in solid rock that no passage reaches is a hole nobody will ever
+ * know is there, and it costs quads. A forest leaves them, because a hollow in
+ * a thicket that you cannot quite get into is a thicket — and planting them
+ * over instead is what turns the far half of a dense wood into one solid block.
+ */
+export function joinRegions(
+  g: CellGrid,
+  box: Bounds,
+  seed: number,
+  options: {
+    minRegionCells: number;
+    tooSmall: "fill" | "leave";
+    home?: (region: readonly number[]) => boolean;
+  },
+): void {
+  const { minRegionCells, tooSmall, home } = options;
+  let regions = regionsOf(g);
+  if (regions.length === 0) return;
+
+  const homeIndex = home ? Math.max(0, regions.findIndex(home)) : 0;
+  if (tooSmall === "fill") {
+    for (let n = 0; n < regions.length; n++) {
+      if (n === homeIndex) continue;
+      if (regions[n]!.length >= minRegionCells) continue;
+      for (const i of regions[n]!) g.cells[i] = 0;
+    }
+    regions = regionsOf(g);
+  }
+
+  const stillHome = home ? Math.max(0, regions.findIndex(home)) : 0;
+  const random = mulberry32(seed ^ 0x30117);
+  for (let n = 0; n < regions.length; n++) {
+    if (n === stillHome) continue;
+    if (regions[n]!.length < minRegionCells) continue;
+    const from = sample(regions[stillHome]!, random);
+    const to = sample(regions[n]!, random);
+    const pair = closestPair(g, from, to);
+    if (pair) boreTunnel(g, box, pair.from, pair.to, random);
+  }
+}
+
+function sample(region: readonly number[], random: () => number): number[] {
+  if (region.length <= JOIN_SAMPLES) return region.slice();
+  const out: number[] = [];
+  for (let i = 0; i < JOIN_SAMPLES; i++) {
+    out.push(region[Math.floor(random() * region.length)]!);
+  }
+  return out;
+}
+
+function closestPair(
+  g: CellGrid,
+  a: readonly number[],
+  b: readonly number[],
+): { from: { x: number; y: number }; to: { x: number; y: number } } | null {
+  let best: { from: { x: number; y: number }; to: { x: number; y: number } } | null = null;
+  let bestDistance = Infinity;
+  for (const i of a) {
+    const from = { x: gridX(g, i), y: gridY(g, i) };
+    for (const j of b) {
+      const to = { x: gridX(g, j), y: gridY(g, j) };
+      const distance = Math.abs(from.x - to.x) + Math.abs(from.y - to.y);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = { from, to };
+      }
+    }
+  }
+  return best;
+}
+
+/** A two-wide L between two cells, turning at a corner picked by the seed. */
+function boreTunnel(
+  g: CellGrid,
+  box: Bounds,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  random: () => number,
+): void {
+  const acrossFirst = random() < 0.5;
+  const corner = acrossFirst ? { x: to.x, y: from.y } : { x: from.x, y: to.y };
+  boreLine(g, box, from, corner);
+  boreLine(g, box, corner, to);
+}
+
+function boreLine(
+  g: CellGrid,
+  box: Bounds,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+): void {
+  const stepX = Math.sign(to.x - from.x);
+  const stepY = Math.sign(to.y - from.y);
+  let { x, y } = from;
+  for (let guard = 0; guard <= g.cells.length; guard++) {
+    // The *brush* is clamped into the box, not each of its cells: clamping
+    // cell by cell folds the far column onto the near one at the boundary and
+    // leaves a corridor one cell wide there — which is the one thing every
+    // generator here exists to avoid.
+    const bx = Math.min(Math.max(x, box.minX), Math.max(box.minX, box.maxX - 1));
+    const by = Math.min(Math.max(y, box.minY), Math.max(box.minY, box.maxY - 1));
+    for (let dy = 0; dy <= 1; dy++) {
+      for (let dx = 0; dx <= 1; dx++) {
+        setOpen(g, Math.min(bx + dx, box.maxX), Math.min(by + dy, box.maxY), true);
+      }
+    }
+    if (x === to.x && y === to.y) return;
+    x += stepX;
+    y += stepY;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Water
 // ---------------------------------------------------------------------------

@@ -4861,6 +4861,19 @@ an angle that widening then pinches shut — and after four rounds anything stil
 separate is filled back in, because a cave with a room nobody can walk to is
 worse than a slightly smaller cave.
 
+**Joining is done by opening, not by filling** (`joinRegions`, in
+`generator.ts` because the forest wants it too). What the carve left separate
+gets a two-wide corridor bored between the closest pair of cells; what is too
+small to be worth a corridor is filled in instead, because a room reached down
+a long bored passage that turns out to be a 2×2 closet is worse than no room.
+A forest passes `tooSmall: "leave"` for the same call and keeps its small
+pockets — see below.
+
+The bore's **brush** is clamped into the box, not each of its cells. Clamping
+cell by cell folds the far column onto the near one at the boundary and leaves
+a corridor one cell wide along it, which is the one thing all of this exists to
+avoid.
+
 ### No passage is ever one cell wide
 
 **A one-cell passage is a passage you cannot see into.** The world is drawn in
@@ -4937,7 +4950,7 @@ you see over it is whatever the map has outside, which is usually nothing.
 
 ### A rectangle opens on to ground of its own kind
 
-**A big cave is several drags, so the rectangles have to join.** Every side of a
+**A big cave or a big wood is several drags, so the rectangles have to join.** Every side of a
 new rectangle is walked for runs of border cells whose outside neighbour is
 ground this generator would lay itself, and each run gets **one** way in, at its
 middle: a two-cell notch bored inward until it meets open ground. One per run
@@ -5007,6 +5020,92 @@ rectangle, so the pattern is anchored to the map: growing a drag reveals more of
 the same cave instead of reshuffling the one already on screen. The seed is a
 setting with a Re-roll button beside it, so the same rectangle carves the same
 cave until you ask for a different one.
+
+## A forest is a path and what grows either side of it
+
+The forest generator (`app/editor/forest.ts`) lays a ground tile over the whole
+rectangle, cuts one to three paths edge to edge across it, and plants trees
+everywhere else at a density that rises with the distance from the nearest path.
+
+**The path comes first and everything is measured from it.** Planting a wood
+and then clearing a route through it gives a corridor through noise — a gap of
+constant width with no relationship to what is either side of it. Measuring
+from the path gives a route that opens out where it runs and closes in where it
+does not, which is what a wood with a track through it actually looks like.
+
+Because each path runs edge to edge, **its two ends are the way in.** That
+matters at high densities, where the outer ring of the rectangle is nearly
+solid: the wood reads as a wall of trees from the field beside it, and the
+path's mouths are the gaps.
+
+**A path is walked, not plotted.** Offsetting a straight crossing by a noise
+field gives a line that bends but makes monotone progress along one axis by
+construction — so a wood with one path in it is a wood with a stripe through it,
+and if the axis comes from the path's index it is always the *same* stripe.
+Instead a path picks its axis and direction from the seed, then walks to a mark
+on the opposite edge, straying about two steps in five. It can double back,
+cross itself and arrive from an angle.
+
+Its brush is a square of the path's width, which is what keeps the route two
+cells across however it turns. The outer corner of a two-wide staircase belongs
+to no clear 2×2 square, so a band-and-offset path was planted over in its own
+corners by the rule below.
+
+### What sets the chance of a tree
+
+Four terms, multiplied:
+
+- **The density setting**, which is the ceiling the rest scales.
+- **Distance from the nearest path**, which is the reason the path is drawn
+  first. The falloff is proportional — 40% of the rectangle's shorter side, and
+  never under six cells — rather than a fixed number. At a fixed six, everything
+  past a path's verges is at full density and a large wood is a solid block with
+  a corridor in it.
+- **Two noise fields at different sizes.** `THICKET` decides which parts of the
+  wood are close country and which are open; `CLUMP` puts stands and gaps inside
+  each of them. **Where a wood is thick is not a property of where its edges
+  are** — the first version raised the density towards the rectangle instead,
+  and what that produces is a frame of solid trees around a clearing, which is
+  the shape of the tool rather than the shape of a wood.
+- **A dither at the edge.** The chance ramps down over the last five cells to
+  three tenths of what it would otherwise be. **A wood should not end in a
+  straight line**: the rectangle is how the wood was asked for, not something
+  about the wood. Ramping to a *share* rather than to nothing matters — to
+  nothing is not a dither, it is a bare margin five cells wide, and that is the
+  rectangle showing through just as plainly.
+
+### The same two rules a cave is held to
+
+- **No gap you can walk through is one cell wide.** `widenToTwo` again, and here
+  closing a cell means planting a tree in it. The reason is the camera's, not
+  the wood's: a one-cell gap between two trees is drawn over by the tree in
+  front of it, so it is somewhere you can walk and cannot see.
+- **Every glade big enough to be worth reaching is reachable.** `joinRegions`
+  cuts a two-wide track from the path to each one. The smaller pockets are left
+  where they are, unreachable, because a hollow in a thicket you cannot quite
+  get into *is* a thicket — and this is the one that took two goes. Planting
+  every unreachable pocket instead turned the far half of a 40×40 wood into one
+  solid block: a single path across the middle cannot reach past a dense band
+  either side of it, so nearly everything qualified.
+
+### Joining on to the wood next door
+
+The same pass as the cave's, and for a forest it costs no overlap: the edge of a
+wood is ground you can walk on, so a rectangle laid against another sees it and
+clears a lane through. Those cells count as reachable in the same way a path
+does — walking in from next door is walking in.
+
+### The path and the water are the same shapes as the cave's
+
+The path tile is laid **on top of** the ground tile, which is the grammar the
+town's own roads use: `grass-2` with `cobblestone` over it. `None` still cuts
+the route and still measures the trees from it — it just leaves it as a
+clearing rather than flooring it.
+
+Water is the same pass a cave uses, and it erodes the same way: a stream that
+runs into a tree takes the tree out, and `cutFords` then breaks it wherever it
+would otherwise cut the wood in two. Undergrowth is the same scatter pass, on
+cells that are neither path nor water.
 
 ## Renderer and simulation performance
 

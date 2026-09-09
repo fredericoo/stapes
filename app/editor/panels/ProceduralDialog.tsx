@@ -11,6 +11,12 @@ import {
   Segmented,
 } from "../../ui";
 import { CAVE_DENSITY_RANGE, CAVE_SHAPES, type CaveConfig, type CaveShape } from "../cave";
+import {
+  FOREST_DENSITY_RANGE,
+  PATH_COUNT_RANGE,
+  PATH_WIDTH_RANGE,
+  type ForestConfig,
+} from "../forest";
 import { MAX_SCATTER_RULES, type ScatterRule } from "../generator";
 import {
   ROOF_COLOURS,
@@ -689,6 +695,207 @@ function ScatterRules({
   );
 }
 
+/** Seed plus its Re-roll, which every generator with noise in it wants. */
+function SeedField({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (seed: number) => void;
+}) {
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <FieldLabel info="The same rectangle and the same seed always come out the same. Re-roll for a different one.">
+        Seed
+      </FieldLabel>
+      <div className="flex items-end gap-1">
+        <NumberInput
+          className="w-28"
+          aria-label="Seed"
+          value={value}
+          step={1}
+          onChange={(seed) => onChange(Math.round(seed))}
+        />
+        <Button variant="secondary" onClick={() => onChange(rolledSeed())}>
+          Re-roll
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** Water, which a cave and a forest both take on the same terms. */
+function WaterField({
+  tileId,
+  coverage,
+  onChange,
+  tiles,
+  tilesets,
+}: {
+  tileId: string | null;
+  coverage: number;
+  onChange: (next: { waterTileId?: string | null; waterCoverage?: number }) => void;
+  tiles: TileDef[];
+  tilesets: TilesetDef[];
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <FieldLabel info="Mostly streams, with the occasional basin. Water cuts its own channel — a stream that runs into rock or into a tree takes it out — and it blocks walking, so wherever one would seal a route off it is broken into a ford.">
+        Water
+      </FieldLabel>
+      <div className="flex flex-wrap items-end gap-3">
+        <TileChoiceRow
+          label="Water tile"
+          tileIds={WATER_TILE_IDS}
+          value={tileId}
+          onChange={(waterTileId) => onChange({ waterTileId })}
+          tiles={tiles}
+          tilesets={tilesets}
+          allowNone
+        />
+        <div className="flex flex-col items-start gap-1">
+          <FieldLabel>Coverage</FieldLabel>
+          <PercentInput
+            label="Water coverage"
+            value={coverage}
+            disabled={tileId === null}
+            onChange={(waterCoverage) => onChange({ waterCoverage })}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** The forest form. */
+function ForestForm({
+  draft,
+  patch,
+  tiles,
+  tilesets,
+}: {
+  draft: ForestConfig;
+  patch: (next: Partial<ForestConfig>) => void;
+  tiles: TileDef[];
+  tilesets: TilesetDef[];
+}) {
+  return (
+    <>
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-col items-start gap-1">
+          <FieldLabel info="How thick the trees get where they are thickest — at the edges, and as far from a path as the wood goes.">
+            Density
+          </FieldLabel>
+          <NumberInput
+            className="w-20"
+            aria-label="Density"
+            value={draft.density}
+            min={FOREST_DENSITY_RANGE.min}
+            max={FOREST_DENSITY_RANGE.max}
+            step={1}
+            onChange={(density) => patch({ density })}
+          />
+        </div>
+        <SeedField value={draft.seed} onChange={(seed) => patch({ seed })} />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <FieldLabel info="Laid under every cell of the rectangle.">
+          Ground
+        </FieldLabel>
+        <TileGridPicker
+          label="Ground tile"
+          value={draft.groundTileId}
+          onChange={(id) => patch({ groundTileId: id ?? draft.groundTileId })}
+          tiles={tiles}
+          tilesets={tilesets}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <FieldLabel info="The species. One wood is usually one tree, and this is the one the paths run between.">
+          Trees
+        </FieldLabel>
+        <TileGridPicker
+          label="Tree tile"
+          value={draft.treeTileId}
+          onChange={(id) => patch({ treeTileId: id ?? draft.treeTileId })}
+          tiles={tiles}
+          tilesets={tilesets}
+        />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <FieldLabel info="Each path runs edge to edge, so its two ends are the way into the wood, and the trees thin out towards it. None still cuts the route — it just leaves it as a clearing rather than flooring it.">
+          Paths
+        </FieldLabel>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col items-start gap-1">
+            <FieldLabel>How many</FieldLabel>
+            <NumberInput
+              className="w-20"
+              aria-label="Paths"
+              value={draft.paths}
+              min={PATH_COUNT_RANGE.min}
+              max={PATH_COUNT_RANGE.max}
+              step={1}
+              onChange={(paths) => patch({ paths })}
+            />
+          </div>
+          <div className="flex flex-col items-start gap-1">
+            <FieldLabel info="Cells across. Two is the narrowest the camera can see down.">
+              Width
+            </FieldLabel>
+            <NumberInput
+              className="w-20"
+              aria-label="Path width"
+              value={draft.pathWidth}
+              min={PATH_WIDTH_RANGE.min}
+              max={PATH_WIDTH_RANGE.max}
+              step={1}
+              onChange={(pathWidth) => patch({ pathWidth })}
+            />
+          </div>
+        </div>
+        <TileGridPicker
+          label="Path tile"
+          value={draft.pathTileId}
+          onChange={(pathTileId) => patch({ pathTileId })}
+          tiles={tiles}
+          tilesets={tilesets}
+          allowNone
+        />
+      </div>
+
+      <WaterField
+        tileId={draft.waterTileId}
+        coverage={draft.waterCoverage}
+        onChange={patch}
+        tiles={tiles}
+        tilesets={tilesets}
+      />
+
+      <div className="flex flex-col gap-1">
+        <FieldLabel info="Bushes and the like, dropped between the trees and never on a path. A cell takes at most one.">
+          Undergrowth
+        </FieldLabel>
+        <ScatterRules
+          rules={draft.scatter}
+          onChange={(scatter) => patch({ scatter })}
+          tiles={tiles}
+          tilesets={tilesets}
+        />
+      </div>
+
+      <p className="text-xs text-muted">
+        Drag a rectangle on the map to grow it. Everything on the current level
+        inside the rectangle is replaced. Lay it against ground of the same kind
+        and a lane is cleared through to it, so a big wood can be several drags.
+      </p>
+    </>
+  );
+}
+
 /** The cave form. */
 function CaveForm({
   draft,
@@ -732,26 +939,7 @@ function CaveForm({
             onChange={(density) => patch({ density })}
           />
         </div>
-        <div className="flex flex-col items-start gap-1">
-          <FieldLabel info="The same rectangle and the same seed always carve the same cave. Re-roll for a different one.">
-            Seed
-          </FieldLabel>
-          <div className="flex items-end gap-1">
-            <NumberInput
-              className="w-28"
-              aria-label="Seed"
-              value={draft.seed}
-              step={1}
-              onChange={(seed) => patch({ seed: Math.round(seed) })}
-            />
-            <Button
-              variant="secondary"
-              onClick={() => patch({ seed: rolledSeed() })}
-            >
-              Re-roll
-            </Button>
-          </div>
-        </div>
+        <SeedField value={draft.seed} onChange={(seed) => patch({ seed })} />
       </div>
 
       <div className="flex flex-col gap-1">
@@ -830,31 +1018,13 @@ function CaveForm({
         />
       </div>
 
-      <div className="flex flex-col gap-1">
-        <FieldLabel info="Mostly streams, with the occasional basin. Water blocks walking, so wherever a stream would seal a passage off it is broken into a ford.">
-          Water
-        </FieldLabel>
-        <div className="flex flex-wrap items-end gap-3">
-          <TileChoiceRow
-            label="Water tile"
-            tileIds={WATER_TILE_IDS}
-            value={draft.waterTileId}
-            onChange={(waterTileId) => patch({ waterTileId })}
-            tiles={tiles}
-            tilesets={tilesets}
-            allowNone
-          />
-          <div className="flex flex-col items-start gap-1">
-            <FieldLabel>Coverage</FieldLabel>
-            <PercentInput
-              label="Water coverage"
-              value={draft.waterCoverage}
-              disabled={draft.waterTileId === null}
-              onChange={(waterCoverage) => patch({ waterCoverage })}
-            />
-          </div>
-        </div>
-      </div>
+      <WaterField
+        tileId={draft.waterTileId}
+        coverage={draft.waterCoverage}
+        onChange={patch}
+        tiles={tiles}
+        tilesets={tilesets}
+      />
 
       <div className="flex flex-col gap-1">
         <FieldLabel info="Props dropped on the floor, each with its own frequency. A cell takes at most one, and anything too tall to stand on the floor is left out.">
@@ -923,6 +1093,8 @@ export function ProceduralDialog({
     setDraft((prev) => ({ ...prev, house: { ...prev.house, ...next } }));
   const patchCave = (next: Partial<CaveConfig>) =>
     setDraft((prev) => ({ ...prev, cave: { ...prev.cave, ...next } }));
+  const patchForest = (next: Partial<ForestConfig>) =>
+    setDraft((prev) => ({ ...prev, forest: { ...prev.forest, ...next } }));
 
   return (
     <Dialog
@@ -960,14 +1132,23 @@ export function ProceduralDialog({
             tiles={tiles}
             tilesets={tilesets}
           />
-        ) : (
+        ) : null}
+        {draft.active === "cave" ? (
           <CaveForm
             draft={draft.cave}
             patch={patchCave}
             tiles={tiles}
             tilesets={tilesets}
           />
-        )}
+        ) : null}
+        {draft.active === "forest" ? (
+          <ForestForm
+            draft={draft.forest}
+            patch={patchForest}
+            tiles={tiles}
+            tilesets={tilesets}
+          />
+        ) : null}
       </div>
     </Dialog>
   );

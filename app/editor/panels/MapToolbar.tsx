@@ -8,6 +8,7 @@ import {
   IconPointer,
   IconPencil,
   IconSquare,
+  IconTrees,
   type TablerIcon,
 } from "@tabler/icons-react";
 import { Button, ScrollArea, Tooltip } from "../../ui";
@@ -24,6 +25,7 @@ import { ProceduralDialog } from "./ProceduralDialog";
 const GENERATOR_ICONS: Record<GeneratorId, TablerIcon> = {
   house: IconHome,
   cave: IconMountain,
+  forest: IconTrees,
 };
 
 const TOOLS: Array<{
