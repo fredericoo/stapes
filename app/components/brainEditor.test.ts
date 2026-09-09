@@ -267,3 +267,95 @@ describe("editing a parameter", () => {
     ).toEqual({ cond: "heard", text: "ps", cells: 5 });
   });
 });
+
+/**
+ * What the editor can say about a selector without being told.
+ *
+ * The whole point of the `thing` selector is that a bush is authored as a bush
+ * once, in `tiles.json`, and everything downstream reads it. This is that
+ * reading: the picker knows a bush can be picked because the bush says so, and a
+ * slot knows it holds a bush because the transition that fills it says so.
+ */
+describe("what a selector affords", () => {
+  const ORCHARD: TileDef[] = [
+    ...LIBRARY,
+    tile({
+      id: "bush",
+      interactions: {
+        extract: {
+          actionName: "Pick",
+          durability: 3,
+          tileId: "picked-bush",
+          durationMs: 2000,
+          slots: [{ tileId: "berry", chance: 100 }],
+        },
+      },
+    }),
+    tile({ id: "boulder", interactions: { push: { climb: "half", moveOnTileIds: [] } } }),
+    tile({ id: "hedge", height: 2 }),
+
+  ];
+
+  function optionFor(brain: BrainDef, key: string) {
+    return selectorOptions(brain, ORCHARD).find((one) => one.key === key);
+  }
+
+  const IDLE: BrainDef = {
+    initial: "idle",
+    states: { idle: { do: [] } },
+    transitions: [],
+  };
+
+  it("offers a thing for every tile that does something", () => {
+    const keys = selectorOptions(IDLE, ORCHARD).map((one) => one.key);
+    expect(keys).toContain("thing:bush");
+    expect(keys).toContain("thing:boulder");
+    // Scenery with no interaction block is not worth naming, and a body is
+    // already offered as one.
+    expect(keys).not.toContain("thing:hedge");
+    expect(keys).not.toContain("thing:rat");
+  });
+
+  it("says what the tile can have done to it, in the author's own word", () => {
+    expect(optionFor(IDLE, "thing:bush")?.names).toEqual({
+      tile: "bush",
+      affords: ["pick"],
+    });
+    expect(optionFor(IDLE, "nearest:rat")?.names?.affords).toEqual(["attack"]);
+  });
+
+  /**
+   * A boulder is pushable and a brain has no verb for pushing, so saying so
+   * would be telling an author about a row this table cannot offer them.
+   */
+  it("names only the verbs a brain actually has", () => {
+    expect(optionFor(IDLE, "thing:boulder")?.names).toEqual({
+      tile: "boulder",
+      affords: [],
+    });
+  });
+
+  it("carries the answer through to the slot the brain binds", () => {
+    const brain: BrainDef = {
+      ...IDLE,
+      transitions: [
+        {
+          from: "idle",
+          if: { cond: "stuck" },
+          bind: { bush: { type: "thing", data: { tileId: "bush" } } },
+          to: "idle",
+        },
+      ],
+    };
+
+    expect(optionFor(brain, "$bush")?.names).toEqual({
+      tile: "bush",
+      affords: ["pick"],
+    });
+  });
+
+  it("says nothing about a selector that names no tile", () => {
+    expect(optionFor(IDLE, "speaker")?.names).toBeNull();
+    expect(optionFor(IDLE, "home")?.names).toBeNull();
+  });
+});

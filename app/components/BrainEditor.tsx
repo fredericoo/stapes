@@ -8,6 +8,8 @@ import {
   nearest,
   selectorKey,
   slot,
+  slotTileId,
+  thing,
   validateBrain,
   type BrainActionDef,
   type BrainCondition,
@@ -38,9 +40,13 @@ import {
   EFFECTS,
   EFFECT_NAMES,
   type ParamSpec,
+  type TileFilter,
 } from "../lib/brainCatalog";
 import { PLAYER_TILE_ID } from "../game/constants";
 import { resolveActor, type TileDef } from "../lib/types";
+import { resolveBattler } from "../lib/battler";
+import { resolveConsumable, resolveItem } from "../lib/item";
+import { resolveExtract } from "../lib/interactions";
 import { DragDropProvider } from "@dnd-kit/react";
 import { ConditionTreeEditor } from "./ConditionTreeEditor";
 import { DragHandle } from "./DragHandle";
@@ -99,6 +105,71 @@ export function bodyTileIds(tiles: TileDef[]): string[] {
 }
 
 /**
+ * Tiles worth offering as a `thing` target — the ones that do something.
+ *
+ * Every tile in the library would be a picker with a hundred floors and walls in
+ * it, and unlike {@link bodyTileIds} there is no flag saying which are worth
+ * naming: a bush is an ordinary prop that happens to carry an `extract` block.
+ * So the block *is* the test. A tile with an interaction is a tile a creature
+ * could do something about; a tile with none is scenery, and a brain that walked
+ * to it would be walking to a patch of floor.
+ *
+ * Actors are left out because they are {@link bodyTileIds}' answer already, and
+ * offering a wolf under both readings would be two ways to say one thing with
+ * different results.
+ *
+ * Sorted, so the picker does not reshuffle when the library is reordered.
+ */
+export function thingTileIds(tiles: TileDef[]): string[] {
+  return tiles
+    .filter((tile) => !resolveActor(tile) && hasAnyInteraction(tile))
+    .map((tile) => tile.id)
+    .sort();
+}
+
+/** Does this tile carry an interaction block with anything in it? */
+function hasAnyInteraction(tile: TileDef): boolean {
+  return Object.keys(tile.interactions ?? {}).length > 0;
+}
+
+/**
+ * What a *brain* can do to this tile, in the words the row uses.
+ *
+ * The inference the whole `thing` selector exists for, and it is deliberately
+ * read off the tile rather than written down beside it: author an `extract`
+ * block onto a rock and the brain editor says the rock can be picked, in the
+ * same edit and with nothing else to remember.
+ *
+ * **The brain's verbs and not the player's.** A tile is pushable, or edible off
+ * the floor, or a dozen other things a person can do to it — and a line here
+ * naming one of those would be telling an author about a verb this table cannot
+ * offer them. So the list is exactly the two actions that take a {@link Selector}
+ * and can refuse it: `attack`, which wants a body, and `extract`, which wants a
+ * thing. Eating is not among them because `consume` names a tile in the bag
+ * rather than a selector — its own picker is where that inference lands.
+ *
+ * Empty for a tile a brain can only walk to, which is most of them — and an
+ * empty list is the useful answer, because it is what tells an author that the
+ * `extract` they just pointed at the player will never do anything.
+ */
+export function affordancesOf(tileId: string, tiles: TileDef[]): string[] {
+  const tile = tiles.find((one) => one.id === tileId);
+  if (!tile) return [];
+
+  const verbs: string[] = [];
+  // The author's own word for the pull — "pick" on a bush, "mine" on a vein —
+  // because a row that said "extract" would be the schema's word rather than
+  // the one already on the button a player presses.
+  const extract = resolveExtract(tile);
+  if (extract?.actionName) verbs.push(extract.actionName.toLowerCase());
+  // A body is the only thing with hit points to take, and `resolveActor` is the
+  // same test the `nearest` picker is built from — so what this says about a
+  // wolf and what that offers as a wolf cannot come apart.
+  if (resolveActor(tile) || resolveBattler(tile)) verbs.push("attack");
+  return verbs;
+}
+
+/**
  * One offerable selector: the value itself, a stable id for the `<select>`, and
  * what to call it on screen.
  *
@@ -110,7 +181,57 @@ export type SelectorOption = {
   key: string;
   label: string;
   selector: Selector;
+  /**
+   * What this selector names and what it affords, for the line under the
+   * picker — `{ tile: "Bush", affords: ["pick"] }`.
+   *
+   * Worked out here rather than by the picker, because this is the one place
+   * that holds both the brain and the library: `$bush` only affords picking
+   * because of the transition that binds it, and a control deep in a state's
+   * action list has no way to know that. Null for the selectors that name no
+   * tile — `speaker`, `attacker`, `home`, and a slot the brain does not bind
+   * from one place. @see affordancesOf
+   */
+  names: { tile: string; affords: string[] } | null;
 };
+
+/** One tile a `tile` field may name. @see TileFilter */
+export type TileOption = { tileId: string; label: string };
+
+/**
+ * Everything this editor may offer, worked out once from the brain and the
+ * library.
+ *
+ * One value rather than two props, because both halves are answers to the same
+ * question — what is authorable here — and both are needed at the same depth: a
+ * `tile` field and a selector picker sit side by side on one action row, five
+ * components down from the only place that has seen the library.
+ */
+export type Vocabulary = {
+  selectors: SelectorOption[];
+  /** The tiles each kind of `tile` field will offer. @see TileFilter */
+  tiles: Record<TileFilter, TileOption[]>;
+};
+
+/**
+ * The tiles behind each {@link TileFilter}, which is where those names turn into
+ * a filter over the library.
+ *
+ * `item` is anything that can be in a bag and `consumable` is the half of that
+ * which can be eaten, so the two nest — which is right, because `carrying berry`
+ * and `consume berry` are the same berry asked about twice.
+ */
+export function tileOptions(tiles: TileDef[]): Record<TileFilter, TileOption[]> {
+  const named = (tile: TileDef): TileOption => ({
+    tileId: tile.id,
+    label: tile.name || tile.id,
+  });
+  const items = tiles.filter((tile) => resolveItem(tile));
+  return {
+    item: items.map(named),
+    consumable: items.filter((tile) => resolveConsumable(tile)).map(named),
+  };
+}
 
 /**
  * The live queries, plus every slot the brain's transitions bind.
@@ -136,16 +257,32 @@ export function selectorOptions(
   tiles: TileDef[],
 ): SelectorOption[] {
   const named = new Map(tiles.map((tile) => [tile.id, tile.name || tile.id]));
+  const nameOf = (tileId: string) => named.get(tileId) ?? tileId;
+  const names = (tileId: string | null) =>
+    tileId === null
+      ? null
+      : { tile: nameOf(tileId), affords: affordancesOf(tileId, tiles) };
+
   const options: SelectorOption[] = bodyTileIds(tiles).map((tileId) => ({
     key: `nearest:${tileId}`,
-    label: `nearest ${named.get(tileId) ?? tileId}`,
+    label: `nearest ${nameOf(tileId)}`,
     selector: nearest(tileId),
+    names: names(tileId),
   }));
 
+  for (const tileId of thingTileIds(tiles)) {
+    options.push({
+      key: `thing:${tileId}`,
+      label: `the ${nameOf(tileId)}`,
+      selector: thing(tileId),
+      names: names(tileId),
+    });
+  }
+
   options.push(
-    { key: "speaker", label: "speaker", selector: SPEAKER_SELECTOR },
-    { key: "attacker", label: "attacker", selector: ATTACKER_SELECTOR },
-    { key: "home", label: "home", selector: HOME_SELECTOR },
+    { key: "speaker", label: "speaker", selector: SPEAKER_SELECTOR, names: null },
+    { key: "attacker", label: "attacker", selector: ATTACKER_SELECTOR, names: null },
+    { key: "home", label: "home", selector: HOME_SELECTOR, names: null },
   );
 
   const slots = new Set<string>();
@@ -153,7 +290,12 @@ export function selectorOptions(
     for (const name of Object.keys(t.bind ?? {})) slots.add(name);
   }
   for (const name of slots) {
-    options.push({ key: `$${name}`, label: `$${name}`, selector: slot(name) });
+    options.push({
+      key: `$${name}`,
+      label: `$${name}`,
+      selector: slot(name),
+      names: names(slotTileId(brain, name)),
+    });
   }
 
   return options;
@@ -232,7 +374,10 @@ export function BrainEditor({ brain, tiles, onChange }: Props) {
   }
 
   const stateNames = Object.keys(brain.states);
-  const selectors = selectorOptions(brain, tiles);
+  const vocab: Vocabulary = {
+    selectors: selectorOptions(brain, tiles),
+    tiles: tileOptions(tiles),
+  };
   const issues = validateBrain(brain);
 
   const setState = (name: string, next: BrainStateDef) => {
@@ -277,7 +422,7 @@ export function BrainEditor({ brain, tiles, onChange }: Props) {
             key={name}
             name={name}
             state={brain.states[name]!}
-            selectors={selectors}
+            vocab={vocab}
             taken={stateNames}
             onRename={(next) => onChange(renamedState(brain, name, next))}
             onChange={(next) => setState(name, next)}
@@ -289,7 +434,7 @@ export function BrainEditor({ brain, tiles, onChange }: Props) {
       <TransitionsTable
         brain={brain}
         stateNames={stateNames}
-        selectors={selectors}
+        vocab={vocab}
         onChange={(transitions) => onChange({ ...brain, transitions })}
       />
 
@@ -308,7 +453,7 @@ export function BrainEditor({ brain, tiles, onChange }: Props) {
 function StateCard({
   name,
   state,
-  selectors,
+  vocab,
   taken,
   onRename,
   onChange,
@@ -316,7 +461,7 @@ function StateCard({
 }: {
   name: string;
   state: BrainStateDef;
-  selectors: SelectorOption[];
+  vocab: Vocabulary;
   taken: string[];
   onRename: (next: string) => void;
   onChange: (next: BrainStateDef) => void;
@@ -355,7 +500,7 @@ function StateCard({
         names={EFFECT_NAMES}
         registry={EFFECTS}
         discriminant="effect"
-        selectors={selectors}
+        vocab={vocab}
         onChange={(onEnter) =>
           onChange({ ...state, onEnter: onEnter.length ? onEnter : undefined })
         }
@@ -367,7 +512,7 @@ function StateCard({
         names={ACTION_NAMES}
         registry={ACTIONS}
         discriminant="action"
-        selectors={selectors}
+        vocab={vocab}
         onChange={(next) => onChange({ ...state, do: next })}
       />
     </div>
@@ -430,7 +575,7 @@ function VerbList<T extends BrainActionDef | BrainEffectDef>({
   names,
   registry,
   discriminant,
-  selectors,
+  vocab,
   onChange,
 }: {
   title: string;
@@ -438,7 +583,7 @@ function VerbList<T extends BrainActionDef | BrainEffectDef>({
   names: string[];
   registry: Record<string, { label: string; hint: string; params: ParamSpec[]; make: () => T }>;
   discriminant: "action" | "effect";
-  selectors: SelectorOption[];
+  vocab: Vocabulary;
   onChange: (next: T[]) => void;
 }) {
   const add = () => onChange([...items, registry[names[0]!]!.make()]);
@@ -463,7 +608,7 @@ function VerbList<T extends BrainActionDef | BrainEffectDef>({
               names={names}
               registry={registry}
               discriminant={discriminant}
-              selectors={selectors}
+              vocab={vocab}
               onChange={(next) => set(i, next)}
               onRemove={() => onChange(items.filter((_, j) => j !== i))}
             />
@@ -481,7 +626,7 @@ function VerbRow<T extends BrainActionDef | BrainEffectDef>({
   names,
   registry,
   discriminant,
-  selectors,
+  vocab,
   onChange,
   onRemove,
 }: {
@@ -491,7 +636,7 @@ function VerbRow<T extends BrainActionDef | BrainEffectDef>({
   names: string[];
   registry: Record<string, { label: string; hint: string; params: ParamSpec[]; make: () => T }>;
   discriminant: "action" | "effect";
-  selectors: SelectorOption[];
+  vocab: Vocabulary;
   onChange: (next: T) => void;
   onRemove: () => void;
 }) {
@@ -520,7 +665,7 @@ function VerbRow<T extends BrainActionDef | BrainEffectDef>({
       <ParamFields
         item={value as Record<string, unknown>}
         params={spec.params}
-        selectors={selectors}
+        vocab={vocab}
         onChange={(next) => onChange(next as T)}
       />
       <Button size="sm" variant="danger" onClick={onRemove} aria-label="Remove">
@@ -533,12 +678,12 @@ function VerbRow<T extends BrainActionDef | BrainEffectDef>({
 function TransitionsTable({
   brain,
   stateNames,
-  selectors,
+  vocab,
   onChange,
 }: {
   brain: BrainDef;
   stateNames: string[];
-  selectors: SelectorOption[];
+  vocab: Vocabulary;
   onChange: (next: BrainTransitionDef[]) => void;
 }) {
   const items = brain.transitions;
@@ -569,7 +714,7 @@ function TransitionsTable({
               index={i}
               transition={t}
               stateNames={stateNames}
-              selectors={selectors}
+              vocab={vocab}
               onChange={(next) => set(i, next)}
               onRemove={() => onChange(items.filter((_, j) => j !== i))}
             />
@@ -585,7 +730,7 @@ function TransitionRow({
   index,
   transition,
   stateNames,
-  selectors,
+  vocab,
   onChange,
   onRemove,
 }: {
@@ -593,7 +738,7 @@ function TransitionRow({
   index: number;
   transition: BrainTransitionDef;
   stateNames: string[];
-  selectors: SelectorOption[];
+  vocab: Vocabulary;
   onChange: (next: BrainTransitionDef) => void;
   onRemove: () => void;
 }) {
@@ -624,7 +769,7 @@ function TransitionRow({
         options={fromOptions}
         className="min-w-[6rem]"
       />
-      <BindField transition={transition} selectors={selectors} onChange={onChange} />
+      <BindField transition={transition} vocab={vocab} onChange={onChange} />
       <span className="text-[10px] uppercase text-muted">to</span>
       <Select
         value={transition.to || null}
@@ -646,7 +791,7 @@ function TransitionRow({
         <span className="pt-1.5 text-[10px] uppercase text-muted">if</span>
         <ConditionTree
           root={transition.if}
-          selectors={selectors}
+          vocab={vocab}
           onChange={(next) => onChange({ ...transition, if: next })}
         />
       </div>
@@ -660,11 +805,11 @@ function TransitionRow({
  */
 function ConditionTree({
   root,
-  selectors,
+  vocab,
   onChange,
 }: {
   root: BrainCondition;
-  selectors: SelectorOption[];
+  vocab: Vocabulary;
   onChange: (next: BrainCondition) => void;
 }) {
   return (
@@ -672,7 +817,7 @@ function ConditionTree({
       root={root}
       onChange={onChange}
       leaf={{
-        render: (leaf, set) => <LeafFields leaf={leaf} selectors={selectors} onChange={set} />,
+        render: (leaf, set) => <LeafFields leaf={leaf} vocab={vocab} onChange={set} />,
         fresh: () => CONDITIONS.after.make(),
       }}
     />
@@ -682,11 +827,11 @@ function ConditionTree({
 /** The condition picker and whatever parameters that condition takes. */
 function LeafFields({
   leaf,
-  selectors,
+  vocab,
   onChange,
 }: {
   leaf: BrainConditionDef;
-  selectors: SelectorOption[];
+  vocab: Vocabulary;
   onChange: (next: BrainConditionDef) => void;
 }) {
   return (
@@ -705,7 +850,7 @@ function LeafFields({
       <ParamFields
         item={leaf as unknown as Record<string, unknown>}
         params={CONDITIONS[leaf.cond].params}
-        selectors={selectors}
+        vocab={vocab}
         onChange={(next) => onChange(next as unknown as BrainConditionDef)}
       />
     </>
@@ -722,11 +867,11 @@ function LeafFields({
  */
 function BindField({
   transition,
-  selectors,
+  vocab,
   onChange,
 }: {
   transition: BrainTransitionDef;
-  selectors: SelectorOption[];
+  vocab: Vocabulary;
   onChange: (next: BrainTransitionDef) => void;
 }) {
   const entry = Object.entries(transition.bind ?? {})[0];
@@ -756,7 +901,7 @@ function BindField({
       {slotName ? (
         <SelectorPicker
           value={source}
-          selectors={selectors}
+          vocab={vocab}
           onChange={(next) => set(slotName, next)}
           className="min-w-[6rem]"
         />
@@ -776,46 +921,80 @@ function BindField({
  */
 function SelectorPicker({
   value,
-  selectors,
+  vocab,
   onChange,
   className,
 }: {
   value: Selector;
-  selectors: SelectorOption[];
+  vocab: Vocabulary;
   onChange: (next: Selector) => void;
   className?: string;
 }) {
   const key = selectorKey(value);
-  const known = selectors.some((option) => option.key === key);
-  const options = known
-    ? selectors
-    : [{ key, label: `${key} (missing)`, selector: value }, ...selectors];
+  const current = vocab.selectors.find((option) => option.key === key);
+  const options = current
+    ? vocab.selectors
+    : [
+        { key, label: `${key} (missing)`, selector: value, names: null },
+        ...vocab.selectors,
+      ];
 
   return (
-    <Select
-      value={key}
-      onValueChange={(next) => {
-        const picked = options.find((option) => option.key === next);
-        if (picked) onChange(picked.selector);
-      }}
-      options={options.map((option) => ({
-        value: option.key,
-        label: option.label,
-      }))}
-      className={className}
-    />
+    <>
+      <Select
+        value={key}
+        onValueChange={(next) => {
+          const picked = options.find((option) => option.key === next);
+          if (picked) onChange(picked.selector);
+        }}
+        options={options.map((option) => ({
+          value: option.key,
+          label: option.label,
+        }))}
+        className={className}
+      />
+      <Affordances names={current?.names ?? null} />
+    </>
+  );
+}
+
+/**
+ * What the selected thing is and what can be done to it — `Bush · pick`.
+ *
+ * Read from the tile rather than from the verb beside it, and it deliberately
+ * neither filters the verb picker nor refuses a save. An author mid-way through
+ * re-pointing a row has a line that momentarily makes no sense, and a UI that
+ * argued with them about it would be arguing on every keystroke. What this does
+ * is answer the question the row cannot: `$bush` is a slot name somebody
+ * invented, and this is where the editor says what is actually in it.
+ *
+ * Nothing at all for a selector naming no tile, rather than a line saying so:
+ * `speaker` affords whatever the speaker turns out to be, and an empty label
+ * beside it would read as an assertion.
+ */
+function Affordances({
+  names,
+}: {
+  names: { tile: string; affords: string[] } | null;
+}) {
+  if (!names) return null;
+  return (
+    <span className="text-[10px] text-muted" title="What this selector names">
+      {names.tile}
+      {names.affords.length > 0 ? ` · ${names.affords.join(", ")}` : ""}
+    </span>
   );
 }
 
 function ParamFields({
   item,
   params,
-  selectors,
+  vocab,
   onChange,
 }: {
   item: Record<string, unknown>;
   params: ParamSpec[];
-  selectors: SelectorOption[];
+  vocab: Vocabulary;
   onChange: (next: Record<string, unknown>) => void;
 }) {
   return (
@@ -825,7 +1004,7 @@ function ParamFields({
           key={spec.key}
           spec={spec}
           value={item[spec.key]}
-          selectors={selectors}
+          vocab={vocab}
           onChange={(value) => onChange(paramPatch(item, spec, value))}
         />
       ))}
@@ -867,12 +1046,12 @@ export function paramPatch(
 function ParamField({
   spec,
   value,
-  selectors,
+  vocab,
   onChange,
 }: {
   spec: ParamSpec;
   value: unknown;
-  selectors: SelectorOption[];
+  vocab: Vocabulary;
   onChange: (value: unknown) => void;
 }) {
   if (spec.kind === "boolean") {
@@ -891,7 +1070,7 @@ function ParamField({
     return (
       <SelectorPicker
         value={isSelector(value) ? value : DEFAULT_SELECTOR}
-        selectors={selectors}
+        vocab={vocab}
         onChange={onChange}
         className="min-w-[7rem]"
       />
@@ -902,7 +1081,17 @@ function ParamField({
       <SpeakerFilterField
         spec={spec}
         value={isSpeakerFilter(value) ? value : null}
-        selectors={selectors}
+        vocab={vocab}
+        onChange={onChange}
+      />
+    );
+  }
+  if (spec.kind === "tile") {
+    return (
+      <TilePicker
+        spec={spec}
+        value={typeof value === "string" ? value : null}
+        options={vocab.tiles[spec.tiles]}
         onChange={onChange}
       />
     );
@@ -935,6 +1124,52 @@ function ParamField({
 }
 
 /**
+ * A tile from the library, as a dropdown.
+ *
+ * **"Anything" is a value in this picker and the absence of the field in the
+ * authored line**, which is the same collapse {@link SpeakerFilterField} makes
+ * of "anybody" and is here for the same reason: a `carrying` with no tile asks
+ * about anything at all, and an empty box that could also mean an unset field
+ * would be two states drawn as one.
+ *
+ * A tile the brain names but the library no longer offers still shows, marked,
+ * on {@link SelectorPicker}'s terms — a renamed tile is a line worth seeing
+ * rather than one that silently reads as whatever sits first in the list.
+ */
+function TilePicker({
+  spec,
+  value,
+  options,
+  onChange,
+}: {
+  spec: Extract<ParamSpec, { kind: "tile" }>;
+  value: string | null;
+  options: TileOption[];
+  onChange: (value: string | undefined) => void;
+}) {
+  const ANYTHING = "";
+  const known = value === null || options.some((one) => one.tileId === value);
+  const rows = [
+    ...(spec.optional ? [{ value: ANYTHING, label: "anything" }] : []),
+    ...(known ? [] : [{ value, label: `${value} (missing)` }]),
+    ...options.map((one) => ({ value: one.tileId, label: one.label })),
+  ];
+
+  return (
+    <label className="flex items-center gap-1 text-[10px] uppercase text-muted">
+      {spec.label}
+      <Select
+        value={value ?? ANYTHING}
+        onValueChange={(next) => onChange(next ? next : undefined)}
+        options={rows}
+        className="min-w-[7rem]"
+        placeholder="anything"
+      />
+    </label>
+  );
+}
+
+/**
  * Whose voice a `heard` counts, as one control rather than two.
  *
  * "Anybody" is a value in this picker and the *absence* of the field in the
@@ -946,12 +1181,12 @@ function ParamField({
 function SpeakerFilterField({
   spec,
   value,
-  selectors,
+  vocab,
   onChange,
 }: {
   spec: ParamSpec;
   value: SpeakerFilter | null;
-  selectors: SelectorOption[];
+  vocab: Vocabulary;
   onChange: (value: SpeakerFilter | undefined) => void;
 }) {
   const ANYBODY = "anybody";
@@ -978,7 +1213,7 @@ function SpeakerFilterField({
       {value ? (
         <SelectorPicker
           value={value.of}
-          selectors={selectors}
+          vocab={vocab}
           onChange={(of) => onChange({ ...value, of })}
           className="min-w-[7rem]"
         />

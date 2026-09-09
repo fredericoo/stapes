@@ -4011,6 +4011,75 @@ player's pull is still running on the body they left.
   being that thing" a check rather than a special case, and it is what stops a
   reservation being handed back to whatever tile replaced the one it was taken
   from.
+
+## A brain can name a place, work it, and eat what came out
+
+Everything a brain could name used to be a *body* — `nearest` walks the actor
+list, and nothing is ever standing on a bush. So a creature could hunt you,
+flock, flee and go and look at a noise, and could not walk up to a bush. Three
+pieces closed that, and the point of all three is that they are the pieces a
+player already uses rather than a parallel set for animals.
+
+- **The `thing` selector names the nearest *placement* of a tile.** `nearest`'s
+  opposite number. It answers a cell and a tile id, never a stack index, which is
+  `extractKey`'s pair and is here for its reason: an index shifts when anything
+  is placed under it, and what should end a commitment to a bush is the bush
+  ceasing to be a bush. A deer that picked one bare is holding a cell that now
+  reads `picked-bush`, so `out_of_los $bush` fires with nothing authored to
+  notice it.
+- **The blackboard holds a body *or* a place**, as `Bound`. That is what makes a
+  bush a commitment rather than a question re-asked every tick, on the grounds
+  `slot` already exists for: a creature standing between two bushes would
+  otherwise flip between them. The verbs that want a pulse — `attack`, a `heard`
+  filter, a `{slot}` in a spoken line — read a thing as nobody, exactly as they
+  read `home`.
+- **`extract` and `consume` are the player's own.** `GameSession.extract` and
+  `.consume` were already actor-generic, so a deer's pull holds a reservation
+  nobody else can take, is lost the moment the deer steps, and rolls its dice
+  once at the end — and a berry it eats lands its `hp` and its statuses through
+  the damage path a player's poison apple takes. `extract` reports `running` for
+  the whole of a pick, which is what stops a lower line in the priority list from
+  stepping and ending the pull it is under.
+- **`carrying` reads the bag and only the bag.** What a body wears it is using;
+  what is in its bag it is merely carrying. A body with no bag carries nothing,
+  which is the answer for every creature nobody authored a container onto — and
+  it is why the deer's kit gained a `basic-bag`. Extraction stows into the bag
+  and nowhere else, so a deer without one can stand beside a bush and be unable
+  to touch it.
+
+**The search is bounded by `brainReach`**, and that bound is the whole of what
+keeps this affordable. A body is found by walking a list of actors, which is
+short and indexed by tile; a placement is found by looking at the board, which is
+neither. A thing further away than the furthest question in the brain cannot
+change any answer the brain gives, so that is how far `nearestThing` looks — and
+a brain with no distance in it at all names nothing. It rings outward and stops
+at the first ring that answers, because the nearest anything is overwhelmingly
+close: a deer beside a hedge reads four columns, where a scan of the square would
+read every column inside the radius to prove the same thing. The answer is
+memoised for the length of one creature's turn, so the condition that notices the
+bush and the bind that commits to it cost one search between them.
+
+`data/tiles.json`'s deer is what this was built for, and it now reads as an
+animal: it flees on `in_los` rather than `in_range` — it cannot run from
+something it cannot see — and otherwise browses, picks and chews. Wolves hunt
+deer and rabbits and snakes strike at rabbits, which is two more transitions each
+and no new machinery.
+
+**The editor says what a selector names.** `slotTileId` traces `$bush` back to
+the transitions that bind it and answers only when they agree; `affordancesOf`
+turns that tile into the words on the row — `Bush · pick`, in the author's own
+`actionName`. It annotates and deliberately neither filters the verb picker nor
+refuses a save: an author mid-way through re-pointing a row has a line that
+momentarily makes no sense, and a UI that argued about it would argue on every
+keystroke.
+
+**A resident is told nothing.** Notices are drained per socket, so a line
+addressed to a body with no owner is one nobody ever takes away. That was
+harmless while only players could work the board and stopped being harmless the
+moment a brain could pick a bush — a hedge and a herd would grow `pendingNotices`
+without bound for the life of the world. `GameSession.say` drops them at the
+door.
+
 ## Decay is a switch whose input is time
 
 `DecayInteraction` turns a placement into another tile, or into nothing, once it
