@@ -398,14 +398,86 @@ describe("a cell with no way to it", () => {
     expect(walk.drainNotices()).toEqual([]);
   });
 
-  it("says so for a wall, which is a thing rather than a place", () => {
+  it("says so for a wall with no cell beside it either", () => {
     const { walk } = walker();
-    const map = put(field(6), 2, 0, "wall");
+    // One cell of ground with a wall on it and nothing anywhere near: there is
+    // no cell beside it to stand in, so the fallback has nothing to offer.
+    let map = replaceStack(emptyMap(), 2, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "wall" },
+    ]);
+    map = replaceStack(map, 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: PLAYER_TILE_ID },
+    ]);
 
     walk.start({ x: 2, y: 0, z: 0, stackIndex: 1 }, view(map));
 
     expect(walk.walking).toBe(false);
     expect(walk.drainNotices()).toEqual([noRouteNotice("unreachable")]);
+  });
+});
+
+/**
+ * A chest, a wall, a tree: the pointer names a tile nobody has a top to stand
+ * on, and what the player meant was the floor at its foot.
+ *
+ * This used to be the refusal above. It is the single most common click in the
+ * game after a patch of floor — everything worth walking across a room for is a
+ * thing rather than a place — and answering it with a sentence made
+ * click-to-walk something you learnt not to use on anything interesting.
+ *
+ * Which neighbour is not decided here: `arrive: "beside"` hands the choice to
+ * the search, so the cell it stops in is the one with the shortest route rather
+ * than the one that looks nearest. @see ./pathfinding
+ */
+describe("clicking something you cannot stand on", () => {
+  it("walks to the foot of a wall rather than refusing it", () => {
+    const { walk, last } = walker();
+    const map = put(field(6), 3, 0, "wall");
+
+    walk.start({ x: 3, y: 0, z: 0, stackIndex: 1 }, view(map));
+
+    expect(walk.walking).toBe(true);
+    expect(last()).toEqual(["e"]);
+    expect(walk.drainNotices()).toEqual([]);
+  });
+
+  it("stops in the cell beside it rather than pressing on into it", () => {
+    const { walk, last } = walker();
+    const map = put(field(6), 2, 0, "wall");
+
+    walk.start({ x: 2, y: 0, z: 0, stackIndex: 1 }, view(map));
+    // Landed at (1, 0), which is beside the wall and as far as this goes.
+    walk.tick(view(map, { at: { x: 1, y: 0, z: 0, stackIndex: 1 } }));
+
+    expect(walk.walking).toBe(false);
+    expect(last()).toEqual([]);
+  });
+
+  it("does not set off at all from a cell already beside it", () => {
+    const { walk, asked } = walker();
+    const map = put(field(6), 1, 0, "wall");
+
+    walk.start({ x: 1, y: 0, z: 0, stackIndex: 1 }, view(map));
+
+    expect(walk.walking).toBe(false);
+    expect(asked).toEqual([]);
+    expect(walk.drainNotices()).toEqual([]);
+  });
+
+  it("goes round to the reachable side rather than the nearest one", () => {
+    const { walk, last } = walker();
+    // A wall at (2, 0) with a second one sealing the approach from the west,
+    // so the only cell beside it that can be reached is the far side.
+    let map = field(6);
+    map = put(map, 2, 0, "wall");
+    for (const y of [-1, 0, 1]) map = put(map, 1, y, "wall");
+
+    walk.start({ x: 2, y: 0, z: 0, stackIndex: 1 }, view(map));
+
+    expect(walk.walking).toBe(true);
+    expect(last()?.[0]).toMatch(/^[ns]$/);
   });
 });
 
@@ -663,16 +735,19 @@ describe("clicking into a hole", () => {
     expect(standingCellOn(view(map), wall)).toEqual({ x: 0, y: -1, z: -2 });
   });
 
-  it("still refuses the foot of a wall standing on ordinary ground", () => {
+  it("still reads a wall on ordinary ground as a thing, not a hole", () => {
     const { walk, asked } = walker();
     // Same wall tile, but the walker's own level has ground in that column, so
-    // it is a thing with a wall on it rather than a hole.
+    // it is a thing with a wall on it rather than a hole. Nobody stands on it,
+    // and the walker is already beside it — so there is nowhere to go and
+    // nothing is asked for, where a hole would have been stepped into.
     const map = put(field(3), 0, -1, "wall");
 
     walk.start({ x: 0, y: -1, z: 0, stackIndex: 1 }, view(map));
 
     expect(standingCellOn(view(map), { x: 0, y: -1, z: 0, stackIndex: 1 })).toBeNull();
     expect(asked).toEqual([]);
-    expect(walk.drainNotices()).toEqual([noRouteNotice("unreachable")]);
+    expect(walk.walking).toBe(false);
+    expect(walk.drainNotices()).toEqual([]);
   });
 });

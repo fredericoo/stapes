@@ -1234,14 +1234,14 @@ below, which is what replaced it and why.
 
 ## Clicking a cell walks to it, and nothing new travels
 
-`app/game/walkTo.ts` holds a destination and hands the step pipeline one
-direction per leg. It is entirely client-side, and deliberately: `findPath` is a
-pure question about a board, the browser holds every argument to it, and the
-direction it produces goes in through `HeldDirections` — the same list a held
-key presses. So a clicked leg is predicted, sent and validated by exactly the
-machinery a keypress already used, `canWalk` on the server included. There is
-nothing on the wire that says a walk was clicked, and there is no version of a
-client making up where it is allowed to go.
+`app/game/walkTo.ts` holds an errand — a cell and what arriving at it means —
+and hands the step pipeline one direction per leg. It is entirely client-side, and deliberately:
+`findPath` is a pure question about a board, the browser holds every argument to
+it, and the direction it produces goes in through `HeldDirections` — the same
+list a held key presses. So a clicked leg is predicted, sent and validated by
+exactly the machinery a keypress already used, `canWalk` on the server included.
+There is nothing on the wire that says a walk was clicked, and there is no
+version of a client making up where it is allowed to go.
 
 - **`findPath` gained `arrive`, and the two halves of it move together.**
   `"beside"` is the default and is what closing on a body means; `"on"` is what
@@ -1268,8 +1268,19 @@ client making up where it is allowed to go.
   stored on the level below the one you stand on it at — so the destination goes
   through `standingCellOn`, which matches the picked tile's top against
   `listStandingSurfaces`. Skip it and the floor of a building is a place nobody
-  can click their way into. A wall, a tree or a body has no top anybody stands
-  on, and gets the refusal rather than an offer to stand at its foot.
+  can click their way into.
+- **A tile with no top to stand on is walked *to*, not refused.** A chest, a
+  wall, a tree: `standingCellOn` has no answer, and the errand becomes the
+  tile's own cell with `arrive: "beside"`. This used to be the refusal, and it
+  was the single most annoying thing about click-to-walk — everything worth
+  crossing a room for is a thing rather than a place, so the feature was one you
+  learnt not to use on anything interesting. **Which neighbour you end up in is
+  the search's answer and not a choice made before it.** Picking the nearest
+  free cell first and routing to that is the obvious implementation and it is
+  wrong twice over: the nearest neighbour of a chest against a wall is often the
+  one inside the wall, and even when it is reachable it need not be the one with
+  the shortest route. `arrive: "beside"` is already a goal test the queue is
+  ordered on, so handing it the object's own cell gets both for free.
 - **The leg handed over during a step is the one *after* it**, and that is why
   `findPath` takes where to search from and whose body to ignore as two facts.
   The prediction chains a landed step straight into the next from inside its own
