@@ -256,10 +256,10 @@ describe("eating off the floor", () => {
     );
 
     expect(session.actorSnapshots()).toEqual([]);
-    // The body is off the board too, not just the runtime — and what it was
-    // carrying is on the floor where it fell, poison being a death like any
-    // other.
-    expect(tilesAt(session, 0, 0)).toEqual(["grass", "basic-bag"]);
+    // The body is off the board too, not just the runtime. Nothing is lying
+    // there because the bag was empty and a dead body's bag is destroyed rather
+    // than dropped — poison being a death like any other.
+    expect(tilesAt(session, 0, 0)).toEqual(["grass"]);
   });
 
   it("refuses one two cells away", () => {

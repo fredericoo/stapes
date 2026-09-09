@@ -179,6 +179,7 @@ import {
   HANDS,
   handToSwing,
   otherHand,
+  spilled,
   stoneIn,
   stoneLocked,
   weaponInHand,
@@ -4284,7 +4285,7 @@ export class GameSession implements PlaySession {
    * the rule a shoved crate follows.
    */
   private dropKit(equipment: Equipment, at: Coord): Equipment {
-    const carried = wornInstances(equipment);
+    const carried = spilled(equipment, this.tilesById);
     if (carried.length === 0) return equipment;
 
     const placements = carried.map(placementFromInstance);

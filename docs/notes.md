@@ -4080,6 +4080,23 @@ moment a brain could pick a bush — a hedge and a herd would grow `pendingNotic
 without bound for the life of the world. `GameSession.say` drops them at the
 door.
 
+## A dead body's bag is destroyed and its contents spill
+
+Dropping the pack whole was the simpler rule and it made a killing a single
+pickup: one bag on the ground, everything inside it, gone in one gesture and
+never sorted through. `spilled` puts the contents on the floor as things instead,
+so what a fight was worth is what is lying there, and it costs the winner the
+walk over it rather than a tap.
+
+The bag slot alone, though a hand may hold a container too. That slot is not a
+place a container happens to be, it *is* the inventory — a pack carried in a hand
+is a thing you are holding on exactly the terms a crate is, and widening this
+would mean a player who died carrying a chest lost the chest. Nothing nests, so
+one level of spilling is the whole of it.
+
+It applies to players exactly as it does to a deer, which is the point: there is
+one death, and a deer that had picked a bush leaves the berries it was carrying.
+
 ## Decay is a switch whose input is time
 
 `DecayInteraction` turns a placement into another tile, or into nothing, once it

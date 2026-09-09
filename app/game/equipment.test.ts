@@ -46,6 +46,7 @@ import {
   handAccepts,
   restoredEquipment,
   otherHand,
+  spilled,
   weaponInHand,
   weaponSwungBy,
   wornDefence,
@@ -1430,5 +1431,62 @@ describe("bodyElements", () => {
     expect(bodyElements(base, wearing({ armor: held("gone") }), tiles)).toEqual(
       [],
     );
+  });
+});
+
+/**
+ * What a killing blow leaves on the floor.
+ *
+ * The one rule here that is not "everything you had": a bag is destroyed and
+ * what was in it is spilled, so a fight's spoils are a pile to sort through
+ * rather than a pack to pick up in one gesture. Applies to a player exactly as
+ * it does to a deer — see `GameSession.dropKit`.
+ */
+describe("spilled", () => {
+  const tiles = tilesByIdFromList([
+    itemTile("sword", DEFAULT_WEAPON),
+    itemTile("bag", DEFAULT_CONTAINER),
+    itemTile("berry", { type: "consumable", label: "Eat", hp: 1 }),
+  ]);
+
+  const SWORD = { id: "itm_sword", tileId: "sword" };
+  const BERRY = { id: "itm_berry", tileId: "berry" };
+  const PACK = { id: "itm_bag", tileId: "bag", contents: [BERRY] };
+
+  it("leaves what was worn, in the order the squares are reached for", () => {
+    expect(spilled({ ...emptyEquipment(), weapon: SWORD }, tiles)).toEqual([
+      SWORD,
+    ]);
+  });
+
+  it("spills the bag's contents and drops the bag itself", () => {
+    const left = spilled(
+      { ...emptyEquipment(), weapon: SWORD, bag: PACK },
+      tiles,
+    );
+    expect(left).toEqual([SWORD, BERRY]);
+  });
+
+  it("leaves nothing at all for an empty pack", () => {
+    const empty = { id: "itm_bag", tileId: "bag", contents: [] };
+    expect(spilled({ ...emptyEquipment(), bag: empty }, tiles)).toEqual([]);
+  });
+
+  /**
+   * A hand holds a pack the way it holds a crate — see `Equipment.bag`, which is
+   * the slot that *is* the inventory. Destroying one carried in a hand would be
+   * a rule about death nobody asked for.
+   */
+  it("leaves a pack carried in a hand alone, contents and all", () => {
+    expect(spilled({ ...emptyEquipment(), weapon: PACK }, tiles)).toEqual([
+      PACK,
+    ]);
+  });
+
+  it("drops a bag whose tile the catalogue has lost rather than losing it", () => {
+    const unknown = { id: "itm_bag", tileId: "gone", contents: [BERRY] };
+    expect(spilled({ ...emptyEquipment(), bag: unknown }, tiles)).toEqual([
+      unknown,
+    ]);
   });
 });
