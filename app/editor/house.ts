@@ -28,6 +28,14 @@ import {
   resolveActor,
 } from "../lib/types";
 import { canReplaceStack } from "../lib/validation";
+import {
+  MAX_FOOTPRINT,
+  type Bounds,
+  type GeneratedPlan,
+  type Rect,
+  boundsOf,
+  placed,
+} from "./generator";
 
 /** Which way the ridge runs, named for how the line looks on the map. */
 export type RoofOrientation = "vertical" | "horizontal";
@@ -86,6 +94,7 @@ export type DoorRow = "north" | "centre" | "south";
 export type DoorColumn = "west" | "centre" | "east";
 
 export type HouseConfig = {
+  generator: "house";
   /** Storeys of wall, each one level tall. The roof starts above the top one. */
   storeys: number;
   roofOrientation: RoofOrientationSetting;
@@ -107,11 +116,7 @@ export type HouseConfig = {
   doorColumn: DoorColumn;
 };
 
-export type Rect = { x0: number; y0: number; x1: number; y1: number };
-
-export type HousePlan =
-  | { ok: true; edits: StackEdit[] }
-  | { ok: false; reason: string };
+export type HousePlan = GeneratedPlan;
 
 /**
  * The smallest house with an inside. Two cells across is a solid block of
@@ -119,8 +124,7 @@ export type HousePlan =
  */
 export const MIN_FOOTPRINT = 3;
 
-/** Both dimensions, so an accidental drag across the world refuses cheaply. */
-export const MAX_FOOTPRINT = 64;
+export { MAX_FOOTPRINT } from "./generator";
 
 /**
  * "N tiles away" throughout here means an index distance of N along the wall
@@ -146,30 +150,6 @@ const WINDOW_MIN_FROM_DOOR = 2;
  * accident cannot silently mean "one window, somewhere near the middle".
  */
 export const WINDOW_SPACING_RANGE = { min: 2, max: 12 } as const;
-
-type Bounds = { minX: number; maxX: number; minY: number; maxY: number };
-
-function boundsOf(rect: Rect): Bounds {
-  return {
-    minX: Math.min(rect.x0, rect.x1),
-    maxX: Math.max(rect.x0, rect.x1),
-    minY: Math.min(rect.y0, rect.y1),
-    maxY: Math.max(rect.y0, rect.y1),
-  };
-}
-
-/** A placement of `tileId`, wearing `direction` only if the tile has faces. */
-function placed(
-  tileId: string,
-  tilesById: Record<string, TileDef>,
-  direction?: Direction,
-): PlacedTile {
-  const def = tilesById[tileId];
-  if (def && isDirectional(def)) {
-    return { tileId, direction: direction ?? "s" };
-  }
-  return { tileId };
-}
 
 /**
  * Roof levels a span of `span` cells needs.

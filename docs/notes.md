@@ -4718,8 +4718,15 @@ in the camera leaves every later pan and screen-to-cell conversion producing
 
 The **procedural** button on the map toolbar opens a list of generators and
 their settings; pressing Place arms a tool that builds one out of a dragged
-rectangle. There is one generator so far — a house — and the shape of it is
-what the second one should copy.
+rectangle. The house came first and the shape of it is what the others copy.
+
+`app/editor/procedural.ts` is the list they are reached through, and it is the
+only thing the store and the renderer know about: both call `planProcedural`
+with the armed config and neither has heard of a house. Adding a generator is
+a config type with a `generator` tag, a `plan*` function, a row in
+`GENERATORS`, a default in `proceduralSettings.ts` and a form in the dialog.
+The parts more than one of them needs — the rectangle, the grid of open cells,
+the noise, and the water and scatter passes — are in `app/editor/generator.ts`.
 
 **One pure function answers everything.** `planHouse` (`app/editor/house.ts`)
 takes the map, the rectangle, the level and the settings, and returns either
@@ -4838,6 +4845,168 @@ building rather than to the world being built. They are parsed on the way back
 in (`app/editor/proceduralSettings.ts`) and checked against the tile catalogue:
 a saved wall tile that no longer exists reads as "no saved settings" instead of
 arming the tool with an id nothing can draw.
+
+## A cave is rock you take away from
+
+The cave generator (`app/editor/cave.ts`) blocks the dragged rectangle out as
+solid rock and carves a cave out of it. The order it does that in is the whole
+design, because each step can undo the one before it:
+
+**Block out, carve, widen, join, decorate.** Carving leaves passages a single
+cell wide; widening them closes some of the cave off entirely; joining what is
+left is therefore the last thing that touches the *shape*, and everything after
+it only puts things on a floor that is already final. Widening and joining
+alternate rather than running once each — a bored corridor can meet its room at
+an angle that widening then pinches shut — and after four rounds anything still
+separate is filled back in, because a cave with a room nobody can walk to is
+worse than a slightly smaller cave.
+
+### No passage is ever one cell wide
+
+**A one-cell passage is a passage you cannot see into.** The world is drawn in
+an oblique projection, so the wall on the near side of a corridor is drawn over
+the floor behind it: a corridor one cell wide has no visible floor at all, and
+neither does whatever is standing in it. Two cells is the narrowest that leaves
+a strip you can see.
+
+The rule that gets there is mechanical and lives in `widenToTwo`: **an open cell
+has to be part of some fully open 2×2 square**, and anything else — a spur, a
+diagonal pinch, a one-wide neck — is filled back in. Filling one neck can expose
+another, so it runs to a fixed point. Everything downstream depends on this
+holding, which is why `cave.test.ts` asserts it over every shape, every density
+and a spread of seeds rather than on one example.
+
+### Three shapes, because they are three places
+
+Not three settings of one. Density is the setting, and it means roughly the same
+share of open floor in all three.
+
+- **Caverns** is the cellular automaton `scripts/carve-caves.ts` digs the animal
+  den with: a starting rock fraction per cell, then smoothing passes that turn
+  crowded cells to rock and sprinkle pillars back into open country. The
+  starting fraction is itself varied by a noise field, and that is the
+  difference between a cave and a texture — with one fraction over the whole
+  rectangle every part of it comes out equally porous, and varying it by region
+  is what makes one end a hall and the other a warren. It reads as eroded.
+- **Veins** keeps a band around the middle of a noise field, which is a contour
+  line: long sinuous passages that wander and branch and rarely open out. It
+  reads as water-cut.
+- **Tunnels** sends diggers out with a 2×2 brush. **A digger has to be going
+  somewhere, or it never leaves.** A walk that turns at random stays where it
+  started — at a 40×40 rectangle it opened a third of the cells and every one
+  of them was in the same corner. Giving each digger a point to reach and
+  letting it stray on the way turns the same number of steps into corridors
+  that cross the rectangle, and the straying is what stops them being ruled
+  lines. It reads as dug.
+
+### The alternative floor goes on top of the base one
+
+The base floor is laid under every cell you can stand on, and the alternative
+floor is a covering laid **over** it in patches — not a swap. A scatter of
+cobbles over dirt is dirt with cobbles on it, and putting the alternative in
+place of the base leaves each patch reading as a hole in the ground the rest of
+the floor is. It is drawn from a noise field rather than per cell, because per
+cell randomness over a floor is not patches, it is dirt.
+
+### The block-out replaces, and rock fills a level exactly
+
+A house is put on a site; a cave is what is left of one. So the cave **replaces**
+whatever is on the level inside the rectangle rather than stacking on it, and
+the only thing that refuses the whole plan is somebody standing in the
+footprint. Dragging one over work already there takes it out, and takes one
+press of undo to get back.
+
+**The floor goes under the rock as well as under the cave.** Carving a wall away
+by hand afterwards then leaves ground rather than a hole, which is what makes a
+generated cave something you can keep editing. It costs a quad per wall cell;
+`scripts/carve-caves.ts` makes the opposite trade, because at the scale of the
+animal den those quads run to five figures.
+
+A column of rock plus the floor under it has to fill `HEIGHT_PER_LEVEL` exactly
+— a wall short of the top is a wall daylight and arrows go over, and one past it
+overflows into the level above — so `columnOf` refuses any tile whose height
+does not divide what is left rather than rounding either way. Two `half-stone`
+and one `stone-wall` both divide the four a flat floor leaves; that is why the
+rock picker is a short list rather than the catalogue, and where a full-height
+rock block belongs when the catalogue gets one.
+
+**The outermost ring stays full-height rock.** The low walls that break up the
+edge — the ledges — are taken only where rock meets floor *inside* the
+rectangle, because a low wall on the shell is a hole in the block-out, and what
+you see over it is whatever the map has outside, which is usually nothing.
+
+### A rectangle opens on to ground of its own kind
+
+**A big cave is several drags, so the rectangles have to join.** Every side of a
+new rectangle is walked for runs of border cells whose outside neighbour is
+ground this generator would lay itself, and each run gets **one** way in, at its
+middle: a two-cell notch bored inward until it meets open ground. One per run
+rather than one per cell — opening the whole run takes the shell off a cave's
+entire flank.
+
+**The floor has to be the top of that stack, not somewhere in it.** A cave's
+rock stands on the same floor its cave does, so a shell cell contains the floor
+tile as surely as an open one; a test that only asked whether the tile was
+present would read every wall as an invitation. Anything standing on the floor
+disqualifies it for the same reason — a bush is not a way in — and so does
+ground of another kind, which is what stops a cave opening on to the grass
+beside it.
+
+**Nothing outside the rectangle is ever written**, which is what sets how far
+the new one has to land over the old. A cave's shell is a cell of rock, and the
+carve just inside it is nearly always rock too — the automaton counts what is
+off the grid as rock, which weights the outermost column solid. Edge to edge
+sees rock; one cell over sees the column behind it, which is also rock. **Two
+cells in is the first place the neighbour's floor reaches.** The drag preview
+shows the notch the moment it is found, so the right overlap is something you
+can see rather than something to remember.
+
+### Water cuts its own channel
+
+The water is laid over the inside of the rectangle rather than over the floor
+already carved, and **every cell it takes is opened** — a stream that runs into
+rock takes the rock out. That is the order water and stone actually happen in,
+and without it the streams read as puddles sitting in rooms somebody else dug.
+The shell is the one thing it cannot erode, so the block-out stays closed.
+
+Its brush is 2×2, for the same reason no passage is one cell wide: a channel one
+cell across running east-west is drawn over by the wall in front of it, and an
+invisible stream is not worth cutting. It also means an eroded channel already
+satisfies `widenToTwo` — and since opening cells can only join things, nothing
+after the erosion has to re-check the cave's connectivity.
+
+Mostly streams, a sixth of the budget on basins: a floor a sixth under water
+reads as a flooded cave rather than as a cave with a stream in it.
+
+### Water is walkable:false, so streams have fords
+
+A stream laid across a passage is a wall, and the half of the cave behind it is
+a place nobody can reach. The alternative to allowing that was refusing to put
+water anywhere narrow, which leaves streams as dashes rather than as streams.
+So `cutFords` checks the dry floor once at the end and dries out the shortest
+crossing back to each stranded piece. What that leaves on the map is a ford.
+
+**One sweep, not one per stranded piece.** A flood from every dry cell at once
+labels each water cell with the piece of floor nearest it, so wherever two
+labels meet is a candidate crossing whose length is already known; taking those
+cheapest-first with a union-find gives the same answer as reconnecting one piece
+at a time. The version that did it one at a time ran twenty-seven floods on a
+full-size rectangle and was most of the cost of planning a cave — 4.5ms of a
+6.9ms plan, against 0.66ms now.
+
+### It is planned on every drag step, so it has a budget
+
+The preview is the plan (see above), which means the whole carve runs every time
+the rectangle changes. At the 64×64 maximum, measured on a developer machine:
+caverns ~3.3ms, veins ~1.1ms, tunnels ~0.7ms. Caverns is the one worth watching
+— its smoothing passes are a 5×5 neighbourhood count per cell — and the sprawl
+count is computed only on the passes that use it for that reason.
+
+Noise is keyed on **world** coordinates rather than on a position within the
+rectangle, so the pattern is anchored to the map: growing a drag reveals more of
+the same cave instead of reshuffling the one already on screen. The seed is a
+setting with a Re-roll button beside it, so the same rectangle carves the same
+cave until you ask for a different one.
 
 ## Renderer and simulation performance
 
