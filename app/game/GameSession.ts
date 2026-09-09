@@ -5279,6 +5279,9 @@ export class GameSession implements PlaySession {
       at,
       this.defFor(actor),
       this.tilesById,
+      // Read for tone, so a route goes round a flame and over a shrine.
+      // @see PathOptions and `./pathfinding`'s `unsafeToStepOn`
+      this.statusDefs,
       // A creature given the flag is one an author wants falling, wherever the
       // fall lands: a drop is an edge like any other to it. The narrower rule is
       // the player's, whose click asked to be somewhere rather than to leap.
@@ -5473,11 +5476,21 @@ export class GameSession implements PlaySession {
   ): Coord | null {
     const self = { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex };
     const def = this.defFor(actor);
-    const found = findRefuge(this.map, { at: self, self }, threat, def, this.tilesById, {
-      drops: allowDrops ? "anywhere" : "never",
-      seenFrom: (cell) =>
-        hasLineOfSight(this.map, this.tilesById, threat, cell, def.height),
-    });
+    const found = findRefuge(
+      this.map,
+      { at: self, self },
+      threat,
+      def,
+      this.tilesById,
+      // An animal cornered against a fire is cornered: nothing is exempt from
+      // a flood, because nobody pointed at anywhere. @see findRefuge
+      this.statusDefs,
+      {
+        drops: allowDrops ? "anywhere" : "never",
+        seenFrom: (cell) =>
+          hasLineOfSight(this.map, this.tilesById, threat, cell, def.height),
+      },
+    );
     // An empty route is an animal with nowhere better than where it stands, on
     // the terms an empty route always means arrived. @see findRefuge
     if (!found.ok || found.route.length === 0) return null;

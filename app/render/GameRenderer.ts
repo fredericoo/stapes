@@ -1212,6 +1212,7 @@ export class GameRenderer {
       stepping: self.walk ? self.walk.to : null,
       def,
       tilesById: this.tilesById,
+      statusDefs: this.statusDefs,
       // The target's own rule, deliberately — see {@link isWithinView}. A
       // follow and a target are the two commitments to one body, and a follow
       // that outlived the screen would carry on after something the player can

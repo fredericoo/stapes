@@ -1208,6 +1208,39 @@ carry it.
   part of the edge, because a route planned from mid-air is a route about a cell
   nobody is ever standing in. `"toGoal"` is a click's answer and is written
   below.
+- **A cell that fires when you land on it is not a way through.** A flame burns
+  whoever lands in it and a portal sends them elsewhere, both on the `step`
+  trigger with nothing to press, and `unsafeToStepOn` takes both out of
+  `neighbours` — so a chase, a flight and a clicked walk all route round them.
+  The case that prompted it was a player following a rabbit into a fire: the
+  flame was on the short line, so the route took it, and both of them died.
+  - *The two halves are avoided for different reasons and it matters.* A
+    teleport is always refused, because a route through one is not a route —
+    you arrive somewhere the search never considered and the plan is void. A
+    status is refused on its `tone` being `bad`, so a route goes round a fire
+    and straight over a shrine. Reading the tone is why `findPath` and
+    `findRefuge` take the status catalogue **positionally** rather than in
+    their options bag: a routing rule that silently stopped applying because a
+    call site forgot an optional argument is the failure that shape rules out.
+    A status the catalogue has no entry for is not a hazard, on the reading
+    `resolveAddStatus` already carries — an id nothing answers to is an effect
+    that does not happen — so a caller with no catalogue routes exactly as it
+    did before this existed, and a portal is still avoided.
+  - *The goal is exempt, and has to be.* A portal is a place you walk into on
+    purpose and a click on a flame is a click on a flame, so the cell that is
+    itself what was asked for stays an edge — the shape `drops: "toGoal"`
+    already has. Only under `arrive: "on"`, because that is the only mode in
+    which a caller pointed at a cell to stand in: a creature closing on
+    somebody standing next to a fire must not take the fire as its last leg,
+    and a flood has no goal at all so nothing is exempt from one.
+  - *It costs about 5% of a route somebody walks*, and the stack scan is asked
+    only of cells `canWalk` has already accepted. 134µs against 128µs for the
+    same eight-step route across `app/lib/fixtureTown.ts` with the rule taken
+    out, `bun` on an M2 Pro. Both questions are asked in one pass for that
+    reason: a route asks both of every cell it accepts.
+  - *What it rules out is a room whose only way in is a flame or a portal* —
+    nothing will route into it. Walking in by hand still works; none of this
+    touches `canWalk`, and the server validates the same steps it always did.
 
 **Two caps, doing two different jobs, and it is worth not confusing them.**
 `PATH_DETOUR_SLACK` is about *behaviour*: a route far longer than the gap is not

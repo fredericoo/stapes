@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { emptyMap, replaceStack } from "../lib/mapData";
+import { DEFAULT_STATUS_SOURCE } from "../lib/status";
+import type { StatusDef, StatusTone } from "../lib/status";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, normalizeTileDef } from "../lib/types";
 import {
@@ -64,6 +66,50 @@ const tiles: TileDef[] = [
     affectedByGravity: true,
     walkable: false,
   }),
+  /**
+   * A flame: something you walk straight through and are burned by for landing
+   * in. Intangible on purpose, exactly as the shipped one is — what takes it
+   * out of a route is what it *does*, and a tile that blocked the cell would
+   * prove nothing about this rule.
+   */
+  tile({
+    id: "flame",
+    height: 2,
+    intangible: true,
+    interactions: { addStatus: { trigger: "step", statusId: "burned" } },
+  }),
+  /** The same block with the other tone: a shrine is not a hazard. */
+  tile({
+    id: "shrine",
+    height: 2,
+    intangible: true,
+    interactions: { addStatus: { trigger: "step", statusId: "blessed" } },
+  }),
+  /** A status the catalogue has never heard of, which is an effect that does not happen. */
+  tile({
+    id: "dud",
+    height: 2,
+    intangible: true,
+    interactions: { addStatus: { trigger: "step", statusId: "unwritten" } },
+  }),
+  /** A portal, which is avoided on what it does rather than on any tone. */
+  tile({
+    id: "portal",
+    height: 4,
+    intangible: true,
+    interactions: {
+      teleport: { trigger: "step", destination: { kind: "absolute" } },
+    },
+  }),
+  /** A flame you have to press rather than land on. @see ActivationTrigger */
+  tile({
+    id: "brazier",
+    height: 2,
+    intangible: true,
+    interactions: {
+      addStatus: { trigger: "interact", statusId: "burned" },
+    },
+  }),
 ];
 
 const tilesById = Object.fromEntries(tiles.map((def) => [def.id, def]));
@@ -84,6 +130,22 @@ function put(map: MapFile, x: number, y: number, tileId: string): MapFile {
   return replaceStack(map, x, y, 0, [{ tileId: "grass" }, { tileId }]);
 }
 
+/**
+ * The statuses these searches know about.
+ *
+ * Only the tone is read — see `unsafeToStepOn` — so the rest is whatever a
+ * status needs to be a status. Two of them, because the whole of what the rule
+ * turns on is that one is bad and the other is not.
+ */
+const statusDefs: Record<string, StatusDef> = {
+  burned: status("burned", "bad"),
+  blessed: status("blessed", "good"),
+};
+
+function status(id: string, tone: StatusTone): StatusDef {
+  return { ...DEFAULT_STATUS_SOURCE, id, name: id, tone };
+}
+
 /** The creature's own cell, with the slot its body sits in. */
 function standing(x: number, y: number, z = 0, stackIndex = 1) {
   return { x, y, z, stackIndex };
@@ -98,9 +160,9 @@ function search(
   map: MapFile,
   from: Coord & { stackIndex: number },
   to: Coord,
-  opts?: Parameters<typeof findPath>[5],
+  opts?: Parameters<typeof findPath>[6],
 ): PathOutcome {
-  return findPath(map, { at: from, self: from }, to, rat, tilesById, opts);
+  return findPath(map, { at: from, self: from }, to, rat, tilesById, statusDefs, opts);
 }
 
 /** The legs of a route, or null when there was none. @see refusal */
@@ -108,7 +170,7 @@ function route(
   map: MapFile,
   from: Coord & { stackIndex: number },
   to: Coord,
-  opts?: Parameters<typeof findPath>[5],
+  opts?: Parameters<typeof findPath>[6],
 ): PathStep[] | null {
   const found = search(map, from, to, opts);
   return found.ok ? found.route : null;
@@ -119,7 +181,7 @@ function refusal(
   map: MapFile,
   from: Coord & { stackIndex: number },
   to: Coord,
-  opts?: Parameters<typeof findPath>[5],
+  opts?: Parameters<typeof findPath>[6],
 ): PathRefusal | null {
   const found = search(map, from, to, opts);
   return found.ok ? null : found.why;
@@ -425,6 +487,175 @@ describe("a drop that has to be the destination", () => {
  * cells round a wall to reach somebody standing two away is a creature that has
  * worked out where the door is, and nothing here has any business knowing that.
  */
+/**
+ * A cell that does something to you on arrival is not a way through.
+ *
+ * The case that prompted it: a player following a rabbit walked into a flame
+ * because the flame was on the short line, and the rabbit walked into it too
+ * and died. Neither of them chose that — the route did, and a route is a plan
+ * about getting somewhere rather than about what happens on the way.
+ *
+ * What each case here separates is *why* a cell is refused, because the two
+ * halves of the rule are different: a teleport is refused for what it does to
+ * the plan, and a status for what it does to the body — which means a shrine is
+ * a floor and a fire is not.
+ */
+describe("a cell that fires when you land on it", () => {
+  /** The flame straight ahead, with open ground either side of it to go round. */
+  function inTheWay(tileId: string): MapFile {
+    return put(field(6), 1, 0, tileId);
+  }
+
+  it("goes round a flame rather than through it", () => {
+    const legs = walked(route(inTheWay("flame"), standing(0, 0), { x: 3, y: 0, z: 0 }));
+
+    // Round one side or the other — the board is symmetric and either is right.
+    // What matters is that the first leg is not the one into the fire.
+    expect(legs?.[0]).toMatch(/^[ns]$/);
+  });
+
+  it("walks over a shrine, which is the same block with the other tone", () => {
+    const legs = walked(route(inTheWay("shrine"), standing(0, 0), { x: 3, y: 0, z: 0 }));
+
+    expect(legs?.[0]).toBe("e");
+  });
+
+  it("walks over a status the catalogue has never heard of", () => {
+    // An effect that does not happen is not a hazard — the same reading
+    // `resolveAddStatus` is written under. @see unsafeToStepOn
+    const legs = walked(route(inTheWay("dud"), standing(0, 0), { x: 3, y: 0, z: 0 }));
+
+    expect(legs?.[0]).toBe("e");
+  });
+
+  it("goes round a portal, which no tone makes safe", () => {
+    const legs = walked(route(inTheWay("portal"), standing(0, 0), { x: 3, y: 0, z: 0 }));
+
+    expect(legs?.[0]).toMatch(/^[ns]$/);
+  });
+
+  it("walks over a flame nobody is landing on to set off", () => {
+    // The same status from the same block, waiting to be pressed rather than
+    // stepped on. Nothing happens to a body that walks across it, so nothing
+    // about it is a route's business. @see ActivationTrigger
+    const legs = walked(route(inTheWay("brazier"), standing(0, 0), { x: 3, y: 0, z: 0 }));
+
+    expect(legs?.[0]).toBe("e");
+  });
+
+  /**
+   * Sealing a room with fire seals it. Walking in by hand still works — nothing
+   * here touches `canWalk` — but nothing will *route* you through it, which is
+   * the trade the rule is worth making.
+   */
+  it("refuses a goal whose only way in is through a flame", () => {
+    let map = field(6);
+    for (let y = -6; y <= 6; y++) map = put(map, 1, y, "wall");
+    map = put(map, 1, 0, "flame");
+
+    expect(route(map, standing(0, 0), { x: 3, y: 0, z: 0 })).toBeNull();
+    // And the same board with the flame taken out is a way through, so the
+    // refusal above is this rule rather than the wall.
+    expect(route(put(map, 1, 0, "grass"), standing(0, 0), { x: 3, y: 0, z: 0 }))
+      .not.toBeNull();
+  });
+
+  /**
+   * The exemption, and it is the whole reason a portal is usable at all: a
+   * click on one is a click on one, and a route that would not enter what it
+   * was pointed at would make click-to-walk refuse every door in the world.
+   */
+  it("steps onto the cell that was asked for", () => {
+    const map = inTheWay("portal");
+
+    const legs = walked(
+      route(map, standing(0, 0), { x: 1, y: 0, z: 0 }, { arrive: "on" }),
+    );
+
+    expect(legs).toEqual(["e"]);
+  });
+
+  it("steps into a flame that was asked for", () => {
+    const map = inTheWay("flame");
+
+    const legs = walked(
+      route(map, standing(0, 0), { x: 1, y: 0, z: 0 }, { arrive: "on" }),
+    );
+
+    expect(legs).toEqual(["e"]);
+  });
+
+  /**
+   * Only the cell itself, and only when a caller pointed at a cell to stand
+   * *in*. Arriving beside something never lands on it, so there is nothing for
+   * `beside` to exempt — and a creature closing on somebody standing next to a
+   * fire must not take the fire as its last leg.
+   */
+  it("will not stand in a flame merely because it is beside the goal", () => {
+    // The flame at (1, 0) and the goal at (2, 0): stopping in the flame is
+    // "beside the goal", and stopping at (2, 1) or (2, -1) is as well.
+    const map = inTheWay("flame");
+
+    const legs = walked(route(map, standing(0, 0), { x: 2, y: 0, z: 0 }));
+
+    expect(legs?.[0]).toMatch(/^[ns]$/);
+  });
+
+  /**
+   * A fall lands somewhere, and where it lands is what the rule reads. Without
+   * that a route may not step *into* a fire and may still be dropped into one,
+   * which is the same body in the same flame by a different door.
+   */
+  describe("a drop that would land in one", () => {
+    /**
+     * Ground everywhere, a floor of blocks over it, and a trench cut in that
+     * floor from (2, 0) to (4, 0). The only way into the trench is off its lip,
+     * and there are two lips to choose from.
+     */
+    function trench(bottom: string): MapFile {
+      let map = field(6);
+      for (let x = -6; x <= 6; x++) {
+        for (let y = -6; y <= 6; y++) map = put(map, x, y, "block");
+      }
+      for (const x of [2, 3, 4]) map = replaceStack(map, x, 0, 0, [{ tileId: "grass" }]);
+      map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }, { tileId: bottom }]);
+      return replaceStack(map, 0, 0, 1, [{ tileId: "rat" }]);
+    }
+
+    it("drops in somewhere else along the trench instead", () => {
+      const legs = route(trench("flame"), standing(0, 0, 1, 0), { x: 4, y: 0, z: 0 }, {
+        arrive: "on",
+        drops: "anywhere",
+      });
+
+      expect(legs).not.toBeNull();
+      // Every way in but the near one, which is the one with the fire at the
+      // bottom of it. Without the check on the landing this is the first leg.
+      expect(legs!.map((leg) => leg.to)).not.toContainEqual({ x: 2, y: 0, z: 0 });
+    });
+
+    it("takes the same drop when the flame is what was asked for", () => {
+      const legs = route(trench("flame"), standing(0, 0, 1, 0), { x: 2, y: 0, z: 0 }, {
+        arrive: "on",
+        drops: "toGoal",
+      });
+
+      // A flame at the bottom of a hole somebody pointed into is a flame they
+      // pointed at. @see avoidRule
+      expect(walked(legs)).toEqual(["e", "e"]);
+    });
+
+    it("drops straight in when the bottom is bare ground", () => {
+      const legs = route(trench("grass"), standing(0, 0, 1, 0), { x: 4, y: 0, z: 0 }, {
+        arrive: "on",
+        drops: "anywhere",
+      });
+
+      expect(legs!.map((leg) => leg.to)).toContainEqual({ x: 2, y: 0, z: 0 });
+    });
+  });
+});
+
 describe("how far out of its way", () => {
   /** A wall down x = 1, `reach` cells either side of the row they share. */
   function screen(reach: number): MapFile {
@@ -603,9 +834,17 @@ describe("finding somewhere to run", () => {
     map: MapFile,
     from: Coord & { stackIndex: number },
     threat: Coord,
-    opts?: Parameters<typeof findRefuge>[5],
+    opts?: Parameters<typeof findRefuge>[6],
   ): Coord | null {
-    const found = findRefuge(map, { at: from, self: from }, threat, rat, tilesById, opts);
+    const found = findRefuge(
+      map,
+      { at: from, self: from },
+      threat,
+      rat,
+      tilesById,
+      statusDefs,
+      opts,
+    );
     if (!found.ok || found.route.length === 0) return null;
     return found.route[found.route.length - 1]!.to;
   }
@@ -622,6 +861,7 @@ describe("finding somewhere to run", () => {
       { x: -4, y: 0, z: 0 },
       rat,
       tilesById,
+      statusDefs,
     );
 
     expect(found.ok).toBe(true);
@@ -660,6 +900,37 @@ describe("finding somewhere to run", () => {
    * looked. An empty route on the terms an empty route always means arrived:
    * the animal itself is the best cell the flood found.
    */
+  /**
+   * The flood inherits the rule with no exemption at all: there is no goal
+   * here, so there is no cell anybody pointed at. An animal that ran into a
+   * fire to get away from you would have taken the worse of the two.
+   */
+  it("will not run into a flame to open the distance", () => {
+    // A corridor with the threat at one end of it, so west is the only
+    // direction that opens the distance at all — and one cell of the corridor
+    // is on fire.
+    function corridor(atMinusOne: string): MapFile {
+      let map = field(12);
+      for (let x = -12; x <= 12; x++) {
+        map = put(map, x, -1, "wall");
+        map = put(map, x, 1, "wall");
+      }
+      // Capped east of the threat, so running *past* it is not the better
+      // answer the flood would otherwise take.
+      map = put(map, 6, 0, "wall");
+      return put(map, -1, 0, atMinusOne);
+    }
+
+    // Nowhere better than where it stands, which is an empty route and the
+    // honest answer: an animal cornered against a fire is cornered.
+    expect(refuge(corridor("flame"), standing(0, 0), { x: 4, y: 0, z: 0 })).toBeNull();
+
+    // The control: the same corridor with the fire out runs down it, so the
+    // answer above is this rule rather than the walls.
+    const away = refuge(corridor("grass"), standing(0, 0), { x: 4, y: 0, z: 0 });
+    expect(away!.x).toBeLessThan(-1);
+  });
+
   it("stays put when it is walled in, and says so with an empty route", () => {
     let map = field(12);
     for (const [x, y] of [[1, 0], [-1, 0], [0, -1], [0, 1]]) {
@@ -672,6 +943,7 @@ describe("finding somewhere to run", () => {
       { x: -3, y: 0, z: 0 },
       rat,
       tilesById,
+      statusDefs,
     );
 
     expect(found).toEqual({ ok: true, route: [] });

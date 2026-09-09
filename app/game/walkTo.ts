@@ -8,6 +8,7 @@ import {
   type PathRefusal,
 } from "./pathfinding";
 import { absoluteStandingElevation, getStack } from "../lib/mapData";
+import type { StatusDef } from "../lib/status";
 import type { Coord, MapFile, TileDef } from "../lib/types";
 
 /**
@@ -145,6 +146,12 @@ export type WalkView = {
   /** The walker's own tile, for the fit checks every leg goes through. */
   def: TileDef;
   tilesById: Record<string, TileDef>;
+  /**
+   * The status catalogue, which a route reads for tone alone: it is what tells
+   * a flame from a shrine, so a walk goes round one and over the other.
+   * @see ./pathfinding's `unsafeToStepOn`
+   */
+  statusDefs: Record<string, StatusDef>;
   /**
    * Where a body the viewer can see is standing, by id, or null for one they
    * cannot.
@@ -448,6 +455,7 @@ export class WalkTo {
       goal,
       view.def,
       view.tilesById,
+      view.statusDefs,
       {
         // A patch of floor is not something you stop next to, and a body is not
         // something you stop on. @see Errand

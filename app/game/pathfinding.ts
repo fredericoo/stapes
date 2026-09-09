@@ -6,7 +6,9 @@ import {
   surfacesInClimbBand,
 } from "./movement";
 import { cellKey } from "./pressurePlates";
-import { removeTileAt } from "../lib/mapData";
+import { getStack, removeTileAt } from "../lib/mapData";
+import { resolveAddStatus, resolveTeleportDef } from "../lib/interactions";
+import type { StatusDef } from "../lib/status";
 import { fitsAtElevation } from "../lib/validation";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { DIRECTIONS } from "../lib/types";
@@ -52,6 +54,34 @@ import { MAX_CLIMB_HEIGHT } from "./constants";
  * itself, not a neighbour of it — so {@link PathOptions.arrive} chooses, and
  * "beside" is the default because every caller that predates the option means
  * a body it is walking up to. @see ../game/walkTo
+ *
+ * ## A cell that does something to you on arrival is not a way through
+ *
+ * A flame burns whoever lands in it and a portal sends them somewhere else, and
+ * both fire on the *step* with nothing to press. Neither is a floor, so neither
+ * is an edge: {@link unsafeToStepOn} takes them out of {@link neighbours}, and
+ * every search in this file inherits that — a creature chasing you, a creature
+ * running from you, and a player's clicked walk alike.
+ *
+ * **Only what the tile actually does to the body is read.** A teleport is
+ * always avoided, because a route through one is not a route: you arrive
+ * somewhere the search never considered and the plan behind it is void. A
+ * status is avoided when its tone is `bad`, so a route goes round a fire and
+ * straight over a shrine — the two are the same block with different content,
+ * and treating them alike would have a pathfinder deciding that being blessed
+ * is a hazard.
+ *
+ * **The goal is exempt, and has to be.** A portal is a place you walk into on
+ * purpose and a click on a flame is a click on a flame, so a cell that is
+ * *itself* what was asked for stays an edge — the same shape
+ * {@link PathOptions.drops}' `"toGoal"` takes, and for the same reason. Only
+ * with `arrive: "on"`, because that is the only mode in which a caller has
+ * pointed at a cell to stand in.
+ *
+ * What this rules out is a room whose only entrance is a flame or a portal:
+ * nothing will route into it, and walking in by hand is the way in. That is the
+ * intended trade — a route is a plan, and a plan that walks you through fire to
+ * save two steps is not one anybody asked for.
  *
  * ## Two facts about the searcher, not one
  *
@@ -256,6 +286,16 @@ function stepsApart(a: Coord, b: Coord): number {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 }
 
+function sameCell(a: Coord, b: Coord): boolean {
+  return a.x === b.x && a.y === b.y && a.z === b.z;
+}
+
+/**
+ * A search with no cell anybody pointed at, which is every flood in this file.
+ * Named so that the argument reads as the fact it is rather than as a stub.
+ */
+const NOTHING_ASKED_FOR = () => false;
+
 /**
  * Close enough to have arrived: beside them on their floor, or standing in the
  * goal cell itself. @see PathOptions.arrive
@@ -357,6 +397,92 @@ function dropRule(
 }
 
 /**
+ * What landing in this cell would set off: the status handed over, and whether
+ * it sends the body somewhere else.
+ *
+ * One pass, two answers, each of them "top down and the first wins" — which is
+ * `GameSession.statusOnArrival` and `teleportOnArrival`'s own rule read from
+ * the other end: an author can bury a pad under a second one and the top of
+ * the pile is what fires. They are read together because a route asks both of
+ * every cell it accepts, and two passes is two stack lookups for one question.
+ *
+ * The whole stack rather than the part under the body, because no body has been
+ * placed here yet and everything a walker can stand on, it stands on top of.
+ */
+function firesOnStepAt(
+  map: MapFile,
+  at: Coord,
+  tilesById: Record<string, TileDef>,
+): { statusId: string | null; teleports: boolean } {
+  const stack = getStack(map, at.x, at.y, at.z);
+  let statusId: string | null = null;
+  let found = false;
+  let teleports = false;
+
+  for (let i = stack.length - 1; i >= 0; i--) {
+    const def = tilesById[stack[i]!.tileId];
+    if (!def) continue;
+    if (!found) {
+      const addStatus = resolveAddStatus(def);
+      if (addStatus?.trigger === "step") {
+        statusId = addStatus.statusId;
+        found = true;
+      }
+    }
+    if (!teleports) teleports = resolveTeleportDef(def)?.trigger === "step";
+  }
+
+  return { statusId, teleports };
+}
+
+/**
+ * Would landing in this cell do something to whoever lands there?
+ *
+ * The question every search in this file asks before calling a cell a way
+ * through — see the section on it at the top of the file for what is avoided
+ * and why the goal is not. @see firesOnStepAt for what the cell is asked.
+ *
+ * **A status nothing in the catalogue answers to is not a hazard**, which is
+ * the reading `resolveAddStatus` already documents: an id the catalogue does
+ * not hold is an effect that does not happen. So a caller with no catalogue to
+ * hand — a renderer built before its route finished loading, a test about
+ * geometry — routes exactly as it did before this existed, while a portal is
+ * still avoided, because a teleport needs no catalogue to be read.
+ */
+export function unsafeToStepOn(
+  map: MapFile,
+  at: Coord,
+  tilesById: Record<string, TileDef>,
+  statusDefs: Record<string, StatusDef>,
+): boolean {
+  const fires = firesOnStepAt(map, at, tilesById);
+  if (fires.teleports) return true;
+  return (
+    fires.statusId !== null && statusDefs[fires.statusId]?.tone === "bad"
+  );
+}
+
+/**
+ * Which cells a route refuses to pass through, with the one exception folded in.
+ *
+ * Built once per search rather than asked per node, so the catalogues and the
+ * exemption are closed over and {@link neighbours} takes one predicate rather
+ * than three more arguments.
+ *
+ * The exemption is tested first: it is a coordinate comparison against a stack
+ * scan, and it is true of at most one cell in the whole search.
+ */
+function avoidRule(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  statusDefs: Record<string, StatusDef>,
+  asked: (cell: Coord) => boolean,
+): (cell: Coord) => boolean {
+  return (cell) =>
+    !asked(cell) && unsafeToStepOn(map, cell, tilesById, statusDefs);
+}
+
+/**
  * Every cell one step from `at`, as the board would allow it.
  *
  * `map` is the board with the searcher's own body already off it — see
@@ -369,6 +495,7 @@ function neighbours(
   tileDef: TileDef,
   tilesById: Record<string, TileDef>,
   mayDropTo: ((landing: Coord) => boolean) | null,
+  avoid: (cell: Coord) => boolean,
 ): PathStep[] {
   const fromAbs = standingAbs(
     map,
@@ -416,10 +543,19 @@ function neighbours(
     // decide for itself whether that is a way through, a way down, or neither.
     if (mayFallTo) {
       const landing = dropLanding(map, x, y, fromAbs, tileDef, tilesById);
-      if (landing && mayFallTo(landing)) out.push({ direction, to: landing });
+      if (!landing || !mayFallTo(landing)) continue;
+      // Asked of where the fall *lands* rather than of the cell it was stepped
+      // off into, because a drop is one edge and what it does to the body is
+      // settled where the body stops. @see avoidRule
+      if (avoid(landing)) continue;
+      out.push({ direction, to: landing });
       continue;
     }
 
+    // Last of the three checks, so a stack scan is paid only for a cell the
+    // board has already agreed can be walked into — in a built-up place, the
+    // minority of the four directions. @see avoidRule
+    if (avoid(check.to)) continue;
     out.push({ direction, to: check.to });
   }
 
@@ -632,6 +768,7 @@ export function findRefuge(
   threat: Coord,
   tileDef: TileDef,
   tilesById: Record<string, TileDef>,
+  statusDefs: Record<string, StatusDef>,
   opts: RefugeOptions = {},
 ): PathOutcome {
   const board = removeTileAt(
@@ -647,6 +784,10 @@ export function findRefuge(
   // lands, and one it is not is not an edge. The middle mode `findPath` has is
   // about a goal, and there is no goal here.
   const mayDropTo = (opts.drops ?? DEFAULT_DROPS) === "never" ? null : () => true;
+  // Nothing is exempt, on the same grounds: there is no goal here, so there is
+  // no cell anybody has pointed at. An animal cornered against a fire is
+  // cornered — running into it is not an escape. @see avoidRule
+  const avoid = avoidRule(board, tilesById, statusDefs, NOTHING_ASKED_FOR);
 
   const frontier = new Frontier();
   const best = new Map<string, number>();
@@ -678,7 +819,14 @@ export function findRefuge(
       }
     }
 
-    for (const step of neighbours(board, node.at, tileDef, tilesById, mayDropTo)) {
+    for (const step of neighbours(
+      board,
+      node.at,
+      tileDef,
+      tilesById,
+      mayDropTo,
+      avoid,
+    )) {
       const key = cellKey(step.to);
       const g = node.g + 1;
       if (g >= (best.get(key) ?? Infinity)) continue;
@@ -698,6 +846,7 @@ export function findPath(
   goal: Coord,
   tileDef: TileDef,
   tilesById: Record<string, TileDef>,
+  statusDefs: Record<string, StatusDef>,
   opts: PathOptions = {},
 ): PathOutcome {
   const board = removeTileAt(
@@ -711,6 +860,12 @@ export function findPath(
   const arrive = opts.arrive ?? DEFAULT_ARRIVAL;
   if (arrived(from, goal, arrive)) return { ok: true, route: [] };
   const mayDropTo = dropRule(opts.drops ?? DEFAULT_DROPS, goal, arrive);
+  // The cell that was pointed at, and only when a caller pointed at a cell to
+  // stand *in*: a route that stops beside its goal never lands on it, so there
+  // is nothing for `beside` to exempt. @see avoidRule
+  const avoid = avoidRule(board, tilesById, statusDefs, (cell) =>
+    arrive === "on" && sameCell(cell, goal),
+  );
 
   const budget = opts.maxNodes ?? PATH_MAX_NODES;
   // How long a route is still a chase. @see PATH_DETOUR_SLACK
@@ -740,7 +895,14 @@ export function findPath(
 
     if (arrived(node.at, goal, arrive)) return { ok: true, route: unwind(node) };
 
-    const legs = neighbours(board, node.at, tileDef, tilesById, mayDropTo);
+    const legs = neighbours(
+      board,
+      node.at,
+      tileDef,
+      tilesById,
+      mayDropTo,
+      avoid,
+    );
     for (const step of legs) {
       const key = cellKey(step.to);
       const g = node.g + 1;

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { emptyMap, replaceStack } from "../lib/mapData";
+import { DEFAULT_STATUS_SOURCE } from "../lib/status";
+import type { StatusDef } from "../lib/status";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, normalizeTileDef } from "../lib/types";
 import type { GameInput } from "./GameSession";
@@ -60,10 +62,25 @@ const tiles: TileDef[] = [
     affectedByGravity: true,
     walkable: false,
   }),
+  /** Something you walk straight through and are burned by for landing in. */
+  tile({
+    id: "flame",
+    height: 2,
+    intangible: true,
+    interactions: { addStatus: { trigger: "step", statusId: "burned" } },
+  }),
 ];
 
 const tilesById = Object.fromEntries(tiles.map((def) => [def.id, def]));
 const playerDef = tilesById[PLAYER_TILE_ID]!;
+
+/**
+ * What a burn is, for the one thing a route reads off a status: its tone.
+ * @see ./pathfinding's `unsafeToStepOn`
+ */
+const statusDefs: Record<string, StatusDef> = {
+  burned: { ...DEFAULT_STATUS_SOURCE, id: "burned", name: "Burned", tone: "bad" },
+};
 
 /** Flat grass from -half to +half, and nothing standing on any of it. */
 function bare(half: number): MapFile {
@@ -165,6 +182,7 @@ function view(
     stepping: opts.stepping ?? null,
     def: playerDef,
     tilesById,
+    statusDefs,
     bodyAt: (actorId) => opts.bodies?.[actorId] ?? null,
   };
 }
@@ -735,6 +753,33 @@ describe("following a body", () => {
 
     expect(walk.walking).toBe(false);
     expect(last()).toEqual([]);
+  });
+});
+
+/**
+ * A clicked walk does not route through fire.
+ *
+ * The rule is `./pathfinding`'s and is tested there. What is pinned here is the
+ * wiring, which is the half that can silently come undone: the catalogue a
+ * route reads tone from arrives on the view, and a walk handed an empty one
+ * would go round nothing at all. @see WalkView.statusDefs
+ */
+describe("a clicked walk past a flame", () => {
+  it("sets off round it rather than into it", () => {
+    const { walk, last } = walker();
+
+    walk.start(ground(3, 0), view(put(field(6), 1, 0, "flame")));
+
+    // Round one side or the other — the board is symmetric and either is right.
+    expect(last()?.[0]).toMatch(/^[ns]$/);
+  });
+
+  it("walks into one that was clicked, because that is what was asked for", () => {
+    const { walk, last } = walker();
+
+    walk.start({ x: 1, y: 0, z: 0, stackIndex: 1 }, view(put(field(6), 1, 0, "flame")));
+
+    expect(last()).toEqual(["e"]);
   });
 });
 
