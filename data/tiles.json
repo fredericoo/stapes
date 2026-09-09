@@ -32229,7 +32229,7 @@
           {
             "from": "any",
             "if": {
-              "cond": "in_range",
+              "cond": "in_los",
               "of": {
                 "type": "nearest",
                 "data": {
@@ -32238,7 +32238,7 @@
                   ]
                 }
               },
-              "cells": 4
+              "cells": 5
             },
             "bind": {
               "spooked": {
