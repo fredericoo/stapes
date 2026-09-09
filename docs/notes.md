@@ -2922,6 +2922,94 @@ moved on from. What a `hello` cannot fix is the client's own catalogue, which
 reaches a browser only at page load — an author still reloads to see new art,
 and no longer reloads to make the world obey them.
 
+## The goblins are the first thing in the world that shoots back
+
+North of the city wall, through a gate that did not exist until they did. Three
+pieces went in together and each is worth reading for a different reason.
+
+**One tile is both kinds of enemy, because the kit decides which.** There is no
+"goblin archer" — a goblin's kit lists `simple-bow`, `iron-dagger` and
+`crude-dagger` against the one `weapon` square, in that order, and the first row
+that lands takes it. About a third come out with a bow and shoot from six cells;
+the rest close and stab. Nothing in the brain knows which it is holding: the
+priority list is `attack`, then `step_toward`, then `hold`, and a bow simply
+succeeds at `attack` from further away, so the same three lines produce a body
+that closes and a body that stands off and looses arrows. @see "A body is born
+carrying what its tile says", which is the machinery this leans on entirely.
+
+The rarities read down the list the same way — helmets on about one in six,
+`leather-jerkin` on about one in sixteen — so a camp has a shape to it without
+any of them being a different creature.
+
+**The art is honestly a placeholder and says so.** `generate-npc-sheets.ts`
+recolours the one humanoid this world has, and every sheet before this one
+dressed it differently. The goblin is the first that asks it to be a different
+*species*, which a recolour cannot do — so it moves the two entries that are the
+face rather than only the five that are cloth, and green skin does the work that
+a silhouette should. It is a person-shaped goblin until somebody draws one.
+
+**The distance is the point, and it was got wrong first.** The camp began
+fifteen cells past the gate, which made it a part of town that happened to have
+goblins in it. It is two hundred cells now: a track that wanders north through
+woodland with snakes and rats along it and one wolf halfway, ending in the
+clearing. Far enough that going there is a decision — you pass things on the
+way, you can be worn down before you arrive, and turning back is a real choice
+rather than three steps.
+
+A *track* rather than a field, for cost as much as for feel. Two hundred rows at
+the width of the town wall is eleven thousand cells of ground nobody would walk
+on; a corridor with woodland either side is a fraction of that and reads as
+further, because you cannot see where it ends.
+
+**One wolf.** A pack would be a wall across the middle of the walk. A wolf you
+*might* meet is a reason to keep looking at the trees.
+
+**The place is a script, and that is about checking rather than typing.**
+`raise-goblin-camp.ts` lays seven thousand cells, but the reason it exists is
+that the place has rules — the wood is a border, the track is continuous,
+nothing stands in the water, the wildlife keeps clear of the fire, every cell is
+reachable from the gate — and `--verify` re-runs all of them against whatever is
+on disk. So the map can be edited in-game afterwards and still be *checked*,
+which hand-placed content never offers. On a two-hundred-cell track with a
+wandering centre the reachability flood earns its keep by itself: a bend that
+pinches shut against its own woodland is invisible in the config and obvious to
+the flood.
+
+Three of the rules exist because a run broke them. The stream ran the full
+height of the first field and cut a third of it off with no way round, so water
+now rises in a pool with open ground beyond it. The flood counted a standing
+body as a wall, and so reported that the cell a goblin was standing on was one
+it could not reach — a body is not terrain, and the flood had to be told. And
+the fire ended up in a doorway, because the huts were placed at authored
+coordinates and the fire went wherever was left: they stand on a ring around it
+now, so the fire is central by construction, and `--verify` fails if anything
+with a door is beside it.
+
+**The huts are roofed with planks, and the reason is a rendering one.** `roof-2`
+is pitched and plainly the work of somebody with a trade, so a hut roofed that
+way read as a cottage that goblins had moved into; `wooden-floor` laid flat over
+the walls reads as planks thrown across. What does *not* work is filling the
+storey the way a town house does — `plaster` under the roof, or two
+`wooden-box` and a plank on top. Anything occupying the level above the player
+is caught by the roof-cut and drawn translucent, so six solid huts became six
+ghosts. A height-0 lid sits on the walls and stays opaque, and the cost of that
+is the near wall faces showing under it, which is why the huts look plainer than
+the town does.
+
+**None of the above was found by a test.** Every headless check passed on a
+goblin whose portrait was a magenta square — see the `sprites` note under the
+tile — and on huts with the wrong roof. This is the part of the world where
+looking at it is the only instrument, and `/play` with the authored player tile
+moved to the camp is how these were looked at.
+
+**It costs what the rest of the world costs, and the town got cheaper.**
+`bun run bench:server`: the `track` scenario is 0.28ms tick p50, 1.59ms p95,
+22.3 KB/s. The `camp` scenario — standing at the fire among nine goblins, dying
+twenty-five times in fifteen seconds — is 0.52ms p50, 10.15ms p95 and 23.9ms
+worst, which is the highest figure this world reports and is a stress case
+rather than play. `town` *improved*, from about 6ms worst to 3.8ms, because the
+goblins are now far enough from anybody to doze.
+
 ## Balancing happens in the Arena, not in the world
 
 `/arena` is a fight with the world taken out of it: two bodies, a cell apart, on
@@ -3134,9 +3222,30 @@ sight.
 The rungs are now **5, 10, 15, 22, 33, 50** — half again each step — and a
 weapon's primary mastery is which rung it stands on. Heavy weapons add a
 secondary requirement rather than a rung of their own: axes, mauls and the
-greatsword ask Toughness, and daggers will ask Agility when they exist.
-`requirementShare` pools those, so the axe path and the sword path arrive at
-different moments even where the pooled totals match.
+greatsword ask Toughness, and daggers ask Agility. `requirementShare` pools
+those, so the axe path and the sword path arrive at different moments even where
+the pooled totals match.
+
+**The daggers are the first weapons written to that shape rather than fitted to
+it**, and what they are for is the case a sword is bad at. Crude Dagger, Iron
+Dagger and Stiletto stand on Sharp 5, 10 and 15 beside the three swords, ask
+Agility 5, 5 and 10 alongside, and deal about two thirds of the sword's damage
+at about two thirds of the interval:
+
+```
+              dmg   interval   dmg/s   dmg/s vs def 3
+  Rusty Sword   8      1833      4.4         2.7
+  Crude Dagger  5       967      5.2         2.1
+  Iron Sword   15      2000      7.5         6.0
+  Iron Dagger   9      1033      8.7         5.8
+```
+
+**The flip in that last column is the whole design.** Defence is subtracted from
+each blow rather than shared over a second, so a fast weak weapon loses far more
+of itself to armour than a slow strong one — which means a dagger has to be
+*better* than its sword in the open to be worth carrying at all, and is worse
+than it against anything wearing mail. Raw damage per second that merely matched
+the sword would be a weapon with no case for existing.
 
 **A constant ratio is the point, because `learningRate` is a function of the
 ratio.** A constant *difference* — 5, 10, 15, 20 — shrinks in relative terms as

@@ -25,11 +25,17 @@ a world in the way.
   Writes `data/tilesets/water.png` and the `water` tile's 47 slices together
 - `bun run generate:npcs` — recolour the one humanoid in `people.png` into a
   sheet per NPC, so nobody in town is the player's twin. Writes
-  `data/tilesets/townsfolk.png`, `smith.png` and `armourer.png`
+  `data/tilesets/townsfolk.png`, `smith.png`, `armourer.png` and `goblin.png`
 - `bun run carve:caves` — carve a multi-floor cave system into `data/map.json`,
   then walk every cell of it with the game's own movement rules. What to carve
   is the `SYSTEM` block at the top of the script; `--verify` checks the map as
   it stands without touching it
+- `bun run raise:camp` — raise the goblin field north of the city wall into
+  `data/map.json`: the ground, the stream, the wood round the edge, the gate
+  through the wall, the camp and everything living in it. What to raise is the
+  `FIELD` block at the top of the script; `--verify` re-runs every rule the
+  field is built to against the map as it stands, which is what makes an
+  afternoon of editing in-game checkable. Safe to run twice
 - `bun run bench:server` — tick the world headless against `data/map.json`
   with players standing in a few scenarios, and print what a tick costs and
   how many bytes it puts on the wire. `--scenario <name>` for one,

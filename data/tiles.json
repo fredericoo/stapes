@@ -23988,6 +23988,144 @@
     }
   },
   {
+    "id": "crude-dagger",
+    "name": "Crude Dagger",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "weapon",
+        "damage": 5,
+        "def": 0,
+        "accuracy": 88,
+        "variance": 25,
+        "spd": 66,
+        "mastery": "sharp",
+        "requirements": {
+          "sharp": 5,
+          "agility": 5
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 0,
+              "y": 3,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "iron-dagger",
+    "name": "Iron Dagger",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "weapon",
+        "damage": 9,
+        "def": 0,
+        "accuracy": 90,
+        "variance": 20,
+        "spd": 64,
+        "mastery": "sharp",
+        "requirements": {
+          "sharp": 10,
+          "agility": 5
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 0,
+              "y": 2,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "stiletto",
+    "name": "Stiletto",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "weapon",
+        "damage": 11,
+        "def": 0,
+        "accuracy": 93,
+        "variance": 15,
+        "spd": 62,
+        "mastery": "sharp",
+        "requirements": {
+          "sharp": 15,
+          "agility": 10
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 1,
+              "y": 2,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
     "id": "greatsword",
     "name": "Greatsword",
     "height": 0,
@@ -32240,6 +32378,638 @@
               "rect": {
                 "x": 4,
                 "y": 10,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "goblin",
+    "name": "Goblin",
+    "height": 3,
+    "type": "directional",
+    "kind": "battler",
+    "attributes": {},
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "walkDurationMs": 160,
+    "interactions": {
+      "battler": {
+        "masteries": {
+          "fist": 8,
+          "sharp": 12,
+          "ranged": 12,
+          "toughness": 10,
+          "agility": 12
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "damage": 4,
+          "def": 0,
+          "accuracy": 80,
+          "variance": 30,
+          "spd": 56,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "fist"
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "kit": [
+          {
+            "slot": "weapon",
+            "tileId": "simple-bow",
+            "chance": 30
+          },
+          {
+            "slot": "weapon",
+            "tileId": "iron-dagger",
+            "chance": 25
+          },
+          {
+            "slot": "weapon",
+            "tileId": "crude-dagger",
+            "chance": 90
+          },
+          {
+            "slot": "head",
+            "tileId": "iron-helm",
+            "chance": 4
+          },
+          {
+            "slot": "head",
+            "tileId": "leather-cap",
+            "chance": 12
+          },
+          {
+            "slot": "armor",
+            "tileId": "leather-jerkin",
+            "chance": 6
+          },
+          {
+            "slot": "armor",
+            "tileId": "cloth-tunic",
+            "chance": 55
+          },
+          {
+            "slot": "offhand",
+            "tileId": "raw-meat",
+            "chance": 15
+          }
+        ]
+      },
+      "brain": {
+        "initial": "loitering",
+        "states": {
+          "loitering": {
+            "do": [
+              {
+                "action": "wait",
+                "ms": 1200
+              },
+              {
+                "action": "walk_n_steps",
+                "steps": 3
+              }
+            ]
+          },
+          "raiding": {
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "*shriek*"
+              }
+            ],
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "homing": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "step_random"
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "casting": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 1
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "bind": {
+              "prey": {
+                "type": "attacker"
+              }
+            },
+            "to": "raiding"
+          },
+          {
+            "from": "any",
+            "if": {
+              "cond": "in_los",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileId": "player"
+                }
+              },
+              "cells": 8
+            },
+            "bind": {
+              "prey": {
+                "type": "nearest",
+                "data": {
+                  "tileId": "player"
+                }
+              }
+            },
+            "to": "raiding"
+          },
+          {
+            "from": "loitering",
+            "if": {
+              "cond": "heard_noise",
+              "cells": 12
+            },
+            "bind": {
+              "prey": {
+                "type": "speaker"
+              }
+            },
+            "to": "raiding"
+          },
+          {
+            "from": "raiding",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "prey"
+                }
+              },
+              "cells": 13
+            },
+            "to": "homing"
+          },
+          {
+            "from": "loitering",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 8
+            },
+            "to": "homing"
+          },
+          {
+            "from": "casting",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 8
+            },
+            "to": "homing"
+          },
+          {
+            "from": "homing",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 2
+            },
+            "to": "loitering"
+          },
+          {
+            "from": "loitering",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "casting"
+          },
+          {
+            "from": "homing",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "casting"
+          },
+          {
+            "from": "casting",
+            "if": {
+              "cond": "after",
+              "ms": 700
+            },
+            "to": "loitering"
+          }
+        ]
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "goblin",
+                  "rect": {
+                    "x": 4,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "goblin",
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "goblin",
+                  "rect": {
+                    "x": 0,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "goblin",
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "goblin",
+                  "rect": {
+                    "x": 4,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "goblin",
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "goblin",
+                  "rect": {
+                    "x": 0,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "goblin",
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "goblin",
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "goblin",
+                  "rect": {
+                    "x": 4,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "goblin",
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "goblin",
+                  "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "goblin",
+                  "rect": {
+                    "x": 4,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "goblin",
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "goblin",
+                  "rect": {
+                    "x": 0,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "goblin",
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "goblin",
+              "rect": {
+                "x": 2,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "goblin",
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "goblin",
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "goblin",
+              "rect": {
+                "x": 2,
+                "y": 4,
                 "w": 2,
                 "h": 2
               },

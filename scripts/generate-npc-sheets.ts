@@ -99,6 +99,34 @@ const SHEETS: Sheet[] = [
       { from: [105, 79, 98], to: [158, 69, 57] },
     ],
   },
+  {
+    // The goblins north of the wall, and the one sheet here that is a
+    // *placeholder* rather than a person: everything above dresses the same
+    // figure differently, and this one asks it to be a different species,
+    // which recolouring cannot do. It is honest about that — the silhouette is
+    // still a person's — and it is here rather than hand-drawn for the reason
+    // the file exists at all.
+    //
+    // **It moves the skin, which nothing else here does.** The five warm
+    // entries are cloth on every other sheet, but two of them are the face:
+    // `fbb954` and `cd683d` are what the head is drawn in. Green skin is the
+    // one thing that tells a goblin from a townsperson at eight pixels tall,
+    // and dressing it in a fourth colour of tunic would have produced another
+    // villager. The rags take the remaining three.
+    dest: "goblin.png",
+    recolour: [
+      // Deep red shadow -> the dark of a filthy rag.
+      { from: [110, 39, 39], to: [49, 54, 56] },
+      // The main red of the tunic -> undyed grey sacking.
+      { from: [174, 35, 52], to: [127, 112, 138] },
+      // Skin shadow -> green.
+      { from: [205, 104, 61], to: [35, 144, 99] },
+      // Skin highlight -> a sicklier green, which is the whole read.
+      { from: [251, 185, 84], to: [145, 219, 105] },
+      // Plum hair -> black.
+      { from: [105, 79, 98], to: [46, 34, 47] },
+    ],
+  },
 ];
 
 function key([r, g, b]: Rgb): number {
