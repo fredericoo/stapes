@@ -1208,6 +1208,39 @@ carry it.
   part of the edge, because a route planned from mid-air is a route about a cell
   nobody is ever standing in. `"toGoal"` is a click's answer and is written
   below.
+- **A cell that fires when you land on it is not a way through.** A flame burns
+  whoever lands in it and a portal sends them elsewhere, both on the `step`
+  trigger with nothing to press, and `unsafeToStepOn` takes both out of
+  `neighbours` — so a chase, a flight and a clicked walk all route round them.
+  The case that prompted it was a player following a rabbit into a fire: the
+  flame was on the short line, so the route took it, and both of them died.
+  - *The two halves are avoided for different reasons and it matters.* A
+    teleport is always refused, because a route through one is not a route —
+    you arrive somewhere the search never considered and the plan is void. A
+    status is refused on its `tone` being `bad`, so a route goes round a fire
+    and straight over a shrine. Reading the tone is why `findPath` and
+    `findRefuge` take the status catalogue **positionally** rather than in
+    their options bag: a routing rule that silently stopped applying because a
+    call site forgot an optional argument is the failure that shape rules out.
+    A status the catalogue has no entry for is not a hazard, on the reading
+    `resolveAddStatus` already carries — an id nothing answers to is an effect
+    that does not happen — so a caller with no catalogue routes exactly as it
+    did before this existed, and a portal is still avoided.
+  - *The goal is exempt, and has to be.* A portal is a place you walk into on
+    purpose and a click on a flame is a click on a flame, so the cell that is
+    itself what was asked for stays an edge — the shape `drops: "toGoal"`
+    already has. Only under `arrive: "on"`, because that is the only mode in
+    which a caller pointed at a cell to stand in: a creature closing on
+    somebody standing next to a fire must not take the fire as its last leg,
+    and a flood has no goal at all so nothing is exempt from one.
+  - *It costs about 5% of a route somebody walks*, and the stack scan is asked
+    only of cells `canWalk` has already accepted. 134µs against 128µs for the
+    same eight-step route across `app/lib/fixtureTown.ts` with the rule taken
+    out, `bun` on an M2 Pro. Both questions are asked in one pass for that
+    reason: a route asks both of every cell it accepts.
+  - *What it rules out is a room whose only way in is a flame or a portal* —
+    nothing will route into it. Walking in by hand still works; none of this
+    touches `canWalk`, and the server validates the same steps it always did.
 
 **Two caps, doing two different jobs, and it is worth not confusing them.**
 `PATH_DETOUR_SLACK` is about *behaviour*: a route far longer than the gap is not
@@ -1232,16 +1265,16 @@ would be the pathfinder deciding where something wants to hide. It is a sound
 argument for a worse animal — see "Running away is a flood, not a direction"
 below, which is what replaced it and why.
 
-## Clicking a cell walks to it, and nothing new travels
+## Clicking walks you there, following walks you after them, and neither travels
 
-`app/game/walkTo.ts` holds a destination and hands the step pipeline one
-direction per leg. It is entirely client-side, and deliberately: `findPath` is a
-pure question about a board, the browser holds every argument to it, and the
-direction it produces goes in through `HeldDirections` — the same list a held
-key presses. So a clicked leg is predicted, sent and validated by exactly the
-machinery a keypress already used, `canWalk` on the server included. There is
-nothing on the wire that says a walk was clicked, and there is no version of a
-client making up where it is allowed to go.
+`app/game/walkTo.ts` holds an errand — a cell, or a body — and hands the step
+pipeline one direction per leg. It is entirely client-side, and deliberately:
+`findPath` is a pure question about a board, the browser holds every argument to
+it, and the direction it produces goes in through `HeldDirections` — the same
+list a held key presses. So a clicked leg is predicted, sent and validated by
+exactly the machinery a keypress already used, `canWalk` on the server included.
+There is nothing on the wire that says a walk was clicked, and there is no
+version of a client making up where it is allowed to go.
 
 - **`findPath` gained `arrive`, and the two halves of it move together.**
   `"beside"` is the default and is what closing on a body means; `"on"` is what
@@ -1268,8 +1301,19 @@ client making up where it is allowed to go.
   stored on the level below the one you stand on it at — so the destination goes
   through `standingCellOn`, which matches the picked tile's top against
   `listStandingSurfaces`. Skip it and the floor of a building is a place nobody
-  can click their way into. A wall, a tree or a body has no top anybody stands
-  on, and gets the refusal rather than an offer to stand at its foot.
+  can click their way into.
+- **A tile with no top to stand on is walked *to*, not refused.** A chest, a
+  wall, a tree: `standingCellOn` has no answer, and the errand becomes the
+  tile's own cell with `arrive: "beside"`. This used to be the refusal, and it
+  was the single most annoying thing about click-to-walk — everything worth
+  crossing a room for is a thing rather than a place, so the feature was one you
+  learnt not to use on anything interesting. **Which neighbour you end up in is
+  the search's answer and not a choice made before it.** Picking the nearest
+  free cell first and routing to that is the obvious implementation and it is
+  wrong twice over: the nearest neighbour of a chest against a wall is often the
+  one inside the wall, and even when it is reachable it need not be the one with
+  the shortest route. `arrive: "beside"` is already a goal test the queue is
+  ordered on, so handing it the object's own cell gets both for free.
 - **The leg handed over during a step is the one *after* it**, and that is why
   `findPath` takes where to search from and whose body to ignore as two facts.
   The prediction chains a landed step straight into the next from inside its own
@@ -1314,6 +1358,36 @@ client making up where it is allowed to go.
   rather than emptying it, so a key held through a clicked walk still walks when
   the walk ends, and the modifiers ride along either way: a click writing the
   input itself silently dropped shift and alt.
+- **Following a body is the same errand with a goal that moves.** `WalkTo` holds
+  either a cell or an actor id; the goal is read off it every time a leg is
+  owed, so the loop that already re-routes round a shoved crate tracks something
+  walking away without a second mechanism. Three things differ from a click and
+  nothing else does: it arrives `beside` rather than `on`, arriving lets go of
+  the input without ending the errand, and a hand on the keys is *yielded* to
+  rather than treated as the end of it.
+  - *It cannot use `autoPressed` to tell whether it has been taken over.* A
+    follow that has caught up is deliberately pressing nothing, which is the
+    same answer as a key having taken the input away. So `HeldDirections` gained
+    `pressed` — whether a direction is held by hand — and the follow stands
+    aside for exactly as long as one is and takes the input back on release. A
+    follow that ended at the first keypress would be unusable: dodging is the
+    normal thing to do while chasing something.
+  - *A refusal pauses it rather than ending it*, because a body behind a shut
+    door may walk back out. That breaks the cost argument above — the expensive
+    search is the one that proves a cell unreachable, and it was safe only
+    because a refused click drops its destination immediately. `WalkTo.stalled`
+    restores the bound: after a refusal the map half of the gate is ignored, so
+    the search is asked again only when the follower or the followed has moved.
+  - *It ends when the body leaves the view*, on the target's own rule
+    (`isWithinView`) and supplied by the renderer through `WalkView.bodyAt`. It
+    has to be the same rule the row is offered under, because the row is the only
+    way to switch a follow off — so `targetableActors` keeps whoever is being
+    followed for the same reason it keeps whoever is being fought.
+  - *Nothing about it reaches the wire.* Following is walking, and the
+    directions go in where a held key's do. The server sees an ordinary walk it
+    validates a step at a time, which is why the state lives on the renderer and
+    `applyInteraction` takes a `Follower` beside the session rather than putting
+    a verb on `PlaySession`.
 - **The refusal is a notice, and it is the one sentence composed on the client.**
   A click has no key to hold and no row to read, so a refused one shows as the
   avatar not moving, which is indistinguishable from having missed the canvas. It

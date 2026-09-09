@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { emptyMap, replaceStack } from "../lib/mapData";
+import { DEFAULT_STATUS_SOURCE } from "../lib/status";
+import type { StatusDef } from "../lib/status";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, normalizeTileDef } from "../lib/types";
 import type { GameInput } from "./GameSession";
@@ -60,10 +62,25 @@ const tiles: TileDef[] = [
     affectedByGravity: true,
     walkable: false,
   }),
+  /** Something you walk straight through and are burned by for landing in. */
+  tile({
+    id: "flame",
+    height: 2,
+    intangible: true,
+    interactions: { addStatus: { trigger: "step", statusId: "burned" } },
+  }),
 ];
 
 const tilesById = Object.fromEntries(tiles.map((def) => [def.id, def]));
 const playerDef = tilesById[PLAYER_TILE_ID]!;
+
+/**
+ * What a burn is, for the one thing a route reads off a status: its tone.
+ * @see ./pathfinding's `unsafeToStepOn`
+ */
+const statusDefs: Record<string, StatusDef> = {
+  burned: { ...DEFAULT_STATUS_SOURCE, id: "burned", name: "Burned", tone: "bad" },
+};
 
 /** Flat grass from -half to +half, and nothing standing on any of it. */
 function bare(half: number): MapFile {
@@ -152,7 +169,12 @@ const UPSTAIRS = { x: 0, y: 0, z: 1, stackIndex: 0 };
 
 function view(
   map: MapFile,
-  opts: { at?: Coord & { stackIndex: number }; stepping?: Coord } = {},
+  opts: {
+    at?: Coord & { stackIndex: number };
+    stepping?: Coord;
+    /** Where the bodies this walker can see are standing, by id. */
+    bodies?: Record<string, Coord>;
+  } = {},
 ): WalkView {
   return {
     map,
@@ -160,6 +182,8 @@ function view(
     stepping: opts.stepping ?? null,
     def: playerDef,
     tilesById,
+    statusDefs,
+    bodyAt: (actorId) => opts.bodies?.[actorId] ?? null,
   };
 }
 
@@ -398,14 +422,86 @@ describe("a cell with no way to it", () => {
     expect(walk.drainNotices()).toEqual([]);
   });
 
-  it("says so for a wall, which is a thing rather than a place", () => {
+  it("says so for a wall with no cell beside it either", () => {
     const { walk } = walker();
-    const map = put(field(6), 2, 0, "wall");
+    // One cell of ground with a wall on it and nothing anywhere near: there is
+    // no cell beside it to stand in, so the fallback has nothing to offer.
+    let map = replaceStack(emptyMap(), 2, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "wall" },
+    ]);
+    map = replaceStack(map, 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: PLAYER_TILE_ID },
+    ]);
 
     walk.start({ x: 2, y: 0, z: 0, stackIndex: 1 }, view(map));
 
     expect(walk.walking).toBe(false);
     expect(walk.drainNotices()).toEqual([noRouteNotice("unreachable")]);
+  });
+});
+
+/**
+ * A chest, a wall, a tree: the pointer names a tile nobody has a top to stand
+ * on, and what the player meant was the floor at its foot.
+ *
+ * This used to be the refusal above. It is the single most common click in the
+ * game after a patch of floor — everything worth walking across a room for is a
+ * thing rather than a place — and answering it with a sentence made
+ * click-to-walk something you learnt not to use on anything interesting.
+ *
+ * Which neighbour is not decided here: `arrive: "beside"` hands the choice to
+ * the search, so the cell it stops in is the one with the shortest route rather
+ * than the one that looks nearest. @see ./pathfinding
+ */
+describe("clicking something you cannot stand on", () => {
+  it("walks to the foot of a wall rather than refusing it", () => {
+    const { walk, last } = walker();
+    const map = put(field(6), 3, 0, "wall");
+
+    walk.start({ x: 3, y: 0, z: 0, stackIndex: 1 }, view(map));
+
+    expect(walk.walking).toBe(true);
+    expect(last()).toEqual(["e"]);
+    expect(walk.drainNotices()).toEqual([]);
+  });
+
+  it("stops in the cell beside it rather than pressing on into it", () => {
+    const { walk, last } = walker();
+    const map = put(field(6), 2, 0, "wall");
+
+    walk.start({ x: 2, y: 0, z: 0, stackIndex: 1 }, view(map));
+    // Landed at (1, 0), which is beside the wall and as far as this goes.
+    walk.tick(view(map, { at: { x: 1, y: 0, z: 0, stackIndex: 1 } }));
+
+    expect(walk.walking).toBe(false);
+    expect(last()).toEqual([]);
+  });
+
+  it("does not set off at all from a cell already beside it", () => {
+    const { walk, asked } = walker();
+    const map = put(field(6), 1, 0, "wall");
+
+    walk.start({ x: 1, y: 0, z: 0, stackIndex: 1 }, view(map));
+
+    expect(walk.walking).toBe(false);
+    expect(asked).toEqual([]);
+    expect(walk.drainNotices()).toEqual([]);
+  });
+
+  it("goes round to the reachable side rather than the nearest one", () => {
+    const { walk, last } = walker();
+    // A wall at (2, 0) with a second one sealing the approach from the west,
+    // so the only cell beside it that can be reached is the far side.
+    let map = field(6);
+    map = put(map, 2, 0, "wall");
+    for (const y of [-1, 0, 1]) map = put(map, 1, y, "wall");
+
+    walk.start({ x: 2, y: 0, z: 0, stackIndex: 1 }, view(map));
+
+    expect(walk.walking).toBe(true);
+    expect(last()?.[0]).toMatch(/^[ns]$/);
   });
 });
 
@@ -513,6 +609,177 @@ describe("calling it off", () => {
     walk.tick(view(field(6)));
 
     expect(asked).toHaveLength(2);
+  });
+});
+
+/**
+ * Following a body is the same search pointed at a moving cell.
+ *
+ * What the cases below pin is the three ways it differs from a click, because
+ * each of them is a place the shared code had to grow a fork: arriving is not
+ * the end, a hand on the keys is yielded to rather than given up to, and the
+ * body going out of sight is what finishes it.
+ */
+describe("following a body", () => {
+  const THEM = "npc:them";
+
+  /** The board, with a body standing somewhere on it. */
+  function chasing(at: Coord, map: MapFile = field(6)) {
+    return view(map, { bodies: { [THEM]: at } });
+  }
+
+  it("sets off towards whoever it was told to follow", () => {
+    const { walk, last } = walker();
+
+    walk.follow(THEM, chasing({ x: 3, y: 0, z: 0 }));
+
+    expect(last()).toEqual(["e"]);
+    expect(walk.followingId).toBe(THEM);
+    expect(walk.walking).toBe(true);
+  });
+
+  /**
+   * Beside, not on: a body is not somewhere you stand. And the errand outlives
+   * arriving — this is the whole of what makes it a follow rather than a walk
+   * to wherever they happened to be when it was pressed.
+   */
+  it("stops beside them and keeps following", () => {
+    const { walk, last } = walker();
+    const map = field(6);
+
+    walk.follow(THEM, chasing({ x: 2, y: 0, z: 0 }, map));
+    walk.tick(
+      view(map, {
+        at: { x: 1, y: 0, z: 0, stackIndex: 1 },
+        bodies: { [THEM]: { x: 2, y: 0, z: 0 } },
+      }),
+    );
+
+    // Let go of, so nothing chains another step into the body it is beside.
+    expect(last()).toEqual([]);
+    expect(walk.walking).toBe(true);
+    expect(walk.followingId).toBe(THEM);
+  });
+
+  it("sets off again by itself when they walk on", () => {
+    const { walk, last } = walker();
+    const map = field(6);
+    const beside = { at: { x: 1, y: 0, z: 0, stackIndex: 1 } };
+
+    walk.follow(THEM, chasing({ x: 2, y: 0, z: 0 }, map));
+    walk.tick(view(map, { ...beside, bodies: { [THEM]: { x: 2, y: 0, z: 0 } } }));
+    expect(last()).toEqual([]);
+
+    walk.tick(view(map, { ...beside, bodies: { [THEM]: { x: 4, y: 0, z: 0 } } }));
+
+    expect(last()).toEqual(["e"]);
+  });
+
+  /**
+   * A follow cannot read `autoPressed` the way a click does: one that has
+   * caught up is holding nothing on purpose, which is the same answer as having
+   * been taken over. So it asks whether a *hand* is on the controls instead,
+   * and stands aside for as long as one is.
+   */
+  it("yields to a key and takes the input back when it is let go", () => {
+    const { walk, input, last } = walker();
+    const map = field(6);
+    const board = chasing({ x: 3, y: 0, z: 0 }, map);
+
+    walk.follow(THEM, board);
+    input.press("n");
+    walk.tick(board);
+
+    // Theirs, not the follow's — and the follow is still on.
+    expect(last()).toEqual(["n"]);
+    expect(walk.walking).toBe(true);
+
+    input.release("n");
+    walk.tick(board);
+
+    expect(last()).toEqual(["e"]);
+  });
+
+  /**
+   * Silent, on the rule a walk that is cut off halfway stops silently under:
+   * the player watched the thing they were chasing leave.
+   */
+  it("ends when the body is no longer in sight", () => {
+    const { walk, last } = walker();
+    const map = field(6);
+
+    walk.follow(THEM, chasing({ x: 3, y: 0, z: 0 }, map));
+    walk.tick(view(map));
+
+    expect(walk.walking).toBe(false);
+    expect(walk.followingId).toBeNull();
+    expect(last()).toEqual([]);
+    expect(walk.drainNotices()).toEqual([]);
+  });
+
+  /**
+   * A body behind a wall is still the body you are following — it may walk back
+   * out. So the refusal is a sentence and a pause, not the end of the errand.
+   */
+  it("waits rather than giving up when there is no way to them", () => {
+    const { walk, asked } = walker();
+    let map = field(6);
+    for (let y = -6; y <= 6; y++) map = put(map, 1, y, "wall");
+
+    walk.follow(THEM, chasing({ x: 3, y: 0, z: 0 }, map));
+
+    expect(asked).toEqual([]);
+    expect(walk.walking).toBe(true);
+    expect(walk.drainNotices()).toEqual([noRouteNotice("detour")]);
+  });
+
+  it("is called off by a click somewhere else", () => {
+    const { walk } = walker();
+    const map = field(6);
+
+    walk.follow(THEM, chasing({ x: 3, y: 0, z: 0 }, map));
+    walk.start(ground(0, 3), chasing({ x: 3, y: 0, z: 0 }, map));
+
+    expect(walk.followingId).toBeNull();
+    expect(walk.walking).toBe(true);
+  });
+
+  it("is called off by following nobody", () => {
+    const { walk, last } = walker();
+    const board = chasing({ x: 3, y: 0, z: 0 });
+
+    walk.follow(THEM, board);
+    walk.follow(null, board);
+
+    expect(walk.walking).toBe(false);
+    expect(last()).toEqual([]);
+  });
+});
+
+/**
+ * A clicked walk does not route through fire.
+ *
+ * The rule is `./pathfinding`'s and is tested there. What is pinned here is the
+ * wiring, which is the half that can silently come undone: the catalogue a
+ * route reads tone from arrives on the view, and a walk handed an empty one
+ * would go round nothing at all. @see WalkView.statusDefs
+ */
+describe("a clicked walk past a flame", () => {
+  it("sets off round it rather than into it", () => {
+    const { walk, last } = walker();
+
+    walk.start(ground(3, 0), view(put(field(6), 1, 0, "flame")));
+
+    // Round one side or the other — the board is symmetric and either is right.
+    expect(last()?.[0]).toMatch(/^[ns]$/);
+  });
+
+  it("walks into one that was clicked, because that is what was asked for", () => {
+    const { walk, last } = walker();
+
+    walk.start({ x: 1, y: 0, z: 0, stackIndex: 1 }, view(put(field(6), 1, 0, "flame")));
+
+    expect(last()).toEqual(["e"]);
   });
 });
 
@@ -663,16 +930,19 @@ describe("clicking into a hole", () => {
     expect(standingCellOn(view(map), wall)).toEqual({ x: 0, y: -1, z: -2 });
   });
 
-  it("still refuses the foot of a wall standing on ordinary ground", () => {
+  it("still reads a wall on ordinary ground as a thing, not a hole", () => {
     const { walk, asked } = walker();
     // Same wall tile, but the walker's own level has ground in that column, so
-    // it is a thing with a wall on it rather than a hole.
+    // it is a thing with a wall on it rather than a hole. Nobody stands on it,
+    // and the walker is already beside it — so there is nowhere to go and
+    // nothing is asked for, where a hole would have been stepped into.
     const map = put(field(3), 0, -1, "wall");
 
     walk.start({ x: 0, y: -1, z: 0, stackIndex: 1 }, view(map));
 
     expect(standingCellOn(view(map), { x: 0, y: -1, z: 0, stackIndex: 1 })).toBeNull();
     expect(asked).toEqual([]);
-    expect(walk.drainNotices()).toEqual([noRouteNotice("unreachable")]);
+    expect(walk.walking).toBe(false);
+    expect(walk.drainNotices()).toEqual([]);
   });
 });

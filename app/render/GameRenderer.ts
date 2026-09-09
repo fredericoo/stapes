@@ -807,15 +807,36 @@ export class GameRenderer {
    * flight — waiting there for the pipeline to ask for it, rather than arriving
    * a frame after it was wanted.
    */
-  private stepWalkTo(snap: GameSnapshot) {
+  private stepWalkTo(snap: GameSnapshot, camera: { x: number; y: number }) {
     const walkTo = this.walkTo;
     if (!walkTo?.walking) return;
-    const view = this.walkView(snap);
+    const view = this.walkView(snap, camera);
     if (!view) {
       walkTo.cancel();
       return;
     }
     walkTo.tick(view);
+  }
+
+  /**
+   * Walk after this body until told otherwise, or stop.
+   *
+   * On the renderer rather than on the session because following is walking and
+   * walking is this side's own business: the directions go in where a held
+   * key's do and the server sees an ordinary walk. What the wire carries about
+   * a follow is nothing. @see ../game/interactionOptions' Follower
+   *
+   * Nothing here invalidates the interaction list. Who is being followed is
+   * part of the gate that list is rebuilt behind, so the row lights up on the
+   * next frame by itself. @see pushInteractionOptions
+   */
+  setFollow(actorId: string | null) {
+    const walkTo = this.walkTo;
+    if (!walkTo) return;
+    const snap = this.session.getSnapshot();
+    const view = this.walkView(snap, this.cameraFor(snap));
+    if (!view) return;
+    walkTo.follow(actorId, view);
   }
 
   /**
@@ -1161,7 +1182,7 @@ export class GameRenderer {
     if (!walkTo) return;
     const ref = this.lookAt(point, snap);
     if (!ref) return;
-    const view = this.walkView(snap);
+    const view = this.walkView(snap, this.cameraFor(snap));
     if (!view) return;
     walkTo.start(ref, view);
   }
@@ -1176,7 +1197,10 @@ export class GameRenderer {
    * there would have whatever respawns set off for a cell clicked before the
    * death.
    */
-  private walkView(snap: GameSnapshot): WalkView | null {
+  private walkView(
+    snap: GameSnapshot,
+    camera: { x: number; y: number },
+  ): WalkView | null {
     const def = this.tilesById[PLAYER_TILE_ID];
     if (!def) return null;
     const self = snap.self;
@@ -1188,6 +1212,18 @@ export class GameRenderer {
       stepping: self.walk ? self.walk.to : null,
       def,
       tilesById: this.tilesById,
+      statusDefs: this.statusDefs,
+      // The target's own rule, deliberately — see {@link isWithinView}. A
+      // follow and a target are the two commitments to one body, and a follow
+      // that outlived the screen would carry on after something the player can
+      // neither see nor call off, since the row that turns it off is gone with
+      // the body it was drawn for.
+      bodyAt: (actorId) => {
+        const actor = snap.actors.find((a) => a.id === actorId);
+        if (!actor) return null;
+        if (!this.isWithinView(snap.map, actor, camera)) return null;
+        return { x: actor.x, y: actor.y, z: actor.z };
+      },
     };
   }
 
@@ -1209,7 +1245,7 @@ export class GameRenderer {
       this.setOpenedContainer(option.active ? null : option.ref);
       return;
     }
-    applyInteraction(this.session, option);
+    applyInteraction(this.session, option, this);
   }
 
   private onPointerLeave = () => {
@@ -2224,7 +2260,7 @@ export class GameRenderer {
     this.pushConversation(snap);
     this.pushMasteries(snap);
     this.pushSpells();
-    this.stepWalkTo(snap);
+    this.stepWalkTo(snap, camera);
     this.pushNotices(nowMs);
     this.pushVitals(snap);
     this.pushOpenedContainer(snap);
@@ -2287,7 +2323,12 @@ export class GameRenderer {
     // The conversation is in the key for the reason the target is: the Talk
     // row reads as lit while its body is the one you are talking to.
     const talking = snap.conversation?.npcId ?? "";
-    const at = `${snap.self.x},${snap.self.y},${snap.self.z},${snap.targetId},${opened},${snap.attacking},${talking}`;
+    // Who is being followed is in the key for the reason the target is: it is a
+    // state a row is drawn *lit* for, and it changes without anything on the
+    // board having moved — a follow that ends when its subject leaves the
+    // screen changes nothing else in here.
+    const following = this.walkTo?.followingId ?? "";
+    const at = `${snap.self.x},${snap.self.y},${snap.self.z},${snap.targetId},${opened},${snap.attacking},${talking},${following}`;
     const health = healthSignature(snap.actors);
     if (
       snap.map === this.interactionsMap &&
@@ -2320,6 +2361,7 @@ export class GameRenderer {
       // is drawn from is the one the session winds in place.
       snap.extracting,
       snap.conversation,
+      this.walkTo?.followingId ?? null,
     );
     // Held whether or not it is handed on, because the *references* inside it go
     // stale even when the list reads the same: a walking deer keeps its row and
@@ -2372,9 +2414,15 @@ export class GameRenderer {
     camera: { x: number; y: number },
     cut: RoofCut | undefined,
   ): ActorSnapshot[] {
+    const following = this.walkTo?.followingId;
     return snap.actors.filter(
       (actor) =>
         actor.id === snap.targetId ||
+        // Kept on the same grounds the target is, and it is the stronger case:
+        // the follow row is the only way to stop following, so a body that
+        // stepped under a roof the cut hides would take its own off switch with
+        // it. @see setFollow
+        actor.id === following ||
         this.isVisibleBody(snap, actor, camera, cut),
     );
   }

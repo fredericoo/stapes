@@ -1,18 +1,49 @@
 import type { HeldDirections } from "./heldDirections";
 import { listStandingSurfaces, standingAbs } from "./movement";
 import { noRouteNotice } from "./notices";
-import { dropLanding, findPath, type PathRefusal } from "./pathfinding";
+import {
+  dropLanding,
+  findPath,
+  type PathOptions,
+  type PathRefusal,
+} from "./pathfinding";
 import { absoluteStandingElevation, getStack } from "../lib/mapData";
+import type { StatusDef } from "../lib/status";
 import type { Coord, MapFile, TileDef } from "../lib/types";
 
 /**
- * Walking to a cell somebody pointed at.
+ * Walking to a cell somebody pointed at, or after a body somebody picked.
  *
- * The whole of click-to-walk that is not a pointer event or a socket: it holds a
- * destination, and once a frame it hands the step pipeline the single direction
+ * The whole of click-to-walk that is not a pointer event or a socket: it holds
+ * an errand, and once a frame it hands the step pipeline the single direction
  * that gets nearer to it. Nothing here knows about a canvas or a connection —
  * one callback in, one sentence out — which is what lets the same object steer a
  * predicted online body and a local simulation.
+ *
+ * ## Two errands, one search
+ *
+ * A click names a cell and the walk ends on arrival. A follow names an *actor*,
+ * and the goal is wherever that body is standing when the next leg is owed — so
+ * the same recompute-every-step loop that routes round a shoved crate also
+ * tracks something walking away. @see Errand
+ *
+ * The difference an errand makes is three lines: which cell the search is
+ * pointed at, whether arriving means standing *on* it or *beside* it, and
+ * whether arriving is the end. A follow that has caught up lets go of the input
+ * and keeps its errand, so it sets off again by itself when the body it is
+ * after moves.
+ *
+ * ## What a click on something you cannot stand on means
+ *
+ * A chest, a wall, a tree: the pointer names a tile that no body has a top to
+ * stand on, and the click used to be refused with a sentence. It is now read as
+ * the cell *beside* it — `arrive: "beside"`, the same mode a follow ends in —
+ * so clicking a chest across the room walks you to the chest. Which of its
+ * neighbours you end up in is not chosen here and deliberately: the search
+ * settles it, and the neighbour it settles on is the one with the shortest
+ * route rather than the one nearest the chest, which is the same thing except
+ * when a wall is in the way, where it is the only one of the two that is
+ * reachable at all.
  *
  * ## It is the ordinary walk, one direction at a time
  *
@@ -77,8 +108,9 @@ import type { Coord, MapFile, TileDef } from "../lib/types";
  * the whole cost of this. {@link tick} is driven from the render loop, so a
  * search on every call would be a dozen per leg walked — identical searches,
  * from one cell to one cell. It searches when the answer could have changed
- * instead: the body has somewhere new to think from, or the board is a
- * different object than the one last searched. @see searchedFrom, searchedMap
+ * instead: the body has somewhere new to think from, the goal has moved, or
+ * the board is a different object than the one last searched.
+ * @see searchedFrom, searchedGoal, searchedMap
  *
  * **The board half of that is a weak guard, and the bound is a frame.** The map
  * is compared by identity and it gets a new one on any commit anywhere in the
@@ -88,7 +120,8 @@ import type { Coord, MapFile, TileDef } from "../lib/types";
  * way, each of them the cheap end of the two cases {@link findPath} is sized
  * for: a route somebody is walking settles in seven to twenty-five expanded
  * cells. The expensive case, proving a cell unreachable, happens once per click
- * and then the destination is dropped.
+ * and then the errand is dropped — except for a follow, which is not dropped,
+ * and that is what {@link stalled} is for.
  *
  * **Recomputing can end a walk halfway, and that is the honest half of the
  * trade.** On a board nobody has touched it cannot: `PATH_DETOUR_SLACK` allows
@@ -113,10 +146,46 @@ export type WalkView = {
   /** The walker's own tile, for the fit checks every leg goes through. */
   def: TileDef;
   tilesById: Record<string, TileDef>;
+  /**
+   * The status catalogue, which a route reads for tone alone: it is what tells
+   * a flame from a shrine, so a walk goes round one and over the other.
+   * @see ./pathfinding's `unsafeToStepOn`
+   */
+  statusDefs: Record<string, StatusDef>;
+  /**
+   * Where a body the viewer can see is standing, by id, or null for one they
+   * cannot.
+   *
+   * A question rather than a list, because a follow only ever asks about one
+   * body and the caller already knows which of them are on screen — putting the
+   * roster in here would have this class filtering a crowd to answer about a
+   * rabbit.
+   *
+   * **Null is how a follow ends.** Dead, disconnected or walked off the edge of
+   * the view are one answer as far as steering is concerned: there is nowhere
+   * to go. Whoever supplies this decides what "can see" means, and it wants to
+   * be the same rule the interaction row is offered under — otherwise a follow
+   * outlives the row that would turn it off. @see GameRenderer.walkView
+   */
+  bodyAt: (actorId: string) => Coord | null;
 };
 
+/**
+ * What a walk is for.
+ *
+ * A cell is fixed and a body is not, which is the whole of the difference: the
+ * goal is read off the errand every time a leg is owed, so a follow re-points
+ * the same search at wherever its subject has got to.
+ *
+ * `arrive` is on the cell errand alone because a follow has no choice about it
+ * — you stop *beside* a body, never on one. @see ./pathfinding's `arrive`
+ */
+type Errand =
+  | { kind: "cell"; at: Coord; arrive: NonNullable<PathOptions["arrive"]> }
+  | { kind: "body"; actorId: string };
+
 export class WalkTo {
-  private destination: Coord | null = null;
+  private errand: Errand | null = null;
   private notices: string[] = [];
   /**
    * The cell the last route was searched from, or null when none has been.
@@ -126,11 +195,21 @@ export class WalkTo {
    * — same cell, same goal, same answer, and every expanded node of every one
    * of them a `canWalk` column scan per direction.
    *
-   * Paired with {@link searchedMap}, and it takes both: this one alone would
-   * leave a body that is standing still deaf to the board, pressing into a
-   * crate somebody shoved in front of it until the click was called off.
+   * One of three, and it takes all three: this one alone would leave a body
+   * that is standing still deaf to the board, pressing into a crate somebody
+   * shoved in front of it until the click was called off.
    */
   private searchedFrom: Coord | null = null;
+  /**
+   * The cell the last route was searched *to*, or null when none has been.
+   *
+   * Beside {@link searchedFrom} rather than derived from the errand, because a
+   * follow's goal moves while the errand does not change at all: a rabbit
+   * hopping one cell is a new question from the same cell on the same board,
+   * and without this the gate below would call it a frame in which nothing
+   * could have changed the answer.
+   */
+  private searchedGoal: Coord | null = null;
   /**
    * The board the last route was searched against, or null when none has been.
    *
@@ -142,6 +221,24 @@ export class WalkTo {
    * answer. It costs one comparison to ask.
    */
   private searchedMap: MapFile | null = null;
+  /**
+   * Whether the last search came back with no route.
+   *
+   * A follow outlives its refusals — a body behind a shut door is still the
+   * body you are following, and it may walk back out — so the errand stays and
+   * the search would otherwise be asked again the next time the map identity
+   * changed, which on a busy world is every frame. That search is the expensive
+   * one: proving a cell unreachable exhausts `PATH_MAX_NODES` where a route
+   * somebody is walking settles in a couple of dozen cells.
+   *
+   * So a refusal freezes the gate on the board half alone. Moving, or the
+   * followed body moving, still asks again; a door opening across the square
+   * does not, and the follow picks it up the next time either of them takes a
+   * step. That is the trade, and it is the right way round: the case this
+   * bounds is standing still watching somebody through a window, which is
+   * exactly the case that never resolves itself.
+   */
+  private stalled = false;
 
   /**
    * @param input where a direction goes, and what says whether it is still the
@@ -150,9 +247,21 @@ export class WalkTo {
    */
   constructor(private readonly input: HeldDirections) {}
 
-  /** Is a click still being walked out? */
+  /** Is there an errand being walked out? */
   get walking(): boolean {
-    return this.destination !== null;
+    return this.errand !== null;
+  }
+
+  /**
+   * Who is being followed, or null for nobody.
+   *
+   * Read by whoever draws the row that turns it on, so the row can say it is
+   * lit — the state lives here because the walking does, and a second copy of
+   * it kept beside the button is the thing that goes out of step the first time
+   * a follow ends on its own.
+   */
+  get followingId(): string | null {
+    return this.errand?.kind === "body" ? this.errand.actorId : null;
   }
 
   /**
@@ -163,31 +272,67 @@ export class WalkTo {
    * pointed at fills its level — see {@link standingCellOn}. Getting this wrong
    * shows as the floor of a building being unclickable, since the plank a player
    * points at belongs to the level below the one they would walk on.
+   *
+   * A tile with no top to stand on — a chest, a wall, a tree — is walked *to*
+   * rather than refused. @see Errand
    */
   start(on: Coord & { stackIndex: number }, view: WalkView) {
-    const destination = standingCellOn(view, on);
-    if (!destination) {
-      // A wall, a tree or a body. There is nothing to search for, and the cell
-      // pointed at really is one there is no way to stand in.
+    const standing = standingCellOn(view, on);
+    this.begin(
+      standing
+        ? { kind: "cell", at: standing, arrive: "on" }
+        : // Nothing stands on a chest, so a click on one is a click about the
+          // floor around it. The tile's own cell is the goal and `beside` is
+          // what turns that into somewhere to stand.
+          { kind: "cell", at: { x: on.x, y: on.y, z: on.z }, arrive: "beside" },
+      view,
+    );
+  }
+
+  /**
+   * Walk after this body until told otherwise, or stop following.
+   *
+   * Unlike a click, arriving is not the end: the errand is kept while the body
+   * is in sight, so catching up and being left behind again are one state
+   * rather than two clicks. What ends it is this method with null, a click
+   * somewhere else, {@link cancel}, or the body going out of sight —
+   * see {@link WalkView.bodyAt}.
+   */
+  follow(actorId: string | null, view: WalkView) {
+    if (actorId === null) {
       this.cancel();
-      this.notices.push(noRouteNotice("unreachable"));
       return;
     }
-    this.destination = destination;
-    // A new destination is a new question from wherever the body happens to be,
+    this.begin({ kind: "body", actorId }, view);
+  }
+
+  /**
+   * Take on an errand and answer it on this frame.
+   *
+   * Straight away rather than on the next frame, for the reason a keypress
+   * steps on the keystroke: the first 16ms of a click is free not to spend.
+   *
+   * This is the one moment a refusal is worth a sentence. The player has just
+   * asked for something and nothing happened, and without a line the press
+   * reads as having missed. @see ./notices
+   */
+  private begin(errand: Errand, view: WalkView) {
+    this.errand = errand;
+    // A new errand is a new question from wherever the body happens to be,
     // including the cell the last one was already answered from — so a click
     // that redirects a walk in progress re-routes on this frame rather than
     // walking one more step of the route it replaced. @see searchedFrom
-    this.searchedFrom = null;
-    this.searchedMap = null;
-    // Straight away rather than on the next frame, for the reason a keypress
-    // steps on the keystroke: the first 16ms of a click is free not to spend.
-    //
-    // This is the one moment a refusal is worth a sentence. The player has just
-    // asked for something and nothing happened, and without a line the click
-    // reads as having missed the canvas. @see ./notices
-    const refused = this.route(view, destination);
+    this.forget();
+    const refused = this.route(view);
     if (refused) this.notices.push(noRouteNotice(refused));
+  }
+
+  /** Drop every note about what has already been searched. */
+  private forget() {
+    this.searchedFrom = null;
+    this.searchedGoal = null;
+    this.searchedMap = null;
+    this.stalled = false;
   }
 
   /**
@@ -204,13 +349,11 @@ export class WalkTo {
    * list underneath and untouched. @see HeldDirections.setAuto
    */
   cancel() {
-    this.destination = null;
-    // Dropped with the destination they were about. A second click from the
-    // cell the first one was refused in is a new question, and a stale note
-    // that this cell has already been searched would swallow it.
-    // @see searchedFrom
-    this.searchedFrom = null;
-    this.searchedMap = null;
+    this.errand = null;
+    // Dropped with the errand they were about. A second click from the cell the
+    // first one was refused in is a new question, and a stale note that this
+    // cell has already been searched would swallow it. @see searchedFrom
+    this.forget();
     this.input.setAuto(null);
   }
 
@@ -224,10 +367,32 @@ export class WalkTo {
    * is ordinary traffic — somebody stepping into the doorway, a shoved crate,
    * a door swinging shut. A sentence for each of those is a line of text every
    * time the world moves while anybody is walking anywhere.
+   *
+   * A follow is refused the same way and silently for the same reason, but it
+   * is not *ended* by it: the errand stays and the search is asked again when
+   * something has moved. What ends a follow is the body going out of sight.
+   * @see stalled, WalkView.bodyAt
    */
   tick(view: WalkView) {
-    const destination = this.destination;
-    if (!destination) return;
+    const errand = this.errand;
+    if (!errand) return;
+
+    if (errand.kind === "body") {
+      // A follow yields to a hand on the controls rather than giving up to it.
+      // It cannot use the test below at all: a follow that has caught up is
+      // holding nothing on purpose, so "the input is not ours" is true of the
+      // ordinary case as well as of being taken over. @see HeldDirections.pressed
+      if (this.input.pressed) {
+        this.input.setAuto(null);
+        // Forgotten so the frame the key is let go of asks again. The gate is
+        // about a question whose answer cannot have changed, and a whole
+        // manual walk happened inside this one.
+        this.forget();
+        return;
+      }
+      this.route(view);
+      return;
+    }
 
     // Somebody has taken the input: a direction pressed by hand, or a window
     // that went away. Both are decisions this has no business arguing with, and
@@ -237,33 +402,46 @@ export class WalkTo {
       return;
     }
 
-    this.route(view, destination);
+    this.route(view);
   }
 
   /**
-   * Ask the board and press the next leg. Reports why not, when there is no
-   * route — the caller decides whether that is worth saying out loud.
+   * Ask the board for the next leg and press it, or say why there is not one.
+   *
+   * The refusal is returned rather than announced because only {@link begin}
+   * has grounds to say it out loud — see {@link tick}.
    */
-  private route(view: WalkView, destination: Coord): PathRefusal | null {
-    // The cell the body will be standing in when it next has a choice to make.
-    const from = view.stepping ?? view.at;
-    if (sameCell(from, destination)) {
+  private route(view: WalkView): PathRefusal | null {
+    const errand = this.errand;
+    if (!errand) return null;
+
+    const goal = this.goalOf(errand, view);
+    if (!goal) {
+      // Only a follow can get here, and only because the body went out of
+      // sight or off the board. Silent on {@link tick}'s rule: the player
+      // watched it happen.
       this.cancel();
       return null;
     }
 
+    // The cell the body will be standing in when it next has a choice to make.
+    const from = view.stepping ?? view.at;
+
     // Nothing has happened that could change the answer: the body is still
-    // walking out of the leg chosen from this cell, on a board nobody has
-    // touched since, and the direction for it is still pressed.
-    // @see searchedFrom, searchedMap
+    // walking out of the leg chosen from this cell, towards the same goal, on a
+    // board nobody has touched since. @see searchedFrom, searchedGoal,
+    // searchedMap, stalled
     if (
       this.searchedFrom &&
+      this.searchedGoal &&
       sameCell(from, this.searchedFrom) &&
-      this.searchedMap === view.map
+      sameCell(goal, this.searchedGoal) &&
+      (this.stalled || this.searchedMap === view.map)
     ) {
       return null;
     }
     this.searchedFrom = { x: from.x, y: from.y, z: from.z };
+    this.searchedGoal = goal;
     this.searchedMap = view.map;
 
     const found = findPath(
@@ -274,13 +452,14 @@ export class WalkTo {
       // one of them, the search has the walker's own body as a wall behind it.
       // @see ./pathfinding's PathStart
       { at: from, self: view.at },
-      destination,
+      goal,
       view.def,
       view.tilesById,
+      view.statusDefs,
       {
-        // The cell itself, not a neighbour of it: a patch of floor is not
-        // something you stop next to. @see ./pathfinding
-        arrive: "on",
+        // A patch of floor is not something you stop next to, and a body is not
+        // something you stop on. @see Errand
+        arrive: errand.kind === "body" ? "beside" : errand.arrive,
         // A fall is allowed to be the last leg and nothing else, so clicking
         // down a hole walks to the bottom of it while a walk across a balcony
         // never steps off one. @see PathOptions.drops
@@ -288,21 +467,32 @@ export class WalkTo {
       },
     );
     if (!found.ok) {
-      this.cancel();
+      this.stalled = true;
+      // A click is over; a follow waits, because the body it is after may walk
+      // back out from behind whatever is in the way.
+      if (errand.kind === "cell") this.cancel();
+      else this.input.setAuto(null);
       return found.why;
     }
+    this.stalled = false;
 
     const leg = found.route[0];
     if (!leg) {
-      // An empty route is a body that has arrived, which the cell check above
-      // has already answered — so this is unreachable rather than a case, and
-      // stopping is the answer that stays true if it ever is not.
-      this.cancel();
+      // Arrived — `findPath` answers an errand already fulfilled with an empty
+      // route. A click is done with; a follow lets go of the direction and
+      // keeps the errand, so it sets off again when the body moves.
+      if (errand.kind === "cell") this.cancel();
+      else this.input.setAuto(null);
       return null;
     }
 
     this.input.setAuto(leg.direction);
     return null;
+  }
+
+  /** Where this errand is pointed right now, or null for a body that is gone. */
+  private goalOf(errand: Errand, view: WalkView): Coord | null {
+    return errand.kind === "cell" ? errand.at : view.bodyAt(errand.actorId);
   }
 
   /**

@@ -72,7 +72,7 @@ import type { Conversation } from "./dialogRuntime";
  */
 
 /**
- * What an entry does. The push/switch pair plus the one thing a body offers.
+ * What an entry does. The push/switch pair plus the two things a body offers.
  *
  * `target` and not `attack`: picking somebody out is its own act now, and
  * whether it turns into blows is attack mode's answer rather than this list's —
@@ -83,6 +83,20 @@ import type { Conversation } from "./dialogRuntime";
 export type InteractionAction =
   | InteractionKind
   | "target"
+  /**
+   * Walk after this body until told otherwise.
+   *
+   * Beside `target` rather than folded into it, and that separation is the
+   * feature: they are two things you can want about one body and every pair of
+   * them is meaningful. Chase a rabbit with a sword out, keep up with a friend
+   * with it away, or single out the wolf across the room while standing still.
+   *
+   * The only entry here that never reaches the session or the wire. Following
+   * is walking, and walking is already predicted and validated a step at a time
+   * — so this presses the same directions a held key does and there is nothing
+   * for a server to be told. @see ../game/walkTo
+   */
+  | "follow"
   | "talk"
   | "open"
   | "consume"
@@ -210,6 +224,10 @@ export type OptionBlock =
 
 const LABELS: Record<InteractionAction, string> = {
   target: "Target",
+  // The verb, not the state: every other row here is named for what pressing it
+  // does, and a row reading "Following" would be the one that named a condition.
+  // Which of the two it is in is the lit border's job. @see InteractionOption.active
+  follow: "Follow",
   // A body with a dialog: one verb, the same on every such body, because what
   // is said is the panel's business and the row only opens it.
   talk: "Talk",
@@ -306,54 +324,60 @@ export function interactionText(option: InteractionOption): string {
  */
 const ACTION_ORDER: Record<InteractionAction, number> = {
   target: 0,
+  // Directly under the target, which is the only place it can go: they are the
+  // two rows about the same body and the pair is read as one. Below rather than
+  // above because a tap on a body has to single it out — this order is what a
+  // plain tap on the world runs, and a tap that set off walking after a wolf
+  // instead of pointing at it would be answering a question nobody asked.
+  follow: 1,
   // Beside the target and above everything the board offers: it is a row about
   // a body, drawn in that body's box, and a person you can talk to is a person
   // before they are a thing to take from.
-  talk: 1,
+  talk: 2,
   // Above everything the board offers, and above `open` in particular: a chest
   // authored as both a reward and a container is one you are meant to be *given*
   // the contents of, and rummaging in it is the lesser reading of the same tap.
-  reward: 2,
+  reward: 3,
   // Above the switch, for the reason the session's own precedence puts it
   // there: a door authored to both open and lead through is one tap, and the
   // half that takes you somewhere is the one with consequences.
-  teleport: 3,
-  switch: 4,
+  teleport: 4,
+  switch: 5,
   // Below the switch, on the session's own precedence: this is the only entry
   // here that changes the *presser* rather than the board, so a brazier that
   // both lights a room and burns the hand that lit it spends the tap on the
   // half the player can see.
-  addStatus: 5,
+  addStatus: 6,
   // Below the switch and above everything to do with carrying, which is where
   // an explicit authored act belongs — and it never competes with the tap
   // anyway, since a transmute row is reached by name and a tile that both
   // cooked and swung open would spend its tap on the hinge either way.
-  transmute: 6,
+  transmute: 7,
   // Below the transmute and above everything to do with carrying, which is
   // where the session's own precedence puts it and for the same reason: an
   // explicit authored act comes before lifting a thing off the floor. It never
   // actually competes with the four above it — nobody authors a door you can
   // also mine — and if they did, the hinge is the half the player can see.
-  extract: 7,
+  extract: 8,
   // Above pick-up, and this is the one that decides what a plain tap on a sword
   // does. An empty hand is the strongest thing a player can be saying about what
   // they want done with a weapon on the floor, and stowing it afterwards is one
   // drag; the reverse — fishing a sword back out of a bag you did not mean it to
   // go into — is the annoying direction. It only ever appears when the slot is
   // free, so it cannot take a tap away from anybody who is already armed.
-  equip: 8,
+  equip: 9,
   // Above pick-up, and only ever up against it on a container: a pack you are
   // already wearing the twin of can be taken into a hand now, and a tap that
   // picked it up rather than looking inside would be answering the less
   // interesting of the two questions. Nothing else in the game is both.
-  open: 9,
-  pickUp: 10,
+  open: 10,
+  pickUp: 11,
   // Below pick-up on purpose, and pick-up is what a plain tap on the tile runs:
   // eating destroys the thing where lifting it is reversible, so the row you
   // have to *find* is the destructive one and the gesture you can fire by
   // accident is the safe one.
-  consume: 11,
-  push: 12,
+  consume: 12,
+  push: 13,
 };
 
 /**
@@ -430,6 +454,12 @@ const LEVEL_DISTANCE_WEIGHT = 100;
  *   caller with no wire to hear it over — the local simulation's own snapshot
  *   carries one, but a test need not — gets the rows rather than having to
  *   invent an answer.
+ * @param followId who the viewer is walking after, or null. Beside
+ *   {@link targetId} and never derived from it: they are two separate choices
+ *   about one body, and a follow that came along with a target would take away
+ *   the only two combinations anybody asked for — chasing what you are fighting
+ *   and keeping up with somebody you are not. The state lives in
+ *   `../game/walkTo`, which is the thing doing the walking.
  */
 export function listInteractionOptions(
   map: MapFile,
@@ -443,11 +473,12 @@ export function listInteractionOptions(
   attacking: boolean = false,
   extracting: Extraction | null = NOTHING_EXTRACTING,
   conversation: Conversation | null = null,
+  followId: string | null = null,
 ): InteractionOption[] {
   const bodies = bodiesByCell(self, visibleActors);
 
   return [
-    ...targetOptions(tilesById, bodies, targetId, attacking),
+    ...battlerOptions(tilesById, bodies, targetId, followId, attacking),
     ...talkOptions(map, tilesById, self, bodies, conversation),
     ...objectOptions(
       map,
@@ -550,6 +581,19 @@ export function groupSubject(group: InteractionGroup): InteractionOption {
 }
 
 /**
+ * Where a follow is turned on and off.
+ *
+ * A shape rather than the renderer itself, because that is the whole of what
+ * this file needs from it and naming the class here would have the interaction
+ * list importing the thing that draws it. `../render/GameRenderer` satisfies it
+ * by having the method.
+ */
+export type Follower = {
+  /** Walk after this body until told otherwise, or stop. @see ../game/walkTo */
+  setFollow(actorId: string | null): void;
+};
+
+/**
  * Run what an entry says it does.
  *
  * Here rather than in the component because it is the one place that knows an
@@ -560,17 +604,32 @@ export function groupSubject(group: InteractionGroup): InteractionOption {
  * Tapping the one you are already pointing at drops it. That is the only way to
  * clear a target with a thumb — the keyboard has Escape and a touch screen has
  * nothing — and it is why the entry says which one is active at all.
+ *
+ * @param follower who does the walking, for the one row that is not the board's
+ *   business. Optional, and a route that leaves it out simply has a follow row
+ *   that does nothing rather than a crash — the same trade every defaulted
+ *   argument in this file makes.
  */
 export function applyInteraction(
   session: PlaySession | null,
   option: InteractionOption,
+  follower: Follower | null = null,
 ) {
-  if (!session) return;
   // Refused here as well as by the session, and by the session as well as by
   // the server — a spell bar's discipline, for its reason: a greyed row that
   // quietly sent anyway would be asking for something the far end is going to
   // throw away, and the grey is a promise that pressing it does nothing.
+  // First of all, because it is true of every row including the one below that
+  // never reaches a session at all.
   if (option.blocked) return;
+  // Ahead of the session check, because this is the one row that has nothing to
+  // do with a session: following is walking, and walking is a client's own
+  // business until the steps go over the wire. @see InteractionAction
+  if (option.action === "follow") {
+    follower?.setFollow(option.active ? null : option.actorId);
+    return;
+  }
+  if (!session) return;
   if (option.action === "target") {
     session.setTarget(option.active ? null : option.actorId);
     return;
@@ -1006,8 +1065,8 @@ function talkOptions(
 }
 
 /**
- * One entry per body the viewer can see, and whoever is already being pointed
- * at.
+ * Two entries per body the viewer can see — single it out, and walk after it —
+ * each saying whether it is the one already in force.
  *
  * **Range is deliberately not consulted.** Tapping a body does not swing at it —
  * it marks it as the target, and attack mode plus the session decide when and
@@ -1017,13 +1076,19 @@ function talkOptions(
  * the normal way a fight starts, and an entry that only appeared once you were
  * beside them would arrive after the decision it exists for.
  *
- * A battler is anything with hit points, which the snapshot already says: `hp`
- * is null for a body that has none.
+ * The follow row is under the same bound for a stronger version of the same
+ * reason: a body you are beside is the one body there is no point setting off
+ * after.
+ *
+ * Both rows for every battler, with no rule about which pairs with which. A
+ * battler is anything with hit points, which the snapshot already says: `hp` is
+ * null for a body that has none.
  */
-function targetOptions(
+function battlerOptions(
   tilesById: Record<string, TileDef>,
   bodies: Map<string, ActorSnapshot>,
   targetId: string | null,
+  followId: string | null,
   attacking: boolean,
 ): InteractionOption[] {
   const out: InteractionOption[] = [];
@@ -1037,6 +1102,11 @@ function targetOptions(
       z: actor.z,
       stackIndex: actor.stackIndex,
     };
+    const name = bodyNameFor(
+      { actorId: actor.id, tileId: actor.tileId },
+      tilesById,
+    );
+    const health = healthOf(actor);
     out.push({
       id: `target:${actor.id}`,
       action: "target",
@@ -1046,12 +1116,25 @@ function targetOptions(
       recipeIndex: null,
       blocked: null,
       tileId: actor.tileId,
-      name: bodyNameFor(
-        { actorId: actor.id, tileId: actor.tileId },
-        tilesById,
-      ),
-      health: healthOf(actor),
+      name,
+      health,
       active: actor.id === targetId,
+    });
+    out.push({
+      id: `follow:${actor.id}`,
+      action: "follow",
+      // The same word with a sword out and without one, unlike the target row
+      // above. Drawing a weapon changes what pointing at somebody *means* and
+      // changes nothing about walking after them.
+      label: LABELS.follow,
+      ref,
+      actorId: actor.id,
+      recipeIndex: null,
+      blocked: null,
+      tileId: actor.tileId,
+      name,
+      health,
+      active: actor.id === followId,
     });
   }
 

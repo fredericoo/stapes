@@ -106,7 +106,11 @@ export default function OnlinePage() {
   // session underneath while the page keeps the callback it was handed.
   const say = useCallback((text: string) => sessionRef.current?.say(text), []);
   const act = useCallback(
-    (option: InteractionOption) => applyInteraction(sessionRef.current, option),
+    (option: InteractionOption) =>
+      // The renderer beside the session, because one row is not the board's
+      // business: following is walking, and the walking is the renderer's.
+      // @see ../game/interactionOptions' Follower
+      applyInteraction(sessionRef.current, option, rendererRef.current),
     [],
   );
   const talk = useCallback(

@@ -456,9 +456,8 @@ describe("listInteractionOptions — battlers", () => {
 
     const targets = listInteractionOptions(map, tilesById, me, [me, deer], null, KIT);
 
-    expect(targets).toHaveLength(1);
+    expect(actionsIn(targets)).toEqual(["target", "follow"]);
     expect(targets[0]!.name).toBe("Deer");
-    expect(targets[0]!.action).toBe("target");
     expect(targets[0]!.actorId).toBe("npc:deer");
     expect(targets[0]!.active).toBe(false);
   });
@@ -473,7 +472,7 @@ describe("listInteractionOptions — battlers", () => {
 
     const targets = listInteractionOptions(map, tilesById, me, [me, deer], null, KIT);
 
-    expect(actionsIn(targets)).toEqual(["target"]);
+    expect(actionsIn(targets)).toEqual(["target", "follow"]);
   });
 
   /**
@@ -600,6 +599,7 @@ describe("listInteractionOptions — health", () => {
     expect(targets.map((o) => o.health)).toEqual([
       { hp: 10, maxHp: 10 },
       { hp: 10, maxHp: 10 },
+      { hp: 10, maxHp: 10 },
     ]);
   });
 
@@ -623,7 +623,7 @@ describe("listInteractionOptions — a body that is both", () => {
 
     const targets = listInteractionOptions(map, tilesById, me, [me, them], null, KIT);
 
-    expect(actionsIn(targets)).toEqual(["target", "push"]);
+    expect(actionsIn(targets)).toEqual(["target", "follow", "push"]);
   });
 
   it("names both entries after whoever is in the body, not after its tile", () => {
@@ -652,7 +652,7 @@ describe("listInteractionOptions — ordering", () => {
 
     const targets = listInteractionOptions(map, tilesById, me, [me, deer], null, KIT);
 
-    expect(targets.map((o) => o.name)).toEqual(["Crate", "Deer"]);
+    expect(targets.map((o) => o.name)).toEqual(["Crate", "Deer", "Deer"]);
   });
 
   it("sorts several bodies by how far off they are", () => {
@@ -678,9 +678,14 @@ describe("listInteractionOptions — ordering", () => {
       KIT,
     );
 
+    // Two rows each, and they stay in pairs: the sort settles distance first
+    // and only then which of a body's own verbs comes above the other.
     expect(targets.map((o) => o.actorId)).toEqual([
       "npc:near",
+      "npc:near",
       "npc:mid",
+      "npc:mid",
+      "npc:far",
       "npc:far",
     ]);
   });
@@ -705,6 +710,8 @@ describe("listInteractionOptions — ordering", () => {
 
     expect(targets.map((o) => o.actorId)).toEqual([
       "npc:here",
+      "npc:here",
+      "npc:up",
       "npc:up",
     ]);
   });
@@ -1095,7 +1102,12 @@ describe("listInteractionOptions — standing on things", () => {
       ARMED,
     );
 
-    expect(actionsIn(options).sort()).toEqual(["pickUp", "push", "target"]);
+    expect(actionsIn(options).sort()).toEqual([
+      "follow",
+      "pickUp",
+      "push",
+      "target",
+    ]);
   });
 
   it("does not reach under a crate, which is a lid", () => {
@@ -1298,7 +1310,11 @@ describe("groupInteractionOptions", () => {
     );
 
     expect(groups).toHaveLength(1);
-    expect(actionsIn(groups[0]!.options)).toEqual(["target", "push"]);
+    expect(actionsIn(groups[0]!.options)).toEqual([
+      "target",
+      "follow",
+      "push",
+    ]);
   });
 
   it("keeps two things apart, however near each other they are", () => {
@@ -1385,7 +1401,7 @@ describe("groupInteractionOptions", () => {
     // The body comes first because its fight does, and its shove comes with it
     // rather than staying behind the crate it was sorted against.
     expect(groups.map((g) => actionsIn(g.options))).toEqual([
-      ["target", "push"],
+      ["target", "follow", "push"],
       ["push"],
     ]);
     expect(groups[1]!.options[0]!.name).toBe("Crate");
