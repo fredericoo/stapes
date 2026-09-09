@@ -81,6 +81,21 @@ export class HeldDirections {
     return this.auto !== null;
   }
 
+  /**
+   * Is a direction being held by hand?
+   *
+   * The other half of {@link autoPressed}, and it exists because a follow can
+   * be *standing still* — caught up, beside the body it is walking after, with
+   * nothing pressed. `autoPressed` is false there and false again when a key
+   * takes the input away, so a walk that never ends cannot tell the two apart
+   * from that alone. This is the fact that separates them: somebody's hand is
+   * on the controls, so the follow yields the frame rather than fighting them
+   * for it, and takes the input back when they let go. @see ./walkTo
+   */
+  get pressed(): boolean {
+    return this.held.length > 0;
+  }
+
   release(direction: Direction) {
     if (!this.remove(direction)) return;
     this.sync();

@@ -12,6 +12,7 @@ import {
   IconSwitch,
   IconTarget,
   IconTransform,
+  IconWalk,
 } from "@tabler/icons-react";
 import { useMemo, useRef } from "react";
 import type { Extraction } from "../game/extract";
@@ -72,6 +73,12 @@ const FRONT: "s" = "s";
 
 const ICONS: Record<InteractionAction, typeof IconTarget> = {
   target: IconTarget,
+  // Somebody walking, because that is literally what the row does — the
+  // directions it presses are the ones a held key presses. Deliberately not a
+  // second reticle or an arrow: it sits directly under the target row on the
+  // same body, and the pair has to be readable as two different things at a
+  // glance rather than as one thing drawn twice.
+  follow: IconWalk,
   // A speech bubble: the one row that opens a panel of words rather than
   // doing something to the board.
   talk: IconMessageCircle,
@@ -205,6 +212,11 @@ function litClass(option: InteractionOption, attacking: boolean): string {
   if (option.action === "open") {
     return "border-interact bg-interact/20 text-paper";
   }
+  // Ahead of the stance, and that is the point of it being here: following a
+  // rabbit with a sword out is following a rabbit. The red belongs to the row
+  // that swings, and two lit rows on one body have to be readable as the two
+  // different things they are.
+  if (option.action === "follow") return "border-paper bg-paper/15 text-paper";
   if (attacking) return "border-danger bg-danger/20 text-paper";
   return "border-paper bg-paper/15 text-paper";
 }
@@ -483,11 +495,14 @@ function ActionButton({
       // and one that vanished from the keyboard's reach whenever it went grey
       // would be unreachable at precisely the moment it is interesting.
       aria-disabled={blocked ? true : undefined}
-      // Pointing at somebody and having a box open are states you are in, and
-      // both buttons toggle out of them; a push happens and is over, and a
-      // button that claimed otherwise would be announced as stuck on.
+      // Pointing at somebody, walking after them and having a box open are
+      // states you are in, and all three buttons toggle out of them; a push
+      // happens and is over, and a button that claimed otherwise would be
+      // announced as stuck on.
       aria-pressed={
-        option.action === "target" || option.action === "open"
+        option.action === "target" ||
+        option.action === "follow" ||
+        option.action === "open"
           ? option.active
           : undefined
       }

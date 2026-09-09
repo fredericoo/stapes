@@ -152,7 +152,12 @@ const UPSTAIRS = { x: 0, y: 0, z: 1, stackIndex: 0 };
 
 function view(
   map: MapFile,
-  opts: { at?: Coord & { stackIndex: number }; stepping?: Coord } = {},
+  opts: {
+    at?: Coord & { stackIndex: number };
+    stepping?: Coord;
+    /** Where the bodies this walker can see are standing, by id. */
+    bodies?: Record<string, Coord>;
+  } = {},
 ): WalkView {
   return {
     map,
@@ -160,6 +165,7 @@ function view(
     stepping: opts.stepping ?? null,
     def: playerDef,
     tilesById,
+    bodyAt: (actorId) => opts.bodies?.[actorId] ?? null,
   };
 }
 
@@ -585,6 +591,150 @@ describe("calling it off", () => {
     walk.tick(view(field(6)));
 
     expect(asked).toHaveLength(2);
+  });
+});
+
+/**
+ * Following a body is the same search pointed at a moving cell.
+ *
+ * What the cases below pin is the three ways it differs from a click, because
+ * each of them is a place the shared code had to grow a fork: arriving is not
+ * the end, a hand on the keys is yielded to rather than given up to, and the
+ * body going out of sight is what finishes it.
+ */
+describe("following a body", () => {
+  const THEM = "npc:them";
+
+  /** The board, with a body standing somewhere on it. */
+  function chasing(at: Coord, map: MapFile = field(6)) {
+    return view(map, { bodies: { [THEM]: at } });
+  }
+
+  it("sets off towards whoever it was told to follow", () => {
+    const { walk, last } = walker();
+
+    walk.follow(THEM, chasing({ x: 3, y: 0, z: 0 }));
+
+    expect(last()).toEqual(["e"]);
+    expect(walk.followingId).toBe(THEM);
+    expect(walk.walking).toBe(true);
+  });
+
+  /**
+   * Beside, not on: a body is not somewhere you stand. And the errand outlives
+   * arriving — this is the whole of what makes it a follow rather than a walk
+   * to wherever they happened to be when it was pressed.
+   */
+  it("stops beside them and keeps following", () => {
+    const { walk, last } = walker();
+    const map = field(6);
+
+    walk.follow(THEM, chasing({ x: 2, y: 0, z: 0 }, map));
+    walk.tick(
+      view(map, {
+        at: { x: 1, y: 0, z: 0, stackIndex: 1 },
+        bodies: { [THEM]: { x: 2, y: 0, z: 0 } },
+      }),
+    );
+
+    // Let go of, so nothing chains another step into the body it is beside.
+    expect(last()).toEqual([]);
+    expect(walk.walking).toBe(true);
+    expect(walk.followingId).toBe(THEM);
+  });
+
+  it("sets off again by itself when they walk on", () => {
+    const { walk, last } = walker();
+    const map = field(6);
+    const beside = { at: { x: 1, y: 0, z: 0, stackIndex: 1 } };
+
+    walk.follow(THEM, chasing({ x: 2, y: 0, z: 0 }, map));
+    walk.tick(view(map, { ...beside, bodies: { [THEM]: { x: 2, y: 0, z: 0 } } }));
+    expect(last()).toEqual([]);
+
+    walk.tick(view(map, { ...beside, bodies: { [THEM]: { x: 4, y: 0, z: 0 } } }));
+
+    expect(last()).toEqual(["e"]);
+  });
+
+  /**
+   * A follow cannot read `autoPressed` the way a click does: one that has
+   * caught up is holding nothing on purpose, which is the same answer as having
+   * been taken over. So it asks whether a *hand* is on the controls instead,
+   * and stands aside for as long as one is.
+   */
+  it("yields to a key and takes the input back when it is let go", () => {
+    const { walk, input, last } = walker();
+    const map = field(6);
+    const board = chasing({ x: 3, y: 0, z: 0 }, map);
+
+    walk.follow(THEM, board);
+    input.press("n");
+    walk.tick(board);
+
+    // Theirs, not the follow's — and the follow is still on.
+    expect(last()).toEqual(["n"]);
+    expect(walk.walking).toBe(true);
+
+    input.release("n");
+    walk.tick(board);
+
+    expect(last()).toEqual(["e"]);
+  });
+
+  /**
+   * Silent, on the rule a walk that is cut off halfway stops silently under:
+   * the player watched the thing they were chasing leave.
+   */
+  it("ends when the body is no longer in sight", () => {
+    const { walk, last } = walker();
+    const map = field(6);
+
+    walk.follow(THEM, chasing({ x: 3, y: 0, z: 0 }, map));
+    walk.tick(view(map));
+
+    expect(walk.walking).toBe(false);
+    expect(walk.followingId).toBeNull();
+    expect(last()).toEqual([]);
+    expect(walk.drainNotices()).toEqual([]);
+  });
+
+  /**
+   * A body behind a wall is still the body you are following — it may walk back
+   * out. So the refusal is a sentence and a pause, not the end of the errand.
+   */
+  it("waits rather than giving up when there is no way to them", () => {
+    const { walk, asked } = walker();
+    let map = field(6);
+    for (let y = -6; y <= 6; y++) map = put(map, 1, y, "wall");
+
+    walk.follow(THEM, chasing({ x: 3, y: 0, z: 0 }, map));
+
+    expect(asked).toEqual([]);
+    expect(walk.walking).toBe(true);
+    expect(walk.drainNotices()).toEqual([noRouteNotice("detour")]);
+  });
+
+  it("is called off by a click somewhere else", () => {
+    const { walk } = walker();
+    const map = field(6);
+
+    walk.follow(THEM, chasing({ x: 3, y: 0, z: 0 }, map));
+    walk.start(ground(0, 3), chasing({ x: 3, y: 0, z: 0 }, map));
+
+    expect(walk.followingId).toBeNull();
+    expect(walk.walking).toBe(true);
+  });
+
+  it("is called off by following nobody", () => {
+    const { walk, last } = walker();
+    const board = chasing({ x: 3, y: 0, z: 0 });
+
+    walk.follow(THEM, board);
+    walk.follow(null, board);
+
+    expect(walk.walking).toBe(false);
+    expect(last()).toEqual([]);
   });
 });
 

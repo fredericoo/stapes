@@ -1232,10 +1232,10 @@ would be the pathfinder deciding where something wants to hide. It is a sound
 argument for a worse animal — see "Running away is a flood, not a direction"
 below, which is what replaced it and why.
 
-## Clicking a cell walks to it, and nothing new travels
+## Clicking walks you there, following walks you after them, and neither travels
 
-`app/game/walkTo.ts` holds an errand — a cell and what arriving at it means —
-and hands the step pipeline one direction per leg. It is entirely client-side, and deliberately:
+`app/game/walkTo.ts` holds an errand — a cell, or a body — and hands the step
+pipeline one direction per leg. It is entirely client-side, and deliberately:
 `findPath` is a pure question about a board, the browser holds every argument to
 it, and the direction it produces goes in through `HeldDirections` — the same
 list a held key presses. So a clicked leg is predicted, sent and validated by
@@ -1325,6 +1325,36 @@ version of a client making up where it is allowed to go.
   rather than emptying it, so a key held through a clicked walk still walks when
   the walk ends, and the modifiers ride along either way: a click writing the
   input itself silently dropped shift and alt.
+- **Following a body is the same errand with a goal that moves.** `WalkTo` holds
+  either a cell or an actor id; the goal is read off it every time a leg is
+  owed, so the loop that already re-routes round a shoved crate tracks something
+  walking away without a second mechanism. Three things differ from a click and
+  nothing else does: it arrives `beside` rather than `on`, arriving lets go of
+  the input without ending the errand, and a hand on the keys is *yielded* to
+  rather than treated as the end of it.
+  - *It cannot use `autoPressed` to tell whether it has been taken over.* A
+    follow that has caught up is deliberately pressing nothing, which is the
+    same answer as a key having taken the input away. So `HeldDirections` gained
+    `pressed` — whether a direction is held by hand — and the follow stands
+    aside for exactly as long as one is and takes the input back on release. A
+    follow that ended at the first keypress would be unusable: dodging is the
+    normal thing to do while chasing something.
+  - *A refusal pauses it rather than ending it*, because a body behind a shut
+    door may walk back out. That breaks the cost argument above — the expensive
+    search is the one that proves a cell unreachable, and it was safe only
+    because a refused click drops its destination immediately. `WalkTo.stalled`
+    restores the bound: after a refusal the map half of the gate is ignored, so
+    the search is asked again only when the follower or the followed has moved.
+  - *It ends when the body leaves the view*, on the target's own rule
+    (`isWithinView`) and supplied by the renderer through `WalkView.bodyAt`. It
+    has to be the same rule the row is offered under, because the row is the only
+    way to switch a follow off — so `targetableActors` keeps whoever is being
+    followed for the same reason it keeps whoever is being fought.
+  - *Nothing about it reaches the wire.* Following is walking, and the
+    directions go in where a held key's do. The server sees an ordinary walk it
+    validates a step at a time, which is why the state lives on the renderer and
+    `applyInteraction` takes a `Follower` beside the session rather than putting
+    a verb on `PlaySession`.
 - **The refusal is a notice, and it is the one sentence composed on the client.**
   A click has no key to hold and no row to read, so a refused one shows as the
   avatar not moving, which is indistinguishable from having missed the canvas. It
