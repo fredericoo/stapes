@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import tilesJson from "../../data/tiles.json";
-import { nearest, slot, type BrainDef } from "../lib/brain";
+import { nearest, slot, thing, type BrainDef, type Selector } from "../lib/brain";
 import { normalizeTileDef, normalizeTiles, type TileDef } from "../lib/types";
 import {
   arrayMove,
   bodyTileIds,
   paramPatch,
   renamedState,
-  selectorOptions,
+  selectorVocabulary,
 } from "./BrainEditor";
 import { CONDITIONS } from "../lib/brainCatalog";
 
@@ -107,14 +107,12 @@ describe("offering selectors", () => {
       states: { idle: { do: [] } },
       transitions: [],
     };
-    // Every one of these is answerable without anything having been bound: one
-    // `nearest` per tile a body can be, then the two that ask the transition who
-    // just spoke and who just swung, then the one that names a place instead of
-    // a body.
-    expect(selectorOptions(brain, LIBRARY).map((o) => o.key)).toEqual([
-      "nearest:player",
-      "nearest:cat",
-      "nearest:rat",
+    // The two live queries, then the two that ask the transition who just spoke
+    // and who just swung, then the one that names a place instead of a body.
+    // Which *tiles* each names is the chips' question, not the picker's.
+    expect(selectorVocabulary(brain, LIBRARY).kinds.map((k) => k.key)).toEqual([
+      "nearest",
+      "thing",
       "speaker",
       "attacker",
       "home",
@@ -134,10 +132,9 @@ describe("offering selectors", () => {
         },
       ],
     };
-    expect(selectorOptions(brain, LIBRARY).map((o) => o.key)).toEqual([
-      "nearest:player",
-      "nearest:cat",
-      "nearest:rat",
+    expect(selectorVocabulary(brain, LIBRARY).kinds.map((k) => k.key)).toEqual([
+      "nearest",
+      "thing",
       "speaker",
       "attacker",
       "home",
@@ -159,17 +156,20 @@ describe("offering selectors", () => {
         },
       ],
     };
-    const options = selectorOptions(brain, LIBRARY);
+    const { kinds } = selectorVocabulary(brain, LIBRARY);
 
-    expect(options[0]!.selector).toEqual(nearest("player"));
-    expect(options.at(-1)!.selector).toEqual(slot("spooked"));
+    expect(kinds[0]!.make()).toEqual(nearest("player"));
+    expect(kinds.at(-1)!.make()).toEqual(slot("spooked"));
   });
 
-  /** A tile's own name, so the picker reads as the world does. */
-  it("labels each nearest option with the tile name", () => {
+  /** A tile's own name, so the chips read as the world does. */
+  it("labels each tile chip with the tile name", () => {
     const named = [tile({ id: "player", height: 4, name: "Player" })];
-    expect(selectorOptions({ initial: "i", states: { i: { do: [] } }, transitions: [] }, named)[0])
-      .toMatchObject({ key: "nearest:player", label: "nearest Player" });
+    const { kinds } = selectorVocabulary(
+      { initial: "i", states: { i: { do: [] } }, transitions: [] },
+      named,
+    );
+    expect(kinds[0]!.tiles).toEqual([{ tileId: "player", label: "Player" }]);
   });
 
   /**
@@ -265,5 +265,112 @@ describe("editing a parameter", () => {
     expect(
       paramPatch({ cond: "heard", text: "ps", cells: 5, los: true }, los, false),
     ).toEqual({ cond: "heard", text: "ps", cells: 5 });
+  });
+});
+
+/**
+ * What the editor can say about a selector without being told.
+ *
+ * The whole point of the `thing` selector is that a bush is authored as a bush
+ * once, in `tiles.json`, and everything downstream reads it. This is that
+ * reading: the picker knows a bush can be picked because the bush says so, and a
+ * slot knows it holds a bush because the transition that fills it says so.
+ */
+describe("what a selector affords", () => {
+  const ORCHARD: TileDef[] = [
+    ...LIBRARY,
+    tile({
+      id: "bush",
+      interactions: {
+        extract: {
+          actionName: "Pick",
+          durability: 3,
+          tileId: "picked-bush",
+          durationMs: 2000,
+          slots: [{ tileId: "berry", chance: 100 }],
+        },
+      },
+    }),
+    tile({ id: "boulder", interactions: { push: { climb: "half", moveOnTileIds: [] } } }),
+    tile({ id: "hedge", height: 2 }),
+
+  ];
+
+  function tilesFor(brain: BrainDef, key: string) {
+    const kind = selectorVocabulary(brain, ORCHARD).kinds.find(
+      (one) => one.key === key,
+    );
+    return kind?.tiles.map((one) => one.tileId);
+  }
+
+  function describe_(brain: BrainDef, selector: Selector) {
+    return selectorVocabulary(brain, ORCHARD).describe(selector);
+  }
+
+  const IDLE: BrainDef = {
+    initial: "idle",
+    states: { idle: { do: [] } },
+    transitions: [],
+  };
+
+  it("offers a thing for every tile that does something", () => {
+    const things = tilesFor(IDLE, "thing");
+    expect(things).toContain("bush");
+    expect(things).toContain("boulder");
+    // Scenery with no interaction block is not worth naming, and a body is
+    // already offered under `nearest`.
+    expect(things).not.toContain("hedge");
+    expect(things).not.toContain("rat");
+  });
+
+  it("says what the tile can have done to it, in the author's own word", () => {
+    expect(describe_(IDLE, thing("bush"))).toEqual({
+      tiles: ["bush"],
+      affords: ["pick"],
+    });
+    expect(describe_(IDLE, nearest("rat"))?.affords).toEqual(["attack"]);
+  });
+
+  /**
+   * A boulder is pushable and a brain has no verb for pushing, so saying so
+   * would be telling an author about a row this table cannot offer them.
+   */
+  it("names only the verbs a brain actually has", () => {
+    expect(describe_(IDLE, thing("boulder"))).toEqual({
+      tiles: ["boulder"],
+      affords: [],
+    });
+  });
+
+  // Whatever it can do to either, since the selector may answer with either.
+  it("unions the verbs across a list of tiles", () => {
+    expect(describe_(IDLE, thing("bush", "boulder"))).toEqual({
+      tiles: ["bush", "boulder"],
+      affords: ["pick"],
+    });
+  });
+
+  it("carries the answer through to the slot the brain binds", () => {
+    const brain: BrainDef = {
+      ...IDLE,
+      transitions: [
+        {
+          from: "idle",
+          if: { cond: "stuck" },
+          bind: { bush: thing("bush") },
+          to: "idle",
+        },
+      ],
+    };
+
+    expect(describe_(brain, slot("bush"))).toEqual({
+      tiles: ["bush"],
+      affords: ["pick"],
+    });
+  });
+
+  it("says nothing about a selector that names no tile", () => {
+    expect(describe_(IDLE, { type: "speaker" })).toBeNull();
+    expect(describe_(IDLE, { type: "home" })).toBeNull();
   });
 });

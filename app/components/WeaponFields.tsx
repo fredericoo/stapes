@@ -32,7 +32,7 @@ import {
 import type { StatusDef } from "../lib/status";
 import { FieldLabel, Segmented, Select } from "../ui";
 import { StatField } from "./StatField";
-import { StatusChanceField, StatusGrants } from "./StatusGrants";
+import { StatusGrants } from "./StatusGrants";
 
 /**
  * How a weapon fights, authored once and edited in two places.
@@ -313,7 +313,6 @@ export function WeaponFields({
         }
         blank={(id) => ({ id, chance: DEFAULT_WEAPON_STATUS_CHANCE })}
         info="Rolled once per entry on every blow that lands. A miss or a dodge leaves nothing; armour eating the damage does not stop it. No mastery moves the chance."
-        extra={StatusChanceField}
       />
 
       <div className="flex flex-col gap-2 border-t-2 border-border pt-3">

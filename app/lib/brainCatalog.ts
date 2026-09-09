@@ -1,5 +1,6 @@
 import {
   nearest,
+  thing,
   type BrainActionDef,
   type BrainConditionDef,
   type BrainEffectDef,
@@ -42,7 +43,57 @@ export type ParamSpec =
    * all, and writing `""` there would be a word of length zero that nothing
    * parses.
    */
-  | { key: string; kind: "text"; label: string; optional?: boolean };
+  | { key: string; kind: "text"; label: string; optional?: boolean }
+  /**
+   * A status from the catalogue, picked rather than typed.
+   *
+   * Its own kind rather than a `text` box holding an id, on the {@link tile}
+   * field's grounds: a `status` condition naming an id nothing grants is a row
+   * that can only ever answer no, and a typo is indistinguishable from a
+   * condition an author has deliberately switched off.
+   */
+  | { key: string; kind: "status"; label: string }
+  /**
+   * An optional {@link Selector} naming something on the board, or nothing at
+   * all — which is `consume`'s "out of the bag".
+   *
+   * Its own kind rather than a plain `selector` because the absent case is a
+   * real, different meaning here rather than a field nobody filled in, and two
+   * controls that had to agree about that would let the editor author half of
+   * one. The same collapse a speaker filter's "anybody" makes.
+   */
+  | { key: string; kind: "ground"; label: string }
+  /**
+   * A tile from the library, picked rather than typed.
+   *
+   * Its own kind rather than a `text` box holding an id, because the two verbs
+   * that take one — `carrying` and `consume` — are naming an item that has to
+   * exist for the line to do anything, and a typed id that does not is a line
+   * that silently never fires. The picker is narrowed by {@link tiles} to the
+   * ones the verb can mean at all, which is the same inference the selector
+   * annotation makes, pointed at a field instead of a slot.
+   *
+   * `optional` means an empty pick is the *absence* of the field, on `text`'s
+   * terms: a `carrying` naming no tile asks about anything at all.
+   */
+  | {
+      key: string;
+      kind: "tile";
+      label: string;
+      optional?: boolean;
+      /** Which tiles this field may name. @see TileFilter */
+      tiles: TileFilter;
+    };
+
+/**
+ * Which tiles a {@link ParamSpec} `tile` field will offer.
+ *
+ * A name rather than a predicate, because the catalog is data the editor reads
+ * and a function in it could not be serialised, compared or tested apart from
+ * the component that calls it. The editor holds the one place these names turn
+ * into a filter over the library.
+ */
+export type TileFilter = "item" | "consumable";
 
 type CatalogEntry<T> = {
   label: string;
@@ -63,6 +114,17 @@ type CatalogEntry<T> = {
  * is already choosing deliberately.
  */
 export const DEFAULT_SELECTOR = nearest(PLAYER_TILE_ID);
+
+/**
+ * What a freshly picked verb about a *thing* points at.
+ *
+ * The same tile {@link DEFAULT_SELECTOR} names, and for a different reason: the
+ * catalog cannot see the library, so it has no bush to offer. What it can do is
+ * start the field on the right *kind* of selector — a thing rather than a body —
+ * so an author who picks `extract` is one choice away from what they meant
+ * rather than having to notice the picker has two halves.
+ */
+export const DEFAULT_THING = thing(PLAYER_TILE_ID);
 
 export const CONDITIONS: Record<
   BrainConditionDef["cond"],
@@ -148,6 +210,29 @@ export const CONDITIONS: Record<
     params: [],
     make: () => ({ cond: "talking" }),
   },
+  status: {
+    label: "status",
+    hint: "This body is under a named condition, with at least this long left. Leave the time at zero to ask only whether it is running. Its `not` is how hunger is authored — a wolf with no fed left, or none at all.",
+    params: [
+      { key: "id", kind: "status", label: "status" },
+      { key: "atLeastMs", kind: "number", label: "at least ms", min: 0 },
+    ],
+    make: () => ({ cond: "status", id: "fed" }),
+  },
+  carrying: {
+    label: "carrying",
+    hint: "There is something in this body's bag. Leave the tile empty for anything at all. A body with no bag carries nothing.",
+    params: [
+      {
+        key: "tileId",
+        kind: "tile",
+        label: "tile",
+        optional: true,
+        tiles: "item",
+      },
+    ],
+    make: () => ({ cond: "carrying" }),
+  },
 };
 
 export const ACTIONS: Record<
@@ -204,6 +289,27 @@ export const ACTIONS: Record<
     hint: "Swing at a target in an adjacent cell. Fails when out of reach, still recovering, or aimed at something with no hit points.",
     params: [{ key: "of", kind: "selector", label: "of" }],
     make: () => ({ action: "attack", of: DEFAULT_SELECTOR }),
+  },
+  extract: {
+    label: "extract",
+    hint: "Work a thing beside it for what it is made of. Holds the line for as long as the pull takes. Fails on anything that is not a thing, is out of reach, is spent, or will not fit in the bag.",
+    params: [{ key: "of", kind: "selector", label: "of" }],
+    make: () => ({ action: "extract", of: DEFAULT_THING }),
+  },
+  consume: {
+    label: "consume",
+    hint: "Eat or drink. Out of the bag by default — leave the tile empty for the first consumable in there — or off the ground by naming a thing beside it, which is what a wolf does with a carcass.",
+    params: [
+      { key: "of", kind: "ground", label: "off the ground" },
+      {
+        key: "tileId",
+        kind: "tile",
+        label: "tile",
+        optional: true,
+        tiles: "consumable",
+      },
+    ],
+    make: () => ({ action: "consume" }),
   },
 };
 

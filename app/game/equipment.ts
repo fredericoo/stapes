@@ -393,6 +393,45 @@ export function wornInstances(equipment: Equipment): ItemInstance[] {
 }
 
 /**
+ * What a dead body leaves on the floor: everything it wore, and everything that
+ * was in its bag — but not the bag.
+ *
+ * **The bag is destroyed and its contents are spilled.** Dropping it whole was
+ * the simpler rule and it made a killing a single pickup: one bag on the ground,
+ * everything inside it, gone in one gesture and never sorted through. Spilling
+ * puts the contents on the floor as things, so what a fight was worth is what is
+ * lying there — and it costs the winner the walk over it rather than a tap.
+ *
+ * **The bag slot alone**, though a hand may hold a container too. That slot is
+ * not a place a container happens to be, it *is* the inventory — see
+ * {@link Equipment.bag} — and a pack carried in a hand is a thing you are
+ * holding on exactly the terms a crate is. Widening this to every container
+ * would mean a player who died carrying a chest lost the chest, which is a rule
+ * about death nobody asked for.
+ *
+ * The contents come out in bag order, so a pile lands in the order the panel
+ * showed it. Nothing nests — a container's only home is a bare back — so one
+ * level of spilling is the whole of it.
+ */
+export function spilled(
+  equipment: Equipment,
+  tilesById: Record<string, TileDef>,
+): ItemInstance[] {
+  const out: ItemInstance[] = [];
+  for (const slot of EQUIPMENT_SLOTS) {
+    const instance = equipment[slot];
+    if (!instance) continue;
+    const def = tilesById[instance.tileId];
+    if (slot === "bag" && def && resolveContainer(def)) {
+      out.push(...(instance.contents ?? []));
+      continue;
+    }
+    out.push(instance);
+  }
+  return out;
+}
+
+/**
  * The tiles of the things this actor is *wearing* that give off light.
  *
  * A projection of {@link Equipment} rather than a second thing to keep in step,

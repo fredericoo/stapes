@@ -6,6 +6,7 @@ import {
   MAX_PERCENT_STAT,
   type Reach,
   type WeaponResistances,
+  type StatusGrant,
   type WeaponStatus,
 } from "../lib/item";
 import type { WeaponMastery } from "../lib/mastery";
@@ -457,7 +458,7 @@ export type AttackOutcome = {
 };
 
 /** No status was inflicted, which is the answer for nearly every blow struck. */
-const NOTHING_INFLICTED: readonly WeaponStatus[] = [];
+const NOTHING_INFLICTED: readonly never[] = [];
 
 /**
  * Swing once.
@@ -562,10 +563,17 @@ export function defenceAgainst(
 /**
  * Which of a list of statuses took, given a draw apiece.
  *
- * A weapon's list and a bolt's, which is why it is exported: they are the same
- * authored shape asking the same question, and a second copy of this would be
- * the first place a brand and a branding stone could come to disagree about what
- * a hundred means.
+ * A weapon's list, a bolt's and a plate of raw meat's, which is why it is
+ * exported and why it is generic: they are the same authored shape asking the
+ * same question, and a second copy of this would be the first place a brand, a
+ * branding stone and a bad supper could come to disagree about what a hundred
+ * means.
+ *
+ * **An absent chance is certain**, which is what makes a consumable's grant and
+ * a weapon's the same list — see `../lib/item`'s {@link StatusGrant}. It is
+ * still *drawn* for, on the fixed-draw-count discipline a swing and an extract
+ * are under: a draw skipped because a row was certain would make one item's
+ * dice change what the next one rolled.
  *
  * **Read against the authored percentage directly, and not through
  * `clampChance`.** That band exists to keep a *contest* in doubt at both ends —
@@ -574,13 +582,15 @@ export function defenceAgainst(
  * ninety-five percent of the time would be a number that quietly means something
  * else.
  */
-export function inflictedBy(
-  statuses: readonly WeaponStatus[],
+export function inflictedBy<Grant extends StatusGrant>(
+  statuses: readonly Grant[],
   rolls: readonly number[],
-): readonly WeaponStatus[] {
+): readonly Grant[] {
   if (statuses.length === 0) return NOTHING_INFLICTED;
   const took = statuses.filter(
-    (status, index) => rolls[index] * MAX_PERCENT_STAT < status.chance,
+    (status, index) =>
+      status.chance === undefined ||
+      rolls[index]! * MAX_PERCENT_STAT < status.chance,
   );
   return took.length === 0 ? NOTHING_INFLICTED : took;
 }

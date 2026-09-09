@@ -23453,6 +23453,42 @@
               }
             ]
           },
+          "browsing": {
+            "do": [
+              {
+                "action": "extract",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "bush"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "bush"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "chewing": {
+            "do": [
+              {
+                "action": "consume",
+                "tileId": "berry"
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
           "flee": {
             "onEnter": [
               {
@@ -23501,11 +23537,13 @@
           {
             "from": "any",
             "if": {
-              "cond": "in_range",
+              "cond": "in_los",
               "of": {
                 "type": "nearest",
                 "data": {
-                  "tileId": "player"
+                  "tileIds": [
+                    "player"
+                  ]
                 }
               },
               "cells": 4
@@ -23514,7 +23552,9 @@
               "spooked": {
                 "type": "nearest",
                 "data": {
-                  "tileId": "player"
+                  "tileIds": [
+                    "player"
+                  ]
                 }
               }
             },
@@ -23554,6 +23594,83 @@
               "cells": 8
             },
             "to": "graze"
+          },
+          {
+            "from": "browsing",
+            "if": {
+              "cond": "carrying",
+              "tileId": "berry"
+            },
+            "to": "chewing"
+          },
+          {
+            "from": "graze",
+            "if": {
+              "cond": "carrying",
+              "tileId": "berry"
+            },
+            "to": "chewing"
+          },
+          {
+            "from": "chewing",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "carrying",
+                  "tileId": "berry"
+                }
+              ]
+            },
+            "to": "graze"
+          },
+          {
+            "from": "graze",
+            "if": {
+              "cond": "in_los",
+              "of": {
+                "type": "thing",
+                "data": {
+                  "tileIds": [
+                    "bush"
+                  ]
+                }
+              },
+              "cells": 10
+            },
+            "bind": {
+              "bush": {
+                "type": "thing",
+                "data": {
+                  "tileIds": [
+                    "bush"
+                  ]
+                }
+              }
+            },
+            "to": "browsing"
+          },
+          {
+            "from": "browsing",
+            "if": {
+              "cond": "out_of_los",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "bush"
+                }
+              },
+              "cells": 10
+            },
+            "to": "graze"
+          },
+          {
+            "from": "browsing",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "looking"
           },
           {
             "from": "graze",
@@ -23610,6 +23727,11 @@
             "slot": "armor",
             "tileId": "raw-meat",
             "chance": 12
+          },
+          {
+            "slot": "bag",
+            "tileId": "basic-bag",
+            "chance": 100
           }
         ]
       },
@@ -26334,7 +26456,9 @@
               "of": {
                 "type": "nearest",
                 "data": {
-                  "tileId": "player"
+                  "tileIds": [
+                    "player"
+                  ]
                 }
               },
               "cells": 7
@@ -26343,7 +26467,9 @@
               "prey": {
                 "type": "nearest",
                 "data": {
-                  "tileId": "player"
+                  "tileIds": [
+                    "player"
+                  ]
                 }
               }
             },
@@ -26425,7 +26551,9 @@
               "of": {
                 "type": "nearest",
                 "data": {
-                  "tileId": "rat"
+                  "tileIds": [
+                    "rat"
+                  ]
                 }
               },
               "cells": 6
@@ -26434,7 +26562,9 @@
               "pack": {
                 "type": "nearest",
                 "data": {
-                  "tileId": "rat"
+                  "tileIds": [
+                    "rat"
+                  ]
                 }
               }
             },
@@ -26885,7 +27015,10 @@
               "of": {
                 "type": "nearest",
                 "data": {
-                  "tileId": "player"
+                  "tileIds": [
+                    "player",
+                    "rabbit"
+                  ]
                 }
               },
               "cells": 7
@@ -26894,7 +27027,10 @@
               "prey": {
                 "type": "nearest",
                 "data": {
-                  "tileId": "player"
+                  "tileIds": [
+                    "player",
+                    "rabbit"
+                  ]
                 }
               }
             },
@@ -27489,6 +27625,37 @@
                 "steps": 2
               }
             ]
+          },
+          "feeding": {
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "snf"
+              }
+            ],
+            "do": [
+              {
+                "action": "consume",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "meat"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "meat"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -27507,24 +27674,174 @@
           {
             "from": "any",
             "if": {
-              "cond": "in_los",
-              "of": {
-                "type": "nearest",
-                "data": {
-                  "tileId": "player"
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "thing",
+                    "data": {
+                      "tileIds": [
+                        "raw-meat",
+                        "cooked-meat"
+                      ]
+                    }
+                  },
+                  "cells": 9
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "fed",
+                      "atLeastMs": 120000
+                    }
+                  ]
                 }
-              },
-              "cells": 9
+              ]
+            },
+            "bind": {
+              "meat": {
+                "type": "thing",
+                "data": {
+                  "tileIds": [
+                    "raw-meat",
+                    "cooked-meat"
+                  ]
+                }
+              }
+            },
+            "to": "feeding"
+          },
+          {
+            "from": "any",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "nearest",
+                    "data": {
+                      "tileIds": [
+                        "player"
+                      ]
+                    }
+                  },
+                  "cells": 9
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "fed",
+                      "atLeastMs": 120000
+                    }
+                  ]
+                }
+              ]
             },
             "bind": {
               "prey": {
                 "type": "nearest",
                 "data": {
-                  "tileId": "player"
+                  "tileIds": [
+                    "player"
+                  ]
                 }
               }
             },
             "to": "hunting"
+          },
+          {
+            "from": "any",
+            "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "nearest",
+                    "data": {
+                      "tileIds": [
+                        "deer",
+                        "rabbit"
+                      ]
+                    }
+                  },
+                  "cells": 9
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "fed",
+                      "atLeastMs": 120000
+                    }
+                  ]
+                }
+              ]
+            },
+            "bind": {
+              "prey": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "deer",
+                    "rabbit"
+                  ]
+                }
+              }
+            },
+            "to": "hunting"
+          },
+          {
+            "from": "feeding",
+            "if": {
+              "cond": "out_of_los",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "meat"
+                }
+              },
+              "cells": 9
+            },
+            "to": "prowling"
+          },
+          {
+            "from": "feeding",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "fed",
+                      "atLeastMs": 120000
+                    }
+                  ]
+                }
+              ]
+            },
+            "to": "prowling"
+          },
+          {
+            "from": "feeding",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "prowling"
           },
           {
             "from": "hunting",
@@ -27604,7 +27921,9 @@
               "of": {
                 "type": "nearest",
                 "data": {
-                  "tileId": "wolf"
+                  "tileIds": [
+                    "wolf"
+                  ]
                 }
               },
               "cells": 8
@@ -27613,7 +27932,9 @@
               "pack": {
                 "type": "nearest",
                 "data": {
-                  "tileId": "wolf"
+                  "tileIds": [
+                    "wolf"
+                  ]
                 }
               }
             },
@@ -27716,6 +28037,9 @@
             "tileId": "bread",
             "chance": 10
           }
+        ],
+        "immuneTo": [
+          "food-poisoning"
         ]
       },
       "respawn": {
@@ -28076,7 +28400,9 @@
               "of": {
                 "type": "nearest",
                 "data": {
-                  "tileId": "player"
+                  "tileIds": [
+                    "player"
+                  ]
                 }
               },
               "cells": 8
@@ -28085,7 +28411,9 @@
               "prey": {
                 "type": "nearest",
                 "data": {
-                  "tileId": "player"
+                  "tileIds": [
+                    "player"
+                  ]
                 }
               }
             },
@@ -28641,7 +28969,12 @@
               "of": {
                 "type": "nearest",
                 "data": {
-                  "tileId": "player"
+                  "tileIds": [
+                    "player",
+                    "rat",
+                    "rabbit",
+                    "deer"
+                  ]
                 }
               },
               "cells": 3
@@ -28650,29 +28983,12 @@
               "prey": {
                 "type": "nearest",
                 "data": {
-                  "tileId": "player"
-                }
-              }
-            },
-            "to": "hunting"
-          },
-          {
-            "from": "any",
-            "if": {
-              "cond": "in_los",
-              "of": {
-                "type": "nearest",
-                "data": {
-                  "tileId": "rat"
-                }
-              },
-              "cells": 3
-            },
-            "bind": {
-              "prey": {
-                "type": "nearest",
-                "data": {
-                  "tileId": "rat"
+                  "tileIds": [
+                    "player",
+                    "rat",
+                    "rabbit",
+                    "deer"
+                  ]
                 }
               }
             },
@@ -29546,12 +29862,16 @@
         "type": "consumable",
         "label": "Eat",
         "sound": "squish",
-        "hp": -1,
+        "hp": 0,
         "statuses": [
           {
             "id": "fed",
-            "fromMs": 2000,
-            "toMs": 8000
+            "fromMs": 90000,
+            "toMs": 240000
+          },
+          {
+            "id": "food-poisoning",
+            "chance": 80
           }
         ],
         "pile": 3
@@ -31909,20 +32229,24 @@
           {
             "from": "any",
             "if": {
-              "cond": "in_range",
+              "cond": "in_los",
               "of": {
                 "type": "nearest",
                 "data": {
-                  "tileId": "player"
+                  "tileIds": [
+                    "player"
+                  ]
                 }
               },
-              "cells": 4
+              "cells": 5
             },
             "bind": {
               "spooked": {
                 "type": "nearest",
                 "data": {
-                  "tileId": "player"
+                  "tileIds": [
+                    "player"
+                  ]
                 }
               }
             },

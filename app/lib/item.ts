@@ -445,6 +445,28 @@ export type ConsumableItem = {
 export type StatusGrant = {
   id: string;
   /**
+   * 0-100. How often this actually lands. Absent is certain.
+   *
+   * **This used to belong to a weapon alone**, and the argument was a good one:
+   * you chose to swallow a drink and it went down, where a bite has to get
+   * through before the venom can take. What broke it is raw meat — eating it
+   * leaves you fed every time and ill most of the time, and that "most" is not a
+   * second food, a second status, or anything a duration could say.
+   *
+   * So the chance moves up here and is optional, which keeps every consumable
+   * ever authored meaning exactly what it meant: absent is certain, and nothing
+   * on disk has to be touched. {@link WeaponStatus} narrows it back to required,
+   * because a blow's chance is the thing an author is deciding when they add
+   * one — see its note.
+   *
+   * **Not held inside the band every other chance in a fight lives in.** A hit
+   * chance and a dodge are contests, and `MIN_CHANCE`/`MAX_CHANCE` keep both
+   * ends of a contest in doubt; this is neither. It is an authored constant, and
+   * an author who writes 100 means certain while one who writes 0 means an entry
+   * they have switched off.
+   */
+  chance?: number;
+  /**
    * Overrides the status's authored range, both ends included.
    *
    * **Both or neither.** Half an override would have to be ordered against a
@@ -458,24 +480,14 @@ export type StatusGrant = {
 /**
  * A status a weapon may inflict, and how often it actually does.
  *
- * The one thing a blow has that a drink does not: **a drink always works.** You
- * chose to swallow it and it went down; a bite has to get through, and then the
- * venom has to take. So a weapon's grant carries a probability and a
- * consumable's does not, rather than both carrying one and every consumable in
- * the world being authored at a hundred percent.
+ * Exactly a {@link StatusGrant} with the chance made **required**, and that one
+ * word is the whole of the type. Nothing about a blow needs a different number
+ * from what a drink needs; what differs is that a weapon's author is deciding a
+ * probability the moment they add a row, where a food's is certain until they
+ * say otherwise. Requiring it here is what stops a venomous blade being authored
+ * as one that always brands, silently, by leaving a box empty.
  */
-export type WeaponStatus = StatusGrant & {
-  /**
-   * 0-100. How often a connecting blow leaves this behind.
-   *
-   * **Not held inside the band every other chance in a fight lives in.** A hit
-   * chance and a dodge are contests, and `MIN_CHANCE`/`MAX_CHANCE` keep both
-   * ends of a contest in doubt; this is neither. It is an authored constant, and
-   * an author who writes 100 means a brand that always burns while one who
-   * writes 0 means an entry they have switched off.
-   */
-  chance: number;
-};
+export type WeaponStatus = StatusGrant & { chance: number };
 
 /**
  * Something that holds other things.
@@ -1360,11 +1372,19 @@ const percent = v.pipe(
   v.maxValue(MAX_PERCENT_STAT),
 );
 
-/** The id, and the duration override when the granter overrides one. */
+/**
+ * The id, the duration override when the granter overrides one, and how often it
+ * lands.
+ *
+ * The chance is optional here and required on a weapon's — see
+ * {@link StatusGrant} and {@link WeaponStatus}. Absent is certain, which is what
+ * every consumable authored before it existed meant and still means.
+ */
 const statusGrantEntries = {
   id: v.pipe(v.string(), v.trim(), v.minLength(1)),
   fromMs: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
   toMs: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
+  chance: v.optional(percent),
 };
 
 /**

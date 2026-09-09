@@ -19,7 +19,7 @@ import {
 import type { Kit } from "../lib/kit";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
-import { FieldLabel, SectionTitle } from "../ui";
+import { FieldLabel, SectionTitle, Switch } from "../ui";
 import { ElementFields } from "./ElementFields";
 import { KitEditor } from "./KitEditor";
 import { StatField } from "./StatField";
@@ -123,6 +123,11 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {} }: Props) {
   const setElements = (elements: Element[]) =>
     setBattler({ ...battler, elements });
 
+  // Absent rather than an empty array, on the terms every other optional field
+  // on this block is written: a body that takes everything carries no key.
+  const setImmuneTo = (immuneTo: string[]) =>
+    setBattler({ ...battler, immuneTo: immuneTo.length ? immuneTo : undefined });
+
   const patchWeapon = (fields: Partial<WeaponItem>) => {
     setBattler({
       ...battler,
@@ -180,6 +185,17 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {} }: Props) {
         </div>
 
         <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
+          <FieldLabel info="Conditions this body simply cannot take, whatever tries to start one — the food, the blade dipped in it, the hearth or the spell. Not a resistance: a wolf is not less made ill by carrion, it eats carrion and is fine.">
+            Immune to
+          </FieldLabel>
+          <StatusToggles
+            statusDefs={statusDefs}
+            picked={battler.immuneTo ?? []}
+            onChange={setImmuneTo}
+          />
+        </div>
+
+        <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
           <FieldLabel info="Used with empty hands — a bite, a claw, fists. Anything held replaces it rather than adding to it.">
             Natural weapon
           </FieldLabel>
@@ -220,6 +236,53 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {} }: Props) {
           </dl>
         </div>
       </section>
+    </div>
+  );
+}
+
+/**
+ * Which statuses are ticked, as one toggle apiece.
+ *
+ * A row of switches rather than the searchable panel a tile picker uses, because
+ * the status catalogue is a handful of authored conditions rather than a library
+ * of hundreds — every one of them fits on screen, and a list you can see is
+ * quicker to answer "what is this immune to" from than one you have to search.
+ */
+function StatusToggles({
+  statusDefs,
+  picked,
+  onChange,
+}: {
+  statusDefs: Record<string, StatusDef>;
+  picked: readonly string[];
+  onChange: (next: string[]) => void;
+}) {
+  const catalogue = Object.values(statusDefs);
+  if (catalogue.length === 0) {
+    return (
+      <p className="text-[11px] text-muted">None authored — see the Statuses page.</p>
+    );
+  }
+
+  const has = new Set(picked);
+  return (
+    <div className="flex flex-wrap gap-x-4 gap-y-1">
+      {catalogue.map((def) => (
+        <label key={def.id} className="flex items-center gap-1.5 text-xs">
+          <Switch
+            checked={has.has(def.id)}
+            ariaLabel={`Immune to ${def.name}`}
+            onCheckedChange={(on) =>
+              onChange(
+                on
+                  ? [...picked, def.id]
+                  : picked.filter((id) => id !== def.id),
+              )
+            }
+          />
+          {def.name}
+        </label>
+      ))}
     </div>
   );
 }

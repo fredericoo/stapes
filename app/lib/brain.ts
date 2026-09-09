@@ -62,14 +62,25 @@ export const ANY_STATE = "any";
  */
 export type Selector =
   /**
-   * The nearest body standing on a named tile.
+   * The nearest body standing on any of these tiles.
    *
-   * The tile id is the whole of the test, and that one fact covers every
+   * The tiles are the whole of the test, and that one fact covers every
    * relationship authored so far. `player` is the threat everything reacts to;
    * a rat naming `rat` is a flock, because the animal a rat wants to be beside
    * is another rat; a wolf naming `wolf-alpha` is a pack with a leader. None of
    * those needed a notion of factions or herds — the world already says what
    * each body *is*, and that turns out to be the only relation any of them need.
+   *
+   * **A list rather than one tile, because the alternative was a row per tile.**
+   * A wolf that hunts deer and rabbits is one relationship — prey — and saying
+   * it as two transitions puts the *same* condition, bind and target state on
+   * two rows that must be kept in step by hand. Worse, they are two rows in an
+   * ordered table, so an author reordering one silently changes which animal a
+   * wolf prefers. `[deer, rabbit]` says the thing once, and adding a third prey
+   * is a chip rather than a row.
+   *
+   * Nearest across the whole list, not the first tile that answers: the point is
+   * that the list is one question, so the order inside it means nothing.
    *
    * A creature is never its own answer. Without that, a rat naming `rat` would
    * resolve to the rat asking and follow itself in circles.
@@ -80,12 +91,41 @@ export type Selector =
    * and it is inherent to answering "nearest" before "visible", so it is written
    * down rather than special-cased.
    *
-   * Naming a tile nothing is standing on answers nobody, exactly as an unbound
+   * Naming tiles nothing is standing on answers nobody, exactly as an unbound
    * slot does. That is what makes a brain authored against a creature the world
    * has not placed yet inert rather than broken.
    */
-  | { type: "nearest"; data: { tileId: string } }
-  /** Whoever a transition wrote down earlier, under this name. */
+  | { type: "nearest"; data: { tileIds: string[] } }
+  /**
+   * The nearest *placement* of a named tile — a bush, a chest, a campfire.
+   *
+   * {@link nearest}'s opposite number, and the split is between a body and a
+   * thing. `nearest` asks the actor list, so it answers only about tiles
+   * something is driving; a bush is a placement on the board and no actor is
+   * ever standing on it, which meant that before this existed there was no way
+   * to author a creature that walks up to one.
+   *
+   * **Answers a cell and a tile id, never a stack index**, on
+   * `../game/extract`'s `extractKey` terms: an index shifts the moment anything
+   * is placed under it, and what makes a bound thing stop being the thing you
+   * bound is the *tile* there changing. A deer that picked its bush bare is
+   * holding a cell that now says `picked-bush`, which reads as gone — so the
+   * distance conditions answer "away" and the state that was working it falls
+   * through, with nothing to author.
+   *
+   * **Bounded by {@link brainReach}.** A body is found by asking a list of
+   * actors, which is short; a placement is found by looking at the board, which
+   * is not. The furthest distance the brain ever asks about is the furthest a
+   * selector could usefully name, so that is how far the search goes — and a
+   * brain with no distance in it at all names nothing, because there is no
+   * question in it that could tell the difference.
+   *
+   * The verbs wanting a *body* — `attack`, a `heard` filter — answer nobody for
+   * it, on exactly the terms {@link home} does. A thing is a place with a name,
+   * and a place has no pulse.
+   */
+  | { type: "thing"; data: { tileIds: string[] } }
+  /** Whoever, or whatever, a transition wrote down earlier, under this name. */
   | { type: "slot"; data: { name: string } }
   /**
    * Whoever this transition just heard — the one who spoke, for a
@@ -150,9 +190,14 @@ export const SPEAKER_SELECTOR: Selector = { type: "speaker" };
 export const ATTACKER_SELECTOR: Selector = { type: "attacker" };
 export const HOME_SELECTOR: Selector = { type: "home" };
 
-/** The selector naming the nearest body on `tileId`. */
-export function nearest(tileId: string): Selector {
-  return { type: "nearest", data: { tileId } };
+/** The selector naming the nearest body on any of these tiles. */
+export function nearest(...tileIds: string[]): Selector {
+  return { type: "nearest", data: { tileIds } };
+}
+
+/** The selector naming the nearest placement of any of these tiles. */
+export function thing(...tileIds: string[]): Selector {
+  return { type: "thing", data: { tileIds } };
 }
 
 /** The selector reading back whatever a transition bound under `name`. */
@@ -160,9 +205,66 @@ export function slot(name: string): Selector {
   return { type: "slot", data: { name } };
 }
 
-/** The tile a `nearest` selector names, or null for the other kinds. */
-export function nearestTileId(selector: Selector): string | null {
-  return selector.type === "nearest" ? selector.data.tileId : null;
+/**
+ * The tiles a selector names outright, or nothing for the kinds that name none.
+ *
+ * The two live queries are the only selectors that carry tiles, and what they do
+ * with them is the same thing: a body on one, or a placement of one. Every other
+ * kind answers nothing because the tiles are not knowable without running the
+ * brain — a `slot` has to be traced back to the transitions that bind it, which
+ * is {@link slotTiles}' job, and `speaker`, `attacker` and `home` have no tile
+ * at all.
+ *
+ * Read by the editor, which uses it to say what a selector affords: a tile id is
+ * enough to look up an `extract` block and tell an author that `$bush` can be
+ * picked. @see ../components/BrainEditor
+ */
+export function tilesNamedBy(selector: Selector): readonly string[] {
+  switch (selector.type) {
+    case "nearest":
+    case "thing":
+      return selector.data.tileIds;
+    default:
+      return NO_TILES;
+  }
+}
+
+/** What a selector that names no tiles answers, shared so it costs no array. */
+const NO_TILES: readonly string[] = [];
+
+/**
+ * The tiles a slot ends up holding, or nothing when the brain does not say one
+ * thing.
+ *
+ * Every transition that binds the name gets a vote, and they have to agree: a
+ * slot bound from `nearest bush` in one row and `nearest player` in another
+ * genuinely holds either, and answering with whichever row came first would be
+ * the editor asserting something the brain does not. Agreement is about the
+ * *set*, because the order inside a list means nothing — see {@link Selector}'s
+ * `nearest`.
+ *
+ * Nothing, too, for a slot bound from `speaker`, `attacker` or another slot,
+ * which name no tile: one unknowable source is enough to make the whole answer
+ * unknown, because that is what it is.
+ */
+export function slotTiles(brain: BrainDef, name: string): readonly string[] {
+  let agreed: readonly string[] | null = null;
+  for (const transition of brain.transitions) {
+    const source = transition.bind?.[name];
+    if (!source) continue;
+    const tileIds = tilesNamedBy(source);
+    if (tileIds.length === 0) return NO_TILES;
+    if (agreed !== null && !sameTiles(agreed, tileIds)) return NO_TILES;
+    agreed = tileIds;
+  }
+  return agreed ?? NO_TILES;
+}
+
+/** Do two lists name the same set of tiles? Order inside a list means nothing. */
+function sameTiles(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const inA = new Set(a);
+  return b.every((tileId) => inA.has(tileId));
 }
 
 /** The slot a `slot` selector reads, or null for the other kinds. */
@@ -181,7 +283,9 @@ export function slotOf(selector: Selector): string | null {
 export function selectorKey(selector: Selector): string {
   switch (selector.type) {
     case "nearest":
-      return `nearest:${selector.data.tileId}`;
+      return `nearest:${selector.data.tileIds.join("+")}`;
+    case "thing":
+      return `thing:${selector.data.tileIds.join("+")}`;
     case "slot":
       return `$${selector.data.name}`;
     default:
@@ -353,7 +457,44 @@ export type BrainConditionDef =
    * `not` of it back, and nothing else has to know a conversation exists.
    * A body with no dialog block is never talking.
    */
-  | { cond: "talking" };
+  | { cond: "talking" }
+  /**
+   * There is something in this body's bag.
+   *
+   * The bag and only the bag, on `GameSession.giveExtracted`'s terms: what a
+   * body is *wearing* it is using, and what is in its bag it is merely carrying.
+   * A deer with a berry in its mouth is carrying a berry; a wolf holding a sword
+   * is not carrying one.
+   *
+   * **`tileId` is optional, and absent means anything at all**, on the reading
+   * {@link heard_noise}'s absent word takes: "is my bag empty" is a question
+   * worth asking, where "have I any tile whatever" would be the same question
+   * asked worse. Given, it is an exact tile id rather than a substring — an item
+   * is a tile, not a word, and there is nothing here to match loosely.
+   *
+   * A body with no bag is carrying nothing, which is what makes this answerable
+   * of every creature rather than only of the ones authored a container.
+   */
+  | { cond: "carrying"; tileId?: string }
+  /**
+   * This body is under a named status, with at least this long left to run.
+   *
+   * **The threshold is a floor, not a ceiling, and the `not` of it is what an
+   * author usually wants.** "Hungry" is not a status anything grants — it is the
+   * absence of enough `fed`, and saying it that way is what makes a wolf that
+   * has never eaten hungry as well as one whose meal has worn off. Asked the
+   * other way round, a creature with no `fed` at all would answer *no* to
+   * "is your fed under two minutes", which is the opposite of true.
+   *
+   * So: `not(status fed for at least 2 minutes)` is hungry, and it reads
+   * correctly on all three of the cases that exist — never fed, fed a while ago,
+   * fed just now.
+   *
+   * `atLeastMs` absent asks only whether the status is running at all, which is
+   * the whole question for a condition with no useful duration — poisoned, on
+   * fire, glowing.
+   */
+  | { cond: "status"; id: string; atLeastMs?: number };
 
 /**
  * What a transition fires on: one question, or several joined together.
@@ -445,7 +586,58 @@ export type BrainActionDef =
    * keeping the two apart is what lets an author write a creature that swings
    * but will not chase.
    */
-  | { action: "attack"; of: Selector };
+  | { action: "attack"; of: Selector }
+  /**
+   * Work a thing for what it is made of — pick a bush, chip a crystal.
+   *
+   * The player's pull and not a second one: the same reach, the same reservation
+   * held out of the shared count, the same duration stood still, the same dice
+   * thrown once at the end. A deer picking a bush takes a pull out of it that
+   * nobody else can take, and a player who walks up mid-pick finds one fewer
+   * than they would have. @see ../game/extract
+   *
+   * **Reports `running` for as long as the pull is being made**, which is what
+   * keeps the priority list from wandering off mid-pick: a `walk_n_steps` on the
+   * line below would move the body, and moving is precisely what ends a pull.
+   * The line falls through only when there is nothing to work — the selector
+   * names a body rather than a thing, the thing is out of reach, its pulls are
+   * spent or held, or the bag has no room for what could come out.
+   *
+   * Deliberately not a move, on `attack`'s terms. Getting there is
+   * `step_toward`'s job, and keeping the two apart is what lets one state read
+   * as "pick it if you can, otherwise walk to it".
+   */
+  | { action: "extract"; of: Selector }
+  /**
+   * Eat or drink something out of the bag.
+   *
+   * A kit action rather than a board one, so there is no selector: what is being
+   * consumed is something this body already has, and the only question is which.
+   * `tileId` picks it, on {@link carrying}'s terms — absent means the first
+   * consumable in the bag, whatever it is, which is what an animal does with a
+   * mouthful.
+   *
+   * **`of` moves the meal off the body and onto the board.** Given a thing
+   * selector, this eats what is lying there rather than what is in the bag —
+   * the same two places `ConsumeSource` has always had, now both reachable from
+   * a brain. It is what a wolf does with a carcass: there is no picking it up
+   * and no bag to put it in, and authoring that as "take it, then eat it" would
+   * be two turns and a backpack on an animal.
+   *
+   * Reach and cover are the board's, not this action's — the same gates a
+   * player's floor consume runs. Walking there is `step_toward`'s job, on
+   * {@link extract}'s terms.
+   *
+   * `tileId` narrows the *bag* case and is meaningless beside `of`: a bound
+   * thing already carries the tile it turned out to be.
+   *
+   * Fails when there is nothing to eat, which is the ordinary case and is what
+   * lets "eat if you have anything, otherwise go and find some" read straight
+   * down the list. It also fails on a body with no hit points to change: eating
+   * is how a consumable's `hp` and its statuses land, and a thing with neither
+   * would be food destroyed for nothing.
+   */
+  | { action: "consume"; of?: Selector; tileId?: string };
 
 /**
  * Something a state does the once, on the way in.
@@ -538,7 +730,25 @@ const stateName = v.pipe(v.string(), v.minLength(1));
 const selectorSchema = v.variant("type", [
   v.object({
     type: v.literal("nearest"),
-    data: v.object({ tileId: v.pipe(v.string(), v.minLength(1)) }),
+    data: v.object({
+      tileIds: v.pipe(
+        v.array(v.pipe(v.string(), v.minLength(1))),
+        // At least one, because a selector naming nothing is a row that can only
+        // ever answer nobody — authored, almost certainly, by mistake.
+        v.minLength(1),
+      ),
+    }),
+  }),
+  v.object({
+    type: v.literal("thing"),
+    data: v.object({
+      tileIds: v.pipe(
+        v.array(v.pipe(v.string(), v.minLength(1))),
+        // At least one, because a selector naming nothing is a row that can only
+        // ever answer nobody — authored, almost certainly, by mistake.
+        v.minLength(1),
+      ),
+    }),
   }),
   v.object({
     type: v.literal("slot"),
@@ -584,6 +794,22 @@ const leafSchema = v.variant("cond", [
   v.object({ cond: v.literal("stuck") }),
   v.object({ cond: v.literal("attacked") }),
   v.object({ cond: v.literal("talking") }),
+  v.object({
+    // Optional, like `heard_noise`'s word and for the same reason: absent is the
+    // authored way to say "anything at all", so an empty box in the editor
+    // cannot come to mean a third thing.
+    cond: v.literal("carrying"),
+    tileId: v.optional(v.pipe(v.string(), v.minLength(1))),
+  }),
+  v.object({
+    cond: v.literal("status"),
+    // A status id from `data/statuses.json`, which this module has never seen —
+    // so a string, on the terms a `nearest` tile id is one. An id the catalogue
+    // does not hold is a condition that never holds, which is what a renamed
+    // status should cost.
+    id: v.pipe(v.string(), v.minLength(1)),
+    atLeastMs: v.optional(durationMs),
+  }),
 ]);
 
 const ifSchema = conditionSchema<BrainConditionDef>(leafSchema);
@@ -636,6 +862,12 @@ const actionSchema = v.variant("action", [
     allowDrops,
   }),
   v.object({ action: v.literal("attack"), of: selectorSchema }),
+  v.object({ action: v.literal("extract"), of: selectorSchema }),
+  v.object({
+    action: v.literal("consume"),
+    of: v.optional(selectorSchema),
+    tileId: v.optional(v.pipe(v.string(), v.minLength(1))),
+  }),
 ]);
 
 const effectSchema = v.variant("effect", [
@@ -791,6 +1023,11 @@ const reachCache = new WeakMap<BrainDef, number>();
  *
  * Read off the authored conditions rather than written down beside them, so a
  * brain given longer ears is given a longer reach in the same edit.
+ *
+ * It bounds the {@link Selector} `thing` search for the same reason and by the
+ * same argument, one step further out: a placement further away than the
+ * furthest question in the brain cannot change any answer the brain gives, so
+ * there is nothing to be gained by walking the board looking for it.
  */
 export function brainReach(brain: BrainDef): number {
   const cached = reachCache.get(brain);

@@ -256,10 +256,10 @@ describe("eating off the floor", () => {
     );
 
     expect(session.actorSnapshots()).toEqual([]);
-    // The body is off the board too, not just the runtime — and what it was
-    // carrying is on the floor where it fell, poison being a death like any
-    // other.
-    expect(tilesAt(session, 0, 0)).toEqual(["grass", "basic-bag"]);
+    // The body is off the board too, not just the runtime. Nothing is lying
+    // there because the bag was empty and a dead body's bag is destroyed rather
+    // than dropped — poison being a death like any other.
+    expect(tilesAt(session, 0, 0)).toEqual(["grass"]);
   });
 
   it("refuses one two cells away", () => {
@@ -949,5 +949,86 @@ describe("drinking the luminous potion, as authored", () => {
     expect(session.getSnapshot().equipment.bag?.contents?.map((i) => i.tileId)).toEqual([
       "empty-bottle",
     ]);
+  });
+});
+
+/**
+ * Raw meat, end to end and as authored.
+ *
+ * The one consumable in the world whose grants are a gamble: it feeds you every
+ * time and turns your stomach most of the time, and the "most" is the whole
+ * reason a chance moved onto `StatusGrant` at all. Read against
+ * `data/tiles.json` and `data/statuses.json` together, so a typo in either
+ * fails here rather than in a browser.
+ */
+describe("eating raw meat, as authored", () => {
+  const catalogue = statusesById(statusesJson);
+
+  /** The wolf as authored, plus the two tiles a test board needs. */
+  const carnivores: TileDef[] = [
+    ...tiles,
+    ...normalizeTiles(tilesJson as unknown[]).filter((t) =>
+      ["raw-meat", "wolf"].includes(t.id),
+    ),
+  ];
+
+  function meatWorld(seed: number, eater = "player"): GameSession {
+    let map = replaceStack(field(), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "raw-meat" },
+    ]);
+    if (eater !== "player") {
+      map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: eater }]);
+    }
+    return new GameSession(map, carnivores, { statuses: catalogue, seed });
+  }
+
+  function heldBy(session: GameSession, id: string): string[] {
+    return (session.statusesOf(id) ?? []).map((one) => one.defId);
+  }
+
+  it("always feeds, and does not take a bite out of you", () => {
+    const session = meatWorld(1);
+    const before = hpOf(session);
+
+    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(
+      true,
+    );
+
+    expect(heldBy(session, "local")).toContain("fed");
+    expect(hpOf(session)).toBe(before);
+  });
+
+  /**
+   * Eighty percent, so across a spread of seeds it lands on most of them and not
+   * on all of them. Counted rather than asserted per seed, because which seed
+   * comes up which way is the dice's business and not this test's.
+   */
+  it("turns your stomach most of the time, but not always", () => {
+    const ill = [...Array(20).keys()].filter((seed) => {
+      const session = meatWorld(seed);
+      session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
+      return heldBy(session, "local").includes("food-poisoning");
+    });
+
+    expect(ill.length).toBeGreaterThan(0);
+    expect(ill.length).toBeLessThan(20);
+  });
+
+  /**
+   * What a wolf *is*: it lives on carrion, so carrion cannot be what makes it
+   * ill. Every seed, because an immunity is not a resistance — there is no roll
+   * left to come up the other way.
+   */
+  it("never makes a wolf ill, whatever the dice say", () => {
+    for (const seed of [...Array(20).keys()]) {
+      const session = meatWorld(seed, "wolf");
+      const wolf = session
+        .actorIds()
+        .find((id) => id !== "local" && id !== "alice")!;
+      session.consume({ kind: "floor", ref: refAt(session, 1, 0) }, wolf);
+
+      expect(heldBy(session, wolf)).toEqual(["fed"]);
+    }
   });
 });

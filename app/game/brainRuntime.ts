@@ -28,6 +28,30 @@ export type SightLevels = BattlerDef["sight"];
  */
 
 /**
+ * What a selector resolves to: somebody, or something.
+ *
+ * The two are kept apart all the way through rather than flattened to a
+ * coordinate, because the verbs care which they have. `attack` wants a body and
+ * has nothing to swing at otherwise; `extract` wants a thing and cannot work a
+ * body; the distance conditions want a cell and take either.
+ *
+ * **A thing is a cell and a tile id, never a stack index.** That is
+ * `./extract`'s `extractKey` rule and it is here for its reason: an index
+ * shifts the moment anything is placed under it, and what should end a
+ * commitment to a bush is the bush ceasing to be a bush. A deer holding a cell
+ * that now reads `picked-bush` is holding nothing, which every condition already
+ * knows how to answer.
+ */
+export type Bound =
+  | { readonly kind: "body"; readonly id: string }
+  | { readonly kind: "thing"; readonly at: Coord; readonly tileId: string };
+
+/** The actor a bound target names, or null when it names a place. */
+export function boundBody(bound: Bound | null): string | null {
+  return bound?.kind === "body" ? bound.id : null;
+}
+
+/**
  * Where a creature is in its machine.
  *
  * Lives on the actor runtime and nowhere else — deliberately absent from the
@@ -41,13 +65,15 @@ export type BrainMemory = {
   /** Milliseconds spent in {@link state}, which is all `after` reads. */
   msInState: number;
   /**
-   * Who this creature has its eye on, as `slot -> actor id`.
+   * What this creature has its eye on, as `slot -> body or thing`.
    *
    * Written by a transition's `bind` and read by whatever state it leads to.
    * Outlives the state that set it, deliberately: a chase is one commitment
-   * held across several states, not a question re-asked in each.
+   * held across several states, not a question re-asked in each. A deer's
+   * commitment to one bush out of a hedge of them is the same thing said about
+   * a place. @see Bound
    */
-  blackboard: Record<string, string>;
+  blackboard: Record<string, Bound>;
   /**
    * Every action failed the last time this state had a turn.
    *
@@ -129,11 +155,12 @@ export type ActionStatus = "success" | "failure" | "running";
  * Somewhere a creature has set off for.
  *
  * A body or a place, because those are the only two things a selector can name
- * — every selector but `home` resolves to somebody, and `home` is a cell. The
- * distinction is kept all the way through rather than flattened to a coordinate
- * at the moment of asking, and that is the point of the type: a chase re-reads
- * where its quarry *is* on every leg, so a wolf follows a player across a
- * courtyard instead of walking to where they were standing when it decided.
+ * — see {@link Bound}, whose two arms these are once a thing has been resolved
+ * to the cell it stands in. The distinction is kept all the way through rather
+ * than flattened to a coordinate at the moment of asking, and that is the point
+ * of the type: a chase re-reads where its quarry *is* on every leg, so a wolf
+ * follows a player across a courtyard instead of walking to where they were
+ * standing when it decided.
  */
 export type WalkGoal =
   | { readonly of: "body"; readonly id: string }
@@ -141,6 +168,17 @@ export type WalkGoal =
 
 /** What became of a standing walk order. @see BrainContext.walkTo */
 export type WalkOrderState = "walking" | "arrived" | "blocked";
+
+/**
+ * A placement a search turned up: where it is, and which of the asked-for tiles
+ * it turned out to be.
+ *
+ * The tile travels back because the question may have named several — see
+ * {@link Selector}'s `nearest` — and what gets written into a slot is the one
+ * thing that answered. A bound "carcass or haunch" that remembered the *list*
+ * would still be there after the carcass was eaten.
+ */
+export type FoundThing = { readonly at: Coord; readonly tileId: string };
 
 export type BrainContext = {
   /** Still finishing a walk, a fall, or a shove. */
@@ -159,13 +197,35 @@ export type BrainContext = {
    */
   home: Coord | null;
   /**
-   * Nearest other body standing on `tileId`, or null when there is none — a
-   * world with nobody in it, or a creature that is the last of its kind. Never
-   * this creature itself. @see NEAREST_PREFIX
+   * Nearest other body standing on any of these tiles, or null when there is
+   * none — a world with nobody in it, or a creature that is the last of its
+   * kind. Nearest across the whole list rather than the first tile that answers,
+   * because the list is one question. Never this creature itself.
    */
-  nearestOnTile(tileId: string): string | null;
+  nearestOnTile(tileIds: readonly string[]): string | null;
+  /**
+   * Nearest placement of any of these tiles, or null when there is none near
+   * enough — and which tile it turned out to be. @see FoundThing
+   *
+   * {@link nearestOnTile}'s opposite number — a thing rather than a body — and
+   * the one capability here with a search radius baked in rather than passed.
+   * The radius is the brain's own `brainReach`, which the session closes over,
+   * because a placement further off than the furthest question in the brain
+   * cannot change any answer it gives. @see ../lib/brain
+   */
+  nearestThing(tileIds: readonly string[]): FoundThing | null;
   /** Where an actor is, or null once they are off the board. */
   positionOf(actorId: string): Coord | null;
+  /**
+   * Is `tileId` still standing at this cell?
+   *
+   * What makes a bound thing expire. A body is asked after through
+   * {@link positionOf}, which answers null once it has left the board; a place
+   * cannot leave, so what has to be re-asked is whether it is still the thing
+   * that was bound. Both answers feed the same conditions, so a picked bush
+   * reads exactly as a quarry that walked off.
+   */
+  thingStillThere(at: Coord, tileId: string): boolean;
   /**
    * Is this body mid-conversation? What the `talking` condition reads.
    *
@@ -315,6 +375,54 @@ export type BrainContext = {
    */
   attack(actorId: string): boolean;
   /**
+   * Work a thing for what it is made of, and keep working it.
+   *
+   * True while a pull is being made — started on this turn, or already running
+   * from an earlier one. That single answer is what the `extract` action reports
+   * as `running`, and running is what stops the priority list from wandering off
+   * mid-pick: a pull ends the moment the body moves, so a lower line that
+   * stepped would undo the line above it every time.
+   *
+   * False for every way there is nothing to work: out of reach, spent, every
+   * remaining pull held by somebody else, or no room in the bag for the best
+   * roll. The action falls through and the author's next line gets its turn.
+   * @see ../game/extract
+   */
+  extract(at: Coord, tileId: string): boolean;
+  /**
+   * Eat or drink something out of the bag. False when there was nothing to eat.
+   *
+   * A tile id picks what; absent takes the first consumable in the bag. Both
+   * refusals — an empty bag and a body with no hit points for the food to land
+   * on — read the same to an author, because both are a line with nothing to
+   * offer.
+   */
+  consume(tileId: string | undefined): boolean;
+  /**
+   * Eat something lying at a cell. False when it is out of reach, buried, or no
+   * longer the thing that was bound.
+   *
+   * {@link consume}'s other half rather than a widened version of it, because
+   * the two cross different lines: this is a board action with the reach and
+   * cover a pickup runs, where that one is a kit action. The split is
+   * `ConsumeSource`'s own, kept all the way out to here.
+   */
+  consumeOn(at: Coord, tileId: string): boolean;
+  /**
+   * Is there something in the bag? What the `carrying` condition reads.
+   *
+   * A tile id narrows it; absent asks whether the bag holds anything at all.
+   * @see ../lib/brain's `carrying`
+   */
+  carrying(tileId: string | undefined): boolean;
+  /**
+   * Is a named status running on this body, with at least `atLeastMs` left?
+   *
+   * What the `status` condition reads. Absent asks only whether it is running.
+   * @see ../lib/brain's `status`
+   */
+  hasStatus(id: string, atLeastMs: number | undefined): boolean;
+  /**
    * What to call somebody out loud, or null once they are off the board.
    *
    * The one capability here that exists purely for words. Everything else an
@@ -403,8 +511,11 @@ function fillSlots(
   // from touching the regex on every state entry in the world.
   if (!text.includes("{")) return text;
   return text.replace(SLOT_PLACEHOLDER, (_whole, name: string) => {
-    const id = memory.blackboard[name];
-    return (id === undefined ? null : ctx.nameOf(id)) ?? NOBODY;
+    // A thing has no name to say out loud, so it reads as {@link NOBODY} on the
+    // same terms an empty slot does — the sentence still has to be a sentence,
+    // and "I'm busy with the bush" is not what the placeholder is for.
+    const id = boundBody(memory.blackboard[name] ?? null);
+    return (id === null ? null : ctx.nameOf(id)) ?? NOBODY;
   });
 }
 
@@ -430,32 +541,51 @@ function footing(
 }
 
 /**
- * Who a selector names, right now.
+ * What a selector names, right now.
  *
  * One arm per kind, exhaustively — which is the half of the tagged shape that
  * pays off here: a new kind added to the union is a type error in this switch
- * rather than a selector that silently answers nobody.
+ * rather than a selector that silently answers nothing.
+ *
+ * A `home` is a place the *session* holds rather than one a selector carries,
+ * which is why it is the one kind with no arm: it is answered a level up, by
+ * {@link locate} and {@link aim}, both of which already have to know the
+ * difference between a place and a body. Answering nothing here is what makes
+ * `attack: home` fall through and `bind: { x: home }` clear its slot, without
+ * either needing a case.
  */
 function identify(
   selector: Selector,
   memory: BrainMemory,
   ctx: BrainContext,
-): string | null {
+): Bound | null {
   switch (selector.type) {
     case "slot":
       return memory.blackboard[selector.data.name] ?? null;
     case "speaker":
-      return memory.heardFrom;
+      return asBody(memory.heardFrom);
     case "attacker":
-      return memory.hurtBy;
+      return asBody(memory.hurtBy);
     case "nearest":
-      return ctx.nearestOnTile(selector.data.tileId);
-    // A place is not a body, and this is the question about bodies. Answering
-    // nobody is what makes `attack: home` fall through and `bind: { x: home }`
-    // clear its slot, rather than either needing a case of its own.
+      return asBody(ctx.nearestOnTile(selector.data.tileIds));
+    case "thing": {
+      const found = ctx.nearestThing(selector.data.tileIds);
+      // The tile that *answered*, not the list that was asked: what a bound
+      // thing has to remember is the one standing there, so a wolf that bound
+      // "the nearest carcass or haunch" is committed to the particular thing it
+      // found rather than to either of them.
+      return found === null
+        ? null
+        : { kind: "thing", at: found.at, tileId: found.tileId };
+    }
     case "home":
       return null;
   }
+}
+
+/** An actor id as a bound target, or null for nobody. */
+function asBody(id: string | null): Bound | null {
+  return id === null ? null : { kind: "body", id };
 }
 
 /** Where a selector's subject is, or null when there is nothing to point at. */
@@ -464,11 +594,24 @@ function locate(
   memory: BrainMemory,
   ctx: BrainContext,
 ): Coord | null {
-  // The one selector that is already a place. Everything else is a body, and a
-  // body has to be found before it can be pointed at.
+  // The one selector that is a place the session holds rather than one a bind
+  // wrote down.
   if (selector.type === "home") return ctx.home;
-  const id = identify(selector, memory, ctx);
-  return id === null ? null : ctx.positionOf(id);
+  return whereIs(identify(selector, memory, ctx), ctx);
+}
+
+/**
+ * Where a bound target is now, or null once it is gone.
+ *
+ * Both kinds have a way of going, and both answer null for it: a body walks off
+ * the board, and a thing stops being the thing that was bound. That one answer
+ * is why a picked bush and a quarry who logged out read identically to every
+ * distance condition. @see Bound
+ */
+function whereIs(bound: Bound | null, ctx: BrainContext): Coord | null {
+  if (!bound) return null;
+  if (bound.kind === "body") return ctx.positionOf(bound.id);
+  return ctx.thingStillThere(bound.at, bound.tileId) ? bound.at : null;
 }
 
 /**
@@ -478,18 +621,28 @@ function locate(
  * of why a chase keeps up: `locate` answers where the subject is *now*, which
  * is what a flight has to measure against, while this answers *what* to follow
  * and leaves the looking-up to whoever presses the next leg. @see WalkGoal
+ *
+ * A thing is handed over as the cell it stands in, because it is not going
+ * anywhere — the re-reading a body needs is exactly what it does not. Its cell
+ * is still checked first, so a creature does not set off across a field towards
+ * a bush that has since been picked.
  */
 function aim(
   selector: Selector,
   memory: BrainMemory,
   ctx: BrainContext,
 ): WalkGoal | null {
-  // The one selector that is already a place, on {@link locate}'s terms.
+  // The one selector that is a place the session holds, on {@link locate}'s
+  // terms.
   if (selector.type === "home") {
     return ctx.home ? { of: "cell", at: ctx.home } : null;
   }
-  const id = identify(selector, memory, ctx);
-  return id === null ? null : { of: "body", id };
+  const bound = identify(selector, memory, ctx);
+  if (!bound) return null;
+  if (bound.kind === "body") return { of: "body", id: bound.id };
+  return ctx.thingStillThere(bound.at, bound.tileId)
+    ? { of: "cell", at: bound.at }
+    : null;
 }
 
 /** Steps apart on the plan, ignoring elevation. */
@@ -617,7 +770,9 @@ function voiceCounts(
   ctx: BrainContext,
 ): boolean {
   if (!filter) return true;
-  const wanted = identify(filter.of, memory, ctx);
+  // A filter naming a *thing* names nobody, on exactly the terms one naming an
+  // unbound slot does: nobody is the bush, and every voice is not it.
+  const wanted = boundBody(identify(filter.of, memory, ctx));
   return filter.match === "is" ? wanted === speakerId : wanted !== speakerId;
 }
 
@@ -689,6 +844,10 @@ function leafHolds(
       return struckBy(memory, ctx);
     case "talking":
       return ctx.talking();
+    case "carrying":
+      return ctx.carrying(condition.tileId);
+    case "status":
+      return ctx.hasStatus(condition.id, condition.atLeastMs);
   }
 }
 
@@ -815,11 +974,30 @@ function runAction(
       return "running";
     }
     case "attack": {
-      const id = identify(action.of, memory, ctx);
+      // A thing has no pulse, so it answers here the way an empty slot does.
+      const id = boundBody(identify(action.of, memory, ctx));
       // Nobody in the slot. A failure rather than a stand-still, so a state can
       // read "hit them, else chase them, else hold" straight down the list.
       if (id === null) return "failure";
       return ctx.attack(id) ? "success" : "failure";
+    }
+    case "extract": {
+      const bound = identify(action.of, memory, ctx);
+      // A body is not a resource, on the terms a thing is not a target: the
+      // mirror of `attack`'s refusal, and the line falls through either way.
+      if (bound?.kind !== "thing") return "failure";
+      // Running rather than success, because a pull is something this creature
+      // is part-way through: a lower line that stepped would end it.
+      return ctx.extract(bound.at, bound.tileId) ? "running" : "failure";
+    }
+    case "consume": {
+      // The bag, unless the author named something on the board.
+      if (!action.of) return ctx.consume(action.tileId) ? "success" : "failure";
+      const bound = identify(action.of, memory, ctx);
+      // A body is not a meal, on the terms it is not a resource: the same
+      // refusal `extract` makes of the wrong kind of selector.
+      if (bound?.kind !== "thing") return "failure";
+      return ctx.consumeOn(bound.at, bound.tileId) ? "success" : "failure";
     }
     case "step_toward": {
       const goal = aim(action.of, memory, ctx);
@@ -877,11 +1055,11 @@ function applyBind(
 ) {
   if (!transition.bind) return;
   for (const [slot, selector] of Object.entries(transition.bind)) {
-    const id = identify(selector, memory, ctx);
-    if (id === null) {
+    const bound = identify(selector, memory, ctx);
+    if (bound === null) {
       delete memory.blackboard[slot];
     } else {
-      memory.blackboard[slot] = id;
+      memory.blackboard[slot] = bound;
     }
   }
 }

@@ -7,6 +7,9 @@ import {
   nearest,
   resolveBrain,
   slot,
+  slotTiles,
+  thing,
+  type BrainActionDef,
   type BrainCondition,
   type BrainConditionDef,
   type BrainDef,
@@ -283,6 +286,8 @@ describe("deciding", () => {
       self,
       home: null,
       nearestOnTile: () => null,
+      nearestThing: () => null,
+      thingStillThere: () => false,
       positionOf: () => null,
       wouldDrop: () => false,
       walkTo: (goal: WalkGoal): WalkOrderState => standingOrder(built, goal),
@@ -299,6 +304,11 @@ describe("deciding", () => {
       talking: () => false,
       hurtBy: () => [],
       attack: vi.fn(() => false),
+      extract: vi.fn(() => false),
+      consume: vi.fn(() => false),
+      consumeOn: vi.fn(() => false),
+      carrying: () => false,
+      hasStatus: () => false,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -1018,6 +1028,8 @@ describe("giving up", () => {
       self: { x: 0, y: 0, z: 0 },
       home: null,
       nearestOnTile: () => null,
+      nearestThing: () => null,
+      thingStillThere: () => false,
       positionOf: () => null,
       wouldDrop: () => false,
       walkTo: (): WalkOrderState => "blocked",
@@ -1032,6 +1044,11 @@ describe("giving up", () => {
       talking: () => false,
       hurtBy: () => [],
       attack: () => false,
+      extract: () => false,
+      consume: () => false,
+      consumeOn: () => false,
+      carrying: () => false,
+      hasStatus: () => false,
       nameOf: (id: string) => id,
     };
 
@@ -1230,6 +1247,8 @@ describe("actions that take time", () => {
       self,
       home: null,
       nearestOnTile: () => null,
+      nearestThing: () => null,
+      thingStillThere: () => false,
       positionOf: () => null,
       wouldDrop: () => false,
       walkTo: (goal: WalkGoal): WalkOrderState => standingOrder(built, goal),
@@ -1246,6 +1265,11 @@ describe("actions that take time", () => {
       talking: () => false,
       hurtBy: () => [],
       attack: vi.fn(() => false),
+      extract: vi.fn(() => false),
+      consume: vi.fn(() => false),
+      consumeOn: vi.fn(() => false),
+      carrying: () => false,
+      hasStatus: () => false,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -1350,7 +1374,7 @@ describe("actions that take time", () => {
       transitions: [],
     };
     const memory = initialMemory(brain);
-    memory.blackboard.friend = "alice";
+    memory.blackboard.friend = { kind: "body", id: "alice" };
 
     // Somebody to walk towards, or nobody — which is the whole of whether the
     // line above the count gets to run.
@@ -1665,6 +1689,8 @@ describe("a deer that yelps", () => {
       self: { x: 0, y: 0, z: 0 },
       home: null,
       nearestOnTile: () => null,
+      nearestThing: () => null,
+      thingStillThere: () => false,
       positionOf: () => null,
       wouldDrop: () => false,
       walkTo: (): WalkOrderState => "blocked",
@@ -1679,6 +1705,11 @@ describe("a deer that yelps", () => {
       talking: () => false,
       hurtBy: () => [],
       attack: () => false,
+      extract: () => false,
+      consume: () => false,
+      consumeOn: () => false,
+      carrying: () => false,
+      hasStatus: () => false,
       nameOf: (id: string) => id,
     };
 
@@ -1742,6 +1773,8 @@ describe("a deer that yelps", () => {
       self: { x: 0, y: 0, z: 0 },
       home: null,
       nearestOnTile: () => null,
+      nearestThing: () => null,
+      thingStillThere: () => false,
       positionOf: () => null,
       wouldDrop: () => false,
       walkTo: (): WalkOrderState => "blocked",
@@ -1756,6 +1789,11 @@ describe("a deer that yelps", () => {
       talking: () => false,
       hurtBy: () => [],
       attack: () => false,
+      extract: () => false,
+      consume: () => false,
+      consumeOn: () => false,
+      carrying: () => false,
+      hasStatus: () => false,
       nameOf: (id: string) => id,
     };
 
@@ -2395,6 +2433,8 @@ describe("composing conditions", () => {
       self: { x: 0, y: 0, z: 0 },
       home: null,
       nearestOnTile: () => null,
+      nearestThing: () => null,
+      thingStillThere: () => false,
       positionOf: () => ({ x: 0, y: 0, z: 0 }),
       wouldDrop: () => false,
       walkTo: (): WalkOrderState => "arrived",
@@ -2409,6 +2449,11 @@ describe("composing conditions", () => {
       talking: () => false,
       hurtBy: () => [],
       attack: vi.fn(() => false),
+      extract: vi.fn(() => false),
+      consume: vi.fn(() => false),
+      consumeOn: vi.fn(() => false),
+      carrying: () => false,
+      hasStatus: () => false,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -3089,6 +3134,8 @@ describe("knowing where it belongs", () => {
       self,
       home: BURROW,
       nearestOnTile: () => null,
+      nearestThing: () => null,
+      thingStillThere: () => false,
       positionOf: () => null,
       wouldDrop: () => false,
       walkTo: (goal: WalkGoal): WalkOrderState => standingOrder(built, goal),
@@ -3105,6 +3152,11 @@ describe("knowing where it belongs", () => {
       talking: () => false,
       hurtBy: () => [],
       attack: vi.fn(() => false),
+      extract: vi.fn(() => false),
+      consume: vi.fn(() => false),
+      consumeOn: vi.fn(() => false),
+      carrying: () => false,
+      hasStatus: () => false,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -3239,7 +3291,7 @@ describe("knowing where it belongs", () => {
       ],
     };
     const memory = initialMemory(brain);
-    memory.blackboard.target = "someone-else";
+    memory.blackboard.target = { kind: "body", id: "someone-else" };
 
     stepBrain(brain, memory, BRAIN_TICK_MS, ctx());
 
@@ -4078,5 +4130,491 @@ describe("how far a brain looks", () => {
       ],
     };
     expect(brainReach(brain)).toBe(40);
+  });
+});
+
+/**
+ * A creature that works the world rather than only reacting to it.
+ *
+ * Three new pieces meeting, and the whole point is that they are the *same*
+ * pieces a player uses: a selector that names a placement, the pull a player
+ * makes out of it, and the eating a player does afterwards. What is under test
+ * here is the joining, so the fixtures are as small as a bush and a berry get.
+ */
+describe("browsing a bush", () => {
+  const BUSH_CELLS = 6;
+  /** Short, so a pull lands in a few brain ticks rather than a minute. */
+  const PULL_MS = BRAIN_TICK_MS * 8;
+
+  /**
+   * Walk to the bush, pick it, eat what came out.
+   *
+   * Read as three priority lines rather than three states on purpose: `extract`
+   * fails until the creature is standing beside the thing, which is exactly what
+   * lets the line under it do the walking.
+   */
+  function browserBrain(): BrainDef {
+    return {
+      initial: "graze",
+      states: {
+        graze: { do: [{ action: "step_random" }, { action: "hold" }] },
+        browsing: {
+          do: [
+            { action: "extract", of: slot("bush") },
+            { action: "step_toward", of: slot("bush") },
+            { action: "hold" },
+          ],
+        },
+        chewing: {
+          do: [{ action: "consume", tileId: "berry" }, { action: "hold" }],
+        },
+      },
+      transitions: [
+        {
+          from: "browsing",
+          if: { cond: "carrying", tileId: "berry" },
+          to: "chewing",
+        },
+        {
+          from: "chewing",
+          if: group<BrainConditionDef>("and", [
+            { cond: "carrying", tileId: "berry" },
+          ], true),
+          to: "graze",
+        },
+        {
+          from: "graze",
+          if: { cond: "in_los", of: thing("bush"), cells: BUSH_CELLS },
+          bind: { bush: thing("bush") },
+          to: "browsing",
+        },
+        {
+          from: "browsing",
+          if: { cond: "out_of_los", of: slot("bush"), cells: BUSH_CELLS },
+          to: "graze",
+        },
+      ],
+    };
+  }
+
+  const browsers: TileDef[] = [
+    ...tiles,
+    tile({
+      id: "berry",
+      height: 0,
+      kind: "item",
+      intangible: true,
+      interactions: { item: { type: "consumable", label: "Eat", hp: 1 } },
+    }),
+    tile({
+      id: "pouch",
+      height: 0,
+      kind: "item",
+      intangible: true,
+      interactions: { item: { type: "container", size: 4, equippable: true } },
+    }),
+    tile({ id: "picked-bush", height: 2, walkable: false }),
+    tile({
+      id: "bush",
+      height: 2,
+      walkable: false,
+      interactions: {
+        extract: {
+          actionName: "Pick",
+          durability: 1,
+          tileId: "picked-bush",
+          durationMs: PULL_MS,
+          slots: [{ tileId: "berry", chance: 100 }],
+        },
+      },
+    }),
+    tile({
+      id: "browser",
+      height: 2,
+      kind: "battler",
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: {
+        brain: browserBrain(),
+        battler: {
+          baseHp: 8,
+          masteries: { toughness: 8 },
+          naturalWeapon: {
+            type: "weapon",
+            damage: 0,
+            def: 0,
+            accuracy: 50,
+            variance: 50,
+            spd: 20,
+            mastery: "fist",
+          },
+          kit: [{ slot: "bag", tileId: "pouch", chance: 100 }],
+        },
+      },
+    }),
+  ];
+
+  /** A browser at the origin, a bush three cells east, a player far away. */
+  function hedge(bodyTileId = "browser"): GameSession {
+    let map = field(6);
+    map = replaceStack(map, -6, -6, 0, [{ tileId: "grass" }]);
+    map = withDeer(map, 0, 0, bodyTileId);
+    map = replaceStack(map, 3, 0, 0, [{ tileId: "grass" }, { tileId: "bush" }]);
+    // Close enough to keep the creature awake — brains only think while
+    // somebody could notice them — and far enough to be no part of the story.
+    map = withPlayerAt(map, 0, 6);
+    return new GameSession(map, browsers, {
+      actorIds: ["alice"],
+      spawnAt: { x: -6, y: -6, z: 0, stackIndex: 1 },
+    });
+  }
+
+  function tilesAt(session: GameSession, x: number, y: number): string[] {
+    return getStack(session.getMap(), x, y, 0).map((placed) => placed.tileId);
+  }
+
+  it("walks to a bush it can see, picks it, and eats what came out", () => {
+    const session = hedge();
+
+    advance(session, BRAIN_TICK_MS * 20);
+
+    // The bush is spent and has become what its author named.
+    expect(tilesAt(session, 3, 0)).toEqual(["grass", "picked-bush"]);
+    // And the berry is neither in the bag nor on the floor, because it was
+    // eaten — which is the whole of what `consume` was for.
+    expect(tilesAt(session, 2, 0)).toEqual(["grass"]);
+  });
+
+  it("holds the line it is picking on rather than wandering off mid-pull", () => {
+    const session = hedge();
+
+    // Long enough to arrive and start the pull, well short of finishing it.
+    advance(session, BRAIN_TICK_MS * 4);
+    const standing = deerCell(session);
+    expect(standing).toBe("2,0");
+
+    advance(session, PULL_MS / 2);
+
+    // Still there — and it is the pull holding it, since the line under
+    // `extract` is one that would have walked it away.
+    expect(deerCell(session)).toBe(standing);
+  });
+});
+
+/**
+ * The two ways a selector can name a place, and what expires them.
+ *
+ * A `thing` is the one selector that answers about the board rather than about
+ * the actor list, so the cases worth pinning are the edges where it and a body
+ * differ: what a verb wanting a pulse does with it, and what happens when the
+ * tile it named stops being that tile.
+ */
+describe("naming a thing", () => {
+  const BUSH_AT = { x: 2, y: 0, z: 0 };
+
+  function ctx(overrides: Partial<Parameters<typeof stepBrain>[3]> = {}) {
+    const built = {
+      busy: false,
+      rng: new Rng(1),
+      self: { x: 0, y: 0, z: 0 },
+      home: null,
+      nearestOnTile: () => null,
+      nearestThing: (tileIds: readonly string[]) =>
+        tileIds.includes("bush") ? { at: BUSH_AT, tileId: "bush" } : null,
+      thingStillThere: () => true,
+      positionOf: () => null,
+      wouldDrop: () => false,
+      walkTo: (): WalkOrderState => "walking",
+      fleeFrom: (): WalkOrderState => "walking",
+      step: () => true,
+      say: vi.fn(),
+      noise: vi.fn(),
+      canSee: () => true,
+      sight: { up: 0, down: 0 },
+      heard: () => [],
+      heardNoise: () => [],
+      talking: () => false,
+      hurtBy: () => [],
+      attack: vi.fn(() => false),
+      extract: vi.fn(() => true),
+      consume: vi.fn(() => false),
+      consumeOn: vi.fn(() => false),
+      carrying: () => false,
+      hasStatus: () => false,
+      nameOf: (id: string) => id,
+      ...overrides,
+    } satisfies Parameters<typeof stepBrain>[3];
+    return built;
+  }
+
+  /** Bind the bush on the way in, then run one action against the slot. */
+  function bindingBrain(action: BrainActionDef): BrainDef {
+    return {
+      initial: "idle",
+      states: { idle: { do: [] }, working: { do: [action] } },
+      transitions: [
+        {
+          from: "idle",
+          if: { cond: "in_range", of: thing("bush"), cells: 4 },
+          bind: { bush: thing("bush") },
+          to: "working",
+        },
+      ],
+    };
+  }
+
+  it("writes a cell and a tile into the slot, not an actor id", () => {
+    const brain = bindingBrain({ action: "hold" });
+    const memory = initialMemory(brain);
+
+    stepBrain(brain, memory, BRAIN_TICK_MS, ctx());
+
+    expect(memory.blackboard.bush).toEqual({
+      kind: "thing",
+      at: BUSH_AT,
+      tileId: "bush",
+    });
+  });
+
+  it("works the thing in the slot", () => {
+    const brain = bindingBrain({ action: "extract", of: slot("bush") });
+    const memory = initialMemory(brain);
+    const c = ctx();
+
+    stepBrain(brain, memory, BRAIN_TICK_MS, c);
+
+    expect(c.extract).toHaveBeenCalledWith(BUSH_AT, "bush");
+  });
+
+  // The mirror of `attack` refusing a thing: neither verb quietly does the
+  // other's job when the selector is the wrong kind.
+  it("refuses to work a body, and to swing at a thing", () => {
+    const swinging = bindingBrain({ action: "attack", of: slot("bush") });
+    const swung = initialMemory(swinging);
+    const swingCtx = ctx();
+    stepBrain(swinging, swung, BRAIN_TICK_MS, swingCtx);
+    expect(swingCtx.attack).not.toHaveBeenCalled();
+
+    const working = bindingBrain({ action: "extract", of: nearest("player") });
+    const worked = initialMemory(working);
+    const workCtx = ctx({ nearestOnTile: () => "alice" });
+    stepBrain(working, worked, BRAIN_TICK_MS, workCtx);
+    expect(workCtx.extract).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The whole reason a bound thing is a cell *and* a tile. A bush that has been
+   * picked bare is a different tile in the same cell, and the commitment to it
+   * has to end by itself — with nothing authored to notice.
+   */
+  it("loses a thing whose tile has changed under it", () => {
+    const brain: BrainDef = {
+      ...bindingBrain({ action: "hold" }),
+      transitions: [
+        ...bindingBrain({ action: "hold" }).transitions,
+        {
+          from: "working",
+          if: { cond: "out_of_range", of: slot("bush"), cells: 8 },
+          to: "idle",
+        },
+      ],
+    };
+    const memory = initialMemory(brain);
+
+    stepBrain(brain, memory, BRAIN_TICK_MS, ctx());
+    expect(memory.state).toBe("working");
+
+    // Picked: the cell still exists, and what is standing in it does not.
+    stepBrain(brain, memory, BRAIN_TICK_MS, ctx({ thingStillThere: () => false }));
+    expect(memory.state).toBe("idle");
+  });
+
+  it("is bounded by how far the brain looks", () => {
+    expect(brainReach(bindingBrain({ action: "hold" }))).toBe(4);
+  });
+});
+
+describe("what a slot turns out to hold", () => {
+  function bindingFrom(...sources: Selector[]): BrainDef {
+    return {
+      initial: "idle",
+      states: { idle: { do: [] } },
+      transitions: sources.map((of) => ({
+        from: "idle",
+        if: { cond: "stuck" } as BrainCondition,
+        bind: { quarry: of },
+        to: "idle",
+      })),
+    };
+  }
+
+  it("is the tiles every transition binding it agrees on", () => {
+    expect(slotTiles(bindingFrom(thing("bush")), "quarry")).toEqual(["bush"]);
+    expect(
+      slotTiles(bindingFrom(nearest("deer", "rabbit"), nearest("deer", "rabbit")), "quarry"),
+    ).toEqual(["deer", "rabbit"]);
+  });
+
+  // Agreement is about the *set*: the order inside a list means nothing, so two
+  // rows naming the same prey either way round are one answer rather than none.
+  it("ignores the order inside a list", () => {
+    expect(
+      slotTiles(bindingFrom(nearest("deer", "rabbit"), nearest("rabbit", "deer")), "quarry"),
+    ).toHaveLength(2);
+    expect(
+      slotTiles(bindingFrom(nearest("deer", "rabbit"), nearest("rabbit", "wolf")), "quarry"),
+    ).toEqual([]);
+  });
+
+  it("is nothing when they disagree, or when one names no tile", () => {
+    expect(slotTiles(bindingFrom(thing("bush"), nearest("wolf")), "quarry"))
+      .toEqual([]);
+    expect(slotTiles(bindingFrom(SPEAKER_SELECTOR), "quarry")).toEqual([]);
+  });
+
+  it("is nothing for a name no transition binds", () => {
+    expect(slotTiles(bindingFrom(thing("bush")), "nobody")).toEqual([]);
+  });
+});
+
+/**
+ * Hunger, and eating what is lying there.
+ *
+ * Two additions that only make sense together: a wolf goes for a carcass because
+ * it is hungry, and "hungry" is not a status anything grants — it is the absence
+ * of enough `fed`. So the condition is a floor and the `not` of it is what an
+ * author writes.
+ */
+describe("asking what a body is under", () => {
+  function ctx(overrides: Partial<Parameters<typeof stepBrain>[3]> = {}) {
+    const built = {
+      busy: false,
+      rng: new Rng(1),
+      self: { x: 0, y: 0, z: 0 },
+      home: null,
+      nearestOnTile: () => null,
+      nearestThing: () => null,
+      thingStillThere: () => true,
+      positionOf: () => null,
+      wouldDrop: () => false,
+      walkTo: (): WalkOrderState => "walking",
+      fleeFrom: (): WalkOrderState => "walking",
+      step: () => true,
+      say: vi.fn(),
+      noise: vi.fn(),
+      canSee: () => true,
+      sight: { up: 0, down: 0 },
+      heard: () => [],
+      heardNoise: () => [],
+      talking: () => false,
+      hurtBy: () => [],
+      attack: vi.fn(() => false),
+      extract: vi.fn(() => false),
+      consume: vi.fn(() => false),
+      consumeOn: vi.fn(() => true),
+      carrying: () => false,
+      hasStatus: vi.fn(() => false),
+      nameOf: (id: string) => id,
+      ...overrides,
+    } satisfies Parameters<typeof stepBrain>[3];
+    return built;
+  }
+
+  /** Goes to `alert` when `condition` holds. */
+  function watching(condition: BrainCondition): BrainDef {
+    return {
+      initial: "idle",
+      states: { idle: { do: [] }, alert: { do: [] } },
+      transitions: [{ from: "idle", if: condition, to: "alert" }],
+    };
+  }
+
+  function ran(brain: BrainDef, c: Parameters<typeof stepBrain>[3]): string {
+    const memory = initialMemory(brain);
+    stepBrain(brain, memory, BRAIN_TICK_MS, c);
+    return memory.state;
+  }
+
+  const SATED_MS = 120_000;
+
+  it("asks the body, passing the id and the floor through", () => {
+    const c = ctx();
+    ran(watching({ cond: "status", id: "fed", atLeastMs: SATED_MS }), c);
+    expect(c.hasStatus).toHaveBeenCalledWith("fed", SATED_MS);
+  });
+
+  it("asks only whether it is running when no floor is given", () => {
+    const c = ctx();
+    ran(watching({ cond: "status", id: "poison" }), c);
+    expect(c.hasStatus).toHaveBeenCalledWith("poison", undefined);
+  });
+
+  /**
+   * The three cases hunger has to read correctly, and the reason the condition
+   * is a floor with a `not` over it rather than a ceiling: a body that has never
+   * eaten is the one a ceiling gets wrong.
+   */
+  it("reads hunger as the absence of enough fed", () => {
+    const hungry = watching(
+      group<BrainConditionDef>(
+        "and",
+        [{ cond: "status", id: "fed", atLeastMs: SATED_MS }],
+        true,
+      ),
+    );
+
+    // Never eaten, and a meal that has nearly worn off: both hungry.
+    expect(ran(hungry, ctx({ hasStatus: () => false }))).toBe("alert");
+    // Just eaten: not.
+    expect(ran(hungry, ctx({ hasStatus: () => true }))).toBe("idle");
+  });
+
+  it("eats what is lying there when the line names a thing", () => {
+    const brain: BrainDef = {
+      initial: "eating",
+      states: { eating: { do: [{ action: "consume", of: thing("raw-meat") }] } },
+      transitions: [],
+    };
+    const c = ctx({
+      nearestThing: () => ({ at: { x: 1, y: 0, z: 0 }, tileId: "raw-meat" }),
+    });
+
+    stepBrain(brain, initialMemory(brain), BRAIN_TICK_MS, c);
+
+    expect(c.consumeOn).toHaveBeenCalledWith({ x: 1, y: 0, z: 0 }, "raw-meat");
+    // And not out of the bag, which is the other thing this verb does.
+    expect(c.consume).not.toHaveBeenCalled();
+  });
+
+  it("goes to the bag when the line names nothing", () => {
+    const brain: BrainDef = {
+      initial: "eating",
+      states: { eating: { do: [{ action: "consume", tileId: "berry" }] } },
+      transitions: [],
+    };
+    const c = ctx();
+
+    stepBrain(brain, initialMemory(brain), BRAIN_TICK_MS, c);
+
+    expect(c.consume).toHaveBeenCalledWith("berry");
+    expect(c.consumeOn).not.toHaveBeenCalled();
+  });
+
+  // A body is not a meal, on the terms it is not a resource.
+  it("refuses to eat somebody", () => {
+    const brain: BrainDef = {
+      initial: "eating",
+      states: {
+        eating: { do: [{ action: "consume", of: nearest("player") }] },
+      },
+      transitions: [],
+    };
+    const c = ctx({ nearestOnTile: () => "alice" });
+
+    stepBrain(brain, initialMemory(brain), BRAIN_TICK_MS, c);
+
+    expect(c.consumeOn).not.toHaveBeenCalled();
+    expect(c.consume).not.toHaveBeenCalled();
   });
 });

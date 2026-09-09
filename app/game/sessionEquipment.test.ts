@@ -1453,10 +1453,13 @@ describe("dying with something on you", () => {
    * assertion about which cell the kit landed in a coin toss.
    */
   function doomed(): GameSession {
-    const map = replaceStack(field(), 1, 1, 0, [
+    let map = replaceStack(field(), 1, 1, 0, [
       { tileId: "grass" },
       { tileId: SWORD },
     ]);
+    // Something to put *in* the bag, for the test about what spilling leaves
+    // behind. Left where it lies by every other case here.
+    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "cherry" }]);
     const session = new GameSession(map, tiles);
     session.pickUp(refAt(session, 1, 1));
     session.moveItem({ kind: "contents", index: 0 }, { kind: "weapon" });
@@ -1473,11 +1476,19 @@ describe("dying with something on you", () => {
     advance(session, LONG_ENOUGH_TO_KILL_MS);
 
     expect(session.actorIds()).not.toContain(LOCAL_ACTOR_ID);
-    expect(tilesAt(session, 0, 0)).toEqual([
-      "grass",
-      SWORD,
-      BAG_TILE_ID,
-    ]);
+    // The bag is gone rather than lying there: what was in it is what is worth
+    // walking over to, and dropping the pack whole made a killing one tap.
+    expect(tilesAt(session, 0, 0)).toEqual(["grass", SWORD]);
+  });
+
+  it("spills what was in the bag rather than dropping the bag", () => {
+    const session = doomed();
+    session.pickUp(refAt(session, 0, 1));
+
+    advance(session, LONG_ENOUGH_TO_KILL_MS);
+
+    // The cherry was in the bag and is on the floor; the bag it was in is not.
+    expect(tilesAt(session, 0, 0)).toEqual(["grass", SWORD, "cherry"]);
   });
 
   it("keeps the identity of everything it drops", () => {

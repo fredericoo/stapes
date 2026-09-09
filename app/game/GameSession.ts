@@ -44,7 +44,7 @@ import type {
   PlacedTile,
   TileDef,
 } from "../lib/types";
-import { MIN_LEVEL, isDirectional, resolveActor } from "../lib/types";
+import { MAX_LEVEL, MIN_LEVEL, isDirectional, resolveActor } from "../lib/types";
 import {
   canPlace,
   canReplaceStack,
@@ -179,6 +179,7 @@ import {
   HANDS,
   handToSwing,
   otherHand,
+  spilled,
   stoneIn,
   stoneLocked,
   weaponInHand,
@@ -282,6 +283,8 @@ import {
   initialMemory,
   stepBrain,
   type BrainMemory,
+  type FoundThing,
+  type SightLevels,
   type Sound,
   type Utterance,
   type WalkGoal,
@@ -3122,12 +3125,31 @@ export class GameSession implements PlaySession {
     // transitioned out of chasing stops rather than walking out a plan the
     // state that wanted it has left. @see ActorRuntime.walkOrder
     actor.walkOrder = null;
+    // A creature with no stat block minds its own floor, which is what every
+    // creature did before this was authorable.
+    const sight = this.battlerOf(actor)?.sight ?? DEFAULT_BATTLER.sight;
+    // The board is walked to answer a `thing` selector, so the same question
+    // asked twice on one turn — once by the condition that noticed the bush and
+    // once by the bind that commits to it — is answered once. Per turn rather
+    // than per tick of the world: what it caches is a fact about the board that
+    // a creature's own step can change.
+    const thingsFound = new Map<string, FoundThing | null>();
+    const reach = brainReach(brain);
     stepBrain(brain, actor.brain, tickMs, {
       busy: !this.idle(actor),
       rng: this.rng,
       self: { x: loc.x, y: loc.y, z: loc.z },
       home: actor.home,
-      nearestOnTile: (tileId) => this.nearestOnTile(actor.id, loc, tileId),
+      nearestOnTile: (tileIds) => this.nearestOnTile(actor.id, loc, tileIds),
+      nearestThing: (tileIds) => {
+        const key = tileIds.join("+");
+        const known = thingsFound.get(key);
+        if (known !== undefined) return known;
+        const found = this.nearestThing(loc, new Set(tileIds), reach, sight);
+        thingsFound.set(key, found);
+        return found;
+      },
+      thingStillThere: (at, tileId) => this.thingStillThere(at, tileId),
       positionOf: (id) => this.actorCell(id),
       wouldDrop: (direction) => this.stepLeavesGround(loc, direction),
       step: (direction) =>
@@ -3139,13 +3161,16 @@ export class GameSession implements PlaySession {
       noise: (text) => this.recordNoise(actor.id, loc, text),
       canSee: (at) => this.canSeeFrom(actor, loc, at),
       talking: () => this.anyoneTalkingTo(actor.id),
-      // A creature with no stat block minds its own floor, which is what every
-      // creature did before this was authorable.
-      sight: this.battlerOf(actor)?.sight ?? DEFAULT_BATTLER.sight,
+      sight,
       heard: () => this.pendingHeard,
       heardNoise: () => soundsHeardBy(sounds, actor.id),
       hurtBy: () => this.pendingHurt.get(actor.id) ?? EMPTY_ATTACKERS,
       attack: (id) => this.tryAttack(actor, id),
+      extract: (at, tileId) => this.extractForBrain(actor, at, tileId),
+      consume: (tileId) => this.consumeForBrain(actor, tileId),
+      consumeOn: (at, tileId) => this.consumeOnGround(actor, at, tileId),
+      carrying: (tileId) => this.carryingInBag(actor, tileId),
+      hasStatus: (id, atLeastMs) => this.hasStatus(actor, id, atLeastMs),
       nameOf: (id) => this.bodyName(id),
     });
   }
@@ -4264,7 +4289,7 @@ export class GameSession implements PlaySession {
    * the rule a shoved crate follows.
    */
   private dropKit(equipment: Equipment, at: Coord): Equipment {
-    const carried = wornInstances(equipment);
+    const carried = spilled(equipment, this.tilesById);
     if (carried.length === 0) return equipment;
 
     const placements = carried.map(placementFromInstance);
@@ -4421,6 +4446,15 @@ export class GameSession implements PlaySession {
   ) {
     const def = this.statusDefs[grant.id];
     if (!def) return;
+    // **One gate, whatever brought it.** A wolf that cannot be made ill by raw
+    // meat cannot be made ill by a blade dipped in it either, and putting the
+    // check on the body rather than beside each source is what makes that true
+    // without anybody having to remember it. @see BattlerDef.immuneTo
+    // The *body's* authored block, not `battlerOf`'s equipment-and-status
+    // arithmetic: an immunity is a fact about what a wolf is, and reading it
+    // through a projection that statuses feed into would let a status decide
+    // whether a status may be applied.
+    if (resolveBattler(this.defFor(actor))?.immuneTo?.includes(grant.id)) return;
     // The item's range where it states one, and the status's own otherwise —
     // see `../lib/item`'s `StatusGrant`. Both ends or neither, so this
     // cannot end up ordering one source's floor against another's ceiling.
@@ -5523,24 +5557,29 @@ export class GameSession implements PlaySession {
   private nearestOnTile(
     selfId: string,
     from: Coord,
-    tileId: string,
+    tileIds: readonly string[],
   ): string | null {
     let best: string | null = null;
     let bestSteps = Infinity;
-    for (const id of this.actorsOnTile(tileId)) {
-      if (id === selfId) continue;
-      const actor = this.actors.get(id);
-      if (!actor) continue;
-      const loc = this.tryLocate(actor);
-      // The tile is re-checked against the board rather than taken from the
-      // index. Positions are read live here — the index only ever says who is
-      // worth asking about — so an entry that has gone stale costs a lookup
-      // instead of naming the wrong body.
-      if (!loc || loc.placed.tileId !== tileId) continue;
-      const steps = Math.abs(loc.x - from.x) + Math.abs(loc.y - from.y);
-      if (steps < bestSteps) {
-        bestSteps = steps;
-        best = actor.id;
+    // Across the whole list rather than the first tile that answers: the list is
+    // one question, so a wolf offered a rabbit at nine cells and a deer at two
+    // goes for the deer whichever way round they were authored.
+    for (const tileId of tileIds) {
+      for (const id of this.actorsOnTile(tileId)) {
+        if (id === selfId) continue;
+        const actor = this.actors.get(id);
+        if (!actor) continue;
+        const loc = this.tryLocate(actor);
+        // The tile is re-checked against the board rather than taken from the
+        // index. Positions are read live here — the index only ever says who is
+        // worth asking about — so an entry that has gone stale costs a lookup
+        // instead of naming the wrong body.
+        if (!loc || loc.placed.tileId !== tileId) continue;
+        const steps = Math.abs(loc.x - from.x) + Math.abs(loc.y - from.y);
+        if (steps < bestSteps) {
+          bestSteps = steps;
+          best = actor.id;
+        }
       }
     }
     return best;
@@ -5556,6 +5595,245 @@ export class GameSession implements PlaySession {
   private actorsOnTile(tileId: string): readonly string[] {
     this.tileIndex ??= this.buildTileIndex();
     return this.tileIndex.get(tileId) ?? NO_ACTORS;
+  }
+
+  /**
+   * The nearest cell within `cells` holding a placement of `tileId`, or null.
+   *
+   * {@link nearestOnTile}'s opposite number, and the two are different problems
+   * wearing the same sentence. A body is found by walking a list of actors,
+   * which is short and indexed; a placement is found by looking at the board,
+   * which is neither — so where that one has no radius at all, this one is
+   * bounded on every side.
+   *
+   * **Rings outward and stops at the first one that answers.** The nearest
+   * anything is overwhelmingly close: a deer beside a hedge finds its bush in
+   * ring one and reads four columns, where a scan of the square would read every
+   * column inside the radius to prove the same thing. The whole radius is only
+   * ever walked by a creature with nothing of the kind anywhere near it, which
+   * is the case where there is genuinely nothing cheaper to do.
+   *
+   * **Levels are the creature's own sight band**, which is the same reading
+   * `within` takes of a body: a deer authored to mind its own storey does not
+   * notice the bush on the balcony, and a hawk given `{ up: 2, down: 2 }` reads
+   * the whole stairwell. Nothing here asks whether the thing is *reachable* —
+   * that is the verb's question, and a bush behind a wall is still a bush the
+   * animal can see the top of.
+   *
+   * Ties inside a ring break on scan order, which is fixed, so a seeded world
+   * stays reproducible on the terms {@link nearestOnTile}'s insertion order keeps
+   * it.
+   */
+  private nearestThing(
+    from: Coord,
+    tileIds: ReadonlySet<string>,
+    cells: number,
+    sight: SightLevels,
+  ): FoundThing | null {
+    for (let ring = 0; ring <= cells; ring++) {
+      const found = this.thingInRing(from, tileIds, ring, sight);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  /**
+   * The first placement of `tileId` exactly `ring` steps away on the plan, or
+   * null.
+   *
+   * Walked as the diamond it is — every cell whose plan distance is exactly the
+   * ring — rather than as a square with the inside skipped, so the work done is
+   * the ring itself and a search that answers early has read nothing further out.
+   */
+  private thingInRing(
+    from: Coord,
+    tileIds: ReadonlySet<string>,
+    ring: number,
+    sight: SightLevels,
+  ): FoundThing | null {
+    for (let dx = -ring; dx <= ring; dx++) {
+      const dy = ring - Math.abs(dx);
+      // At the poles of the diamond the two rows are the same row, and reading
+      // it twice would only find the same cell again.
+      for (const y of dy === 0 ? [from.y] : [from.y - dy, from.y + dy]) {
+        const found = this.thingInColumn(from.x + dx, y, from.z, tileIds, sight);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  /** The nearest floor in this column holding `tileId`, within the sight band. */
+  private thingInColumn(
+    x: number,
+    y: number,
+    fromZ: number,
+    tileIds: ReadonlySet<string>,
+    sight: SightLevels,
+  ): FoundThing | null {
+    for (let dz = -sight.down; dz <= sight.up; dz++) {
+      const z = fromZ + dz;
+      if (z < MIN_LEVEL || z > MAX_LEVEL) continue;
+      for (const placed of getStack(this.map, x, y, z)) {
+        if (tileIds.has(placed.tileId)) {
+          return { at: { x, y, z }, tileId: placed.tileId };
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Work a thing on a creature's behalf, and say whether a pull is under way.
+   *
+   * **The player's `extract` and nothing beside it.** The reservation, the
+   * duration stood still, the interruption on a step, the single roll at the end
+   * — a deer picking a bush takes a pull nobody else can take, and a player
+   * walking up mid-pick finds one fewer than they would have. That shared path
+   * is the whole reason the action is one line here.
+   *
+   * **A pull already running on this placement answers true rather than being
+   * started again**, which is what makes the action report `running` for the
+   * whole of a pick. Restarting is what {@link canBeginExtract} refuses, and
+   * treating that refusal as a failure would put the creature back at the top of
+   * its priority list every tick and walk it away from the bush it is holding.
+   *
+   * The stack slot is found from the tile rather than remembered, on
+   * {@link extractKey}'s terms: an index shifts when anything is placed under
+   * it, and the tile is what the commitment was ever about.
+   */
+  private extractForBrain(
+    actor: ActorRuntime,
+    at: Coord,
+    tileId: string,
+  ): boolean {
+    const run = actor.extraction;
+    if (
+      run &&
+      run.tileId === tileId &&
+      run.ref.x === at.x &&
+      run.ref.y === at.y &&
+      run.ref.z === at.z
+    ) {
+      return true;
+    }
+    const stackIndex = getStack(this.map, at.x, at.y, at.z).findIndex(
+      (placed) => placed.tileId === tileId,
+    );
+    if (stackIndex < 0) return false;
+    return this.extract({ ...at, stackIndex }, actor.id);
+  }
+
+  /**
+   * Eat something out of a creature's bag, and say whether anything was eaten.
+   *
+   * The first match in bag order, which is the order an author sees in the panel
+   * and the order a pull poured into. Nothing here picks the *best* thing to eat
+   * — a creature that should prefer one food over another says so by naming it,
+   * which is what the tile id is for.
+   *
+   * Through {@link consume} rather than beside it, so an animal eating a poison
+   * berry takes the damage, the status and the sound a player would.
+   */
+  private consumeForBrain(
+    actor: ActorRuntime,
+    tileId: string | undefined,
+  ): boolean {
+    const index = this.edibleInBag(actor, tileId);
+    if (index === null) return false;
+    return this.consume(
+      { kind: "slot", slot: { kind: "contents", index } },
+      actor.id,
+    );
+  }
+
+  /**
+   * Eat what is lying at a cell, on a creature's behalf.
+   *
+   * The player's floor consume and nothing beside it — reach, cover and
+   * idleness, the gates a pickup runs — so a wolf cannot eat a carcass through a
+   * wall or from under a crate. The stack slot is found from the tile rather
+   * than remembered, on {@link extractForBrain}'s terms.
+   */
+  private consumeOnGround(
+    actor: ActorRuntime,
+    at: Coord,
+    tileId: string,
+  ): boolean {
+    const stackIndex = getStack(this.map, at.x, at.y, at.z).findIndex(
+      (placed) => placed.tileId === tileId,
+    );
+    if (stackIndex < 0) return false;
+    return this.consume(
+      { kind: "floor", ref: { ...at, stackIndex } },
+      actor.id,
+    );
+  }
+
+  /**
+   * Is a status running on this body, with at least this long left?
+   *
+   * Read off the live instances rather than through `battlerOf`, which is where
+   * statuses are *applied* to the numbers: what this asks is whether one is
+   * there, and the arithmetic it feeds is nothing to do with it.
+   */
+  private hasStatus(
+    actor: ActorRuntime,
+    id: string,
+    atLeastMs: number | undefined,
+  ): boolean {
+    return actor.statuses.some(
+      (instance) =>
+        instance.defId === id &&
+        (atLeastMs === undefined || instance.remainingMs >= atLeastMs),
+    );
+  }
+
+  /**
+   * Where in the bag the thing to eat is, or null when there is nothing.
+   *
+   * A named tile still has to be a consumable to be found: naming one that is
+   * not is an authored mistake, and answering with its square would spend a turn
+   * on a {@link consume} that refuses.
+   */
+  private edibleInBag(
+    actor: ActorRuntime,
+    tileId: string | undefined,
+  ): number | null {
+    const contents = actor.equipment.bag?.contents ?? [];
+    for (const [index, instance] of contents.entries()) {
+      if (tileId !== undefined && instance.tileId !== tileId) continue;
+      const def = this.tilesById[instance.tileId];
+      if (def && resolveConsumable(def)) return index;
+    }
+    return null;
+  }
+
+  /**
+   * Is there something in this creature's bag? What `carrying` reads.
+   *
+   * The bag alone, on {@link giveExtracted}'s terms: what a body wears it is
+   * using, and what is in its bag it is merely carrying. A body with no bag
+   * carries nothing, which is the answer for every creature nobody has authored
+   * a container onto.
+   */
+  private carryingInBag(actor: ActorRuntime, tileId: string | undefined): boolean {
+    const contents = actor.equipment.bag?.contents ?? [];
+    if (tileId === undefined) return contents.length > 0;
+    return contents.some((instance) => instance.tileId === tileId);
+  }
+
+  /**
+   * Is `tileId` still standing at this cell? What a bound thing is re-asked.
+   *
+   * The cell and the tile, which is `extractKey`'s pair and is here for its
+   * reason: a bush that has been picked bare is a `picked-bush`, and the whole
+   * point of naming the tile is that the commitment to it ends by itself.
+   */
+  private thingStillThere(at: Coord, tileId: string): boolean {
+    return getStack(this.map, at.x, at.y, at.z).some(
+      (placed) => placed.tileId === tileId,
+    );
   }
 
   private buildTileIndex(): Map<string, string[]> {
@@ -5827,7 +6105,14 @@ export class GameSession implements PlaySession {
     // kills you has already handed it over — and after the sound, on the same
     // grounds: by the time a fatal number has landed there is no body left to
     // hang anything on.
-    for (const grant of consumable.statuses ?? []) {
+    //
+    // Drawn through the same function a swing's brands go through, so a
+    // hundred means the same thing on a blade and on a supper — and drawn for
+    // *every* row whether or not it is certain, on the fixed-draw-count
+    // discipline. @see ./combat's `inflictedBy`
+    const grants = consumable.statuses ?? [];
+    const rolls = grants.map(() => this.rng.next());
+    for (const grant of inflictedBy(grants, rolls)) {
       this.grantStatus(actor, grant);
     }
 
@@ -7176,8 +7461,16 @@ export class GameSession implements PlaySession {
    * Private and deliberately narrow: everything that puts a line in front of a
    * player goes through here, so there is one place to look when asking what the
    * game is capable of saying. @see ./notices
+   *
+   * **A resident is told nothing, and the queue is why.** Notices are drained
+   * per socket — see {@link drainNotices} — so a line addressed to a body with
+   * no owner is one nobody ever takes away. That was harmless while only players
+   * could work the board and stopped being harmless the moment a brain could
+   * pick a bush: a hedge and a herd of deer would grow this list without bound
+   * for the length of the world's life.
    */
   private say(actorId: string, text: string) {
+    if (this.actors.get(actorId)?.resident) return;
     this.pendingNotices.push({ actorId, text });
   }
 

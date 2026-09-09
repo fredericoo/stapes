@@ -4085,6 +4085,158 @@ player's pull is still running on the body they left.
   being that thing" a check rather than a special case, and it is what stops a
   reservation being handed back to whatever tile replaced the one it was taken
   from.
+
+## A brain can name a place, work it, and eat what came out
+
+Everything a brain could name used to be a *body* — `nearest` walks the actor
+list, and nothing is ever standing on a bush. So a creature could hunt you,
+flock, flee and go and look at a noise, and could not walk up to a bush. Three
+pieces closed that, and the point of all three is that they are the pieces a
+player already uses rather than a parallel set for animals.
+
+- **The `thing` selector names the nearest *placement* of a tile.** `nearest`'s
+  opposite number. It answers a cell and a tile id, never a stack index, which is
+  `extractKey`'s pair and is here for its reason: an index shifts when anything
+  is placed under it, and what should end a commitment to a bush is the bush
+  ceasing to be a bush. A deer that picked one bare is holding a cell that now
+  reads `picked-bush`, so `out_of_los $bush` fires with nothing authored to
+  notice it.
+- **The blackboard holds a body *or* a place**, as `Bound`. That is what makes a
+  bush a commitment rather than a question re-asked every tick, on the grounds
+  `slot` already exists for: a creature standing between two bushes would
+  otherwise flip between them. The verbs that want a pulse — `attack`, a `heard`
+  filter, a `{slot}` in a spoken line — read a thing as nobody, exactly as they
+  read `home`.
+- **`extract` and `consume` are the player's own.** `GameSession.extract` and
+  `.consume` were already actor-generic, so a deer's pull holds a reservation
+  nobody else can take, is lost the moment the deer steps, and rolls its dice
+  once at the end — and a berry it eats lands its `hp` and its statuses through
+  the damage path a player's poison apple takes. `extract` reports `running` for
+  the whole of a pick, which is what stops a lower line in the priority list from
+  stepping and ending the pull it is under.
+- **`carrying` reads the bag and only the bag.** What a body wears it is using;
+  what is in its bag it is merely carrying. A body with no bag carries nothing,
+  which is the answer for every creature nobody authored a container onto — and
+  it is why the deer's kit gained a `basic-bag`. Extraction stows into the bag
+  and nowhere else, so a deer without one can stand beside a bush and be unable
+  to touch it.
+
+**The search is bounded by `brainReach`**, and that bound is the whole of what
+keeps this affordable. A body is found by walking a list of actors, which is
+short and indexed by tile; a placement is found by looking at the board, which is
+neither. A thing further away than the furthest question in the brain cannot
+change any answer the brain gives, so that is how far `nearestThing` looks — and
+a brain with no distance in it at all names nothing. It rings outward and stops
+at the first ring that answers, because the nearest anything is overwhelmingly
+close: a deer beside a hedge reads four columns, where a scan of the square would
+read every column inside the radius to prove the same thing. The answer is
+memoised for the length of one creature's turn, so the condition that notices the
+bush and the bind that commits to it cost one search between them.
+
+`data/tiles.json`'s deer is what this was built for, and it now reads as an
+animal: it flees on `in_los` rather than `in_range` — it cannot run from
+something it cannot see — and otherwise browses, picks and chews. Wolves hunt
+deer and rabbits and snakes strike at rabbits, which is two more transitions each
+and no new machinery.
+
+**A selector names a list of tiles, not one.** A wolf that hunts deer and
+rabbits is one relationship — prey — and saying it as two transitions put the
+same condition, bind and target state on two rows that had to be kept in step by
+hand. Worse, they were two rows in an *ordered* table, so reordering one
+silently changed which animal a wolf preferred. `nearest [deer, rabbit]` says it
+once, and a third prey is a chip rather than a row. Nearest is across the whole
+list rather than the first tile that answers, because the list is one question —
+which is also why agreement between two binds is about the *set*.
+
+The editor's picker changed shape for it: there is no dropdown row for "deer and
+rabbit but not wolf", so the kind and the tiles are two controls. A `Select`
+picks the question and removable chips pick what it is about, with the last chip
+refusing to come off — a selector naming nothing is one the schema refuses, and
+removing it would make the brain inert for what looks like an ordinary click.
+
+**Hunger is the absence of enough `fed`, not a status.** The `status` condition
+takes a *floor* — "running, with at least this long left" — and the `not` of it
+is what an author writes. Asked the other way round, as a ceiling, a creature
+that has never eaten answers *no* to "is your fed under two minutes", which is
+the opposite of true. As a floor with a `not` it reads correctly on all three
+cases that exist: never fed, fed a while ago, fed just now. A wolf gates every
+hunting transition on it and none of its fleeing or homing ones, so appetite
+decides whether a chase *starts* and never interrupts one — and being hit is
+above the gate, because a wolf you attack fights back fed or not.
+
+**`consume` eats out of the bag or off the board.** Given a thing selector it
+takes what is lying there, which is what a wolf does with a carcass: there is no
+picking it up and no bag to put it in, and authoring that as "take it, then eat
+it" would be two turns and a backpack on an animal. The two arms are
+`ConsumeSource`'s own, kept all the way out to the brain.
+
+**The editor says what a selector names.** `slotTileId` traces `$bush` back to
+the transitions that bind it and answers only when they agree; `affordancesOf`
+turns that tile into the words on the row — `Bush · pick`, in the author's own
+`actionName`. It annotates and deliberately neither filters the verb picker nor
+refuses a save: an author mid-way through re-pointing a row has a line that
+momentarily makes no sense, and a UI that argued about it would argue on every
+keystroke.
+
+**A resident is told nothing.** Notices are drained per socket, so a line
+addressed to a body with no owner is one nobody ever takes away. That was
+harmless while only players could work the board and stopped being harmless the
+moment a brain could pick a bush — a hedge and a herd would grow `pendingNotices`
+without bound for the life of the world. `GameSession.say` drops them at the
+door.
+
+## A status can be a gamble, and a body can be immune to one
+
+Two changes to how a condition is handed over, both forced by one item.
+
+**A `StatusGrant` carries an optional chance.** It used to belong to a weapon
+alone and the argument was a good one: you chose to swallow a drink and it went
+down, where a bite has to get through before the venom can take. Raw meat broke
+it — eating it leaves you fed every time and ill most of the time, and that
+"most" is not a second food, a second status, or anything a duration could say.
+So the chance moved onto the shared shape and is optional there, which keeps
+every consumable ever authored meaning exactly what it meant: absent is certain,
+and nothing on disk had to be touched. `WeaponStatus` narrows it back to
+required, because a blow's chance is the thing an author is deciding the moment
+they add a row.
+
+Both are drawn through `combat`'s `inflictedBy`, so a hundred means the same
+thing on a blade and on a supper — and a certain row is still *drawn* for, on the
+fixed-draw-count discipline a swing and an extract are under.
+
+It also deleted a whole escape hatch: `StatusGrants` had an `extra` prop whose
+only user was the weapon's chance column, and folding the column in removed both.
+
+**`BattlerDef.immuneTo` is the one kind of resistance that is not a number.**
+Everything else about taking damage is arithmetic — armour subtracts, an element
+multiplies — and arithmetic is right for things that hurt more or less. A
+condition is not one of those: a wolf is not ninety percent less made ill by
+carrion, it eats carrion and is fine. So it is a list of status ids, checked in
+`grantStatus` and nowhere else — which is the one gate every source goes through,
+so an immunity holds against the food, the blade dipped in it, the hearth and the
+spell alike without any of them knowing about it.
+
+Read off the *body's* authored block rather than through `battlerOf`, which is
+where statuses feed into the numbers: reading it there would let a status decide
+whether a status may be applied.
+
+## A dead body's bag is destroyed and its contents spill
+
+Dropping the pack whole was the simpler rule and it made a killing a single
+pickup: one bag on the ground, everything inside it, gone in one gesture and
+never sorted through. `spilled` puts the contents on the floor as things instead,
+so what a fight was worth is what is lying there, and it costs the winner the
+walk over it rather than a tap.
+
+The bag slot alone, though a hand may hold a container too. That slot is not a
+place a container happens to be, it *is* the inventory — a pack carried in a hand
+is a thing you are holding on exactly the terms a crate is, and widening this
+would mean a player who died carrying a chest lost the chest. Nothing nests, so
+one level of spilling is the whole of it.
+
+It applies to players exactly as it does to a deer, which is the point: there is
+one death, and a deer that had picked a bush leaves the berries it was carrying.
+
 ## Decay is a switch whose input is time
 
 `DecayInteraction` turns a placement into another tile, or into nothing, once it
