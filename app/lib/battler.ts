@@ -145,6 +145,28 @@ export type BattlerDef = {
    * {@link bodyElements}. Nothing reads this field alone.
    */
   elements?: Element[];
+  /**
+   * Statuses this body simply cannot take, by id.
+   *
+   * **The only kind of resistance that is not a number.** Everything else about
+   * taking damage is arithmetic — armour subtracts, an element multiplies — and
+   * arithmetic is right for things that hurt *more or less*. A condition is not
+   * one of those: a wolf is not ninety percent less made ill by carrion, it eats
+   * carrion and is fine, and the honest way to say that is a list rather than a
+   * hundred percent resistance that a stacked source could still get past.
+   *
+   * **Checked where a status is applied and nowhere else** — see
+   * `../game/GameSession`'s `grantStatus`, which is the one gate every source
+   * goes through. So an immunity holds against the food, the blade dipped in it,
+   * the hearth and the spell alike, without any of them knowing about it. That
+   * is the whole reason it lives on the body rather than beside each source.
+   *
+   * Optional and absent means "takes everything", which is every body in the
+   * world but the ones an author has said otherwise about. An id the status
+   * catalogue no longer holds is an immunity to nothing, on the terms a kit
+   * naming a deleted tile is: content moved on, and nothing breaks.
+   */
+  immuneTo?: string[];
 };
 
 /**
@@ -854,6 +876,10 @@ const battlerSchema = v.object({
   // predates it — and absent reads as neutral, which is what almost every body
   // in the world is.
   elements: v.optional(v.array(v.picklist(ELEMENTS))),
+  // Ids rather than a picklist, because the status catalogue is authored data
+  // this module has never seen — the same reason a kit names a tile id. One the
+  // catalogue no longer holds is an immunity to nothing, which costs nothing.
+  immuneTo: v.optional(v.array(v.pipe(v.string(), v.minLength(1)))),
 });
 
 const battlerCache = new WeakMap<TileDef, BattlerDef | null>();

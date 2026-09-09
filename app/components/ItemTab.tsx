@@ -360,7 +360,8 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
                 patchConsumable({ statuses: statuses.length ? statuses : undefined })
               }
               blank={(id) => ({ id })}
-              info="Started on use, on top of the HP shift. Override the duration to make this a bigger meal than the next thing."
+              certainAllowed
+              info="Started on use, on top of the HP shift. Override the duration to make this a bigger meal than the next thing, or give it a chance to make it a gamble — raw meat feeds you every time and turns your stomach most of the time."
             />
 
             <label className="flex flex-col gap-1 text-xs">

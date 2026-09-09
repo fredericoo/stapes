@@ -28037,6 +28037,9 @@
             "tileId": "bread",
             "chance": 10
           }
+        ],
+        "immuneTo": [
+          "food-poisoning"
         ]
       },
       "respawn": {
@@ -29859,12 +29862,16 @@
         "type": "consumable",
         "label": "Eat",
         "sound": "squish",
-        "hp": -1,
+        "hp": 0,
         "statuses": [
           {
             "id": "fed",
-            "fromMs": 2000,
-            "toMs": 8000
+            "fromMs": 90000,
+            "toMs": 240000
+          },
+          {
+            "id": "food-poisoning",
+            "chance": 80
           }
         ],
         "pile": 3

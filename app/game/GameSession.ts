@@ -4446,6 +4446,15 @@ export class GameSession implements PlaySession {
   ) {
     const def = this.statusDefs[grant.id];
     if (!def) return;
+    // **One gate, whatever brought it.** A wolf that cannot be made ill by raw
+    // meat cannot be made ill by a blade dipped in it either, and putting the
+    // check on the body rather than beside each source is what makes that true
+    // without anybody having to remember it. @see BattlerDef.immuneTo
+    // The *body's* authored block, not `battlerOf`'s equipment-and-status
+    // arithmetic: an immunity is a fact about what a wolf is, and reading it
+    // through a projection that statuses feed into would let a status decide
+    // whether a status may be applied.
+    if (resolveBattler(this.defFor(actor))?.immuneTo?.includes(grant.id)) return;
     // The item's range where it states one, and the status's own otherwise —
     // see `../lib/item`'s `StatusGrant`. Both ends or neither, so this
     // cannot end up ordering one source's floor against another's ceiling.
@@ -6083,7 +6092,14 @@ export class GameSession implements PlaySession {
     // kills you has already handed it over — and after the sound, on the same
     // grounds: by the time a fatal number has landed there is no body left to
     // hang anything on.
-    for (const grant of consumable.statuses ?? []) {
+    //
+    // Drawn through the same function a swing's brands go through, so a
+    // hundred means the same thing on a blade and on a supper — and drawn for
+    // *every* row whether or not it is certain, on the fixed-draw-count
+    // discipline. @see ./combat's `inflictedBy`
+    const grants = consumable.statuses ?? [];
+    const rolls = grants.map(() => this.rng.next());
+    for (const grant of inflictedBy(grants, rolls)) {
       this.grantStatus(actor, grant);
     }
 

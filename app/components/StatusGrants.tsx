@@ -21,9 +21,10 @@ const MS_PER_SECOND = 1000;
  * number.
  *
  * One table for both granters, because a consumable's list and a weapon's are
- * the same list — see `../lib/item`'s `StatusGrant`. What differs is what an
- * entry carries beyond the id, and that goes in {@link Props.extra} rather than
- * being sniffed out of the entry at runtime.
+ * the same list — see `../lib/item`'s `StatusGrant`. **They now differ in one
+ * word**: a weapon's chance is required and a consumable's is optional, absent
+ * meaning certain. That used to be a whole extra column passed in by the caller,
+ * and folding it back in is what the chance moving onto `StatusGrant` bought.
  */
 type Props<Grant extends StatusGrant> = {
   statuses: Grant[];
@@ -33,8 +34,15 @@ type Props<Grant extends StatusGrant> = {
   info: ReactNode;
   /** A fresh entry on the chosen status. The owner decides what else is on one. */
   blank: (id: string) => Grant;
-  /** Columns this granter has and the other does not — a weapon's chance. */
-  extra?: (entry: Grant, patch: (fields: Partial<Grant>) => void) => ReactNode;
+  /**
+   * May an entry leave the chance unset, meaning certain?
+   *
+   * A consumable's may — you swallowed it, and most food does what it says.
+   * A weapon's may not: a blow's chance is the thing an author is deciding the
+   * moment they add a row, and a blank box there would author a brand that
+   * always lands without anybody saying so.
+   */
+  certainAllowed?: boolean;
 };
 
 export function StatusGrants<Grant extends StatusGrant>({
@@ -43,7 +51,7 @@ export function StatusGrants<Grant extends StatusGrant>({
   onChange,
   info,
   blank,
-  extra,
+  certainAllowed = false,
 }: Props<Grant>) {
   const catalogue = Object.values(statusDefs);
   const options = catalogue.map((def) => ({ value: def.id, label: def.name }));
@@ -82,7 +90,11 @@ export function StatusGrants<Grant extends StatusGrant>({
               />
             </label>
 
-            {extra?.(entry, (fields) => patchAt(index, fields))}
+            <StatusChance
+              entry={entry}
+              certainAllowed={certainAllowed}
+              patch={(fields) => patchAt(index, fields)}
+            />
 
             <label className="flex flex-col gap-0.5 text-xs">
               <FieldLabel info="Off, the status's own duration applies. On, both ends are this granter's.">
@@ -171,34 +183,61 @@ export function StatusGrants<Grant extends StatusGrant>({
 }
 
 /**
- * The percentage column, for a grant list whose entries carry one.
+ * How often this entry lands, as one control or two.
  *
- * Here rather than in either caller because both of them want exactly this and
- * neither can have the other's: a weapon's brand and a stone's are the same
- * authored field, and two copies of the clamp would be two places for the ends
- * to drift apart. Passed as {@link Props.extra}, which is what that escape hatch
- * is for — a consumable's grants have no chance, so this cannot move into the
- * list itself.
+ * **"Always" is a value here and the *absence* of the field in the authored
+ * entry**, the same collapse the duration override makes of "the status's own"
+ * — and it is why the switch exists rather than a box you may leave blank. A
+ * consumable with no chance is certain; writing `100` would mean the same thing
+ * and put a number in the file that nothing needed.
  *
- * Shaped like the two duration columns beside it rather than as a `StatField`:
- * that component carries a readout under the box, and one field in a row of
- * plain ones knocks the whole row out of line.
+ * The switch is simply not offered where certainty is not authorable, so a
+ * weapon shows the plain box it always showed. @see Props.certainAllowed
  */
-export function StatusChanceField<Grant extends StatusGrant & { chance: number }>(
-  entry: Grant,
-  patch: (fields: Partial<Grant>) => void,
-) {
+function StatusChance<Grant extends StatusGrant>({
+  entry,
+  certainAllowed,
+  patch,
+}: {
+  entry: Grant;
+  certainAllowed: boolean;
+  patch: (fields: Partial<Grant>) => void;
+}) {
+  const certain = entry.chance === undefined;
+
   return (
-    <label className="flex flex-col gap-0.5 text-xs">
-      <FieldLabel>Chance (%)</FieldLabel>
-      <NumberInput
-        className="w-20"
-        min={MIN_PERCENT_STAT}
-        max={MAX_PERCENT_STAT}
-        step={1}
-        value={entry.chance}
-        onChange={(chance) => patch({ chance } as Partial<Grant>)}
-      />
-    </label>
+    <>
+      {certainAllowed ? (
+        <label className="flex flex-col gap-0.5 text-xs">
+          <FieldLabel info="Off, this always lands. On, it lands the stated percentage of the time.">
+            Chance
+          </FieldLabel>
+          <Switch
+            checked={!certain}
+            ariaLabel="Give this a chance of landing"
+            onCheckedChange={(on) =>
+              patch({
+                chance: on ? MAX_PERCENT_STAT : undefined,
+              } as Partial<Grant>)
+            }
+          />
+        </label>
+      ) : null}
+      {certain ? (
+        <span className="text-[11px] text-muted">Always.</span>
+      ) : (
+        <label className="flex flex-col gap-0.5 text-xs">
+          <FieldLabel>Chance (%)</FieldLabel>
+          <NumberInput
+            className="w-20"
+            min={MIN_PERCENT_STAT}
+            max={MAX_PERCENT_STAT}
+            step={1}
+            value={entry.chance ?? MAX_PERCENT_STAT}
+            onChange={(chance) => patch({ chance } as Partial<Grant>)}
+          />
+        </label>
+      )}
+    </>
   );
 }

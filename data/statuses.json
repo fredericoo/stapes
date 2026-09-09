@@ -90,6 +90,69 @@
     }
   },
   {
+    "id": "food-poisoning",
+    "name": "Food poisoning",
+    "description": "Doubled over from something that should have been cooked.",
+    "tone": "bad",
+    "icon": {
+      "tilesetId": "tiny-ranch-tiles",
+      "rect": {
+        "x": 18,
+        "y": 11,
+        "w": 1,
+        "h": 1
+      },
+      "base": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    "fromMs": 8000,
+    "toMs": 20000,
+    "stacks": false,
+    "maxMs": 60000,
+    "everyMs": 2000,
+    "effects": {
+      "hp": "0 - 4"
+    },
+    "vfx": {
+      "tint": {
+        "color": "#8a7a1f",
+        "strength": 0.6,
+        "keepLuma": 1
+      },
+      "particles": {
+        "ratePerSecond": 9,
+        "ttlFromMs": 800,
+        "ttlToMs": 1600,
+        "spawnRadiusCells": 0.35,
+        "spawnElevFrom": 0,
+        "spawnElevTo": 0,
+        "riseFrom": 3,
+        "riseTo": 6,
+        "driftCellsPerSecond": 0.2,
+        "gravity": -1.6,
+        "radiusFromPx": 1,
+        "radiusToPx": 1,
+        "alphaFrom": 0.9,
+        "alphaTo": 0,
+        "ramp": [
+          {
+            "at": 0,
+            "color": "#8a7a1f"
+          },
+          {
+            "at": 1,
+            "color": "#000000"
+          }
+        ],
+        "lit": true
+      },
+      "light": null,
+      "taperMs": 2000
+    }
+  },
+  {
     "id": "burned",
     "name": "Burned",
     "description": "Searing. Hurts fast, and is over fast.",

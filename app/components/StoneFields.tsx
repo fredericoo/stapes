@@ -37,7 +37,7 @@ import {
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
 import { FieldLabel, Segmented, Select, SwitchField } from "../ui";
-import { StatusChanceField, StatusGrants } from "./StatusGrants";
+import { StatusGrants } from "./StatusGrants";
 import { StatField } from "./StatField";
 import {
   describeFlight,
@@ -301,7 +301,6 @@ export function StoneFields({
             }
             blank={(id) => ({ id, chance: DEFAULT_STONE_STATUS_CHANCE })}
             info="Rolled once per entry per cast, on whoever it landed on. Armour eating the damage does not stop it; only a body that is not there, or one the cast killed, escapes. No mastery moves the chance. A bolt needs damage or a status — with neither it will not save."
-            extra={StatusChanceField}
           />
         </div>
       ) : (

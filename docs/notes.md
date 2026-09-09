@@ -4111,6 +4111,41 @@ moment a brain could pick a bush — a hedge and a herd would grow `pendingNotic
 without bound for the life of the world. `GameSession.say` drops them at the
 door.
 
+## A status can be a gamble, and a body can be immune to one
+
+Two changes to how a condition is handed over, both forced by one item.
+
+**A `StatusGrant` carries an optional chance.** It used to belong to a weapon
+alone and the argument was a good one: you chose to swallow a drink and it went
+down, where a bite has to get through before the venom can take. Raw meat broke
+it — eating it leaves you fed every time and ill most of the time, and that
+"most" is not a second food, a second status, or anything a duration could say.
+So the chance moved onto the shared shape and is optional there, which keeps
+every consumable ever authored meaning exactly what it meant: absent is certain,
+and nothing on disk had to be touched. `WeaponStatus` narrows it back to
+required, because a blow's chance is the thing an author is deciding the moment
+they add a row.
+
+Both are drawn through `combat`'s `inflictedBy`, so a hundred means the same
+thing on a blade and on a supper — and a certain row is still *drawn* for, on the
+fixed-draw-count discipline a swing and an extract are under.
+
+It also deleted a whole escape hatch: `StatusGrants` had an `extra` prop whose
+only user was the weapon's chance column, and folding the column in removed both.
+
+**`BattlerDef.immuneTo` is the one kind of resistance that is not a number.**
+Everything else about taking damage is arithmetic — armour subtracts, an element
+multiplies — and arithmetic is right for things that hurt more or less. A
+condition is not one of those: a wolf is not ninety percent less made ill by
+carrion, it eats carrion and is fine. So it is a list of status ids, checked in
+`grantStatus` and nowhere else — which is the one gate every source goes through,
+so an immunity holds against the food, the blade dipped in it, the hearth and the
+spell alike without any of them knowing about it.
+
+Read off the *body's* authored block rather than through `battlerOf`, which is
+where statuses feed into the numbers: reading it there would let a status decide
+whether a status may be applied.
+
 ## A dead body's bag is destroyed and its contents spill
 
 Dropping the pack whole was the simpler rule and it made a killing a single
