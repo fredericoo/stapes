@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import tilesJson from "../../data/tiles.json";
-import { nearest, slot, type BrainDef } from "../lib/brain";
+import { nearest, slot, thing, type BrainDef, type Selector } from "../lib/brain";
 import { normalizeTileDef, normalizeTiles, type TileDef } from "../lib/types";
 import {
   arrayMove,
   bodyTileIds,
   paramPatch,
   renamedState,
-  selectorOptions,
+  selectorVocabulary,
 } from "./BrainEditor";
 import { CONDITIONS } from "../lib/brainCatalog";
 
@@ -107,14 +107,12 @@ describe("offering selectors", () => {
       states: { idle: { do: [] } },
       transitions: [],
     };
-    // Every one of these is answerable without anything having been bound: one
-    // `nearest` per tile a body can be, then the two that ask the transition who
-    // just spoke and who just swung, then the one that names a place instead of
-    // a body.
-    expect(selectorOptions(brain, LIBRARY).map((o) => o.key)).toEqual([
-      "nearest:player",
-      "nearest:cat",
-      "nearest:rat",
+    // The two live queries, then the two that ask the transition who just spoke
+    // and who just swung, then the one that names a place instead of a body.
+    // Which *tiles* each names is the chips' question, not the picker's.
+    expect(selectorVocabulary(brain, LIBRARY).kinds.map((k) => k.key)).toEqual([
+      "nearest",
+      "thing",
       "speaker",
       "attacker",
       "home",
@@ -134,10 +132,9 @@ describe("offering selectors", () => {
         },
       ],
     };
-    expect(selectorOptions(brain, LIBRARY).map((o) => o.key)).toEqual([
-      "nearest:player",
-      "nearest:cat",
-      "nearest:rat",
+    expect(selectorVocabulary(brain, LIBRARY).kinds.map((k) => k.key)).toEqual([
+      "nearest",
+      "thing",
       "speaker",
       "attacker",
       "home",
@@ -159,17 +156,20 @@ describe("offering selectors", () => {
         },
       ],
     };
-    const options = selectorOptions(brain, LIBRARY);
+    const { kinds } = selectorVocabulary(brain, LIBRARY);
 
-    expect(options[0]!.selector).toEqual(nearest("player"));
-    expect(options.at(-1)!.selector).toEqual(slot("spooked"));
+    expect(kinds[0]!.make()).toEqual(nearest("player"));
+    expect(kinds.at(-1)!.make()).toEqual(slot("spooked"));
   });
 
-  /** A tile's own name, so the picker reads as the world does. */
-  it("labels each nearest option with the tile name", () => {
+  /** A tile's own name, so the chips read as the world does. */
+  it("labels each tile chip with the tile name", () => {
     const named = [tile({ id: "player", height: 4, name: "Player" })];
-    expect(selectorOptions({ initial: "i", states: { i: { do: [] } }, transitions: [] }, named)[0])
-      .toMatchObject({ key: "nearest:player", label: "nearest Player" });
+    const { kinds } = selectorVocabulary(
+      { initial: "i", states: { i: { do: [] } }, transitions: [] },
+      named,
+    );
+    expect(kinds[0]!.tiles).toEqual([{ tileId: "player", label: "Player" }]);
   });
 
   /**
@@ -296,8 +296,15 @@ describe("what a selector affords", () => {
 
   ];
 
-  function optionFor(brain: BrainDef, key: string) {
-    return selectorOptions(brain, ORCHARD).find((one) => one.key === key);
+  function tilesFor(brain: BrainDef, key: string) {
+    const kind = selectorVocabulary(brain, ORCHARD).kinds.find(
+      (one) => one.key === key,
+    );
+    return kind?.tiles.map((one) => one.tileId);
+  }
+
+  function describe_(brain: BrainDef, selector: Selector) {
+    return selectorVocabulary(brain, ORCHARD).describe(selector);
   }
 
   const IDLE: BrainDef = {
@@ -307,21 +314,21 @@ describe("what a selector affords", () => {
   };
 
   it("offers a thing for every tile that does something", () => {
-    const keys = selectorOptions(IDLE, ORCHARD).map((one) => one.key);
-    expect(keys).toContain("thing:bush");
-    expect(keys).toContain("thing:boulder");
+    const things = tilesFor(IDLE, "thing");
+    expect(things).toContain("bush");
+    expect(things).toContain("boulder");
     // Scenery with no interaction block is not worth naming, and a body is
-    // already offered as one.
-    expect(keys).not.toContain("thing:hedge");
-    expect(keys).not.toContain("thing:rat");
+    // already offered under `nearest`.
+    expect(things).not.toContain("hedge");
+    expect(things).not.toContain("rat");
   });
 
   it("says what the tile can have done to it, in the author's own word", () => {
-    expect(optionFor(IDLE, "thing:bush")?.names).toEqual({
-      tile: "bush",
+    expect(describe_(IDLE, thing("bush"))).toEqual({
+      tiles: ["bush"],
       affords: ["pick"],
     });
-    expect(optionFor(IDLE, "nearest:rat")?.names?.affords).toEqual(["attack"]);
+    expect(describe_(IDLE, nearest("rat"))?.affords).toEqual(["attack"]);
   });
 
   /**
@@ -329,9 +336,17 @@ describe("what a selector affords", () => {
    * would be telling an author about a row this table cannot offer them.
    */
   it("names only the verbs a brain actually has", () => {
-    expect(optionFor(IDLE, "thing:boulder")?.names).toEqual({
-      tile: "boulder",
+    expect(describe_(IDLE, thing("boulder"))).toEqual({
+      tiles: ["boulder"],
       affords: [],
+    });
+  });
+
+  // Whatever it can do to either, since the selector may answer with either.
+  it("unions the verbs across a list of tiles", () => {
+    expect(describe_(IDLE, thing("bush", "boulder"))).toEqual({
+      tiles: ["bush", "boulder"],
+      affords: ["pick"],
     });
   });
 
@@ -342,20 +357,20 @@ describe("what a selector affords", () => {
         {
           from: "idle",
           if: { cond: "stuck" },
-          bind: { bush: { type: "thing", data: { tileId: "bush" } } },
+          bind: { bush: thing("bush") },
           to: "idle",
         },
       ],
     };
 
-    expect(optionFor(brain, "$bush")?.names).toEqual({
-      tile: "bush",
+    expect(describe_(brain, slot("bush"))).toEqual({
+      tiles: ["bush"],
       affords: ["pick"],
     });
   });
 
   it("says nothing about a selector that names no tile", () => {
-    expect(optionFor(IDLE, "speaker")?.names).toBeNull();
-    expect(optionFor(IDLE, "home")?.names).toBeNull();
+    expect(describe_(IDLE, { type: "speaker" })).toBeNull();
+    expect(describe_(IDLE, { type: "home" })).toBeNull();
   });
 });

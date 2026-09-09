@@ -45,6 +45,25 @@ export type ParamSpec =
    */
   | { key: string; kind: "text"; label: string; optional?: boolean }
   /**
+   * A status from the catalogue, picked rather than typed.
+   *
+   * Its own kind rather than a `text` box holding an id, on the {@link tile}
+   * field's grounds: a `status` condition naming an id nothing grants is a row
+   * that can only ever answer no, and a typo is indistinguishable from a
+   * condition an author has deliberately switched off.
+   */
+  | { key: string; kind: "status"; label: string }
+  /**
+   * An optional {@link Selector} naming something on the board, or nothing at
+   * all — which is `consume`'s "out of the bag".
+   *
+   * Its own kind rather than a plain `selector` because the absent case is a
+   * real, different meaning here rather than a field nobody filled in, and two
+   * controls that had to agree about that would let the editor author half of
+   * one. The same collapse a speaker filter's "anybody" makes.
+   */
+  | { key: string; kind: "ground"; label: string }
+  /**
    * A tile from the library, picked rather than typed.
    *
    * Its own kind rather than a `text` box holding an id, because the two verbs
@@ -191,6 +210,15 @@ export const CONDITIONS: Record<
     params: [],
     make: () => ({ cond: "talking" }),
   },
+  status: {
+    label: "status",
+    hint: "This body is under a named condition, with at least this long left. Leave the time at zero to ask only whether it is running. Its `not` is how hunger is authored — a wolf with no fed left, or none at all.",
+    params: [
+      { key: "id", kind: "status", label: "status" },
+      { key: "atLeastMs", kind: "number", label: "at least ms", min: 0 },
+    ],
+    make: () => ({ cond: "status", id: "fed" }),
+  },
   carrying: {
     label: "carrying",
     hint: "There is something in this body's bag. Leave the tile empty for anything at all. A body with no bag carries nothing.",
@@ -270,8 +298,9 @@ export const ACTIONS: Record<
   },
   consume: {
     label: "consume",
-    hint: "Eat or drink something out of the bag. Leave the tile empty for the first consumable in there. Fails on an empty bag.",
+    hint: "Eat or drink. Out of the bag by default — leave the tile empty for the first consumable in there — or off the ground by naming a thing beside it, which is what a wolf does with a carcass.",
     params: [
+      { key: "of", kind: "ground", label: "off the ground" },
       {
         key: "tileId",
         kind: "tile",

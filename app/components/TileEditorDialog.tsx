@@ -1902,6 +1902,7 @@ export function TileEditorDialog({
             <BrainEditor
               brain={draft.interactions?.brain}
               tiles={tiles}
+              statusDefs={statusDefs}
               onChange={setBrain}
             />
           </TabPanel>

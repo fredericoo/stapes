@@ -6,10 +6,10 @@ import {
   isSelector,
   isSpeakerFilter,
   nearest,
-  selectorKey,
   slot,
-  slotTileId,
+  slotTiles,
   thing,
+  tilesNamedBy,
   validateBrain,
   type BrainActionDef,
   type BrainCondition,
@@ -37,6 +37,7 @@ import {
   CONDITIONS,
   CONDITION_NAMES,
   DEFAULT_SELECTOR,
+  DEFAULT_THING,
   EFFECTS,
   EFFECT_NAMES,
   type ParamSpec,
@@ -45,6 +46,7 @@ import {
 import { PLAYER_TILE_ID } from "../game/constants";
 import { resolveActor, type TileDef } from "../lib/types";
 import { resolveBattler } from "../lib/battler";
+import type { StatusDef } from "../lib/status";
 import { resolveConsumable, resolveItem } from "../lib/item";
 import { resolveExtract } from "../lib/interactions";
 import { DragDropProvider } from "@dnd-kit/react";
@@ -74,8 +76,10 @@ import { Button, Input, NumberInput, Segmented, Select, Switch } from "../ui";
 type Props = {
   /** The brain, or undefined on a tile that has none yet. */
   brain: BrainDef | undefined;
-  /** Whole library — the `nearest:` picker names bodies out of it. */
+  /** Whole library — the tile chips are picked out of it. */
   tiles: TileDef[];
+  /** The status catalogue, for the `status` condition's picker. */
+  statusDefs: Record<string, StatusDef>;
   onChange: (next: BrainDef | undefined) => void;
 };
 
@@ -170,48 +174,58 @@ export function affordancesOf(tileId: string, tiles: TileDef[]): string[] {
 }
 
 /**
- * One offerable selector: the value itself, a stable id for the `<select>`, and
- * what to call it on screen.
+ * One kind a selector may be: `nearest`, `thing`, `speaker`, or a slot the brain
+ * binds.
  *
- * The key exists because a dropdown trades in strings and a selector is an
- * object — it is how a chosen option is matched back to the thing it stands for,
- * and nothing else reads it.
+ * The picker used to offer one row per *tile* — "nearest Player", "nearest Rat",
+ * "the Bush" — which worked while a selector named one tile and stopped working
+ * the moment it could name several. There is no dropdown row for "deer and
+ * rabbit but not wolf". So the kind and the tiles are two controls: this picks
+ * the question, and {@link TileChips} picks what it is about.
  */
-export type SelectorOption = {
+export type SelectorKind = {
+  /** Stable id for the `<select>`, and how a selector is matched to its kind. */
   key: string;
   label: string;
-  selector: Selector;
-  /**
-   * What this selector names and what it affords, for the line under the
-   * picker — `{ tile: "Bush", affords: ["pick"] }`.
-   *
-   * Worked out here rather than by the picker, because this is the one place
-   * that holds both the brain and the library: `$bush` only affords picking
-   * because of the transition that binds it, and a control deep in a state's
-   * action list has no way to know that. Null for the selectors that name no
-   * tile — `speaker`, `attacker`, `home`, and a slot the brain does not bind
-   * from one place. @see affordancesOf
-   */
-  names: { tile: string; affords: string[] } | null;
+  /** A fresh selector of this kind. */
+  make: () => Selector;
+  /** Tiles this kind may name. Empty for the kinds that name none. */
+  tiles: TileOption[];
 };
 
-/** One tile a `tile` field may name. @see TileFilter */
+/** What a selector names and what a brain can do to it. @see affordancesOf */
+export type SelectorNames = { tiles: string[]; affords: string[] };
+
+/** One tile a picker may offer. */
 export type TileOption = { tileId: string; label: string };
 
 /**
  * Everything this editor may offer, worked out once from the brain and the
  * library.
  *
- * One value rather than two props, because both halves are answers to the same
- * question — what is authorable here — and both are needed at the same depth: a
- * `tile` field and a selector picker sit side by side on one action row, five
- * components down from the only place that has seen the library.
+ * One value rather than four props, because they are all answers to the same
+ * question — what is authorable here — and they are all needed at the same
+ * depth: a selector picker, its tile chips and a `tile` field sit side by side
+ * on one action row, five components down from the only place that has seen the
+ * library.
+ *
+ * {@link describe} is a closure rather than data because a slot's answer depends
+ * on the brain: `$bush` affords picking only because of the transition that
+ * binds it, and a control deep in a state's action list has no way to know that.
  */
 export type Vocabulary = {
-  selectors: SelectorOption[];
+  kinds: SelectorKind[];
   /** The tiles each kind of `tile` field will offer. @see TileFilter */
   tiles: Record<TileFilter, TileOption[]>;
+  /** The whole status catalogue, for a `status` field. */
+  statuses: Array<{ value: string; label: string }>;
+  describe(selector: Selector): SelectorNames | null;
 };
+
+/** Which kind a selector is, as the key its row in the picker carries. */
+export function selectorKindKey(selector: Selector): string {
+  return selector.type === "slot" ? `$${selector.data.name}` : selector.type;
+}
 
 /**
  * The tiles behind each {@link TileFilter}, which is where those names turn into
@@ -222,83 +236,106 @@ export type Vocabulary = {
  * and `consume berry` are the same berry asked about twice.
  */
 export function tileOptions(tiles: TileDef[]): Record<TileFilter, TileOption[]> {
-  const named = (tile: TileDef): TileOption => ({
-    tileId: tile.id,
-    label: tile.name || tile.id,
-  });
   const items = tiles.filter((tile) => resolveItem(tile));
   return {
-    item: items.map(named),
-    consumable: items.filter((tile) => resolveConsumable(tile)).map(named),
+    item: items.map(tileOption),
+    consumable: items.filter((tile) => resolveConsumable(tile)).map(tileOption),
   };
 }
 
+function tileOption(tile: TileDef): TileOption {
+  return { tileId: tile.id, label: tile.name || tile.id };
+}
+
 /**
- * The live queries, plus every slot the brain's transitions bind.
- *
- * One `nearest` per tile something can be standing on, which is what turns the
- * picker into the whole vocabulary of relationships: the player to hunt, the
- * creature's own tile to flock with, some third one to follow. The editor cannot
- * know which a brain means, so it offers all of them.
+ * The kinds a selector may be, and what each may name.
  *
  * `speaker` and `attacker` are offered everywhere rather than only on the
  * transitions that hear or are hit, because the editor would have to know which
  * condition a bind sits beside to say otherwise — and a selector that answers
- * nobody is already the documented behaviour, not a broken brain.
+ * nobody is already the documented behaviour, not a broken brain. `home` is
+ * offered on the same terms and is the odd one out: it names a place, so the
+ * verbs wanting a body answer nobody with it.
  *
- * `home` is offered on the same terms and is the odd one out of the set: it
- * names a place, so the verbs wanting a body answer nobody with it. Listing it
- * beside the rest rather than only under the distance verbs is the same
- * decision — the picker does not know what it sits next to, and the fallback is
- * documented rather than broken.
+ * Every slot the brain's transitions bind is offered too, which is what makes
+ * `$prey` authorable in the state the transition leads to.
  */
-export function selectorOptions(
+export function selectorVocabulary(
   brain: BrainDef,
   tiles: TileDef[],
-): SelectorOption[] {
+  statusDefs: Record<string, StatusDef> = {},
+): Vocabulary {
   const named = new Map(tiles.map((tile) => [tile.id, tile.name || tile.id]));
   const nameOf = (tileId: string) => named.get(tileId) ?? tileId;
-  const names = (tileId: string | null) =>
-    tileId === null
-      ? null
-      : { tile: nameOf(tileId), affords: affordancesOf(tileId, tiles) };
-
-  const options: SelectorOption[] = bodyTileIds(tiles).map((tileId) => ({
-    key: `nearest:${tileId}`,
-    label: `nearest ${nameOf(tileId)}`,
-    selector: nearest(tileId),
-    names: names(tileId),
+  const bodies = bodyTileIds(tiles).map((tileId) => ({
+    tileId,
+    label: nameOf(tileId),
+  }));
+  const things = thingTileIds(tiles).map((tileId) => ({
+    tileId,
+    label: nameOf(tileId),
   }));
 
-  for (const tileId of thingTileIds(tiles)) {
-    options.push({
-      key: `thing:${tileId}`,
-      label: `the ${nameOf(tileId)}`,
-      selector: thing(tileId),
-      names: names(tileId),
-    });
-  }
-
-  options.push(
-    { key: "speaker", label: "speaker", selector: SPEAKER_SELECTOR, names: null },
-    { key: "attacker", label: "attacker", selector: ATTACKER_SELECTOR, names: null },
-    { key: "home", label: "home", selector: HOME_SELECTOR, names: null },
-  );
+  const kinds: SelectorKind[] = [
+    {
+      key: "nearest",
+      label: "nearest body",
+      // The player rather than any other tile, because every verb this is a
+      // default for — notice, chase, swing — is overwhelmingly authored about
+      // the person.
+      make: () => nearest(PLAYER_TILE_ID),
+      tiles: bodies,
+    },
+    {
+      key: "thing",
+      label: "nearest thing",
+      make: () => thing(things[0]?.tileId ?? PLAYER_TILE_ID),
+      tiles: things,
+    },
+    { key: "speaker", label: "speaker", make: () => SPEAKER_SELECTOR, tiles: [] },
+    { key: "attacker", label: "attacker", make: () => ATTACKER_SELECTOR, tiles: [] },
+    { key: "home", label: "home", make: () => HOME_SELECTOR, tiles: [] },
+  ];
 
   const slots = new Set<string>();
   for (const t of brain.transitions) {
     for (const name of Object.keys(t.bind ?? {})) slots.add(name);
   }
   for (const name of slots) {
-    options.push({
+    kinds.push({
       key: `$${name}`,
       label: `$${name}`,
-      selector: slot(name),
-      names: names(slotTileId(brain, name)),
+      make: () => slot(name),
+      tiles: [],
     });
   }
 
-  return options;
+  const describe = (selector: Selector): SelectorNames | null => {
+    const tileIds =
+      selector.type === "slot"
+        ? slotTiles(brain, selector.data.name)
+        : tilesNamedBy(selector);
+    if (tileIds.length === 0) return null;
+    return {
+      tiles: tileIds.map(nameOf),
+      // The union, because a wolf offered "deer or rabbit" can do to either
+      // whatever it can do to both — and a verb that only one of them affords
+      // is exactly the mismatch worth showing.
+      affords: [
+        ...new Set(tileIds.flatMap((tileId) => affordancesOf(tileId, tiles))),
+      ],
+    };
+  };
+
+  return {
+    kinds,
+    tiles: tileOptions(tiles),
+    statuses: Object.values(statusDefs).map((def) => ({
+      value: def.id,
+      label: def.name,
+    })),
+    describe,
+  };
 }
 
 /** Pull the item at `from` out and drop it back in at `to`. */
@@ -358,7 +395,7 @@ export function renamedState(brain: BrainDef, oldName: string, newName: string):
   };
 }
 
-export function BrainEditor({ brain, tiles, onChange }: Props) {
+export function BrainEditor({ brain, tiles, statusDefs, onChange }: Props) {
   if (!brain) {
     return (
       <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
@@ -374,10 +411,7 @@ export function BrainEditor({ brain, tiles, onChange }: Props) {
   }
 
   const stateNames = Object.keys(brain.states);
-  const vocab: Vocabulary = {
-    selectors: selectorOptions(brain, tiles),
-    tiles: tileOptions(tiles),
-  };
+  const vocab = selectorVocabulary(brain, tiles, statusDefs);
   const issues = validateBrain(brain);
 
   const setState = (name: string, next: BrainStateDef) => {
@@ -930,31 +964,100 @@ function SelectorPicker({
   onChange: (next: Selector) => void;
   className?: string;
 }) {
-  const key = selectorKey(value);
-  const current = vocab.selectors.find((option) => option.key === key);
-  const options = current
-    ? vocab.selectors
-    : [
-        { key, label: `${key} (missing)`, selector: value, names: null },
-        ...vocab.selectors,
-      ];
+  const key = selectorKindKey(value);
+  const kind = vocab.kinds.find((one) => one.key === key);
+  // A kind the brain carries but the library no longer offers — a slot whose
+  // last bind was deleted — still shows, marked, rather than silently reading as
+  // whatever happens to sit first in the list.
+  const rows = kind
+    ? vocab.kinds
+    : [{ key, label: `${key} (missing)`, make: () => value, tiles: [] }, ...vocab.kinds];
 
   return (
     <>
       <Select
         value={key}
         onValueChange={(next) => {
-          const picked = options.find((option) => option.key === next);
-          if (picked) onChange(picked.selector);
+          const picked = rows.find((one) => one.key === next);
+          if (picked) onChange(picked.make());
         }}
-        options={options.map((option) => ({
-          value: option.key,
-          label: option.label,
-        }))}
+        options={rows.map((one) => ({ value: one.key, label: one.label }))}
         className={className}
       />
-      <Affordances names={current?.names ?? null} />
+      {kind && kind.tiles.length > 0 ? (
+        <TileChips
+          picked={tilesNamedBy(value)}
+          options={kind.tiles}
+          onChange={(tileIds) =>
+            onChange({ ...value, data: { tileIds } } as Selector)
+          }
+        />
+      ) : null}
+      <Affordances names={vocab.describe(value)} />
     </>
+  );
+}
+
+/**
+ * The tiles a selector names, as removable chips plus a dropdown that adds one.
+ *
+ * **Chips rather than the library's `TileIdMultiSelect`**, which is a searchable
+ * panel with previews and is right where it is used — a whole field on a tile's
+ * own form. This sits inline in an action row beside three other controls, and a
+ * panel there would push the row that *is* the semantics off the screen.
+ *
+ * The last chip will not come off. A selector naming no tiles is one the schema
+ * refuses, so removing it would make the brain inert for what looks like an
+ * ordinary click; changing your mind about the only tile is picking the new one
+ * and then dropping the old.
+ */
+function TileChips({
+  picked,
+  options,
+  onChange,
+}: {
+  picked: readonly string[];
+  options: TileOption[];
+  onChange: (tileIds: string[]) => void;
+}) {
+  const ADD = "";
+  const chosen = new Set(picked);
+  const labels = new Map(options.map((one) => [one.tileId, one.label]));
+  const spare = options.filter((one) => !chosen.has(one.tileId));
+
+  return (
+    <span className="flex flex-wrap items-center gap-1">
+      {picked.map((tileId) => (
+        <button
+          key={tileId}
+          type="button"
+          onClick={() => onChange(picked.filter((one) => one !== tileId))}
+          disabled={picked.length === 1}
+          className="border-2 border-border bg-paper px-1 text-[11px] disabled:opacity-60"
+          aria-label={
+            picked.length === 1
+              ? `${labels.get(tileId) ?? tileId} — the only tile, so it cannot be removed`
+              : `Remove ${labels.get(tileId) ?? tileId}`
+          }
+        >
+          {labels.get(tileId) ?? `${tileId} (missing)`}
+          {picked.length > 1 ? " ✕" : ""}
+        </button>
+      ))}
+      {spare.length > 0 ? (
+        <Select
+          value={ADD}
+          onValueChange={(tileId) => tileId && onChange([...picked, tileId])}
+          options={[
+            { value: ADD, label: "+ tile" },
+            ...spare.map((one) => ({ value: one.tileId, label: one.label })),
+          ]}
+          className="min-w-[5rem]"
+          placeholder="+ tile"
+          ariaLabel="Add a tile to this selector"
+        />
+      ) : null}
+    </span>
   );
 }
 
@@ -972,15 +1075,11 @@ function SelectorPicker({
  * `speaker` affords whatever the speaker turns out to be, and an empty label
  * beside it would read as an assertion.
  */
-function Affordances({
-  names,
-}: {
-  names: { tile: string; affords: string[] } | null;
-}) {
+function Affordances({ names }: { names: SelectorNames | null }) {
   if (!names) return null;
   return (
     <span className="text-[10px] text-muted" title="What this selector names">
-      {names.tile}
+      {names.tiles.join(", ")}
       {names.affords.length > 0 ? ` · ${names.affords.join(", ")}` : ""}
     </span>
   );
@@ -1086,6 +1185,30 @@ function ParamField({
       />
     );
   }
+  if (spec.kind === "status") {
+    return (
+      <label className="flex items-center gap-1 text-[10px] uppercase text-muted">
+        {spec.label}
+        <Select
+          value={typeof value === "string" ? value : null}
+          onValueChange={(id) => onChange(id ?? undefined)}
+          options={vocab.statuses}
+          className="min-w-[7rem]"
+          placeholder="Pick one…"
+        />
+      </label>
+    );
+  }
+  if (spec.kind === "ground") {
+    return (
+      <GroundField
+        spec={spec}
+        value={isSelector(value) ? value : null}
+        vocab={vocab}
+        onChange={onChange}
+      />
+    );
+  }
   if (spec.kind === "tile") {
     return (
       <TilePicker
@@ -1120,6 +1243,40 @@ function ParamField({
       placeholder={spec.optional ? "any" : spec.label}
       aria-label={spec.label}
     />
+  );
+}
+
+/**
+ * Whether a `consume` eats off the board, and what.
+ *
+ * **"Out of the bag" is a value in this picker and the absence of the field**,
+ * on {@link SpeakerFilterField}'s terms and for its reason: a `consume` with no
+ * selector eats what it is carrying, and a selector sitting there beside a
+ * switch reading "bag" would look as though it meant something.
+ */
+function GroundField({
+  spec,
+  value,
+  vocab,
+  onChange,
+}: {
+  spec: ParamSpec;
+  value: Selector | null;
+  vocab: Vocabulary;
+  onChange: (value: Selector | undefined) => void;
+}) {
+  return (
+    <label className="flex items-center gap-1 text-[10px] uppercase text-muted">
+      {spec.label}
+      <Switch
+        checked={value !== null}
+        ariaLabel={spec.label}
+        onCheckedChange={(on) => onChange(on ? DEFAULT_THING : undefined)}
+      />
+      {value ? (
+        <SelectorPicker value={value} vocab={vocab} onChange={onChange} />
+      ) : null}
+    </label>
   );
 }
 

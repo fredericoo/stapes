@@ -283,6 +283,7 @@ import {
   initialMemory,
   stepBrain,
   type BrainMemory,
+  type FoundThing,
   type SightLevels,
   type Sound,
   type Utterance,
@@ -3132,19 +3133,20 @@ export class GameSession implements PlaySession {
     // once by the bind that commits to it — is answered once. Per turn rather
     // than per tick of the world: what it caches is a fact about the board that
     // a creature's own step can change.
-    const thingsFound = new Map<string, Coord | null>();
+    const thingsFound = new Map<string, FoundThing | null>();
     const reach = brainReach(brain);
     stepBrain(brain, actor.brain, tickMs, {
       busy: !this.idle(actor),
       rng: this.rng,
       self: { x: loc.x, y: loc.y, z: loc.z },
       home: actor.home,
-      nearestOnTile: (tileId) => this.nearestOnTile(actor.id, loc, tileId),
-      nearestThing: (tileId) => {
-        const known = thingsFound.get(tileId);
+      nearestOnTile: (tileIds) => this.nearestOnTile(actor.id, loc, tileIds),
+      nearestThing: (tileIds) => {
+        const key = tileIds.join("+");
+        const known = thingsFound.get(key);
         if (known !== undefined) return known;
-        const found = this.nearestThing(loc, tileId, reach, sight);
-        thingsFound.set(tileId, found);
+        const found = this.nearestThing(loc, new Set(tileIds), reach, sight);
+        thingsFound.set(key, found);
         return found;
       },
       thingStillThere: (at, tileId) => this.thingStillThere(at, tileId),
@@ -3166,7 +3168,9 @@ export class GameSession implements PlaySession {
       attack: (id) => this.tryAttack(actor, id),
       extract: (at, tileId) => this.extractForBrain(actor, at, tileId),
       consume: (tileId) => this.consumeForBrain(actor, tileId),
+      consumeOn: (at, tileId) => this.consumeOnGround(actor, at, tileId),
       carrying: (tileId) => this.carryingInBag(actor, tileId),
+      hasStatus: (id, atLeastMs) => this.hasStatus(actor, id, atLeastMs),
       nameOf: (id) => this.bodyName(id),
     });
   }
@@ -5531,24 +5535,29 @@ export class GameSession implements PlaySession {
   private nearestOnTile(
     selfId: string,
     from: Coord,
-    tileId: string,
+    tileIds: readonly string[],
   ): string | null {
     let best: string | null = null;
     let bestSteps = Infinity;
-    for (const id of this.actorsOnTile(tileId)) {
-      if (id === selfId) continue;
-      const actor = this.actors.get(id);
-      if (!actor) continue;
-      const loc = this.tryLocate(actor);
-      // The tile is re-checked against the board rather than taken from the
-      // index. Positions are read live here — the index only ever says who is
-      // worth asking about — so an entry that has gone stale costs a lookup
-      // instead of naming the wrong body.
-      if (!loc || loc.placed.tileId !== tileId) continue;
-      const steps = Math.abs(loc.x - from.x) + Math.abs(loc.y - from.y);
-      if (steps < bestSteps) {
-        bestSteps = steps;
-        best = actor.id;
+    // Across the whole list rather than the first tile that answers: the list is
+    // one question, so a wolf offered a rabbit at nine cells and a deer at two
+    // goes for the deer whichever way round they were authored.
+    for (const tileId of tileIds) {
+      for (const id of this.actorsOnTile(tileId)) {
+        if (id === selfId) continue;
+        const actor = this.actors.get(id);
+        if (!actor) continue;
+        const loc = this.tryLocate(actor);
+        // The tile is re-checked against the board rather than taken from the
+        // index. Positions are read live here — the index only ever says who is
+        // worth asking about — so an entry that has gone stale costs a lookup
+        // instead of naming the wrong body.
+        if (!loc || loc.placed.tileId !== tileId) continue;
+        const steps = Math.abs(loc.x - from.x) + Math.abs(loc.y - from.y);
+        if (steps < bestSteps) {
+          bestSteps = steps;
+          best = actor.id;
+        }
       }
     }
     return best;
@@ -5595,12 +5604,12 @@ export class GameSession implements PlaySession {
    */
   private nearestThing(
     from: Coord,
-    tileId: string,
+    tileIds: ReadonlySet<string>,
     cells: number,
     sight: SightLevels,
-  ): Coord | null {
+  ): FoundThing | null {
     for (let ring = 0; ring <= cells; ring++) {
-      const found = this.thingInRing(from, tileId, ring, sight);
+      const found = this.thingInRing(from, tileIds, ring, sight);
       if (found) return found;
     }
     return null;
@@ -5616,16 +5625,16 @@ export class GameSession implements PlaySession {
    */
   private thingInRing(
     from: Coord,
-    tileId: string,
+    tileIds: ReadonlySet<string>,
     ring: number,
     sight: SightLevels,
-  ): Coord | null {
+  ): FoundThing | null {
     for (let dx = -ring; dx <= ring; dx++) {
       const dy = ring - Math.abs(dx);
       // At the poles of the diamond the two rows are the same row, and reading
       // it twice would only find the same cell again.
       for (const y of dy === 0 ? [from.y] : [from.y - dy, from.y + dy]) {
-        const found = this.thingInColumn(from.x + dx, y, from.z, tileId, sight);
+        const found = this.thingInColumn(from.x + dx, y, from.z, tileIds, sight);
         if (found) return found;
       }
     }
@@ -5637,14 +5646,16 @@ export class GameSession implements PlaySession {
     x: number,
     y: number,
     fromZ: number,
-    tileId: string,
+    tileIds: ReadonlySet<string>,
     sight: SightLevels,
-  ): Coord | null {
+  ): FoundThing | null {
     for (let dz = -sight.down; dz <= sight.up; dz++) {
       const z = fromZ + dz;
       if (z < MIN_LEVEL || z > MAX_LEVEL) continue;
-      if (getStack(this.map, x, y, z).some((p) => p.tileId === tileId)) {
-        return { x, y, z };
+      for (const placed of getStack(this.map, x, y, z)) {
+        if (tileIds.has(placed.tileId)) {
+          return { at: { x, y, z }, tileId: placed.tileId };
+        }
       }
     }
     return null;
@@ -5711,6 +5722,48 @@ export class GameSession implements PlaySession {
     return this.consume(
       { kind: "slot", slot: { kind: "contents", index } },
       actor.id,
+    );
+  }
+
+  /**
+   * Eat what is lying at a cell, on a creature's behalf.
+   *
+   * The player's floor consume and nothing beside it — reach, cover and
+   * idleness, the gates a pickup runs — so a wolf cannot eat a carcass through a
+   * wall or from under a crate. The stack slot is found from the tile rather
+   * than remembered, on {@link extractForBrain}'s terms.
+   */
+  private consumeOnGround(
+    actor: ActorRuntime,
+    at: Coord,
+    tileId: string,
+  ): boolean {
+    const stackIndex = getStack(this.map, at.x, at.y, at.z).findIndex(
+      (placed) => placed.tileId === tileId,
+    );
+    if (stackIndex < 0) return false;
+    return this.consume(
+      { kind: "floor", ref: { ...at, stackIndex } },
+      actor.id,
+    );
+  }
+
+  /**
+   * Is a status running on this body, with at least this long left?
+   *
+   * Read off the live instances rather than through `battlerOf`, which is where
+   * statuses are *applied* to the numbers: what this asks is whether one is
+   * there, and the arithmetic it feeds is nothing to do with it.
+   */
+  private hasStatus(
+    actor: ActorRuntime,
+    id: string,
+    atLeastMs: number | undefined,
+  ): boolean {
+    return actor.statuses.some(
+      (instance) =>
+        instance.defId === id &&
+        (atLeastMs === undefined || instance.remainingMs >= atLeastMs),
     );
   }
 

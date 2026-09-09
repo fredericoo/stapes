@@ -4065,6 +4065,37 @@ something it cannot see — and otherwise browses, picks and chews. Wolves hunt
 deer and rabbits and snakes strike at rabbits, which is two more transitions each
 and no new machinery.
 
+**A selector names a list of tiles, not one.** A wolf that hunts deer and
+rabbits is one relationship — prey — and saying it as two transitions put the
+same condition, bind and target state on two rows that had to be kept in step by
+hand. Worse, they were two rows in an *ordered* table, so reordering one
+silently changed which animal a wolf preferred. `nearest [deer, rabbit]` says it
+once, and a third prey is a chip rather than a row. Nearest is across the whole
+list rather than the first tile that answers, because the list is one question —
+which is also why agreement between two binds is about the *set*.
+
+The editor's picker changed shape for it: there is no dropdown row for "deer and
+rabbit but not wolf", so the kind and the tiles are two controls. A `Select`
+picks the question and removable chips pick what it is about, with the last chip
+refusing to come off — a selector naming nothing is one the schema refuses, and
+removing it would make the brain inert for what looks like an ordinary click.
+
+**Hunger is the absence of enough `fed`, not a status.** The `status` condition
+takes a *floor* — "running, with at least this long left" — and the `not` of it
+is what an author writes. Asked the other way round, as a ceiling, a creature
+that has never eaten answers *no* to "is your fed under two minutes", which is
+the opposite of true. As a floor with a `not` it reads correctly on all three
+cases that exist: never fed, fed a while ago, fed just now. A wolf gates every
+hunting transition on it and none of its fleeing or homing ones, so appetite
+decides whether a chase *starts* and never interrupts one — and being hit is
+above the gate, because a wolf you attack fights back fed or not.
+
+**`consume` eats out of the bag or off the board.** Given a thing selector it
+takes what is lying there, which is what a wolf does with a carcass: there is no
+picking it up and no bag to put it in, and authoring that as "take it, then eat
+it" would be two turns and a backpack on an animal. The two arms are
+`ConsumeSource`'s own, kept all the way out to the brain.
+
 **The editor says what a selector names.** `slotTileId` traces `$bush` back to
 the transitions that bind it and answers only when they agree; `affordancesOf`
 turns that tile into the words on the row — `Bush · pick`, in the author's own

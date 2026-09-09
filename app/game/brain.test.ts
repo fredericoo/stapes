@@ -7,7 +7,7 @@ import {
   nearest,
   resolveBrain,
   slot,
-  slotTileId,
+  slotTiles,
   thing,
   type BrainActionDef,
   type BrainCondition,
@@ -306,7 +306,9 @@ describe("deciding", () => {
       attack: vi.fn(() => false),
       extract: vi.fn(() => false),
       consume: vi.fn(() => false),
+      consumeOn: vi.fn(() => false),
       carrying: () => false,
+      hasStatus: () => false,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -1044,7 +1046,9 @@ describe("giving up", () => {
       attack: () => false,
       extract: () => false,
       consume: () => false,
+      consumeOn: () => false,
       carrying: () => false,
+      hasStatus: () => false,
       nameOf: (id: string) => id,
     };
 
@@ -1263,7 +1267,9 @@ describe("actions that take time", () => {
       attack: vi.fn(() => false),
       extract: vi.fn(() => false),
       consume: vi.fn(() => false),
+      consumeOn: vi.fn(() => false),
       carrying: () => false,
+      hasStatus: () => false,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -1701,7 +1707,9 @@ describe("a deer that yelps", () => {
       attack: () => false,
       extract: () => false,
       consume: () => false,
+      consumeOn: () => false,
       carrying: () => false,
+      hasStatus: () => false,
       nameOf: (id: string) => id,
     };
 
@@ -1783,7 +1791,9 @@ describe("a deer that yelps", () => {
       attack: () => false,
       extract: () => false,
       consume: () => false,
+      consumeOn: () => false,
       carrying: () => false,
+      hasStatus: () => false,
       nameOf: (id: string) => id,
     };
 
@@ -2441,7 +2451,9 @@ describe("composing conditions", () => {
       attack: vi.fn(() => false),
       extract: vi.fn(() => false),
       consume: vi.fn(() => false),
+      consumeOn: vi.fn(() => false),
       carrying: () => false,
+      hasStatus: () => false,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -3142,7 +3154,9 @@ describe("knowing where it belongs", () => {
       attack: vi.fn(() => false),
       extract: vi.fn(() => false),
       consume: vi.fn(() => false),
+      consumeOn: vi.fn(() => false),
       carrying: () => false,
+      hasStatus: () => false,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -4306,7 +4320,8 @@ describe("naming a thing", () => {
       self: { x: 0, y: 0, z: 0 },
       home: null,
       nearestOnTile: () => null,
-      nearestThing: (tileId: string) => (tileId === "bush" ? BUSH_AT : null),
+      nearestThing: (tileIds: readonly string[]) =>
+        tileIds.includes("bush") ? { at: BUSH_AT, tileId: "bush" } : null,
       thingStillThere: () => true,
       positionOf: () => null,
       wouldDrop: () => false,
@@ -4324,7 +4339,9 @@ describe("naming a thing", () => {
       attack: vi.fn(() => false),
       extract: vi.fn(() => true),
       consume: vi.fn(() => false),
+      consumeOn: vi.fn(() => false),
       carrying: () => false,
+      hasStatus: () => false,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -4432,19 +4449,172 @@ describe("what a slot turns out to hold", () => {
     };
   }
 
-  it("is the tile every transition binding it agrees on", () => {
-    expect(slotTileId(bindingFrom(thing("bush")), "quarry")).toBe("bush");
-    expect(slotTileId(bindingFrom(nearest("wolf"), nearest("wolf")), "quarry"))
-      .toBe("wolf");
+  it("is the tiles every transition binding it agrees on", () => {
+    expect(slotTiles(bindingFrom(thing("bush")), "quarry")).toEqual(["bush"]);
+    expect(
+      slotTiles(bindingFrom(nearest("deer", "rabbit"), nearest("deer", "rabbit")), "quarry"),
+    ).toEqual(["deer", "rabbit"]);
+  });
+
+  // Agreement is about the *set*: the order inside a list means nothing, so two
+  // rows naming the same prey either way round are one answer rather than none.
+  it("ignores the order inside a list", () => {
+    expect(
+      slotTiles(bindingFrom(nearest("deer", "rabbit"), nearest("rabbit", "deer")), "quarry"),
+    ).toHaveLength(2);
+    expect(
+      slotTiles(bindingFrom(nearest("deer", "rabbit"), nearest("rabbit", "wolf")), "quarry"),
+    ).toEqual([]);
   });
 
   it("is nothing when they disagree, or when one names no tile", () => {
-    expect(slotTileId(bindingFrom(thing("bush"), nearest("wolf")), "quarry"))
-      .toBeNull();
-    expect(slotTileId(bindingFrom(SPEAKER_SELECTOR), "quarry")).toBeNull();
+    expect(slotTiles(bindingFrom(thing("bush"), nearest("wolf")), "quarry"))
+      .toEqual([]);
+    expect(slotTiles(bindingFrom(SPEAKER_SELECTOR), "quarry")).toEqual([]);
   });
 
   it("is nothing for a name no transition binds", () => {
-    expect(slotTileId(bindingFrom(thing("bush")), "nobody")).toBeNull();
+    expect(slotTiles(bindingFrom(thing("bush")), "nobody")).toEqual([]);
+  });
+});
+
+/**
+ * Hunger, and eating what is lying there.
+ *
+ * Two additions that only make sense together: a wolf goes for a carcass because
+ * it is hungry, and "hungry" is not a status anything grants — it is the absence
+ * of enough `fed`. So the condition is a floor and the `not` of it is what an
+ * author writes.
+ */
+describe("asking what a body is under", () => {
+  function ctx(overrides: Partial<Parameters<typeof stepBrain>[3]> = {}) {
+    const built = {
+      busy: false,
+      rng: new Rng(1),
+      self: { x: 0, y: 0, z: 0 },
+      home: null,
+      nearestOnTile: () => null,
+      nearestThing: () => null,
+      thingStillThere: () => true,
+      positionOf: () => null,
+      wouldDrop: () => false,
+      walkTo: (): WalkOrderState => "walking",
+      fleeFrom: (): WalkOrderState => "walking",
+      step: () => true,
+      say: vi.fn(),
+      noise: vi.fn(),
+      canSee: () => true,
+      sight: { up: 0, down: 0 },
+      heard: () => [],
+      heardNoise: () => [],
+      talking: () => false,
+      hurtBy: () => [],
+      attack: vi.fn(() => false),
+      extract: vi.fn(() => false),
+      consume: vi.fn(() => false),
+      consumeOn: vi.fn(() => true),
+      carrying: () => false,
+      hasStatus: vi.fn(() => false),
+      nameOf: (id: string) => id,
+      ...overrides,
+    } satisfies Parameters<typeof stepBrain>[3];
+    return built;
+  }
+
+  /** Goes to `alert` when `condition` holds. */
+  function watching(condition: BrainCondition): BrainDef {
+    return {
+      initial: "idle",
+      states: { idle: { do: [] }, alert: { do: [] } },
+      transitions: [{ from: "idle", if: condition, to: "alert" }],
+    };
+  }
+
+  function ran(brain: BrainDef, c: Parameters<typeof stepBrain>[3]): string {
+    const memory = initialMemory(brain);
+    stepBrain(brain, memory, BRAIN_TICK_MS, c);
+    return memory.state;
+  }
+
+  const SATED_MS = 120_000;
+
+  it("asks the body, passing the id and the floor through", () => {
+    const c = ctx();
+    ran(watching({ cond: "status", id: "fed", atLeastMs: SATED_MS }), c);
+    expect(c.hasStatus).toHaveBeenCalledWith("fed", SATED_MS);
+  });
+
+  it("asks only whether it is running when no floor is given", () => {
+    const c = ctx();
+    ran(watching({ cond: "status", id: "poison" }), c);
+    expect(c.hasStatus).toHaveBeenCalledWith("poison", undefined);
+  });
+
+  /**
+   * The three cases hunger has to read correctly, and the reason the condition
+   * is a floor with a `not` over it rather than a ceiling: a body that has never
+   * eaten is the one a ceiling gets wrong.
+   */
+  it("reads hunger as the absence of enough fed", () => {
+    const hungry = watching(
+      group<BrainConditionDef>(
+        "and",
+        [{ cond: "status", id: "fed", atLeastMs: SATED_MS }],
+        true,
+      ),
+    );
+
+    // Never eaten, and a meal that has nearly worn off: both hungry.
+    expect(ran(hungry, ctx({ hasStatus: () => false }))).toBe("alert");
+    // Just eaten: not.
+    expect(ran(hungry, ctx({ hasStatus: () => true }))).toBe("idle");
+  });
+
+  it("eats what is lying there when the line names a thing", () => {
+    const brain: BrainDef = {
+      initial: "eating",
+      states: { eating: { do: [{ action: "consume", of: thing("raw-meat") }] } },
+      transitions: [],
+    };
+    const c = ctx({
+      nearestThing: () => ({ at: { x: 1, y: 0, z: 0 }, tileId: "raw-meat" }),
+    });
+
+    stepBrain(brain, initialMemory(brain), BRAIN_TICK_MS, c);
+
+    expect(c.consumeOn).toHaveBeenCalledWith({ x: 1, y: 0, z: 0 }, "raw-meat");
+    // And not out of the bag, which is the other thing this verb does.
+    expect(c.consume).not.toHaveBeenCalled();
+  });
+
+  it("goes to the bag when the line names nothing", () => {
+    const brain: BrainDef = {
+      initial: "eating",
+      states: { eating: { do: [{ action: "consume", tileId: "berry" }] } },
+      transitions: [],
+    };
+    const c = ctx();
+
+    stepBrain(brain, initialMemory(brain), BRAIN_TICK_MS, c);
+
+    expect(c.consume).toHaveBeenCalledWith("berry");
+    expect(c.consumeOn).not.toHaveBeenCalled();
+  });
+
+  // A body is not a meal, on the terms it is not a resource.
+  it("refuses to eat somebody", () => {
+    const brain: BrainDef = {
+      initial: "eating",
+      states: {
+        eating: { do: [{ action: "consume", of: nearest("player") }] },
+      },
+      transitions: [],
+    };
+    const c = ctx({ nearestOnTile: () => "alice" });
+
+    stepBrain(brain, initialMemory(brain), BRAIN_TICK_MS, c);
+
+    expect(c.consumeOn).not.toHaveBeenCalled();
+    expect(c.consume).not.toHaveBeenCalled();
   });
 });

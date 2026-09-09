@@ -169,6 +169,17 @@ export type WalkGoal =
 /** What became of a standing walk order. @see BrainContext.walkTo */
 export type WalkOrderState = "walking" | "arrived" | "blocked";
 
+/**
+ * A placement a search turned up: where it is, and which of the asked-for tiles
+ * it turned out to be.
+ *
+ * The tile travels back because the question may have named several — see
+ * {@link Selector}'s `nearest` — and what gets written into a slot is the one
+ * thing that answered. A bound "carcass or haunch" that remembered the *list*
+ * would still be there after the carcass was eaten.
+ */
+export type FoundThing = { readonly at: Coord; readonly tileId: string };
+
 export type BrainContext = {
   /** Still finishing a walk, a fall, or a shove. */
   busy: boolean;
@@ -186,13 +197,15 @@ export type BrainContext = {
    */
   home: Coord | null;
   /**
-   * Nearest other body standing on `tileId`, or null when there is none — a
-   * world with nobody in it, or a creature that is the last of its kind. Never
-   * this creature itself. @see NEAREST_PREFIX
+   * Nearest other body standing on any of these tiles, or null when there is
+   * none — a world with nobody in it, or a creature that is the last of its
+   * kind. Nearest across the whole list rather than the first tile that answers,
+   * because the list is one question. Never this creature itself.
    */
-  nearestOnTile(tileId: string): string | null;
+  nearestOnTile(tileIds: readonly string[]): string | null;
   /**
-   * Nearest placement of `tileId`, or null when there is none near enough.
+   * Nearest placement of any of these tiles, or null when there is none near
+   * enough — and which tile it turned out to be. @see FoundThing
    *
    * {@link nearestOnTile}'s opposite number — a thing rather than a body — and
    * the one capability here with a search radius baked in rather than passed.
@@ -200,7 +213,7 @@ export type BrainContext = {
    * because a placement further off than the furthest question in the brain
    * cannot change any answer it gives. @see ../lib/brain
    */
-  nearestThing(tileId: string): Coord | null;
+  nearestThing(tileIds: readonly string[]): FoundThing | null;
   /** Where an actor is, or null once they are off the board. */
   positionOf(actorId: string): Coord | null;
   /**
@@ -386,12 +399,29 @@ export type BrainContext = {
    */
   consume(tileId: string | undefined): boolean;
   /**
+   * Eat something lying at a cell. False when it is out of reach, buried, or no
+   * longer the thing that was bound.
+   *
+   * {@link consume}'s other half rather than a widened version of it, because
+   * the two cross different lines: this is a board action with the reach and
+   * cover a pickup runs, where that one is a kit action. The split is
+   * `ConsumeSource`'s own, kept all the way out to here.
+   */
+  consumeOn(at: Coord, tileId: string): boolean;
+  /**
    * Is there something in the bag? What the `carrying` condition reads.
    *
    * A tile id narrows it; absent asks whether the bag holds anything at all.
    * @see ../lib/brain's `carrying`
    */
   carrying(tileId: string | undefined): boolean;
+  /**
+   * Is a named status running on this body, with at least `atLeastMs` left?
+   *
+   * What the `status` condition reads. Absent asks only whether it is running.
+   * @see ../lib/brain's `status`
+   */
+  hasStatus(id: string, atLeastMs: number | undefined): boolean;
   /**
    * What to call somebody out loud, or null once they are off the board.
    *
@@ -537,11 +567,16 @@ function identify(
     case "attacker":
       return asBody(memory.hurtBy);
     case "nearest":
-      return asBody(ctx.nearestOnTile(selector.data.tileId));
+      return asBody(ctx.nearestOnTile(selector.data.tileIds));
     case "thing": {
-      const { tileId } = selector.data;
-      const at = ctx.nearestThing(tileId);
-      return at === null ? null : { kind: "thing", at, tileId };
+      const found = ctx.nearestThing(selector.data.tileIds);
+      // The tile that *answered*, not the list that was asked: what a bound
+      // thing has to remember is the one standing there, so a wolf that bound
+      // "the nearest carcass or haunch" is committed to the particular thing it
+      // found rather than to either of them.
+      return found === null
+        ? null
+        : { kind: "thing", at: found.at, tileId: found.tileId };
     }
     case "home":
       return null;
@@ -811,6 +846,8 @@ function leafHolds(
       return ctx.talking();
     case "carrying":
       return ctx.carrying(condition.tileId);
+    case "status":
+      return ctx.hasStatus(condition.id, condition.atLeastMs);
   }
 }
 
@@ -953,8 +990,15 @@ function runAction(
       // is part-way through: a lower line that stepped would end it.
       return ctx.extract(bound.at, bound.tileId) ? "running" : "failure";
     }
-    case "consume":
-      return ctx.consume(action.tileId) ? "success" : "failure";
+    case "consume": {
+      // The bag, unless the author named something on the board.
+      if (!action.of) return ctx.consume(action.tileId) ? "success" : "failure";
+      const bound = identify(action.of, memory, ctx);
+      // A body is not a meal, on the terms it is not a resource: the same
+      // refusal `extract` makes of the wrong kind of selector.
+      if (bound?.kind !== "thing") return "failure";
+      return ctx.consumeOn(bound.at, bound.tileId) ? "success" : "failure";
+    }
     case "step_toward": {
       const goal = aim(action.of, memory, ctx);
       // Nobody to go to. A failure rather than a stand-still, so the author's
