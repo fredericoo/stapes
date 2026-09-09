@@ -16,6 +16,7 @@ import {
   type Selector,
 } from "../lib/brain";
 import { group } from "../lib/conditions";
+import { DEFAULT_STATUS_SOURCE, type StatusDef } from "../lib/status";
 import { displayNameFor } from "./displayName";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { Coord, Direction, FlatMapFile, MapFile, TileDef } from "../lib/types";
@@ -290,6 +291,7 @@ describe("deciding", () => {
       thingStillThere: () => false,
       positionOf: () => null,
       wouldDrop: () => false,
+      wouldStepIntoHazard: () => false,
       walkTo: (goal: WalkGoal): WalkOrderState => standingOrder(built, goal),
       fleeFrom: (threat: Coord): WalkOrderState => runningOrder(built, threat),
       step: vi.fn(() => true),
@@ -394,6 +396,50 @@ describe("deciding", () => {
     // Standing still because one arbitrary direction was blocked would leave a
     // creature in a corridor motionless three times out of four.
     expect(c.step).toHaveBeenCalledTimes(4);
+  });
+
+  /**
+   * The rule an author cannot switch off, which is the whole of why it is not a
+   * parameter: `allowDrops` says a creature may come down off things, and there
+   * is no reading of that under which it also means it may walk into a fire.
+   * @see brainRuntime's `footing`
+   */
+  it("leaves out a direction that lands in something, drops allowed or not", () => {
+    const brain: BrainDef = {
+      initial: "wander",
+      states: {
+        wander: { do: [{ action: "step_random", allowDrops: true }] },
+      },
+      transitions: [],
+    };
+    const memory = initialMemory(brain);
+    const c = ctx({
+      wouldStepIntoHazard: (direction: Direction) => direction === "n",
+      step: vi.fn(() => false),
+    });
+
+    stepBrain(brain, memory, BRAIN_TICK_MS, c);
+
+    expect(c.step).toHaveBeenCalledTimes(3);
+    expect(c.step).not.toHaveBeenCalledWith("n");
+  });
+
+  it("reads a creature hemmed in by hazards as blocked, not as standing still", () => {
+    const hemmed: BrainDef = {
+      initial: "wander",
+      states: { wander: { do: [{ action: "step_random" }] } },
+      transitions: [{ from: "wander", if: { cond: "stuck" }, to: "resigned" }],
+    };
+    const memory = initialMemory(hemmed);
+    const c = ctx({ wouldStepIntoHazard: () => true });
+
+    stepBrain(hemmed, memory, BRAIN_TICK_MS, c);
+    stepBrain(hemmed, memory, BRAIN_TICK_MS, c);
+
+    expect(c.step).not.toHaveBeenCalled();
+    // The same failure being hemmed in by walls reports, so an author's
+    // `stuck` covers both without knowing which it was.
+    expect(memory.state).toBe("resigned");
   });
 
   it("does not start a second step while one is in flight", () => {
@@ -1032,6 +1078,7 @@ describe("giving up", () => {
       thingStillThere: () => false,
       positionOf: () => null,
       wouldDrop: () => false,
+      wouldStepIntoHazard: () => false,
       walkTo: (): WalkOrderState => "blocked",
       fleeFrom: (): WalkOrderState => "blocked",
       step: () => false,
@@ -1231,6 +1278,129 @@ describe("watching its footing", () => {
 });
 
 /**
+ * A wander does not walk into a fire, and no author had to say so.
+ *
+ * `./pathfinding` already refuses a cell that fires on arrival, so a creature
+ * closing on somebody routes round a flame. A random step went straight in,
+ * which made where a creature could end up depend on which action moved it —
+ * the same animal, safe while it was hunting and burned while it was idling.
+ * These pin that the two now agree, and that the rule is the catalogue's
+ * reading rather than a blanket fear of scenery. @see brainRuntime's `footing`
+ */
+describe("watching where it puts its feet", () => {
+  const hazardTiles: TileDef[] = [
+    ...tiles,
+    /** Burns whoever lands in it, and holds nobody up: the shipped flame. */
+    tile({
+      id: "flame",
+      height: 2,
+      intangible: true,
+      interactions: { addStatus: { trigger: "step", statusId: "burned" } },
+    }),
+    /** The same block with the other tone. A blessing is not a hazard. */
+    tile({
+      id: "shrine",
+      height: 2,
+      intangible: true,
+      interactions: { addStatus: { trigger: "step", statusId: "blessed" } },
+    }),
+    /** Avoided on what it does rather than on any tone. */
+    tile({
+      id: "pad",
+      height: 2,
+      intangible: true,
+      interactions: {
+        teleport: {
+          trigger: "step",
+          destination: { kind: "relative", delta: { x: 0, y: 0, z: 0 } },
+        },
+      },
+    }),
+  ];
+
+  const statuses: Record<string, StatusDef> = {
+    burned: { ...DEFAULT_STATUS_SOURCE, id: "burned", name: "burned", tone: "bad" },
+    blessed: {
+      ...DEFAULT_STATUS_SOURCE,
+      id: "blessed",
+      name: "blessed",
+      tone: "good",
+    },
+  };
+
+  const CORRIDOR_END = 2;
+
+  /** Far enough off the strip that the deer has no way to it. */
+  const WATCHER_Y = 5;
+
+  /**
+   * A strip of ground with `tileId` on the far end and nothing either side, so
+   * a wandering deer has one line it can walk and the cell under test is at the
+   * end of it. Off the strip is void, which it refuses as a drop already —
+   * that is what makes "never got there" the hazard rule rather than luck with
+   * the dice.
+   *
+   * The player is on an island of their own, and is here because a world
+   * nobody is in runs no brains at all. @see GameSession.tickBrains
+   */
+  function corridor(tileId: string): GameSession {
+    let map = emptyMap();
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: "deer" }]);
+    map = replaceStack(map, CORRIDOR_END, 0, 0, [
+      { tileId: "grass" },
+      { tileId },
+    ]);
+    for (let x = 1; x < CORRIDOR_END; x++) {
+      map = replaceStack(map, x, 0, 0, [{ tileId: "grass" }]);
+    }
+    map = withPlayerAt(map, 0, WATCHER_Y);
+    return new GameSession(map, hazardTiles, {
+      actorIds: ["alice"],
+      statuses,
+    });
+  }
+
+  /** Every cell the one creature stood in over `ms`, as "x,y". */
+  function wanderedThrough(session: GameSession, ms: number): Set<string> {
+    const seen = new Set<string>([deerCell(session)]);
+    for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      seen.add(deerCell(session));
+    }
+    return seen;
+  }
+
+  const WANDER_MS = BRAIN_TICK_MS * 40;
+
+  it("never wanders onto a flame", () => {
+    const visited = wanderedThrough(corridor("flame"), WANDER_MS);
+
+    expect(visited.has(`${CORRIDOR_END},0`)).toBe(false);
+    // And it did move, so the assertion above is about the flame rather than
+    // about a creature that never got a turn.
+    expect(visited.has("1,0")).toBe(true);
+  });
+
+  it("never wanders onto a teleport", () => {
+    const visited = wanderedThrough(corridor("pad"), WANDER_MS);
+
+    expect(visited.has(`${CORRIDOR_END},0`)).toBe(false);
+    expect(visited.has("1,0")).toBe(true);
+  });
+
+  /**
+   * The control, and the reason the rule reads tone rather than refusing every
+   * `add_status` on the board: a creature that would not walk over a shrine is
+   * one that has decided being blessed is dangerous.
+   */
+  it("wanders over a shrine like any other ground", () => {
+    const visited = wanderedThrough(corridor("shrine"), WANDER_MS);
+
+    expect(visited.has(`${CORRIDOR_END},0`)).toBe(true);
+  });
+});
+
+/**
  * Actions that hold a count across turns, and the one rule that keeps them from
  * being a scripting language: **a counter or a timer, never a decision.**
  *
@@ -1251,6 +1421,7 @@ describe("actions that take time", () => {
       thingStillThere: () => false,
       positionOf: () => null,
       wouldDrop: () => false,
+      wouldStepIntoHazard: () => false,
       walkTo: (goal: WalkGoal): WalkOrderState => standingOrder(built, goal),
       fleeFrom: (threat: Coord): WalkOrderState => runningOrder(built, threat),
       step: vi.fn(() => true),
@@ -1693,6 +1864,7 @@ describe("a deer that yelps", () => {
       thingStillThere: () => false,
       positionOf: () => null,
       wouldDrop: () => false,
+      wouldStepIntoHazard: () => false,
       walkTo: (): WalkOrderState => "blocked",
       fleeFrom: (): WalkOrderState => "blocked",
       step: () => true,
@@ -1777,6 +1949,7 @@ describe("a deer that yelps", () => {
       thingStillThere: () => false,
       positionOf: () => null,
       wouldDrop: () => false,
+      wouldStepIntoHazard: () => false,
       walkTo: (): WalkOrderState => "blocked",
       fleeFrom: (): WalkOrderState => "blocked",
       step: () => false,
@@ -2437,6 +2610,7 @@ describe("composing conditions", () => {
       thingStillThere: () => false,
       positionOf: () => ({ x: 0, y: 0, z: 0 }),
       wouldDrop: () => false,
+      wouldStepIntoHazard: () => false,
       walkTo: (): WalkOrderState => "arrived",
       fleeFrom: (threat: Coord): WalkOrderState => runningOrder(built, threat),
       step: vi.fn(() => true),
@@ -3138,6 +3312,7 @@ describe("knowing where it belongs", () => {
       thingStillThere: () => false,
       positionOf: () => null,
       wouldDrop: () => false,
+      wouldStepIntoHazard: () => false,
       walkTo: (goal: WalkGoal): WalkOrderState => standingOrder(built, goal),
       fleeFrom: (threat: Coord): WalkOrderState => runningOrder(built, threat),
       step: vi.fn(() => true),
@@ -4325,6 +4500,7 @@ describe("naming a thing", () => {
       thingStillThere: () => true,
       positionOf: () => null,
       wouldDrop: () => false,
+      wouldStepIntoHazard: () => false,
       walkTo: (): WalkOrderState => "walking",
       fleeFrom: (): WalkOrderState => "walking",
       step: () => true,
@@ -4498,6 +4674,7 @@ describe("asking what a body is under", () => {
       thingStillThere: () => true,
       positionOf: () => null,
       wouldDrop: () => false,
+      wouldStepIntoHazard: () => false,
       walkTo: (): WalkOrderState => "walking",
       fleeFrom: (): WalkOrderState => "walking",
       step: () => true,

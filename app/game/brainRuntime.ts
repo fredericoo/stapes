@@ -241,6 +241,16 @@ export type BrainContext = {
    */
   wouldDrop(direction: Direction): boolean;
   /**
+   * Would stepping this way land the body in something that fires on arrival —
+   * a flame, a portal? Asked of where the leg *ends*, so a step off a ledge is
+   * judged by what is at the bottom of the fall.
+   *
+   * `./pathfinding`'s `unsafeToStepOn` asked of one leg instead of a whole
+   * search, and deliberately the same reading: a bad status or a teleport, a
+   * blessing and an unknown id neither. @see footing for why no action opts out.
+   */
+  wouldStepIntoHazard(direction: Direction): boolean;
+  /**
    * Ask to walk one cell. False when the board refuses, which is the whole of
    * how an action learns it is blocked.
    */
@@ -530,14 +540,30 @@ function runOnEnter(brain: BrainDef, memory: BrainMemory, ctx: BrainContext) {
   }
 }
 
-/** Directions worth trying at all, given how this action feels about ledges. */
+/**
+ * Directions worth trying at all: never one that lands the body in something.
+ *
+ * Two refusals with different standing. A ledge is the author's to decide —
+ * `allowDrops` is on the action because a bat is meant to fly off one — while a
+ * flame or a portal is nobody's: a creature that blunders into fire is not
+ * exhibiting a behaviour, and a wander that teleports has ended somewhere the
+ * state that started it never considered. That is `./pathfinding`'s argument
+ * for `unsafeToStepOn` word for word, so it is settled here rather than
+ * authored, and where a creature can end up no longer depends on which action
+ * moved it.
+ *
+ * The ledge check goes first, and the order is the saving: it is one column
+ * scan, while a hazard costs a step check and a stack scan on top of it.
+ */
 function footing(
   directions: Direction[],
   allowDrops: boolean | undefined,
   ctx: BrainContext,
 ): Direction[] {
-  if (allowDrops) return directions;
-  return directions.filter((direction) => !ctx.wouldDrop(direction));
+  return directions.filter((direction) => {
+    if (!allowDrops && ctx.wouldDrop(direction)) return false;
+    return !ctx.wouldStepIntoHazard(direction);
+  });
 }
 
 /**
