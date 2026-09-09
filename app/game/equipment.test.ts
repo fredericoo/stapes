@@ -7,6 +7,7 @@ import {
   bodyDefence,
   DAMAGE_AT_MAX_MASTERY,
   defFrom,
+  fightingStats,
   fleeFrom,
   MASTERY_ACCURACY_BONUS,
   MASTERY_DAMAGE_BONUS,
@@ -936,16 +937,33 @@ describe("taking turns between two hands", () => {
    * Each hand brings its own everything, which is what "the appropriate damage"
    * has to mean: a body alternating a blade and a hammer strikes as a blade and
    * then as a hammer, and armour keyed by kind sees both.
+   *
+   * **Asserted against what each weapon is worth rather than against the two
+   * being different from each other.** "The sword and the hammer do not hit for
+   * the same number" was the same claim only for as long as the catalogue
+   * happened to author them apart, and a balance pass that landed them on the
+   * same damage turned an untouched rotation red. What the rotation owes is that
+   * each hand resolves from the weapon *in it*, which is a fact about this
+   * function and not about how anybody tuned two swords.
    */
   it("gives each hand its own blow, speed and mastery", () => {
     const mixed = held("rusty-sword", "simple-hammer");
-    const sharp = effectiveBattler(base, mixed, tiles, "weapon");
-    const blunt = effectiveBattler(base, mixed, tiles, "offhand");
 
-    expect(sharp.mastery).toBe("sharp");
-    expect(blunt.mastery).toBe("blunt");
-    expect(sharp.damage).not.toBe(blunt.damage);
-    expect(sharp.spd).not.toBe(blunt.spd);
+    for (const [hand, tileId] of [
+      ["weapon", "rusty-sword"],
+      ["offhand", "simple-hammer"],
+    ] as const) {
+      const swung = effectiveBattler(base, mixed, tiles, hand);
+      const alone = fightingStats(base, resolveWeapon(tiles[tileId]!)!);
+      expect(swung.mastery).toBe(alone.mastery);
+      expect(swung.damage).toBe(alone.damage);
+      expect(swung.spd).toBe(alone.spd);
+    }
+
+    // And the two hands really are two kinds of blow, which is the half armour
+    // keyed by mastery cares about.
+    expect(effectiveBattler(base, mixed, tiles, "weapon").mastery).toBe("sharp");
+    expect(effectiveBattler(base, mixed, tiles, "offhand").mastery).toBe("blunt");
   });
 
   /**
