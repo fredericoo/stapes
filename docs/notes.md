@@ -2539,6 +2539,48 @@ targeted, on the cell the caster is facing: the player never picks an arbitrary
 square. Range goes through `canReach`, so a spell out of range fails exactly the
 way a swing does, wall included.
 
+##### A charm is its own kind of item, and stones stopped pretending
+
+An arcane stone could be marked `automatic`: it fired by itself, it was refused a
+hand, and it waited for a moment where casting it would not be wasted. That was
+one kind of thing wearing two hats. Every question about a stone had a second
+answer for the automatic case — does it get a button, may a hand hold it, does it
+wait — and the charm square had to be a *special* square to hold one.
+
+`CharmItem` is the passive on its own terms: an `everyMs`, an optional `hp`, and
+an optional list of the same `StatusGrant`s a consumable carries. No cast, no
+target, no reach, no requirements, because none of those are questions about
+something that happens without you. The Arcane Necklace of Life is one — a point
+every ten seconds — and `automatic`, `automaticFires`, `StoneHolder` and the
+`automatic` cast refusal went with it.
+
+**Which is what finally makes a stone a stone.** A hand takes every stone now,
+the charm square takes stones on exactly a hand's terms, and it takes charms
+because nothing else will have them. The squares differ in what they *cost* and
+in nothing else.
+
+**`hp` is unsigned, unlike a consumable's.** A consumable is something you chose
+to swallow, so a poisoned apple is fair. A charm acts on its wearer without being
+asked and on a clock they cannot see, and a trinket taking hit points off
+somebody every ten seconds is a way to kill a player who has no way to learn why.
+A cursed object is a status with a `bad` tone, which says so on the strip.
+
+**Nothing waits for a moment worth acting on**, which is the one behaviour that
+did not survive. `automaticFires` held a passive back until it would not be
+wasted — a mend waited until you were hurt — because a stone that fired on
+nothing spent a cooldown and sat cooling when you needed it. A charm has no
+cooldown to waste: `applyHealing` clamps at full health and floats nothing, and a
+grant landing on somebody already under it is the refresh every other granter
+performs. The condition protected a resource that no longer exists.
+
+The clock is on the wearer, keyed on the particular charm's instance id, and is
+deliberately **not durable**. Keying it means the same charm put back on resumes
+and a different one starts fresh, so wearing a cheap charm to run the interval
+down and swapping on the last tick buys nothing. Not durable because a stone's
+cooldown is durable for a reason that inverts here: reconnecting must not be the
+cheapest spell in the game, where a charm clock rebuilt on load costs its wearer
+at most one interval.
+
 ##### The charm used to override that, and it was a trap
 
 A charm reached nobody but its wearer — refused a target in `castability`, and
@@ -3096,6 +3138,60 @@ up, so without one every client would go on drawing a world the server had
 moved on from. What a `hello` cannot fix is the client's own catalogue, which
 reaches a browser only at page load — an author still reloads to see new art,
 and no longer reloads to make the world obey them.
+
+## A receipt floats for a mend, and only for health that went in
+
+Damage has had a number rising off it since the beginning and healing had none:
+a bandage, a mend stone, a `fed` status doing its work and the `/health` command
+all moved a health bar and drew nothing. The only way to know any of it had
+happened was to have been watching the bar.
+
+`applyHealing` is the mirror of `applyDamage` and exists because there were four
+of it — each of those four clamped at full health with its own two lines, and
+none floated anything. One function, one clamp, one number.
+
+**What actually went in, not what was offered.** A body one point short of full
+offered five gains one, and one is the figure: a receipt is for what happened to
+*this* body. A call that restored nothing is silent — no number, no element, and
+nothing on the wire — so a full health bar under a charm or a `fed` says nothing.
+That is the difference between a number meaning "this happened to you" and one
+meaning "something was offered", and only the first is a thing a player can act
+on.
+
+`heal` is a third `SwingOutcome` rather than a layer of its own. The channel has
+always been "something happened to this body on this tick" — the name is the case
+it started as — and a second mechanism would drift in placement, lifetime and
+rise from the numbers it is meant to sit beside. `SWING_OUTCOMES` carries it onto
+the wire, which is the boundary a union cannot validate on its own.
+
+**Two things say it, not one.** The colour is a light green, the one hue left in
+that layer, and it is green *whoever* it happened to — unlike a blow, where red
+exists because your own hit points are what you cannot afford to miss while
+reading the traffic, and there is no equivalent fear about being healed. The text
+is signed, `+5`, so a reader who cannot separate green from white still knows
+which way the bar went.
+
+### A cooling stone looks stuck, and says so when it will not move
+
+A cooling stone is locked in its square — the whole reason cooldowns are per
+stone — and the interface said so in exactly one place. Dropping one on the floor
+answered with a sentence; dragging the same stone into a bag answered with
+nothing, and the square looked like every other square with something in it.
+
+The square is now drawn dimmed. **Dimmed rather than dashed**, because dashed is
+what an empty square wears and this one is conspicuously not empty: what it has
+to say is that the thing you can plainly see is not yours to move. The screen
+reader gets the same fact in words, in place of the press hint — which while a
+stone is cooling is not true, since a press still *uses* the thing.
+
+The silent bag move was a gap between two gates. The drag is refused
+client-side, so no square lit up, and a release onto no lit target fell through
+to a world drop that found no cell under the panel — which meant `moveItem`'s
+`noteCoolingRefusal`, the one gate that speaks, was never reached. A release over
+a square now hands the move on whether or not that square lit up, and the session
+answers. Everything refused for the ordinary reasons is still refused in silence,
+which is right: "your hand is full" is a thing the player can see, and this is the
+one refusal that is invisible.
 
 ## Balancing happens in the Arena, not in the world
 
