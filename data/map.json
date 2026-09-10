@@ -138400,6 +138400,9 @@
         },
         {
           "tileId": "cobblestone"
+        },
+        {
+          "tileId": "arcane-stone-of-ember"
         }
       ],
       "-1,2": [
@@ -138408,6 +138411,9 @@
         },
         {
           "tileId": "cobblestone"
+        },
+        {
+          "tileId": "arcane-stone-of-bramble"
         }
       ],
       "-1,3": [
@@ -140311,6 +140317,9 @@
         },
         {
           "tileId": "cobblestone"
+        },
+        {
+          "tileId": "arcane-stone-of-frost"
         }
       ],
       "0,2": [
@@ -140319,6 +140328,9 @@
         },
         {
           "tileId": "cobblestone"
+        },
+        {
+          "tileId": "arcane-stone-of-verdance"
         }
       ],
       "0,3": [
@@ -142209,6 +142221,9 @@
         },
         {
           "tileId": "cobblestone"
+        },
+        {
+          "tileId": "arcane-necklace-of-life"
         }
       ],
       "1,1": [
@@ -142217,6 +142232,9 @@
         },
         {
           "tileId": "cobblestone"
+        },
+        {
+          "tileId": "arcane-stone-of-thorns"
         }
       ],
       "1,2": [
@@ -142225,6 +142243,9 @@
         },
         {
           "tileId": "cobblestone"
+        },
+        {
+          "tileId": "arcane-stone-of-cinder"
         }
       ],
       "1,3": [
@@ -144171,6 +144192,9 @@
         },
         {
           "tileId": "cobblestone"
+        },
+        {
+          "tileId": "arcane-stone-of-flame"
         }
       ],
       "2,1": [
@@ -144179,6 +144203,9 @@
         },
         {
           "tileId": "cobblestone"
+        },
+        {
+          "tileId": "arcane-stone-of-pyre"
         }
       ],
       "2,2": [
@@ -144187,6 +144214,9 @@
         },
         {
           "tileId": "cobblestone"
+        },
+        {
+          "tileId": "arcane-stone-of-sleet"
         }
       ],
       "2,3": [
@@ -146165,6 +146195,9 @@
         },
         {
           "tileId": "cobblestone"
+        },
+        {
+          "tileId": "arcane-stone-of-rime"
         }
       ],
       "3,2": [
@@ -146173,6 +146206,9 @@
         },
         {
           "tileId": "cobblestone"
+        },
+        {
+          "tileId": "arcane-stone-of-barbs"
         }
       ],
       "3,3": [

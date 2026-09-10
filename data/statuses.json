@@ -29,7 +29,7 @@
   {
     "id": "poison",
     "name": "Poisoned",
-    "description": "Takes more damage the longer it lasts.",
+    "description": "You have poison in your system and will receive damage as it lasts.",
     "tone": "bad",
     "icon": {
       "tilesetId": "tiny-ranch-tiles",
@@ -154,8 +154,8 @@
   },
   {
     "id": "burned",
-    "name": "Burned",
-    "description": "Searing. Hurts fast, and is over fast.",
+    "name": "Burning",
+    "description": "Your skin feels too hot.",
     "tone": "bad",
     "icon": {
       "tilesetId": "ultima-vi",
@@ -229,7 +229,7 @@
   {
     "id": "chilled",
     "name": "Chilled",
-    "description": "Numbing. Slower to hurt than fire, and slower to leave.",
+    "description": "Your skin feels cold. You are slower and more fragile.",
     "tone": "bad",
     "icon": {
       "tilesetId": "ultima-vi",
@@ -248,9 +248,9 @@
     "toMs": 14000,
     "stacks": true,
     "maxMs": 40000,
-    "everyMs": 2000,
+    "everyMs": 0,
     "effects": {
-      "hp": "0 - max(2, ceil(MAX_HP / 20))"
+      "hp": "0"
     },
     "vfx": {
       "tint": {
@@ -291,6 +291,11 @@
       },
       "light": null,
       "taperMs": 3000
+    },
+    "modifiers": {
+      "spd": "-10",
+      "def": "-10",
+      "flee": "-10"
     }
   },
   {

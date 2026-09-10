@@ -25460,10 +25460,11 @@
         "type": "stone",
         "effect": {
           "kind": "bolt",
-          "damage": -10,
-          "on": "caster"
+          "on": "caster",
+          "damage": -5
         },
-        "cooldownMs": 60000
+        "cooldownMs": 60000,
+        "automatic": true
       }
     },
     "sprite": {
@@ -25472,8 +25473,8 @@
           "sprite": {
             "tilesetId": "equipment",
             "rect": {
-              "x": 0,
-              "y": 38,
+              "x": 10,
+              "y": 37,
               "w": 1,
               "h": 1
             },
@@ -25489,7 +25490,7 @@
   },
   {
     "id": "arcane-stone-of-flame",
-    "name": "Arcane Stone of Flame",
+    "name": "Flame",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -25506,8 +25507,8 @@
         },
         "cooldownMs": 120000,
         "requirements": {
-          "arcane": 10,
-          "fire": 6
+          "arcane": 5,
+          "fire": 1
         },
         "reach": {
           "cells": 3,
@@ -25519,57 +25520,10 @@
       "frames": [
         {
           "sprite": {
-            "tilesetId": "equipment",
+            "tilesetId": "tiny-ranch-tiles",
             "rect": {
-              "x": 3,
-              "y": 36,
-              "w": 1,
-              "h": 1
-            },
-            "base": {
-              "x": 0,
-              "y": 0
-            }
-          },
-          "durationMs": 200
-        }
-      ]
-    }
-  },
-  {
-    "id": "arcane-stone-of-light",
-    "name": "Arcane Stone of Light",
-    "height": 0,
-    "type": "simple",
-    "kind": "item",
-    "attributes": {},
-    "lightPassing": true,
-    "intangible": true,
-    "affectedByGravity": true,
-    "interactions": {
-      "item": {
-        "type": "stone",
-        "effect": {
-          "kind": "bolt",
-          "on": "caster",
-          "statuses": [
-            {
-              "id": "luminous",
-              "chance": 100
-            }
-          ]
-        },
-        "cooldownMs": 30000
-      }
-    },
-    "sprite": {
-      "frames": [
-        {
-          "sprite": {
-            "tilesetId": "equipment",
-            "rect": {
-              "x": 1,
-              "y": 36,
+              "x": 7,
+              "y": 19,
               "w": 1,
               "h": 1
             },
@@ -25585,7 +25539,7 @@
   },
   {
     "id": "arcane-stone-of-ember",
-    "name": "Arcane Stone of Ember",
+    "name": "Ember",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -25623,10 +25577,10 @@
       "frames": [
         {
           "sprite": {
-            "tilesetId": "equipment",
+            "tilesetId": "tiny-ranch-tiles",
             "rect": {
-              "x": 17,
-              "y": 39,
+              "x": 7,
+              "y": 19,
               "w": 1,
               "h": 1
             },
@@ -25642,7 +25596,7 @@
   },
   {
     "id": "arcane-stone-of-frost",
-    "name": "Arcane Stone of Frost",
+    "name": "Frost",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -25680,10 +25634,10 @@
       "frames": [
         {
           "sprite": {
-            "tilesetId": "equipment",
+            "tilesetId": "tiny-ranch-tiles",
             "rect": {
-              "x": 16,
-              "y": 39,
+              "x": 6,
+              "y": 19,
               "w": 1,
               "h": 1
             },
@@ -25699,7 +25653,7 @@
   },
   {
     "id": "arcane-stone-of-thorns",
-    "name": "Arcane Stone of Thorns",
+    "name": "Thorns",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -25737,10 +25691,10 @@
       "frames": [
         {
           "sprite": {
-            "tilesetId": "equipment",
+            "tilesetId": "tiny-ranch-tiles",
             "rect": {
-              "x": 18,
-              "y": 39,
+              "x": 4,
+              "y": 18,
               "w": 1,
               "h": 1
             },
@@ -25756,7 +25710,7 @@
   },
   {
     "id": "arcane-stone-of-pyre",
-    "name": "Arcane Stone of Pyre",
+    "name": "Pyre",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -25798,10 +25752,10 @@
       "frames": [
         {
           "sprite": {
-            "tilesetId": "equipment",
+            "tilesetId": "tiny-ranch-tiles",
             "rect": {
-              "x": 19,
-              "y": 38,
+              "x": 7,
+              "y": 18,
               "w": 1,
               "h": 1
             },
@@ -25817,7 +25771,7 @@
   },
   {
     "id": "arcane-stone-of-rime",
-    "name": "Arcane Stone of Rime",
+    "name": "Rime",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -25859,10 +25813,10 @@
       "frames": [
         {
           "sprite": {
-            "tilesetId": "equipment",
+            "tilesetId": "tiny-ranch-tiles",
             "rect": {
-              "x": 20,
-              "y": 38,
+              "x": 6,
+              "y": 19,
               "w": 1,
               "h": 1
             },
@@ -25878,7 +25832,7 @@
   },
   {
     "id": "arcane-stone-of-bramble",
-    "name": "Arcane Stone of Bramble",
+    "name": "Bramble",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -25920,10 +25874,10 @@
       "frames": [
         {
           "sprite": {
-            "tilesetId": "equipment",
+            "tilesetId": "tiny-ranch-tiles",
             "rect": {
-              "x": 18,
-              "y": 38,
+              "x": 4,
+              "y": 18,
               "w": 1,
               "h": 1
             },
@@ -25939,7 +25893,7 @@
   },
   {
     "id": "arcane-stone-of-verdance",
-    "name": "Arcane Stone of Verdance",
+    "name": "Verdance",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -25952,8 +25906,8 @@
         "type": "stone",
         "effect": {
           "kind": "bolt",
-          "damage": -20,
-          "on": "caster"
+          "on": "caster",
+          "damage": -20
         },
         "cooldownMs": 90000,
         "requirements": {
@@ -25967,10 +25921,10 @@
       "frames": [
         {
           "sprite": {
-            "tilesetId": "equipment",
+            "tilesetId": "tiny-ranch-tiles",
             "rect": {
-              "x": 16,
-              "y": 38,
+              "x": 5,
+              "y": 19,
               "w": 1,
               "h": 1
             },
@@ -25986,7 +25940,7 @@
   },
   {
     "id": "arcane-stone-of-cinder",
-    "name": "Arcane Stone of Cinder",
+    "name": "Cinder",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -25999,8 +25953,8 @@
         "type": "stone",
         "effect": {
           "kind": "bolt",
-          "damage": 6,
           "on": "target",
+          "damage": 6,
           "variance": 25,
           "projectile": {
             "tileId": "arcane-shard",
@@ -26022,10 +25976,10 @@
       "frames": [
         {
           "sprite": {
-            "tilesetId": "equipment",
+            "tilesetId": "tiny-ranch-tiles",
             "rect": {
-              "x": 20,
-              "y": 39,
+              "x": 7,
+              "y": 18,
               "w": 1,
               "h": 1
             },
@@ -26041,7 +25995,7 @@
   },
   {
     "id": "arcane-stone-of-sleet",
-    "name": "Arcane Stone of Sleet",
+    "name": "Sleet",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -26054,8 +26008,8 @@
         "type": "stone",
         "effect": {
           "kind": "bolt",
-          "damage": 6,
           "on": "target",
+          "damage": 6,
           "variance": 25,
           "projectile": {
             "tileId": "arcane-shard",
@@ -26077,10 +26031,10 @@
       "frames": [
         {
           "sprite": {
-            "tilesetId": "equipment",
+            "tilesetId": "tiny-ranch-tiles",
             "rect": {
-              "x": 19,
-              "y": 39,
+              "x": 6,
+              "y": 18,
               "w": 1,
               "h": 1
             },
@@ -26096,7 +26050,7 @@
   },
   {
     "id": "arcane-stone-of-barbs",
-    "name": "Arcane Stone of Barbs",
+    "name": "Barbs",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -26109,8 +26063,8 @@
         "type": "stone",
         "effect": {
           "kind": "bolt",
-          "damage": 6,
           "on": "target",
+          "damage": 6,
           "variance": 25,
           "projectile": {
             "tileId": "arcane-shard",
@@ -26132,10 +26086,10 @@
       "frames": [
         {
           "sprite": {
-            "tilesetId": "equipment",
+            "tilesetId": "tiny-ranch-tiles",
             "rect": {
-              "x": 21,
-              "y": 39,
+              "x": 4,
+              "y": 18,
               "w": 1,
               "h": 1
             },
@@ -30081,8 +30035,8 @@
       },
       "decay": {
         "tileId": "",
-        "fromMs": 8000,
-        "toMs": 12000
+        "fromMs": 30000,
+        "toMs": 60000
       }
     },
     "sprite": {
