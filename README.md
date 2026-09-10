@@ -34,6 +34,11 @@ a world in the way.
   with players standing in a few scenarios, and print what a tick costs and
   how many bytes it puts on the wire. `--scenario <name>` for one,
   `--seconds <n>` for a shorter run
+- `bun scripts/anchor-tiles.ts` — a one-shot, already run: rewrote
+  `data/tiles.json` into the anchored sprite encoding, where a tile names its
+  sheet once and every rect is measured from `TileDef.anchor`. `--check` says
+  what would change. `normalizeTileDef` still migrates the old encoding on load,
+  so this only exists to keep the file readable
 - `bun run seed` — load `data/` into a database that already has content. Rarely
   needed: a fresh one seeds itself on boot
 - `bun run typecheck` — route typegen, then all three tsconfigs
