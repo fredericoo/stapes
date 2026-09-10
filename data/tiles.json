@@ -25553,7 +25553,7 @@
           "kind": "bolt",
           "on": "target",
           "damage": 10,
-          "variance": 25,
+          "variance": 60,
           "projectile": {
             "tileId": "arcane-shard",
             "cellsPerSecond": 8
@@ -25567,7 +25567,7 @@
             }
           ]
         },
-        "cooldownMs": 7000,
+        "cooldownMs": 5600,
         "requirements": {
           "arcane": 15,
           "fire": 5
@@ -25678,7 +25678,7 @@
         "effect": {
           "kind": "bolt",
           "on": "target",
-          "damage": 10,
+          "damage": 12,
           "variance": 25,
           "projectile": {
             "tileId": "arcane-shard",
@@ -25693,7 +25693,7 @@
             }
           ]
         },
-        "cooldownMs": 7000,
+        "cooldownMs": 8400,
         "requirements": {
           "arcane": 15,
           "nature": 5
@@ -25741,8 +25741,8 @@
         "effect": {
           "kind": "bolt",
           "on": "target",
-          "damage": 20,
-          "variance": 25,
+          "damage": 15,
+          "variance": 60,
           "projectile": {
             "tileId": "arcane-shard",
             "cellsPerSecond": 8
@@ -25754,7 +25754,7 @@
             }
           ]
         },
-        "cooldownMs": 10000,
+        "cooldownMs": 8000,
         "requirements": {
           "arcane": 33,
           "fire": 10
@@ -25802,7 +25802,7 @@
         "effect": {
           "kind": "bolt",
           "on": "target",
-          "damage": 20,
+          "damage": 15,
           "variance": 25,
           "projectile": {
             "tileId": "arcane-shard",
@@ -25863,7 +25863,7 @@
         "effect": {
           "kind": "bolt",
           "on": "target",
-          "damage": 20,
+          "damage": 18,
           "variance": 25,
           "projectile": {
             "tileId": "arcane-shard",
@@ -25876,7 +25876,7 @@
             }
           ]
         },
-        "cooldownMs": 10000,
+        "cooldownMs": 12000,
         "requirements": {
           "arcane": 33,
           "nature": 10
@@ -25972,13 +25972,13 @@
           "kind": "bolt",
           "on": "target",
           "damage": 5,
-          "variance": 25,
+          "variance": 60,
           "projectile": {
             "tileId": "arcane-shard",
             "cellsPerSecond": 8
           }
         },
-        "cooldownMs": 5000,
+        "cooldownMs": 4000,
         "requirements": {
           "arcane": 5,
           "fire": 1
@@ -26081,14 +26081,14 @@
         "effect": {
           "kind": "bolt",
           "on": "target",
-          "damage": 5,
+          "damage": 6,
           "variance": 25,
           "projectile": {
             "tileId": "arcane-shard",
             "cellsPerSecond": 8
           }
         },
-        "cooldownMs": 5000,
+        "cooldownMs": 6000,
         "requirements": {
           "arcane": 5,
           "nature": 1

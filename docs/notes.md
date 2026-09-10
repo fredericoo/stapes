@@ -2881,16 +2881,20 @@ to is paid for having picked it.
 #### What is authored, so far
 
 **Stones are a ladder of three rungs, climbed once per element.** Nine attack
-stones, and the same three sets of numbers in three colours — because an element
-is what you point magic at rather than how good the magic is, so no element may
-be the cheap one or the strong one. `casting.test.ts` asserts the ladder across
-the elements as well as up each one.
+stones. Each element climbs the same three rungs with a character of its own laid
+over them, and the three characters come to the same rate — because an element is
+what you point magic at rather than how good the magic is, so no element may be
+the cheap one or the strong one. `casting.test.ts` asserts the ladder across the
+elements as well as up each one.
 
-| rung | fire   | water | nature  | damage | leaves      | cooldown | reach | asks              |
-| ---- | ------ | ----- | ------- | ------ | ----------- | -------- | ----- | ----------------- |
-| 1    | Cinder | Sleet | Barbs   | 5      | —           | 5s       | 3     | Arcane 5, elem 1  |
-| 2    | Ember  | Frost | Thorns  | 10     | 30%, cut    | 7s       | 4     | Arcane 15, elem 5 |
-| 3    | Pyre   | Rime  | Bramble | 20     | 75%, in full| 10s      | 5     | Arcane 33, elem 10|
+| rung | fire   | water | nature  | damage | leaves       | cooldown | reach | asks               |
+| ---- | ------ | ----- | ------- | ------ | ------------ | -------- | ----- | ------------------ |
+| 1    | Cinder | Sleet | Barbs   | 5      | —            | 5s       | 3     | Arcane 5, elem 1   |
+| 2    | Ember  | Frost | Thorns  | 10     | 30%, cut     | 7s       | 4     | Arcane 15, elem 5  |
+| 3    | Pyre   | Rime  | Bramble | 15     | 75%, in full | 10s      | 5     | Arcane 33, elem 10 |
+
+Those are **water's** numbers. Fire and nature are the same rung with a trait
+applied, and the traits are the section below.
 
 **Rung one asks exactly what the `player` tile is seeded with**, which is the
 whole of "everybody can cast on their first day": Arcane 5 and one point of each
@@ -2898,12 +2902,57 @@ element are what a new body is authored to start at, and casting a stone is the
 *only* thing in the game that pays element experience. If either half moves
 without the other, an arcanist has no way to begin.
 
+##### An element is a character, and the three come to the same rate
+
+**Water is the rung as authored. Fire and nature are that rung times three
+numbers**, the same three at every rung, so a player who has learnt what fire
+feels like at the bottom has learnt what it feels like at the top.
+
+| element | damage | variance | cooldown | reads as                        |
+| ------- | ------ | -------- | -------- | ------------------------------- |
+| fire    | ×1     | 60       | ×0.8     | fast and wild, never dependable |
+| water   | ×1     | 25       | ×1       | the yardstick                   |
+| nature  | ×1.2   | 25       | ×1.2     | slow and heavy                  |
+
+There is no `earth` — the third element is `nature`, and it is the one a request
+for "earth" means.
+
+**The three come to exactly the same expected damage a second**, which is what
+makes them characters rather than a ranking. That falls out of the arithmetic
+rather than being tuned to it, and it is why fire's cooldown multiple is 0.8 and
+not something rounder:
+
+> A variance is a band that runs **downward** from the authored damage — see
+> `combat.ts`'s `damageFraction`, which is `1 - spread + spread × peaked` — so
+> the authored number is the ceiling and the mean is `1 - variance/200`. That is
+> 0.875 at water's quarter and 0.70 at fire's three fifths. Fire's cooldown
+> multiple is the ratio of those two, `0.70 / 0.875 = 0.8`, and nature's is its
+> own damage multiple. Both cancel.
+
+`casting.test.ts` asserts the parity, so a rung retuned on one element without
+the others reddens rather than quietly making that element the best one.
+
+**Authoring a fourth rung, or moving one.** Write water's numbers, then multiply.
+Damage and cooldown both have to come out whole, which is what fixes water's
+cooldowns at multiples of five: fire's 0.8 and nature's 1.2 of 7s are 5.6s and
+8.4s, which are fine in milliseconds and would not be if the ladder were counted
+in whole seconds.
+
+**What is deliberately not a trait** is reach and requirements. An element that
+threw further or asked less would be an element that was simply better, which is
+the thing the wheel exists to prevent.
+
+**The one advantage the parity does not capture** is that fire fits more casts
+into a minute than nature does, so it rolls its status more often and earns its
+element faster. That is fire's real edge, and it is paid for in never being able
+to count on a number — which is the trade the whole table is making.
+
 **The cooldown climbs with the damage, which reads backwards until you remember
 there is no mana.** The cooldown *is* what a cast costs, so a deeper bolt has to
 cost longer. It is also why the whole ladder now runs in seconds rather than in
 the twenty-five to forty-five it used to: casting means putting your weapon down,
 and a stone that took most of a minute to come back was a square you had given up
-for nothing. Five to ten seconds is short enough that a caster fights with the
+for nothing. Four to twelve seconds is short enough that a caster fights with the
 stone rather than around it, and long enough that they cannot only cast.
 
 **What the two upper rungs add is the element showing up on the target.** Rung

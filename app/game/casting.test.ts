@@ -20,6 +20,7 @@ import {
   meetsRequirements,
   spellReading,
 } from "./casting";
+import { damageFraction } from "./combat";
 import {
   emptyEquipment,
   handAccepts,
@@ -611,6 +612,23 @@ const LADDER: Record<Element, readonly string[]> = {
   ],
 };
 
+/**
+ * What each element does differently, as multiples of the rung water climbs.
+ *
+ * **The same three numbers at every rung, and they cancel exactly.** Fire trades
+ * reliability for tempo, nature trades tempo for weight, and water is the
+ * yardstick both are written against — see the parity test below for why fire's
+ * cooldown multiple is 0.8 rather than something rounder.
+ */
+const TRAITS: Record<
+  Element,
+  { damage: number; variance: number; cooldown: number }
+> = {
+  fire: { damage: 1, variance: 60, cooldown: 0.8 },
+  water: { damage: 1, variance: 25, cooldown: 1 },
+  nature: { damage: 1.2, variance: 25, cooldown: 1.2 },
+};
+
 /** Which status each element's rungs leave behind. */
 const LEAVES: Record<Element, string> = {
   fire: "burned",
@@ -731,24 +749,77 @@ describe("the stones we ship", () => {
   });
 
   /**
-   * **The same rung costs the same whichever element you climbed it on.** An
-   * element is what you point magic at, not how good the magic is, so a fire
-   * specialist and a water specialist who have practised equally must arrive at
-   * the same place. Asserted against fire's ladder because one of the three has
-   * to be the yardstick, and fire is the one everybody meets first.
+   * **An element's character is the same three multiples at every rung**, so a
+   * player who has learnt what fire feels like at the bottom has learnt what it
+   * feels like at the top. Written against water, which is the rung as authored
+   * and carries no trait of its own.
    */
-  it("reads the same on all three elements", () => {
+  it("gives each element the same character on every rung", () => {
+    for (const element of ELEMENTS) {
+      const trait = TRAITS[element];
+      for (let index = 0; index < LADDER[element].length; index++) {
+        const where = `${element} rung ${index}`;
+
+        expect(bolt(element, index).damage, where).toBe(
+          bolt("water", index).damage! * trait.damage,
+        );
+        expect(bolt(element, index).variance, where).toBe(trait.variance);
+        expect(rung(element, index).cooldownMs, where).toBe(
+          rung("water", index).cooldownMs * trait.cooldown,
+        );
+      }
+    }
+  });
+
+  /**
+   * **And the three characters come to exactly the same damage a second**, which
+   * is what makes them characters rather than a ranking: an element is what you
+   * point magic at, not how good the magic is, so a fire specialist and a water
+   * specialist who have practised equally must arrive at the same place.
+   *
+   * The parity is arithmetic rather than tuning, and it is why fire's cooldown
+   * multiple is 0.8 and not a rounder number. A variance is a band that runs
+   * *downward* from the authored damage — see `./combat`'s `damageFraction` —
+   * so its mean is `1 - variance/200`: 0.875 at a quarter, 0.70 at fire's
+   * three fifths. Fire's cooldown multiple is the ratio of those two, and
+   * nature's is its own damage multiple, so both cancel exactly.
+   *
+   * The consequence worth naming, because nothing here asserts it: fire fits
+   * more casts into a minute than nature does, so it rolls its status more
+   * often and earns its element faster. That is fire's real advantage, and it
+   * is paid for in never being able to count on a number.
+   */
+  it("comes to the same expected damage a second on every element", () => {
+    for (let index = 0; index < LADDER.water.length; index++) {
+      const rates = ELEMENTS.map((element) => {
+        const effect = bolt(element, index);
+        // Both draws at the middle of their range is the mean of the band: the
+        // two rolls are averaged before they are read, so a pair of halves is
+        // the average pair.
+        const mean = effect.damage! * damageFraction(effect.variance!, [0.5, 0.5]);
+        return mean / rung(element, index).cooldownMs;
+      });
+      for (const rate of rates) {
+        expect(rate, `rung ${index}`).toBeCloseTo(rates[0]!, 10);
+      }
+    }
+  });
+
+  /**
+   * **What is deliberately not a trait**: who may hold the stone, and how far it
+   * throws. An element that reached further or asked less would be an element
+   * that was simply better, which is the thing the wheel exists to prevent.
+   */
+  it("asks and reaches the same whichever element you climbed", () => {
     for (const element of ELEMENTS) {
       for (let index = 0; index < LADDER[element].length; index++) {
         const where = `${element} rung ${index}`;
         const stone = rung(element, index);
-        const yardstick = rung("fire", index);
+        const yardstick = rung("water", index);
 
-        expect(bolt(element, index).damage, where).toBe(bolt("fire", index).damage);
-        expect(stone.cooldownMs, where).toBe(yardstick.cooldownMs);
         expect(stone.reach, where).toEqual(yardstick.reach);
         expect(stone.requirements!.arcane, where).toBe(yardstick.requirements!.arcane);
-        expect(stone.requirements![element], where).toBe(yardstick.requirements!.fire);
+        expect(stone.requirements![element], where).toBe(yardstick.requirements!.water);
       }
     }
   });
