@@ -36,7 +36,7 @@ import {
 } from "../lib/element";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
-import { FieldLabel, Segmented, Select, SwitchField } from "../ui";
+import { FieldLabel, Segmented, Select } from "../ui";
 import { StatusGrants } from "./StatusGrants";
 import { StatField } from "./StatField";
 import {
@@ -352,15 +352,6 @@ export function StoneFields({
           step={0.5}
           onChange={(height) => patchReach({ height })}
           readout={describeReachHeight(reach.height)}
-        />
-      </div>
-
-      <div className="border-t-2 border-border pt-3">
-        <SwitchField
-          checked={stone.automatic === true}
-          onCheckedChange={(automatic) => onChange({ automatic })}
-          label="Automatic"
-          info="Fires by itself when ready and not wasted: a mend waits until its wearer is hurt, a status until they are not already under it. No button. Charm only."
         />
       </div>
 

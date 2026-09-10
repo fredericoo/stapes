@@ -6,6 +6,7 @@ import {
   useState,
   type ComponentType,
 } from "react";
+import { stoneLocked } from "../game/equipment";
 import { itemCard } from "../game/itemCard";
 import { slotKey, type SlotRef } from "../game/itemMoves";
 import { itemUseFor } from "../game/itemUse";
@@ -100,6 +101,21 @@ const SPRITE_SHARE = 32 / ITEM_SLOT_SIZE_PX;
 const EMPTY_ICON_SHARE = 20 / ITEM_SLOT_SIZE_PX;
 
 const EMPTY_ICON_STROKE = 1.5;
+
+/**
+ * What a locked square says out loud, in place of what pressing it would do.
+ *
+ * It replaces the press hint rather than joining it, because while a stone is
+ * cooling the hint is not true: a press still *uses* the thing, but the move the
+ * hint describes will not happen. Two sentences, one of them wrong, is worse
+ * than one.
+ *
+ * Deliberately shorter than `../game/casting`'s `coolingNotice`, which is what
+ * the world says when a move is actually attempted. This one is read aloud every
+ * time a reader tabs past the square, and the long form there names the stone —
+ * which the label has already said one clause earlier.
+ */
+const LOCKED_NOTE = "Still cooling; it cannot be moved yet";
 
 /**
  * What a press on this would do, in a sentence.
@@ -370,6 +386,23 @@ export function ItemSlot({
   const isSource = held != null && slotKey(held.from) === key;
   const wouldTake = drag.targets.has(key) && !isSource;
   const isOver = drag.over === key;
+  /**
+   * The thing here cannot be taken out, and the square says so before you try.
+   *
+   * **A cooling stone was invisible.** Dropping one onto the floor answered with
+   * a sentence, and dragging one into a bag answered with nothing at all —
+   * because the drag is gated client-side, no square lit up, and a release that
+   * lands on no target is silent by design. So the one refusal in the item model
+   * that a player can plainly see was the one they got no word about, which
+   * reads as the panel being broken.
+   *
+   * Computed here rather than passed in, because both callers would compute the
+   * same thing from the same two arguments this component already holds — and a
+   * third caller would be a third chance to forget.
+   *
+   * @see `../game/equipment`'s `stoneLocked` for what the lock is protecting.
+   */
+  const locked = stoneLocked(instance, tilesById);
   // An empty square is not open and is not a toggle, whatever the panel beside
   // it is doing: the state belongs to the *thing* in the slot, and a slot whose
   // thing has been dropped has no state left to be in.
@@ -439,11 +472,19 @@ export function ItemSlot({
                   // acted on. Above `instance` in this chain because a thing
                   // being open is a louder fact than its merely being there.
                   "border-interact bg-interact/20"
-                : instance
-                  ? "border-paper/60 bg-paper/10 hover:border-paper"
-                  : // A dashed empty slot reads as a place something goes, where
-                    // a solid one reads as a thing that is simply blank.
-                    "border-dashed border-paper/25 bg-transparent",
+                : locked
+                  ? // Cooling, and so nailed down. Dimmed rather than dashed:
+                    // dashed is what an *empty* square wears, and this one is
+                    // conspicuously not empty — what it is saying is that the
+                    // thing you can see is not currently yours to move. Below
+                    // every drag state above it, because what a drag in progress
+                    // is doing is the louder fact.
+                    "border-paper/25 bg-paper/5 opacity-60"
+                  : instance
+                    ? "border-paper/60 bg-paper/10 hover:border-paper"
+                    : // A dashed empty slot reads as a place something goes, where
+                      // a solid one reads as a thing that is simply blank.
+                      "border-dashed border-paper/25 bg-transparent",
       ].join(" ")}
       style={{
         width: sizePx,
@@ -468,7 +509,9 @@ export function ItemSlot({
       aria-label={
         inspected
           ? `${label}: ${inspected.card.speech}`
-          : [`${label}: ${name}`, pressHint].filter(Boolean).join(". ")
+          : [`${label}: ${name}`, locked ? LOCKED_NOTE : pressHint]
+              .filter(Boolean)
+              .join(". ")
       }
       // Only where being pressed is a state the slot can be *in*. A bag is open
       // or shut; wielding a sword is something you do, not somewhere it stays,

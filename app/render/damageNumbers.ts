@@ -160,9 +160,20 @@ export class DamageNumberLayer {
  * did, with no body free to act it out, and a dodge is something the defender
  * did, which their own body says better than a label ever could.
  */
-const NOTHING_HAPPENED: Record<Exclude<SwingOutcome, "hit">, string> = {
+const NOTHING_HAPPENED: Record<"miss", string> = {
   miss: "miss",
 };
+
+/**
+ * The sign a mend wears, and it is the whole of what tells the two apart.
+ *
+ * Colour alone would not do it. The green is doing real work — it is what makes
+ * a heal readable at a glance in a column of red and white — but a viewer who
+ * cannot separate those two hues sees a bare figure, and a bare figure in this
+ * layer means damage. So the arithmetic is written down: `+5` says which way the
+ * bar went whatever the colour renders as.
+ */
+const MEND_SIGN = "+";
 
 /**
  * A blow that landed and did nothing.
@@ -182,6 +193,10 @@ const NOTHING_HAPPENED: Record<Exclude<SwingOutcome, "hit">, string> = {
 const BLOCKED = "blocked";
 
 export function textFor(number: DamageNumberView): string {
+  // Signed, and never the {@link BLOCKED} word: a mend is only ever floated for
+  // health that actually went in — see `../game/GameSession`'s `applyHealing` —
+  // so there is no such thing as a heal of nothing to find a word for.
+  if (number.outcome === "heal") return `${MEND_SIGN}${number.amount}`;
   if (number.outcome !== "hit") return NOTHING_HAPPENED[number.outcome];
   return number.amount > 0 ? String(number.amount) : BLOCKED;
 }
@@ -194,6 +209,13 @@ export function textFor(number: DamageNumberView): string {
  * stake whoever it happened to.
  */
 export function classFor(number: DamageNumberView): string {
+  // **Green whoever it happened to, unlike a blow.** Red marks hit points you
+  // cannot afford to miss, so it has to be reserved for your own; a mend has
+  // nothing to be afraid of missing, and one green for everybody is what lets a
+  // healer read their own tick and their partner's as the same event.
+  if (number.outcome === "heal") {
+    return "damage-number damage-number--mend";
+  }
   // A blocked blow reads as nothing rather than as damage, and *whoever* it
   // happened to: red marks hit points you cannot afford to miss, and a blow that
   // took none has nothing at stake.

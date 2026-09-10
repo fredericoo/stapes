@@ -23,7 +23,7 @@ describe("spellAppearance", () => {
     expect(spellAppearance({ ok: false, reason: "noTarget" })).toBe("ready");
   });
 
-  it.each<CastRefusal>(["empty", "automatic", "mastery", "outOfRange"])(
+  it.each<CastRefusal>(["empty", "mastery", "outOfRange"])(
     "collapses %s into one unavailable appearance",
     (reason) => {
       expect(spellAppearance({ ok: false, reason })).toBe("unavailable");
@@ -41,7 +41,7 @@ describe("spellPressable", () => {
     expect(spellPressable({ ok: false, reason: "noTarget" })).toBe(true);
   });
 
-  it.each<CastRefusal>(["empty", "automatic", "cooling", "mastery", "outOfRange"])(
+  it.each<CastRefusal>(["empty", "cooling", "mastery", "outOfRange"])(
     "stops a press refused for %s, which the button already draws",
     (reason) => {
       expect(spellPressable({ ok: false, reason })).toBe(false);

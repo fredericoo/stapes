@@ -472,10 +472,12 @@ export function equipSlotOf(def: TileDef): EquipSlot | null {
   // An arcane stone is held and never swung, on exactly the terms a shield is —
   // so the hand you do not fight with is where it goes when nobody has said
   // otherwise, and putting it in the other one is choosing to cast instead of
-  // swinging with that fist. A stone that fires on its own has only ever had one
-  // square: `handAccepts` refuses it a hand, so offering one here would be a
-  // "Hold" row that the move rules then decline.
-  if (item.type === "stone") return item.automatic ? "charm" : "offhand";
+  // swinging with that fist. Every stone now, where an automatic one used to go
+  // round the neck instead.
+  if (item.type === "stone") return "offhand";
+  // A charm has exactly one square, and `handAccepts` refuses it a hand — so
+  // offering anything else here would be a "Hold" row the move rules decline.
+  if (item.type === "charm") return "charm";
   if (item.type === "weapon") return "weapon";
   return null;
 }

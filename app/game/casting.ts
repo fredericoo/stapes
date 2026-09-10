@@ -74,16 +74,6 @@ const _everyCastSquareIsWorn: readonly (keyof Equipment)[] = CAST_SQUARES;
 export type CastRefusal =
   /** Nothing in the square, or something that is not a stone. */
   | "empty"
-  /**
-   * It fires on its own, so there is nothing to press.
-   *
-   * A refusal rather than a silence, because it is the answer to *this* question
-   * — "would pressing this cast it" — and the answer is no. What actually keeps
-   * an automatic stone off the screen is `castableStones`, which leaves it out
-   * of the list entirely: a button for a thing that presses itself is a control
-   * with nothing behind it.
-   */
-  | "automatic"
   /** Still counting down. @see ArcaneStoneItem.cooldownMs */
   | "cooling"
   /** The caster has not earned what it asks. @see ArcaneStoneItem.requirements */
@@ -284,65 +274,6 @@ function stoneInSquare(
 }
 
 /**
- * What an automatic stone needs to know about its holder to decide for itself.
- *
- * Deliberately not the whole body: an automatic stone asks one question about
- * the person wearing it, and handing this module an actor runtime would be
- * handing it the session.
- */
-export type StoneHolder = {
-  hp: number;
-  maxHp: number;
-  /** The ids of what is already running on them. */
-  statusIds: readonly string[];
-};
-
-/**
- * Whether an automatic stone's moment has come.
- *
- * **A passive that fired the instant it was ready would be a passive that is
- * never ready**, which is the whole reason this exists: a necklace that tops you
- * up would spend its charge the moment you were scratched — or, at full health,
- * the moment it came off cooldown, on nothing at all — and be cooling every time
- * you actually needed it. So the condition is "casting this now would not be
- * wasted", asked per effect:
- *
- * - a **mend** waits until its holder is missing health;
- * - a **status** waits until its holder is not already under it;
- * - a **conjure** has no such thing as being wasted — a flame laid on an empty
- *   floor is still a flame — so it fires as soon as it can. An author who wants
- *   a trail of fire behind them has written exactly that.
- *
- * **A bolt now does more than one of those at once, so the answers are OR-ed.**
- * A stone that mends and wards is worth pressing when either half would land: a
- * body at full health under no ward should still get the ward. Anything stricter
- * would make combining the two halves *worse* than authoring either alone,
- * which is exactly backwards for the change that let them combine.
- *
- * **Harming never waits.** A bolt with a positive damage has no wasted moment
- * to look for — every press does what it says, whether it lands on whoever the
- * wearer has targeted or, for a stone authored at its own caster, on the wearer
- * themselves. Both are things an author may write and neither is this
- * function's to second-guess.
- *
- * Asked *after* {@link castability}, never instead of it: this decides whether
- * the moment is right, and that decides whether it is allowed at all.
- */
-export function automaticFires(
-  stone: ArcaneStoneItem,
-  holder: StoneHolder,
-): boolean {
-  if (stone.effect.kind !== "bolt") return true;
-
-  const damage = stone.effect.damage ?? 0;
-  if (damage > 0) return true;
-  if (damage < 0 && holder.hp < holder.maxHp) return true;
-  return (stone.effect.statuses ?? []).some(
-    (status) => !holder.statusIds.includes(status.id),
-  );
-}
-
-/**
  * One stone a player could press, and everything a button needs to draw it.
  *
  * A flat row rather than a reference back into the kit, because what draws these
@@ -394,7 +325,7 @@ export function castableStones(context: CastContext): SpellButton[] {
     if (!instance) continue;
     const def = context.tilesById[instance.tileId];
     const stone = def ? resolveStone(def) : null;
-    if (!stone || stone.automatic) continue;
+    if (!stone) continue;
 
     buttons.push({
       square,
@@ -444,7 +375,6 @@ export function spellReading(buttons: readonly SpellButton[]): string {
  */
 export const CAST_REFUSAL_NOTES: Record<CastRefusal, string> = {
   empty: "nothing there",
-  automatic: "works on its own",
   cooling: "still cooling",
   mastery: "not learnt yet",
   noTarget: "nothing targeted",

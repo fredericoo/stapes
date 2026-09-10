@@ -3,6 +3,7 @@ import type {
   ArmorItem,
   ArmorSlot,
   ArtifactItem,
+  CharmItem,
   ConsumableItem,
   ContainerItem,
   ItemDef,
@@ -19,6 +20,7 @@ import {
   DEFAULT_CONSUMABLE,
   DEFAULT_CONTAINER,
   DEFAULT_SHIELD,
+  DEFAULT_CHARM,
   DEFAULT_STONE,
   DEFAULT_WEAPON,
   MAX_ARMOR_DEF,
@@ -43,6 +45,7 @@ import {
   SwitchField,
 } from "../ui";
 import { StatField } from "./StatField";
+import { CharmFields } from "./CharmFields";
 import { StatusGrants } from "./StatusGrants";
 import { StoneFields } from "./StoneFields";
 import { ElementFields } from "./ElementFields";
@@ -83,6 +86,7 @@ const TYPE_OPTIONS: Array<{ value: ItemType; label: string }> = [
   { value: "container", label: "Container" },
   { value: "artifact", label: "Artifact" },
   { value: "stone", label: "Arcane stone" },
+  { value: "charm", label: "Charm" },
 ];
 
 /** What each type is, for the tooltip beside the type picker. */
@@ -96,7 +100,9 @@ const TYPE_INFO: Record<ItemType, string> = {
   container: "Holds other items. Containers never nest.",
   artifact:
     "Carried only: goes in the off hand, has no stats and cannot be used. A torch — its light is on the sprite's frames.",
-  stone: "Held or worn on the charm, and cast on a cooldown.",
+  stone: "Held or worn on the charm, and cast on a cooldown. Every square casts the same spell at the same range.",
+  charm:
+    "Worn on the charm square, never held and never pressed. Does its thing on its own clock for as long as it is worn.",
 };
 
 /**
@@ -138,7 +144,8 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
     // into every other stone that took the same default.
     else if (type === "stone") {
       setItem({ ...DEFAULT_STONE, effect: { ...DEFAULT_STONE.effect } });
-    } else setItem({ ...DEFAULT_CONTAINER });
+    } else if (type === "charm") setItem({ ...DEFAULT_CHARM });
+    else setItem({ ...DEFAULT_CONTAINER });
   };
 
   const patchWeapon = (fields: Partial<WeaponItem>) => {
@@ -182,6 +189,11 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
     setItem({ ...item, ...fields });
   };
 
+  const patchCharm = (fields: Partial<CharmItem>) => {
+    if (item.type !== "charm") return;
+    setItem({ ...item, ...fields });
+  };
+
   /**
    * The elements are authored once, below the arm rather than inside four of
    * them.
@@ -199,7 +211,8 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
     item.type === "weapon" ||
     item.type === "armor" ||
     item.type === "shield" ||
-    item.type === "stone";
+    item.type === "stone" ||
+    item.type === "charm";
 
   return (
     <div className="flex flex-col gap-4">
@@ -404,6 +417,12 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
             stone={item}
             onChange={patchStone}
             tiles={tiles}
+            statusDefs={statusDefs}
+          />
+        ) : item.type === "charm" ? (
+          <CharmFields
+            charm={item}
+            onChange={patchCharm}
             statusDefs={statusDefs}
           />
         ) : item.type === "shield" ? (

@@ -570,7 +570,8 @@ function kindOf(item: ItemDef): string {
   }
   if (item.type === "armor") return `Worn ${ARMOR_SLOT_LABELS[armorSlotOf(item)]}`;
   if (item.type === "shield") return "Held in either hand";
-  if (item.type === "stone") return item.automatic ? "Charm — casts itself" : "Arcane stone";
+  if (item.type === "stone") return "Arcane stone";
+  if (item.type === "charm") return "Charm — works on its own";
   if (item.type === "artifact") return "Carried";
   if (item.type === "consumable") return consumeVerb(item);
   return "Container";

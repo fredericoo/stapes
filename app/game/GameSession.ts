@@ -17,6 +17,7 @@ import {
 } from "../lib/interactions";
 import {
   type ArcaneStoneItem,
+  type CharmItem,
   type ConsumableItem,
   isItem,
   isRanged,
@@ -26,6 +27,7 @@ import {
   type StoneEffect,
   type WeaponStatus,
   resolveConsumable,
+  resolveCharm,
   resolveStone,
 } from "../lib/item";
 import {
@@ -186,7 +188,6 @@ import {
   wornInstances,
 } from "./equipment";
 import {
-  automaticFires,
   CAST_SQUARES,
   castability,
   castableStones,
@@ -530,7 +531,21 @@ export type NoiseEmission = {
  * *attacker* failing, the defender did nothing, and there is no body whose
  * motion could say so.
  */
-export type SwingOutcome = "hit" | "miss";
+export type SwingOutcome = "hit" | "miss" | "heal";
+
+/**
+ * Why `heal` is in here at all, beside two words about swinging.
+ *
+ * **Because the channel is "something happened to this body", not "somebody
+ * swung".** The name is the case it started as — see {@link DamageNumber}, which
+ * says the same — and a mend is exactly as much a receipt as a blow: it happens
+ * to a body, at a moment, for an amount, and the player needs to see the figure
+ * to know whether the thing they are wearing is worth the square.
+ *
+ * A second mechanism for it would drift in placement, lifetime and rise from the
+ * numbers it is meant to sit beside, and a player reading a red 5 rising off
+ * their head has to be able to read a green 5 the same way.
+ */
 
 /**
  * The same two, as values.
@@ -539,7 +554,7 @@ export type SwingOutcome = "hit" | "miss";
  * see `../net/protocol`, where the schema forgetting this field made every blow
  * online draw nothing.
  */
-export const SWING_OUTCOMES: SwingOutcome[] = ["hit", "miss"];
+export const SWING_OUTCOMES: SwingOutcome[] = ["hit", "miss", "heal"];
 
 /**
  * A receipt floating off whatever was just swung at.
@@ -1207,6 +1222,26 @@ type ActorRuntime = {
    * state resets on load" free: a fresh runtime has no memory to restore.
    */
   brain: BrainMemory | null;
+  /**
+   * How long the charm this body is wearing has been counting, and which charm.
+   *
+   * **Keyed on the instance id rather than being a bare number**, which is the
+   * whole of what makes swapping charms behave: the same charm put back on picks
+   * its clock up where it left it, and a *different* one starts from zero. A
+   * bare number would let somebody wear a cheap charm to run the clock down and
+   * swap to an expensive one on the last tick.
+   *
+   * **Not durable**, like {@link hp} and {@link assailants}. A stone's cooldown
+   * is deliberately the opposite — see `../lib/itemInstance` — because a
+   * cooldown rebuilt on load would make reconnecting the cheapest spell in the
+   * game. This one is the mirror of that argument and comes out the other way: a
+   * charm clock rebuilt on load costs the wearer at most one interval of
+   * healing, where making it durable would put a deadline on a placement and
+   * land it in `data/map.json` the moment somebody saved from the editor.
+   *
+   * Null for every body wearing no charm, which is nearly all of them.
+   */
+  charmClock: { itemId: string; elapsedMs: number } | null;
   /**
    * Rounds this creature has slept through since it last had a turn, as the
    * milliseconds they were worth.
@@ -2021,6 +2056,9 @@ export class GameSession implements PlaySession {
       id,
       resident,
       equipment,
+      // Null rather than armed, so a body wearing a charm on arrival waits a
+      // whole interval before its first tick. @see ActorRuntime.charmClock
+      charmClock: null,
       carriedLights: carriedLightTileIds(equipment, this.tilesById),
       // Not checked against the world the way a kit is. A kit names things that
       // have to still exist; a tag names something that *happened*, and a reward
@@ -2607,9 +2645,9 @@ export class GameSession implements PlaySession {
     // out on this tick is ready on this tick, whether the press comes from a
     // player below or from a charm that fires on its own.
     this.advanceStoneCooldowns(tickMs);
-    // After they have been wound down, so a charm that came ready this instant
-    // fires this instant rather than a tick late.
-    this.fireAutomaticStones();
+    // Beside them, and on the same tick: a worn charm counts in its own clock
+    // rather than in a stone's cooldown. @see tickCharms
+    this.tickCharms(tickMs);
 
     // Before the bodies move, so a decision taken now starts its walk on this
     // tick rather than the next.
@@ -3576,38 +3614,87 @@ export class GameSession implements PlaySession {
   }
 
   /**
-   * Let every charm that fires on its own do so, for whoever is wearing one.
+   * Wind every worn charm on, and let the ones that came due do their thing.
    *
-   * The charm square alone, because {@link handAccepts} refuses an automatic
-   * stone a hand: a hand is a thing you act with, and one that acted by itself
-   * would be a body casting spells nobody asked it to.
+   * The charm square alone, because {@link handAccepts} refuses a charm a hand:
+   * a hand is a thing you act *with*, and one that acted by itself would be a
+   * body doing things nobody asked it to.
    *
-   * Everything about *whether* is asked by the same two pure functions a pressed
-   * cast goes through — `castability` for whether it is allowed, `automaticFires`
-   * for whether the moment is right — so a passive and a button are the same act
-   * with a different finger on it. @see ./casting
+   * **This replaced an automatic arcane stone**, which was the same idea wearing
+   * a spell's clothes: it had a cast, a target, a reach and a cooldown, none of
+   * which are questions about something that happens without you, and it made
+   * the charm square a special square rather than a third place to put a stone.
+   *
+   * Nothing here waits for a moment worth acting on. The old `automaticFires`
+   * held a passive back until it would not be wasted — a mend waited until you
+   * were hurt — and a charm does not need that, because a tick that restored
+   * nothing costs nothing: {@link applyHealing} clamps at full health and floats
+   * no number, and a status grant that lands on somebody already under it is the
+   * same refresh every other granter in the game performs.
    */
-  private fireAutomaticStones() {
+  private tickCharms(tickMs: number) {
     for (const actor of this.actors.values()) {
-      const held = actor.equipment.charm;
-      if (!held || held.cooldownMs) continue;
-      const def = this.tilesById[held.tileId];
-      const stone = def ? resolveStone(def) : null;
-      if (!stone?.automatic) continue;
-
-      const stats = this.battlerOf(actor);
-      const hp = this.hpOf(actor);
-      if (!stats || hp === null) continue;
-      if (
-        !automaticFires(stone, {
-          hp,
-          maxHp: stats.maxHp,
-          statusIds: actor.statuses.map((instance) => instance.defId),
-        })
-      ) {
+      const charm = this.wornCharm(actor);
+      if (!charm) {
+        actor.charmClock = null;
         continue;
       }
-      this.cast("charm", actor.id);
+
+      // A different charm starts its own clock, so wearing a cheap one to run
+      // the interval down and swapping to an expensive one on the last tick
+      // buys nothing. @see ActorRuntime.charmClock
+      const clock =
+        actor.charmClock?.itemId === charm.itemId
+          ? actor.charmClock
+          : { itemId: charm.itemId, elapsedMs: 0 };
+      actor.charmClock = clock;
+
+      clock.elapsedMs += tickMs;
+      if (clock.elapsedMs < charm.item.everyMs) continue;
+      // Subtracted rather than zeroed, so a long-run cadence stays honest on a
+      // tick that does not divide the interval. Bounded by one interval a tick,
+      // which is what stops a world resumed after an hour paying out an hour of
+      // healing in a frame.
+      clock.elapsedMs = Math.min(
+        charm.item.everyMs,
+        clock.elapsedMs - charm.item.everyMs,
+      );
+      this.spendCharm(actor, charm.item);
+    }
+  }
+
+  /**
+   * The charm this body is wearing, with the id of the particular one.
+   *
+   * The id travels with it because the clock is keyed on it, and reading the
+   * square twice is how the two come to disagree about which charm is on.
+   */
+  private wornCharm(
+    actor: ActorRuntime,
+  ): { itemId: string; item: CharmItem } | null {
+    const held = actor.equipment.charm;
+    if (!held) return null;
+    const def = this.tilesById[held.tileId];
+    const item = def ? resolveCharm(def) : null;
+    return item ? { itemId: held.id, item } : null;
+  }
+
+  /**
+   * One tick of a charm: the health, then whatever it leaves behind.
+   *
+   * Health first, so a charm that both mends and wards reads in the order it
+   * happens — and so a body killed by nothing here can still take a status,
+   * because a charm cannot harm and there is no death to guard against. See
+   * `../lib/item`'s {@link CharmItem.hp} for why that is unsigned.
+   *
+   * The grants go through the same `grantStatus` a bolt's do, with no caster and
+   * no elements: nobody cast this, so nothing is owed experience for it and the
+   * wheel has no two sides to weigh.
+   */
+  private spendCharm(actor: ActorRuntime, charm: CharmItem) {
+    if (charm.hp) this.applyHealing(actor, charm.hp);
+    for (const grant of charm.statuses ?? []) {
+      this.grantStatus(actor, grant, undefined, NO_ELEMENTS);
     }
   }
 
@@ -4211,6 +4298,42 @@ export class GameSession implements PlaySession {
   }
 
   /**
+   * Put health back into a body, and float the figure only if any actually went
+   * in.
+   *
+   * **The mirror of {@link applyDamage}, and it exists because there were four
+   * of it.** Healing happened in four places — a status tick, a mend bolt, a
+   * consumable and the `/hp` command — each clamping at full health with its own
+   * two lines, and none of them showing a number. So a player drinking a potion
+   * at full health, or wearing a charm that tops them up, had no way to tell the
+   * thing was working at all.
+   *
+   * **What actually went in, not what was offered.** A body one point short of
+   * full that is offered five gains one, and one is what floats — the figure is
+   * a receipt for what happened to *this* body, and five would be a receipt for
+   * something else. A tick that restored nothing is silent: no number, no
+   * element created, nothing on the wire. That is the whole of "if you're full
+   * health and heal 1 it shouldn't show anything".
+   *
+   * Returns what it restored, because two callers need it for something other
+   * than the number: a mend pays its caster for health it actually put back, and
+   * a charm's grants are unaffected either way.
+   */
+  private applyHealing(target: ActorRuntime, amount: number): number {
+    if (amount <= 0) return 0;
+    const stats = this.battlerOf(target);
+    const before = this.hpOf(target);
+    if (!stats || before === null) return 0;
+
+    const restored = Math.min(amount, stats.maxHp - before);
+    if (restored <= 0) return 0;
+
+    target.hp = before + restored;
+    this.floatSwing(target, "heal", restored);
+    return restored;
+  }
+
+  /**
    * Take a body off the board for good, and leave what it was carrying where it
    * fell.
    *
@@ -4544,11 +4667,10 @@ export class GameSession implements PlaySession {
           continue;
         }
         if (change.amount === 0) continue;
-        const stats = this.battlerOf(actor);
-        const before = this.hpOf(actor);
-        if (stats && before !== null) {
-          actor.hp = Math.min(stats.maxHp, before + change.amount);
-        }
+        // Through the healing path rather than a bare clamp, so a `fed` tick
+        // that actually put something back says so — and one on a body already
+        // at full health stays silent. @see applyHealing
+        this.applyHealing(actor, change.amount);
       }
     }
   }
@@ -4878,13 +5000,11 @@ export class GameSession implements PlaySession {
     // **Clamped at a full health bar, and paid for what was actually restored.**
     // That is the whole of "pressing a mend at full health teaches you nothing":
     // a body two points down gets two points and two points' worth of experience
-    // out of a stone that says ten.
-    const restored = Math.min(
-      -rolled,
-      Math.max(0, context.stats.maxHp - context.before),
-    );
+    // out of a stone that says ten. The clamp is `applyHealing`'s now, which is
+    // also what floats the figure — it used to be written out here, and a mend
+    // was the one thing in the game that moved a health bar and showed nothing.
+    const restored = this.applyHealing(subject, -rolled);
     if (restored <= 0) return;
-    subject.hp = context.before + restored;
     // **The wheel never touches a mend**, and the multiplier is flat for the
     // same reason: what `experienceMultiplier` weighs is how far above or below
     // you the other body is, and mending is not an exchange with anybody. A
@@ -6123,11 +6243,9 @@ export class GameSession implements PlaySession {
       // poison and a death by blows must not be two codepaths to keep alive.
       this.applyDamage(actor, -consumable.hp);
     } else if (consumable.hp > 0) {
-      const stats = this.battlerOf(actor);
-      const before = this.hpOf(actor);
-      if (stats && before !== null) {
-        actor.hp = Math.min(stats.maxHp, before + consumable.hp);
-      }
+      // The mirror of the damage path above, and for the same reason: a bandage
+      // shows its number where a poisoned apple shows its own.
+      this.applyHealing(actor, consumable.hp);
     }
     return true;
   }
@@ -7411,7 +7529,7 @@ export class GameSession implements PlaySession {
     if (delta < 0) {
       this.applyDamage(actor, -delta);
     } else if (delta > 0) {
-      actor.hp = before + delta;
+      this.applyHealing(actor, delta);
     }
 
     // Read back rather than computed, because a fatal blow takes the body off
