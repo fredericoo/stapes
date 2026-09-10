@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import statusesJson from "../../data/statuses.json";
 import tilesJson from "../../data/tiles.json";
-import { resolveItem, resolveStone } from "../lib/item";
+import {
+  ARMOR_SLOTS,
+  resolveCharm,
+  resolveItem,
+  resolveStone,
+} from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { statusesById } from "../lib/status";
 import { resolveBattler } from "../lib/battler";
@@ -11,7 +16,6 @@ import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import { tilesByIdFromList } from "../lib/validation";
 import {
-  automaticFires,
   CAST_SQUARES,
   castability,
   castableStones,
@@ -74,6 +78,17 @@ function stoneTile(id: string, item: Record<string, unknown>): TileDef {
   });
 }
 
+/** The passive half of what an automatic stone used to be. @see CharmItem */
+function charmTile(id: string, item: Record<string, unknown>): TileDef {
+  return tile({
+    id,
+    kind: "item",
+    lightPassing: true,
+    intangible: true,
+    interactions: { item: { type: "charm", ...item } },
+  });
+}
+
 const NEAR_REACH = { cells: 3, height: 2 };
 
 const tiles: TileDef[] = [
@@ -122,21 +137,12 @@ const tiles: TileDef[] = [
     cooldownMs: 10_000,
     requirements: { arcane: 10 },
   }),
-  stoneTile("quiet-stone", {
-    effect: { kind: "bolt", damage: -5, on: "caster" },
-    cooldownMs: 10_000,
-    automatic: true,
-  }),
-  // Both halves at once, which is the combination the merged arm exists for.
-  stoneTile("balm-stone", {
-    effect: {
-      kind: "bolt",
-      damage: -5,
-      on: "caster",
-      statuses: [{ id: "luminous", chance: 100 }],
-    },
-    cooldownMs: 10_000,
-    automatic: true,
+  charmTile("life-charm", { everyMs: 10_000, hp: 5 }),
+  // Both halves at once, which is what a charm's two optional fields are for.
+  charmTile("balm-charm", {
+    everyMs: 10_000,
+    hp: 5,
+    statuses: [{ id: "luminous", chance: 100 }],
   }),
   tile({
     id: "sword",
@@ -409,12 +415,22 @@ describe("the charm square", () => {
 
   /**
    * What still separates the squares, and it is a price rather than a reach: a
-   * stone in a hand is a swing you gave up, and only the charm takes one that
-   * fires on its own.
+   * stone in a hand is a swing you gave up, and only the charm takes the kind of
+   * thing that acts without being asked.
    */
-  it("is still the only square that takes an automatic stone", () => {
-    expect(wornAccepts("charm", tilesById["quiet-stone"]!)).toBe(true);
-    expect(handAccepts(tilesById["quiet-stone"]!)).toBe(false);
+  it("is the only square that takes a charm", () => {
+    expect(wornAccepts("charm", tilesById["life-charm"]!)).toBe(true);
+    expect(handAccepts(tilesById["life-charm"]!)).toBe(false);
+    for (const slot of ARMOR_SLOTS) {
+      if (slot === "charm") continue;
+      expect(wornAccepts(slot, tilesById["life-charm"]!), slot).toBe(false);
+    }
+  });
+
+  /** And a stone is welcome in a hand now that nothing acts on its own. */
+  it("takes a stone that either hand would also take", () => {
+    expect(wornAccepts("charm", tilesById["mend-stone"]!)).toBe(true);
+    expect(handAccepts(tilesById["mend-stone"]!)).toBe(true);
   });
 });
 
@@ -428,9 +444,9 @@ describe("what the squares will take", () => {
    * casting spells nobody asked it to, so an automatic stone has exactly one
    * square.
    */
-  it("refuses a hand an automatic stone, and the charm takes it", () => {
-    expect(handAccepts(tilesById["quiet-stone"]!)).toBe(false);
-    expect(wornAccepts("charm", tilesById["quiet-stone"]!)).toBe(true);
+  it("refuses a hand a charm, and the charm square takes it", () => {
+    expect(handAccepts(tilesById["life-charm"]!)).toBe(false);
+    expect(wornAccepts("charm", tilesById["life-charm"]!)).toBe(true);
   });
 
   it("takes a stone on the charm and nowhere else that is worn", () => {
@@ -491,7 +507,7 @@ describe("the row of buttons", () => {
     expect(castableStones(context({ weapon: instance("sword") }))).toEqual([]);
   });
 
-  it("has one button per non-passive stone, in square order", () => {
+  it("has one button per stone, in square order", () => {
     const buttons = castableStones(
       context({
         weapon: instance("mend-stone"),
@@ -500,16 +516,6 @@ describe("the row of buttons", () => {
       }),
     );
     expect(buttons.map((button) => button.square)).toEqual(["weapon", "charm"]);
-  });
-
-  it("leaves out a stone that fires on its own", () => {
-    const buttons = castableStones(
-      context({
-        weapon: instance("mend-stone"),
-        charm: instance("quiet-stone"),
-      }),
-    );
-    expect(buttons.map((button) => button.square)).toEqual(["weapon"]);
   });
 
   it("carries the stone's own sprite and its cooldown", () => {
@@ -566,61 +572,6 @@ describe("requirements", () => {
     expect(meetsRequirements({ arcane: 10, toughness: 5 }, asks)).toBe(true);
   });
 });
-
-describe("a stone that fires on its own", () => {
-  const mend = resolveStone(tilesById["quiet-stone"]!)!;
-  const ward = resolveStone(tilesById["ward-stone"]!)!;
-  const flame = resolveStone(tilesById["flame-stone"]!)!;
-
-  it("waits until a mend would put something back", () => {
-    expect(automaticFires(mend, { hp: 20, maxHp: 20, statusIds: [] })).toBe(false);
-    expect(automaticFires(mend, { hp: 19, maxHp: 20, statusIds: [] })).toBe(true);
-  });
-
-  /**
-   * A bolt that harms has no wasted moment to wait for: it lands on whoever is
-   * targeted, or on its own caster where the author said so, and either way
-   * every press does what it says.
-   */
-  it("fires a harming bolt whenever it is ready", () => {
-    const curse = resolveStone(tilesById["bolt-stone"]!)!;
-    expect(automaticFires(curse, { hp: 20, maxHp: 20, statusIds: [] })).toBe(true);
-    expect(automaticFires(curse, { hp: 1, maxHp: 20, statusIds: [] })).toBe(true);
-  });
-
-  /**
-   * **Either half is reason enough**, which is what stops combining the two
-   * halves from being worse than authoring either alone. A body at full health
-   * under no ward should still get the ward, and a hurt body already under it
-   * should still get the mend.
-   */
-  it("fires a bolt that both mends and wards when either would land", () => {
-    const both = resolveStone(tilesById["balm-stone"]!)!;
-    // Full health and already glowing: nothing left for it to do.
-    expect(
-      automaticFires(both, { hp: 20, maxHp: 20, statusIds: ["luminous"] }),
-    ).toBe(false);
-    // Full health, no ward — the ward is worth having.
-    expect(automaticFires(both, { hp: 20, maxHp: 20, statusIds: [] })).toBe(true);
-    // Hurt, already glowing — the mend is.
-    expect(
-      automaticFires(both, { hp: 19, maxHp: 20, statusIds: ["luminous"] }),
-    ).toBe(true);
-  });
-
-  it("waits until its status is not already running", () => {
-    expect(
-      automaticFires(ward, { hp: 20, maxHp: 20, statusIds: ["luminous"] }),
-    ).toBe(false);
-    expect(automaticFires(ward, { hp: 20, maxHp: 20, statusIds: [] })).toBe(true);
-  });
-
-  /** A flame laid on an empty floor is still a flame; there is nothing to waste. */
-  it("fires a conjure the moment it can", () => {
-    expect(automaticFires(flame, { hp: 20, maxHp: 20, statusIds: [] })).toBe(true);
-  });
-});
-
 
 /**
  * The ladder, as authored, in the order it is climbed.
@@ -680,7 +631,6 @@ const LEAVES: Record<Element, string> = {
 /** Everything else a stone, which is to say everything off the ladder. */
 const BESIDE_THE_LADDER = [
   "arcane-stone-of-flame",
-  "arcane-necklace-of-life",
   "arcane-stone-of-verdance",
 ];
 
@@ -729,10 +679,10 @@ describe("the stones we ship", () => {
    * only one of them would leave half the vocabulary reachable only in a test.
    */
   it("ships a bolt that mends and a bolt that harms", () => {
-    const life = resolveStone(shipped["arcane-necklace-of-life"]!)!;
-    expect(life.effect).toMatchObject({ kind: "bolt", on: "caster" });
-    if (life.effect.kind !== "bolt") return;
-    expect(life.effect.damage).toBeLessThan(0);
+    const verdance = resolveStone(shipped["arcane-stone-of-verdance"]!)!;
+    expect(verdance.effect).toMatchObject({ kind: "bolt", on: "caster" });
+    if (verdance.effect.kind !== "bolt") return;
+    expect(verdance.effect.damage).toBeLessThan(0);
 
     const first = bolt("fire", 0);
     expect(first.on).toBe("target");
@@ -948,5 +898,29 @@ describe("the stones we ship", () => {
     for (const id of SHIPPED) {
       expect(resolveItem(shipped[id]!)?.type, id).toBe("stone");
     }
+  });
+
+  /**
+   * **The one charm the world ships, and the reason the kind exists.**
+   *
+   * It was an arcane stone marked `automatic`: a spell with a cast, a target, a
+   * reach and a cooldown, none of which are questions about something that
+   * happens without you. Asserted here rather than in a fixture because the
+   * claim is about the shipped world — that there is a passive worth a square,
+   * and that it is not pretending to be a spell.
+   */
+  it("ships a necklace that is a charm rather than a stone that presses itself", () => {
+    const def = shipped["arcane-necklace-of-life"]!;
+    expect(resolveStone(def)).toBeNull();
+
+    const charm = resolveCharm(def);
+    expect(charm).not.toBeNull();
+    expect(charm!.everyMs).toBeGreaterThan(0);
+    // It mends, which is the whole of what it did before and all a charm may do
+    // to a health bar — see `../lib/item`'s CharmItem.hp for why it is unsigned.
+    expect(charm!.hp).toBeGreaterThan(0);
+    // And it goes round a neck and nowhere else.
+    expect(wornAccepts("charm", def)).toBe(true);
+    expect(handAccepts(def)).toBe(false);
   });
 });

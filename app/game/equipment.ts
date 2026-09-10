@@ -12,11 +12,11 @@ import { mintItemId } from "../lib/itemInstance";
 import {
   ARMOR_SLOTS,
   armorSlotOf,
-  isAutomaticStone,
   isTwoHanded,
   itemElements,
   NO_ELEMENTS,
   resolveArmor,
+  resolveCharm,
   resolveContainer,
   resolveItem,
   resolveShield,
@@ -988,28 +988,32 @@ export function handHasRoomFor(
 export function handAccepts(def: TileDef): boolean {
   const item = resolveItem(def);
   if (!item) return false;
-  // An arcane stone that fires on its own belongs round your neck and nowhere
-  // else — see `../lib/item`'s {@link ArcaneStoneItem.automatic}. A hand is a
-  // thing you act with, and a hand that acted by itself would be a body casting
-  // spells nobody asked it to. A *pressed* stone is welcome in either fist, on
+  // A **charm** belongs round your neck and nowhere else — see `../lib/item`'s
+  // {@link CharmItem}. A hand is a thing you act *with*, and a hand that acted
+  // by itself would be a body doing things nobody asked it to. This used to
+  // refuse an automatic *stone* on the same grounds; splitting the passive out
+  // into its own kind is what left every stone welcome in either fist, on
   // exactly the terms a shield is: held, and never swung at anybody.
-  if (isAutomaticStone(def)) return false;
+  if (resolveCharm(def)) return false;
   return item.type !== "container" || item.equippable;
 }
 
 /**
  * Whether this worn square can take this thing.
  *
- * **The charm is the one square that takes two kinds**, and this is where that
+ * **The charm is the one square that takes three kinds**, and this is where that
  * is written down. Everywhere else a worn square asks {@link armorForSlot} and
  * nothing else — a helm on a head, boots on feet — but a charm is already the
- * square for "a thing round your neck that is not a plate", and an arcane stone
- * on a strap is exactly that. Giving stones a square of their own would have
- * been an eighth slot that only one profession ever fills.
+ * square for "a thing round your neck that is not a plate", and both an arcane
+ * stone on a strap and a {@link CharmItem} are exactly that. Giving either a
+ * square of its own would have been an eighth slot that one profession fills.
  *
- * Both kinds of stone are welcome here, automatic or pressed: what separates
- * them is whether they get a button, which is a question about the interface
- * rather than about the body.
+ * The two are here for opposite reasons, which is worth saying because it is the
+ * whole of what the square is now for. A **stone** is welcome because a stone is
+ * welcome everywhere — every square casts the same spell at the same range, and
+ * the charm is simply the one that costs no swing. A **charm** is here because
+ * this is the only square that will have it: {@link handAccepts} refuses one,
+ * since a hand is a thing you act *with*.
  *
  * Here rather than in `./itemMoves` for the reason {@link handAccepts} is: it is
  * a fact about the squares, and the squares are defined by this module. The move
@@ -1019,7 +1023,8 @@ export function handAccepts(def: TileDef): boolean {
  */
 export function wornAccepts(slot: ArmorSlot, def: TileDef): boolean {
   if (armorForSlot(slot, def)) return true;
-  return slot === "charm" && resolveStone(def) != null;
+  if (slot !== "charm") return false;
+  return resolveStone(def) != null || resolveCharm(def) != null;
 }
 
 /**

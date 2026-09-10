@@ -81,6 +81,28 @@ const RAT_TOUGHNESS = 40;
 const MEND_COOLDOWN_MS = 60_000;
 const MEND_HP = 10;
 
+/**
+ * How often the charms below act, and how much they put back.
+ *
+ * Ten seconds because it is long enough to tick *up to* and assert nothing
+ * happened, which is half of what there is to check about a timer. One point, so
+ * a clamp at full health is the difference between one and nothing rather than a
+ * subtraction anybody has to work out.
+ */
+const CHARM_INTERVAL_MS = 10_000;
+const CHARM_HP = 1;
+
+/** The passive half of what an automatic stone used to be. @see CharmItem */
+function charmTile(id: string, item: Record<string, unknown>): TileDef {
+  return tile({
+    id,
+    kind: "item",
+    lightPassing: true,
+    intangible: true,
+    interactions: { item: { type: "charm", ...item } },
+  });
+}
+
 /** A ward's cooldown, and the clock the floor cases run on. */
 const WARD_COOLDOWN_MS = 30_000;
 
@@ -445,6 +467,18 @@ const props: TileDef[] = [
       statuses: [{ id: "warded", chance: 100 }],
     },
     cooldownMs: WARD_COOLDOWN_MS,
+  }),
+  charmTile("life-charm", { everyMs: CHARM_INTERVAL_MS, hp: CHARM_HP }),
+  // Both halves on one tick, which is what a charm's two optional fields are
+  // for: a trinket that tops you up *and* keeps something running on you.
+  charmTile("beacon-charm", {
+    everyMs: CHARM_INTERVAL_MS,
+    hp: CHARM_HP,
+    statuses: [{ id: "warded", chance: 100 }],
+  }),
+  charmTile("ward-charm", {
+    everyMs: CHARM_INTERVAL_MS,
+    statuses: [{ id: "warded", chance: 100 }],
   }),
   tile({
     id: "conjured-flame",
@@ -1619,6 +1653,85 @@ describe("a cast refused for want of a target", () => {
 });
 
 /**
+ * A charm, from the outside.
+ *
+ * **What replaced the automatic arcane stone**, and these are written against
+ * what a wearer would notice rather than against the clock: health arrives on an
+ * interval, it stops arriving at a full bar, and taking the thing off stops it.
+ * How the interval is counted is `GameSession`'s business.
+ */
+describe("a charm worn on the charm square", () => {
+  /** Enough ticks to cover this much simulated time. */
+  function runMs(play: GameSession, ms: number) {
+    for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) play.tick(TICK_MS);
+  }
+
+  /** A wearer with room to be healed, and how far down they are. */
+  function hurt(charm: string, by = 5) {
+    const play = session({ charm });
+    play.runCommand(`/health -${by}`);
+    return { play, before: hpOf(play)! };
+  }
+
+  it("puts nothing back before its interval is up", () => {
+    const { play, before } = hurt("life-charm");
+    runMs(play, CHARM_INTERVAL_MS - TICK_MS * 2);
+    expect(hpOf(play)).toBe(before);
+  });
+
+  it("puts its health back once the interval is up", () => {
+    const { play, before } = hurt("life-charm");
+    runMs(play, CHARM_INTERVAL_MS);
+    expect(hpOf(play)).toBe(before + CHARM_HP);
+  });
+
+  it("keeps going, one interval at a time", () => {
+    const { play, before } = hurt("life-charm");
+    runMs(play, CHARM_INTERVAL_MS * 3);
+    expect(hpOf(play)).toBe(before + CHARM_HP * 3);
+  });
+
+  /**
+   * The clamp, and the whole reason a charm may not harm: it acts without being
+   * asked, so the worst it can do at a full bar is nothing at all.
+   */
+  it("stops at a full health bar", () => {
+    const play = session({ charm: "life-charm" });
+    const full = hpOf(play)!;
+    runMs(play, CHARM_INTERVAL_MS * 3);
+    expect(hpOf(play)).toBe(full);
+  });
+
+  it("grants what it is authored to grant, on the same tick", () => {
+    const { play } = hurt("beacon-charm");
+    expect(play.statusesOf("local") ?? []).toEqual([]);
+    runMs(play, CHARM_INTERVAL_MS);
+    expect((play.statusesOf("local") ?? []).map((s) => s.defId)).toEqual([
+      "warded",
+    ]);
+  });
+
+  /** Both halves are optional, and a charm of statuses alone is a real thing. */
+  it("can grant without mending", () => {
+    const { play, before } = hurt("ward-charm");
+    runMs(play, CHARM_INTERVAL_MS);
+    expect(hpOf(play)).toBe(before);
+    expect((play.statusesOf("local") ?? []).map((s) => s.defId)).toEqual([
+      "warded",
+    ]);
+  });
+
+  /** A body wearing none has no clock, and nothing happens to it. */
+  it("does nothing at all for somebody wearing none", () => {
+    const play = session({});
+    play.runCommand("/health -5");
+    const before = hpOf(play)!;
+    runMs(play, CHARM_INTERVAL_MS * 2);
+    expect(hpOf(play)).toBe(before);
+  });
+});
+
+/**
  * The receipt a mend leaves, which every healing path in the game used to skip.
  *
  * **Only when something actually went in.** A body at a full bar offered health
@@ -1677,5 +1790,25 @@ describe("what a mend floats", () => {
     expect(mends(play, before)).toMatchObject([
       { outcome: "heal", amount: MEND_HP },
     ]);
+  });
+
+  it("floats one for a charm's tick, and none once the wearer is full", () => {
+    const play = session({ charm: "life-charm" });
+    play.runCommand(`/health -${CHARM_HP}`);
+
+    // Gathered as they appear rather than read at the end: a number is pruned
+    // once it has finished rising, and three intervals is far longer than one
+    // lives. @see DAMAGE_NUMBER_LIFETIME_MS
+    const seen = new Map<string, number>();
+    for (let elapsed = 0; elapsed < CHARM_INTERVAL_MS * 3; elapsed += TICK_MS) {
+      play.tick(TICK_MS);
+      for (const number of numbersOf(play)) {
+        if (number.outcome === "heal") seen.set(number.id, number.amount);
+      }
+    }
+
+    // Three intervals passed and the wearer was one point down: one tick had
+    // somewhere to put its health, and the other two had none.
+    expect([...seen.values()]).toEqual([CHARM_HP]);
   });
 });

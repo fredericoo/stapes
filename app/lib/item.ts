@@ -983,23 +983,85 @@ export type ArcaneStoneItem = {
    * means an arm's length, which is the same default a weapon takes.
    */
   reach?: Reach;
-  /**
-   * Whether it fires on its own the moment it can, rather than being pressed.
-   *
-   * **Charm only**, and refused in a hand where the squares are decided: a hand
-   * is a thing you act with, and a hand that acted by itself would be a body
-   * casting spells nobody asked it to. What it buys is a passive worth a square
-   * — a trinket that tops you up on its own clock — without inventing a second
-   * kind of item to hold one.
-   *
-   * An automatic stone gets **no button**, on either device, because there is
-   * nothing to press. That is the one thing separating the two kinds of charm,
-   * and it is behaviour rather than position — see `../components/SpellBar`.
-   *
-   * Absent means pressed, which is every stone worth authoring in a hand.
-   */
-  automatic?: boolean;
   /** What wearing or holding this makes its bearer. @see WeaponItem.elements */
+  elements?: Element[];
+};
+
+/**
+ * A thing you wear that does something on its own clock, and never asks to be
+ * pressed.
+ *
+ * **The passive half of what a stone used to be.** A stone could be marked
+ * `automatic`, which made it fire by itself and made it refusable by a hand, and
+ * that was one kind of thing wearing two hats. It meant every question about a
+ * stone had a second answer for the automatic case — does it get a button, may a
+ * hand hold it, does it wait for a moment worth firing at — and the charm square
+ * had to be a special square to hold one. Splitting the two lets **a stone be a
+ * thing you press, in any square, always**, which is what the squares are now.
+ *
+ * ## It is a timer, not a spell
+ *
+ * There is no cooldown here and no {@link StoneEffect}. A charm does the same
+ * small thing every {@link everyMs} for as long as it is worn — it has no cast,
+ * no target, no reach and no requirements, because none of those are questions
+ * about something that happens without you. That is also why it cannot harm: see
+ * {@link hp}.
+ *
+ * ## Worn on the charm square and nowhere else
+ *
+ * The one square a body has for a thing that is neither armour nor held, which
+ * is what the square was always for. A hand refuses one for the reason it
+ * refused an automatic stone: a hand is a thing you act *with*.
+ */
+export type CharmItem = {
+  type: "charm";
+  /**
+   * How often it does its thing, in milliseconds.
+   *
+   * **Required, and floored well above a tick.** A charm with no interval is not
+   * one somebody forgot to finish, it is a thing happening continuously — and
+   * there is no defensible number to guess between a second and an hour on an
+   * author's behalf. The floor is the same one a stone's cooldown is under and
+   * for the same reason: the interval is the whole of what a charm costs.
+   *
+   * Counted on the wearer rather than on the tile, so two charms tick
+   * independently and taking one off and putting it back does not bank progress
+   * — see `../game/GameSession`'s charm tick.
+   */
+  everyMs: number;
+  /**
+   * How much health each tick puts back, or absent for a charm that only grants
+   * {@link statuses}.
+   *
+   * **Positive only, which is the one place this parts company with a
+   * consumable's signed `hp`.** A consumable is something you chose to swallow,
+   * so a poisoned apple is a fair thing to author. A charm acts on its wearer
+   * without being asked and on a clock they cannot see, and a trinket that took
+   * hit points off somebody every ten seconds is not a design, it is a way to
+   * kill a player who has no way to learn why. An author who wants a cursed
+   * object writes a status with a `bad` tone, which says so on the strip.
+   *
+   * **Clamped at full health, and a tick that restored nothing is silent** —
+   * no number floats, and nothing is spent. See `applyHealing`.
+   */
+  hp?: number;
+  /**
+   * What each tick may leave on its wearer, each with its own chance.
+   *
+   * The consumable's own list, validated by the consumable's own schema and
+   * rolled by the same `inflictedBy` — so a charm of light re-ups `luminous`
+   * every minute and a charm of vigour keeps `fed` running, with no new
+   * machinery and nothing here knowing what a status is.
+   *
+   * **Re-granted on the tick rather than held while worn**, which is what makes
+   * this cheap: a status that lived as long as the charm did would need applying
+   * on equip, removing on unequip, and restoring on load, and a body that took
+   * the charm off while the status was running would be a bug nobody could see.
+   * A grant with a duration expires on its own, which is the behaviour every
+   * other granter in the game already has.
+   */
+  statuses?: StatusGrant[];
+  /** What wearing this makes its bearer. @see WeaponItem.elements */
   elements?: Element[];
 };
 
@@ -1015,7 +1077,8 @@ export type ItemDef =
   | ArmorItem
   | ShieldItem
   | ArtifactItem
-  | ArcaneStoneItem;
+  | ArcaneStoneItem
+  | CharmItem;
 
 export type ItemType = ItemDef["type"];
 
@@ -1027,6 +1090,7 @@ export const ITEM_TYPES: ItemType[] = [
   "container",
   "artifact",
   "stone",
+  "charm",
 ];
 
 /**
@@ -1343,6 +1407,39 @@ export const MAX_STONE_COOLDOWN_MS = 60 * 60 * 1000;
  * and narrow enough that an extra digit reads as a mistake.
  */
 export const MAX_SPELL_DAMAGE = MAX_CONSUMABLE_HP_SHIFT;
+
+/**
+ * Shortest and longest a charm's tick may be authored at.
+ *
+ * The same bounds a stone's cooldown is under and the same argument — a charm
+ * that fired every tick would be a passive with no cost, and an hour is longer
+ * than anything worth authoring. Written as its own pair rather than shared with
+ * the stone's, because the two are the same numbers for different reasons and a
+ * shared constant would make retuning one retune the other.
+ */
+export const MIN_CHARM_INTERVAL_MS = 1_000;
+export const MAX_CHARM_INTERVAL_MS = 60 * 60 * 1000;
+
+/**
+ * The most one tick of a charm may put back.
+ *
+ * Deliberately far below {@link MAX_SPELL_DAMAGE}. A spell is a thing you spend
+ * a square and a cooldown on, once; a charm keeps paying for as long as it is
+ * worn, so the same ceiling would be a trinket that out-heals every mend in the
+ * game while you do something else. Ten is a little more than a rung-one bolt
+ * takes off you, which is the scale a passive should be arguing at.
+ */
+export const MAX_CHARM_HP = 10;
+
+/**
+ * What a tile gets the moment somebody makes it a charm.
+ *
+ * A small mend on a ten-second clock, on the terms {@link DEFAULT_STONE} is a
+ * small mend: it is the one thing a charm can do that needs nothing else
+ * authored to work, where a `statuses` default would open on an id naming
+ * nothing. Ten seconds because a default is a thing somebody is about to test.
+ */
+export const DEFAULT_CHARM: CharmItem = { type: "charm", everyMs: 10_000, hp: 1 };
 
 /**
  * What a tile gets the moment somebody makes it an arcane stone.
@@ -1779,13 +1876,34 @@ const stoneSchema = v.object({
   requirements: v.optional(masteriesSchema),
   // Optional and *un*defaulted, unlike a weapon's — see {@link reachEntries}.
   reach: v.optional(reachEntries),
-  // Optional, and absent means pressed, which is every stone worth authoring in
-  // a hand. Whether a hand will actually take an automatic one is a question
-  // about the squares and is asked there.
-  automatic: v.optional(v.boolean()),
   // What wearing or holding this makes its bearer, which is a different question
   // from anything else on the arm — see the field's own note. Optional, and
   // absent is neutral, which is almost everything ever authored.
+  elements: v.optional(elementsSchema),
+});
+
+const charmSchema = v.object({
+  type: v.literal("charm"),
+  // Required and floored, on exactly the terms a stone's cooldown is: the
+  // interval is the whole of what a charm costs, and there is no defensible
+  // number to guess between a second and an hour.
+  everyMs: v.pipe(
+    v.number(),
+    v.integer(),
+    v.minValue(MIN_CHARM_INTERVAL_MS),
+    v.maxValue(MAX_CHARM_INTERVAL_MS),
+  ),
+  // **Unsigned, unlike a consumable's**, and the asymmetry is the design rather
+  // than an oversight — see {@link CharmItem.hp}. Zero is refused for the reason
+  // a bolt of zero is: it is a field somebody typed in and emptied rather than
+  // one they left alone.
+  hp: v.optional(
+    v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_CHARM_HP)),
+  ),
+  // The consumable's own list, validated by the consumable's own schema. What
+  // the ids name is the catalogue's question, asked where the status is granted.
+  statuses: v.optional(v.array(statusGrantSchema)),
+  // What wearing this makes its bearer. @see WeaponItem.elements
   elements: v.optional(elementsSchema),
 });
 
@@ -1797,6 +1915,7 @@ const itemSchema = v.variant("type", [
   containerSchema,
   artifactSchema,
   stoneSchema,
+  charmSchema,
 ]);
 
 const itemCache = new WeakMap<TileDef, ItemDef | null>();
@@ -1873,6 +1992,18 @@ export function resolveStone(def: TileDef): ArcaneStoneItem | null {
 }
 
 /**
+ * Parsed charm config for a tile, or null when it is not one.
+ *
+ * The same lookup {@link resolveStone} is and for the same reason: the charm
+ * square, the kit restore and the tick that spends one all ask this rather than
+ * testing the discriminator themselves.
+ */
+export function resolveCharm(def: TileDef): CharmItem | null {
+  const item = resolveItem(def);
+  return item?.type === "charm" ? item : null;
+}
+
+/**
  * What wearing or holding this thing marks its bearer with.
  *
  * **`in` rather than a list of arms**, which is what stops this from being a
@@ -1895,18 +2026,6 @@ export function itemElements(def: TileDef): readonly Element[] {
 
 /** Nothing worn or held says anything, which is the overwhelming majority. */
 export const NO_ELEMENTS: readonly Element[] = [];
-
-/**
- * Whether this stone fires on its own rather than being pressed.
- *
- * False for everything that is not a stone at all, which is what lets the
- * squares ask it of any tile without narrowing first — the same shape
- * {@link isTwoHanded} has, and for the same reason: a hand refuses an automatic
- * stone and has no opinion about a loaf of bread.
- */
-export function isAutomaticStone(def: TileDef): boolean {
-  return resolveStone(def)?.automatic === true;
-}
 
 /**
  * Does this weapon put something in the air?
@@ -2121,10 +2240,30 @@ export function itemForSave(item: ItemDef | undefined): ItemDef | undefined {
     return { type: "shield", def: item.def, ...elementsForSave(item.elements) };
   }
   if (item.type === "stone") return stoneForSave(item);
+  if (item.type === "charm") return charmForSave(item);
   return {
     type: "container",
     size: item.size,
     equippable: item.equippable,
+  };
+}
+
+/**
+ * A charm's fields, named, with the absences left absent.
+ *
+ * Rebuilt on the terms every other arm is — a draft carries whatever the last
+ * type it was left behind, and only the fields this arm declares may reach the
+ * file. Both halves are optional and a charm with neither is refused nowhere:
+ * it is a trinket that does nothing, which is a thing an author is part-way
+ * through writing rather than a thing that breaks a world.
+ */
+function charmForSave(charm: CharmItem): CharmItem {
+  return {
+    type: "charm",
+    everyMs: Math.round(charm.everyMs),
+    ...(charm.hp ? { hp: Math.round(charm.hp) } : {}),
+    ...(charm.statuses?.length ? { statuses: statusGrantsForSave(charm.statuses) } : {}),
+    ...elementsForSave(charm.elements),
   };
 }
 
@@ -2166,10 +2305,6 @@ function stoneForSave(stone: ArcaneStoneItem): ArcaneStoneItem {
     type: "stone",
     effect: stoneEffectForSave(stone.effect),
     cooldownMs: Math.round(stone.cooldownMs),
-    // Written only when it says something, on the terms a weapon's `twoHanded`
-    // is: an explicit `false` on every stone in the file is a field to skim past
-    // that says exactly what its absence says.
-    ...(stone.automatic ? { automatic: true } : {}),
     ...(Object.keys(requirements).length > 0 ? { requirements } : {}),
     // Written whenever it is stated, and absent stays absent — unlike a weapon's,
     // which is always spelled out. A stone that reaches only its holder has no

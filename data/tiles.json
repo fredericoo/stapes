@@ -25457,13 +25457,9 @@
     "affectedByGravity": true,
     "interactions": {
       "item": {
-        "type": "stone",
-        "effect": {
-          "kind": "bolt",
-          "on": "caster",
-          "damage": -5
-        },
-        "cooldownMs": 60000
+        "type": "charm",
+        "everyMs": 10000,
+        "hp": 1
       }
     },
     "sprite": {
