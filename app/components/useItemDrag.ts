@@ -47,6 +47,48 @@ const DRAG_THRESHOLD_PX = 6;
 /** Something under the pointer, on its way from one slot to another. */
 export type HeldItem = { instance: ItemInstance; from: SlotRef };
 
+/** What letting go does, once it is known what the pointer was over. */
+export type Release =
+  /** Onto a square. Whether it will be taken is the session's answer. */
+  | { kind: "slot"; to: SlotRef }
+  /** Out of the panels entirely, where the board decides if there is a cell. */
+  | { kind: "world" }
+  /** Nowhere at all — a release with no position, which happens on a cancel. */
+  | { kind: "nothing" };
+
+/**
+ * Where a release goes.
+ *
+ * **A square under the pointer wins whether or not it lit up**, and that is the
+ * change worth writing down. Refused moves are silent by design — see
+ * `../game/itemMoves`, which returns null without a reason — and silence is
+ * right for "your hand is full", which the player can already see. It is wrong
+ * for exactly one refusal: **a cooling stone**, which looks like every other
+ * thing in a square and simply will not come out of it.
+ *
+ * Before this, a stone dropped on the floor answered with a sentence and the
+ * same stone dragged into a bag answered with nothing, because no square lit up
+ * and a release onto no target fell through to a world drop that found no cell
+ * under the panel. Two refusals, one rule, and only one of them spoke.
+ *
+ * So the attempt is handed on and the session's one gate answers it — see
+ * `../game/GameSession`'s `moveItem`, which says the cooling sentence before it
+ * tries anything. Everything else it refuses, it refuses in silence exactly as
+ * it did.
+ */
+export function releaseTo(
+  /** The lit square under the pointer, if the drag found one. */
+  target: SlotRef | null,
+  /** Any square under the pointer, lit or not. */
+  under: SlotRef | null,
+  /** Where the pointer was, or null for a release with no position. */
+  point: { x: number; y: number } | null,
+): Release {
+  const to = target ?? under;
+  if (to) return { kind: "slot", to };
+  return point ? { kind: "world" } : { kind: "nothing" };
+}
+
 export type ItemDrag = {
   /** What the pointer is carrying right now, or null. */
   held: HeldItem | null;
@@ -193,6 +235,27 @@ export function useItemDrag({
 
   const cancel = useCallback(() => clear(), [clear]);
 
+  /**
+   * The slot under a point, whatever it would do with what is in hand.
+   *
+   * {@link targetAt}'s twin, and the pair exist because a release has two
+   * questions to ask in order: "did anything take it", then "was there a square
+   * there at all". Only the second can tell a drop that landed on a full bag
+   * from one that landed on the page.
+   */
+  const slotAt = useCallback(
+    (x: number, y: number): SlotRef | null => {
+      for (const { slot, el } of slots.current.values()) {
+        const box = el.getBoundingClientRect();
+        if (x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) {
+          return slot;
+        }
+      }
+      return null;
+    },
+    [],
+  );
+
   /** The slot under a point, if it is one that would take what is in hand. */
   const targetAt = useCallback(
     (x: number, y: number, accepting: ReadonlySet<string>): string | null => {
@@ -303,11 +366,15 @@ export function useItemDrag({
       const landing = overRef.current;
       const target = landing ? slots.current.get(landing)?.slot : null;
       const point = pointRef.current;
-      if (target) onMove(inHand.from, target);
-      // Nowhere else to land means the world, which decides for itself whether
-      // there is anything there — the same question the ghost was answering all
-      // the way in.
-      else if (point) worldRef.current?.drop(inHand, point);
+      const release = releaseTo(
+        target ?? null,
+        point ? slotAt(point.x, point.y) : null,
+        point,
+      );
+      if (release.kind === "slot") onMove(inHand.from, release.to);
+      else if (release.kind === "world" && point) {
+        worldRef.current?.drop(inHand, point);
+      }
       // Whether it landed or not, the press is over — a drop into nothing puts
       // the thing back where it came from, which is the gesture's own undo.
       swallowClick.current = true;
@@ -340,7 +407,7 @@ export function useItemDrag({
       window.removeEventListener("pointercancel", onPointerUp);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [clear, findTargets, moveLayerTo, onMove, targetAt]);
+  }, [clear, findTargets, moveLayerTo, onMove, slotAt, targetAt]);
 
   return {
     held,
