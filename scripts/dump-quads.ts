@@ -29,7 +29,7 @@ import type {
   TileDef,
   TilesetDef,
 } from "../app/lib/types";
-import { CELL_SIZE, physicalHeight } from "../app/lib/types";
+import { CELL_SIZE, physicalHeight, spriteRect } from "../app/lib/types";
 
 const [x0, x1, y0, y1, zMin, zMax] = process.argv.slice(2, 8).map(Number) as number[];
 const extraArg = process.argv[8];
@@ -88,7 +88,7 @@ for (let z = zMin!; z <= zMax!; z++) {
           y,
           z,
         })?.[0];
-        const tileset = frame && tilesetById.get(frame.sprite.tilesetId);
+        const tileset = tilesetById.get(def.anchor.tilesetId);
         if (!frame || !tileset) return;
 
         const foot = absoluteElevation(z, elev);
@@ -96,14 +96,15 @@ for (let z = zMin!; z <= zMax!; z++) {
           baseCellWorldOrigin(x, y, z, elev),
           frame.sprite.base,
         );
+        const rect = spriteRect(def.anchor, frame.sprite);
         quads.push({
           id: `${placed.tileId}@${x},${y},${z}#${stackIndex}`,
           tilesetId: tileset.id,
-          rect: frame.sprite.rect,
+          rect,
           x: origin.x,
           y: origin.y,
-          w: frame.sprite.rect.w * CELL_SIZE,
-          h: frame.sprite.rect.h * CELL_SIZE,
+          w: rect.w * CELL_SIZE,
+          h: rect.h * CELL_SIZE,
           box: depthBox(x, y, foot, foot + def.height),
           stackBias: depthStackBias(z, stackIndex),
         });

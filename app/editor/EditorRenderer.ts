@@ -46,7 +46,7 @@ import {
 } from "../lib/types";
 import { clumpExtents } from "../render/depthClump";
 import { getFrames, resolveTileSprite, tileLightSignature } from "../lib/tileResolve";
-import { cellPhaseMs } from "../lib/types";
+import { cellPhaseMs, spriteRect } from "../lib/types";
 import { AnimationTable, NO_ANIMATION } from "../render/animTable";
 import { canPlace, canReplaceStack } from "../lib/validation";
 import { useEditorStore, type ToolId, type ZoomLevel } from "./store";
@@ -1448,7 +1448,7 @@ export class EditorRenderer {
         const frameIdx = frames ? frameIndexAtTime(frames, this.animClock) : 0;
         if (!frames?.length) return;
 
-        const tileset = this.tilesetById.get(frames[0]!.sprite.tilesetId);
+        const tileset = this.tilesetById.get(def.anchor.tilesetId);
         if (!tileset) return;
 
         // A quad the table accepts is built at **frame 0** and moved by the
@@ -1463,7 +1463,7 @@ export class EditorRenderer {
 
         const baseOrigin = baseCellWorldOrigin(cell.x, cell.y, z, elev);
         const origin = spriteWorldOrigin(baseOrigin, first.sprite.base);
-        const { rect } = first.sprite;
+        const rect = spriteRect(def.anchor, first.sprite);
         const w = rect.w * CELL_SIZE;
         const h = rect.h * CELL_SIZE;
         const u0 = (rect.x * CELL_SIZE) / tileset.width;

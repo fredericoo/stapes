@@ -54,13 +54,12 @@ export class AnimationTable {
    * The row for these frames, adding it on first sight.
    *
    * Returns {@link NO_ANIMATION} for anything with fewer than two frames, and
-   * for a sprite whose frames disagree about their footprint or their atlas.
-   * Both of those are already impossible for a tile that animates today — the
-   * old path rewrote UVs into geometry built once, which only works when the
-   * rect never changes size — but they are impossible *implicitly*, and this
-   * path would mis-draw rather than refuse. So it refuses, and the tile falls
-   * back to standing still on frame 0 rather than smearing a neighbouring
-   * sprite across itself.
+   * for a sprite whose frames disagree about their footprint. That is already
+   * impossible for a tile that animates today — the old path rewrote UVs into
+   * geometry built once, which only works when the rect never changes size — but
+   * it is impossible *implicitly*, and this path would mis-draw rather than
+   * refuse. So it refuses, and the tile falls back to standing still on frame 0
+   * rather than smearing a neighbouring sprite across itself.
    */
   add(frames: Frame[], tileset: TilesetDef): number {
     const existing = this.rows.get(frames);
@@ -196,11 +195,14 @@ export function tableCanHold(frames: Frame[]): boolean {
 /**
  * Whether every frame draws the same size from the same sheet.
  *
- * Both halves matter for different reasons. A frame of a different *size* would
- * need the quad's geometry to change, and the whole point here is that it does
- * not. A frame from a different *sheet* would need a different texture, and a
- * merged batch is one texture by construction — the quad would sample whichever
- * sheet its neighbours happened to put it in.
+ * A frame of a different *size* would need the quad's geometry to change, and
+ * the whole point here is that it does not.
+ *
+ * A frame from a different *sheet* would break a merged batch too — it is one
+ * texture by construction, and the quad would sample whichever sheet its
+ * neighbours happened to put it in — but that is no longer something a tile can
+ * say. The sheet is asked once, on `TileDef.anchor`, so there is nothing
+ * left here to check.
  */
 function uniformFootprint(frames: Frame[]): boolean {
   const first = frames[0]!.sprite;
@@ -209,7 +211,6 @@ function uniformFootprint(frames: Frame[]): boolean {
       f.sprite.rect.w === first.rect.w &&
       f.sprite.rect.h === first.rect.h &&
       f.sprite.base.x === first.base.x &&
-      f.sprite.base.y === first.base.y &&
-      f.sprite.tilesetId === first.tilesetId,
+      f.sprite.base.y === first.base.y,
   );
 }

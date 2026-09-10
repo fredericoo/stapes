@@ -8,7 +8,7 @@ import type {
   TileDef,
   TilesetDef,
 } from "../lib/types";
-import { CELL_SIZE, isCellVarying } from "../lib/types";
+import { CELL_SIZE, isCellVarying, spriteRect } from "../lib/types";
 
 /** A sprite's footprint in world pixels plus its slice of the atlas. */
 export type SpriteQuad = {
@@ -88,8 +88,8 @@ export function spriteQuadFor(
   }
   if (!frame) return null;
 
-  const tileset = assets.tilesetById.get(frame.sprite.tilesetId);
-  const { rect } = frame.sprite;
+  const tileset = assets.tilesetById.get(def.anchor.tilesetId);
+  const rect = spriteRect(def.anchor, frame.sprite);
   const tw = tileset?.width ?? CELL_SIZE;
   const th = tileset?.height ?? CELL_SIZE;
   const origin = spriteWorldOrigin(

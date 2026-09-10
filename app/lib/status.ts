@@ -6,7 +6,7 @@ import {
   type StatusVfx,
   statusVfxSchema,
 } from "./statusVfx";
-import { type CellRect, defaultBase, type SpriteRef } from "./types";
+import { type CellRect, defaultBase, type AnchoredSprite } from "./types";
 
 /**
  * What a status effect *is*: a lifetime, something it does while it lasts, and
@@ -93,14 +93,14 @@ export type StatusDef = {
    *
    * Its own sprite rather than a borrowed tile id, which is what lets a status
    * be drawn from anywhere on any sheet instead of only where a tile happens to
-   * exist. It is a bare {@link SpriteRef} and not a `Frame`, because a frame is
+   * exist. It is a bare {@link AnchoredSprite} and not a `Frame`, because a frame is
    * what carries a duration and a status icon has nothing to animate — see
    * `../components/TilePreview`'s `SpritePreview`.
    *
    * Optional: a status with no icon is a status somebody has not drawn yet, and
    * a blank cell in the lane is a better answer than refusing to load one.
    */
-  icon?: SpriteRef;
+  icon?: AnchoredSprite;
   /** How long one application lasts, both ends included. One draw. */
   fromMs: number;
   toMs: number;
@@ -182,7 +182,7 @@ export const DEFAULT_STATUS_SOURCE = {
  * to load — a missing sheet should be *visible*, on the terms the renderer
  * already treats one.
  */
-const spriteRefSchema = v.object({
+const iconSchema = v.object({
   tilesetId: v.string(),
   rect: v.object({
     x: v.pipe(v.number(), v.integer(), v.minValue(0)),
@@ -225,7 +225,7 @@ const statusSourceSchema = v.pipe(
       v.maxLength(MAX_STATUS_DESCRIPTION_LENGTH),
     ),
     tone: v.picklist(STATUS_TONES),
-    icon: v.optional(spriteRefSchema),
+    icon: v.optional(iconSchema),
     fromMs: durationMs,
     toMs: durationMs,
     stacks: v.optional(v.boolean(), false),
@@ -335,7 +335,7 @@ export type ActiveStatus = {
   name: string;
   description: string;
   tone: StatusTone;
-  icon: SpriteRef | null;
+  icon: AnchoredSprite | null;
   remainingMs: number;
   /**
    * What a full bar means for this status — see {@link fullDurationMs}.
@@ -385,7 +385,7 @@ export function fullDurationMs(def: StatusDef): number {
  */
 export function completeSprite(
   sprite: { tilesetId: string; rect: CellRect; base?: { x: number; y: number } } | undefined,
-): SpriteRef | null {
+): AnchoredSprite | null {
   if (!sprite) return null;
   return { ...sprite, base: sprite.base ?? defaultBase(sprite.rect) };
 }

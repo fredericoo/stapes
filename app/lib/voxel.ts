@@ -498,14 +498,15 @@ function blit(
 /** Tile sprites for a TileDef pointing at the exported sheet. */
 export function sheetSprites(
   project: VoxelProject,
-  tilesetId: string,
 ): { type: "simple" | "directional"; sprite?: TileSprite; sprites?: Partial<Record<Direction, TileSprite>> } {
   const layout = sheetLayout(project);
   const rows = layout.rows;
+  // Measured from the corner of the exported sheet, which is where an exported
+  // block always starts — so the tile's anchor is that corner and the rects
+  // relative to it are the same numbers they always were.
   const toSprite = (rowIdx: number): TileSprite => ({
     frames: project.frames.map((frame, colIdx) => ({
       sprite: {
-        tilesetId,
         rect: {
           x: colIdx * layout.cellsW,
           y: rowIdx * layout.cellsH,
@@ -530,13 +531,29 @@ export function sheetSprites(
   return { type: "directional", sprites };
 }
 
-/** @deprecated Prefer {@link sheetSprites}. */
+/** A frame as it was written before `TileDef.anchor`: its own sheet, absolute rect. */
+type LegacyFrame = Omit<Frame, "sprite"> & {
+  sprite: Frame["sprite"] & { tilesetId: string };
+};
+
+/**
+ * The sheet as the *legacy* per-facing `Frame[]` encoding, for pasting into a
+ * hand-edited `tiles.json`.
+ *
+ * Its frames still name their own sheet and measure from its corner, which is
+ * the encoding {@link normalizeTileDef} migrates on load — so what is pasted is
+ * read, given an anchor and rewritten like anything else written before anchors
+ * existed. That is why it is spelled out here rather than typed as `Frame`,
+ * which no longer carries a sheet.
+ *
+ * @deprecated Prefer {@link sheetSprites}.
+ */
 export function sheetVariants(
   project: VoxelProject,
   tilesetId: string,
-): Partial<Record<Direction | "default", Frame[]>> {
+): Partial<Record<Direction | "default", LegacyFrame[]>> {
   const layout = sheetLayout(project);
-  const out: Partial<Record<Direction | "default", Frame[]>> = {};
+  const out: Partial<Record<Direction | "default", LegacyFrame[]>> = {};
   layout.rows.forEach((row, rowIdx) => {
     out[row.key] = project.frames.map((frame, colIdx) => ({
       sprite: {

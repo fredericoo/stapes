@@ -42,6 +42,7 @@ function missingTile(tileId: string): TileDef {
     type: "simple",
     kind: "prop",
     attributes: {},
+    anchor: { tilesetId: "", x: 0, y: 0 },
     sprite: { frames: [] },
   };
 }

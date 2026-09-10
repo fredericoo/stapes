@@ -835,7 +835,7 @@ function buildTileDef(
   tilesetId: string,
   tileHeight: string,
 ): TileDef {
-  const sheet = sheetSprites(project, tilesetId);
+  const sheet = sheetSprites(project);
   return {
     id: tilesetId,
     name: project.name,
@@ -845,6 +845,8 @@ function buildTileDef(
     // until somebody opens it in the tile editor and says otherwise.
     kind: "prop",
     attributes: {},
+    // An exported sheet holds one block starting at its own corner.
+    anchor: { tilesetId, x: 0, y: 0 },
     sprite: sheet.sprite,
     sprites: sheet.sprites,
   };

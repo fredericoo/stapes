@@ -13,7 +13,6 @@ const SHEET: TilesetDef = {
 function frame(x: number, y: number, durationMs: number, w = 1, h = 1): Frame {
   return {
     sprite: {
-      tilesetId: "sheet",
       rect: { x, y, w, h },
       base: { x: 0, y: 0 },
     },
@@ -79,11 +78,8 @@ describe("AnimationTable", () => {
     const table = new AnimationTable();
     // A frame of a different size would need the quad's geometry to change.
     expect(table.add([frame(0, 0, 80), frame(1, 0, 80, 2, 1)], SHEET)).toBe(NO_ANIMATION);
-    // A frame from another sheet would need another texture, and a merged batch
-    // is one texture.
-    const elsewhere = frame(1, 0, 80);
-    elsewhere.sprite.tilesetId = "other";
-    expect(table.add([frame(0, 0, 80), elsewhere], SHEET)).toBe(NO_ANIMATION);
+    // A frame from another sheet used to be refused here too. It cannot be
+    // authored any more: the sheet is `TileDef.anchor`'s, one per tile.
     // A still sprite is not an animation.
     expect(table.add([frame(0, 0, 80)], SHEET)).toBe(NO_ANIMATION);
     expect(table.empty).toBe(true);
