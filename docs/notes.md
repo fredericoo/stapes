@@ -2889,9 +2889,15 @@ elements as well as up each one.
 
 | rung | fire   | water | nature  | damage | leaves       | cooldown | reach | asks               |
 | ---- | ------ | ----- | ------- | ------ | ------------ | -------- | ----- | ------------------ |
-| 1    | Cinder | Sleet | Barbs   | 5      | —            | 5s       | 3     | Arcane 5, elem 1   |
-| 2    | Ember  | Frost | Thorns  | 10     | 30%, cut     | 7s       | 4     | Arcane 15, elem 5  |
-| 3    | Pyre   | Rime  | Bramble | 15     | 75%, in full | 10s      | 5     | Arcane 33, elem 10 |
+| 1    | Cinder | Sleet | Barbs   | 5      | —            | 5s       | 3.5   | Arcane 5, elem 1   |
+| 2    | Ember  | Frost | Thorns  | 10     | 30%, cut     | 7s       | 4.5   | Arcane 15, elem 5  |
+| 3    | Pyre   | Rime  | Bramble | 15     | 75%, in full | 10s      | 5.5   | Arcane 33, elem 10 |
+
+**The halves are the point of the reach numbers, not a rounding.** A reach is
+compared squared, so a whole 3 admits the cell three along (9) and refuses the
+one at (3,1) that is barely further (10). Every half-cell step opens a ring of
+cells a whole one skips over, which is why `MELEE_REACH` is 1.5 and why these
+are not 3, 4 and 5.
 
 Those are **water's** numbers. Fire and nature are the same rung with a trait
 applied, and the traits are the section below.

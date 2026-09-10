@@ -25510,7 +25510,7 @@
           "fire": 1
         },
         "reach": {
-          "cells": 3,
+          "cells": 3.5,
           "height": 2
         }
       }
@@ -25573,7 +25573,7 @@
           "fire": 5
         },
         "reach": {
-          "cells": 4,
+          "cells": 4.5,
           "height": 2
         }
       }
@@ -25636,7 +25636,7 @@
           "water": 5
         },
         "reach": {
-          "cells": 4,
+          "cells": 4.5,
           "height": 2
         }
       }
@@ -25699,7 +25699,7 @@
           "nature": 5
         },
         "reach": {
-          "cells": 4,
+          "cells": 4.5,
           "height": 2
         }
       }
@@ -25760,7 +25760,7 @@
           "fire": 10
         },
         "reach": {
-          "cells": 5,
+          "cells": 5.5,
           "height": 2
         }
       }
@@ -25821,7 +25821,7 @@
           "water": 10
         },
         "reach": {
-          "cells": 5,
+          "cells": 5.5,
           "height": 2
         }
       }
@@ -25882,7 +25882,7 @@
           "nature": 10
         },
         "reach": {
-          "cells": 5,
+          "cells": 5.5,
           "height": 2
         }
       }
@@ -25984,7 +25984,7 @@
           "fire": 1
         },
         "reach": {
-          "cells": 3,
+          "cells": 3.5,
           "height": 2
         }
       }
@@ -26039,7 +26039,7 @@
           "water": 1
         },
         "reach": {
-          "cells": 3,
+          "cells": 3.5,
           "height": 2
         }
       }
@@ -26094,7 +26094,7 @@
           "nature": 1
         },
         "reach": {
-          "cells": 3,
+          "cells": 3.5,
           "height": 2
         }
       }
