@@ -4744,8 +4744,8 @@ export class GameSession implements PlaySession {
    * spent the cooldown and the stone answered — so the two failures a swing can
    * have are absent here by design, and what is left of the dice is the variance
    * band. That makes a bolt the reliable half of an arcanist's damage and a
-   * swing the frequent half, which is the trade the profession is built on: one
-   * press every two minutes cannot also be a coin toss.
+   * swing the frequent half, which is the trade the profession is built on: a
+   * press you paid a hand for cannot also be a coin toss.
    *
    * The order is the order it happens in, and each step is somebody's say:
    * mastery, then the dice, then the subject's armour, then the wheel, then

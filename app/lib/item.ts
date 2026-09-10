@@ -817,9 +817,9 @@ export type StoneEffect =
        * are rare.
        *
        * Absent is a spell that does exactly what it says, which is the honest
-       * default for a thing you may press once every two minutes — a swing you
-       * take thirty times in a fight can afford to be a distribution, and a
-       * single press cannot.
+       * default for a thing you press *instead of* swinging — a swing you take
+       * thirty times in a fight can afford to be a distribution, and a press
+       * that cost you the hand cannot.
        */
       variance?: number;
       /**

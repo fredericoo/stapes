@@ -81,7 +81,7 @@ const RAT_TOUGHNESS = 40;
 const MEND_COOLDOWN_MS = 60_000;
 const MEND_HP = 10;
 
-/** What the shipped Stone of Light costs, and the clock the floor cases run on. */
+/** A ward's cooldown, and the clock the floor cases run on. */
 const WARD_COOLDOWN_MS = 30_000;
 
 /**
@@ -435,8 +435,9 @@ const props: TileDef[] = [
     },
     cooldownMs: 10_000,
   }),
-  // The shipped Stone of Light's shape: it asks nothing, reaches nobody, and
-  // does nothing a number can measure. The case the flat fee exists for.
+  // A stone that asks nothing, reaches nobody, and does nothing a number can
+  // measure. The case the flat fee exists for, and a fixture rather than a
+  // shipped stone: nothing on the ladder is shaped this way.
   stoneTile("ward-stone", {
     effect: {
       kind: "bolt",
@@ -800,9 +801,9 @@ describe("what casting earns", () => {
 /**
  * The floor under the profession.
  *
- * A stone of light does nothing measurable to anybody and a stone of flame is
- * gated on Arcane 10, so a caster paid on outcomes alone would have no way onto
- * the bottom rung of the ladder at all. What these pin is that the way on exists
+ * A ward does nothing measurable to anybody and a conjured flame does nothing
+ * until somebody walks into it, so a caster paid on outcomes alone could press a
+ * stone all afternoon and learn nothing. What these pin is that the floor exists
  * and that it does not depend on which stone you happen to have found.
  */
 describe("what pressing a stone teaches you for its own sake", () => {

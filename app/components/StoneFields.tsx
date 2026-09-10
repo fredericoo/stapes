@@ -418,9 +418,9 @@ function describeBolt(damage: number | undefined): string {
 /**
  * What a cooldown reads as, in the units somebody would say it in.
  *
- * Minutes past a minute, because the stones worth authoring live there — a
- * two-minute flame reads as "2m" and not as "120s", and a reader skimming the
- * file should not have to divide.
+ * Minutes past a minute, because a stone may be authored there even though the
+ * shipped ladder is not — a two-minute cooldown reads as "2m" and not as
+ * "120s", and a reader skimming the file should not have to divide.
  */
 function describeCooldown(cooldownMs: number): string {
   const seconds = Math.round(cooldownMs / MS_PER_SECOND);

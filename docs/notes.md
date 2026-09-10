@@ -2599,12 +2599,12 @@ at the caster** is the curse that used to need a status to express.
 **No accuracy and no dodge.** A cast is not aimed: you spent the cooldown and the
 stone answered. What is left of a swing's dice is the variance band, rolled
 through the same `damageFraction` a weapon's is, and absent variance is a spell
-that does exactly what it says — the honest default for a thing you press once
-every two minutes, where a swing you take thirty times a fight can afford to be a
-distribution.
+that does exactly what it says — the honest default for a thing you press every
+few seconds *instead of swinging*, where a swing you take thirty times a fight
+can afford to be a distribution.
 
 That is the trade the profession is built on: a bolt is the reliable half of an
-arcanist's damage and a swing is the frequent half. One press every two minutes
+arcanist's damage and a swing is the frequent half. A press you paid a hand for
 cannot also be a coin toss.
 
 What it *does* go through is `damageAfterDefence`, as an **arcane** blow — the
@@ -2730,10 +2730,10 @@ something you do to yourself in a corner.
 
 **And every cast pays a small flat fee on top, whatever it was.** Outcomes alone
 work for a swordsman, because every swing is aimed at somebody, and do not work
-for a caster: a stone of light does nothing measurable to anybody, and a stone
-of flame asks Arcane 10 before it will fire. Paid on outcomes alone the bottom
-rung of the ladder is missing, and the only way onto it is a stone you are not
-yet allowed to use.
+for a caster: a conjured flame does nothing measurable to anybody until
+somebody walks into it, and a mend at full health does nothing at all. Paid on
+outcomes alone a caster who has spent an afternoon lighting rooms has learnt
+nothing, and the flat fee is what says otherwise.
 
 So the fee is **flat and unscaled** — not by what the stone asks, not by what
 came of it, not by who you were pointing at. Every scale that applies elsewhere

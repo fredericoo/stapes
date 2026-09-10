@@ -409,7 +409,7 @@ export function castableStones(context: CastContext): SpellButton[] {
  * Whole seconds rather than the raw remainder, which makes the bar advance in
  * steps of a second. That is the honest resolution of the thing being drawn: the
  * bar is a countdown and not an animation, and a smoother one would cost a React
- * render per frame for a difference of two pixels on a two-minute spell.
+ * render per frame for a difference of two pixels on a five-second spell.
  */
 export function spellReading(buttons: readonly SpellButton[]): string {
   if (buttons.length === 0) return "";
