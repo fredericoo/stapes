@@ -360,20 +360,61 @@ describe("a conjuring stone", () => {
 
 describe("the charm square", () => {
   /**
-   * A charm acts on its holder and nothing else, so a stone authored to reach a
-   * target reaches nobody from there — where the same stone in a hand would need
-   * one. Which is what makes the two squares different at all.
+   * **The square has no say in what a stone reaches.** The charm used to be
+   * refused a target outright, and the cost of that rule was that a stone
+   * authored `on: "target"` did not fail there — it silently landed on its
+   * wearer, so moving an attack stone onto the charm turned it into self-harm
+   * behind a fully lit button.
+   *
+   * So the same stone answers the same in both squares, and the two cases are
+   * asserted together because the claim is that they cannot differ.
    */
-  it("ignores the target even for a stone that names one", () => {
-    const state = context({
+  it("asks for a target exactly as a hand does", () => {
+    const nobodyTargeted = context({
       charm: instance("curse-stone"),
       weapon: instance("curse-stone"),
     });
-    expect(castability(state, "charm")).toEqual({ ok: true });
-    expect(castability(state, "weapon")).toEqual({
+    expect(castability(nobodyTargeted, "charm")).toEqual({
       ok: false,
       reason: "noTarget",
     });
+    expect(castability(nobodyTargeted, "weapon")).toEqual({
+      ok: false,
+      reason: "noTarget",
+    });
+  });
+
+  /** And is held to the same reach, with the same wall in the way. */
+  it("is held to the stone's reach exactly as a hand is", () => {
+    const near = context(
+      { charm: instance("curse-stone"), weapon: instance("curse-stone") },
+      { target: point(2) },
+    );
+    expect(castability(near, "charm")).toEqual({ ok: true });
+    expect(castability(near, "weapon")).toEqual({ ok: true });
+
+    const far = context(
+      { charm: instance("curse-stone"), weapon: instance("curse-stone") },
+      { target: point(6) },
+    );
+    expect(castability(far, "charm")).toEqual({
+      ok: false,
+      reason: "outOfRange",
+    });
+    expect(castability(far, "weapon")).toEqual({
+      ok: false,
+      reason: "outOfRange",
+    });
+  });
+
+  /**
+   * What still separates the squares, and it is a price rather than a reach: a
+   * stone in a hand is a swing you gave up, and only the charm takes one that
+   * fires on its own.
+   */
+  it("is still the only square that takes an automatic stone", () => {
+    expect(wornAccepts("charm", tilesById["quiet-stone"]!)).toBe(true);
+    expect(handAccepts(tilesById["quiet-stone"]!)).toBe(false);
   });
 });
 
@@ -537,9 +578,9 @@ describe("a stone that fires on its own", () => {
   });
 
   /**
-   * A charm reaches nobody but its wearer, so a bolt that harms is one that
-   * harms them — and there is no moment at which that would be wasted. The
-   * author wrote a cursed trinket and gets one.
+   * A bolt that harms has no wasted moment to wait for: it lands on whoever is
+   * targeted, or on its own caster where the author said so, and either way
+   * every press does what it says.
    */
   it("fires a harming bolt whenever it is ready", () => {
     const curse = resolveStone(tilesById["bolt-stone"]!)!;

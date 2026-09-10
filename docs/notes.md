@@ -2532,11 +2532,32 @@ simulation could already do, which is why casting added no new physics:
 deliberately absent — no spell touches more than one target or more than one
 cell.
 
-A hand stone reaches for the target the player already picked for attacking, and
-a **charm reaches nobody but its wearer**. A conjure lands on the target's cell
-or, with nobody targeted, on the cell the caster is facing: the player never
-picks an arbitrary square. Range goes through `canReach`, so a spell out of range
-fails exactly the way a swing does, wall included.
+**A stone reaches whatever its effect says, in every square.** A bolt at the
+target reaches for the one the player already picked for attacking; a bolt at the
+caster reaches nobody. A conjure lands on the target's cell or, with nobody
+targeted, on the cell the caster is facing: the player never picks an arbitrary
+square. Range goes through `canReach`, so a spell out of range fails exactly the
+way a swing does, wall included.
+
+##### The charm used to override that, and it was a trap
+
+A charm reached nobody but its wearer — refused a target in `castability`, and
+re-pointed at its wearer in `castBolt`. Two halves of one rule, in two files,
+and nothing said they were the same rule. The failure mode was not that a
+`target` stone did not work in the charm: it was that it **silently worked on the
+wrong body**. Dragging Sleet from a hand to the charm turned a five-point attack
+into four points of self-harm, behind a fully lit button, with no notice.
+
+The argument for the old rule was that a passive trinket reaching as far as a
+hand would be the longest-ranged thing in the game. That was answering the wrong
+question. **What separates the squares is what they cost, not what they reach**:
+a hand is a swing you gave up, and the charm is the square that costs no swing at
+all. Reach was never the price.
+
+So the square has no say. `needsTarget` reads the effect and nothing else, the
+charm is held to the same range and the same wall, and what is still charm-only
+is an `automatic` stone — the one thing a hand refuses. A wearer who wants a
+trinket that hurts them writes `on: "caster"`, which is what that field is for.
 
 #### A status is something a bolt carries, not an arm of its own
 
