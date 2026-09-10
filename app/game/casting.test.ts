@@ -4,8 +4,8 @@ import tilesJson from "../../data/tiles.json";
 import { resolveItem, resolveStone } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { statusesById } from "../lib/status";
-import { xpForLevel } from "../lib/mastery";
-import { XP_PER_CAST } from "./experience";
+import { resolveBattler } from "../lib/battler";
+import { type Element, ELEMENTS } from "../lib/element";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { emptyMap, replaceStack } from "../lib/mapData";
@@ -579,26 +579,72 @@ describe("a stone that fires on its own", () => {
   });
 });
 
+
 /**
- * How many presses of a stone that asks nothing may stand between a player and
- * their first point of Arcane.
+ * The ladder, as authored, in the order it is climbed.
  *
- * A handful, because that is the whole promise: somebody who finds a light and
- * uses it a few times should feel the mastery move. It is a *bound* rather than
- * the number — the curve and the fee are what decide the number, and this is
- * what fails if either is retuned into a grind.
+ * **Three rungs, three elements, and the same three numbers in three colours.**
+ * That symmetry is the feature rather than a coincidence of authoring — no
+ * element is the cheap one and none is the strong one, because the only thing
+ * that separates fire from water is which status it leaves and which way the
+ * wheel turns. So the tests below assert the ladder *across* elements as well as
+ * up each one, and a stone retuned on its own reddens them.
+ *
+ * Flame is deliberately absent. It is fire's utility stone, not a rung: it
+ * conjures rather than throws, and the test that says so is below.
  */
-const MOST_CASTS_TO_THE_FIRST_LEVEL = 6;
+const LADDER: Record<Element, readonly string[]> = {
+  fire: [
+    "arcane-stone-of-cinder",
+    "arcane-stone-of-ember",
+    "arcane-stone-of-pyre",
+  ],
+  water: [
+    "arcane-stone-of-sleet",
+    "arcane-stone-of-frost",
+    "arcane-stone-of-rime",
+  ],
+  nature: [
+    "arcane-stone-of-barbs",
+    "arcane-stone-of-thorns",
+    "arcane-stone-of-bramble",
+  ],
+};
+
+/** Which status each element's rungs leave behind. */
+const LEAVES: Record<Element, string> = {
+  fire: "burned",
+  water: "chilled",
+  nature: "poison",
+};
+
+/** Everything else a stone, which is to say everything off the ladder. */
+const BESIDE_THE_LADDER = [
+  "arcane-stone-of-flame",
+  "arcane-necklace-of-life",
+  "arcane-stone-of-verdance",
+];
 
 describe("the stones we ship", () => {
   const shipped = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]));
   const statusDefs = statusesById(statusesJson as unknown[]);
 
-  const SHIPPED = [
-    "arcane-necklace-of-life",
-    "arcane-stone-of-flame",
-    "arcane-stone-of-cinder",
-  ];
+  const SHIPPED = [...ELEMENTS.flatMap((e) => LADDER[e]), ...BESIDE_THE_LADDER];
+
+  /** One rung's stone, resolved, with a readable failure when it is missing. */
+  function rung(element: Element, index: number) {
+    const id = LADDER[element][index]!;
+    const stone = resolveStone(shipped[id]!);
+    if (!stone) throw new Error(`${id} is not a stone`);
+    return stone;
+  }
+
+  /** What a rung throws, which every rung on the ladder does. */
+  function bolt(element: Element, index: number) {
+    const effect = rung(element, index).effect;
+    if (effect.kind !== "bolt") throw new Error(`${element} ${index} is not a bolt`);
+    return effect;
+  }
 
   it("parses every one of them as a stone", () => {
     for (const id of SHIPPED) {
@@ -611,7 +657,7 @@ describe("the stones we ship", () => {
   /**
    * One case per effect, asserted against the authored file rather than a
    * fixture: the vocabulary is closed, and shipping one of each is what proves
-   * all three arms are reachable by an author.
+   * both arms are reachable by an author.
    */
   it("uses both of the two effects", () => {
     const kinds = SHIPPED.map((id) => resolveStone(shipped[id]!)!.effect.kind);
@@ -629,21 +675,21 @@ describe("the stones we ship", () => {
     if (life.effect.kind !== "bolt") return;
     expect(life.effect.damage).toBeLessThan(0);
 
-    const cinder = resolveStone(shipped["arcane-stone-of-cinder"]!)!;
-    expect(cinder.effect).toMatchObject({ kind: "bolt", on: "target" });
-    if (cinder.effect.kind !== "bolt") return;
-    expect(cinder.effect.damage).toBeGreaterThan(0);
+    const first = bolt("fire", 0);
+    expect(first.on).toBe("target");
+    expect(first.damage).toBeGreaterThan(0);
     // The whole reason a bolt has a projectile block: what it throws has to be a
-    // tile the world actually holds, on the terms a conjure's is checked above.
-    expect(shipped[cinder.effect.projectile!.tileId]).toBeDefined();
+    // tile the world actually holds, on the terms a conjure's is checked below.
+    expect(shipped[first.projectile!.tileId]).toBeDefined();
   });
 
   it("names a status and a tile the world actually has", () => {
-    const pyre = resolveStone(shipped["arcane-stone-of-pyre"]!)!;
-    expect(pyre.effect.kind).toBe("bolt");
-    if (pyre.effect.kind !== "bolt") return;
-    for (const status of pyre.effect.statuses ?? []) {
-      expect(statusDefs[status.id], status.id).toBeDefined();
+    for (const element of ELEMENTS) {
+      for (let index = 0; index < LADDER[element].length; index++) {
+        for (const status of bolt(element, index).statuses ?? []) {
+          expect(statusDefs[status.id], status.id).toBeDefined();
+        }
+      }
     }
 
     const flame = resolveStone(shipped["arcane-stone-of-flame"]!)!;
@@ -653,16 +699,122 @@ describe("the stones we ship", () => {
   });
 
   /**
-   * **A bolt that does both halves at once**, which is the whole of what folding
-   * the status arm into this one was for: before it, a stone that burned
-   * somebody *and* set them alight was not authorable at all.
+   * **Every step up is a step up in all four things at once**, which is what
+   * makes the ladder a ladder rather than a spread of options: a rung that hit
+   * harder on a shorter cooldown than the one below would make the one below
+   * unauthored content the moment you could reach it.
+   *
+   * The cooldown climbing *with* the damage is the part that reads backwards
+   * until you remember there is no mana here — the cooldown is what a cast
+   * costs, so a deeper bolt has to cost longer.
    */
-  it("ships a bolt that both harms and leaves something behind", () => {
-    const pyre = resolveStone(shipped["arcane-stone-of-pyre"]!)!;
-    expect(pyre.effect.kind).toBe("bolt");
-    if (pyre.effect.kind !== "bolt") return;
-    expect(pyre.effect.damage).toBeGreaterThan(0);
-    expect(pyre.effect.statuses?.map((status) => status.id)).toEqual(["burned"]);
+  it("climbs damage, cooldown, reach and requirements at every step", () => {
+    for (const element of ELEMENTS) {
+      for (let index = 1; index < LADDER[element].length; index++) {
+        const below = rung(element, index - 1);
+        const above = rung(element, index);
+        const where = `${element} ${index - 1} -> ${index}`;
+
+        expect(bolt(element, index).damage, where).toBeGreaterThan(
+          bolt(element, index - 1).damage!,
+        );
+        expect(above.cooldownMs, where).toBeGreaterThan(below.cooldownMs);
+        expect(above.reach!.cells, where).toBeGreaterThan(below.reach!.cells);
+        expect(above.requirements!.arcane, where).toBeGreaterThan(
+          below.requirements!.arcane!,
+        );
+        expect(above.requirements![element], where).toBeGreaterThan(
+          below.requirements![element]!,
+        );
+      }
+    }
+  });
+
+  /**
+   * **The same rung costs the same whichever element you climbed it on.** An
+   * element is what you point magic at, not how good the magic is, so a fire
+   * specialist and a water specialist who have practised equally must arrive at
+   * the same place. Asserted against fire's ladder because one of the three has
+   * to be the yardstick, and fire is the one everybody meets first.
+   */
+  it("reads the same on all three elements", () => {
+    for (const element of ELEMENTS) {
+      for (let index = 0; index < LADDER[element].length; index++) {
+        const where = `${element} rung ${index}`;
+        const stone = rung(element, index);
+        const yardstick = rung("fire", index);
+
+        expect(bolt(element, index).damage, where).toBe(bolt("fire", index).damage);
+        expect(stone.cooldownMs, where).toBe(yardstick.cooldownMs);
+        expect(stone.reach, where).toEqual(yardstick.reach);
+        expect(stone.requirements!.arcane, where).toBe(yardstick.requirements!.arcane);
+        expect(stone.requirements![element], where).toBe(yardstick.requirements!.fire);
+      }
+    }
+  });
+
+  /**
+   * **The bottom rung is damage and nothing else, and what the two above it add
+   * is the element showing up on the target.** A first stone that already left
+   * something burning would have nothing left to grow into; the chance climbing
+   * rather than the duration is what makes the top rung feel like the same spell
+   * landing properly rather than a different one.
+   */
+  it("opens plain and leaves more behind the higher it goes", () => {
+    for (const element of ELEMENTS) {
+      expect(bolt(element, 0).statuses, element).toBeUndefined();
+
+      const middle = bolt(element, 1).statuses!;
+      const top = bolt(element, 2).statuses!;
+      expect(middle.map((s) => s.id), element).toEqual([LEAVES[element]]);
+      expect(top.map((s) => s.id), element).toEqual([LEAVES[element]]);
+      expect(top[0]!.chance, element).toBeGreaterThan(middle[0]!.chance!);
+
+      // The middle rung cuts the status short and the top one lets it run its
+      // own authored length, which is the second half of what "landing properly"
+      // means. An override on the top rung would be the status def saying one
+      // thing and the strongest stone in the game saying another.
+      expect(middle[0]!.toMs, element).toBeLessThan(
+        statusDefs[LEAVES[element]]!.toMs,
+      );
+      expect(top[0]!.fromMs, element).toBeUndefined();
+      expect(top[0]!.toMs, element).toBeUndefined();
+    }
+  });
+
+  /**
+   * **The way onto the ladder, checked against the world as authored.** A player
+   * is seeded from the `player` tile's own masteries — see `../lib/mastery`'s
+   * `xpFromMasteries` — so the bottom rung asking exactly what that tile grants
+   * is the whole of "everybody can cast on their first day". If the seed or the
+   * bottom rung moves without the other, an arcanist has no way to begin, and
+   * there is nothing else in the game that pays element experience.
+   */
+  it("lets a brand new player onto the bottom rung of every element", () => {
+    const seeded = resolveBattler(shipped.player!)!.masteries;
+
+    for (const element of ELEMENTS) {
+      expect(meetsRequirements(seeded, rung(element, 0).requirements), element).toBe(
+        true,
+      );
+      expect(meetsRequirements(seeded, rung(element, 1).requirements), element).toBe(
+        false,
+      );
+    }
+  });
+
+  /**
+   * **Flame is fire's utility stone and is deliberately not a rung.** It asks
+   * what the bottom rung asks, so it is the first stone anybody presses, and it
+   * costs many times what the whole ladder does per cast — because what it
+   * leaves behind is a light source that cooks, burns whoever steps in it and
+   * outlives the cooldown of every attack stone in the game.
+   */
+  it("keeps Flame beside the ladder rather than on it", () => {
+    const flame = resolveStone(shipped["arcane-stone-of-flame"]!)!;
+    expect(flame.effect.kind).toBe("conjure");
+    expect(flame.requirements).toEqual(rung("fire", 0).requirements);
+    expect(flame.cooldownMs).toBeGreaterThan(rung("fire", 2).cooldownMs);
   });
 
   /**
@@ -677,30 +829,6 @@ describe("the stones we ship", () => {
     expect(conjured.interactions?.decay).toBeDefined();
     expect(conjured.id).not.toBe("flame");
     expect(shipped.flame!.interactions?.decay).toBeUndefined();
-  });
-
-  /**
-   * **The way onto the ladder, checked against the world as authored.** A stone
-   * of flame asks Arcane 10, so the only stones a player with no Arcane at all
-   * can press are the two that ask nothing — and the flat fee every cast pays is
-   * what turns pressing one of those into the first point. If either of those
-   * facts stops being true, an arcanist has no way to begin.
-   */
-  it("leaves a way to the first point of Arcane for somebody with none", () => {
-    const open = SHIPPED.filter(
-      (id) => resolveStone(shipped[id]!)!.requirements === undefined,
-    );
-    expect(open.length).toBeGreaterThan(0);
-
-    const casts = xpForLevel(1) / XP_PER_CAST;
-    expect(casts).toBeLessThanOrEqual(MOST_CASTS_TO_THE_FIRST_LEVEL);
-  });
-
-  it("gates the strong one on a mastery and leaves the small ones open", () => {
-    const flame = resolveStone(shipped["arcane-stone-of-flame"]!)!;
-    expect(flame.requirements?.arcane).toBeGreaterThan(0);
-    const necklace = resolveStone(shipped["arcane-necklace-of-life"]!)!;
-    expect(necklace.requirements).toBeUndefined();
   });
 
   /** Every stone in the world is a stone, and no stone is anything else. */

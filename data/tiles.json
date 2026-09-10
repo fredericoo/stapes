@@ -25463,8 +25463,7 @@
           "on": "caster",
           "damage": -5
         },
-        "cooldownMs": 60000,
-        "automatic": true
+        "cooldownMs": 60000
       }
     },
     "sprite": {
@@ -25505,7 +25504,7 @@
           "kind": "conjure",
           "tileId": "arcane-flame"
         },
-        "cooldownMs": 120000,
+        "cooldownMs": 45000,
         "requirements": {
           "arcane": 5,
           "fire": 1
@@ -25553,22 +25552,28 @@
         "effect": {
           "kind": "bolt",
           "on": "target",
+          "damage": 10,
+          "variance": 25,
+          "projectile": {
+            "tileId": "arcane-shard",
+            "cellsPerSecond": 8
+          },
           "statuses": [
             {
               "id": "burned",
-              "chance": 100,
+              "chance": 30,
               "fromMs": 2000,
-              "toMs": 3000
+              "toMs": 4000
             }
           ]
         },
-        "cooldownMs": 20000,
+        "cooldownMs": 7000,
         "requirements": {
-          "arcane": 2,
-          "fire": 1
+          "arcane": 15,
+          "fire": 5
         },
         "reach": {
-          "cells": 3,
+          "cells": 4,
           "height": 2
         }
       }
@@ -25610,22 +25615,28 @@
         "effect": {
           "kind": "bolt",
           "on": "target",
+          "damage": 10,
+          "variance": 25,
+          "projectile": {
+            "tileId": "arcane-shard",
+            "cellsPerSecond": 8
+          },
           "statuses": [
             {
               "id": "chilled",
-              "chance": 100,
-              "fromMs": 6000,
-              "toMs": 8000
+              "chance": 30,
+              "fromMs": 4000,
+              "toMs": 7000
             }
           ]
         },
-        "cooldownMs": 20000,
+        "cooldownMs": 7000,
         "requirements": {
-          "arcane": 2,
-          "water": 1
+          "arcane": 15,
+          "water": 5
         },
         "reach": {
-          "cells": 3,
+          "cells": 4,
           "height": 2
         }
       }
@@ -25667,22 +25678,28 @@
         "effect": {
           "kind": "bolt",
           "on": "target",
+          "damage": 10,
+          "variance": 25,
+          "projectile": {
+            "tileId": "arcane-shard",
+            "cellsPerSecond": 8
+          },
           "statuses": [
             {
               "id": "poison",
-              "chance": 100,
-              "fromMs": 8000,
-              "toMs": 12000
+              "chance": 30,
+              "fromMs": 5000,
+              "toMs": 15000
             }
           ]
         },
-        "cooldownMs": 20000,
+        "cooldownMs": 7000,
         "requirements": {
-          "arcane": 2,
-          "nature": 1
+          "arcane": 15,
+          "nature": 5
         },
         "reach": {
-          "cells": 3,
+          "cells": 4,
           "height": 2
         }
       }
@@ -25724,7 +25741,7 @@
         "effect": {
           "kind": "bolt",
           "on": "target",
-          "damage": 9,
+          "damage": 20,
           "variance": 25,
           "projectile": {
             "tileId": "arcane-shard",
@@ -25733,17 +25750,17 @@
           "statuses": [
             {
               "id": "burned",
-              "chance": 100
+              "chance": 75
             }
           ]
         },
-        "cooldownMs": 45000,
+        "cooldownMs": 10000,
         "requirements": {
-          "arcane": 12,
+          "arcane": 33,
           "fire": 10
         },
         "reach": {
-          "cells": 4,
+          "cells": 5,
           "height": 2
         }
       }
@@ -25785,7 +25802,7 @@
         "effect": {
           "kind": "bolt",
           "on": "target",
-          "damage": 9,
+          "damage": 20,
           "variance": 25,
           "projectile": {
             "tileId": "arcane-shard",
@@ -25794,17 +25811,17 @@
           "statuses": [
             {
               "id": "chilled",
-              "chance": 100
+              "chance": 75
             }
           ]
         },
-        "cooldownMs": 45000,
+        "cooldownMs": 10000,
         "requirements": {
-          "arcane": 12,
+          "arcane": 33,
           "water": 10
         },
         "reach": {
-          "cells": 4,
+          "cells": 5,
           "height": 2
         }
       }
@@ -25846,7 +25863,7 @@
         "effect": {
           "kind": "bolt",
           "on": "target",
-          "damage": 9,
+          "damage": 20,
           "variance": 25,
           "projectile": {
             "tileId": "arcane-shard",
@@ -25855,17 +25872,17 @@
           "statuses": [
             {
               "id": "poison",
-              "chance": 100
+              "chance": 75
             }
           ]
         },
-        "cooldownMs": 45000,
+        "cooldownMs": 10000,
         "requirements": {
-          "arcane": 12,
+          "arcane": 33,
           "nature": 10
         },
         "reach": {
-          "cells": 4,
+          "cells": 5,
           "height": 2
         }
       }
@@ -25909,7 +25926,7 @@
           "on": "caster",
           "damage": -20
         },
-        "cooldownMs": 90000,
+        "cooldownMs": 30000,
         "requirements": {
           "arcane": 15,
           "water": 8,
@@ -25954,16 +25971,16 @@
         "effect": {
           "kind": "bolt",
           "on": "target",
-          "damage": 6,
+          "damage": 5,
           "variance": 25,
           "projectile": {
             "tileId": "arcane-shard",
             "cellsPerSecond": 8
           }
         },
-        "cooldownMs": 25000,
+        "cooldownMs": 5000,
         "requirements": {
-          "arcane": 2,
+          "arcane": 5,
           "fire": 1
         },
         "reach": {
@@ -26009,16 +26026,16 @@
         "effect": {
           "kind": "bolt",
           "on": "target",
-          "damage": 6,
+          "damage": 5,
           "variance": 25,
           "projectile": {
             "tileId": "arcane-shard",
             "cellsPerSecond": 8
           }
         },
-        "cooldownMs": 25000,
+        "cooldownMs": 5000,
         "requirements": {
-          "arcane": 2,
+          "arcane": 5,
           "water": 1
         },
         "reach": {
@@ -26064,16 +26081,16 @@
         "effect": {
           "kind": "bolt",
           "on": "target",
-          "damage": 6,
+          "damage": 5,
           "variance": 25,
           "projectile": {
             "tileId": "arcane-shard",
             "cellsPerSecond": 8
           }
         },
-        "cooldownMs": 25000,
+        "cooldownMs": 5000,
         "requirements": {
-          "arcane": 2,
+          "arcane": 5,
           "nature": 1
         },
         "reach": {

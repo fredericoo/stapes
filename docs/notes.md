@@ -2880,29 +2880,54 @@ to is paid for having picked it.
 
 #### What is authored, so far
 
-**Stones.** Three lesser ones asking the single point everybody starts with —
-Ember (`burned`), Frost (`chilled`, a new blue status), Thorns (`poison`) — and
-three greater ones at Arcane 12 and their element 10, which are the same three
-spells at full duration and a longer reach. The Stone of Flame now asks Fire 6,
-because it always was one. Verdance is the two-element example: a mend asking
-Water 8 and Nature 8, elemental in what it trains and never weighed, because a
-mend has nobody on the other end of it.
+**Stones are a ladder of three rungs, climbed once per element.** Nine attack
+stones, and the same three sets of numbers in three colours — because an element
+is what you point magic at rather than how good the magic is, so no element may
+be the cheap one or the strong one. `casting.test.ts` asserts the ladder across
+the elements as well as up each one.
 
-**Bolts.** Cinder, Sleet and Barbs, one per element, at the same bottom rung the
-lesser status stones sit on — Arcane 2 and the single point of their element. All
-three are the same spell in three colours: twelve damage at a quarter variance
-over three cells, twenty-five seconds apart, throwing an `arcane-shard`. They are
-the ladder's first *direct* damage, where every stone before them worked by
-leaving something on somebody. The Necklace of Life and Verdance are the mending
-direction of the same arm, unchanged in what they do and re-said in the
-vocabulary that now holds them.
+| rung | fire   | water | nature  | damage | leaves      | cooldown | reach | asks              |
+| ---- | ------ | ----- | ------- | ------ | ----------- | -------- | ----- | ----------------- |
+| 1    | Cinder | Sleet | Barbs   | 5      | —           | 5s       | 3     | Arcane 5, elem 1  |
+| 2    | Ember  | Frost | Thorns  | 10     | 30%, cut    | 7s       | 4     | Arcane 15, elem 5 |
+| 3    | Pyre   | Rime  | Bramble | 20     | 75%, in full| 10s      | 5     | Arcane 33, elem 10|
 
-The **greater** three — Pyre, Rime and Bramble — now do both halves, which is
-what makes them greater rather than merely longer: eighteen damage and the
-status, where the lesser stones at the bottom of each element do one or the
-other. Every stone that was a `status` arm is a bolt carrying that status at a
-hundred percent, so nothing about what any of them does changed on the way
-through.
+**Rung one asks exactly what the `player` tile is seeded with**, which is the
+whole of "everybody can cast on their first day": Arcane 5 and one point of each
+element are what a new body is authored to start at, and casting a stone is the
+*only* thing in the game that pays element experience. If either half moves
+without the other, an arcanist has no way to begin.
+
+**The cooldown climbs with the damage, which reads backwards until you remember
+there is no mana.** The cooldown *is* what a cast costs, so a deeper bolt has to
+cost longer. It is also why the whole ladder now runs in seconds rather than in
+the twenty-five to forty-five it used to: casting means putting your weapon down,
+and a stone that took most of a minute to come back was a square you had given up
+for nothing. Five to ten seconds is short enough that a caster fights with the
+stone rather than around it, and long enough that they cannot only cast.
+
+**What the two upper rungs add is the element showing up on the target.** Rung
+one is damage and nothing else — a first stone that already left something
+burning would have nothing to grow into. Rung two lands its status thirty percent
+of the time and cuts it short; rung three lands it three times in four and lets
+it run the length the status def itself authors, so the top rung reads as the
+same spell landing properly rather than as a different spell.
+
+**Flame is beside the ladder rather than on it.** It asks what rung one asks, so
+it is the first stone anybody presses, and it costs forty-five seconds — many
+times the whole ladder — because what it leaves behind is a light source that
+cooks, burns whoever steps in it, and outlives every attack stone's cooldown. It
+is fire's utility, not fire's rung one; Cinder is that, so an arcanist has
+something to practise Fire *with*.
+
+**The two mends are the other direction of the same arm.** Verdance is the
+two-element example — a mend of twenty asking Water 8 and Nature 8, elemental in
+what it trains and never weighed, because a mend has nobody on the other end of
+it — and it now comes back in thirty seconds so it is a decision inside a fight
+rather than once per fight. The Necklace of Life is no longer `automatic`: a
+charm that spent itself the moment you were scratched was a charm that was never
+ready when it mattered, and pressing it is a decision. Nothing shipped is
+automatic now, and `automaticFires` stays for authors who want one.
 
 **Bodies.** The snake is nature and the cave troll is fire. Everything else —
 rat, wolf, deer, cat, shopkeeper, and the player — is neutral, which is the
