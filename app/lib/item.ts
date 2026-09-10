@@ -803,9 +803,11 @@ export type StoneEffect =
       /**
        * Whose body it lands on, health and statuses alike.
        *
-       * A fact about the stone rather than about the square it is in: a charm
-       * may only ever reach its holder, so a `target` charm is refused where the
-       * squares are decided rather than here.
+       * A fact about the stone and **only** about the stone. The square it is
+       * worn in has no say: a `target` bolt reaches the caster's target from a
+       * hand and from the charm alike. The charm used to override this to the
+       * caster, which turned an attack stone into self-harm the moment somebody
+       * moved it.
        */
       on: StoneSubject;
       /**
@@ -817,9 +819,9 @@ export type StoneEffect =
        * are rare.
        *
        * Absent is a spell that does exactly what it says, which is the honest
-       * default for a thing you may press once every two minutes — a swing you
-       * take thirty times in a fight can afford to be a distribution, and a
-       * single press cannot.
+       * default for a thing you press *instead of* swinging — a swing you take
+       * thirty times in a fight can afford to be a distribution, and a press
+       * that cost you the hand cannot.
        */
       variance?: number;
       /**
@@ -921,8 +923,9 @@ export type StoneEffectKind = (typeof STONE_EFFECT_KINDS)[number];
  *
  * Stones are accepted by the two hand squares and by the charm, and refused
  * everywhere a piece of armour would be — see `../game/equipment`'s
- * `wornAccepts`. What separates the squares is reach: a hand stone may act on
- * whatever the caster has targeted, and a charm may only ever act on its holder.
+ * `wornAccepts`. **What separates the squares is what they cost, not what they
+ * reach**: every square casts the same spell at the same range, and a hand is
+ * the one you paid for with a swing.
  */
 export type ArcaneStoneItem = {
   type: "stone";
@@ -975,9 +978,9 @@ export type ArcaneStoneItem = {
    * fails exactly the way a swing does, and a wall stops one as surely as it
    * stops an arrow.
    *
-   * Only ever asked of a stone that reaches somebody *else*: a heal, a charm and
-   * a status on the caster are all at arm's length by construction. Absent means
-   * an arm's length, which is the same default a weapon takes.
+   * Only ever asked of a stone that reaches somebody *else*: a mend and a status
+   * on the caster are at arm's length by construction, in every square. Absent
+   * means an arm's length, which is the same default a weapon takes.
    */
   reach?: Reach;
   /**

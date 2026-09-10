@@ -81,7 +81,7 @@ const RAT_TOUGHNESS = 40;
 const MEND_COOLDOWN_MS = 60_000;
 const MEND_HP = 10;
 
-/** What the shipped Stone of Light costs, and the clock the floor cases run on. */
+/** A ward's cooldown, and the clock the floor cases run on. */
 const WARD_COOLDOWN_MS = 30_000;
 
 /**
@@ -435,8 +435,9 @@ const props: TileDef[] = [
     },
     cooldownMs: 10_000,
   }),
-  // The shipped Stone of Light's shape: it asks nothing, reaches nobody, and
-  // does nothing a number can measure. The case the flat fee exists for.
+  // A stone that asks nothing, reaches nobody, and does nothing a number can
+  // measure. The case the flat fee exists for, and a fixture rather than a
+  // shipped stone: nothing on the ladder is shaped this way.
   stoneTile("ward-stone", {
     effect: {
       kind: "bolt",
@@ -800,9 +801,9 @@ describe("what casting earns", () => {
 /**
  * The floor under the profession.
  *
- * A stone of light does nothing measurable to anybody and a stone of flame is
- * gated on Arcane 10, so a caster paid on outcomes alone would have no way onto
- * the bottom rung of the ladder at all. What these pin is that the way on exists
+ * A ward does nothing measurable to anybody and a conjured flame does nothing
+ * until somebody walks into it, so a caster paid on outcomes alone could press a
+ * stone all afternoon and learn nothing. What these pin is that the floor exists
  * and that it does not depend on which stone you happen to have found.
  */
 describe("what pressing a stone teaches you for its own sake", () => {
@@ -1414,6 +1415,51 @@ describe("a bolt thrown at somebody", () => {
 
     expect(play.cast("charm")).toBe(true);
     expect(hpOf(play)).toBe(PLAYER_MAX_HP);
+  });
+});
+
+/**
+ * The bug this square used to have, pinned end to end.
+ *
+ * A charm was refused a target where castability is decided, *and* re-pointed at
+ * its wearer where a bolt is resolved — two halves of one rule, stated in two
+ * files. Nothing failed: a stone authored `on: "target"` sat in the charm behind
+ * a fully lit button and took its damage off the person carrying it. Dragging
+ * Sleet from a hand to the charm turned an attack into self-harm.
+ *
+ * Asserted against the session rather than against `castability`, because the
+ * damage is the half the pure module could never have caught.
+ */
+describe("a harming stone worn as a charm", () => {
+  const RAT_CELL = { x: 2, y: 0, z: 0 };
+
+  function charmed() {
+    const play = session({ charm: "bolt-stone" }, spawnRat(world(), RAT_CELL));
+    return { play, target: bodyAt(play, RAT_CELL) };
+  }
+
+  it("takes its damage off the target and none off its wearer", () => {
+    const { play, target } = charmed();
+    play.setTarget(target);
+    const mine = hpOf(play)!;
+    const theirs = hpOf(play, target)!;
+
+    expect(play.cast("charm")).toBe(true);
+    expect(hpOf(play, target)).toBeLessThan(theirs);
+    expect(hpOf(play)).toBe(mine);
+  });
+
+  /**
+   * And with nobody targeted it is refused outright rather than falling back to
+   * its wearer, which is the shape the whole failure took: the fallback was
+   * silent, and silence is what made it self-harm.
+   */
+  it("is refused with nobody targeted rather than landing on its wearer", () => {
+    const { play } = charmed();
+    const mine = hpOf(play)!;
+
+    expect(play.cast("charm")).toBe(false);
+    expect(hpOf(play)).toBe(mine);
   });
 });
 

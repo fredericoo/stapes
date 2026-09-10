@@ -2532,11 +2532,32 @@ simulation could already do, which is why casting added no new physics:
 deliberately absent — no spell touches more than one target or more than one
 cell.
 
-A hand stone reaches for the target the player already picked for attacking, and
-a **charm reaches nobody but its wearer**. A conjure lands on the target's cell
-or, with nobody targeted, on the cell the caster is facing: the player never
-picks an arbitrary square. Range goes through `canReach`, so a spell out of range
-fails exactly the way a swing does, wall included.
+**A stone reaches whatever its effect says, in every square.** A bolt at the
+target reaches for the one the player already picked for attacking; a bolt at the
+caster reaches nobody. A conjure lands on the target's cell or, with nobody
+targeted, on the cell the caster is facing: the player never picks an arbitrary
+square. Range goes through `canReach`, so a spell out of range fails exactly the
+way a swing does, wall included.
+
+##### The charm used to override that, and it was a trap
+
+A charm reached nobody but its wearer — refused a target in `castability`, and
+re-pointed at its wearer in `castBolt`. Two halves of one rule, in two files,
+and nothing said they were the same rule. The failure mode was not that a
+`target` stone did not work in the charm: it was that it **silently worked on the
+wrong body**. Dragging Sleet from a hand to the charm turned a five-point attack
+into four points of self-harm, behind a fully lit button, with no notice.
+
+The argument for the old rule was that a passive trinket reaching as far as a
+hand would be the longest-ranged thing in the game. That was answering the wrong
+question. **What separates the squares is what they cost, not what they reach**:
+a hand is a swing you gave up, and the charm is the square that costs no swing at
+all. Reach was never the price.
+
+So the square has no say. `needsTarget` reads the effect and nothing else, the
+charm is held to the same range and the same wall, and what is still charm-only
+is an `automatic` stone — the one thing a hand refuses. A wearer who wants a
+trinket that hurts them writes `on: "caster"`, which is what that field is for.
 
 #### A status is something a bolt carries, not an arm of its own
 
@@ -2599,12 +2620,12 @@ at the caster** is the curse that used to need a status to express.
 **No accuracy and no dodge.** A cast is not aimed: you spent the cooldown and the
 stone answered. What is left of a swing's dice is the variance band, rolled
 through the same `damageFraction` a weapon's is, and absent variance is a spell
-that does exactly what it says — the honest default for a thing you press once
-every two minutes, where a swing you take thirty times a fight can afford to be a
-distribution.
+that does exactly what it says — the honest default for a thing you press every
+few seconds *instead of swinging*, where a swing you take thirty times a fight
+can afford to be a distribution.
 
 That is the trade the profession is built on: a bolt is the reliable half of an
-arcanist's damage and a swing is the frequent half. One press every two minutes
+arcanist's damage and a swing is the frequent half. A press you paid a hand for
 cannot also be a coin toss.
 
 What it *does* go through is `damageAfterDefence`, as an **arcane** blow — the
@@ -2730,10 +2751,10 @@ something you do to yourself in a corner.
 
 **And every cast pays a small flat fee on top, whatever it was.** Outcomes alone
 work for a swordsman, because every swing is aimed at somebody, and do not work
-for a caster: a stone of light does nothing measurable to anybody, and a stone
-of flame asks Arcane 10 before it will fire. Paid on outcomes alone the bottom
-rung of the ladder is missing, and the only way onto it is a stone you are not
-yet allowed to use.
+for a caster: a conjured flame does nothing measurable to anybody until
+somebody walks into it, and a mend at full health does nothing at all. Paid on
+outcomes alone a caster who has spent an afternoon lighting rooms has learnt
+nothing, and the flat fee is what says otherwise.
 
 So the fee is **flat and unscaled** — not by what the stone asks, not by what
 came of it, not by who you were pointing at. Every scale that applies elsewhere
@@ -2880,29 +2901,109 @@ to is paid for having picked it.
 
 #### What is authored, so far
 
-**Stones.** Three lesser ones asking the single point everybody starts with —
-Ember (`burned`), Frost (`chilled`, a new blue status), Thorns (`poison`) — and
-three greater ones at Arcane 12 and their element 10, which are the same three
-spells at full duration and a longer reach. The Stone of Flame now asks Fire 6,
-because it always was one. Verdance is the two-element example: a mend asking
-Water 8 and Nature 8, elemental in what it trains and never weighed, because a
-mend has nobody on the other end of it.
+**Stones are a ladder of three rungs, climbed once per element.** Nine attack
+stones. Each element climbs the same three rungs with a character of its own laid
+over them, and the three characters come to the same rate — because an element is
+what you point magic at rather than how good the magic is, so no element may be
+the cheap one or the strong one. `casting.test.ts` asserts the ladder across the
+elements as well as up each one.
 
-**Bolts.** Cinder, Sleet and Barbs, one per element, at the same bottom rung the
-lesser status stones sit on — Arcane 2 and the single point of their element. All
-three are the same spell in three colours: twelve damage at a quarter variance
-over three cells, twenty-five seconds apart, throwing an `arcane-shard`. They are
-the ladder's first *direct* damage, where every stone before them worked by
-leaving something on somebody. The Necklace of Life and Verdance are the mending
-direction of the same arm, unchanged in what they do and re-said in the
-vocabulary that now holds them.
+| rung | fire   | water | nature  | damage | leaves       | cooldown | reach | asks               |
+| ---- | ------ | ----- | ------- | ------ | ------------ | -------- | ----- | ------------------ |
+| 1    | Cinder | Sleet | Barbs   | 5      | —            | 5s       | 3.5   | Arcane 5, elem 1   |
+| 2    | Ember  | Frost | Thorns  | 10     | 30%, cut     | 7s       | 4.5   | Arcane 15, elem 5  |
+| 3    | Pyre   | Rime  | Bramble | 15     | 75%, in full | 10s      | 5.5   | Arcane 33, elem 10 |
 
-The **greater** three — Pyre, Rime and Bramble — now do both halves, which is
-what makes them greater rather than merely longer: eighteen damage and the
-status, where the lesser stones at the bottom of each element do one or the
-other. Every stone that was a `status` arm is a bolt carrying that status at a
-hundred percent, so nothing about what any of them does changed on the way
-through.
+**The halves are the point of the reach numbers, not a rounding.** A reach is
+compared squared, so a whole 3 admits the cell three along (9) and refuses the
+one at (3,1) that is barely further (10). Every half-cell step opens a ring of
+cells a whole one skips over, which is why `MELEE_REACH` is 1.5 and why these
+are not 3, 4 and 5.
+
+Those are **water's** numbers. Fire and nature are the same rung with a trait
+applied, and the traits are the section below.
+
+**Rung one asks exactly what the `player` tile is seeded with**, which is the
+whole of "everybody can cast on their first day": Arcane 5 and one point of each
+element are what a new body is authored to start at, and casting a stone is the
+*only* thing in the game that pays element experience. If either half moves
+without the other, an arcanist has no way to begin.
+
+##### An element is a character, and the three come to the same rate
+
+**Water is the rung as authored. Fire and nature are that rung times three
+numbers**, the same three at every rung, so a player who has learnt what fire
+feels like at the bottom has learnt what it feels like at the top.
+
+| element | damage | variance | cooldown | reads as                        |
+| ------- | ------ | -------- | -------- | ------------------------------- |
+| fire    | ×1     | 60       | ×0.8     | fast and wild, never dependable |
+| water   | ×1     | 25       | ×1       | the yardstick                   |
+| nature  | ×1.2   | 25       | ×1.2     | slow and heavy                  |
+
+There is no `earth` — the third element is `nature`, and it is the one a request
+for "earth" means.
+
+**The three come to exactly the same expected damage a second**, which is what
+makes them characters rather than a ranking. That falls out of the arithmetic
+rather than being tuned to it, and it is why fire's cooldown multiple is 0.8 and
+not something rounder:
+
+> A variance is a band that runs **downward** from the authored damage — see
+> `combat.ts`'s `damageFraction`, which is `1 - spread + spread × peaked` — so
+> the authored number is the ceiling and the mean is `1 - variance/200`. That is
+> 0.875 at water's quarter and 0.70 at fire's three fifths. Fire's cooldown
+> multiple is the ratio of those two, `0.70 / 0.875 = 0.8`, and nature's is its
+> own damage multiple. Both cancel.
+
+`casting.test.ts` asserts the parity, so a rung retuned on one element without
+the others reddens rather than quietly making that element the best one.
+
+**Authoring a fourth rung, or moving one.** Write water's numbers, then multiply.
+Damage and cooldown both have to come out whole, which is what fixes water's
+cooldowns at multiples of five: fire's 0.8 and nature's 1.2 of 7s are 5.6s and
+8.4s, which are fine in milliseconds and would not be if the ladder were counted
+in whole seconds.
+
+**What is deliberately not a trait** is reach and requirements. An element that
+threw further or asked less would be an element that was simply better, which is
+the thing the wheel exists to prevent.
+
+**The one advantage the parity does not capture** is that fire fits more casts
+into a minute than nature does, so it rolls its status more often and earns its
+element faster. That is fire's real edge, and it is paid for in never being able
+to count on a number — which is the trade the whole table is making.
+
+**The cooldown climbs with the damage, which reads backwards until you remember
+there is no mana.** The cooldown *is* what a cast costs, so a deeper bolt has to
+cost longer. It is also why the whole ladder now runs in seconds rather than in
+the twenty-five to forty-five it used to: casting means putting your weapon down,
+and a stone that took most of a minute to come back was a square you had given up
+for nothing. Four to twelve seconds is short enough that a caster fights with the
+stone rather than around it, and long enough that they cannot only cast.
+
+**What the two upper rungs add is the element showing up on the target.** Rung
+one is damage and nothing else — a first stone that already left something
+burning would have nothing to grow into. Rung two lands its status thirty percent
+of the time and cuts it short; rung three lands it three times in four and lets
+it run the length the status def itself authors, so the top rung reads as the
+same spell landing properly rather than as a different spell.
+
+**Flame is beside the ladder rather than on it.** It asks what rung one asks, so
+it is the first stone anybody presses, and it costs forty-five seconds — many
+times the whole ladder — because what it leaves behind is a light source that
+cooks, burns whoever steps in it, and outlives every attack stone's cooldown. It
+is fire's utility, not fire's rung one; Cinder is that, so an arcanist has
+something to practise Fire *with*.
+
+**The two mends are the other direction of the same arm.** Verdance is the
+two-element example — a mend of twenty asking Water 8 and Nature 8, elemental in
+what it trains and never weighed, because a mend has nobody on the other end of
+it — and it now comes back in thirty seconds so it is a decision inside a fight
+rather than once per fight. The Necklace of Life is no longer `automatic`: a
+charm that spent itself the moment you were scratched was a charm that was never
+ready when it mattered, and pressing it is a decision. Nothing shipped is
+automatic now, and `automaticFires` stays for authors who want one.
 
 **Bodies.** The snake is nature and the cave troll is fire. Everything else —
 rat, wolf, deer, cat, shopkeeper, and the player — is neutral, which is the

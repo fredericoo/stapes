@@ -221,7 +221,7 @@ export function StoneFields({
             />
 
             <div className="flex flex-col gap-1 text-xs">
-              <FieldLabel info="Caster: needs nothing targeted and never misfires. Target: needs somebody targeted, in range. Worn on the charm it always acts on its wearer.">
+              <FieldLabel info="Caster: needs nothing targeted and never misfires. Target: needs somebody targeted, in range. The same in every square — the charm reaches as far as a hand.">
                 Subject
               </FieldLabel>
               <div>
@@ -335,7 +335,7 @@ export function StoneFields({
         />
         <StatField
           label="Reach"
-          info={`Radius in cells. Read only when the stone acts on somebody else; at the caster and on the charm it is always at arm's length. Default ${MELEE_REACH.cells}.`}
+          info={`Radius in cells. Read only when the stone acts on somebody else; at the caster it is always at arm's length. Default ${MELEE_REACH.cells}.`}
           value={reach.cells}
           min={0}
           max={MAX_REACH_CELLS}
@@ -418,9 +418,9 @@ function describeBolt(damage: number | undefined): string {
 /**
  * What a cooldown reads as, in the units somebody would say it in.
  *
- * Minutes past a minute, because the stones worth authoring live there — a
- * two-minute flame reads as "2m" and not as "120s", and a reader skimming the
- * file should not have to divide.
+ * Minutes past a minute, because a stone may be authored there even though the
+ * shipped ladder is not — a two-minute cooldown reads as "2m" and not as
+ * "120s", and a reader skimming the file should not have to divide.
  */
 function describeCooldown(cooldownMs: number): string {
   const seconds = Math.round(cooldownMs / MS_PER_SECOND);

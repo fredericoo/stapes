@@ -4744,8 +4744,8 @@ export class GameSession implements PlaySession {
    * spent the cooldown and the stone answered — so the two failures a swing can
    * have are absent here by design, and what is left of the dice is the variance
    * band. That makes a bolt the reliable half of an arcanist's damage and a
-   * swing the frequent half, which is the trade the profession is built on: one
-   * press every two minutes cannot also be a coin toss.
+   * swing the frequent half, which is the trade the profession is built on: a
+   * press you paid a hand for cannot also be a coin toss.
    *
    * The order is the order it happens in, and each step is somebody's say:
    * mastery, then the dice, then the subject's armour, then the wheel, then
@@ -4760,9 +4760,10 @@ export class GameSession implements PlaySession {
   ) {
     // Read here rather than passed down, because what a cast *does* and what a
     // cast is allowed to do are two questions, and `./casting`'s `needsTarget`
-    // owns only the second. A charm reaches nobody but its wearer whatever the
-    // effect says.
-    const onTarget = square !== "charm" && effect.on === "target";
+    // owns only the second. Both now answer it off the effect alone: the square
+    // used to override this to the caster, which meant a stone authored at a
+    // target landed on its wearer the moment it was worn as a charm.
+    const onTarget = effect.on === "target";
     const subject = onTarget
       ? (actor.targetId ? this.actors.get(actor.targetId) : undefined)
       : actor;
@@ -5050,9 +5051,10 @@ export class GameSession implements PlaySession {
   /**
    * Where a conjure lands: on the target, or on the cell the caster is facing.
    *
-   * A charm never reaches for a target — see `./casting`'s `needsTarget` — so a
-   * conjuring charm always lays its tile in front of its wearer, which is the
-   * only reading of "a charm acts on its holder" a tile can have.
+   * The same answer in every square, including the charm — see `./casting`'s
+   * `needsTarget`, which the square no longer has a say in. A conjuring charm
+   * used to lay its tile in front of its wearer whatever was targeted, which
+   * read as the stone being broken rather than as a rule.
    *
    * The cell in front is resolved through the same `destCellAfterStep` a walk
    * uses, so a flame laid at the top of a ramp lands on the ramp rather than
@@ -5065,10 +5067,9 @@ export class GameSession implements PlaySession {
     const from = this.tryLocate(actor);
     if (!from) return null;
 
-    const target =
-      square !== "charm" && actor.targetId
-        ? this.actors.get(actor.targetId)
-        : undefined;
+    const target = actor.targetId
+      ? this.actors.get(actor.targetId)
+      : undefined;
     const to = target ? this.tryLocate(target) : null;
     // Beneath the target's own placement, so what lands is a thing they are
     // standing in rather than a thing balanced on their head.

@@ -252,9 +252,15 @@ export function defenderEarnings(
  *
  * One, which is four casts to the first point of Arcane and sixteen to the
  * second — see `../lib/mastery`'s `xpForLevel`, whose curve is quadratic. On the
- * shipped Stone of Light's thirty-second cooldown that is two minutes to the
- * first level, which is near enough to the casting that caused it to read as
- * cause and effect.
+ * bottom rung's five-second cooldown that is twenty seconds to the first level,
+ * which is near enough to the casting that caused it to read as cause and
+ * effect.
+ *
+ * **It is the only thing in the game that pays an element**, which is what makes
+ * the size of it load-bearing rather than a nicety: Arcane also grows on what a
+ * bolt did, and Fire, Water and Nature grow on nothing else at all. An element
+ * requirement is therefore counted in casts — see the ladder's rungs in
+ * `docs/notes.md` — and cannot be authored as though it were a weapon's.
  *
  * **Deliberately small beside {@link XP_PER_DAMAGE}.** A single point of damage
  * is worth twice a whole cast, so this never competes with what a spell does —
@@ -270,10 +276,11 @@ export const XP_PER_CAST = 1;
  * **A floor under the profession, and flat on purpose.** Everything else in this
  * module pays for an *outcome* — damage dealt, a blow escaped, health restored —
  * which works for a swordsman because every swing is aimed at somebody, and does
- * not work for a caster. A stone of light does nothing measurable to anybody; a
- * stone of flame asks Arcane 10 before it will fire at all. Paid on outcomes
- * alone, the bottom rung of the ladder would be missing, and the only way onto
- * it would be a stone you are not yet allowed to use.
+ * not work for a caster. A conjured flame does nothing measurable to anybody
+ * until somebody walks into it, and a mend at full health does nothing at all.
+ * Paid on outcomes alone, a caster who spent an afternoon lighting rooms has
+ * learnt nothing from it, and an element nobody has hurt anything with never
+ * moves.
  *
  * So pressing a stone teaches you a little, and **the amount does not depend on
  * the stone**: not on what it asks of you, not on what came of it, and not on

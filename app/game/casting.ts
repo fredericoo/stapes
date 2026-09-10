@@ -176,11 +176,10 @@ export function castability(
  * people walk about, and because it is the only half a cast that has already
  * spent its cooldown still has to ask.
  *
- * **A charm never asks it.** A charm acts on its holder and nothing else, so
- * where anybody is standing has no bearing on it — which is also why a self
- * spell can never misfire at an enemy. A hand stone whose effect is on its
- * caster is in exactly the same position, and gets the same answer: what decides
- * this is whom the effect names, not which square the stone is in.
+ * **A stone at its own caster never asks it**, wherever it is worn: there is no
+ * distance to cross, which is also why a self spell can never misfire at an
+ * enemy. What decides this is whom the effect names and nothing else — see
+ * {@link needsTarget}, which is the whole of the rule.
  */
 function reachability(
   context: CastContext,
@@ -218,19 +217,32 @@ function reachability(
  * Whether this stone reaches for somebody other than its holder.
  *
  * The one question that decides whether a target and a range matter at all, and
- * it has two halves that both have to be true. A **charm** is refused a target
- * outright, whatever its effect says: an author who writes a `target` status on
- * a charm has written something the square cannot honour, and honouring it
- * anyway would make a passive trinket the longest-ranged thing in the game.
+ * **it is answered by the effect alone. The square has no say.** A **bolt** says
+ * whose body it lands on and that is the whole answer, whether what lands is
+ * health, a status or both: a spell aimed at its own caster wants nobody
+ * targeted and no range. A **conjure** always wants a cell, and picks the one in
+ * front when nobody is targeted.
  *
- * Everything else is what the effect names. A **bolt** says whose body it lands
- * on and that is the whole answer, whether what lands is health, a status or
- * both: a spell aimed at its own caster wants nobody targeted and no range. Two
- * cases used to live here and neither does now — a mend was refused a target
- * outright, and a status asked the same question from a second arm.
+ * **The charm used to be refused a target outright**, on the argument that a
+ * passive trinket reaching as far as a hand does would be the longest-ranged
+ * thing in the game. The cost of that rule was worse than the thing it
+ * prevented: a stone authored `on: "target"` did not fail in the charm square,
+ * it *silently landed on its wearer* — so dragging Sleet onto the charm turned
+ * an attack into four points of self-harm behind a fully lit button. The rule
+ * was stated in five places and the retargeting in two, and nothing said the
+ * two were the same rule.
+ *
+ * So a charm reaches whatever a hand reaches, held to the same range and the
+ * same wall. What still separates the squares is what they *cost*: a hand is a
+ * swing you gave up, and the charm is the square that costs no swing at all —
+ * see {@link CAST_SQUARES}. That is a price, not a reach, and it is the one this
+ * module was conflating.
+ *
+ * The `square` is still taken, and deliberately: an unused parameter here would
+ * be a caller free to stop passing one, and the next rule that genuinely is
+ * about the square would have to thread it back through four call sites.
  */
-function needsTarget(square: CastSquare, stone: ArcaneStoneItem): boolean {
-  if (square === "charm") return false;
+function needsTarget(_square: CastSquare, stone: ArcaneStoneItem): boolean {
   if (stone.effect.kind === "conjure") return true;
   return stone.effect.on === "target";
 }
@@ -307,11 +319,11 @@ export type StoneHolder = {
  * would make combining the two halves *worse* than authoring either alone,
  * which is exactly backwards for the change that let them combine.
  *
- * **Harming never waits.** A charm reaches nobody but its wearer, so an
- * automatic bolt with a positive damage is a trinket that hurts the person
- * carrying it — a thing an author may write and nothing here should
- * second-guess. It has no wasted moment to wait for: every press does what it
- * says.
+ * **Harming never waits.** A bolt with a positive damage has no wasted moment
+ * to look for — every press does what it says, whether it lands on whoever the
+ * wearer has targeted or, for a stone authored at its own caster, on the wearer
+ * themselves. Both are things an author may write and neither is this
+ * function's to second-guess.
  *
  * Asked *after* {@link castability}, never instead of it: this decides whether
  * the moment is right, and that decides whether it is allowed at all.
@@ -409,7 +421,7 @@ export function castableStones(context: CastContext): SpellButton[] {
  * Whole seconds rather than the raw remainder, which makes the bar advance in
  * steps of a second. That is the honest resolution of the thing being drawn: the
  * bar is a countdown and not an animation, and a smoother one would cost a React
- * render per frame for a difference of two pixels on a two-minute spell.
+ * render per frame for a difference of two pixels on a five-second spell.
  */
 export function spellReading(buttons: readonly SpellButton[]): string {
   if (buttons.length === 0) return "";
