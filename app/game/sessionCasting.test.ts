@@ -1617,3 +1617,65 @@ describe("a cast refused for want of a target", () => {
     expect(play.drainNotices()).not.toContain("Select a target first");
   });
 });
+
+/**
+ * The receipt a mend leaves, which every healing path in the game used to skip.
+ *
+ * **Only when something actually went in.** A body at a full bar offered health
+ * gains nothing and must say nothing, or the number stops meaning "this happened
+ * to you" and starts meaning "something was offered" — which is not a thing a
+ * player can act on.
+ */
+describe("what a mend floats", () => {
+  const numbersOf = (play: GameSession) => play.getSnapshot().damage;
+  const mends = (play: GameSession, from: number) =>
+    numbersOf(play)
+      .slice(from)
+      .filter((number) => number.outcome === "heal");
+
+  it("floats what was restored, as a heal", () => {
+    const play = session({});
+    play.runCommand("/health -5");
+    const before = numbersOf(play).length;
+
+    play.runCommand("/health +3");
+    expect(mends(play, before)).toMatchObject([{ outcome: "heal", amount: 3 }]);
+  });
+
+  /**
+   * The clamp again, seen from the layer that draws it: a body one short of full
+   * offered five gains one, and *one* is the figure. Five would be a receipt for
+   * something that did not happen.
+   */
+  it("floats what went in rather than what was offered", () => {
+    const play = session({});
+    play.runCommand("/health -1");
+    const before = numbersOf(play).length;
+
+    play.runCommand("/health +5");
+    expect(mends(play, before)).toMatchObject([{ outcome: "heal", amount: 1 }]);
+  });
+
+  it("floats nothing at a full health bar", () => {
+    const play = session({});
+    const before = numbersOf(play).length;
+
+    play.runCommand("/health +5");
+    expect(mends(play, before)).toEqual([]);
+  });
+
+  /**
+   * The shipped path, end to end: a mend stone was the one thing in the game
+   * that moved a health bar and showed nothing at all.
+   */
+  it("floats a mend stone's cast", () => {
+    const play = session({ weapon: "mend-stone" });
+    play.runCommand(`/health -${MEND_HP}`);
+    const before = numbersOf(play).length;
+
+    expect(play.cast("weapon")).toBe(true);
+    expect(mends(play, before)).toMatchObject([
+      { outcome: "heal", amount: MEND_HP },
+    ]);
+  });
+});

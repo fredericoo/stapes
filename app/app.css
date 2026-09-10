@@ -525,6 +525,24 @@ body {
   color: #9a9a9a;
 }
 
+/* Health that actually went back in — a mend, a bandage, a charm's tick, a `fed`
+   status doing its work.
+
+   Light rather than saturated, and green because green is the one hue in this
+   layer nothing else claims: white is somebody else's damage, red is your own,
+   grey is nothing happening. It is deliberately *not* split into own and other
+   the way damage is — red exists because your own hit points are the thing you
+   cannot afford to miss while reading the traffic, and there is no equivalent
+   fear about being healed.
+
+   The sign carries the meaning where the colour cannot: `textFor` writes `+5`,
+   so a reader who cannot separate green from white still knows which way the bar
+   went. Never floated at all unless something was actually restored, so a full
+   health bar is silent. */
+.damage-number--mend {
+  color: #7fe08a;
+}
+
 /**
  * What the game has just told you, stacked at the foot of the view.
  *

@@ -530,7 +530,21 @@ export type NoiseEmission = {
  * *attacker* failing, the defender did nothing, and there is no body whose
  * motion could say so.
  */
-export type SwingOutcome = "hit" | "miss";
+export type SwingOutcome = "hit" | "miss" | "heal";
+
+/**
+ * Why `heal` is in here at all, beside two words about swinging.
+ *
+ * **Because the channel is "something happened to this body", not "somebody
+ * swung".** The name is the case it started as — see {@link DamageNumber}, which
+ * says the same — and a mend is exactly as much a receipt as a blow: it happens
+ * to a body, at a moment, for an amount, and the player needs to see the figure
+ * to know whether the thing they are wearing is worth the square.
+ *
+ * A second mechanism for it would drift in placement, lifetime and rise from the
+ * numbers it is meant to sit beside, and a player reading a red 5 rising off
+ * their head has to be able to read a green 5 the same way.
+ */
 
 /**
  * The same two, as values.
@@ -539,7 +553,7 @@ export type SwingOutcome = "hit" | "miss";
  * see `../net/protocol`, where the schema forgetting this field made every blow
  * online draw nothing.
  */
-export const SWING_OUTCOMES: SwingOutcome[] = ["hit", "miss"];
+export const SWING_OUTCOMES: SwingOutcome[] = ["hit", "miss", "heal"];
 
 /**
  * A receipt floating off whatever was just swung at.
@@ -4211,6 +4225,40 @@ export class GameSession implements PlaySession {
   }
 
   /**
+   * Put health back into a body, and float the figure only if any actually went
+   * in.
+   *
+   * **The mirror of {@link applyDamage}, and it exists because there were four
+   * of it.** Healing happened in four places — a status tick, a mend bolt, a
+   * consumable and the `/health` command — each clamping at full health with its
+   * own two lines, and none of them showing a number. So a player drinking a
+   * potion, or standing under a `fed` that was doing its work, had no way to
+   * tell any of it was happening.
+   *
+   * **What actually went in, not what was offered.** A body one point short of
+   * full that is offered five gains one, and one is what floats — the figure is
+   * a receipt for what happened to *this* body, and five would be a receipt for
+   * something else. A call that restored nothing is silent: no number, no
+   * element created, nothing on the wire.
+   *
+   * Returns what it restored, because a mend pays its caster for health it
+   * actually put back.
+   */
+  private applyHealing(target: ActorRuntime, amount: number): number {
+    if (amount <= 0) return 0;
+    const stats = this.battlerOf(target);
+    const before = this.hpOf(target);
+    if (!stats || before === null) return 0;
+
+    const restored = Math.min(amount, stats.maxHp - before);
+    if (restored <= 0) return 0;
+
+    target.hp = before + restored;
+    this.floatSwing(target, "heal", restored);
+    return restored;
+  }
+
+  /**
    * Take a body off the board for good, and leave what it was carrying where it
    * fell.
    *
@@ -4544,11 +4592,10 @@ export class GameSession implements PlaySession {
           continue;
         }
         if (change.amount === 0) continue;
-        const stats = this.battlerOf(actor);
-        const before = this.hpOf(actor);
-        if (stats && before !== null) {
-          actor.hp = Math.min(stats.maxHp, before + change.amount);
-        }
+        // Through the healing path rather than a bare clamp, so a `fed` tick
+        // that actually put something back says so — and one on a body already
+        // at full health stays silent. @see applyHealing
+        this.applyHealing(actor, change.amount);
       }
     }
   }
@@ -4879,12 +4926,11 @@ export class GameSession implements PlaySession {
     // That is the whole of "pressing a mend at full health teaches you nothing":
     // a body two points down gets two points and two points' worth of experience
     // out of a stone that says ten.
-    const restored = Math.min(
-      -rolled,
-      Math.max(0, context.stats.maxHp - context.before),
-    );
+    // The clamp is `applyHealing`'s now, which is also what floats the figure —
+    // it used to be written out here, and a mend was the one thing in the game
+    // that moved a health bar and showed nothing.
+    const restored = this.applyHealing(subject, -rolled);
     if (restored <= 0) return;
-    subject.hp = context.before + restored;
     // **The wheel never touches a mend**, and the multiplier is flat for the
     // same reason: what `experienceMultiplier` weighs is how far above or below
     // you the other body is, and mending is not an exchange with anybody. A
@@ -6123,11 +6169,9 @@ export class GameSession implements PlaySession {
       // poison and a death by blows must not be two codepaths to keep alive.
       this.applyDamage(actor, -consumable.hp);
     } else if (consumable.hp > 0) {
-      const stats = this.battlerOf(actor);
-      const before = this.hpOf(actor);
-      if (stats && before !== null) {
-        actor.hp = Math.min(stats.maxHp, before + consumable.hp);
-      }
+      // The mirror of the damage path above, and for the same reason: a bandage
+      // shows its number where a poisoned apple shows its own.
+      this.applyHealing(actor, consumable.hp);
     }
     return true;
   }
@@ -7411,7 +7455,7 @@ export class GameSession implements PlaySession {
     if (delta < 0) {
       this.applyDamage(actor, -delta);
     } else if (delta > 0) {
-      actor.hp = before + delta;
+      this.applyHealing(actor, delta);
     }
 
     // Read back rather than computed, because a fatal blow takes the body off
