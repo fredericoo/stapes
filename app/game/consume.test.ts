@@ -942,6 +942,20 @@ describe("drinking the luminous potion, as authored", () => {
     expect(held![0]!.remainingMs).toBe(HOUR_MS);
   });
 
+  /**
+   * The claim the whole "a glow needs no new simulation" argument rests on: it is
+   * an ordinary status whose visual block carries a light, riding the same
+   * emitter path a carried torch does. It used to be asserted beside the stones,
+   * because a stone of light was what granted it; the potion is the granter now,
+   * and the claim moved with it.
+   */
+  it("glows because the status carries a light, and nothing else", () => {
+    const luminous = catalogue.luminous;
+    expect(luminous).toBeDefined();
+    expect(luminous!.vfx.light).not.toBeNull();
+    expect(luminous!.vfx.light!.radius).toBeGreaterThan(0);
+  });
+
   it("puts the bottle in the bag when drunk out of it", () => {
     const session = potionWorld();
     session.pickUp(refAt(session, 1, 0));

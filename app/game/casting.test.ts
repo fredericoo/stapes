@@ -597,7 +597,6 @@ describe("the stones we ship", () => {
   const SHIPPED = [
     "arcane-necklace-of-life",
     "arcane-stone-of-flame",
-    "arcane-stone-of-light",
     "arcane-stone-of-cinder",
   ];
 
@@ -640,10 +639,10 @@ describe("the stones we ship", () => {
   });
 
   it("names a status and a tile the world actually has", () => {
-    const light = resolveStone(shipped["arcane-stone-of-light"]!)!;
-    expect(light.effect.kind).toBe("bolt");
-    if (light.effect.kind !== "bolt") return;
-    for (const status of light.effect.statuses ?? []) {
+    const pyre = resolveStone(shipped["arcane-stone-of-pyre"]!)!;
+    expect(pyre.effect.kind).toBe("bolt");
+    if (pyre.effect.kind !== "bolt") return;
+    for (const status of pyre.effect.statuses ?? []) {
       expect(statusDefs[status.id], status.id).toBeDefined();
     }
 
@@ -664,31 +663,6 @@ describe("the stones we ship", () => {
     if (pyre.effect.kind !== "bolt") return;
     expect(pyre.effect.damage).toBeGreaterThan(0);
     expect(pyre.effect.statuses?.map((status) => status.id)).toEqual(["burned"]);
-  });
-
-  /**
-   * And one that does only the other half. A bolt with no damage moves no health
-   * at all — a stone of light is a spell that puts a glow on you and nothing
-   * else — which is the case the schema's "one of the two" rule exists to let
-   * through.
-   */
-  it("ships a bolt that only leaves something behind", () => {
-    const light = resolveStone(shipped["arcane-stone-of-light"]!)!;
-    if (light.effect.kind !== "bolt") return;
-    expect(light.effect.damage).toBeUndefined();
-    expect(light.effect.statuses).toHaveLength(1);
-  });
-
-  /**
-   * The claim the whole "luminous needs no new simulation" argument rests on: it
-   * is an ordinary status whose visual block carries a light, riding the same
-   * emitter path a carried torch does.
-   */
-  it("makes luminous a status that actually emits light", () => {
-    const luminous = statusDefs.luminous;
-    expect(luminous).toBeDefined();
-    expect(luminous!.vfx.light).not.toBeNull();
-    expect(luminous!.vfx.light!.radius).toBeGreaterThan(0);
   });
 
   /**
@@ -725,9 +699,8 @@ describe("the stones we ship", () => {
   it("gates the strong one on a mastery and leaves the small ones open", () => {
     const flame = resolveStone(shipped["arcane-stone-of-flame"]!)!;
     expect(flame.requirements?.arcane).toBeGreaterThan(0);
-    for (const id of ["arcane-necklace-of-life", "arcane-stone-of-light"]) {
-      expect(resolveStone(shipped[id]!)!.requirements, id).toBeUndefined();
-    }
+    const necklace = resolveStone(shipped["arcane-necklace-of-life"]!)!;
+    expect(necklace.requirements).toBeUndefined();
   });
 
   /** Every stone in the world is a stone, and no stone is anything else. */
