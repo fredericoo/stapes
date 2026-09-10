@@ -31,47 +31,46 @@ export const PERF_BUDGETS = {
    */
   maxDrawCalls: 180,
   /**
-   * Total triangles, as an alarm for the map rather than for the renderer.
+   * Triangles per placed quad — **the whole of the triangle budget**, and the
+   * only one, because it is the only one that measures the renderer.
    *
-   * A ceiling in absolute triangles can only ever say "the fixture grew", and
-   * it says it by failing — this was 40k against a 7.3k-quad map, and the
-   * tutorial's 29.6k quads walked straight through it at 118k. The walled
-   * city took it from 31k quads / 124k tris to 38.6k / 154k against the 150k
-   * this replaces. What it is still worth keeping for is the case where a map
-   * grows so far that the frame budget below is next, so raise it deliberately
-   * with the map and read a failure here as "look at the map", not "look at
-   * the renderer".
+   * Measures 4.0 and has never moved: 29,184 tris over 7,305 quads before the
+   * tutorial, 118,480 over 29,631 after, and 481,444 over 120,360 today — which
+   * is 4.000 to three decimal places. Content has scaled over sixteenfold and
+   * the ratio has not moved at all, which is the merged path doing its job. A
+   * regression that starts emitting extra geometry per tile — an unmerged
+   * overlay, a second pass, a ghost drawn solid — moves this and nothing else,
+   * and moves it on any map.
    *
-   * The animal den — three cave floors spread through the whole underworld —
-   * took it from 38.6k quads / 154.4k tris to 72.5k / 289.8k, which is the
-   * biggest single jump this number has taken and the reason it is now 350k.
-   * **Nothing else moved with it**: draw calls 48 → 68 against 180, world
-   * meshes 50 → 54 against 96, and the frame p95 measured *lower* afterwards
-   * (0.6ms against 1.0ms, both inside a 1ms budget) because merged static
-   * geometry is drawn per level and per tileset rather than per triangle. That
-   * is the shape of this budget's whole argument: it is an alarm for the map,
-   * and the map going up 1.9× while the frame time did not is exactly the case
-   * it exists to notice and then be raised for.
+   * ## There was an absolute ceiling beside this, and it is gone
    *
-   * The den is also why the ceiling is not higher still. `scripts/carve-caves.ts`
-   * lays rock only as a two-cell shell around what it opened, rather than
-   * filling its footprint — the difference is about forty thousand quads of
-   * stone nobody would ever see the inside of, which would have put this past
-   * 500k for nothing.
+   * `maxTriangles` was a flat count meant as "an alarm for the map rather than
+   * for the renderer". It went 40k → 150k → 350k and was on its way to 500k,
+   * and **it never once caught anything.** Every failure it produced was
+   * somebody authoring a building, and the fix every time was to type a bigger
+   * number into this file — which is not a test, it is a chore that fails the
+   * build of whoever happens to push next. It was red on `main` for three
+   * commits before anybody had reason to look at it.
    *
-   * Whether the *renderer* regressed is {@link maxTrianglesPerQuad}'s question.
-   */
-  maxTriangles: 350_000,
-  /**
-   * Triangles per placed quad — the renderer's own share, independent of how
-   * big the map is.
+   * The run that finally retired it is the clearest case it could have made
+   * against itself: 481,444 triangles against a ceiling of 350,000, at a
+   * per-quad ratio of exactly 4.000. The renderer had not changed by a single
+   * triangle.
    *
-   * Measures 4.0 and has not moved: 29,184 tris over 7,305 quads before the
-   * tutorial, 118,480 over 29,631 after. Content scaled 4× and the ratio did
-   * not, which is the merged path doing its job. A regression that starts
-   * emitting extra geometry per tile — an unmerged overlay, a second pass, a
-   * ghost drawn solid — moves this and nothing else, and moves it on any map,
-   * which is why it is the assertion that does not need re-baselining.
+   * Worse, it was measurably pointing the wrong way. The animal den grew the
+   * map 1.9× and the frame p95 went *down*, because merged static geometry is
+   * drawn per level and per tileset rather than per triangle. A budget that
+   * fires when the thing it guards has improved is a budget that has stopped
+   * describing anything.
+   *
+   * **What is left is a ceiling derived from the map**: the spec multiplies
+   * this by the quads the authored map actually holds, so the budget grows with
+   * the world on its own and a failure can only mean the renderer. See
+   * `e2e/renderer-perf.spec.ts`.
+   *
+   * **What still catches a map that has grown dangerously** is the frame budget
+   * in the same spec, which measures the thing anybody actually cares about
+   * rather than a proxy for it. That one has never needed re-baselining either.
    */
   maxTrianglesPerQuad: 4.5,
   /**

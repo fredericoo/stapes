@@ -83,16 +83,26 @@ test.describe("editor renderer perf", () => {
       `draw calls ${result.calls} exceeded budget ${PERF_BUDGETS.maxDrawCalls}`,
     ).toBeLessThanOrEqual(PERF_BUDGETS.maxDrawCalls);
 
-    expect(
-      result.triangles,
-      `triangles ${result.triangles} exceeded budget ${PERF_BUDGETS.maxTriangles} — the map grew, not the renderer; see maxTrianglesPerQuad`,
-    ).toBeLessThanOrEqual(PERF_BUDGETS.maxTriangles);
+    // **Derived from the map rather than typed in.** `placedQuads` is every
+    // placement the authored world holds — see `EditorRenderer.countPlacedQuads`,
+    // which walks the map itself and not the camera — so this ceiling grows when
+    // somebody builds a town and a failure can only mean the renderer started
+    // emitting more geometry per tile. There used to be a flat `maxTriangles`
+    // beside it; see `PERF_BUDGETS.maxTrianglesPerQuad` for why it is gone.
+    const triangleBudget = Math.round(
+      result.placedQuads * PERF_BUDGETS.maxTrianglesPerQuad,
+    );
+    const perQuad = result.triangles / result.placedQuads;
 
     expect(
-      result.triangles / result.placedQuads,
-      `${(result.triangles / result.placedQuads).toFixed(2)} triangles per quad ` +
-        `(${result.triangles}/${result.placedQuads}) — extra geometry per tile?`,
-    ).toBeLessThanOrEqual(PERF_BUDGETS.maxTrianglesPerQuad);
+      result.triangles,
+      `triangles ${result.triangles} exceeded ${triangleBudget} — ` +
+        `${perQuad.toFixed(2)} per quad over ${result.placedQuads} quads, ` +
+        `against a ceiling of ${PERF_BUDGETS.maxTrianglesPerQuad}. ` +
+        `The map cannot cause this: the budget is a multiple of the map. ` +
+        `Something is drawing extra geometry per tile — an unmerged overlay, ` +
+        `a second pass, a ghost drawn solid.`,
+    ).toBeLessThanOrEqual(triangleBudget);
 
     expect(
       result.worldMeshes,
