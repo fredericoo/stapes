@@ -6,7 +6,7 @@ import { CELL_SIZE, coordKey, normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import {
   footRect,
-  pickBattlerAt,
+  pickBodyAt,
   pickInteractiveAt,
   pickTileAt,
 } from "./pick";
@@ -102,6 +102,12 @@ const tilesById = tilesByIdFromList([
         },
       },
     },
+  }),
+  tile({
+    id: "salesman",
+    height: 4,
+    kind: "prop",
+    interactions: { dialog: { script: [{ kind: "say", text: "Hello." }] } },
   }),
 ]);
 
@@ -345,14 +351,29 @@ describe("pickInteractiveAt", () => {
   });
 });
 
-describe("pickBattlerAt", () => {
+describe("pickBodyAt", () => {
   it("finds a body with hit points", () => {
     const map = replaceStack(emptyMap(), 2, 2, 0, [
       { tileId: "grass" },
       { tileId: "cat" },
     ]);
     const p = onFoot({ x: 2, y: 2, z: 0 });
-    expect(pickBattlerAt(ctx(map), p.x, p.y, 0, 1)).toEqual({
+    expect(pickBodyAt(ctx(map), p.x, p.y, 0, 1)).toEqual({
+      x: 2,
+      y: 2,
+      z: 0,
+      stackIndex: 1,
+    });
+  });
+
+  /** The shipped salesman: a prop with a dialog and no hit points. */
+  it("finds a body with only a dialog", () => {
+    const map = replaceStack(emptyMap(), 2, 2, 0, [
+      { tileId: "grass" },
+      { tileId: "salesman" },
+    ]);
+    const p = onFoot({ x: 2, y: 2, z: 0 });
+    expect(pickBodyAt(ctx(map), p.x, p.y, 0, 1)).toEqual({
       x: 2,
       y: 2,
       z: 0,
@@ -366,7 +387,7 @@ describe("pickBattlerAt", () => {
       { tileId: "crate" },
     ]);
     const p = onFoot({ x: 2, y: 2, z: 0 });
-    expect(pickBattlerAt(ctx(map), p.x, p.y, 0, 1)).toBeNull();
+    expect(pickBodyAt(ctx(map), p.x, p.y, 0, 1)).toBeNull();
   });
 });
 

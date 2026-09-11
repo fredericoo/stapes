@@ -7,6 +7,7 @@ import {
 import { coveredBySomething } from "../game/affordances";
 import type { ObjectRef } from "../game/GameSession";
 import { isBattler } from "../lib/battler";
+import { resolveDialog } from "../lib/dialog";
 import { isInteractive } from "../lib/interactions";
 import { type RoofCut, cutHides } from "../lib/levelVisibility";
 import { elevationAt, getStack } from "../lib/mapData";
@@ -228,8 +229,16 @@ export function pickInteractiveAt(
   });
 }
 
-/** The body with hit points under a canvas-relative point. @see pickTopAt */
-export function pickBattlerAt(
+/**
+ * The body under a canvas-relative point — one with hit points, or one with
+ * something to say. @see pickTopAt
+ *
+ * A dialog counts because the NPCs that talk are mostly props: no hit points,
+ * and `dialog` is not one of `interactionKinds`, so neither this pick nor
+ * {@link pickInteractiveAt} would find them, and a tap on a salesman walked
+ * towards him instead of opening his Talk row.
+ */
+export function pickBodyAt(
   ctx: PickContext,
   screenX: number,
   screenY: number,
@@ -239,8 +248,12 @@ export function pickBattlerAt(
   return pickTopAt(ctx, screenX, screenY, {
     centerZ,
     levelSlack,
-    accepts: isBattler,
+    accepts: isBody,
   });
+}
+
+function isBody(def: TileDef): boolean {
+  return isBattler(def) || resolveDialog(def) !== null;
 }
 
 /**
