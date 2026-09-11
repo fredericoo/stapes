@@ -1520,7 +1520,7 @@ export const GAME_SOCKET_PATH = "/online/ws";
  * This is deliberately not the build id. A client deploy that changes no
  * messages should not disconnect anybody, and most client deploys are that.
  */
-export const PROTOCOL_VERSION = 8;
+export const PROTOCOL_VERSION = 9;
 
 /**
  * How often the world says nothing, to keep a proxy from hanging up.
@@ -1543,6 +1543,15 @@ export const PROTOCOL_VERSION_PARAM = "v";
  * until you have reloaded.
  */
 export const CLOSE_OUTDATED_CLIENT = 4001;
+
+/**
+ * Close code for a socket closed because the same actor connected again.
+ *
+ * One connection per actor, and the newest wins. The client must not reconnect
+ * on this code: the connection that replaced it would be replaced in turn, and
+ * two tabs doing that to each other retry for ever.
+ */
+export const CLOSE_REPLACED = 4002;
 
 /** Cookie carrying the actor id, minted by the /online loader. */
 export const ACTOR_COOKIE = "stapes_uid";

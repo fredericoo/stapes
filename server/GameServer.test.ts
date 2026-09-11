@@ -18,6 +18,7 @@ import { CHUNK_SIZE, levelKey } from "../app/lib/types";
 import type { FlatMapFile, MapFile, TileDef } from "../app/lib/types";
 import { tilesByIdFromList } from "../app/lib/validation";
 import { CHAT_MIN_INTERVAL_MS } from "../app/net/chat";
+import { CLOSE_REPLACED } from "../app/net/protocol";
 import {
   CHAT_LOG_MAX_ROWS,
   MAX_REMEMBERED_ACTORS,
@@ -412,6 +413,31 @@ describe("joining and leaving", () => {
     expect(hello.actorIds).not.toContain("alice");
   });
 
+  it("closes an actor's older socket when they connect again", async () => {
+    const first = await connect("alice");
+    const second = await connect("alice");
+
+    expect(first.ws.closeCode).toBe(CLOSE_REPLACED);
+    expect(second.ws.closeCode).toBeNull();
+  });
+
+  /**
+   * The replaced socket's close has not landed yet — the transport delivers it
+   * later — and in that gap it must already count for nobody. Were it still
+   * carrying the id, the new socket closing would find the actor "still
+   * connected" through it and leave the body on the board with nobody driving.
+   */
+  it("takes the actor off the board when the newer socket closes before the replaced one's close lands", async () => {
+    await connect("alice");
+    const second = await connect("alice");
+
+    second.ws.close();
+    const { hello } = await connect("carol");
+
+    expect(playerOwners(hello.map as FlatMapFile)).toEqual(["carol"]);
+    expect(hello.actorIds).not.toContain("alice");
+  });
+
   /**
    * A reload, in the order the runtime actually delivers it: the new socket
    * arrives while the old one's close is still in flight.
@@ -421,7 +447,7 @@ describe("joining and leaving", () => {
    * had just replaced it, leaving a client that had been told it had a body
    * watching a world it was not in, with every message it sent dropped.
    */
-  it("keeps the body when one of an actor's two sockets closes", async () => {
+  it("keeps the body when the replaced socket's close lands late", async () => {
     const first = await connect("alice");
     await connect("alice");
 

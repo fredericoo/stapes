@@ -9,6 +9,7 @@ import { InkDocument } from "../components/InkDocument";
 import { LightingToggle } from "../components/LightingToggle";
 import { LoadingScreen } from "../components/LoadingScreen";
 import { OutdatedScreen } from "../components/OutdatedScreen";
+import { ReplacedScreen } from "../components/ReplacedScreen";
 import { WorldClock } from "../components/WorldClock";
 import { type Equipment, emptyEquipment } from "../game/equipment";
 import type { Conversation, TalkAction } from "../game/dialogRuntime";
@@ -28,6 +29,7 @@ import type { CastSquare, SpellButton } from "../game/casting";
 import type { Direction } from "../lib/types";
 import {
   CLOSE_OUTDATED_CLIENT,
+  CLOSE_REPLACED,
   GAME_SOCKET_PATH,
   PROTOCOL_VERSION,
   PROTOCOL_VERSION_PARAM,
@@ -66,7 +68,13 @@ const RESTART_RECONNECT_JITTER_MS = 750;
 /** Guards the reload-on-stale-client path against looping. */
 const RELOADED_FOR_VERSION = "stapes:reloaded-for-version";
 
-type Status = "connecting" | "live" | "reconnecting" | "restarting" | "outdated";
+type Status =
+  | "connecting"
+  | "live"
+  | "reconnecting"
+  | "restarting"
+  | "outdated"
+  | "replaced";
 
 export default function OnlinePage() {
   const { tiles, tilesets, statuses, socketPath } =
@@ -439,6 +447,18 @@ export default function OnlinePage() {
         }
         sessionStorage.removeItem(RELOADED_FOR_VERSION);
 
+        // Another tab has this player now. Reconnecting would take the actor
+        // back, the other tab would reconnect and take it again, and the two
+        // would trade it for ever — so this one stops and waits to be asked.
+        // @see ../components/ReplacedScreen
+        if (event.code === CLOSE_REPLACED) {
+          teardownRenderer();
+          setStatus("replaced");
+          setStats(null);
+          setPlayers(null);
+          return;
+        }
+
         teardownRenderer();
         setStatus(restarting ? "restarting" : "reconnecting");
         setStats(null);
@@ -575,13 +595,15 @@ export default function OnlinePage() {
                 tilesets={tilesets}
               />
             ) : null}
-            {/* The wait, and the one case where it is not a wait. A refused
-                version is the end of the road for this tab — there is no
-                reconnect pending and no world coming — so it takes the loading
-                screen's place rather than sitting behind it, whether or not the
-                canvas ever painted. */}
+            {/* The wait, and the two cases where it is not a wait. A refused
+                version, or another tab taking this player, is the end of the
+                road for this tab — there is no reconnect pending and no world
+                coming — so each takes the loading screen's place rather than
+                sitting behind it, whether or not the canvas ever painted. */}
             {status === "outdated" ? (
               <OutdatedScreen serverVersion={serverVersion} />
+            ) : status === "replaced" ? (
+              <ReplacedScreen />
             ) : painted ? null : (
               <LoadingScreen />
             )}

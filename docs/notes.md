@@ -96,9 +96,9 @@ is not one.
   and the page reconnects to where you were standing. The most safety-critical
   path in the system is therefore exercised constantly by people not thinking
   about it.
-- **Two browser tabs share a cookie**, so they are the same actor and it looks
-  like joining is broken. Use `localhost` in one and `127.0.0.1` in the other.
-  Unchanged, and still the first thing that will waste somebody an hour.
+- **Two browser tabs share a cookie**, so they are the same actor, and opening
+  the second closes the first — see "One connection per actor". To play two
+  characters, use `localhost` in one and `127.0.0.1` in the other.
 
 ## `dependencies` is what the *server* needs, and nothing else
 
@@ -224,6 +224,30 @@ existed the refusal had no picture: the reload guard fired, the page sat behind
 the problem was the word OUTDATED in a chip beside the clock. **A wait that will
 never end has to say so.** The preview check above is what stops us shipping the
 mismatch; this is what a player sees on the ones we do not catch.
+
+## One connection per actor
+
+Identity is the actor cookie, so a second tab in the same browser is the same
+actor. `GameServer.join` closes every socket the actor already has, with 4002
+(`CLOSE_REPLACED`), before it seats the new one. The newest connection wins,
+because it is the one somebody just opened or reloaded.
+
+- **The displaced socket's attachment is cleared before it is closed.** Its
+  close handler runs later, and until then `getWebSockets` still lists it. With
+  no id on it, it stops counting as the actor at once — in the head count, in
+  `rebirth`, in `hasSocket` — and its close, when it lands, returns early in
+  `dropSocket` instead of despawning an actor who has not gone anywhere. This is
+  also what a reload now looks like: the new socket displaces the old one, and
+  the old one's late close does nothing.
+- **The displaced tab must not reconnect.** Every other close sends the page
+  into its backoff loop, and two tabs that each reconnect would take the actor
+  from each other on every retry. On 4002 the page tears down and shows
+  `app/components/ReplacedScreen.tsx`, whose button reloads — which closes the
+  other tab, on purpose.
+- **`PROTOCOL_VERSION` went to 9 for this, though no message changed.** A bundle
+  from before 4002 existed treats it as an ordinary close and reconnects, which
+  is the loop above. The bump reloads every open tab onto a bundle that knows
+  the code.
 
 ## The simulation holds N actors
 
@@ -3436,11 +3460,9 @@ intersected with the sockets that survived the eviction.
 
 **`rebirth` is the only message a dead client may send**, and it is answered
 ahead of the `actorIds` gate every other message is dropped by — that gate asks
-the runtime a death deleted. The reply is a whole `hello` to *every* socket that
-player has: a silenced socket has been receiving nothing for as long as its
-owner sat on the screen, so its map is arbitrarily stale and no diff would catch
-it up, and two tabs are one person with one body, so they died together and come
-back together. Reloading still works and still does the same thing through
+the runtime a death deleted. The reply is a whole `hello`: a silenced socket has been
+receiving nothing for as long as its owner sat on the screen, so its map is
+arbitrarily stale and no diff would catch it up. Reloading still works and still does the same thing through
 `fetch`; the button exists so that coming back does not mean losing the tab.
 
 **The blocking is `inert`, not an overlay.** The page marks everything under the
