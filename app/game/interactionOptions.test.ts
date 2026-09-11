@@ -1324,6 +1324,25 @@ describe("interactionText", () => {
 
     expect(options.map(interactionText)).toContain("Pick up Sword");
   });
+
+  it("reads a talk row as a sentence", () => {
+    const withTalker = tilesByIdFromList([
+      ...tiles,
+      tile({
+        id: "talker",
+        name: "Pie Maker",
+        height: 4,
+        interactions: { dialog: { script: [{ kind: "say", text: "Pie?" }] } },
+      }),
+    ]);
+    let map = field();
+    map = place(map, 1, 0, ["grass", "talker"]);
+    const me = playerAt(map);
+    const npc = actor("npc:talker", "talker", 1, 0, map);
+    const options = listInteractionOptions(map, withTalker, me, [me, npc], null, KIT);
+
+    expect(options.map(interactionText)).toContain("Talk to Pie Maker");
+  });
 });
 
 describe("groupInteractionOptions", () => {

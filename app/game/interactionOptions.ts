@@ -229,8 +229,10 @@ const LABELS: Record<InteractionAction, string> = {
   // Which of the two it is in is the lit border's job. @see InteractionOption.active
   follow: "Follow",
   // A body with a dialog: one verb, the same on every such body, because what
-  // is said is the panel's business and the row only opens it.
-  talk: "Talk",
+  // is said is the panel's business and the row only opens it. "Talk to"
+  // because `interactionText` puts the name straight after the verb, and
+  // "Talk Pie Maker" is not a sentence.
+  talk: "Talk to",
   open: "Open",
   pickUp: "Pick up",
   // Only the fallback: an equip row is named for the *thing*, not for the slot

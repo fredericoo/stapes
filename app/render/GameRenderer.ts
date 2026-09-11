@@ -94,7 +94,7 @@ import {
 import { SmoothedRemaining, taperKey } from "./statusTaper";
 import { spriteStatesFor } from "./spriteState";
 import {
-  pickBattlerAt,
+  pickBodyAt,
   pickInteractiveAt,
   pickTileAt,
 } from "./pick";
@@ -1258,7 +1258,8 @@ export class GameRenderer {
   };
 
   /**
-   * The battler drawn under a canvas-relative point, if any.
+   * The body drawn under a canvas-relative point, if any — a battler, or an NPC
+   * with a dialog. See `./pick`'s `pickBodyAt`.
    *
    * Never the viewer's own body. It is a battler like everything else and the
    * pick has no way to know otherwise, but the camera is centred on it — so the
@@ -1266,11 +1267,11 @@ export class GameRenderer {
    * the mouse crosses the middle of the screen is noise around something the
    * session refuses to target anyway.
    */
-  private battlerAt(
+  private bodyAt(
     point: { x: number; y: number },
     snap: GameSnapshot,
   ): ObjectRef | null {
-    const found = pickBattlerAt(
+    const found = pickBodyAt(
       {
         map: snap.map,
         tilesById: this.tilesById,
@@ -1637,10 +1638,8 @@ export class GameRenderer {
     point: { x: number; y: number },
     snap: GameSnapshot,
   ): ObjectRef | null {
-    const battler = this.battlerAt(point, snap);
-    if (battler && topInteractionAt(this.interactionsSent, battler)) {
-      return battler;
-    }
+    const body = this.bodyAt(point, snap);
+    if (body && topInteractionAt(this.interactionsSent, body)) return body;
     return this.pickAt(point, snap);
   }
 

@@ -397,6 +397,11 @@ terms: a conversation is a state of play.
   past, and the lint names it. A loop with no wait between its anchor and its
   `goto` would run forever; `MAX_STEPS_PER_PRESS` stops it, which reads as
   the script ending, and the author finds out the moment they try it.
+- **A tap on the NPC is the Talk row.** The renderer's body pick
+  (`pickBodyAt`) accepts a dialog as well as hit points. It used to accept
+  battlers only, and `dialog` is not one of `interactionKinds`, so the object
+  pick passed over a salesman too: a tap walked towards him, and Talk could
+  only be pressed from the list.
 - **The script is never on the wire.** The server sends the whole
   `Conversation` to the one socket it is about (`flushConversations`, shaped
   like `flushTags`) and null to close; the client reads the waiting command
