@@ -17,3 +17,12 @@ export type TileFx = {
 };
 
 export const TILE_FX_DURATION_MS = 700;
+
+/**
+ * How many brightness steps a dissolving tile's light fades through.
+ *
+ * Steps rather than a smooth ramp because the overlay cache keys on each
+ * light's intensity: a value that changed every frame would rebake the light
+ * window every frame. Four misses per dissolve is the whole cost.
+ */
+export const TILE_FX_LIGHT_STEPS = 4;

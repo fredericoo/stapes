@@ -48,6 +48,7 @@ import { sceneryStack } from "../game/movement";
 import type { HeldDirections } from "../game/heldDirections";
 import { WalkTo, type WalkView } from "../game/walkTo";
 import type { EmitterOverride } from "../lib/lighting";
+import { TILE_FX_DURATION_MS, TILE_FX_LIGHT_STEPS } from "../game/tileFx";
 import {
   DEFAULT_PLAY_MINUTES,
   clockAfter,
@@ -2671,7 +2672,48 @@ export class GameRenderer {
       // to invent between a lantern in your hand and the fire on your back.
       if (fromStatuses) overrides.push({ ...at, lights: fromStatuses });
     }
+    this.appendFadingLights(snap, overrides);
     return overrides.length > 0 ? overrides : undefined;
+  }
+
+  /**
+   * PROTOTYPE: the light of a tile that is dissolving away, dimming with it.
+   *
+   * The tile is already gone from the map, so the bake has dropped its light;
+   * this paints it back as an override that carries its own light — the door a
+   * torch in a bag goes through. Frame 0's light rather than the live frame's,
+   * so the only thing that changes the cache key is the stepped intensity.
+   */
+  private appendFadingLights(snap: GameSnapshot, overrides: EmitterOverride[]) {
+    for (const fx of snap.tileFx) {
+      if (fx.fx !== "vanish") continue;
+      const def = this.tilesById[fx.tileId];
+      if (!def) continue;
+      const light = resolveLight(def, {}, 0);
+      if (!light) continue;
+      const left = 1 - fx.elapsedMs / TILE_FX_DURATION_MS;
+      const stepped =
+        Math.ceil(left * TILE_FX_LIGHT_STEPS) / TILE_FX_LIGHT_STEPS;
+      if (stepped <= 0) continue;
+      const stack = getStack(snap.map, fx.x, fx.y, fx.z);
+      const at = emitterCenter(
+        fx.x,
+        fx.y,
+        fx.z,
+        stack,
+        stack.length,
+        this.tilesById,
+      );
+      overrides.push({
+        x: fx.x,
+        y: fx.y,
+        z: fx.z,
+        fx: at.fx,
+        fy: at.fy,
+        fz: at.fz + (def.height ?? 0) / 2 / HEIGHT_PER_LEVEL,
+        lights: [{ ...light, intensity: light.intensity * stepped }],
+      });
+    }
   }
 
   /**

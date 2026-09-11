@@ -8218,6 +8218,9 @@ export class GameSession implements PlaySession {
     // somebody's screen. The cost is bounded by what an author wrote, which is
     // the same bargain decay lifetimes are under.
     if (this.liveProjectiles.length > 0) return false;
+    // PROTOTYPE: an offline viewer reads a dissolve's age off this list, and a
+    // fading light that stopped ageing would hang in the air.
+    if (this.liveTileFx.length > 0) return false;
     // A stone counting down is a clock this loop is the only thing winding, on
     // exactly the terms decay is: falling asleep on one would leave a caster
     // waiting for a cooldown that only resumes the next time somebody moves,
