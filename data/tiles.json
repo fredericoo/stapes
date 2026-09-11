@@ -12797,7 +12797,7 @@
     "walkable": false,
     "interactions": {
       "battler": {
-        "baseHp": 8,
+        "baseHp": 12,
         "masteries": {
           "fist": 5,
           "sharp": 5,
@@ -23837,8 +23837,8 @@
     "attributes": {},
     "anchor": {
       "tilesetId": "equipment",
-      "x": 12,
-      "y": 2
+      "x": 15,
+      "y": 1
     },
     "lightPassing": true,
     "intangible": true,
@@ -23878,8 +23878,8 @@
     "attributes": {},
     "anchor": {
       "tilesetId": "equipment",
-      "x": 10,
-      "y": 2
+      "x": 15,
+      "y": 0
     },
     "lightPassing": true,
     "intangible": true,
@@ -28296,7 +28296,7 @@
         ]
       },
       "battler": {
-        "baseHp": 8,
+        "baseHp": 100,
         "masteries": {
           "blunt": 60,
           "toughness": 66,
@@ -28321,19 +28321,33 @@
         },
         "kit": [
           {
-            "slot": "offhand",
-            "tileId": "raw-meat",
-            "chance": 75
-          },
-          {
-            "slot": "armor",
-            "tileId": "skull-troll",
-            "chance": 100
+            "slot": "bag",
+            "tileId": "basic-bag",
+            "chance": 100,
+            "contents": [
+              {
+                "tileId": "skull-troll",
+                "chance": 100
+              },
+              {
+                "tileId": "arcane-stone",
+                "chance": 100
+              },
+              {
+                "tileId": "raw-meat",
+                "chance": 75
+              }
+            ]
           },
           {
             "slot": "charm",
             "tileId": "bone-charm",
             "chance": 25
+          },
+          {
+            "slot": "weapon",
+            "tileId": "simple-hammer",
+            "chance": 50
           }
         ],
         "elements": [
@@ -28927,7 +28941,7 @@
   },
   {
     "id": "stale-berry",
-    "name": "Berry",
+    "name": "Stale Berry",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -28943,7 +28957,7 @@
         "type": "consumable",
         "label": "Eat",
         "sound": "squish",
-        "hp": -2,
+        "hp": 0,
         "statuses": [
           {
             "id": "fed",
@@ -28951,9 +28965,8 @@
             "toMs": 20000
           },
           {
-            "id": "poison",
-            "fromMs": 1000,
-            "toMs": 60000
+            "id": "food-poisoning",
+            "chance": 65
           }
         ],
         "pile": 12
@@ -29193,6 +29206,43 @@
     },
     "lightPassing": true,
     "intangible": true,
+    "particles": {
+      "ratePerSecond": 14,
+      "ttlFromMs": 900,
+      "ttlToMs": 1800,
+      "spawnRadiusCells": 0.75,
+      "spawnElevFrom": 3,
+      "spawnElevTo": 3,
+      "riseFrom": 3,
+      "riseTo": 6,
+      "driftCellsPerSecond": 0.18,
+      "lit": false,
+      "gravity": -0.4,
+      "windX": 0.35,
+      "windY": -0.2,
+      "radiusFromPx": 1,
+      "radiusToPx": 2,
+      "alphaFrom": 1,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#ffe0a0"
+        },
+        {
+          "at": 0.18,
+          "color": "#fb6b1d"
+        },
+        {
+          "at": 0.45,
+          "color": "#7b3b2a"
+        },
+        {
+          "at": 1,
+          "color": "#4b4158"
+        }
+      ]
+    },
     "interactions": {
       "transmute": {
         "recipes": [
@@ -29253,14 +29303,29 @@
           }
         }
       ]
+    }
+  },
+  {
+    "id": "arcane-flame",
+    "name": "Arcane Flame",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 0,
+      "y": 12
     },
+    "lightPassing": true,
+    "intangible": true,
     "particles": {
       "ratePerSecond": 14,
       "ttlFromMs": 900,
       "ttlToMs": 1800,
-      "spawnRadiusCells": 0.22,
-      "spawnElevFrom": 1,
-      "spawnElevTo": 2.5,
+      "spawnRadiusCells": 0.75,
+      "spawnElevFrom": 3,
+      "spawnElevTo": 3,
       "riseFrom": 3,
       "riseTo": 6,
       "driftCellsPerSecond": 0.18,
@@ -29290,22 +29355,7 @@
           "color": "#4b4158"
         }
       ]
-    }
-  },
-  {
-    "id": "arcane-flame",
-    "name": "Arcane Flame",
-    "height": 2,
-    "type": "simple",
-    "kind": "prop",
-    "attributes": {},
-    "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 0,
-      "y": 12
     },
-    "lightPassing": true,
-    "intangible": true,
     "interactions": {
       "transmute": {
         "recipes": [
@@ -29926,7 +29976,7 @@
   },
   {
     "id": "stale-cheese",
-    "name": "Cheese",
+    "name": "Mouldy Cheese",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -29950,9 +30000,8 @@
             "toMs": 20000
           },
           {
-            "id": "poison",
-            "fromMs": 1000,
-            "toMs": 60000
+            "id": "food-poisoning",
+            "chance": 50
           }
         ],
         "pile": 4
@@ -30641,8 +30690,8 @@
   },
   {
     "id": "stone-forge",
-    "name": "Stone Forge",
-    "height": 2,
+    "name": "Inactive Stone Forge",
+    "height": 3,
     "type": "simple",
     "kind": "prop",
     "attributes": {},
@@ -31854,6 +31903,1106 @@
               "base": {
                 "x": 1,
                 "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "arcane-stone",
+    "name": "Blank Arcane Stone",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 2,
+      "y": 18
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "artifact",
+        "pile": 99
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "stone-forge-cinder",
+    "name": "Stone Forge of Cinder",
+    "height": 3,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 14,
+      "y": 2
+    },
+    "walkable": false,
+    "interactions": {
+      "transmute": {
+        "recipes": [
+          {
+            "verb": "Forge Cinder",
+            "fromTileId": "arcane-stone",
+            "toTileIds": [
+              "arcane-stone-of-cinder"
+            ]
+          }
+        ]
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 8,
+            "intensity": 1,
+            "color": "#04f7fb"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 2,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 8,
+            "intensity": 1,
+            "color": "#04f7fb"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "stone-forge-flame",
+    "name": "Stone Forge of Flame",
+    "height": 3,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 14,
+      "y": 2
+    },
+    "walkable": false,
+    "interactions": {
+      "transmute": {
+        "recipes": [
+          {
+            "verb": "Forge Flame",
+            "fromTileId": "arcane-stone",
+            "toTileIds": [
+              "arcane-stone-of-flame"
+            ]
+          }
+        ]
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 8,
+            "intensity": 1,
+            "color": "#04f7fb"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 2,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 8,
+            "intensity": 1,
+            "color": "#04f7fb"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "mud",
+    "name": "Mud",
+    "height": 0,
+    "type": "autotile",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "floors",
+      "x": 8,
+      "y": 0
+    },
+    "connectsTo": [
+      "half-stone",
+      "hole"
+    ],
+    "slices": {
+      "0": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 5,
+              "intensity": 1,
+              "color": "#ffcc88"
+            }
+          }
+        ]
+      },
+      "1": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "2": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "3": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "4": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "5": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "6": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "7": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "8": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "9": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "10": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "11": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "12": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "13": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "14": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "15": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "16": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "17": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "18": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "19": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "20": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "21": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "22": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "23": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "24": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "25": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "26": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "27": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "28": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "29": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "30": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "31": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "32": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "33": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "34": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "35": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "36": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "37": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "38": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "39": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "40": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "41": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "42": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "43": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "44": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "45": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "46": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
               }
             },
             "durationMs": 200
