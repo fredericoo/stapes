@@ -40,6 +40,7 @@ import {
   castability,
   castableStones,
   type CastContext,
+  type CasterPoint,
   type CastPoint,
   type CastSquare,
   type SpellButton,
@@ -1896,8 +1897,36 @@ export class RemoteSession implements PlaySession {
       // that turns one into the other — see `../lib/mastery`. A second reading
       // here would be a second answer to "what level am I".
       masteries: masteriesFromXp(this.masteryXp),
-      caster: this.castPoint(from),
+      caster: this.casterPoint(from, motion.walk?.to ?? null),
       target: to ? this.castPoint(to) : null,
+    };
+  }
+
+  /**
+   * Where this client casts from: where it stands, or the cell its own walk is
+   * carrying it into.
+   *
+   * The same answer `GameSession.casterPointOf` gives, and it is the one the
+   * server will reach too: a cast is queued behind every step this client sent
+   * before it, so by the time it is honoured the server's body is walking into
+   * the same cell this one is. The cell the board still holds is the one being
+   * left, and a flame laid in front of *that* is laid where the body is going.
+   */
+  private casterPoint(from: ActorLocation, walkingTo: Coord | null): CasterPoint {
+    const facing = actorDirection(from);
+    const tileId = from.placed.tileId;
+    if (!walkingTo) return { ...this.castPoint(from), facing, tileId };
+
+    const { x, y, z } = walkingTo;
+    const stack = getStack(this.map, x, y, z);
+    return {
+      x,
+      y,
+      z,
+      stackIndex: stack.length,
+      elevAbs: absoluteStandingElevation(z, stack, this.tilesById),
+      facing,
+      tileId,
     };
   }
 
@@ -1915,6 +1944,7 @@ export class RemoteSession implements PlaySession {
       x: loc.x,
       y: loc.y,
       z: loc.z,
+      stackIndex: loc.stackIndex,
       elevAbs: absoluteStandingElevation(
         loc.z,
         stack.slice(0, loc.stackIndex),

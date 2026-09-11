@@ -196,8 +196,10 @@ import {
   castability,
   castableStones,
   type CastContext,
+  type CasterPoint,
   type CastPoint,
   type CastSquare,
+  conjureLanding,
   coolingNotice,
   type SpellButton,
 } from "./casting";
@@ -262,7 +264,6 @@ import {
 } from "./mapMutations";
 import {
   canWalk,
-  destCellAfterStep,
   DIR_DELTA,
   listStandingSurfaces,
   resolveWalkDurationMs,
@@ -4771,8 +4772,43 @@ export class GameSession implements PlaySession {
       // level a stone can be cast on — see {@link bodyOf}, which is where
       // experience becomes levels.
       masteries: body?.masteries ?? {},
-      caster: this.reachPointOf(from) as CastPoint,
-      target: to ? (this.reachPointOf(to) as CastPoint) : null,
+      caster: this.casterPointOf(actor, from),
+      target: to ? this.castPointOf(to) : null,
+    };
+  }
+
+  private castPointOf(loc: ActorLocation): CastPoint {
+    return { ...this.reachPointOf(loc), stackIndex: loc.stackIndex };
+  }
+
+  /**
+   * Where this body casts from: where it stands, or the cell it is walking
+   * into.
+   *
+   * The walk's destination rather than the board's cell, because a step is
+   * committed only when it lands and the browser has drawn the body there
+   * already. Measured from the cell being left, a conjure with nobody targeted
+   * landed on the cell being entered — which is where the caster was about to
+   * stand. @see `./casting`'s `CasterPoint`
+   *
+   * The stack index is one past the top of the destination, which is where the
+   * body will be once it arrives: `moveEntity` appends.
+   */
+  private casterPointOf(actor: ActorRuntime, from: ActorLocation): CasterPoint {
+    const facing = actorDirection(from);
+    const tileId = from.placed.tileId;
+    const to = actor.walk?.to;
+    if (!to) return { ...this.castPointOf(from), facing, tileId };
+
+    const stack = getStack(this.map, to.x, to.y, to.z);
+    return {
+      x: to.x,
+      y: to.y,
+      z: to.z,
+      stackIndex: stack.length,
+      elevAbs: absoluteStandingElevation(to.z, stack, this.tilesById),
+      facing,
+      tileId,
     };
   }
 
@@ -4793,11 +4829,12 @@ export class GameSession implements PlaySession {
    * Press the stone in this square.
    *
    * **The cooldown is spent before anything is resolved**, on exactly the terms
-   * a swing's is spent before the dice are rolled: a spell that missed, healed
-   * nothing or landed on a cell that would not take it has still been cast, and
-   * a cost that depended on the outcome would make pressing at the wrong moment
-   * free. The only things that cost nothing are the refusals `castability`
-   * names, which are the ones the button was dimmed for.
+   * a swing's is spent before the dice are rolled: a bolt that healed nothing
+   * has still been cast, and a cost that depended on the outcome would make
+   * pressing at the wrong moment free. The only things that cost nothing are
+   * the refusals `castability` names, which are the ones the button was dimmed
+   * for — and a conjure with nowhere to land is one of those, so a flame that
+   * does not appear was never cast. @see `./casting`'s `conjureLanding`
    *
    * Nothing here is predicted by a client. A browser sends "cast the stone in
    * this square" and finds out what came of it from the equipment message and
@@ -4839,7 +4876,7 @@ export class GameSession implements PlaySession {
 
     if (stone.effect.kind === "bolt") {
       this.castBolt(actor, square, stone, stone.effect, elements);
-    } else this.castConjure(actor, square, stone.effect.tileId, elements);
+    } else this.castConjure(actor, context, stone.effect.tileId, elements);
 
     return true;
   }
@@ -5123,27 +5160,26 @@ export class GameSession implements PlaySession {
    * caster is facing, which is what makes it a thing you can lay down in a
    * doorway.
    *
-   * A cell that will not take the tile — a wall, a full stack, the edge of the
-   * world — is a cast that placed nothing, and the cooldown has already been
-   * spent. That is the same bargain a swing that misses is under, and it is why
-   * the placement is checked with `canPlace` rather than forced.
+   * Where it lands is `./casting`'s {@link conjureLanding}, the same call
+   * `castability` refused on, against the same context — so by the time this
+   * runs the cell is known to take the tile, and the nulls below are only a
+   * type's say-so.
    *
    * The placement remembers who cast it, which is the whole reason a flame can
    * pay the arcanist who lit it. @see `../lib/types`'s `PlacedTile.castBy`
    */
   private castConjure(
     actor: ActorRuntime,
-    square: CastSquare,
+    context: CastContext,
     tileId: string,
     elements: readonly Element[],
   ) {
     const def = this.tilesById[tileId];
     if (!def) return;
 
-    const where = this.conjureCell(actor, square);
+    const where = conjureLanding(context, tileId);
     if (!where) return;
     const at = where.at;
-    if (!canPlace(this.map, at.x, at.y, at.z, def, this.tilesById).ok) return;
 
     const placed: PlacedTile = {
       tileId: def.id,
@@ -5185,48 +5221,6 @@ export class GameSession implements PlaySession {
       ? this.actors.get(actor.targetId)
       : undefined;
     if (stood) this.statusOnArrival(stood);
-  }
-
-  /**
-   * Where a conjure lands: on the target, or on the cell the caster is facing.
-   *
-   * The same answer in every square, including the charm — see `./casting`'s
-   * `needsTarget`, which the square no longer has a say in. A conjuring charm
-   * used to lay its tile in front of its wearer whatever was targeted, which
-   * read as the stone being broken rather than as a rule.
-   *
-   * The cell in front is resolved through the same `destCellAfterStep` a walk
-   * uses, so a flame laid at the top of a ramp lands on the ramp rather than
-   * inside the floor beneath it.
-   */
-  private conjureCell(
-    actor: ActorRuntime,
-    square: CastSquare,
-  ): { at: Coord; under?: number } | null {
-    const from = this.tryLocate(actor);
-    if (!from) return null;
-
-    const target = actor.targetId
-      ? this.actors.get(actor.targetId)
-      : undefined;
-    const to = target ? this.tryLocate(target) : null;
-    // Beneath the target's own placement, so what lands is a thing they are
-    // standing in rather than a thing balanced on their head.
-    if (to) {
-      return { at: { x: to.x, y: to.y, z: to.z }, under: to.stackIndex };
-    }
-
-    const facing = actorDirection(from);
-    const { dx, dy } = DIR_DELTA[facing];
-    return {
-      at: destCellAfterStep(
-        from.z,
-        from.x + dx,
-        from.y + dy,
-        this.map,
-        this.tilesById,
-      ),
-    };
   }
 
   /** What is running on this actor, for the chrome and for the checkpoint. */
@@ -8462,9 +8456,24 @@ export class GameSession implements PlaySession {
     return started ? "started" : "refused";
   }
 
-  /** Turn an actor on the spot, without asking them to go anywhere. */
+  /**
+   * Turn an actor on the spot, without asking them to go anywhere.
+   *
+   * **A turn made mid-walk is the facing the walk lands with.** `commitWalk`
+   * writes the walk's direction onto the body when it arrives, so without this a
+   * turn that reached the server during a step was undone by the step landing.
+   * That is the common case, not an edge: a predicting browser has already
+   * landed the step it is turning after. Turned into a wall with the server
+   * still facing the last way it walked, a flame went there instead.
+   *
+   * Written onto the walk in place rather than by replacing it, because the
+   * walk's identity is what says a new one started — a fresh object would be
+   * announced to every client as a second step. @see GameServer's
+   * `collectMotionEvents`
+   */
   faceActor(id: string, direction: Direction) {
     const actor = this.actor(id);
+    if (actor.walk) actor.walk.direction = direction;
     const loc = this.locate(actor);
     this.map = setEntityDirection(
       this.map,

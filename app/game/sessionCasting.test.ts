@@ -248,6 +248,7 @@ function nimbleRat(): TileDef {
 /** Everything but the player, whose kit differs from case to case. */
 const props: TileDef[] = [
   tile({ id: "grass" }),
+  tile({ id: "wall", height: 4, lightPassing: false }),
   body("rat", RAT_TOUGHNESS, { actor: true }),
   // Three rats that are made of something, so the wheel has somewhere to turn.
   // Their toughness is the plain rat's, so the only thing that differs between
@@ -984,6 +985,71 @@ describe("conjuring", () => {
 
     run(play, TICKS_PER_SECOND * 9);
     expect(getStack(play.getMap(), 1, 0, 0).map((p) => p.tileId)).not.toContain(
+      "conjured-flame",
+    );
+  });
+
+  /**
+   * A flame that does not appear was not cast. It used to spend the cooldown
+   * anyway, on a swing's terms — but a swing that misses still swung, and a
+   * press that visibly did nothing reads as a dropped key.
+   */
+  it("refuses to conjure into a wall, and spends nothing", () => {
+    const map = replaceStack(world(), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "wall" },
+    ]);
+    const play = session({ weapon: "flame-stone" }, map);
+
+    expect(play.cast("weapon")).toBe(false);
+    expect(coolingIn(play, "weapon")).toBeUndefined();
+    expect(play.spells()[0]?.castability).toEqual({
+      ok: false,
+      reason: "blocked",
+    });
+  });
+
+  /**
+   * A step is committed to the board only when it lands, so a caster mid-step
+   * is still in the cell they are leaving. The flame goes in front of the cell
+   * they are walking into — laid in front of the one they left, it was laid
+   * exactly where they were about to stand.
+   */
+  it("lays it ahead of a caster mid-step, not in the cell they are entering", () => {
+    const play = session({ weapon: "flame-stone" });
+    expect(play.requestStep("local", "e")).toBe("started");
+
+    expect(play.cast("weapon")).toBe(true);
+    expect(getStack(play.getMap(), 1, 0, 0).map((p) => p.tileId)).not.toContain(
+      "conjured-flame",
+    );
+    expect(getStack(play.getMap(), 2, 0, 0).map((p) => p.tileId)).toContain(
+      "conjured-flame",
+    );
+
+    run(play, TICKS_PER_SECOND);
+    expect(play.statusesOf("local")).toEqual([]);
+  });
+
+  /**
+   * A turn that reaches the session mid-step used to be undone by the step
+   * landing, which writes the walk's direction onto the body. A browser has
+   * usually landed that step already, so the turn is the one it drew — and the
+   * flame went wherever the server still thought it was facing.
+   */
+  it("keeps a turn made mid-step once the step lands", () => {
+    const play = session({ weapon: "flame-stone" });
+    play.requestStep("local", "e");
+    play.faceActor("local", "w");
+    run(play, TICKS_PER_SECOND);
+
+    const player = getStack(play.getMap(), 1, 0, 0).find(
+      (p) => p.tileId === "player",
+    );
+    expect(player?.direction).toBe("w");
+
+    expect(play.cast("weapon")).toBe(true);
+    expect(getStack(play.getMap(), 0, 0, 0).map((p) => p.tileId)).toContain(
       "conjured-flame",
     );
   });

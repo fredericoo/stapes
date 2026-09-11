@@ -5,10 +5,12 @@ import {
   masteryLevel,
   MASTERIES,
 } from "../lib/mastery";
-import type { MapFile, TileDef } from "../lib/types";
+import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
+import { canPlace } from "../lib/validation";
 import { canReach } from "./combat";
 import type { ReachPoint } from "./distance";
 import type { Equipment } from "./equipment";
+import { canWalk } from "./movement";
 
 /**
  * Which stones a body could cast right now, and why not the rest.
@@ -81,7 +83,12 @@ export type CastRefusal =
   /** It acts on somebody else and nobody is targeted. */
   | "noTarget"
   /** Somebody is targeted, and they are too far away or behind something. */
-  | "outOfRange";
+  | "outOfRange"
+  /**
+   * A conjure whose cell will not take the tile: a wall, water, a bush, a full
+   * stack. @see conjureLanding
+   */
+  | "blocked";
 
 /** Whether this stone can be cast, and why not when it cannot. */
 export type Castability =
@@ -105,7 +112,32 @@ const refused = (reason: CastRefusal): Castability => ({ ok: false, reason });
  * notion of "how far is that" would be the first place a bow and a stone of
  * flame could come to disagree about the same courtyard.
  */
-export type CastPoint = ReachPoint & { z: number };
+export type CastPoint = ReachPoint & {
+  z: number;
+  /**
+   * Where in its stack the body stands, which is where a conjure lands *under*
+   * it. See {@link conjureLanding}.
+   */
+  stackIndex: number;
+};
+
+/**
+ * Where the caster is, plus the two things a conjure with nobody targeted needs
+ * to find the cell in front: which way they face, and what body is doing the
+ * stepping.
+ *
+ * **A caster who is walking casts from the cell they are arriving in**, not
+ * the one the board still holds them in. Both sides build it that way — the
+ * session from its walk, the browser from its prediction — because a step is
+ * only committed when it lands, and a cast resolved from the cell being left
+ * put the flame on the cell being entered: exactly where the caster was about
+ * to be standing.
+ */
+export type CasterPoint = CastPoint & {
+  facing: Direction;
+  /** The caster's own body, so the cell in front is judged by its legs. */
+  tileId: string;
+};
 
 /** Everything a cast is decided against, beside the stone itself. */
 export type CastContext = {
@@ -120,7 +152,7 @@ export type CastContext = {
    * block of experience passed in here would be a second such place.
    */
   masteries: Masteries;
-  caster: CastPoint;
+  caster: CasterPoint;
   /**
    * Where the caster's target is standing, or null for a body pointing at
    * nobody.
@@ -181,26 +213,91 @@ function reachability(
   const target = context.target;
   // A conjure with nobody targeted lands in front of the caster, which is the
   // one case where "no target" is not a refusal — see `../lib/item`'s
-  // {@link StoneEffect}. Whether the cell in front will actually take the tile
-  // is the board's question and is asked when the placement is made: a spell
-  // that fails because somebody built a wall there still spends its cooldown, on
-  // the terms every other cast does.
-  if (!target) {
-    return stone.effect.kind === "conjure" ? CASTABLE : refused("noTarget");
-  }
+  // {@link StoneEffect}.
+  if (!target && stone.effect.kind !== "conjure") return refused("noTarget");
 
   // The stone's own reach, through the same machinery a swing goes through:
   // close enough, and with nothing in the way. A stone with no reach authored
   // gets an arm's length, which is what `reachOf` means by an absent block.
-  return canReach(
-    context.map,
-    context.tilesById,
-    context.caster,
-    target,
-    reachOf(stone),
-  )
-    ? CASTABLE
-    : refused("outOfRange");
+  if (
+    target &&
+    !canReach(
+      context.map,
+      context.tilesById,
+      context.caster,
+      target,
+      reachOf(stone),
+    )
+  ) {
+    return refused("outOfRange");
+  }
+
+  // Asked here rather than when the placement is made, so a conjure that
+  // cannot land is a refusal and costs nothing. It used to spend its cooldown
+  // on the grounds that a swing that misses does too — but a swing that misses
+  // still swung, and a flame that never appeared is a press the player cannot
+  // tell from a dropped key.
+  if (
+    stone.effect.kind === "conjure" &&
+    !conjureLanding(context, stone.effect.tileId)
+  ) {
+    return refused("blocked");
+  }
+  return CASTABLE;
+}
+
+/** Where a conjured tile goes, and where in the stack. @see conjureLanding */
+export type ConjureLanding = {
+  at: Coord;
+  /** Beneath the body at this index, or on top when absent. */
+  under?: number;
+};
+
+/**
+ * Where a conjure lands — the target's cell, or the one in front — or null
+ * when that cell will not take the tile.
+ *
+ * **One answer for the button and the cast**, which is why it is here and not
+ * in the session: the browser dims the stone off the same call the session
+ * places the tile with, so a lit button is a flame that will appear.
+ *
+ * With a target it lands beneath them, so what arrives is a thing they are
+ * standing in rather than a thing balanced on their head. With nobody targeted
+ * it lands in **the cell the caster could step into**, asked through the same
+ * `canWalk` their legs are. That is the whole rule, and it is what refuses
+ * water, a bush and a wall with no list of any of them: a flame was stacked on
+ * top of a bush, or floated on a pond, because a height check alone says both
+ * have room. It also puts a flame laid at the top of a ramp on the ramp.
+ *
+ * Either way the tile must fit where it lands — `canPlace`, the check the
+ * editor stamps with.
+ */
+export function conjureLanding(
+  context: CastContext,
+  tileId: string,
+): ConjureLanding | null {
+  const def = context.tilesById[tileId];
+  if (!def) return null;
+
+  const target = context.target;
+  const landing: ConjureLanding | null = target
+    ? { at: { x: target.x, y: target.y, z: target.z }, under: target.stackIndex }
+    : cellInFront(context);
+  if (!landing) return null;
+
+  const { at } = landing;
+  return canPlace(context.map, at.x, at.y, at.z, def, context.tilesById).ok
+    ? landing
+    : null;
+}
+
+/** The cell the caster would step into, or null when they could not. */
+function cellInFront(context: CastContext): ConjureLanding | null {
+  const { caster, map, tilesById } = context;
+  const body = tilesById[caster.tileId];
+  if (!body) return null;
+  const step = canWalk(map, caster, caster.facing, body, tilesById);
+  return step.ok ? { at: step.to } : null;
 }
 
 /**
@@ -379,6 +476,7 @@ export const CAST_REFUSAL_NOTES: Record<CastRefusal, string> = {
   mastery: "not learnt yet",
   noTarget: "nothing targeted",
   outOfRange: "out of range",
+  blocked: "nowhere for it to land",
 };
 
 /**

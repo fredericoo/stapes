@@ -20,7 +20,9 @@ import {
   castability,
   castableStones,
   type CastContext,
+  type CasterPoint,
   type CastPoint,
+  conjureLanding,
   meetsRequirements,
   spellReading,
 } from "./casting";
@@ -165,6 +167,12 @@ const tiles: TileDef[] = [
     interactions: { item: { type: "armor", slot: "head", def: 2 } },
   }),
   tile({ id: "fire", intangible: true, lightPassing: true }),
+  // What does the stepping for a conjure with nobody targeted. @see CasterPoint
+  tile({ id: "body", height: 2 }),
+  // The two shapes a height check alone said had room: a floor nobody can
+  // stand on, and something low and solid that a flame used to be stacked on.
+  tile({ id: "water", walkable: false }),
+  tile({ id: "bush", height: 2, walkable: false }),
 ];
 
 const tilesById = tilesByIdFromList(tiles);
@@ -187,8 +195,28 @@ function open(apart: number): MapFile {
   return map;
 }
 
-const HERE: CastPoint = { x: 0, y: 0, z: 0, elevAbs: 0 };
-const point = (x: number): CastPoint => ({ x, y: 0, z: 0, elevAbs: 0 });
+/** Standing on the grass at the origin, facing along the strip. */
+const HERE: CasterPoint = {
+  x: 0,
+  y: 0,
+  z: 0,
+  elevAbs: 0,
+  stackIndex: 1,
+  facing: "e",
+  tileId: "body",
+};
+const point = (x: number): CastPoint => ({
+  x,
+  y: 0,
+  z: 0,
+  elevAbs: 0,
+  stackIndex: 1,
+});
+
+/** The strip, with whatever this is standing on the cell in front of the caster. */
+function inFront(tileId: string): MapFile {
+  return replaceStack(open(6), 1, 0, 0, [{ tileId: "grass" }, { tileId }]);
+}
 
 function context(
   equipment: Partial<Equipment>,
@@ -362,7 +390,48 @@ describe("a conjuring stone", () => {
       reason: "outOfRange",
     });
   });
+
+  it("lands on the cell the caster faces", () => {
+    const state = context({});
+    expect(conjureLanding(state, "fire")).toEqual({ at: { x: 1, y: 0, z: 0 } });
+
+    const west = context({}, { caster: { ...HERE, x: 3, facing: "w" } });
+    expect(conjureLanding(west, "fire")).toEqual({ at: { x: 2, y: 0, z: 0 } });
+  });
+
+  it("lands beneath a target, so they are standing in it", () => {
+    const state = context({}, { target: point(2) });
+    expect(conjureLanding(state, "fire")).toEqual({
+      at: { x: 2, y: 0, z: 0 },
+      under: 1,
+    });
+  });
+
+  /**
+   * A conjure that cannot land is refused rather than cast, so it costs no
+   * cooldown. The three shapes are the three that were reported: a flame that
+   * vanished into a wall, one stacked on top of a bush, and one floating on
+   * water. What they share is that nobody could step there.
+   */
+  it.each(["wall", "bush", "water"])(
+    "refuses to conjure where a %s is in front",
+    (tileId) => {
+      const state = context(
+        { weapon: instance("flame-stone") },
+        { map: tileId === "water" ? waterInFront() : inFront(tileId) },
+      );
+      expect(castability(state, "weapon")).toEqual({
+        ok: false,
+        reason: "blocked",
+      });
+    },
+  );
 });
+
+/** The strip, with the cell in front of the caster a pond rather than a lawn. */
+function waterInFront(): MapFile {
+  return replaceStack(open(6), 1, 0, 0, [{ tileId: "water" }]);
+}
 
 describe("the charm square", () => {
   /**

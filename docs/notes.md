@@ -2614,7 +2614,9 @@ target reaches for the one the player already picked for attacking; a bolt at th
 caster reaches nobody. A conjure lands on the target's cell or, with nobody
 targeted, on the cell the caster is facing: the player never picks an arbitrary
 square. Range goes through `canReach`, so a spell out of range fails exactly the
-way a swing does, wall included.
+way a swing does, wall included. A conjure whose cell will not take the tile is
+refused the same way, before the cooldown — see "A conjure lands where the
+caster could step, or is not cast" below.
 
 ##### A charm is its own kind of item, and stones stopped pretending
 
@@ -2810,6 +2812,44 @@ has to last long enough to be seen carrying it.
 `/tile` places underfoot by. What a tile does to a body is read off the stack
 below it, so a flame conjured on top of somebody would be a flame nobody is in —
 and a flame aimed at a target who is standing still would do nothing at all.
+
+#### A conjure lands where the caster could step, or is not cast
+
+With nobody targeted the cell is the one `canWalk` would step the caster's own
+body into, and the tile must then pass `canPlace` there. It used to be the
+facing cell run through `destCellAfterStep` and `canPlace` alone, and a height
+check says a bush (height 2, room for a height-2 flame on top) and a pond
+(height 0) both have room — so a flame was stacked on a bush or floated on
+water. Asking the legs refuses a wall, water and a bush with no list of any of
+them, and still puts a flame laid at the top of a ramp on the ramp.
+
+**Nowhere to land is a refusal, `blocked`, and costs nothing.** It used to
+spend the cooldown on a swing's terms, but a swing that misses still swung; a
+flame that never appeared is a press the player cannot tell from a dropped key.
+`conjureLanding` in `app/game/casting.ts` is the one answer: `castability`
+refuses on it and `castConjure` places with it, and the browser runs it too, so
+the button dims when you face a wall. Stepping into open air is still a legal
+step — gravity needs it — so a flame can still be laid over a drop.
+
+#### A cast is resolved from where the caster is arriving
+
+Three things made a flame land on its own caster, or beside where they were
+facing, and each is a way the server's idea of the caster lagged the browser's:
+
+- **A step commits only when it lands.** Mid-step the board still holds the
+  body in the cell it is leaving, so the cell "in front" was the cell being
+  entered. `casterPointOf` (session) and `casterPoint` (browser) both cast from
+  the walk's destination instead.
+- **A cast overtook the steps sent before it.** Steps queue and are taken on a
+  tick; a cast was honoured on arrival, so a server one step behind cast from
+  one cell back. `face` and `cast` now join the same per-actor queue
+  (`queuedIntents` in `server/GameServer.ts`) and are honoured in the order they
+  were sent, immediately when nothing is waiting.
+- **A turn made mid-step was undone by the step landing**, because `commitWalk`
+  writes the walk's direction onto the body. A predicting browser has usually
+  landed that step already, so the turn it sends arrives mid-walk on the
+  server. `faceActor` now writes the turn onto the walk too — in place, since a
+  new walk object is announced as a new step.
 
 ### The cooldown is per stone, durable, and locks the square
 
