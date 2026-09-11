@@ -1,3 +1,4 @@
+import { TILE_FX_DURATION_MS, type TileFx } from "./tileFx";
 import {
   absoluteStandingElevation,
   appendTile,
@@ -669,6 +670,8 @@ export type GameSnapshot = {
    * fired in `/play` puts an arrow in the air with nobody to broadcast it to.
    */
   projectiles: ProjectileFlight[];
+  /** PROTOTYPE: tiles forming and dissolving. @see `./tileFx` */
+  tileFx: TileFx[];
   /**
    * What the viewer is carrying.
    *
@@ -1820,6 +1823,10 @@ export class GameSession implements PlaySession {
    * however long it takes to arrive.
    */
   private liveProjectiles: ProjectileFlight[] = [];
+  /** PROTOTYPE: tiles forming and dissolving, split like projectiles. */
+  private pendingTileFx: TileFx[] = [];
+  private liveTileFx: TileFx[] = [];
+  private nextTileFxId = 0;
   /** Ticks up per shot, so two arrows in one tick are two flights. */
   private nextProjectileId = 0;
   /**
@@ -2619,11 +2626,18 @@ export class GameSession implements PlaySession {
     this.pendingDamage = [];
     this.pendingNoise = [];
     this.pendingProjectiles = [];
+    this.pendingTileFx = [];
     this.pendingTeleports = [];
     this.pendingSwings = [];
     this.ageDamageNumbers(tickMs);
     this.ageNoises(tickMs);
     this.ageProjectiles(tickMs);
+    if (this.liveTileFx.length > 0) {
+      for (const fx of this.liveTileFx) fx.elapsedMs += tickMs;
+      this.liveTileFx = this.liveTileFx.filter(
+        (fx) => fx.elapsedMs < TILE_FX_DURATION_MS,
+      );
+    }
 
     // Before the cooldowns and before anything swings, because a status is the
     // one thing here that can change the numbers the rest of the tick is fought
@@ -2712,6 +2726,16 @@ export class GameSession implements PlaySession {
     const turned = applyDecay(this.map, placements, this.tilesById);
     this.map = turned.map;
     const changed = turned.changed;
+
+    // PROTOTYPE: `applyDecay` pushes the entry's own cell object for every swap
+    // it made, so identity says which entries actually turned.
+    const turnedCells = new Set(changed);
+    for (const entry of placements) {
+      if (!turnedCells.has(entry.cell)) continue;
+      this.noteTileFx("vanish", entry.tileId, entry.cell);
+      const into = this.tilesById[entry.tileId]?.interactions?.decay?.tileId;
+      if (into) this.noteTileFx("appear", into, entry.cell);
+    }
 
     // Only when something carried is actually due: this pass walks the whole
     // board looking for the things it names, and a tick where only blood dried
@@ -3371,6 +3395,32 @@ export class GameSession implements PlaySession {
     const loosed = this.pendingProjectiles;
     this.pendingProjectiles = [];
     return loosed;
+  }
+
+  /** PROTOTYPE: tiles that formed or dissolved this tick. @see `./tileFx` */
+  drainTileFx(): TileFx[] {
+    const happened = this.pendingTileFx;
+    this.pendingTileFx = [];
+    return happened;
+  }
+
+  /** PROTOTYPE: queue a dissolve for the wire and for an offline viewer. */
+  private noteTileFx(
+    fx: TileFx["fx"],
+    tileId: string,
+    cell: { x: number; y: number; z: number },
+  ) {
+    const entry: TileFx = {
+      id: `fx-${this.nextTileFxId++}`,
+      fx,
+      tileId,
+      x: cell.x,
+      y: cell.y,
+      z: cell.z,
+      elapsedMs: 0,
+    };
+    this.pendingTileFx.push(entry);
+    this.liveTileFx.push(entry);
   }
 
   /**
@@ -5156,6 +5206,7 @@ export class GameSession implements PlaySession {
     // above it either way, so both arrivals read the same.
     next.splice(where.under ?? next.length, 0, placed);
     this.map = replaceStack(this.map, at.x, at.y, at.z, next);
+    this.noteTileFx("appear", def.id, at);
     // What arrived may be a plate, may be wired, and is very likely subject to
     // gravity — the same three indexes a summoned tile rebuilds, and the one
     // that arms its decay. A conjured tile with no lifetime authored on it is a
@@ -7473,6 +7524,9 @@ export class GameSession implements PlaySession {
     }
 
     this.map = candidate;
+    // PROTOTYPE: a summoned tile forms in too, so the effect can be seen
+    // without equipping and casting a stone.
+    this.noteTileFx("appear", def.id, at);
     for (const owner of owners) {
       this.addActor(owner, { resident: true, bodyTileId: def.id });
     }
@@ -8124,6 +8178,7 @@ export class GameSession implements PlaySession {
       // the same object the tick loop is winding forward, exactly as a walk or a
       // strike is handed over live.
       projectiles: this.liveProjectiles,
+      tileFx: this.liveTileFx,
     };
   }
 

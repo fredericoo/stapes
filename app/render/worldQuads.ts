@@ -51,6 +51,22 @@ export type Quad = {
   lightX1: number;
   lightY1: number;
   unlit: boolean;
+  /** PROTOTYPE: dissolve start on the renderer clock. @see FX_UNIFORMS */
+  fxStartMs?: number;
+  /** PROTOTYPE: 1 forms in, -1 dissolves out, 0 (or absent) is no effect. */
+  fxMode?: number;
+};
+
+/**
+ * PROTOTYPE: the clock a dissolve is measured against.
+ *
+ * One object shared by every world material, because a dissolve is a property
+ * of the quad (its `aFx`), not of the material — the batch a flame is merged
+ * into draws it, and the floor beside it never reads a non-zero mode.
+ */
+export const FX_UNIFORMS = {
+  uFxClockMs: { value: 0 },
+  uFxDurationMs: { value: 1 },
 };
 
 export type LevelLightUniforms = {
@@ -148,7 +164,7 @@ const VERTS_PER_QUAD = 4;
 const BOX_COMPONENTS = 4;
 
 /** Both renderers must agree, or the same tile sorts differently in each. */
-export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v10";
+export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v11";
 
 function glsl(n: number): string {
   return Number.isInteger(n) ? `${n}.0` : `${n}`;
@@ -201,6 +217,7 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   const stacks = new Float32Array(n * VERTS_PER_QUAD);
   const lightScales = new Float32Array(n * VERTS_PER_QUAD * 2);
   const anims = new Float32Array(n * VERTS_PER_QUAD * 2);
+  const fxs = new Float32Array(n * VERTS_PER_QUAD * 2);
   const indices =
     n * VERTS_PER_QUAD > 65535 ? new Uint32Array(n * 6) : new Uint16Array(n * 6);
 
@@ -262,6 +279,8 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
       lightScales[ub + v * 2 + 1] = lsy;
       anims[ub + v * 2] = row;
       anims[ub + v * 2 + 1] = phase;
+      fxs[ub + v * 2] = q.fxStartMs ?? 0;
+      fxs[ub + v * 2 + 1] = q.fxMode ?? 0;
     }
 
     const base = i * VERTS_PER_QUAD;
@@ -287,6 +306,7 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
     new THREE.BufferAttribute(lightScales, 2),
   );
   geo.setAttribute("aAnim", new THREE.BufferAttribute(anims, 2));
+  geo.setAttribute("aFx", new THREE.BufferAttribute(fxs, 2));
   geo.setIndex(new THREE.BufferAttribute(indices, 1));
   return geo;
 }
@@ -338,6 +358,15 @@ export function buildSingleQuadGeometry(
     new THREE.BufferAttribute(lightScales, 2),
   );
   geo.setAttribute("aAnim", new THREE.BufferAttribute(anims, 2));
+  const fxS = q.fxStartMs ?? 0;
+  const fxM = q.fxMode ?? 0;
+  geo.setAttribute(
+    "aFx",
+    new THREE.BufferAttribute(
+      new Float32Array([fxS, fxM, fxS, fxM, fxS, fxM, fxS, fxM]),
+      2,
+    ),
+  );
   geo.setIndex(
     new THREE.BufferAttribute(new Uint16Array([0, 2, 1, 2, 3, 1]), 1),
   );
@@ -423,7 +452,7 @@ export function injectWorldShader(
   cut: LevelCutUniforms,
   anim: LevelAnimUniforms,
 ) {
-  Object.assign(shader.uniforms, lightUniforms, tint, cut, anim);
+  Object.assign(shader.uniforms, lightUniforms, tint, cut, anim, FX_UNIFORMS);
   shader.vertexShader = shader.vertexShader
     .replace(
       "#include <common>",
@@ -434,6 +463,8 @@ attribute vec4 aBox;
 attribute float aStack;
 attribute vec2 aLightScale;
 attribute vec2 aAnim;
+attribute vec2 aFx;
+varying vec2 vFx;
 uniform sampler2D uAnimTable;
 uniform vec2 uAnimSize;
 uniform float uAnimClockMs;
@@ -474,6 +505,7 @@ vUnlit = aUnlit;
 vBox = aBox;
 vStack = aStack;
 vLightScale = aLightScale;
+vFx = aFx;
 vWorldPx = (modelMatrix * vec4(position, 1.0)).xy;
 #ifdef USE_MAP
 if (uAnimEnabled > 0.5 && aAnim.x >= 0.0) {
@@ -504,6 +536,18 @@ varying vec4 vBox;
 varying float vStack;
 varying vec2 vWorldPx;
 varying vec2 vLightScale;
+varying vec2 vFx;
+uniform float uFxClockMs;
+uniform float uFxDurationMs;
+// PROTOTYPE: a per-art-pixel threshold. Two octaves — one per 3px blob, one per
+// pixel — so the dissolve eats in clumps with a ragged edge rather than as
+// uniform static.
+float fxHash(vec2 p) {
+  return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+}
+float fxNoise(vec2 px) {
+  return 0.65 * fxHash(floor(px / 3.0)) + 0.35 * fxHash(px);
+}
 ${TINT_GLSL_COMMON}`,
     )
     .replace(
@@ -519,6 +563,18 @@ if (uCutEnabled > 0.5) {
   vec2 cutCell = vBox.xy / ${glsl(CELL_SIZE)} - 0.5;
   vec2 cutUv = (cutCell - uCutOrigin) / uCutSize;
   if (texture2D(uCutMask, cutUv).r > 0.5) discard;
+}
+// PROTOTYPE dissolve. vFx = (start ms, mode): mode 1 forms in, -1 dissolves out.
+// The threshold is lifted by the edge width so a finished form shows every
+// pixel with no band left, and a finished dissolve shows none.
+float fxEdge = 0.0;
+if (vFx.y != 0.0) {
+  float fxT = clamp((uFxClockMs - vFx.x) / uFxDurationMs, 0.0, 1.0);
+  float fxShown = vFx.y > 0.0 ? fxT : 1.0 - fxT;
+  float fxLevel = fxShown * 1.18;
+  float fxN = fxNoise(floor(vWorldPx));
+  if (fxN > fxLevel) discard;
+  fxEdge = step(fxLevel - 0.18, fxN);
 }
 ${TINT_GLSL_FRAGMENT}
 // Everything below samples at the centre of the art pixel this fragment falls
@@ -538,6 +594,12 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
   vec4 lightTexel = texture2D(uLightMap, lightUv);
   vec3 light = min(vec3(1.0), lightTexel.a * uAmbient + lightTexel.rgb);
   diffuseColor.rgb *= light;
+}
+// PROTOTYPE: the band at the dissolve front glows, after the light so a dark
+// room does not snuff it. Cold as a tile forms, embers as it goes.
+if (fxEdge > 0.5) {
+  vec3 fxGlow = vFx.y > 0.0 ? vec3(0.55, 0.9, 1.0) : vec3(1.0, 0.62, 0.25);
+  diffuseColor.rgb = mix(diffuseColor.rgb, fxGlow, 0.85);
 }
 // Depth, at that same pixel centre, so a crossing between two sprites can only
 // ever land on a texel boundary.

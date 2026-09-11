@@ -2054,6 +2054,7 @@ export class GameServer {
     if (!session) return;
     this.collectDamageEvents(session);
     this.collectProjectileEvents(session);
+    this.collectTileFxEvents(session);
   }
 
   /**
@@ -3087,6 +3088,7 @@ export class GameServer {
     this.collectMotionEvents(actors);
     this.collectDamageEvents(session);
     this.collectProjectileEvents(session);
+    this.collectTileFxEvents(session);
     this.collectTeleportEvents(session);
     this.collectSwingEvents(session);
     this.noteDeaths(session);
@@ -3427,6 +3429,21 @@ export class GameServer {
         from: flight.from,
         to: flight.to,
         durationMs: flight.durationMs,
+      });
+    }
+  }
+
+  /** PROTOTYPE: tiles that formed or dissolved this tick. @see `../app/game/tileFx` */
+  private collectTileFxEvents(session: GameSession) {
+    for (const fx of session.drainTileFx()) {
+      this.events.push({
+        kind: "tileFx",
+        id: fx.id,
+        fx: fx.fx,
+        tileId: fx.tileId,
+        x: fx.x,
+        y: fx.y,
+        z: fx.z,
       });
     }
   }

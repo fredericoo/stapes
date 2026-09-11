@@ -504,6 +504,16 @@ export type MotionEvent =
        */
       durationMs: number;
     }
+  /** PROTOTYPE: a tile formed (conjure) or dissolved (decay). @see `../game/tileFx` */
+  | {
+      kind: "tileFx";
+      id: string;
+      fx: "appear" | "vanish";
+      tileId: string;
+      x: number;
+      y: number;
+      z: number;
+    }
   | {
       kind: "damage";
       id: string;
@@ -1330,6 +1340,17 @@ const serverMessageSchema = v.variant("type", [
           to: flightPointSchema,
           durationMs: v.number(),
         }),
+        // PROTOTYPE: without this the whole frame fails validation and is
+        // dropped, patch included.
+        v.object({
+          kind: v.literal("tileFx"),
+          id: v.string(),
+          fx: v.picklist(["appear", "vanish"] as const),
+          tileId: v.string(),
+          x: v.number(),
+          y: v.number(),
+          z: v.number(),
+        }),
         v.object({
           kind: v.literal("joined"),
           actorId: v.string(),
@@ -1484,7 +1505,7 @@ export const GAME_SOCKET_PATH = "/online/ws";
  * This is deliberately not the build id. A client deploy that changes no
  * messages should not disconnect anybody, and most client deploys are that.
  */
-export const PROTOCOL_VERSION = 6;
+export const PROTOCOL_VERSION = 7;
 
 /**
  * How often the world says nothing, to keep a proxy from hanging up.

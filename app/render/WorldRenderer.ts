@@ -89,6 +89,7 @@ import {
   WORLD_SHADER_CACHE_KEY,
   buildMergedQuadGeometry,
   buildSingleQuadGeometry,
+  FX_UNIFORMS,
   injectWorldShader,
   type LevelAnimUniforms,
   noAnimUniforms,
@@ -96,6 +97,7 @@ import {
   writeBoxAttr,
   writeLightUvAttr,
 } from "./worldQuads";
+import { TILE_FX_DURATION_MS, type TileFx } from "../game/tileFx";
 import { AnimationTable, tableCanHold } from "./animTable";
 import {
   disposeGroupChildren,
@@ -195,6 +197,8 @@ type ProjectileMesh = {
 /** One quad the builder will emit, plus what decides how it is drawn. */
 type BuildItem = Quad & {
   texture: THREE.Texture;
+  /** PROTOTYPE: which tile this quad draws, so a dissolve can find it. */
+  sourceTileId: string;
   /** Set when this tile gets its own mesh rather than joining a merged batch. */
   tileKey?: string;
   anim?: Omit<AnimatedInstance, "mesh" | "key">;
@@ -313,6 +317,8 @@ export type WorldView = {
    * nothing for it to be an offset of.
    */
   projectiles?: ProjectileView[];
+  /** PROTOTYPE: tiles forming and dissolving. @see `../game/tileFx` */
+  tileFx?: readonly TileFx[];
   /**
    * How each placement looks right now, keyed by {@link TileInstanceKey}, and
    * holding only the entries that are *not* {@link SpriteState} `idle`.
@@ -700,6 +706,17 @@ export class WorldRenderer {
    * here instead — see {@link applyProjectiles}.
    */
   private projectileGroup: THREE.Group;
+  /**
+   * PROTOTYPE: dissolve bookkeeping.
+   *
+   * `fxAppearAt` is read by {@link cellItems} so a flame's quad is built with
+   * its birth time on it, keyed `x,y,z:tileId`. `fxGhosts` are the quads of
+   * tiles already gone from the map, dissolving out on their own.
+   */
+  private seenTileFx = new Set<string>();
+  private fxAppearAt = new Map<string, number>();
+  private fxGhosts: { mesh: THREE.Mesh; bornMs: number }[] = [];
+  private fxGroup: THREE.Group;
   private movableBasePos = new Map<string, { x: number; y: number }>();
   private movableBaseBox = new Map<
     string,
@@ -829,6 +846,12 @@ export class WorldRenderer {
     this.projectileGroup.matrixAutoUpdate = false;
     this.projectileGroup.updateMatrix();
     this.world.add(this.projectileGroup);
+    this.fxGroup = new THREE.Group();
+    this.fxGroup.name = "tileFx";
+    this.fxGroup.matrixAutoUpdate = false;
+    this.fxGroup.updateMatrix();
+    this.world.add(this.fxGroup);
+    FX_UNIFORMS.uFxDurationMs.value = TILE_FX_DURATION_MS;
 
     const data = new Uint8Array([255, 0, 255, 255]);
     this.magentaTex = new THREE.DataTexture(data, 1, 1, THREE.RGBAFormat);
@@ -895,6 +918,7 @@ export class WorldRenderer {
     // Before applyMap, which is what reads it: a cell rebuilt this frame has to
     // come back in the state this view says it is in.
     this.spriteStates = view.spriteStates;
+    this.ingestTileFx(view.tileFx);
     this.applyCamera(view.camera.x, view.camera.y, view.zoom);
 
     // Before applyMap, which advances prevMap — the light cache needs to see
@@ -1282,6 +1306,7 @@ export class WorldRenderer {
     // light bake reads the same clock, and an emitter can sit outside the built
     // geometry while its light still reaches inside the window.
     this.animClock += dt;
+    if (this.tickFx()) this.needsRender = true;
     // Before the animation check, for the reason the pulse is: a plume is a
     // thing that moves while the world is perfectly still, which is exactly the
     // case `updateAnimations` reports nothing to do in.
@@ -2088,7 +2113,11 @@ export class WorldRenderer {
   private discardGeometry() {
     this.clearMotionGhosts();
     for (const child of [...this.world.children]) {
-      if (child === this.projectileGroup || child === this.particles.mesh) {
+      if (
+        child === this.projectileGroup ||
+        child === this.fxGroup ||
+        child === this.particles.mesh
+      ) {
         continue;
       }
       this.world.remove(child);
@@ -2702,6 +2731,8 @@ export class WorldRenderer {
           lightX1: x + 1,
           lightY1: y + 1,
           unlit: tileCanEmitLight(def),
+          ...this.fxFor(x, y, z, placed.tileId),
+          sourceTileId: placed.tileId,
           tileKey: separate ? instanceKey : undefined,
           mergedAnim,
           // On the first quad only — a heap of six berries is one placement and
@@ -2736,6 +2767,80 @@ export class WorldRenderer {
     });
 
     return items;
+  }
+
+  /** PROTOTYPE: the dissolve a placement is built with, if it is forming. */
+  private fxFor(
+    x: number,
+    y: number,
+    z: number,
+    tileId: string,
+  ): { fxStartMs?: number; fxMode?: number } {
+    if (this.fxAppearAt.size === 0) return {};
+    const born = this.fxAppearAt.get(`${x},${y},${z}:${tileId}`);
+    if (born === undefined) return {};
+    return { fxStartMs: born, fxMode: 1 };
+  }
+
+  /**
+   * PROTOTYPE: take this frame's new dissolves.
+   *
+   * Before `applyMap`, which is the whole of the ordering: a forming tile's
+   * birth has to be on record when its chunk rebuilds, and a dissolving one
+   * has to be read off `prevMap` while that still holds it.
+   */
+  private ingestTileFx(list: readonly TileFx[] | undefined) {
+    if (!list) {
+      if (this.seenTileFx.size > 0) this.seenTileFx = new Set();
+      return;
+    }
+    const seen = new Set<string>();
+    for (const fx of list) {
+      seen.add(fx.id);
+      if (this.seenTileFx.has(fx.id)) continue;
+      if (fx.fx === "appear") {
+        this.fxAppearAt.set(`${fx.x},${fx.y},${fx.z}:${fx.tileId}`, this.animClock);
+      } else {
+        this.addVanishGhost(fx);
+      }    }
+    this.seenTileFx = seen;
+  }
+
+  /** PROTOTYPE: a copy of a tile the map no longer has, dissolving out. */
+  private addVanishGhost(fx: TileFx) {
+    const prev = this.prevMap;
+    if (!prev) return;
+    const stack = getStack(prev, fx.x, fx.y, fx.z);
+    const items = this.cellItems(prev, fx.z, fx.x, fx.y, stack);
+    for (const item of items) {
+      if (item.sourceTileId !== fx.tileId) continue;
+      const mesh = this.addQuadMesh(
+        this.fxGroup,
+        { ...item, fxStartMs: this.animClock, fxMode: -1 },
+        item.texture,
+        fx.z,
+      );
+      mesh.frustumCulled = false;
+      this.fxGhosts.push({ mesh, bornMs: this.animClock });
+    }
+  }
+
+  /** PROTOTYPE: retire finished dissolves. True while any is still playing. */
+  private tickFx(): boolean {
+    FX_UNIFORMS.uFxClockMs.value = this.animClock;
+    if (this.fxGhosts.length === 0 && this.fxAppearAt.size === 0) return false;
+    const done = (bornMs: number) =>
+      this.animClock - bornMs >= TILE_FX_DURATION_MS;
+    for (const ghost of this.fxGhosts) {
+      if (!done(ghost.bornMs)) continue;
+      this.fxGroup.remove(ghost.mesh);
+      disposeObject3D(ghost.mesh);
+    }
+    this.fxGhosts = this.fxGhosts.filter((ghost) => !done(ghost.bornMs));
+    for (const [key, bornMs] of this.fxAppearAt) {
+      if (done(bornMs)) this.fxAppearAt.delete(key);
+    }
+    return true;
   }
 
   /** Give an item its own mesh and register it in whichever indexes claim it. */

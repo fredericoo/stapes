@@ -12,6 +12,7 @@ import {
   type StatusInstance,
 } from "../game/statuses";
 import type { ProjectileFlight } from "../game/projectile";
+import { TILE_FX_DURATION_MS, type TileFx } from "../game/tileFx";
 import type { StrikeState } from "../game/strike";
 import {
   actorDirection,
@@ -315,6 +316,8 @@ export class RemoteSession implements PlaySession {
    * an empty cell while the arrow finishes its flight.
    */
   private projectiles: ProjectileFlight[] = [];
+  /** PROTOTYPE: tiles forming and dissolving. @see `../game/tileFx` */
+  private tileFx: TileFx[] = [];
   /** Who this client is pointing at; echoed back in the snapshot for the outline. */
   private targetId: string | null = null;
   /**
@@ -528,6 +531,7 @@ export class RemoteSession implements PlaySession {
       // And every arrow is measured between two cells in a world that no longer
       // exists, on the same terms the bubbles above are.
       this.projectiles = [];
+      this.tileFx = [];
       // A target in the old world names nobody in this one, and the server has
       // already dropped it — leaving it set here would draw a red outline
       // around whoever happens to answer to that id next.
@@ -950,6 +954,19 @@ export class RemoteSession implements PlaySession {
       return;
     }
 
+    if (event.kind === "tileFx") {
+      this.tileFx.push({
+        id: event.id,
+        fx: event.fx,
+        tileId: event.tileId,
+        x: event.x,
+        y: event.y,
+        z: event.z,
+        elapsedMs: 0,
+      });
+      return;
+    }
+
     if (event.kind === "teleported") {
       // Nothing to animate — the body is simply somewhere else, and the cell
       // patches in this same frame say where. What has to happen is that both
@@ -1115,6 +1132,12 @@ export class RemoteSession implements PlaySession {
     this.expireNoises(dtMs);
     this.expireDamage(dtMs);
     this.expireProjectiles(dtMs);
+    if (this.tileFx.length > 0) {
+      for (const fx of this.tileFx) fx.elapsedMs += dtMs;
+      this.tileFx = this.tileFx.filter(
+        (fx) => fx.elapsedMs < TILE_FX_DURATION_MS,
+      );
+    }
   }
 
   /**
@@ -1751,6 +1774,7 @@ export class RemoteSession implements PlaySession {
       noises: this.noises,
       damage: this.damage,
       projectiles: this.projectiles,
+      tileFx: this.tileFx,
     };
   }
 

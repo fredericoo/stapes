@@ -2248,6 +2248,7 @@ export class GameRenderer {
         snap.projectiles.length > 0
           ? projectileViews(snap.projectiles)
           : undefined,
+      tileFx: snap.tileFx.length > 0 ? snap.tileFx : undefined,
       spriteStates: spriteStatesFor(snap.actors),
       emitterOverrides: this.emitterOverridesFor(snap),
       spriteTints: vfx.tints,
