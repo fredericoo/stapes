@@ -368,6 +368,30 @@ export type Extraction = {
 };
 
 /**
+ * How far through a pull a body is, without saying what it is pulling.
+ *
+ * What everybody else is told about a pull, as against what its owner is told.
+ * A bar over somebody's head needs the two numbers of the fraction and nothing
+ * more; the key is what the owner's interaction row matches against, and it
+ * stays on the owner's own channel.
+ */
+export type ExtractionProgress = Pick<Extraction, "remainingMs" | "durationMs">;
+
+/**
+ * How much of a pull is done, from 0 to 1.
+ *
+ * Clamped at both ends because the wire does not clamp the remainder against
+ * the duration, and the two are wound on different clocks — the server's tick
+ * and the client's frame. A pull authored at zero is finished rather than a
+ * division by zero.
+ */
+export function extractionFraction(progress: ExtractionProgress): number {
+  if (progress.durationMs <= 0) return 1;
+  const done = 1 - progress.remainingMs / progress.durationMs;
+  return Math.max(0, Math.min(1, done));
+}
+
+/**
  * The placement with one more, or one fewer, pull held out of its count.
  *
  * The field goes entirely rather than sitting at zero, on

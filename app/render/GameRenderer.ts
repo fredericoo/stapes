@@ -34,7 +34,7 @@ import {
   topInteractionAt,
   type InteractionOption,
 } from "../game/interactionOptions";
-import type { Extraction } from "../game/extract";
+import { extractionFraction, type Extraction } from "../game/extract";
 import { describedNearby } from "./nearbyDescriptions";
 import { WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
@@ -1965,6 +1965,12 @@ export class GameRenderer {
         // track says the same thing to somebody seeing it for the first time,
         // and it means every battler on screen is measured on the same ruler.
         bar: { fraction },
+        // Only while this body is working something — a deer at a bush, somebody
+        // else at a vein. What it is working is on the board beside it, so the
+        // bar says nothing else.
+        progress: actor.extracting
+          ? { fraction: extractionFraction(actor.extracting) }
+          : undefined,
       });
     }
   }

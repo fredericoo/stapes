@@ -39,7 +39,11 @@ import {
   canTeleportFrom,
   type ObjectRef,
 } from "../game/affordances";
-import { canBeginExtract, type Extraction } from "../game/extract";
+import {
+  canBeginExtract,
+  type Extraction,
+  type ExtractionProgress,
+} from "../game/extract";
 import { gravityPullOn } from "../game/gravity";
 import { type Equipment, emptyEquipment } from "../game/equipment";
 import {
@@ -100,6 +104,7 @@ import {
   type ClientMessage,
   type CarriedLightsPatch,
   type StatusIdsPatch,
+  type ExtractionPatch,
   type HpPatch,
   type MotionEvent,
 } from "./protocol";
@@ -260,6 +265,15 @@ export class RemoteSession implements PlaySession {
    * countdown is not broadcast. @see StatusIdsPatch
    */
   private readonly statusesById = new Map<string, StatusInstance[]>();
+  /**
+   * Everybody's pull in progress as the broadcast last described it, wound on
+   * the render clock between its two messages.
+   *
+   * The viewer's own is {@link extracting}, which carries the key its row
+   * matches against; this is for the bar over every other head.
+   * @see ExtractionPatch
+   */
+  private readonly extractionsById = new Map<string, ExtractionProgress>();
   /**
    * What this viewer is carrying, as the server last said.
    *
@@ -586,6 +600,7 @@ export class RemoteSession implements PlaySession {
       this.hps.clear();
       this.carriedLights.clear();
       this.statusesById.clear();
+      this.extractionsById.clear();
       // Replaced outright rather than kept: the body at the other end is a
       // fresh one, and what it is carrying is whatever the server just said —
       // not what the body in the previous world had on it.
@@ -614,6 +629,7 @@ export class RemoteSession implements PlaySession {
       this.applyHps(message.hps);
       this.applyCarriedLights(message.carriedLights);
       this.applyStatusIds(message.statusIds);
+      this.applyExtractions(message.extractions);
       this.setPlayers(message.playerCount);
       // A `hello` is a body, whichever of the two sent it: the answer to
       // `rebirth`, or a world replaced under a socket that happened to be dead
@@ -754,6 +770,7 @@ export class RemoteSession implements PlaySession {
     this.applyHps(message.hps);
     this.applyCarriedLights(message.carriedLights);
     this.applyStatusIds(message.statusIds);
+    this.applyExtractions(message.extractions);
     for (const event of message.events) this.applyEvent(event);
     this.forgetDeparted(leaving);
     this.rebuildPredicted();
@@ -827,6 +844,24 @@ export class RemoteSession implements PlaySession {
           sinceEffectMs: 0,
         })),
       );
+    }
+  }
+
+  /**
+   * Take the server's word for who is part-way through a pull.
+   *
+   * Deleted on null rather than stored, unlike {@link applyStatusIds}' empty
+   * list: "stopped pulling" and "never heard of them" draw the same nothing.
+   * Copied rather than adopted, on {@link setExtracting}'s terms, because
+   * {@link windExtraction} winds these in place.
+   */
+  private applyExtractions(patches: ExtractionPatch[]) {
+    for (const patch of patches) {
+      if (patch.progress) {
+        this.extractionsById.set(patch.actorId, { ...patch.progress });
+      } else {
+        this.extractionsById.delete(patch.actorId);
+      }
     }
   }
 
@@ -1223,11 +1258,16 @@ export class RemoteSession implements PlaySession {
    * Wound in place, so the value handed to the snapshot keeps its identity and
    * the interaction rows are not rebuilt thirty times a second. The same
    * hand-over the motions above travel on.
+   *
+   * Everybody else's pull is wound the same way and for the same reason: the
+   * broadcast carries it twice too, and the bar over their head is the same
+   * fraction.
    */
   private windExtraction(dtMs: number) {
-    const running = this.extracting;
-    if (!running || running.remainingMs <= 0) return;
-    running.remainingMs = Math.max(0, running.remainingMs - dtMs);
+    if (this.extracting) windPull(this.extracting, dtMs);
+    for (const running of this.extractionsById.values()) {
+      windPull(running, dtMs);
+    }
   }
 
   /**
@@ -1801,6 +1841,12 @@ export class RemoteSession implements PlaySession {
       // it per actor per frame would be an allocation for a list that is almost
       // always empty.
       carriedLights: this.carriedLights.get(id) ?? NO_CARRIED_LIGHTS,
+      // The viewer's own where there is one, on `statuses`' terms: it is the
+      // copy the server addressed to them. Everybody else's is the broadcast.
+      extracting:
+        id === this.selfId
+          ? this.extracting
+          : (this.extractionsById.get(id) ?? null),
     };
   }
 
@@ -2417,5 +2463,11 @@ function offscreenActor(id: string): ActorSnapshot {
     rating: null,
     statuses: NO_STATUSES,
     carriedLights: NO_CARRIED_LIGHTS,
+    extracting: null,
   };
+}
+
+/** Take a frame off a pull, floored at zero. @see RemoteSession.windExtraction */
+function windPull(running: ExtractionProgress, dtMs: number) {
+  running.remainingMs = Math.max(0, running.remainingMs - dtMs);
 }

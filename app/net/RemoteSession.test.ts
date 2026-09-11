@@ -1442,6 +1442,50 @@ describe("RemoteSession bodies taken off the board", () => {
     expect(self?.statuses[0]?.remainingMs).toBe(4_000);
   });
 
+  describe("another body's pull", () => {
+    const PULL_MS = 2_000;
+    const started = { remainingMs: PULL_MS, durationMs: PULL_MS };
+
+    function ratPullIn(session: RemoteSession) {
+      return session.getSnapshot().actors.find((a) => a.id === RAT)?.extracting;
+    }
+
+    it("hangs on the body the broadcast names, and winds on the render clock", () => {
+      const { socket, session } = connectedWithRat();
+      socket.deliver({
+        ...patch([]),
+        extractions: [{ actorId: RAT, progress: started }],
+      });
+
+      // Two messages a pull: between them, only the client knows time passed.
+      session.update(PULL_MS / 4);
+      expect(ratPullIn(session)).toEqual({
+        remainingMs: (PULL_MS * 3) / 4,
+        durationMs: PULL_MS,
+      });
+    });
+
+    it("comes off the body the broadcast says has stopped", () => {
+      const { socket, session } = connectedWithRat();
+      socket.deliver({
+        ...patch([]),
+        extractions: [{ actorId: RAT, progress: started }],
+      });
+      socket.deliver({
+        ...patch([]),
+        extractions: [{ actorId: RAT, progress: null }],
+      });
+
+      expect(ratPullIn(session)).toBeNull();
+    });
+
+    it("reads a hello from before pulls were broadcast as nobody pulling", () => {
+      // This hello carries no `extractions` at all.
+      const { session } = connectedWithRat();
+      expect(ratPullIn(session)).toBeNull();
+    });
+  });
+
   it("frees the cell a creature was walking into when it dies on the way", () => {
     const { socket, session } = connectedWithRat();
 

@@ -95,6 +95,15 @@ export type WorldLabel = {
    */
   bar?: { fraction: number };
   /**
+   * A pull in progress, drawn as a white bar over the lines.
+   *
+   * The same track as {@link bar} — a cell long, on the same grid, placed on the
+   * same anchor — so the two read as a pair. Above the name rather than beside
+   * the health bar because it is not a reading of the body: it says the body is
+   * busy, and goes away when it stops.
+   */
+  progress?: { fraction: number };
+  /**
    * Painter's-order key for labels that overlap each other, larger drawn on
    * top. Absent leaves a label wherever it happens to fall.
    *
@@ -158,6 +167,9 @@ const ANCHOR_CLEARANCE_EMS = 2;
 
 /** The bar's track; its single child is the filled part. @see app/app.css */
 const BAR_CLASS = "world-label__bar";
+/** Which of a group's two tracks is which, since both are {@link BAR_CLASS}. */
+const HEALTH_BAR_CLASS = `${BAR_CLASS}--health`;
+const PROGRESS_BAR_CLASS = `${BAR_CLASS}--progress`;
 
 /**
  * Bricks to an em of the label font.
@@ -181,12 +193,29 @@ function fillBar(
   fraction: number,
   trackBricks: number,
 ) {
-  const fill = element.querySelector<HTMLElement>(`.${BAR_CLASS} > div`);
-  if (!fill) return;
+  const fill = fillTrack(element, HEALTH_BAR_CLASS, fraction, trackBricks);
+  if (fill) fill.style.backgroundColor = healthBarColor(fraction);
+}
+
+/**
+ * Set how far along one track's fill is, and hand the fill back.
+ *
+ * Health's brick rule for both tracks, and it suits a pull as well as it suits
+ * a wound: a pull that has begun shows a brick at once, and one that has not
+ * landed never looks full.
+ */
+function fillTrack(
+  element: HTMLDivElement,
+  trackClass: string,
+  fraction: number,
+  trackBricks: number,
+): HTMLElement | null {
+  const fill = element.querySelector<HTMLElement>(`.${trackClass} > div`);
+  if (!fill) return null;
   // In bricks, not per cent: the fill has to step on the same grid the letters
   // sit on, or the bar is drawn at a finer resolution than the text beside it.
   fill.style.width = brickLength(healthBarFillBricks(fraction, trackBricks));
-  fill.style.backgroundColor = healthBarColor(fraction);
+  return fill;
 }
 
 /**
@@ -261,11 +290,15 @@ type LabelEntry = {
  * box is the same size at every reading, so a changing fraction is a width and a
  * colour on a child that already exists — folding it in here would throw the
  * group's measurement away and force a layout read on every blow landed, to
- * re-measure a box that cannot have changed.
+ * re-measure a box that cannot have changed. The same goes for a pull: whether
+ * one is drawn counts, which changes twice a pull, and how far along it is does
+ * not.
  */
 function signatureOf(label: WorldLabel): string {
   const lines = label.lines.map((line) => `${line.id} ${line.text}`).join("");
-  return label.bar ? `${lines}|bar` : lines;
+  const bar = label.bar ? "|bar" : "";
+  const progress = label.progress ? "|progress" : "";
+  return `${lines}${bar}${progress}`;
 }
 
 /**
@@ -381,9 +414,9 @@ export class WorldLabelLayer {
     this.trackBricks = bricks;
 
     for (const entry of this.entries.values()) {
-      const track = entry.element.querySelector<HTMLElement>(`.${BAR_CLASS}`);
-      if (!track) continue;
-      shapeTrack(track, bricks);
+      const tracks = entry.element.querySelectorAll<HTMLElement>(`.${BAR_CLASS}`);
+      if (tracks.length === 0) continue;
+      for (const track of tracks) shapeTrack(track, bricks);
       entry.size = null;
     }
   }
@@ -443,6 +476,10 @@ export class WorldLabelLayer {
       // pass is about to measure and cannot force a reflow to read.
       if (label.bar) {
         fillBar(entry.element, label.bar.fraction, this.trackBricks);
+      }
+      if (label.progress) {
+        const { fraction } = label.progress;
+        fillTrack(entry.element, PROGRESS_BAR_CLASS, fraction, this.trackBricks);
       }
       // Ink is a paint, never a box, so it rides alongside the fill rather than
       // counting towards the signature that would force a re-measure.
@@ -634,30 +671,36 @@ export class WorldLabelLayer {
    * The bar goes last because the column flows downward from a bottom edge on
    * the anchor, so the final child is the one nearest the head — a name sitting
    * above the health of the thing it names, which is the order both are read in.
+   * A pull goes first, over the name, so starting one grows the group upwards
+   * and leaves the name and the health bar where they were.
    */
   private fill(element: HTMLDivElement, label: WorldLabel) {
-    const rows: HTMLElement[] = label.lines.map((line) => {
+    const rows: HTMLElement[] = [];
+    if (label.progress) rows.push(this.track(PROGRESS_BAR_CLASS));
+    for (const line of label.lines) {
       const row = document.createElement("div");
       // Set as text, never as markup: this is the one string on screen that
       // came from another player.
       row.textContent = line.text;
-      return row;
-    });
-
-    if (label.bar) {
-      const track = document.createElement("div");
-      track.className = BAR_CLASS;
-      // Sized here rather than in the stylesheet because neither dimension is a
-      // constant: the track is a cell wide, which is a number only the current
-      // zoom knows, and its thickness is in proportion to that. Written on
-      // creation, and again from {@link sizeTracks} when the zoom moves — the
-      // one part of a bar that is layout rather than paint.
-      shapeTrack(track, this.trackBricks);
-      track.appendChild(document.createElement("div"));
-      rows.push(track);
+      rows.push(row);
     }
+    if (label.bar) rows.push(this.track(HEALTH_BAR_CLASS));
 
     element.replaceChildren(...rows);
+  }
+
+  /** An empty track of one kind, with its fill inside. */
+  private track(kindClass: string): HTMLElement {
+    const track = document.createElement("div");
+    track.className = `${BAR_CLASS} ${kindClass}`;
+    // Sized here rather than in the stylesheet because neither dimension is a
+    // constant: the track is a cell wide, which is a number only the current
+    // zoom knows, and its thickness is in proportion to that. Written on
+    // creation, and again from {@link sizeTracks} when the zoom moves — the
+    // one part of a bar that is layout rather than paint.
+    shapeTrack(track, this.trackBricks);
+    track.appendChild(document.createElement("div"));
+    return track;
   }
 
   dispose() {

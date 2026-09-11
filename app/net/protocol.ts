@@ -7,7 +7,7 @@ import { STRIKE_KINDS, type StrikeKind } from "../game/strike";
 import type { ConsumeSource } from "../game/itemUse";
 import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import { masteryXpBlockSchema, type MasteryXp } from "../lib/mastery";
-import type { Extraction } from "../game/extract";
+import type { Extraction, ExtractionProgress } from "../game/extract";
 import type { PlacedTile } from "../lib/types";
 import { TRANSITION_SIDES, type TileTransitionNote } from "../lib/tileTransition";
 import { MAX_CHAT_RAW_LENGTH } from "./chat";
@@ -128,6 +128,13 @@ const carriedLightsPatchSchema = v.object({
 const statusIdsPatchSchema = v.object({
   actorId: v.string(),
   defIds: v.array(v.string()),
+});
+
+const extractionPatchSchema = v.object({
+  actorId: v.string(),
+  progress: v.nullable(
+    v.object({ remainingMs: v.number(), durationMs: v.number() }),
+  ),
 });
 
 /**
@@ -338,6 +345,22 @@ export type CarriedLightsPatch = {
 export type StatusIdsPatch = {
   actorId: string;
   defIds: string[];
+};
+
+/**
+ * The pull a body is part-way through, or null once it has stopped.
+ *
+ * Broadcast beside the viewer's own `extracting` message rather than instead of
+ * it: that one carries the key the viewer's interaction row matches against,
+ * and this carries only the fraction a bar over a head needs — which makes it
+ * the same bytes for everybody, the argument {@link StatusIdsPatch} makes.
+ *
+ * Sent when a pull starts and when it ends, never while it runs. Both halves of
+ * the fraction travel, so a client winds the bar on its own render clock.
+ */
+export type ExtractionPatch = {
+  actorId: string;
+  progress: ExtractionProgress | null;
 };
 
 export type MotionEvent =
@@ -585,6 +608,12 @@ export type ServerMessage =
        * the first frame rather than the next time somebody sets it alight.
        */
       statusIds: StatusIdsPatch[];
+      /**
+       * Everybody's pulls in progress, on the terms {@link statusIds} is sent in
+       * full here: a deer already at a bush has to show its bar on the first
+       * frame, and the next patch about it is the one saying it has finished.
+       */
+      extractions: ExtractionPatch[];
       /** What this viewer is carrying. Theirs alone — see {@link Equipment}. */
       equipment: Equipment;
       /**
@@ -749,6 +778,8 @@ export type ServerMessage =
       carriedLights: CarriedLightsPatch[];
       /** Only the actors whose statuses changed since the last patch. */
       statusIds: StatusIdsPatch[];
+      /** Only the actors whose pull started or ended since the last patch. */
+      extractions: ExtractionPatch[];
     }
   /**
    * Something somebody said, pinned to the cell they said it in.
@@ -1249,6 +1280,9 @@ const serverMessageSchema = v.variant("type", [
     // else's effects are drawn" rather than to a handshake that fails to parse.
     // The output type is still required, because the server always sends it.
     statusIds: v.optional(v.array(statusIdsPatchSchema), () => []),
+    // Optional with an empty default, on `statusIds`' terms: a skew degrades to
+    // "nobody else's pull is drawn".
+    extractions: v.optional(v.array(extractionPatchSchema), () => []),
     equipment: tolerantEquipmentSchema,
     tags: v.array(v.string()),
     // Optional with a null default, on `statusIds`' terms: a version skew
@@ -1405,6 +1439,7 @@ const serverMessageSchema = v.variant("type", [
     // else's effects are drawn" rather than to a handshake that fails to parse.
     // The output type is still required, because the server always sends it.
     statusIds: v.optional(v.array(statusIdsPatchSchema), () => []),
+    extractions: v.optional(v.array(extractionPatchSchema), () => []),
   }),
   v.object({
     type: v.literal("chat"),
@@ -1520,7 +1555,7 @@ export const GAME_SOCKET_PATH = "/online/ws";
  * This is deliberately not the build id. A client deploy that changes no
  * messages should not disconnect anybody, and most client deploys are that.
  */
-export const PROTOCOL_VERSION = 8;
+export const PROTOCOL_VERSION = 9;
 
 /**
  * How often the world says nothing, to keep a proxy from hanging up.
