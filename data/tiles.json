@@ -30641,8 +30641,8 @@
   },
   {
     "id": "stone-forge",
-    "name": "Stone Forge",
-    "height": 2,
+    "name": "Inactive Stone Forge",
+    "height": 3,
     "type": "simple",
     "kind": "prop",
     "attributes": {},
@@ -31860,6 +31860,189 @@
           }
         ]
       }
+    }
+  },
+  {
+    "id": "arcane-stone",
+    "name": "Blank Arcane Stone",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 2,
+      "y": 18
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "artifact",
+        "pile": 99
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "stone-forge-cinder",
+    "name": "Stone Forge of Cinder",
+    "height": 3,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 14,
+      "y": 2
+    },
+    "walkable": false,
+    "interactions": {
+      "transmute": {
+        "recipes": [
+          {
+            "verb": "Forge Cinder",
+            "fromTileId": "arcane-stone",
+            "toTileIds": [
+              "arcane-stone-of-cinder"
+            ]
+          }
+        ]
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 8,
+            "intensity": 1,
+            "color": "#04f7fb"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 2,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 8,
+            "intensity": 1,
+            "color": "#04f7fb"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "stone-forge-flame",
+    "name": "Stone Forge of Flame",
+    "height": 3,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 14,
+      "y": 2
+    },
+    "walkable": false,
+    "interactions": {
+      "transmute": {
+        "recipes": [
+          {
+            "verb": "Forge Flame",
+            "fromTileId": "arcane-stone",
+            "toTileIds": [
+              "arcane-stone-of-flame"
+            ]
+          }
+        ]
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 8,
+            "intensity": 1,
+            "color": "#04f7fb"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 2,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 8,
+            "intensity": 1,
+            "color": "#04f7fb"
+          }
+        }
+      ]
     }
   }
 ]
