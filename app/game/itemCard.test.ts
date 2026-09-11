@@ -214,7 +214,7 @@ describe("itemCard", () => {
     expect(plain.stats.some((row) => row.key === "def")).toBe(false);
 
     const shield = itemCard(tileWith({ ...SWORD, def: 3 }), null, NOTHING_LEARNT)!;
-    expect(statAt(shield.stats, "def").value).toBe("3 a blow");
+    expect(statAt(shield.stats, "def")).toMatchObject({ label: "def", value: "3" });
   });
 
   /**
@@ -290,8 +290,8 @@ describe("itemCard", () => {
     expect(card.effectiveness).toBeNull();
     expect(card.kind).toBe("Eat");
     expect(statAt(card.stats, "hp")).toMatchObject({
-      label: "Restores",
-      value: "5 health",
+      label: "hp",
+      value: "+5",
       tone: "good",
     });
   });
@@ -303,13 +303,12 @@ describe("itemCard", () => {
         null,
         NOTHING_LEARNT,
       )!;
-      expect(card.kind).toBe("Worn on your body");
+      // The caption on the square it goes in — see
+      // `../components/EquipmentPanel` — rather than a sentence about a body.
+      expect(card.kind).toBe("Armour");
       // The same word a shield's row uses, because they are the same field and
       // `../game/equipment`'s `wornDefence` adds them.
-      expect(statAt(card.stats, "def")).toMatchObject({
-        label: "Blocks",
-        value: "4 a blow",
-      });
+      expect(statAt(card.stats, "def")).toMatchObject({ label: "def", value: "4" });
     });
 
     /**
@@ -326,7 +325,7 @@ describe("itemCard", () => {
         null,
         NOTHING_LEARNT,
       )!;
-      expect(helm.kind).toBe("Worn on your head");
+      expect(helm.kind).toBe("Head");
     });
 
     it("has nothing to say about the hands wearing it", () => {
@@ -374,9 +373,12 @@ describe("itemCard", () => {
       null,
       NOTHING_LEARNT,
     )!;
+    // Signed rather than worded, on the terms `../render/damageNumbers`' mend
+    // sign is: a reader who cannot separate the red from the green still has
+    // the arithmetic written down.
     expect(statAt(card.stats, "hp")).toMatchObject({
-      label: "Costs",
-      value: "6 health",
+      label: "hp",
+      value: "\u22126",
       tone: "bad",
     });
   });
@@ -384,14 +386,65 @@ describe("itemCard", () => {
   describe("the kinds that are not weapons or armour", () => {
     it("gives a shield the same defence row a weapon's def gets", () => {
       const card = itemCard(tileWith({ type: "shield", def: 4 }), null, NOTHING_LEARNT)!;
-      expect(card.kind).toBe("Held in either hand");
-      expect(statAt(card.stats, "def")).toMatchObject({
-        label: "Blocks",
-        value: "4 a blow",
-      });
+      expect(card.kind).toBe("Either hand");
+      expect(statAt(card.stats, "def")).toMatchObject({ label: "def", value: "4" });
       // No share and no requirements: a shield asks nothing and is not swung.
       expect(card.effectiveness).toBeNull();
       expect(card.requirements).toEqual([]);
+    });
+
+    /**
+     * **The interval is the whole cost of a charm** — see `../lib/item`'s
+     * `CharmItem.everyMs`. One that mends a point every ten seconds and one that
+     * mends it every ten minutes are the same `hp` row and completely different
+     * things to be wearing, so a card giving the first without the second would
+     * be the more useful half of the answer missing.
+     */
+    it("says what a charm does and how often it does it", () => {
+      const card = itemCard(
+        tileWith({ type: "charm", everyMs: 10_000, hp: 1 }),
+        null,
+        NOTHING_LEARNT,
+      )!;
+
+      expect(card.kind).toBe("Charm");
+      expect(statAt(card.stats, "hp")).toMatchObject({ label: "hp", value: "+1" });
+      expect(statAt(card.stats, "every").value).toBe("10s");
+      // Nothing is asked of a body wearing one, and there is no share of it to
+      // get: a charm acts on its own.
+      expect(card.requirements).toEqual([]);
+      expect(card.effectiveness).toBeNull();
+    });
+
+    it("leaves the health row off a charm that only grants statuses", () => {
+      const luck: StatusDef = {
+        id: "luck",
+        name: "Luck",
+        description: "Fortune favours you",
+        tone: "good",
+        fromMs: 70_000,
+        toMs: 70_000,
+        stacks: false,
+        maxMs: 70_000,
+        everyMs: 1_000,
+        effects: {},
+        modifiers: {},
+        vfx: { tint: null, particles: null, light: null, taperMs: 0 },
+      };
+      const card = itemCard(
+        tileWith({ type: "charm", everyMs: 60_000, statuses: [{ id: "luck" }] }),
+        null,
+        NOTHING_LEARNT,
+        { luck },
+      )!;
+
+      // A charm that mends nothing is an ordinary thing to author, and "+0"
+      // would say it mends nothing rather than that mending is not its job.
+      expect(card.stats.some((row) => row.key === "hp")).toBe(false);
+      expect(statAt(card.stats, "every").value).toBe("1m");
+      // Its list is the consumable's, rolled by the same `inflictedBy` — so the
+      // card has to read it from the same place. See `../lib/item`'s `CharmItem`.
+      expect(card.effects).toMatchObject([{ name: "Luck", chance: null }]);
     });
 
     /**
@@ -419,8 +472,8 @@ describe("itemCard", () => {
       )!;
 
       expect(card.kind).toBe("Arcane stone");
-      expect(statAt(card.stats, "power")).toMatchObject({ label: "Harms", value: "9" });
-      expect(statAt(card.stats, "subject").value).toBe("Whoever you point at");
+      expect(statAt(card.stats, "power")).toMatchObject({ label: "dmg", value: "9" });
+      expect(statAt(card.stats, "subject").value).toBe("Your target");
       expect(statAt(card.stats, "cooldown").value).toBe("8s");
       // The requirements are reported because they decide whether it fires at
       // all, but there is no partial share: an unmet stone refuses the cast.
@@ -441,7 +494,7 @@ describe("itemCard", () => {
         NOTHING_LEARNT,
       )!;
       expect(statAt(card.stats, "power")).toMatchObject({
-        label: "Mends",
+        label: "heal",
         value: "12",
         tone: "good",
       });
@@ -543,7 +596,7 @@ describe("itemCard", () => {
       NOTHING_LEARNT,
     )!;
     expect(statAt(card.stats, "slots").value).toBe("1 / 4");
-    expect(statAt(card.stats, "worn").value).toBe("On your back");
+    expect(statAt(card.stats, "worn").value).toBe("Back");
   });
 
   describe("what an item leaves behind", () => {
@@ -675,6 +728,12 @@ describe("itemCard", () => {
     expect(card.speech).toContain("One hand — Sharp");
     expect(card.speech).toContain("Requires Sharp 20, you have 5");
     expect(card.speech).toContain(`You get ${card.effectiveness}% out of it`);
+    // The word, not the column heading the card is drawn with: "dmg" and
+    // "every" are captions read against the figure beside them, and neither
+    // survives being read out on its own.
+    expect(card.speech).toContain("Damage: ");
+    expect(card.speech).toContain("A blow every: ");
+    expect(card.speech).not.toContain("dmg");
     // The item's own figure as a clause, because a screen reader reads "(12)" as
     // "twelve" and the comparison disappears.
     expect(card.speech).toContain("where the item's own is 12");

@@ -10,6 +10,7 @@ import {
   type ArcaneStoneItem,
   type ArmorItem,
   type ArmorSlot,
+  type CharmItem,
   type ConsumableItem,
   type ContainerItem,
   type ItemDef,
@@ -82,6 +83,15 @@ export type ItemCardTone = "plain" | "good" | "bad";
 export type ItemCardStat = {
   /** Stable across renders and across items, so a list can key on it. */
   key: string;
+  /**
+   * The attribute, in as few characters as it reads in — "dmg", "def", "hit".
+   *
+   * Short because the value beside it already carries the answer. A row reading
+   * "Blocks — 1 a blow" spends a verb and a noun getting one number across, and
+   * six rows written that way are a paragraph the reader has to take apart
+   * before they can compare two swords. The pair is a stat block, not a
+   * sentence. {@link spoken} is where the sentence went.
+   */
   label: string;
   /** What the body asking gets. */
   value: string;
@@ -93,6 +103,15 @@ export type ItemCardStat = {
    * would invite the reader to look for a difference that is not there.
    */
   base?: string;
+  /**
+   * {@link label} as a word, for the route that reads the card aloud.
+   *
+   * Absent wherever the label is already one, which is most rows — "reach" and
+   * "spread" survive being spoken. It exists for the abbreviations that do not:
+   * "def" read out is not the word anybody says, and "every" on its own is not
+   * a clause. See {@link ItemCard.speech}.
+   */
+  spoken?: string;
   tone: ItemCardTone;
 };
 
@@ -177,8 +196,8 @@ export type ItemCard = {
    */
   elements: Element[];
   /**
-   * What kind of thing this is, in the terms the panel puts it in: "Main hand —
-   * Sharp", "Off hand — Blunt", "Food", "Container".
+   * What kind of thing this is, in the terms the panel puts it in: "One hand —
+   * Sharp", "Armour", "Either hand", "Container".
    *
    * Null for an item whose block does not parse, which is the same silence the
    * rest of this structure keeps about one.
@@ -405,14 +424,16 @@ function weaponStats(
   const stats: ItemCardStat[] = [
     {
       key: "damage",
-      label: "Damage",
+      label: "dmg",
+      spoken: "damage",
       value: `${yours.damage}`,
       ...(yours.damage === own.damage ? {} : { base: `${own.damage}` }),
       tone: toneOf(yours.damage, own.damage),
     },
     {
       key: "speed",
-      label: "Blow every",
+      label: "every",
+      spoken: "a blow every",
       value: seconds(yourIntervalMs),
       ...(yourIntervalMs === ownIntervalMs ? {} : { base: seconds(ownIntervalMs) }),
       // Inverted against every other row: a shorter wait is the better
@@ -429,20 +450,21 @@ function weaponStats(
       // is what the Arena is for. This figure is clamped to the band every
       // chance in a fight is held to, so a master and a grandmaster both read
       // 95% here and differ only against a real defender.
-      label: "Chance to land",
+      label: "hit",
+      spoken: "chance to land",
       value: `${yourHit}%`,
       ...(yourHit === ownHit ? {} : { base: `${ownHit}%` }),
       tone: toneOf(yourHit, ownHit),
     },
     {
       key: "spread",
-      label: "Damage spread",
+      label: "spread",
       // Untouched by mastery — how erratic a weapon is belongs to the weapon,
       // so there is never a second figure to compare against.
       value: `±${weapon.variance}%`,
       tone: "plain",
     },
-    { key: "reach", label: "Reach", value: reachLine(weapon), tone: "plain" },
+    { key: "reach", label: "reach", value: reachLine(weapon), tone: "plain" },
   ];
 
   // Only where there is any. Defence is the one number most weapons leave at
@@ -451,11 +473,12 @@ function weaponStats(
   if (weapon.def > 0) {
     stats.push({
       key: "def",
-      label: "Blocks",
+      label: "def",
+      spoken: "defence",
       // The weapon's own, never `yours.def` — which now carries the body's
       // Toughness as well (see `../lib/battler`'s `defFrom`) and would have a
       // sword in a veteran's hand claiming credit for their ribs.
-      value: `${weapon.def} a blow`,
+      value: `${weapon.def}`,
       tone: "good",
     });
   }
@@ -484,8 +507,9 @@ function armorStats(armor: ArmorItem): ItemCardStat[] {
       // The same word a shield's row uses, so a thing you hold and a thing you
       // wear read alike — they are the same field and they add up. See
       // `./equipment`'s `wornDefence`, which is where the adding happens.
-      label: "Blocks",
-      value: `${armor.def} a blow`,
+      label: "def",
+      spoken: "defence",
+      value: `${armor.def}`,
       tone: "good",
     },
   ];
@@ -511,17 +535,66 @@ function resistsFrom(armor: ArmorItem): ItemCardResist[] {
   return rows.sort((a, b) => b.total - a.total);
 }
 
+/** A minus that matches the figures beside it, rather than a hyphen. */
+const MINUS = "\u2212";
+
+/**
+ * What swallowing this moves, signed.
+ *
+ * **The sign rather than a verb**, and it is doing the work "Restores" and
+ * "Costs" used to: a reader who cannot separate the green from the red sees a
+ * bare figure, and a bare figure beside a loaf could be either. The same
+ * argument, and the same arithmetic, as `../render/damageNumbers`' `MEND_SIGN`.
+ */
 function consumableStats(consumable: ConsumableItem): ItemCardStat[] {
   if (consumable.hp === 0) return [];
   const healing = consumable.hp > 0;
   return [
     {
       key: "hp",
-      label: healing ? "Restores" : "Costs",
-      value: `${Math.abs(consumable.hp)} health`,
+      label: "hp",
+      spoken: "health",
+      value: `${healing ? "+" : MINUS}${Math.abs(consumable.hp)}`,
       tone: healing ? "good" : "bad",
     },
   ];
+}
+
+/**
+ * What a charm does, and how often it does it.
+ *
+ * **The interval is not decoration here, it is the whole cost of the thing** —
+ * see `../lib/item`'s `CharmItem.everyMs`. A trinket mending one point every ten
+ * seconds and one mending it every ten minutes are the same `hp` row and
+ * completely different objects to be wearing.
+ *
+ * The health row is dropped where there is none, because a charm that only
+ * grants statuses is an ordinary thing to author and a row of `+0` would say it
+ * mends nothing rather than that mending is not what it is for. The statuses
+ * themselves are the effects list, not a row.
+ */
+function charmStats(charm: CharmItem): ItemCardStat[] {
+  const stats: ItemCardStat[] = [];
+  if (charm.hp) {
+    // Signed like a consumable's, though a charm's may only ever be positive:
+    // the two rows sit under the same heading on a body's worth of kit, and one
+    // of them wearing its sign would read as the other having lost it.
+    stats.push({
+      key: "hp",
+      label: "hp",
+      spoken: "health",
+      value: `+${charm.hp}`,
+      tone: "good",
+    });
+  }
+  stats.push({
+    key: "every",
+    label: "every",
+    spoken: "acts every",
+    value: seconds(charm.everyMs),
+    tone: "plain",
+  });
+  return stats;
 }
 
 function containerStats(
@@ -532,7 +605,7 @@ function containerStats(
   return [
     {
       key: "slots",
-      label: "Holds",
+      label: "slots",
       // What is in *this* one against what it takes, because a four-slot bag
       // with one thing in it and a one-slot bag that is full are the same
       // contents and completely different situations to be in — the same fact
@@ -542,8 +615,11 @@ function containerStats(
     },
     {
       key: "worn",
-      label: "Worn",
-      value: container.equippable ? "On your back" : "Not worn — opened where it lies",
+      label: "worn",
+      // The square it goes in, or nothing — which is the whole answer for a
+      // crate: a container that cannot be worn is opened where it lies, and
+      // saying so was the row explaining its own empty half.
+      value: container.equippable ? "Back" : "No",
       tone: "plain",
     },
   ];
@@ -568,10 +644,10 @@ function kindOf(item: ItemDef): string {
     // the card and the editor field that authored it use one spelling.
     return `${hands} — ${MASTERY_LABELS[item.mastery]}`;
   }
-  if (item.type === "armor") return `Worn ${ARMOR_SLOT_LABELS[armorSlotOf(item)]}`;
-  if (item.type === "shield") return "Held in either hand";
+  if (item.type === "armor") return ARMOR_SLOT_LABELS[armorSlotOf(item)];
+  if (item.type === "shield") return "Either hand";
   if (item.type === "stone") return "Arcane stone";
-  if (item.type === "charm") return "Charm — works on its own";
+  if (item.type === "charm") return "Charm";
   if (item.type === "artifact") return "Carried";
   if (item.type === "consumable") return consumeVerb(item);
   return "Container";
@@ -582,14 +658,18 @@ function kindOf(item: ItemDef): string {
  *
  * The player's word rather than the stored key. The chest square is `armor` on
  * the wire because it was the only one when it was named — see `../lib/item`'s
- * `ARMOR_SLOTS` — and a card reading "Worn — armor" would be showing a field
- * name.
+ * `ARMOR_SLOTS` — and a card reading "armor" would be showing a field name.
+ *
+ * **The square's own caption**, matching `../components/EquipmentPanel`'s
+ * squares exactly. A card that said "worn on your body" while the square it
+ * goes in said "Armour" made the reader match a sentence to a picture; the
+ * caption is already the shortest true answer to what kind of thing this is.
  */
 const ARMOR_SLOT_LABELS: Record<ArmorSlot, string> = {
-  head: "on your head",
-  armor: "on your body",
-  footwear: "on your feet",
-  charm: "as a charm",
+  head: "Head",
+  armor: "Armour",
+  footwear: "Footwear",
+  charm: "Charm",
 };
 
 /** What the list of statuses an item hands over should be called. */
@@ -621,6 +701,10 @@ function demandsOf(item: ItemDef): Masteries | undefined {
  */
 function grantsOn(item: ItemDef): readonly (StatusGrant & { chance?: number })[] | undefined {
   if (item.type === "weapon" || item.type === "consumable") return item.statuses;
+  // A charm's list is the consumable's, validated by the consumable's schema
+  // and rolled by the same `inflictedBy` — see `../lib/item`'s `CharmItem`. Its
+  // cadence is the `every` row rather than part of the heading.
+  if (item.type === "charm") return item.statuses;
   if (item.type === "stone" && item.effect.kind === "bolt") return item.effect.statuses;
   return undefined;
 }
@@ -661,6 +745,7 @@ function statsFor(
   if (item.type === "shield") return shieldStats(item);
   if (item.type === "stone") return stoneStats(item);
   if (item.type === "consumable") return consumableStats(item);
+  if (item.type === "charm") return charmStats(item);
   if (item.type === "container") return containerStats(item, instance);
   // An artifact is the kind with no fields at all — a torch, a key, a shard —
   // and everything it does it does by being a placement: its light, its sprite,
@@ -678,7 +763,13 @@ function statsFor(
  */
 function shieldStats(shield: ShieldItem): ItemCardStat[] {
   return [
-    { key: "def", label: "Blocks", value: `${shield.def} a blow`, tone: "good" },
+    {
+      key: "def",
+      label: "def",
+      spoken: "defence",
+      value: `${shield.def}`,
+      tone: "good",
+    },
   ];
 }
 
@@ -708,21 +799,22 @@ function stoneStats(stone: ArcaneStoneItem): ItemCardStat[] {
       const mending = damage < 0;
       stats.push({
         key: "power",
-        label: mending ? "Mends" : "Harms",
+        label: mending ? "heal" : "dmg",
+        ...(mending ? {} : { spoken: "damage" }),
         value: `${Math.abs(damage)}`,
         tone: mending ? "good" : "plain",
       });
     }
     stats.push({
       key: "subject",
-      label: "Lands on",
-      value: on === "caster" ? "You" : "Whoever you point at",
+      label: "hits",
+      value: on === "caster" ? "You" : "Your target",
       tone: "plain",
     });
     if (variance > 0) {
       stats.push({
         key: "spread",
-        label: "Spread",
+        label: "spread",
         value: `±${variance}%`,
         tone: "plain",
       });
@@ -730,21 +822,23 @@ function stoneStats(stone: ArcaneStoneItem): ItemCardStat[] {
   } else {
     stats.push({
       key: "conjure",
-      label: "Puts",
-      value: "Something in a cell",
+      label: "puts",
+      // Not which tile: that is an authoring detail, and the player finds out
+      // by casting.
+      value: "A tile",
       tone: "plain",
     });
   }
 
   stats.push({
     key: "cooldown",
-    label: "Ready again in",
+    label: "cooldown",
     value: seconds(stone.cooldownMs),
     tone: "plain",
   });
   stats.push({
     key: "reach",
-    label: "Reach",
+    label: "reach",
     value: reachLine(stone),
     tone: "plain",
   });
@@ -811,6 +905,17 @@ function clause(line: string): string {
   return line.replace(/[.\s]+$/, "");
 }
 
+/**
+ * A label written for a column, at the start of a sentence.
+ *
+ * The stat rows are captions — lower case, abbreviated — because they are read
+ * against the figure beside them. {@link speak} joins its clauses with full
+ * stops, so each one begins a sentence and has to look like it.
+ */
+function sentenceCase(label: string): string {
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 /** The card as sentences, in the order it is drawn. */
 function speak(card: ItemCard): string {
   const lines: string[] = [
@@ -822,18 +927,20 @@ function speak(card: ItemCard): string {
   }
   if (card.description) lines.push(card.description);
   for (const stat of card.stats) {
+    // The word rather than the abbreviation on the card: "def" is a column
+    // heading, and a column heading read out loud is not the word anybody says.
+    const said = sentenceCase(stat.spoken ?? stat.label);
     // The item's own figure spoken as a clause rather than as a bracket, since
     // a screen reader reads "(8)" as "eight" and the comparison disappears.
     lines.push(
       stat.base
-        ? `${stat.label}: ${stat.value}, where the item's own is ${stat.base}`
-        : `${stat.label}: ${stat.value}`,
+        ? `${said}: ${stat.value}, where the item's own is ${stat.base}`
+        : `${said}: ${stat.value}`,
     );
   }
   for (const row of card.resists) {
-    // The flat number restated rather than looked up off the stat row, which is
-    // a formatted string ("4 a blow") and would read as "lose 7 rather than 4 a
-    // blow" the moment it was dropped into this sentence.
+    // The flat number restated rather than looked up off the stat row, which
+    // carries the reader's own arithmetic and a label written for a column.
     lines.push(
       `${MASTERY_LABELS[row.mastery]} blows lose ${row.total} rather than ${row.total - row.extra}`,
     );
