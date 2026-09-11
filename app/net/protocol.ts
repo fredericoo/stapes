@@ -1579,5 +1579,14 @@ export const PROTOCOL_VERSION_PARAM = "v";
  */
 export const CLOSE_OUTDATED_CLIENT = 4001;
 
+/**
+ * Close code for a socket closed because the same actor connected again.
+ *
+ * One connection per actor, and the newest wins. The client must not reconnect
+ * on this code: the connection that replaced it would be replaced in turn, and
+ * two tabs doing that to each other retry for ever.
+ */
+export const CLOSE_REPLACED = 4002;
+
 /** Cookie carrying the actor id, minted by the /online loader. */
 export const ACTOR_COOKIE = "stapes_uid";

@@ -60,6 +60,7 @@ import type {
 import { MAX_LEVEL, MIN_LEVEL, parseCoordKey } from "../app/lib/types";
 import { CHAT_MIN_INTERVAL_MS, sanitizeChatText } from "../app/net/chat";
 import {
+  CLOSE_REPLACED,
   parseClientMessage,
   type CarriedLightsPatch,
   type StatusIdsPatch,
@@ -805,10 +806,10 @@ export class GameServer {
   /**
    * The chunks each connected actor has been sent, by actor id.
    *
-   * Keyed by actor rather than by socket because two tabs are one person with
-   * one body — they stand in the same place and are owed the same ground, and
-   * a set per socket would compute it twice. Dropped when their last socket
-   * goes, in {@link webSocketClose}.
+   * Keyed by actor rather than by socket because it is the body that stands
+   * somewhere and is owed ground, and an actor has one socket at a time — see
+   * {@link displaceSockets}. Dropped when that socket goes, in
+   * {@link webSocketClose}.
    */
   private readonly subscribed = new Map<string, Set<string>>();
   /** Where the world grows things back, by spawn-point key. */
@@ -1848,6 +1849,7 @@ export class GameServer {
    * arriving in the gap are safe: {@link webSocketMessage} loads for itself.
    */
   async join(socket: GameSocket, actorId: string): Promise<void> {
+    this.displaceSockets(actorId);
     this.ctx.acceptWebSocket(socket);
     socket.serializeAttachment({ actorId } satisfies Attachment);
 
@@ -1871,17 +1873,37 @@ export class GameServer {
   }
 
   /**
+   * Close every connection this actor already has, ahead of a new one.
+   *
+   * One connection per actor, and the newest wins: it is the tab somebody just
+   * opened or reloaded. Identity is a cookie, so a second tab is the same
+   * person, and it gets the body rather than sharing it.
+   *
+   * **The attachment is cleared before the close**, not left to the close
+   * handler, which runs later. Until it does, `getWebSockets` still lists the
+   * socket, and with an id on it the head count, {@link rebirth} and
+   * {@link hasSocket} would all still take it for this actor. With none,
+   * {@link dropSocket} ignores its close when it lands — correct, because the
+   * actor has not gone anywhere.
+   */
+  private displaceSockets(actorId: string) {
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (attachment?.actorId !== actorId) continue;
+      ws.serializeAttachment(null);
+      ws.close(CLOSE_REPLACED, "replaced");
+    }
+  }
+
+  /**
    * How many people are in the world.
    *
-   * Distinct actor ids rather than sockets: identity is a cookie, so two tabs
-   * are one person with one body on the board, and counting connections would
-   * put them on the bar twice. Counted from the sockets rather than from the
-   * session, because the session's actors include the creatures living on the
-   * map and nothing there tells a deer from a player.
+   * Counted from the sockets' actor ids rather than from the session, because
+   * the session's actors include the creatures living on the map and nothing
+   * there tells a deer from a player.
    *
    * @param excluding the socket on its way out. A closing connection is still
-   *   listed here, and the person it carried has already gone — though their id
-   *   stays counted if they still have another tab open.
+   *   listed here, and the person it carried has already gone.
    */
   private playerCount(excluding?: GameSocket): number {
     const ids = new Set<string>();
@@ -2722,9 +2744,9 @@ export class GameServer {
     // `actorIds` gate in {@link webSocketMessage}. There is no recovery from
     // that short of another reload, which races exactly the same way.
     //
-    // Two tabs are the ordinary version of the same thing: identity is a
-    // cookie, so they are one person with one body, and shutting one must not
-    // take the body away from the other.
+    // {@link displaceSockets} now clears the old socket's attachment when the
+    // new one joins, so that late close returns above. This stays as the check
+    // that the actor has really gone, rather than trusting that it always will.
     if (this.hasSocket(attachment.actorId, ws)) return;
 
     // Before the despawn, which is what takes their tile — and with it the only
@@ -3524,12 +3546,9 @@ export class GameServer {
    * first — this exists so that coming back does not mean losing the tab. What
    * it costs over a reload is one `hello`, which a reload was paying anyway.
    *
-   * **Answered with a whole `hello`, to every socket this player has.** A
-   * silenced socket has been receiving nothing for as long as its owner sat on
-   * the death screen, so its map is arbitrarily stale and there is no diff that
-   * would catch it up. And two tabs are one person with one body: they died
-   * together, so they come back together, rather than leaving the second one
-   * watching a frozen board it will never be sent a patch for.
+   * **Answered with a whole `hello`.** A silenced socket has been receiving
+   * nothing for as long as its owner sat on the death screen, so its map is
+   * arbitrarily stale and there is no diff that would catch it up.
    *
    * Ignored unless they are actually dead. A live player asking for this would
    * otherwise be handed a second seating — harmless in itself, since `spawn`
