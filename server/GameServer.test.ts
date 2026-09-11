@@ -1507,6 +1507,32 @@ describe("stepping", () => {
     expect(await actorX("alice")).toBe(0);
   });
 
+  /**
+   * A browser turns from a cell its steps have already reached, so the turn
+   * lands on the server behind the step, not before it — and must outlast that
+   * step landing. It used to be applied on arrival and then undone: the step
+   * started after it and landed facing the way it walked, which is what put a
+   * flame beside where the player was facing.
+   */
+  it("keeps a turn sent straight after a step, once the step lands", async () => {
+    const { ws } = await connect("alice");
+    step(ws, 0, "e");
+    ws.send(JSON.stringify({ type: "face", direction: "n" }));
+
+    await new Promise((resolve) => setTimeout(resolve, WALK_DURATION_MS + 200));
+    let facing: string | undefined;
+    await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as {
+        session: { actorSnapshots(): { id: string; direction: string }[] } | null;
+      };
+      facing = internals.session
+        ?.actorSnapshots()
+        .find((a) => a.id === "alice")?.direction;
+    });
+    expect(await actorX("alice")).toBe(1);
+    expect(facing).toBe("n");
+  });
+
   it("refuses a step further ahead than it will hold", async () => {
     const { ws } = await connect("alice");
     // Three in a burst, before any tick can take one: two fit in the queue and
@@ -3279,9 +3305,9 @@ describe("dying and coming back", () => {
     while (Date.now() < deadline && !queued) {
       queued = await runInDurableObject(stub(), (instance: GameServer) => {
         const internals = instance as unknown as {
-          queuedSteps: Map<string, unknown[]>;
+          queuedIntents: Map<string, unknown[]>;
         };
-        return (internals.queuedSteps.get("alice")?.length ?? 0) > 0;
+        return (internals.queuedIntents.get("alice")?.length ?? 0) > 0;
       });
       if (!queued) await wait(10);
     }
@@ -3296,11 +3322,11 @@ describe("dying and coming back", () => {
 
     await runInDurableObject(stub(), (instance: GameServer) => {
       const internals = instance as unknown as {
-        queuedSteps: Map<string, unknown[]>;
+        queuedIntents: Map<string, unknown[]>;
       };
       // Dropped rather than left to rot: a step addresses a body, and there is
       // no body to move.
-      expect(internals.queuedSteps.has("alice")).toBe(false);
+      expect(internals.queuedIntents.has("alice")).toBe(false);
     });
   });
 

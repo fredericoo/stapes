@@ -30,6 +30,7 @@ import {
   wornInstances,
 } from "../app/game/equipment";
 import { DEFAULT_FACING } from "../app/game/actors";
+import type { CastSquare } from "../app/game/casting";
 import { resolveRespawn } from "../app/lib/interactions";
 import { minutesOfDayAt } from "../app/lib/clock";
 import { masteryXpBlockSchema, type MasteryXp } from "../app/lib/mastery";
@@ -238,6 +239,16 @@ export const CHAT_LOG_MAX_ROWS = 5_000;
  * itself grow.
  */
 const MAX_QUEUED_STEPS = 2;
+
+/**
+ * How long one actor's queue may get once turns and casts are counted too.
+ *
+ * Those only queue while a step is waiting, and {@link MAX_QUEUED_STEPS} keeps
+ * that short, so an honest client has one or two of them here at most. The cap
+ * is for the same reason that one exists: a client must not be able to make the
+ * queue grow.
+ */
+const MAX_QUEUED_INTENTS = 8;
 
 /** Key prefix under which one actor's last known position is kept. */
 const POSITION_KEY_PREFIX = "pos:";
@@ -495,6 +506,24 @@ type QueuedStep = {
 };
 
 /**
+ * Something a client did, waiting its turn behind the steps it sent first.
+ *
+ * A turn and a cast are both done *from where a body stands and which way it
+ * faces*, and a predicting client decides both from a cell its steps have
+ * already reached. Honoured the moment they arrived, they overtook those steps:
+ * a flame cast while walking was laid in front of a cell the caster had already
+ * left, which is the cell they were walking into. Queued, they happen in the
+ * order they were sent, which is the order the player saw them happen.
+ */
+type QueuedIntent =
+  | ({ kind: "step" } & QueuedStep)
+  | { kind: "face"; direction: Direction }
+  | { kind: "cast"; square: CastSquare };
+
+/** A queued turn or cast — whatever is not a step. @see QueuedIntent */
+type QueuedAction = Exclude<QueuedIntent, { kind: "step" }>;
+
+/**
  * A world that has already been run.
  *
  * The spawn point travels with the map because it cannot be recovered from it:
@@ -629,8 +658,8 @@ export class GameServer {
   /** Last broadcast status ids per actor, joined. @see diffStatusIds */
   private sentStatusIds = new Map<string, string>();
   private events: MotionEvent[] = [];
-  /** Steps clients say they have taken, oldest first, per actor. */
-  private readonly queuedSteps = new Map<string, QueuedStep[]>();
+  /** Steps, turns and casts clients have sent, oldest first, per actor. */
+  private readonly queuedIntents = new Map<string, QueuedIntent[]>();
   private timer: ReturnType<typeof setInterval> | null = null;
   /** Consecutive throwing ticks, for the rate-limited report. See {@link tickSafely}. */
   private consecutiveTickFailures = 0;
@@ -1900,7 +1929,7 @@ export class GameServer {
     if (message.type === "step") {
       this.queueStep(actorId, message);
     } else if (message.type === "face") {
-      session.faceActor(actorId, message.direction);
+      this.queueAction(actorId, { kind: "face", direction: message.direction });
     } else if (message.type === "target") {
       // Not validated here beyond the schema. Whether the named actor exists,
       // is a battler, or is anywhere near is re-asked on every swing — it has to
@@ -1913,7 +1942,11 @@ export class GameServer {
       // client that made the message up gets the same answer. The equipment
       // message flushed below is the only confirmation there is, which is why
       // this sits in the chain rather than returning early.
-      session.cast(message.square, actorId);
+      //
+      // Behind any step this client sent before it, for the reason on
+      // {@link QueuedIntent}: where a cast lands depends on where the caster is
+      // standing, and the client cast from a cell its steps had already reached.
+      this.queueAction(actorId, { kind: "cast", square: message.square });
     } else if (message.type === "attackMode") {
       // The wake below matters more here than for a target: a world at rest
       // stays at rest while somebody merely points at a deer, and turning this
@@ -2269,16 +2302,51 @@ export class GameServer {
    * the moment matters.
    */
   private queueStep(actorId: string, step: QueuedStep) {
-    const queue = this.queuedSteps.get(actorId) ?? [];
-    if (queue.length >= MAX_QUEUED_STEPS) {
+    const queue = this.queuedIntents.get(actorId) ?? [];
+    const waiting = queue.filter((intent) => intent.kind === "step").length;
+    if (waiting >= MAX_QUEUED_STEPS || queue.length >= MAX_QUEUED_INTENTS) {
       // Further ahead than any honest client gets. Refusing the newest rather
       // than dropping the oldest keeps what is queued a contiguous run of steps,
       // which is the only thing the client can roll back cleanly.
       this.rejectStep(actorId, step.seq);
       return;
     }
-    queue.push(step);
-    this.queuedSteps.set(actorId, queue);
+    queue.push({
+      kind: "step",
+      seq: step.seq,
+      direction: step.direction,
+      preferDescend: step.preferDescend,
+    });
+    this.queuedIntents.set(actorId, queue);
+  }
+
+  /**
+   * Turn or cast now, or behind the steps this client sent before it.
+   *
+   * Now whenever nothing is waiting, which is nearly always, so a turn on the
+   * spot costs no tick. A body that is mid-step with nothing queued behind it is
+   * already walking into the cell the client is drawing, and the session
+   * resolves both a turn and a cast against that walk. @see GameSession's
+   * `faceActor` and `casterPointOf`
+   *
+   * Past the cap it is dropped rather than refused: neither message has a reply
+   * to carry a refusal in, and a client that far ahead is not an honest one.
+   */
+  private queueAction(actorId: string, action: QueuedAction) {
+    const queue = this.queuedIntents.get(actorId);
+    if (!queue) {
+      this.applyAction(actorId, action);
+      return;
+    }
+    if (queue.length >= MAX_QUEUED_INTENTS) return;
+    queue.push(action);
+  }
+
+  private applyAction(actorId: string, action: QueuedAction) {
+    const session = this.session;
+    if (!session) return;
+    if (action.kind === "face") session.faceActor(actorId, action.direction);
+    else session.cast(action.square, actorId);
   }
 
   /**
@@ -2300,7 +2368,7 @@ export class GameServer {
     const session = this.session;
     if (!session) return;
 
-    for (const [actorId, queue] of this.queuedSteps) {
+    for (const [actorId, queue] of this.queuedIntents) {
       // **A queued step can outlive the body that asked for it.** The step is
       // taken from the wire on one tick and applied on the next, and in between
       // its owner can die — walking into a fire is exactly that, with a step
@@ -2312,27 +2380,48 @@ export class GameServer {
       // Dropping the queue is the whole correction: steps address a body, and
       // there is no longer a body to move.
       if (!session.hasActor(actorId)) {
-        this.queuedSteps.delete(actorId);
+        this.queuedIntents.delete(actorId);
         continue;
       }
 
-      while (queue.length > 0) {
-        const step = queue[0]!;
-        const outcome = session.requestStep(actorId, step.direction, {
-          preferDescend: step.preferDescend,
-        });
-        // Still walking off the last one. Everything behind it waits too —
-        // steps are a sequence, and taking them out of order would walk the
-        // actor somewhere neither side asked for.
-        if (outcome === "later") break;
+      this.drainIntents(session, actorId, queue);
+      if (queue.length === 0) this.queuedIntents.delete(actorId);
+    }
+  }
 
+  /**
+   * Take what one actor has waiting, in order, until a step has to wait.
+   *
+   * A turn or a cast never waits on its own account — it only waits for the
+   * steps in front of it. So a cast queued behind a step is honoured in the same
+   * pass that starts that step, cast from the cell the step is walking into,
+   * which is where the client was standing when it pressed.
+   */
+  private drainIntents(
+    session: GameSession,
+    actorId: string,
+    queue: QueuedIntent[],
+  ) {
+    while (queue.length > 0) {
+      const intent = queue[0]!;
+      if (intent.kind !== "step") {
         queue.shift();
-        if (outcome === "refused") this.rejectStep(actorId, step.seq);
-        // Started: the actor is now busy, so anything left waits for the tick
-        // that finishes this walk.
-        if (outcome === "started") break;
+        this.applyAction(actorId, intent);
+        continue;
       }
-      if (queue.length === 0) this.queuedSteps.delete(actorId);
+
+      const outcome = session.requestStep(actorId, intent.direction, {
+        preferDescend: intent.preferDescend,
+      });
+      // Still walking off the last one. Everything behind it waits too —
+      // steps are a sequence, and taking them out of order would walk the
+      // actor somewhere neither side asked for. A step started just above
+      // answers this for the next one, which is what holds it to the tick
+      // that finishes the walk.
+      if (outcome === "later") return;
+
+      queue.shift();
+      if (outcome === "refused") this.rejectStep(actorId, intent.seq);
     }
   }
 
@@ -2574,7 +2663,7 @@ export class GameServer {
     // returning tab is a fresh `hello` and a fresh subscription, so keeping it
     // would be a row per visitor the world has ever had.
     this.subscribed.delete(attachment.actorId);
-    this.queuedSteps.delete(attachment.actorId);
+    this.queuedIntents.delete(attachment.actorId);
     this.lastSaidAt.delete(attachment.actorId);
     // Their last socket has gone, so there is nothing left to be silent
     // towards. `dead` is deliberately *not* cleared beside it — that is the
@@ -2750,7 +2839,7 @@ export class GameServer {
     // Every queued step was aimed at a board that no longer exists. They are
     // dropped rather than refused: the `hello` below resets each client's
     // prediction wholesale, so there is nothing left to roll back.
-    this.queuedSteps.clear();
+    this.queuedIntents.clear();
     this.events = [];
 
     // Everyone still connected re-enters the new world — at its spawn point,
@@ -2971,7 +3060,7 @@ export class GameServer {
     this.sentHp.clear();
     this.sentCarriedLights.clear();
     this.sentStatusIds.clear();
-    this.queuedSteps.clear();
+    this.queuedIntents.clear();
     this.lastSaidAt.clear();
     this.events = [];
     // A death still waiting to be announced belongs to the world being thrown
@@ -3057,7 +3146,7 @@ export class GameServer {
     // A world with steps still waiting is not at rest, whatever the board says:
     // stopping the tick loop here would leave them unclaimed until the next
     // message woke it, and the actor would stand still through a held key.
-    if (this.queuedSteps.size > 0) return;
+    if (this.queuedIntents.size > 0) return;
     if (this.timer !== null) {
       clearInterval(this.timer);
       this.timer = null;
@@ -3251,7 +3340,7 @@ export class GameServer {
       this.sentMotion.delete(actorId);
       this.announcedActors.delete(actorId);
       this.sentHp.delete(actorId);
-      this.queuedSteps.delete(actorId);
+      this.queuedIntents.delete(actorId);
       // Or the map grows a row per body the world has ever killed, and a world
       // that respawns creatures kills a great many.
       this.writtenActors.delete(actorId);

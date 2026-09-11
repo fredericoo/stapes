@@ -2820,13 +2820,23 @@ step — gravity needs it — so a flame can still be laid over a drop.
 
 #### A cast is resolved from where the caster is arriving
 
-A flame landed on its own caster when the server's idea of where they stood
-lagged the browser's:
+Three things made a flame land on its own caster, or beside where they were
+facing, and each is a way the server's idea of the caster lagged the browser's:
 
 - **A step commits only when it lands.** Mid-step the board still holds the
   body in the cell it is leaving, so the cell "in front" was the cell being
   entered. `casterPointOf` (session) and `casterPoint` (browser) both cast from
   the walk's destination instead.
+- **A cast overtook the steps sent before it.** Steps queue and are taken on a
+  tick; a cast was honoured on arrival, so a server one step behind cast from
+  one cell back. `face` and `cast` now join the same per-actor queue
+  (`queuedIntents` in `server/GameServer.ts`) and are honoured in the order they
+  were sent, immediately when nothing is waiting.
+- **A turn made mid-step was undone by the step landing**, because `commitWalk`
+  writes the walk's direction onto the body. A predicting browser has usually
+  landed that step already, so the turn it sends arrives mid-walk on the
+  server. `faceActor` now writes the turn onto the walk too — in place, since a
+  new walk object is announced as a new step.
 
 ### The cooldown is per stone, durable, and locks the square
 

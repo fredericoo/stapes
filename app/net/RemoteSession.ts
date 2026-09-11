@@ -1882,9 +1882,11 @@ export class RemoteSession implements PlaySession {
    * Where this client casts from: where it stands, or the cell its own walk is
    * carrying it into.
    *
-   * The same answer `GameSession.casterPointOf` gives. The cell the board still
-   * holds is the one being left, and a flame laid in front of *that* is laid
-   * where the body is going.
+   * The same answer `GameSession.casterPointOf` gives, and it is the one the
+   * server will reach too: a cast is queued behind every step this client sent
+   * before it, so by the time it is honoured the server's body is walking into
+   * the same cell this one is. The cell the board still holds is the one being
+   * left, and a flame laid in front of *that* is laid where the body is going.
    */
   private casterPoint(from: ActorLocation, walkingTo: Coord | null): CasterPoint {
     const facing = actorDirection(from);

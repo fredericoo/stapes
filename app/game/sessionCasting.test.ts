@@ -1030,6 +1030,29 @@ describe("conjuring", () => {
     run(play, TICKS_PER_SECOND);
     expect(play.statusesOf("local")).toEqual([]);
   });
+
+  /**
+   * A turn that reaches the session mid-step used to be undone by the step
+   * landing, which writes the walk's direction onto the body. A browser has
+   * usually landed that step already, so the turn is the one it drew — and the
+   * flame went wherever the server still thought it was facing.
+   */
+  it("keeps a turn made mid-step once the step lands", () => {
+    const play = session({ weapon: "flame-stone" });
+    play.requestStep("local", "e");
+    play.faceActor("local", "w");
+    run(play, TICKS_PER_SECOND);
+
+    const player = getStack(play.getMap(), 1, 0, 0).find(
+      (p) => p.tileId === "player",
+    );
+    expect(player?.direction).toBe("w");
+
+    expect(play.cast("weapon")).toBe(true);
+    expect(getStack(play.getMap(), 0, 0, 0).map((p) => p.tileId)).toContain(
+      "conjured-flame",
+    );
+  });
 });
 
 /**

@@ -8416,9 +8416,24 @@ export class GameSession implements PlaySession {
     return started ? "started" : "refused";
   }
 
-  /** Turn an actor on the spot, without asking them to go anywhere. */
+  /**
+   * Turn an actor on the spot, without asking them to go anywhere.
+   *
+   * **A turn made mid-walk is the facing the walk lands with.** `commitWalk`
+   * writes the walk's direction onto the body when it arrives, so without this a
+   * turn that reached the server during a step was undone by the step landing.
+   * That is the common case, not an edge: a predicting browser has already
+   * landed the step it is turning after. Turned into a wall with the server
+   * still facing the last way it walked, a flame went there instead.
+   *
+   * Written onto the walk in place rather than by replacing it, because the
+   * walk's identity is what says a new one started — a fresh object would be
+   * announced to every client as a second step. @see GameServer's
+   * `collectMotionEvents`
+   */
   faceActor(id: string, direction: Direction) {
     const actor = this.actor(id);
+    if (actor.walk) actor.walk.direction = direction;
     const loc = this.locate(actor);
     this.map = setEntityDirection(
       this.map,
