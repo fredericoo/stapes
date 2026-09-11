@@ -5093,6 +5093,9 @@ export class GameSession implements PlaySession {
    * appeared is a press the player cannot tell from a dropped key — carried
    * forward to the one case where a player can plainly see why.
    *
+   * **The name is shouted at the start either way**, which is what tells a room
+   * what is coming while there is still time to do something about it.
+   *
    * Nothing here is predicted by a client. A browser sends "cast the stone in
    * this square" and finds out what came of it from the equipment message and
    * the patches that follow, which is the same arrangement attacking is under.
@@ -5118,6 +5121,8 @@ export class GameSession implements PlaySession {
       return false;
     }
 
+    this.shoutSpell(actor, held);
+
     // What the caster brings against what the stone asks, which is the whole of
     // how long this takes. @see `./casting`'s `castDurationMs`
     const durationMs = castDurationMs(stone, context.masteries);
@@ -5136,6 +5141,31 @@ export class GameSession implements PlaySession {
       progress: { remainingMs: durationMs, durationMs },
     };
     return true;
+  }
+
+  /**
+   * Say the name of the spell, out loud, where it was cast.
+   *
+   * **The one thing about a cast that everybody nearby learns for free.** A bar
+   * over a head says somebody is doing something; the word says which spell it
+   * is, which is what makes standing out of the way — or walking up and hitting
+   * them — a decision rather than a guess. It is also what a cast with no bar at
+   * all leaves behind, so an instant spell is not silent.
+   *
+   * The stone's own name, so a stone somebody has written on says what they
+   * wrote: the same name the button carries, read the same way.
+   * @see `./casting`'s `castableStones`
+   *
+   * Through `recordSpeech` rather than a channel of its own, because it *is*
+   * speech — it hangs where it was said, it is sanitised like everything else a
+   * body can put on somebody's screen, and it goes out on the wire as chat.
+   */
+  private shoutSpell(actor: ActorRuntime, stone: ItemInstance) {
+    const loc = this.tryLocate(actor);
+    if (!loc) return;
+    const def = this.tilesById[stone.tileId];
+    const name = stone.description?.trim() || def?.name || stone.tileId;
+    this.recordSpeech(actor, loc, `${name}!`);
   }
 
   /**

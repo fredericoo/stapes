@@ -2977,6 +2977,17 @@ authored at three seconds.
   tick left behind: a crate dropped in front of the caster this tick is in the
   way of *this* flame rather than of the next one.
 
+### The caster says the name of the spell
+
+Every cast, timed or instant, puts the stone's name and an exclamation mark over
+the caster's head — `recordSpeech`, so it is sanitised, pinned to the cell and
+broadcast as chat like anything else anybody says. It is the one thing about a
+cast that everybody nearby learns for free: the bar says somebody is doing
+something, and the word says which spell, which is what makes standing out of the
+way — or walking up and hitting them — a decision rather than a guess. The name
+comes off the instance's description before the tile's, so a stone somebody has
+written on says what they wrote.
+
 ### Castability is one pure module, and it answers with a reason
 
 `app/game/casting.ts` answers "which stones can be cast right now, and why not"

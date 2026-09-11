@@ -516,6 +516,9 @@ const props: TileDef[] = [
       castTimeMs: CAST_MS,
       reach: { cells: 3, height: 2 },
     },
+    // Named, because what a caster shouts is the name of the stone and a
+    // fixture called `slow-flame-stone` would assert the id instead.
+    { name: "Flame" },
   ),
   // A stone with something to outgrow, so the scaling has somewhere to move.
   stoneTile("apprentice-stone", {
@@ -2032,6 +2035,22 @@ describe("a cast that takes time", () => {
 
     run(play, CAST_TICKS);
     expect(coolingIn(play, "charm")).toBe(MEND_COOLDOWN_MS);
+  });
+
+  it("shouts the name of the spell as it starts", () => {
+    const play = session({ charm: "slow-flame-stone" });
+
+    play.cast("charm");
+
+    expect(play.drainSpeech().map((bubble) => bubble.text)).toEqual(["Flame!"]);
+  });
+
+  it("shouts for an instant spell too, since a press is a press", () => {
+    const play = session({ charm: "flame-stone" });
+
+    play.cast("charm");
+
+    expect(play.drainSpeech()).toHaveLength(1);
   });
 
   it("refuses a second cast while one is running", () => {
