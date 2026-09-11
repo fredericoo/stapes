@@ -3712,10 +3712,9 @@ A line beginning with `/` is an instruction rather than something to say.
 `app/game/commands.ts` owns that one rule and the grammar behind it,
 `GameSession.runCommand` is the only place it changes anything, and
 `app/game/notices.ts` turns every refusal into the sentence the player reads.
-Today there are two — `/mastery <mastery> <level> [player id]`, which sets a
-mastery on yourself or on anybody whose id you can name, and
-`/tile <tile> [x] [y] [z]`, which calls any tile in the catalogue into the
-world.
+The verbs are `/mastery`, `/tile`, `/status`, `/health`, `/goto`, `/move` and
+`/time`; `COMMAND_USAGE` in `app/game/commands.ts` is the grammar of each, and
+is the line a player is shown when they get one wrong.
 
 - **Nobody is checked.** Any connected player may set any mastery on anybody and
   put anything anywhere. That is deliberate and temporary: it is a world with no
