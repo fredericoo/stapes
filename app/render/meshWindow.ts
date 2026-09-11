@@ -70,6 +70,23 @@ function levelRect(window: WorldRect, z: number): WorldRect {
 }
 
 /**
+ * Whether a cell of level `z` is inside what this window draws.
+ *
+ * The same per-level rect {@link visibleChunkKeys} builds geometry for, asked of
+ * one cell — so something that plays on a placement, like a tile forming, is
+ * played exactly where that placement could be seen and nowhere else.
+ */
+export function cellInMeshWindow(
+  window: WorldRect,
+  x: number,
+  y: number,
+  z: number,
+): boolean {
+  const rect = levelRect(window, z);
+  return x >= rect.x0 && x <= rect.x1 && y >= rect.y0 && y <= rect.y1;
+}
+
+/**
  * Every chunk that has to exist as geometry for this window, as address keys.
  *
  * Only chunks the map actually has: the rect is rounded out to chunk bounds and

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  cellInMeshWindow,
+  MESH_WINDOW_MARGIN,
   chunkAddressKey,
   parseChunkAddress,
   visibleChunkKeys,
@@ -161,5 +163,26 @@ describe("naming a chunk of a level", () => {
       z: -3,
       chunk: "-2,-7",
     });
+  });
+});
+
+describe("whether a cell is inside what is drawn", () => {
+  const window = { x0: 0, y0: 0, x1: 20, y1: 20 };
+
+  it("takes a cell inside the rect, margin included", () => {
+    expect(cellInMeshWindow(window, 10, 10, 0)).toBe(true);
+    expect(cellInMeshWindow(window, -MESH_WINDOW_MARGIN, 0, 0)).toBe(true);
+  });
+
+  it("refuses a cell past the margin", () => {
+    expect(cellInMeshWindow(window, -MESH_WINDOW_MARGIN - 1, 0, 0)).toBe(false);
+    expect(cellInMeshWindow(window, 0, 21 + MESH_WINDOW_MARGIN, 0)).toBe(false);
+  });
+
+  it("shifts the rect with the level, as the projection does", () => {
+    const LEVEL = 3;
+    const x = 20 + MESH_WINDOW_MARGIN + LEVEL;
+    expect(cellInMeshWindow(window, x, 10, LEVEL)).toBe(true);
+    expect(cellInMeshWindow(window, x, 10, 0)).toBe(false);
   });
 });
