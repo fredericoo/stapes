@@ -10,7 +10,7 @@ import {
 import type { ItemInstance } from "../lib/itemInstance";
 import { statusesById } from "../lib/status";
 import { resolveBattler } from "../lib/battler";
-import type { Masteries } from "../lib/mastery";
+import { type Masteries, MAX_MASTERY } from "../lib/mastery";
 import { type Element, ELEMENTS } from "../lib/element";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
@@ -783,6 +783,37 @@ describe("the stones we ship", () => {
     // The whole reason a bolt has a projectile block: what it throws has to be a
     // tile the world actually holds, on the terms a conjure's is checked below.
     expect(shipped[first.projectile!.tileId]).toBeDefined();
+  });
+
+  /**
+   * **The one stone on the shelf that takes time, and the ladder untouched.**
+   * Flame is fire's utility stone rather than a rung — it conjures, it costs
+   * three quarters of a minute, and what it asks is the bottom of the ladder —
+   * so it is the one place a cast time can be tried without slowing down the
+   * spells a fight is fought with.
+   */
+  it("gives Flame a cast time and leaves every other stone instant", () => {
+    const withCastTimes = SHIPPED.filter(
+      (id) => (resolveStone(shipped[id]!)!.castTimeMs ?? 0) > 0,
+    );
+    expect(withCastTimes).toEqual(["arcane-stone-of-flame"]);
+  });
+
+  /**
+   * Three seconds for the caster who has only just earned it, and quick for one
+   * who has grown past it. The figures are the design rather than the
+   * arithmetic — `castDurationMs` has its own cases — and what they say is that
+   * a starter spell becomes a cantrip rather than something you stop carrying.
+   */
+  it("makes Flame quick for an arcanist who has outgrown it", () => {
+    const flame = resolveStone(shipped["arcane-stone-of-flame"]!)!;
+    const asks = flame.requirements!;
+
+    expect(castDurationMs(flame, asks)).toBe(3_000);
+    expect(castDurationMs(flame, { ...asks, arcane: 8 })).toBeLessThan(2_000);
+    expect(castDurationMs(flame, { arcane: MAX_MASTERY, fire: MAX_MASTERY })).toBe(
+      0,
+    );
   });
 
   it("names a status and a tile the world actually has", () => {
