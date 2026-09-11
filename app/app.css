@@ -464,12 +464,13 @@ body {
   width: 100%;
 }
 
-/* A pull in progress. The same track as the health bar, but over the name
-   rather than under it, so its brick of space goes below it instead of above.
-   White, and never tinted: it says the body is busy, not how the body is. */
+/* A pull or a cast in progress, on the same track a health bar is drawn on and
+   directly under the name — see `fill` in `./render/textLabels`, where the row
+   order is argued. White, and never tinted: it says the body is busy, not how
+   the body is. The gap above it is the name's, and the health bar below brings
+   its own, so this row adds none of its own on either side. */
 .world-label__bar--progress {
-  margin-top: 0;
-  margin-bottom: var(--world-label-brick);
+  margin-bottom: 0;
 }
 
 .world-label__bar--progress > div {

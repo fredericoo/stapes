@@ -662,21 +662,32 @@ export class WorldLabelLayer {
   }
 
   /**
-   * One child per line, in order, and the bar last.
+   * One child per line, in order, and the bars under them.
    *
    * Rebuilt wholesale rather than diffed: a group holds at most a few lines, and
    * the alternative is a reconciler for something that changes when somebody
    * speaks.
    *
-   * The bar goes last because the column flows downward from a bottom edge on
-   * the anchor, so the final child is the one nearest the head — a name sitting
-   * above the health of the thing it names, which is the order both are read in.
-   * A pull goes first, over the name, so starting one grows the group upwards
-   * and leaves the name and the health bar where they were.
+   * The health bar goes last because the column flows downward from a bottom
+   * edge on the anchor, so the final child is the one nearest the head — a name
+   * sitting above the health of the thing it names, which is the order both are
+   * read in.
+   *
+   * **A pull or a cast goes between them, and it used to go above the name.**
+   * Over the name was the cheaper arrangement: the group grows upward from a
+   * pinned bottom edge, so a row added at the top left the name and the health
+   * bar exactly where they were. What it cost was the row itself. A name tag is
+   * the one label allowed to be covered — see `labelLayout`, where speech is
+   * placed first and names are not in the contest — so a bubble lands squarely
+   * on whatever is at the top of this group. That was a rare collision while a
+   * bar only ever meant a pull, and it is a certainty now that a cast draws one:
+   * a caster shouts the spell's name at the moment the bar appears, and the
+   * bubble hangs there for longer than the cast takes. Below the name, the
+   * sentence covers the name it is allowed to cover and the bar stays readable;
+   * what it costs is the name shifting up a brick as a bar comes and goes.
    */
   private fill(element: HTMLDivElement, label: WorldLabel) {
     const rows: HTMLElement[] = [];
-    if (label.progress) rows.push(this.track(PROGRESS_BAR_CLASS));
     for (const line of label.lines) {
       const row = document.createElement("div");
       // Set as text, never as markup: this is the one string on screen that
@@ -684,6 +695,7 @@ export class WorldLabelLayer {
       row.textContent = line.text;
       rows.push(row);
     }
+    if (label.progress) rows.push(this.track(PROGRESS_BAR_CLASS));
     if (label.bar) rows.push(this.track(HEALTH_BAR_CLASS));
 
     element.replaceChildren(...rows);

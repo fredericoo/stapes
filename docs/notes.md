@@ -4527,9 +4527,9 @@ player's pull is still running on the body they left.
   placement. A cell patch already goes to everybody, and a client that knows the
   vein has nothing free knows enough to grey the row.
 - **That somebody else is pulling travels in the shared patch, without the
-  key.** A deer at a bush or another player at a vein gets a white bar over its
-  name (`WorldLabel.progress`, drawn by `WorldLabelLayer` above the name line —
-  so only on bodies that have a name tag, which is battlers). `ActorSnapshot`
+  key.** A deer at a bush or another player at a vein gets a white bar under its
+  name (`WorldLabel.progress`, drawn by `WorldLabelLayer` between the name and
+  the health bar — so only on bodies that have a name tag, which is battlers). `ActorSnapshot`
   carries the runtime's `Extraction` by reference, and
   `GameServer.diffExtractions` sends an `ExtractionPatch` whenever that identity
   changes: a start and an end, the same two messages the owner gets. It goes in
@@ -4537,6 +4537,15 @@ player's pull is still running on the body they left.
   everybody. The key is left off because only the owner's row matches against
   it, and the diff does not read `drainExtractionChanges` because that queue is
   the owner's.
+- **The bar sits under the name, and it used to sit over it.** Over the name was
+  cheaper — the group grows upward from a pinned bottom edge, so a row added at
+  the top left the name and the health bar exactly where they were — and it put
+  the bar in the one place a label may be covered: speech is placed first and a
+  name is not in the contest, so a bubble lands on whatever is at the top of that
+  group. That was a rare collision while a bar only meant a pull. It is a
+  certainty now that a cast draws one, because the caster shouts the spell's name
+  as the bar appears and the bubble outlives the cast. What the move costs is the
+  name shifting up a brick as a bar comes and goes.
 - **A cast is the same picture on a second channel.** `CastingPatch` is
   `ExtractionPatch`'s twin, diffed by identity the same way and drawn by the same
   bar, and `app/game/progress.ts` is the two numbers both of them are — a third
