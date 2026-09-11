@@ -29371,6 +29371,43 @@
           }
         }
       ]
+    },
+    "particles": {
+      "ratePerSecond": 14,
+      "ttlFromMs": 900,
+      "ttlToMs": 1800,
+      "spawnRadiusCells": 0.22,
+      "spawnElevFrom": 1,
+      "spawnElevTo": 2.5,
+      "riseFrom": 3,
+      "riseTo": 6,
+      "driftCellsPerSecond": 0.18,
+      "lit": false,
+      "gravity": -0.4,
+      "windX": 0.35,
+      "windY": -0.2,
+      "radiusFromPx": 1,
+      "radiusToPx": 2,
+      "alphaFrom": 1,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#ffe0a0"
+        },
+        {
+          "at": 0.18,
+          "color": "#fb6b1d"
+        },
+        {
+          "at": 0.45,
+          "color": "#7b3b2a"
+        },
+        {
+          "at": 1,
+          "color": "#4b4158"
+        }
+      ]
     }
   },
   {
