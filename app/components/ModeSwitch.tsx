@@ -1,4 +1,4 @@
-import { IconEye, IconHandFinger, IconSword } from "@tabler/icons-react";
+import { IconEye, IconFocus2, IconSword } from "@tabler/icons-react";
 import type { PlayMode } from "./usePlayModes";
 import { Tooltip } from "../ui/Tooltip";
 import { useTap } from "./useTap";
@@ -61,7 +61,7 @@ const ICON_SIZE_PX: Record<ActionButtonSize, number> = {
 /**
  * What each position is, in the order a hand meets them.
  *
- * Interact first because it is where you start and where you come back to,
+ * Target first because it is where you start and where you come back to,
  * inspect in the middle because it is the one shift reaches, and attack last
  * because it is the one with consequences — a thumb travelling to the end of the
  * row is a small deliberate act, which is the right price for drawing a sword.
@@ -76,10 +76,10 @@ const MODES: {
   onClass: string;
 }[] = [
   {
-    mode: "interact",
-    icon: IconHandFinger,
-    label: "Interact",
-    hint: "Interact with things",
+    mode: "target",
+    icon: IconFocus2,
+    label: "Target",
+    hint: "Target without attacking",
     onClass: "bg-interact text-ink",
   },
   {

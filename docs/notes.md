@@ -2245,8 +2245,10 @@ both cases because the pulse is what separates a *chosen* body from one the
 cursor happens to be over.
 
 **What a tap means is one setting with three positions, not a pair of switches.**
-Interact, inspect and attack are the three, exactly one holds at a time, and the
-machine is `app/components/usePlayModes.ts`. They were two independent latches
+Target, inspect and attack are the three, exactly one holds at a time, and the
+machine is `app/components/usePlayModes.ts`. (Target was called "interact"
+until it was clear that picking a body out without swinging is the only thing
+it does differently from attack — objects answer a tap the same way in both.) They were two independent latches
 and the failure was reported rather than guessed at: with no *name* for "neither
 one is on", people drew the sword, walked off, and never connected the red
 outline under everything they pointed at with a button they had pressed a minute

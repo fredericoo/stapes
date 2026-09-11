@@ -12,12 +12,12 @@ import { modeAfterAttackKey, modeInForce } from "./usePlayModes";
 
 describe("what mode is in force", () => {
   it("is whatever was chosen while no key is down", () => {
-    expect(modeInForce("interact", false)).toBe("interact");
+    expect(modeInForce("target", false)).toBe("target");
     expect(modeInForce("attack", false)).toBe("attack");
   });
 
   it("is inspect while shift is held, whatever was chosen", () => {
-    expect(modeInForce("interact", true)).toBe("inspect");
+    expect(modeInForce("target", true)).toBe("inspect");
     expect(modeInForce("attack", true)).toBe("inspect");
   });
 
@@ -41,12 +41,12 @@ describe("what mode is in force", () => {
 
 describe("the attack key", () => {
   it("draws the sword from anywhere else", () => {
-    expect(modeAfterAttackKey("interact")).toBe("attack");
+    expect(modeAfterAttackKey("target")).toBe("attack");
     expect(modeAfterAttackKey("inspect")).toBe("attack");
   });
 
   /** Pressed again it puts the sword away, and lands somewhere usable. */
-  it("puts it away again, back to plain interaction", () => {
-    expect(modeAfterAttackKey("attack")).toBe("interact");
+  it("puts it away again, back to target", () => {
+    expect(modeAfterAttackKey("attack")).toBe("target");
   });
 });
