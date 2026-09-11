@@ -1,7 +1,9 @@
+import { useLayoutEffect, useRef } from "react";
 import {
   CAST_REFUSAL_NOTES,
   type Castability,
   type CastSquare,
+  COOLDOWN_STEP_MS,
   type SpellButton,
 } from "../game/casting";
 import { castKeyLabel } from "../game/heldDirections";
@@ -52,10 +54,19 @@ import { TilePreview } from "./TilePreview";
  *
  * ## The ring is the cooldown and nothing else
  *
- * Drawn from the numbers the session was last given rather than from a timer of
- * this component's own: the countdown moves in whole seconds, which is the grain
- * the session keeps it at and the grain the wire carries it at. A smoother arc
- * would be this side inventing a precision the truth does not have.
+ * The session winds a cooldown in whole steps of {@link COOLDOWN_STEP_MS}, and
+ * the wire carries it at that grain, so the page is told a new figure once a
+ * second. Drawn at that grain, the arc jumped once a second too. Instead, every
+ * figure starts an animation towards the *next* one — one step lower, one step
+ * from now — from wherever the arc is at that moment. The browser plays it on
+ * the SVG with the Web Animations API, so React still renders once a second and
+ * never once a frame.
+ *
+ * Starting from where the arc *is*, rather than from the figure just received,
+ * is what keeps it continuous. The session's clock is shared by every stone in
+ * the world, so the first step after a cast lands anywhere up to a second in,
+ * and a figure can arrive a little early or late off the wire. Either way the
+ * arc bends towards the new target rather than jumping back to meet it.
  */
 
 /** Where in the disc the sprite sits, leaving the rim to the ring. */
@@ -105,6 +116,11 @@ const RING_WIDTH = 8;
 /** How far round the ring is, which is what a dash pattern is stated in. */
 const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
 
+/** The dash offset that leaves `share` of the ring showing. */
+function arcOffset(share: number): number {
+  return RING_LENGTH * (1 - share);
+}
+
 /**
  * Which of the three appearances a stone wears. @see SpellBar
  *
@@ -134,6 +150,18 @@ export function spellAppearance(castability: Castability): SpellAppearance {
  */
 export function spellPressable(castability: Castability): boolean {
   return castability.ok || castability.reason === "noTarget";
+}
+
+/**
+ * How much of the ring a cooldown fills, from nothing to a whole circle.
+ *
+ * Clamped at both ends because the ring asks it about a figure one step below
+ * the last one it was given, which on the final step of a stone whose cooldown
+ * is not a whole number of seconds is below zero.
+ */
+export function cooldownShare(remainingMs: number, totalMs: number): number {
+  if (totalMs <= 0) return 0;
+  return Math.min(1, Math.max(0, remainingMs / totalMs));
 }
 
 export function SpellBar({
@@ -222,12 +250,6 @@ function SpellSquare({
     if (pressable) onCast(spell.square);
   });
 
-  const remaining = Math.max(0, spell.cooldownMs);
-  const share =
-    spell.cooldownTotalMs > 0
-      ? Math.min(1, remaining / spell.cooldownTotalMs)
-      : 0;
-
   // What it is, then whether it can be used and why not — in that order, because
   // the name is what identifies the button and the rest is its state. A refusal
   // is spelled out rather than collapsed into "unavailable": the picture no
@@ -293,7 +315,12 @@ function SpellSquare({
           </span>
         ) : null}
 
-        {remaining > 0 ? <CooldownRing share={share} /> : null}
+        {spell.cooldownMs > 0 ? (
+          <CooldownRing
+            remainingMs={spell.cooldownMs}
+            totalMs={spell.cooldownTotalMs}
+          />
+        ) : null}
       </button>
     </Tooltip>
   );
@@ -328,8 +355,41 @@ const APPEARANCE_CLASSES: Record<SpellAppearance, string> = {
  * trigonometry out, and no large-arc flag to get wrong at half a cooldown. The
  * whole thing is turned a quarter so that zero degrees is noon rather than three
  * o'clock, which is where a countdown is read from.
+ *
+ * The dash offset attribute is the figure the session gave; the animation
+ * layered over it is what is on screen. @see SpellBar for why it aims one step
+ * ahead.
  */
-function CooldownRing({ share }: { share: number }) {
+function CooldownRing({
+  remainingMs,
+  totalMs,
+}: {
+  remainingMs: number;
+  totalMs: number;
+}) {
+  const arcRef = useRef<SVGCircleElement>(null);
+  const animationRef = useRef<Animation | null>(null);
+
+  // Layout rather than passive, so the new animation is in place before the
+  // browser paints a frame of the arc sitting at the attribute's figure.
+  useLayoutEffect(() => {
+    const arc = arcRef.current;
+    if (!arc) return;
+    // Read before cancelling, so it is the position the running animation has
+    // reached rather than the figure the attribute was just set to.
+    const fromOffset = getComputedStyle(arc).strokeDashoffset;
+    animationRef.current?.cancel();
+    const toOffset = arcOffset(
+      cooldownShare(remainingMs - COOLDOWN_STEP_MS, totalMs),
+    );
+    animationRef.current = arc.animate(
+      [{ strokeDashoffset: fromOffset }, { strokeDashoffset: `${toOffset}` }],
+      // Held at the target when it finishes, so a figure that arrives late
+      // leaves the arc waiting where it should be rather than snapping back.
+      { duration: COOLDOWN_STEP_MS, easing: "linear", fill: "forwards" },
+    );
+  }, [remainingMs, totalMs]);
+
   return (
     <svg
       aria-hidden="true"
@@ -347,6 +407,7 @@ function CooldownRing({ share }: { share: number }) {
         className="stroke-paper/15"
       />
       <circle
+        ref={arcRef}
         cx={RING_BOX / 2}
         cy={RING_BOX / 2}
         r={RING_RADIUS}
@@ -354,7 +415,7 @@ function CooldownRing({ share }: { share: number }) {
         strokeWidth={RING_WIDTH}
         className="stroke-accent"
         strokeDasharray={RING_LENGTH}
-        strokeDashoffset={RING_LENGTH * (1 - share)}
+        strokeDashoffset={arcOffset(cooldownShare(remainingMs, totalMs))}
       />
     </svg>
   );

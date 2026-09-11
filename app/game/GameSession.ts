@@ -195,6 +195,7 @@ import {
   CAST_SQUARES,
   castability,
   castableStones,
+  COOLDOWN_STEP_MS,
   type CastContext,
   type CasterPoint,
   type CastPoint,
@@ -1452,17 +1453,15 @@ type ActorRuntime = {
 };
 
 /**
- * How much of a stone's cooldown is wound off at a time, and the slack allowed
- * when comparing accumulated ticks against it.
+ * The slack allowed when comparing accumulated ticks against
+ * `COOLDOWN_STEP_MS`, which lives in `./casting` because the button drawing the
+ * countdown reads it too.
  *
- * A second, because a second is what a countdown can show — see
- * {@link GameSession.advanceStoneCooldowns} for why the truth is kept at the
- * same grain the drawing is. The epsilon is the same accumulated-float slack
- * `./statuses` absorbs: `TICK_MS` is 1000/30 and is not representable, so thirty
- * ticks of it come to 1000.0000000000005 and an honest comparison against a
- * thousand would be a step late about half the time.
+ * The same accumulated-float slack `./statuses` absorbs: `TICK_MS` is 1000/30
+ * and is not representable, so thirty ticks of it come to 1000.0000000000005
+ * and an honest comparison against a thousand would be a step late about half
+ * the time.
  */
-const COOLDOWN_STEP_MS = 1000;
 const COOLDOWN_EPSILON_MS = 1e-6;
 
 /**
