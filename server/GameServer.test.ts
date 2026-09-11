@@ -4383,3 +4383,70 @@ describe("tile transitions", () => {
     });
   });
 });
+
+describe("a pull somebody else is making", () => {
+  /** The strip of grass, with a bush east of spawn. */
+  function mapWithBush(): FlatMapFile {
+    const map = authoredMap();
+    map.levels["0"]!["1,0"] = [{ tileId: "grass" }, { tileId: "bush" }];
+    return map;
+  }
+
+  const BUSH_REF = { x: 1, y: 0, z: 0, stackIndex: 1 };
+
+  /** The next patch entry about this body's pull, or null if none comes. */
+  function pullWithin(
+    ws: TestSocket,
+    actorId: string,
+  ): Promise<Record<string, unknown> | null> {
+    return new Promise((resolve) => {
+      const done = (value: Record<string, unknown> | null) => {
+        clearTimeout(timer);
+        ws.removeEventListener("message", onMessage);
+        resolve(value);
+      };
+      const onMessage = (event: { data: string }) => {
+        const message = JSON.parse(event.data) as Record<string, unknown>;
+        if (message.type !== "patch") return;
+        const entries = (message.extractions ?? []) as Record<string, unknown>[];
+        const entry = entries.find((e) => e.actorId === actorId);
+        if (entry) done(entry);
+      };
+      const timer = setTimeout(() => done(null), MESSAGE_TIMEOUT_MS);
+      ws.addEventListener("message", onMessage);
+    });
+  }
+
+  it("is broadcast to everybody when it starts and when it lands", async () => {
+    await harness.blobs.put("map.json", JSON.stringify(mapWithBush()), JSON_TYPE);
+    const alice = await connect("alice");
+    const bob = await connect("bob");
+
+    const starting = pullWithin(bob.ws, "alice");
+    send(alice.ws, { type: "interact", ref: BUSH_REF });
+    const started = await starting;
+    const progress = started?.progress as { remainingMs: number; durationMs: number };
+    expect(progress.durationMs).toBeGreaterThan(0);
+    expect(progress.remainingMs).toBeLessThanOrEqual(progress.durationMs);
+    // The key is the owner's alone, and only travels on their own channel.
+    expect(progress).not.toHaveProperty("key");
+
+    expect(await pullWithin(bob.ws, "alice")).toEqual({
+      actorId: "alice",
+      progress: null,
+    });
+  });
+
+  it("is handed to somebody who arrives part-way through it", async () => {
+    await harness.blobs.put("map.json", JSON.stringify(mapWithBush()), JSON_TYPE);
+    const alice = await connect("alice");
+    send(alice.ws, { type: "interact", ref: BUSH_REF });
+    await messageWithin(alice.ws, "extracting", MESSAGE_TIMEOUT_MS);
+
+    const bob = await connect("bob");
+
+    expect(bob.hello.extractions).toEqual([
+      expect.objectContaining({ actorId: "alice" }),
+    ]);
+  });
+});

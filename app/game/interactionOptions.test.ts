@@ -226,6 +226,7 @@ function actor(
     rating: hp === null ? null : 10,
     statuses: [],
     carriedLights: [],
+    extracting: null,
   };
 }
 

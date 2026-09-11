@@ -4428,11 +4428,20 @@ player's pull is still running on the body they left.
   `RemoteSession.windExtraction` does the same against the render clock — which
   is not a prediction of anything, since only the server's message ever clears
   it; it keeps the *number* true between the two messages.
-- **What everybody else is working travels on the board instead**, as the
-  reservation on the placement. That is the whole reason there is no second
-  per-player channel carrying other people's pulls: a cell patch already goes to
-  everybody, and a client that knows the vein has nothing free knows enough to
-  grey the row.
+- **Whether a vein is free travels on the board**, as the reservation on the
+  placement. A cell patch already goes to everybody, and a client that knows the
+  vein has nothing free knows enough to grey the row.
+- **That somebody else is pulling travels in the shared patch, without the
+  key.** A deer at a bush or another player at a vein gets a white bar over its
+  name (`WorldLabel.progress`, drawn by `WorldLabelLayer` above the name line —
+  so only on bodies that have a name tag, which is battlers). `ActorSnapshot`
+  carries the runtime's `Extraction` by reference, and
+  `GameServer.diffExtractions` sends an `ExtractionPatch` whenever that identity
+  changes: a start and an end, the same two messages the owner gets. It goes in
+  the tick patch rather than per socket because it is the same bytes for
+  everybody. The key is left off because only the owner's row matches against
+  it, and the diff does not read `drainExtractionChanges` because that queue is
+  the owner's.
 - **Not durable.** `hp`'s bargain rather than a tag's: a tag records that
   something *happened* and can never be rebuilt, where this records something
   that is happening, and a world that has gone quiet is a world where nobody is

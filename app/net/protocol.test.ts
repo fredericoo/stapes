@@ -523,6 +523,28 @@ describe("nothing is quietly dropped in transit", () => {
     expect(message?.type === "patch" && message.hps[0]).toEqual(hp);
   });
 
+  it("carries a body's pull, and reads its absence as nobody pulling", () => {
+    const pull = { actorId: "deer", progress: { remainingMs: 1_500, durationMs: 2_000 } };
+    const patchOf = (extra: Record<string, unknown>) =>
+      parseServerMessage(
+        JSON.stringify({
+          type: "patch",
+          cells: [],
+          events: [],
+          hps: [],
+          carriedLights: [],
+          ...extra,
+        }),
+      );
+
+    const withPull = patchOf({ extractions: [pull] });
+    expect(withPull?.type === "patch" && withPull.extractions).toEqual([pull]);
+
+    // From a server built before pulls were broadcast.
+    const without = patchOf({});
+    expect(without?.type === "patch" && without.extractions).toEqual([]);
+  });
+
   /**
    * One of every kind, so a kind added to the union and not to the schema fails
    * here rather than in a browser — where the whole frame, patch and all, is

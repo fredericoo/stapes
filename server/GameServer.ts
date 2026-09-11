@@ -63,6 +63,7 @@ import {
   parseClientMessage,
   type CarriedLightsPatch,
   type StatusIdsPatch,
+  type ExtractionPatch,
   type CellPatch,
   type HpPatch,
   type MotionEvent,
@@ -215,6 +216,31 @@ function currentStatusIds(actors: ActorSnapshot[]): StatusIdsPatch[] {
  */
 function statusIdsOf(actor: ActorSnapshot): string[] {
   return actor.statuses.map((status) => status.defId).sort();
+}
+
+/** Everybody's pulls in progress. @see currentCarriedLights for the omission rule. */
+function currentExtractions(actors: ActorSnapshot[]): ExtractionPatch[] {
+  const out: ExtractionPatch[] = [];
+  for (const actor of actors) {
+    if (!actor.extracting) continue;
+    out.push({ actorId: actor.id, progress: progressOf(actor.extracting) });
+  }
+  return out;
+}
+
+/**
+ * The two numbers of a pull, copied off the runtime's object.
+ *
+ * Copied because the object on the snapshot is the runtime's whole
+ * `Extraction`, key included, and the key is sent to its owner alone.
+ */
+function progressOf(
+  extracting: NonNullable<ActorSnapshot["extracting"]>,
+): NonNullable<ExtractionPatch["progress"]> {
+  return {
+    remainingMs: extracting.remainingMs,
+    durationMs: extracting.durationMs,
+  };
 }
 
 /**
@@ -673,6 +699,18 @@ export class GameServer {
   private sentCarriedLights = new Map<string, string>();
   /** Last broadcast status ids per actor, joined. @see diffStatusIds */
   private sentStatusIds = new Map<string, string>();
+  /**
+   * The pull each actor was last broadcast as making.
+   *
+   * Compared by identity, unlike its neighbours, because identity is exactly
+   * the answer here: the runtime winds one object in place for the whole pull
+   * and replaces it only when a pull starts or ends. Comparing the numbers
+   * would see a change on every tick of every pull. @see diffExtractions
+   */
+  private sentExtractions = new Map<
+    string,
+    NonNullable<ActorSnapshot["extracting"]>
+  >();
   private events: MotionEvent[] = [];
   /** Steps, turns and casts clients have sent, oldest first, per actor. */
   private readonly queuedIntents = new Map<string, QueuedIntent[]>();
@@ -1872,6 +1910,7 @@ export class GameServer {
       hps: currentHps(actors),
       carriedLights: currentCarriedLights(actors),
       statusIds: currentStatusIds(actors),
+      extractions: currentExtractions(actors),
       // Theirs alone, and sent in full here for the same reason the map and the
       // hit points are: a joiner has nothing to patch against.
       equipment: session.equipmentOf(actorId) ?? emptyEquipment(),
@@ -3237,12 +3276,14 @@ export class GameServer {
     const hps = this.diffHps(actors);
     const carriedLights = this.diffCarriedLights(actors);
     const statusIds = this.diffStatusIds(actors);
+    const extractions = this.diffExtractions(actors);
     if (
       cells.length > 0 ||
       this.events.length > 0 ||
       hps.length > 0 ||
       carriedLights.length > 0 ||
-      statusIds.length > 0
+      statusIds.length > 0 ||
+      extractions.length > 0
     ) {
       this.broadcast({
         type: "patch",
@@ -3251,6 +3292,7 @@ export class GameServer {
         hps,
         carriedLights,
         statusIds,
+        extractions,
       });
       this.broadcastMap = session.getMap();
       this.events = [];
@@ -3708,6 +3750,34 @@ export class GameServer {
   }
 
   /**
+   * Whose pull started or ended since the last patch.
+   *
+   * Not a read of `drainExtractionChanges`, for the reason {@link diffStatusIds}
+   * is not a read of `drainStatusChanges`: that queue is drained to send each
+   * player their own pull, key and all, and reading it here would take the
+   * message out of their mouth.
+   *
+   * A body that has left is forgotten without a patch. Its tile is off the
+   * board in the same frame's cells, so there is nothing left to hang a bar on.
+   */
+  private diffExtractions(actors: ActorSnapshot[]): ExtractionPatch[] {
+    const out: ExtractionPatch[] = [];
+    const live = new Set<string>();
+    for (const actor of actors) {
+      live.add(actor.id);
+      const now = actor.extracting;
+      if ((this.sentExtractions.get(actor.id) ?? null) === now) continue;
+      if (now) this.sentExtractions.set(actor.id, now);
+      else this.sentExtractions.delete(actor.id);
+      out.push({ actorId: actor.id, progress: now ? progressOf(now) : null });
+    }
+    for (const id of this.sentExtractions.keys()) {
+      if (!live.has(id)) this.sentExtractions.delete(id);
+    }
+    return out;
+  }
+
+  /**
    * Cells that changed since the last broadcast.
    *
    * Chunk identity first (`changedCellsOnLevel`), so an unchanged floor costs a
@@ -3805,6 +3875,7 @@ export class GameServer {
         hps: [],
         carriedLights: [],
         statusIds: [],
+        extractions: [],
       });
     }
   }

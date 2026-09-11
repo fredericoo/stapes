@@ -16,6 +16,7 @@ import {
   clearExtractReservations,
   extractFits,
   extractKey,
+  extractionFraction,
   rollExtract,
   type Extraction,
 } from "./extract";
@@ -473,6 +474,32 @@ describe("rolling a pull", () => {
   });
 });
 
+describe("how far through a pull", () => {
+  /** Past the end or before the start, as two unsynchronised clocks leave it. */
+  const OVERSHOOT_MS = 100;
+
+  it("runs from nothing to done", () => {
+    const at = (remainingMs: number) =>
+      extractionFraction({ remainingMs, durationMs: EXTRACT_MS });
+
+    expect(at(EXTRACT_MS)).toBe(0);
+    expect(at(EXTRACT_MS / 4)).toBe(0.75);
+    expect(at(0)).toBe(1);
+  });
+
+  it("stays inside the bar when a clock overshoots", () => {
+    const at = (remainingMs: number) =>
+      extractionFraction({ remainingMs, durationMs: EXTRACT_MS });
+
+    expect(at(-OVERSHOOT_MS)).toBe(1);
+    expect(at(EXTRACT_MS + OVERSHOOT_MS)).toBe(0);
+  });
+
+  it("calls a pull authored at no time at all done", () => {
+    expect(extractionFraction({ remainingMs: 0, durationMs: 0 })).toBe(1);
+  });
+});
+
 describe("making a pull", () => {
   /**
    * The whole of the redesign in one assertion: the tap buys a place at the
@@ -503,6 +530,23 @@ describe("making a pull", () => {
     const placed = stackAt(session.getMap(), 1, 0)[1]!;
     expect(placed.extractsLeft).toBe(1);
     expect(placed.extractsReserved).toBeUndefined();
+  });
+
+  /**
+   * On the body as well as on the viewer's own channel, because a pull is a
+   * thing other people can watch somebody doing.
+   */
+  it("shows the pull on the body making it, until it lands", () => {
+    const session = new GameSession(board(), tiles);
+    session.interact(BUSH);
+
+    expect(session.getSnapshot().self.extracting).toMatchObject({
+      remainingMs: EXTRACT_MS,
+      durationMs: EXTRACT_MS,
+    });
+
+    session.tick(EXTRACT_MS);
+    expect(session.getSnapshot().self.extracting).toBeNull();
   });
 
   it("hands nothing over one tick early", () => {

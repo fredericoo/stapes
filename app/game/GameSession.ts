@@ -311,7 +311,7 @@ import {
 } from "./brainRuntime";
 import type { ConsumeSource } from "./itemUse";
 import { canTransmuteFrom, planTransmute, runTransmute } from "./transmute";
-import type { Extraction } from "./extract";
+import type { Extraction, ExtractionProgress } from "./extract";
 import {
   canBeginExtract,
   clearExtractReservations,
@@ -498,6 +498,19 @@ export type ActorSnapshot = {
    * built around.
    */
   carriedLights: string[];
+  /**
+   * The pull this body is part-way through, or null for almost everybody.
+   *
+   * On every body rather than only on {@link GameSnapshot.extracting}, because
+   * a pull is something you can see somebody doing: a deer at a bush and a
+   * player at a vein both get a bar over their heads. Only the fraction — the
+   * key the viewer's own row needs stays on the viewer's own channel.
+   *
+   * By reference to the object the runtime winds in place, so its identity
+   * changes only when a pull starts or ends. That identity is what the server
+   * diffs the broadcast on. @see ./extract's `Extraction`
+   */
+  extracting: ExtractionProgress | null;
 };
 
 /**
@@ -8259,6 +8272,9 @@ export class GameSession implements PlaySession {
       // a kit changes, so the same array across two ticks is the same answer and
       // nothing downstream has to copy it to be safe.
       carriedLights: actor.carriedLights,
+      // By reference, like `walk`: wound in place and replaced only when a pull
+      // starts or ends, so the same object across two ticks is the same pull.
+      extracting: actor.extraction?.progress ?? null,
     };
   }
 
