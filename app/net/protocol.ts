@@ -9,6 +9,7 @@ import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import { masteryXpBlockSchema, type MasteryXp } from "../lib/mastery";
 import type { Extraction } from "../game/extract";
 import type { PlacedTile } from "../lib/types";
+import { TRANSITION_SIDES, type TileTransitionNote } from "../lib/tileTransition";
 import { MAX_CHAT_RAW_LENGTH } from "./chat";
 import { MAX_COMMAND_LENGTH } from "../game/commands";
 
@@ -504,6 +505,15 @@ export type MotionEvent =
        */
       durationMs: number;
     }
+  /**
+   * A tile formed or dissolved for a reason worth playing.
+   *
+   * **Its own event because a cell patch cannot say why.** The patch in this
+   * same frame already says the flame is gone; what it cannot say is whether it
+   * burned out or was picked up, and only one of those is a thing to draw. Sent
+   * only for a tile with that side authored — see `../lib/tileTransition`.
+   */
+  | ({ kind: "tileTransition" } & TileTransitionNote)
   | {
       kind: "damage";
       id: string;
@@ -1346,6 +1356,17 @@ const serverMessageSchema = v.variant("type", [
           durationMs: v.number(),
         }),
         v.object({
+          kind: v.literal("tileTransition"),
+          id: v.string(),
+          side: v.picklist(TRANSITION_SIDES),
+          tileId: v.string(),
+          // Whole, because each of these is a map lookup on the far side.
+          x: v.pipe(v.number(), v.integer()),
+          y: v.pipe(v.number(), v.integer()),
+          z: v.pipe(v.number(), v.integer()),
+          stackIndex: v.pipe(v.number(), v.integer(), v.minValue(0)),
+        }),
+        v.object({
           kind: v.literal("joined"),
           actorId: v.string(),
           playerCount: v.number(),
@@ -1499,7 +1520,7 @@ export const GAME_SOCKET_PATH = "/online/ws";
  * This is deliberately not the build id. A client deploy that changes no
  * messages should not disconnect anybody, and most client deploys are that.
  */
-export const PROTOCOL_VERSION = 7;
+export const PROTOCOL_VERSION = 8;
 
 /**
  * How often the world says nothing, to keep a proxy from hanging up.

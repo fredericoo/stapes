@@ -1,4 +1,11 @@
 import {
+  MAX_HELD_TRANSITIONS,
+  transitionOf,
+  type HeldTransition,
+  type TileTransitionNote,
+  type TransitionSide,
+} from "../lib/tileTransition";
+import {
   absoluteStandingElevation,
   appendTile,
   getStack,
@@ -857,6 +864,14 @@ function facingToward(from: Coord, to: Coord): Direction | null {
 export interface PlaySession {
   update(dtMs: number): void;
   getSnapshot(): GameSnapshot;
+  /**
+   * Every tile transition since the last call, for the renderer to play.
+   *
+   * On the session rather than the snapshot because it is a hand-over and not
+   * a reading: each note is taken once and forgotten. See
+   * `../lib/tileTransition`.
+   */
+  takeTransitions(): HeldTransition[];
   getMap(): MapFile;
   /**
    * Point at somebody, or at nobody with null.
@@ -1824,6 +1839,26 @@ export class GameSession implements PlaySession {
    */
   private pendingProjectiles: ProjectileFlight[] = [];
   /**
+   * Tiles that formed or dissolved this tick for a reason worth playing.
+   *
+   * Drained and forgotten, and **never aged here**: how far along a transition
+   * is belongs to whoever draws it. A visual timer on this side would keep the
+   * world ticking — brains, settle, checkpoints — for something nobody can be
+   * hurt by. See `../lib/tileTransition`.
+   */
+  private pendingTransitions: TileTransitionNote[] = [];
+  private nextTransitionId = 0;
+  /**
+   * The same notes, kept for a viewer on this machine — offline `/play`.
+   *
+   * Separate from {@link pendingTransitions} because that one is emptied at the
+   * top of every tick, and a local viewer advances by {@link update}, which can
+   * run several ticks between two frames — and a cast lands between ticks
+   * altogether. A server's session fills it and never takes from it, which
+   * is harmless only because it is capped at `MAX_HELD_TRANSITIONS`.
+   */
+  private heldForViewer: TileTransitionNote[] = [];
+  /**
    * Arrows still in the air, aged down by the tick loop.
    *
    * The same pair {@link pendingDamage} and {@link liveDamage} make, for the
@@ -2210,14 +2245,26 @@ export class GameSession implements PlaySession {
       /** What health they were on. Omit for a body that comes back full. */
       hp?: number;
     } = {},
+    {
+      /**
+       * Whether a body placed here is an arrival, and plays its way in.
+       * False for a re-seat onto a board the editor just replaced: nobody
+       * arrived, and the editor saves constantly.
+       */
+      announce = true,
+    }: { announce?: boolean } = {},
   ) {
     if (this.actors.has(id)) return;
     const { at } = restored;
+    // Only a body that was not on the board arrives. A wake re-seats
+    // somebody onto the body the checkpoint kept, which nobody saw leave.
     if (!findActorAnywhere(this.map, id)) {
       const cell = at
         ? findEntryCell(this.map, this.tilesById, at, this.spawnAt)
         : this.spawnAt;
+      const stackIndex = getStack(this.map, cell.x, cell.y, cell.z).length;
       this.map = spawnActor(this.map, id, cell, at?.direction);
+      if (announce) this.noteTransition("appear", PLAYER_TILE_ID, cell, stackIndex);
     }
     this.addActor(id, { ...restored, bodyTileId: PLAYER_TILE_ID });
   }
@@ -2282,9 +2329,14 @@ export class GameSession implements PlaySession {
     // board holding one of a vein's pulls holds it for ever, because there is
     // nothing left to wind the clock that would have given it back.
     const leaving = this.actors.get(id);
-    if (leaving) this.cancelExtraction(leaving);
-    if (!this.actors.delete(id)) return;
+    if (!leaving) return;
+    this.cancelExtraction(leaving);
+    this.actors.delete(id);
+    // Found before the tile comes off, which is the only record of where it
+    // stood — and a player leaving is their body going, which plays its way out.
+    const loc = this.tryLocate(leaving);
     this.forgetTileIndex();
+    if (loc) this.noteTransition("disappear", loc.placed.tileId, loc, loc.stackIndex);
     this.map = despawnActor(this.map, id);
   }
 
@@ -2319,6 +2371,7 @@ export class GameSession implements PlaySession {
     // it grew can tell that thing going stale where it stands from somebody
     // carrying it off, and one that knows only a tile id cannot.
     const itemId = isItem(def) ? mintItemId() : undefined;
+    const stackIndex = getStack(this.map, x, y, z).length;
     this.map = appendTile(this.map, x, y, z, {
       ...point.placed,
       ...(itemId ? { itemId } : {}),
@@ -2327,6 +2380,7 @@ export class GameSession implements PlaySession {
     // Still swept, for what the placement is *holding*: a respawned chest
     // arrives full of anonymous contents, which need identities of their own.
     this.map = mintItemIds(this.map, this.tilesById);
+    this.noteTransition("appear", def.id, point.cell, stackIndex);
     // A body that grew back rolls its kit again, on the same terms its hit
     // points are rebuilt from the tile: what respawned is a new creature, not
     // the one that died holding what it was holding.
@@ -2631,6 +2685,7 @@ export class GameSession implements PlaySession {
     this.pendingDamage = [];
     this.pendingNoise = [];
     this.pendingProjectiles = [];
+    this.pendingTransitions = [];
     this.pendingTeleports = [];
     this.pendingSwings = [];
     this.ageDamageNumbers(tickMs);
@@ -2724,6 +2779,19 @@ export class GameSession implements PlaySession {
     const turned = applyDecay(this.map, placements, this.tilesById);
     this.map = turned.map;
     const changed = turned.changed;
+    // The old tile plays out and what it became plays in, at the one slot the
+    // swap happened in — each only if that tile has the side authored.
+    for (const swap of turned.turned) {
+      this.noteTransition("disappear", swap.tileId, swap.cell, swap.fromIndex);
+      if (swap.into) {
+        this.noteTransition(
+          "appear",
+          swap.into.tileId,
+          swap.cell,
+          swap.into.stackIndex,
+        );
+      }
+    }
 
     // Only when something carried is actually due: this pass walks the whole
     // board looking for the things it names, and a tick where only blood dried
@@ -3383,6 +3451,68 @@ export class GameSession implements PlaySession {
     const loosed = this.pendingProjectiles;
     this.pendingProjectiles = [];
     return loosed;
+  }
+
+  /**
+   * Every tile that formed or dissolved this tick for a reason worth playing,
+   * handed over and forgotten.
+   *
+   * The server's to call, right after {@link tick}, exactly as
+   * {@link drainProjectiles} is. Reset at the top of every tick, so a session
+   * nobody drains cannot pile them up.
+   */
+  drainTransitions(): TileTransitionNote[] {
+    const happened = this.pendingTransitions;
+    this.pendingTransitions = [];
+    return happened;
+  }
+
+  /**
+   * The viewer's hand-over. @see PlaySession.takeTransitions
+   *
+   * Age zero, because a local viewer takes these every frame from a world that
+   * only moves when that viewer is drawing.
+   */
+  takeTransitions(): HeldTransition[] {
+    const taken = this.heldForViewer.map((note) => ({ note, ageMs: 0 }));
+    this.heldForViewer = [];
+    return taken;
+  }
+
+  /**
+   * Queue a transition, if the tile has that side authored.
+   *
+   * **Raised only where something that was not on the board now is, or
+   * something that was has gone of its own accord**: a conjure, `/tile`, a
+   * respawn and a player arriving for an appear; a death or a player
+   * leaving for a disappear; a decay for either. Never for a thing that moved — a drop, a pickup, loot falling
+   * out of a kit, gravity — because it existed all along.
+   *
+   * **Opt-in is decided here, on the server**, so a tile with nothing authored
+   * costs the wire nothing — which is what keeps a fight's worth of drying blood
+   * from becoming a fight's worth of events.
+   */
+  private noteTransition(
+    side: TransitionSide,
+    tileId: string,
+    cell: Coord,
+    stackIndex: number,
+  ) {
+    if (!transitionOf(this.tilesById[tileId], side)) return;
+    const note: TileTransitionNote = {
+      id: `transition-${this.nextTransitionId++}`,
+      side,
+      tileId,
+      x: cell.x,
+      y: cell.y,
+      z: cell.z,
+      stackIndex,
+    };
+    this.pendingTransitions.push(note);
+    this.heldForViewer.push(note);
+    if (this.heldForViewer.length > MAX_HELD_TRANSITIONS) {
+      this.heldForViewer.shift();
+    }
   }
 
   /**
@@ -4382,6 +4512,9 @@ export class GameSession implements PlaySession {
 
     this.actors.delete(target.id);
     this.forgetTileIndex();
+    // A body that dies goes of its own accord, as a decayed tile does, and
+    // plays its way out where it fell.
+    if (loc) this.noteTransition("disappear", loc.placed.tileId, loc, loc.stackIndex);
     this.map = despawnActor(this.map, target.id);
     this.pendingHurt.delete(target.id);
     for (const actor of this.actors.values()) {
@@ -5201,8 +5334,10 @@ export class GameSession implements PlaySession {
     // is read off the stack below it, so a flame conjured on top of somebody
     // would be a flame nobody is in. A body who walks in afterwards arrives
     // above it either way, so both arrivals read the same.
-    next.splice(where.under ?? next.length, 0, placed);
+    const stackIndex = where.under ?? next.length;
+    next.splice(stackIndex, 0, placed);
     this.map = replaceStack(this.map, at.x, at.y, at.z, next);
+    this.noteTransition("appear", def.id, at, stackIndex);
     // What arrived may be a plate, may be wired, and is very likely subject to
     // gravity — the same three indexes a summoned tile rebuilds, and the one
     // that arms its decay. A conjured tile with no lifetime authored on it is a
@@ -7464,6 +7599,8 @@ export class GameSession implements PlaySession {
     // the candidate is only the next value of it.
     let candidate = this.map;
     const owners: string[] = [];
+    // Where each new placement ends up, for its way in. A pour makes none.
+    let formed: number[] = [];
     for (let placement = 0; placement < command.count; placement++) {
       if (!canPlace(candidate, at.x, at.y, at.z, def, this.tilesById).ok) {
         return { kind: "noRoom", at };
@@ -7499,7 +7636,10 @@ export class GameSession implements PlaySession {
       // more than it needs, and the slot `stackIndex` names is left alone.
       const poured = pourInto(stack, placed, this.tilesById);
       const next = poured ?? [...stack];
-      if (!poured) next.splice(stackIndex, 0, placed);
+      if (!poured) {
+        next.splice(stackIndex, 0, placed);
+        formed = slotsAfterInsert(formed, stackIndex);
+      }
       candidate = replaceStack(candidate, at.x, at.y, at.z, next);
 
       if (placed.owner) owners.push(placed.owner);
@@ -7508,6 +7648,9 @@ export class GameSession implements PlaySession {
     this.map = candidate;
     for (const owner of owners) {
       this.addActor(owner, { resident: true, bodyTileId: def.id });
+    }
+    for (const stackIndex of formed) {
+      this.noteTransition("appear", def.id, at, stackIndex);
     }
     // What arrived may be a plate, may be wired, and is very likely subject to
     // gravity — the same three indexes a respawn rebuilds, for the same reason.
@@ -8646,4 +8789,15 @@ export class GameSession implements PlaySession {
     }
     this.map = next;
   }
+}
+
+/**
+ * The slots already filled in one stack, after one more placement is spliced
+ * in at `at`: everything at or above it moves up one, and `at` joins them.
+ *
+ * A `/tile` with a count under the summoner's feet splices every copy into the
+ * same slot, so each new one pushes the ones before it up the stack.
+ */
+function slotsAfterInsert(slots: readonly number[], at: number): number[] {
+  return [...slots.map((slot) => (slot >= at ? slot + 1 : slot)), at];
 }

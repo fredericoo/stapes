@@ -379,6 +379,17 @@ const tiles: TileDef[] = [
     walkable: false,
     interactions: { battler: { baseHp: 8, masteries: AUTHORED, naturalWeapon: claws } },
   }),
+  // A thing with a way in authored, which is what a summons announces.
+  tile({
+    id: "rune",
+    height: 0,
+    transitions: {
+      appear: {
+        durationMs: 300,
+        dissolve: { pattern: "noise", edgeColor: "#8ce6ff", edgeWidth: 0.1 },
+      },
+    },
+  }),
 ];
 
 function field(): MapFile {
@@ -1096,5 +1107,43 @@ describe("setting the time", () => {
     session.runCommand("/time 06:30", "me");
     session.runCommand("/time 18:00", "me");
     expect(session.drainClockSet()).toBe(SIX_PM_MINUTES);
+  });
+});
+
+describe("what a summons announces", () => {
+  it("plays a summoned tile's way in, at the slot it went into", () => {
+    const session = world();
+    session.runCommand("/tile rune", "me");
+
+    expect(session.drainTransitions()).toEqual([
+      {
+        id: expect.any(String),
+        side: "appear",
+        tileId: "rune",
+        x: 0,
+        y: 0,
+        z: 0,
+        stackIndex: 1,
+      },
+    ]);
+  });
+
+  it("names the slot each copy of a count ends in", () => {
+    const session = world();
+    // Every copy goes in under the summoner's feet, so each pushes the ones
+    // before it up the stack.
+    session.runCommand("/tile rune x2", "me");
+
+    const slots = session.drainTransitions().map((note) => note.stackIndex);
+    const stack = stackAt(session, 0, 0, 0);
+    expect(slots.sort()).toEqual([1, 2]);
+    expect(slots.map((slot) => stack[slot]?.tileId)).toEqual(["rune", "rune"]);
+  });
+
+  it("says nothing for a tile with no way in authored", () => {
+    const session = world();
+    session.runCommand("/tile apple", "me");
+
+    expect(session.drainTransitions()).toEqual([]);
   });
 });

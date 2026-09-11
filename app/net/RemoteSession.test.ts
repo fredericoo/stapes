@@ -12,6 +12,7 @@ import { CHAT_LIFETIME_MS } from "./chat";
 import { RemoteSession, STEP_CONFIRM_TIMEOUT_MS } from "./RemoteSession";
 import type { CellPatch, HpPatch, MotionEvent } from "./protocol";
 import { UNKNOWN_REMAINING_MS } from "../game/statuses";
+import { MAX_HELD_TRANSITIONS, MAX_TRANSITION_MS } from "../lib/tileTransition";
 
 /**
  * The client's half of the shared world: what it draws between the event that
@@ -127,9 +128,11 @@ class FakeSocket {
 
 const SERVER_MINUTES = 7 * 60 + 30;
 
-function connected(): { socket: FakeSocket; session: RemoteSession } {
+function connected(
+  now?: () => number,
+): { socket: FakeSocket; session: RemoteSession } {
   const socket = new FakeSocket();
-  const session = new RemoteSession(socket as unknown as WebSocket, tiles);
+  const session = new RemoteSession(socket as unknown as WebSocket, tiles, now);
   socket.deliver({
     type: "hello",
     selfId: SELF,
@@ -1563,5 +1566,64 @@ describe("RemoteSession bodies taken off the board", () => {
     socket.deliver(patch([{ x: 2, y: 0, z: 0, stack: [grass] }]));
 
     expect(session.getSnapshot().actors).toHaveLength(1);
+  });
+});
+
+describe("RemoteSession tile transitions", () => {
+  const formed = {
+    kind: "tileTransition",
+    id: "transition-1",
+    side: "appear",
+    tileId: "grass",
+    x: 1,
+    y: 0,
+    z: 0,
+    stackIndex: 1,
+  } satisfies Extract<MotionEvent, { kind: "tileTransition" }>;
+  const { kind: _kind, ...note } = formed;
+  const FRAME_MS = 16;
+
+  /**
+   * A session on a clock the test moves by hand, and never through `update`:
+   * the case worth pinning is the one where no frames run at all.
+   */
+  function onClock() {
+    let clockMs = 0;
+    const { socket, session } = connected(() => clockMs);
+    return {
+      socket,
+      session,
+      advance(ms: number) {
+        clockMs += ms;
+      },
+    };
+  }
+
+  it("holds one until the renderer takes it, with how long it waited", () => {
+    const { socket, session, advance } = onClock();
+    socket.deliver(patch([], [formed]));
+    advance(FRAME_MS);
+
+    expect(session.takeTransitions()).toEqual([{ note, ageMs: FRAME_MS }]);
+    expect(session.takeTransitions()).toEqual([]);
+  });
+
+  it("hands over nothing that could have finished while no frame was drawn", () => {
+    const { socket, session, advance } = onClock();
+    socket.deliver(patch([], [formed]));
+    advance(MAX_TRANSITION_MS);
+
+    expect(session.takeTransitions()).toEqual([]);
+  });
+
+  it("keeps the newest when more arrive than it holds", () => {
+    const { socket, session } = onClock();
+    for (let i = 0; i <= MAX_HELD_TRANSITIONS; i++) {
+      socket.deliver(patch([], [{ ...formed, id: `transition-${i}` }]));
+    }
+
+    const taken = session.takeTransitions();
+    expect(taken).toHaveLength(MAX_HELD_TRANSITIONS);
+    expect(taken[0]?.note.id).toBe("transition-1");
   });
 });

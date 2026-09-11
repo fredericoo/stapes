@@ -333,6 +333,48 @@ export type DecayResult = {
 };
 
 /**
+ * One placement {@link applyDecay} turned, at the two addresses a viewer needs.
+ *
+ * Two slots and not one, because a cell can have more than one thing due in a
+ * pass. `[grass, blood, ember]` with the blood drying to nothing and the ember
+ * to ash ends `[grass, ash]`: the ember left slot 2 of the stack a client still
+ * has, and the ash sits in slot 1 of the one it is about to get.
+ */
+export type TurnedPlacement = {
+  cell: Coord;
+  tileId: string;
+  /** Its slot in the stack this pass started from. */
+  fromIndex: number;
+  /**
+   * What it became and where that sits once the pass is done — undefined when
+   * it became nothing, or when what it became was itself turned in the same pass
+   * and so never stood on the board at all. That second case includes an ember
+   * turning to ash in a pass where an older ash in the same cell is also due:
+   * both turn together, and the tile left on the board plays no way in. Rare,
+   * and only ever an effect that does not play.
+   */
+  into: { tileId: string; stackIndex: number } | undefined;
+};
+
+export type PlacementDecayResult = DecayResult & { turned: TurnedPlacement[] };
+
+/**
+ * Whether `placed` is one that turns when `tileId`'s time comes.
+ *
+ * The one rule both {@link decayedStack} and {@link applyDecay}'s report read,
+ * so a placement cannot be turned by one and missed by the other.
+ */
+function turnsHere(placed: PlacedTile, tileId: string): boolean {
+  return placed.tileId === tileId && !placed.owner && !placed.itemId;
+}
+
+/** A stack after a decay, with each placement it turned and what replaced it. */
+type DecayedStack = {
+  stack: PlacedTile[];
+  swaps: Array<{ before: PlacedTile; after: PlacedTile | undefined }>;
+};
+
+/**
  * `stack` with every anonymous placement of `tileId` turned, or null when
  * nothing in it turns.
  *
@@ -350,7 +392,7 @@ function decayedStack(
   cell: Coord,
   tileId: string,
   tilesById: Record<string, TileDef>,
-): PlacedTile[] | null {
+): DecayedStack | null {
   const decay = decayOf(tileId, tilesById);
   if (!decay) return null;
   // A target that does not exist leaves the tile where it is rather than
@@ -360,21 +402,22 @@ function decayedStack(
 
   const stack = getStack(map, cell.x, cell.y, cell.z);
   const next: PlacedTile[] = [];
-  let turned = false;
+  const swaps: DecayedStack["swaps"] = [];
   for (const placed of stack) {
-    if (placed.tileId !== tileId || placed.owner || placed.itemId) {
+    if (!turnsHere(placed, tileId)) {
       next.push(placed);
       continue;
     }
-    turned = true;
-    if (decay.tileId) next.push({ ...placed, tileId: decay.tileId });
+    const after = decay.tileId ? { ...placed, tileId: decay.tileId } : undefined;
+    if (after) next.push(after);
+    swaps.push({ before: placed, after });
   }
-  if (!turned) return null;
+  if (swaps.length === 0) return null;
 
   // Refused rather than forced, exactly as a plate's swap is: whatever a decay
   // becomes has to fit under what has been stacked on it in the meantime.
   return canReplaceStack(map, cell.x, cell.y, cell.z, next, tilesById).ok
-    ? next
+    ? { stack: next, swaps }
     : null;
 }
 
@@ -385,21 +428,69 @@ function decayedStack(
  * somebody is driving the body — is abandoned rather than retried. Retrying
  * would hold the world awake spinning on a swap that is never going to fit, and
  * the cell is re-armed for free the next time anything disturbs it.
+ *
+ * The report is measured against the two stacks a viewer holds — the one this
+ * pass started from and the one it ends with — and never against one of the
+ * half-applied stacks in between. Placements are recognised by object: an
+ * untouched one keeps its identity through a swap, and a replacement inherits
+ * the slot of what it replaced.
  */
 export function applyDecay(
   map: MapFile,
   entries: Iterable<PlacementDecay>,
   tilesById: Record<string, TileDef>,
-): DecayResult {
+): PlacementDecayResult {
   const changed: Coord[] = [];
+  const startedAt = new Map<PlacedTile, number>();
+  const madeThisPass = new Set<PlacedTile>();
+  const seenCells = new Set<string>();
+  const swapped: Array<{
+    cell: Coord;
+    tileId: string;
+    fromIndex: number;
+    after: PlacedTile | undefined;
+  }> = [];
+
   let next = map;
   for (const { cell, tileId } of entries) {
-    const stack = decayedStack(next, cell, tileId, tilesById);
-    if (!stack) continue;
-    next = replaceStack(next, cell.x, cell.y, cell.z, stack);
+    const cellKey = `${cell.z}:${cell.x},${cell.y}`;
+    if (!seenCells.has(cellKey)) {
+      seenCells.add(cellKey);
+      getStack(next, cell.x, cell.y, cell.z).forEach((placed, index) => {
+        startedAt.set(placed, index);
+      });
+    }
+
+    const decayed = decayedStack(next, cell, tileId, tilesById);
+    if (!decayed) continue;
+    for (const { before, after } of decayed.swaps) {
+      const fromIndex = startedAt.get(before);
+      if (after && fromIndex !== undefined) startedAt.set(after, fromIndex);
+      if (after) madeThisPass.add(after);
+      // Something this pass made and this pass took away again never stood on
+      // the board any viewer has, so there is nothing of it to play out.
+      if (fromIndex === undefined || madeThisPass.has(before)) continue;
+      swapped.push({ cell, tileId, fromIndex, after });
+    }
+    next = replaceStack(next, cell.x, cell.y, cell.z, decayed.stack);
     changed.push(cell);
   }
-  return { map: next, changed };
+
+  const turned = swapped.map(({ cell, tileId, fromIndex, after }) => {
+    const stackIndex = after
+      ? getStack(next, cell.x, cell.y, cell.z).indexOf(after)
+      : -1;
+    return {
+      cell,
+      tileId,
+      fromIndex,
+      into:
+        after && stackIndex >= 0
+          ? { tileId: after.tileId, stackIndex }
+          : undefined,
+    };
+  });
+  return { map: next, changed, turned };
 }
 
 /**

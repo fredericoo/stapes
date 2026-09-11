@@ -490,6 +490,28 @@ const props: TileDef[] = [
       decay: { tileId: "", fromMs: 8_000, toMs: 8_000 },
     },
   }),
+  // The same kind of flame with a way in authored, which is what a conjure
+  // announces. `conjured-flame` above has none, and announces nothing.
+  stoneTile("form-stone", {
+    effect: { kind: "conjure", tileId: "formed-flame" },
+    cooldownMs: 10_000,
+  }),
+  tile({
+    id: "formed-flame",
+    intangible: true,
+    lightPassing: true,
+    transitions: {
+      appear: {
+        durationMs: 700,
+        dissolve: {
+          pattern: "sweep",
+          from: { x: -1, y: -1 },
+          edgeColor: "#8ce6ff",
+          edgeWidth: 0.2,
+        },
+      },
+    },
+  }),
 ];
 
 /** The catalogue a body born carrying `kit` is simulated against. */
@@ -948,6 +970,44 @@ describe("conjuring", () => {
     expect(getStack(play.getMap(), 1, 0, 0).map((p) => p.tileId)).toContain(
       "conjured-flame",
     );
+  });
+
+  it("announces the flame it placed, when that flame has a way in authored", () => {
+    const play = session({ weapon: "form-stone" });
+
+    expect(play.cast("weapon")).toBe(true);
+    // On the grass in front of the caster, so second in its stack.
+    expect(play.drainTransitions()).toEqual([
+      {
+        id: expect.any(String),
+        side: "appear",
+        tileId: "formed-flame",
+        x: 1,
+        y: 0,
+        z: 0,
+        stackIndex: 1,
+      },
+    ]);
+  });
+
+  it("announces nothing for a flame with no way in authored", () => {
+    const play = session({ weapon: "flame-stone" });
+
+    expect(play.cast("weapon")).toBe(true);
+    expect(play.drainTransitions()).toEqual([]);
+  });
+
+  it("still hands a cast's flame to a viewer on this machine after a tick", () => {
+    const play = session({ weapon: "form-stone" });
+    play.cast("weapon");
+    // A tick empties what a server drains. A local viewer advances by ticks and
+    // a cast lands between them, so its hand-over has to outlive one.
+    run(play, 1);
+
+    expect(play.takeTransitions().map((held) => held.note.tileId)).toEqual([
+      "formed-flame",
+    ]);
+    expect(play.takeTransitions()).toEqual([]);
   });
 
   it("places it at the target's cell instead, when there is one", () => {
