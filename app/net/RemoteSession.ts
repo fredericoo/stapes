@@ -40,6 +40,7 @@ import {
   castability,
   castableStones,
   type CastContext,
+  type CasterPoint,
   type CastPoint,
   type CastSquare,
   type SpellButton,
@@ -1872,8 +1873,17 @@ export class RemoteSession implements PlaySession {
       // that turns one into the other — see `../lib/mastery`. A second reading
       // here would be a second answer to "what level am I".
       masteries: masteriesFromXp(this.masteryXp),
-      caster: this.castPoint(from),
+      caster: this.casterPoint(from),
       target: to ? this.castPoint(to) : null,
+    };
+  }
+
+  /** Where this client casts from, and the facing and legs a conjure steps with. */
+  private casterPoint(from: ActorLocation): CasterPoint {
+    return {
+      ...this.castPoint(from),
+      facing: actorDirection(from),
+      tileId: from.placed.tileId,
     };
   }
 
@@ -1891,6 +1901,7 @@ export class RemoteSession implements PlaySession {
       x: loc.x,
       y: loc.y,
       z: loc.z,
+      stackIndex: loc.stackIndex,
       elevAbs: absoluteStandingElevation(
         loc.z,
         stack.slice(0, loc.stackIndex),

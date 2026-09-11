@@ -248,6 +248,7 @@ function nimbleRat(): TileDef {
 /** Everything but the player, whose kit differs from case to case. */
 const props: TileDef[] = [
   tile({ id: "grass" }),
+  tile({ id: "wall", height: 4, lightPassing: false }),
   body("rat", RAT_TOUGHNESS, { actor: true }),
   // Three rats that are made of something, so the wheel has somewhere to turn.
   // Their toughness is the plain rat's, so the only thing that differs between
@@ -986,6 +987,26 @@ describe("conjuring", () => {
     expect(getStack(play.getMap(), 1, 0, 0).map((p) => p.tileId)).not.toContain(
       "conjured-flame",
     );
+  });
+
+  /**
+   * A flame that does not appear was not cast. It used to spend the cooldown
+   * anyway, on a swing's terms — but a swing that misses still swung, and a
+   * press that visibly did nothing reads as a dropped key.
+   */
+  it("refuses to conjure into a wall, and spends nothing", () => {
+    const map = replaceStack(world(), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "wall" },
+    ]);
+    const play = session({ weapon: "flame-stone" }, map);
+
+    expect(play.cast("weapon")).toBe(false);
+    expect(coolingIn(play, "weapon")).toBeUndefined();
+    expect(play.spells()[0]?.castability).toEqual({
+      ok: false,
+      reason: "blocked",
+    });
   });
 });
 
