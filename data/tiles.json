@@ -12797,7 +12797,7 @@
     "walkable": false,
     "interactions": {
       "battler": {
-        "baseHp": 8,
+        "baseHp": 12,
         "masteries": {
           "fist": 5,
           "sharp": 5,
@@ -28296,7 +28296,7 @@
         ]
       },
       "battler": {
-        "baseHp": 8,
+        "baseHp": 100,
         "masteries": {
           "blunt": 60,
           "toughness": 66,
@@ -28321,19 +28321,33 @@
         },
         "kit": [
           {
-            "slot": "offhand",
-            "tileId": "raw-meat",
-            "chance": 75
-          },
-          {
-            "slot": "armor",
-            "tileId": "skull-troll",
-            "chance": 100
+            "slot": "bag",
+            "tileId": "basic-bag",
+            "chance": 100,
+            "contents": [
+              {
+                "tileId": "skull-troll",
+                "chance": 100
+              },
+              {
+                "tileId": "arcane-stone",
+                "chance": 100
+              },
+              {
+                "tileId": "raw-meat",
+                "chance": 75
+              }
+            ]
           },
           {
             "slot": "charm",
             "tileId": "bone-charm",
             "chance": 25
+          },
+          {
+            "slot": "weapon",
+            "tileId": "simple-hammer",
+            "chance": 50
           }
         ],
         "elements": [
