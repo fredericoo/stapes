@@ -64,6 +64,7 @@ import {
   parseClientMessage,
   type CarriedLightsPatch,
   type StatusIdsPatch,
+  type CastingPatch,
   type ExtractionPatch,
   type CellPatch,
   type HpPatch,
@@ -229,6 +230,16 @@ function currentExtractions(actors: ActorSnapshot[]): ExtractionPatch[] {
   return out;
 }
 
+/** Everybody's casts in progress. @see currentCarriedLights for the omission rule. */
+function currentCastings(actors: ActorSnapshot[]): CastingPatch[] {
+  const out: CastingPatch[] = [];
+  for (const actor of actors) {
+    if (!actor.casting) continue;
+    out.push({ actorId: actor.id, progress: progressOf(actor.casting) });
+  }
+  return out;
+}
+
 /**
  * The two numbers of a pull, copied off the runtime's object.
  *
@@ -236,11 +247,11 @@ function currentExtractions(actors: ActorSnapshot[]): ExtractionPatch[] {
  * `Extraction`, key included, and the key is sent to its owner alone.
  */
 function progressOf(
-  extracting: NonNullable<ActorSnapshot["extracting"]>,
+  running: NonNullable<ActorSnapshot["extracting"] | ActorSnapshot["casting"]>,
 ): NonNullable<ExtractionPatch["progress"]> {
   return {
-    remainingMs: extracting.remainingMs,
-    durationMs: extracting.durationMs,
+    remainingMs: running.remainingMs,
+    durationMs: running.durationMs,
   };
 }
 
@@ -711,6 +722,14 @@ export class GameServer {
   private sentExtractions = new Map<
     string,
     NonNullable<ActorSnapshot["extracting"]>
+  >();
+  /**
+   * The cast each actor was last broadcast as making, compared by identity on
+   * {@link sentExtractions}' terms and for its reason. @see diffCastings
+   */
+  private sentCastings = new Map<
+    string,
+    NonNullable<ActorSnapshot["casting"]>
   >();
   private events: MotionEvent[] = [];
   /** Steps, turns and casts clients have sent, oldest first, per actor. */
@@ -1933,6 +1952,9 @@ export class GameServer {
       carriedLights: currentCarriedLights(actors),
       statusIds: currentStatusIds(actors),
       extractions: currentExtractions(actors),
+      // Beside the pulls and for their reason: somebody half way through a
+      // flame when this client arrived has to have a bar on the first frame.
+      castings: currentCastings(actors),
       // Theirs alone, and sent in full here for the same reason the map and the
       // hit points are: a joiner has nothing to patch against.
       equipment: session.equipmentOf(actorId) ?? emptyEquipment(),
@@ -3299,13 +3321,15 @@ export class GameServer {
     const carriedLights = this.diffCarriedLights(actors);
     const statusIds = this.diffStatusIds(actors);
     const extractions = this.diffExtractions(actors);
+    const castings = this.diffCastings(actors);
     if (
       cells.length > 0 ||
       this.events.length > 0 ||
       hps.length > 0 ||
       carriedLights.length > 0 ||
       statusIds.length > 0 ||
-      extractions.length > 0
+      extractions.length > 0 ||
+      castings.length > 0
     ) {
       this.broadcast({
         type: "patch",
@@ -3315,6 +3339,7 @@ export class GameServer {
         carriedLights,
         statusIds,
         extractions,
+        castings,
       });
       this.broadcastMap = session.getMap();
       this.events = [];
@@ -3797,6 +3822,31 @@ export class GameServer {
   }
 
   /**
+   * Whose cast started or ended since the last patch.
+   *
+   * {@link diffExtractions}' twin, down to the identity compare: the runtime
+   * winds one object in place for the whole cast and replaces it only at the two
+   * ends, so comparing the numbers would send a message every tick of every
+   * spell in the world.
+   */
+  private diffCastings(actors: ActorSnapshot[]): CastingPatch[] {
+    const out: CastingPatch[] = [];
+    const live = new Set<string>();
+    for (const actor of actors) {
+      live.add(actor.id);
+      const now = actor.casting;
+      if ((this.sentCastings.get(actor.id) ?? null) === now) continue;
+      if (now) this.sentCastings.set(actor.id, now);
+      else this.sentCastings.delete(actor.id);
+      out.push({ actorId: actor.id, progress: now ? progressOf(now) : null });
+    }
+    for (const id of this.sentCastings.keys()) {
+      if (!live.has(id)) this.sentCastings.delete(id);
+    }
+    return out;
+  }
+
+  /**
    * Cells that changed since the last broadcast.
    *
    * Chunk identity first (`changedCellsOnLevel`), so an unchanged floor costs a
@@ -3895,6 +3945,7 @@ export class GameServer {
         carriedLights: [],
         statusIds: [],
         extractions: [],
+        castings: [],
       });
     }
   }

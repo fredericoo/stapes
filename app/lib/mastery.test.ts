@@ -8,6 +8,7 @@ import {
   MAX_XP_MULTIPLIER,
   MIN_RATING,
   masteriesFromXp,
+  requirementCoverage,
   requirementShare,
   NOTHING_BELOW_RATIO,
   rating,
@@ -27,6 +28,48 @@ import {
  * that is quietly wrong for months: it returns a plausible fraction whatever it
  * does.
  */
+
+/**
+ * The same pooling with the cap taken off, which is the whole of what a stone
+ * reads and a weapon does not. What it is for is time off a cast — see
+ * `../game/casting`'s `castDurationMs` — so the cases that matter are the ones
+ * above the line, where {@link requirementShare} has stopped counting.
+ */
+describe("requirementCoverage", () => {
+  it("agrees with the capped share right up to the requirement", () => {
+    const asks = { arcane: 8, fire: 2 };
+    expect(requirementCoverage({ arcane: 8, fire: 2 }, asks)).toBe(
+      REQUIREMENTS_MET,
+    );
+    expect(requirementCoverage({ arcane: 4, fire: 1 }, asks)).toBe(0.5);
+  });
+
+  it("counts the surplus, where the capped share throws it away", () => {
+    const asks = { arcane: 8, fire: 2 };
+    expect(requirementShare({ arcane: 16, fire: 4 }, asks)).toBe(
+      REQUIREMENTS_MET,
+    );
+    expect(requirementCoverage({ arcane: 16, fire: 4 }, asks)).toBe(2);
+  });
+
+  /**
+   * Pooled, so a point is a point wherever it was earned. A caster cannot cast
+   * on that basis — a shortfall anywhere refuses the stone outright, through
+   * `meetsRequirements` — so this only ever describes somebody who is already
+   * over the line everywhere.
+   */
+  it("pools the surplus across the block", () => {
+    expect(requirementCoverage({ arcane: 11, fire: 2 }, { arcane: 8, fire: 2 }))
+      .toBeCloseTo(1.3);
+  });
+
+  it("is fully met by a stone that asks nothing, however good the caster", () => {
+    expect(requirementCoverage({ arcane: 100 }, undefined)).toBe(
+      REQUIREMENTS_MET,
+    );
+    expect(requirementCoverage({ arcane: 100 }, {})).toBe(REQUIREMENTS_MET);
+  });
+});
 
 describe("requirementShare", () => {
   it("is fully met when a weapon asks nothing", () => {

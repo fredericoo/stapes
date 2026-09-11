@@ -2611,9 +2611,10 @@ facing on a body is always a row somebody copied and forgot to move.
 ## Magic is a stone you carry, and there is nothing else to it
 
 There is no mana, no spell book and no spell slots. What a caster can do is
-decided by which **arcane stones** they are carrying and how recently each was
-used — so the whole of a loadout is two hands and a charm, which is why the
-desktop binding is `1`, `2`, `3` and stops there.
+decided by which **arcane stones** they are carrying, how recently each was used
+and — for the stones that take time — how far past what one asks the caster has
+got. The whole of a loadout is two hands and a charm, which is why the desktop
+binding is `1`, `2`, `3` and stops there.
 
 A stone is an arm of the item union beside weapon, armour, shield, consumable,
 container and artifact, and it is a kind of its own for the reason a shield is:
@@ -2855,6 +2856,11 @@ refuses on it and `castConjure` places with it, and the browser runs it too, so
 the button dims when you face a wall. Stepping into open air is still a legal
 step — gravity needs it — so a flame can still be laid over a drop.
 
+**A stone with a cast time asks it twice**, once when it is pressed and once
+when the bar fills, and the second is the one somebody can do something about:
+drop a crate in front of a caster mid-flame and nothing happens, with the stone
+still ready. @see "A cast can take time" below
+
 #### A cast is resolved from where the caster is arriving
 
 Three things made a flame land on its own caster, or beside where they were
@@ -2914,6 +2920,62 @@ The lock is on *player-initiated* moves only — a death drops the whole kit
 regardless, and what lands is ready. It is also the only refusal in the item
 model that says anything out loud, because it is the only one where a player can
 plainly see something in a square and plainly cannot empty it.
+
+### A cast can take time, and what the caster brings past the requirements takes it off
+
+`ArcaneStoneItem.castTimeMs` is what a stone costs *in front*, where the cooldown
+is what it costs afterwards. Absent is instant, which is what every stone was
+before this and what all but one still is. The shipped Stone of Flame is
+authored at three seconds.
+
+- **Nothing is spent until the bar fills.** The cooldown, the practice
+  experience and the effect all land together in `resolveCast`, so a cast that
+  is broken or that finds nowhere to land has cost the caster the seconds and
+  nothing else. That is the argument a blocked conjure already made — a flame
+  that never appeared is a press the player cannot tell from a dropped key —
+  carried to the one case where they can plainly see why.
+- **The scaling is a subtraction, not a curve.** `castDurationMs` reads
+  `requirementCoverage` — `requirementShare` with the cap taken off — and takes
+  the surplus straight off the clock: 110% of what the stone asks is 90% of the
+  time, 150% is half, and double is instant. One subtraction because a player has
+  to be able to hold it in their head while looking at the requirements grid, and
+  because the figure is on the button's tooltip where a level-up visibly moves it.
+- **That is what keeps a starter spell worth carrying.** Flame asks Arcane 5 and
+  Fire 1, so it is three seconds the day you can first hold one and instant by
+  Arcane 11. The spell does not get stronger, it gets quick. The stones at the
+  top of the ladder ask thirty-odd points and stay slow for a long time, which is
+  the whole shape of the trade — and it is why the cap belongs off this number
+  and on `requirementShare`, where a weapon reads it.
+- **A blow breaks it, and `uninterruptible` is the exception an author writes.**
+  Cancelled from inside `applyDamage` on the same gate a pull is — `amount > 0`,
+  so being bandaged mid-cast is not an interruption — and said out loud, because
+  a bar vanishing is exactly what a *finished* cast looks like. Nothing else
+  breaks one: a caster may walk, turn and be shoved while casting, and making it
+  depend on standing still as well would be a rule nobody could guess at from
+  watching.
+- **Everything else is asked once, at the end.** `finishCasting` takes the run
+  off the actor and then asks `castability` again, so a target who walked out of
+  range, a target who died, a stone swapped to the other hand and a cell somebody
+  has since dropped a crate on all come to the same thing: nothing happens, and
+  the stone is still ready. The run is cleared *before* the question because a
+  body recorded as casting refuses every square, itself included.
+- **One cast at a time, and it refuses the whole row.** `CastContext.casting`
+  carries only the clock — which stone is the session's business — so every
+  button dims and comes back together, which is a picture a player can read
+  without knowing which one started it.
+- **A cast and a pull are one pair of hands.** Starting either takes the other
+  off you, which is what keeps `ActorSnapshot.casting` and
+  `ActorSnapshot.extracting` from ever being set at once and lets one bar draw
+  both.
+- **It holds the world awake.** `isAtRest` returns false while anybody is
+  casting — the same clause a pull and a cooling stone have, and sharper than
+  either: the cooldown has not been spent yet, so there is nothing else on the
+  board that would have kept the clock running, and a world that slept here would
+  leave the caster in a spell that never lands.
+- **`advanceCastings` runs late in the tick**, directly after
+  `advanceExtractions`, so a cast is resolved against the board the rest of the
+  tick left behind: a crate dropped in front of the caster this tick is in the
+  way of *this* flame rather than of the next one.
 
 ### Castability is one pure module, and it answers with a reason
 
@@ -4260,7 +4322,7 @@ contrast.
 | ---------- | ----------------------- | -------------------------- | --------------------- |
 | reward     | one player, once        | nothing on the board       | a tag on you          |
 | transmute  | anybody, repeatedly     | nothing on the board       | your bag              |
-| extract    | everybody, together     | the placement's durability | anything that moves or hurts you |
+| extract    | everybody, together     | the placement's durability | anything that moves or hurts you, or a spell you start |
 
 - **The cost is paid in front, not after.** A tap buys a place at the vein and
   nothing else: `durationMs` runs while the player stands there, and only when
@@ -4447,7 +4509,7 @@ player's pull is still running on the body they left.
   identity is the change signal the renderer gates its whole interaction list on,
   and a tick advancing a pull costs no allocation and no rebuild. The same
   hand-over-by-reference a `walk` or a `strike` already travels on.
-  `RemoteSession.windExtraction` does the same against the render clock — which
+  `RemoteSession.windBars` does the same against the render clock — which
   is not a prediction of anything, since only the server's message ever clears
   it; it keeps the *number* true between the two messages.
 - **Whether a vein is free travels on the board**, as the reservation on the
@@ -4464,6 +4526,15 @@ player's pull is still running on the body they left.
   everybody. The key is left off because only the owner's row matches against
   it, and the diff does not read `drainExtractionChanges` because that queue is
   the owner's.
+- **A cast is the same picture on a second channel.** `CastingPatch` is
+  `ExtractionPatch`'s twin, diffed by identity the same way and drawn by the same
+  bar, and `app/game/progress.ts` is the two numbers both of them are — a third
+  module because `casting` and `extract` cannot import each other. Two channels
+  rather than one field because a body can be told to stop pulling and to start
+  casting in the same patch, and one field would be a message arguing with
+  itself. Nothing about a cast is addressed to its owner: there is no key and no
+  row, and which stone it came out of is not drawn, so what the owner needs — the
+  whole row dims — is in the broadcast they are already in.
 - **Not durable.** `hp`'s bargain rather than a tag's: a tag records that
   something *happened* and can never be rebuilt, where this records something
   that is happening, and a world that has gone quiet is a world where nobody is

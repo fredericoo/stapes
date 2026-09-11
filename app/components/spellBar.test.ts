@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { CastRefusal } from "../game/casting";
-import { cooldownShare, spellAppearance, spellPressable } from "./SpellBar";
+import {
+  castTimeNote,
+  cooldownShare,
+  spellAppearance,
+  spellPressable,
+} from "./SpellBar";
 
 /**
  * Which of the three appearances a stone wears, and whether pressing it sends
@@ -23,7 +28,7 @@ describe("spellAppearance", () => {
     expect(spellAppearance({ ok: false, reason: "noTarget" })).toBe("ready");
   });
 
-  it.each<CastRefusal>(["empty", "mastery", "outOfRange", "blocked"])(
+  it.each<CastRefusal>(["empty", "casting", "mastery", "outOfRange", "blocked"])(
     "collapses %s into one unavailable appearance",
     (reason) => {
       expect(spellAppearance({ ok: false, reason })).toBe("unavailable");
@@ -73,4 +78,29 @@ describe("spellPressable", () => {
       expect(spellPressable({ ok: false, reason })).toBe(false);
     },
   );
+});
+
+/**
+ * What a button says about the time a cast costs.
+ *
+ * Said rather than drawn — the picture of a cast is the bar over the caster's
+ * head once they have pressed — so this is the whole of the button's side of it.
+ */
+describe("castTimeNote", () => {
+  it("says nothing for an instant stone, which is nearly all of them", () => {
+    expect(castTimeNote(0)).toBe("");
+  });
+
+  it("reads a whole cast in seconds", () => {
+    expect(castTimeNote(3_000)).toBe("3s to cast");
+  });
+
+  /**
+   * A cast scaled by a caster's masteries is rarely a whole number of seconds,
+   * and a tenth is the grain a bar can be read at.
+   */
+  it("keeps a tenth of a second, and no more", () => {
+    expect(castTimeNote(1_500)).toBe("1.5s to cast");
+    expect(castTimeNote(1_530)).toBe("1.5s to cast");
+  });
 });

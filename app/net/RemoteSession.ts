@@ -44,6 +44,7 @@ import {
   type Extraction,
   type ExtractionProgress,
 } from "../game/extract";
+import { type Progress, windProgress } from "../game/progress";
 import { gravityPullOn } from "../game/gravity";
 import { type Equipment, emptyEquipment } from "../game/equipment";
 import {
@@ -104,6 +105,7 @@ import {
   type ClientMessage,
   type CarriedLightsPatch,
   type StatusIdsPatch,
+  type CastingPatch,
   type ExtractionPatch,
   type HpPatch,
   type MotionEvent,
@@ -274,6 +276,17 @@ export class RemoteSession implements PlaySession {
    * @see ExtractionPatch
    */
   private readonly extractionsById = new Map<string, ExtractionProgress>();
+  /**
+   * Everybody's cast in progress as the broadcast last described it, wound on
+   * the render clock between its two messages.
+   *
+   * **The viewer's own is in here too**, which is where this parts company with
+   * {@link extractionsById} beside it: a pull has an owner's half carrying the
+   * key its interaction row matches against, and a cast has no row and no key.
+   * What the viewer's own entry is for is the row of spell buttons, which dims
+   * while anything is being cast. @see `../game/casting`'s `CastContext.casting`
+   */
+  private readonly castingsById = new Map<string, Progress>();
   /**
    * What this viewer is carrying, as the server last said.
    *
@@ -601,6 +614,7 @@ export class RemoteSession implements PlaySession {
       this.carriedLights.clear();
       this.statusesById.clear();
       this.extractionsById.clear();
+      this.castingsById.clear();
       // Replaced outright rather than kept: the body at the other end is a
       // fresh one, and what it is carrying is whatever the server just said —
       // not what the body in the previous world had on it.
@@ -630,6 +644,7 @@ export class RemoteSession implements PlaySession {
       this.applyCarriedLights(message.carriedLights);
       this.applyStatusIds(message.statusIds);
       this.applyExtractions(message.extractions);
+      this.applyCastings(message.castings);
       this.setPlayers(message.playerCount);
       // A `hello` is a body, whichever of the two sent it: the answer to
       // `rebirth`, or a world replaced under a socket that happened to be dead
@@ -771,6 +786,7 @@ export class RemoteSession implements PlaySession {
     this.applyCarriedLights(message.carriedLights);
     this.applyStatusIds(message.statusIds);
     this.applyExtractions(message.extractions);
+    this.applyCastings(message.castings);
     for (const event of message.events) this.applyEvent(event);
     this.forgetDeparted(leaving);
     this.rebuildPredicted();
@@ -853,7 +869,7 @@ export class RemoteSession implements PlaySession {
    * Deleted on null rather than stored, unlike {@link applyStatusIds}' empty
    * list: "stopped pulling" and "never heard of them" draw the same nothing.
    * Copied rather than adopted, on {@link setExtracting}'s terms, because
-   * {@link windExtraction} winds these in place.
+   * {@link windBars} winds these in place.
    */
   private applyExtractions(patches: ExtractionPatch[]) {
     for (const patch of patches) {
@@ -861,6 +877,22 @@ export class RemoteSession implements PlaySession {
         this.extractionsById.set(patch.actorId, { ...patch.progress });
       } else {
         this.extractionsById.delete(patch.actorId);
+      }
+    }
+  }
+
+  /**
+   * Take the server's word for who is part-way through a cast.
+   *
+   * {@link applyExtractions}' twin, on every one of its terms: deleted on null,
+   * and copied because {@link windBars} winds these in place.
+   */
+  private applyCastings(patches: CastingPatch[]) {
+    for (const patch of patches) {
+      if (patch.progress) {
+        this.castingsById.set(patch.actorId, { ...patch.progress });
+      } else {
+        this.castingsById.delete(patch.actorId);
       }
     }
   }
@@ -1197,7 +1229,7 @@ export class RemoteSession implements PlaySession {
     if (this.attackRecoveryMs > 0) {
       this.attackRecoveryMs = Math.max(0, this.attackRecoveryMs - dtMs);
     }
-    this.windExtraction(dtMs);
+    this.windBars(dtMs);
     this.agePendingSteps(dtMs);
     this.advancePrediction();
     this.expireChats(dtMs);
@@ -1242,7 +1274,7 @@ export class RemoteSession implements PlaySession {
   }
 
   /**
-   * Wind the pull in progress on against the render clock.
+   * Wind every pull and every cast on against the render clock.
    *
    * **Local, and not a prediction of anything.** The server is still the only
    * thing that decides when a pull lands or is taken away — its message is what
@@ -1261,12 +1293,18 @@ export class RemoteSession implements PlaySession {
    *
    * Everybody else's pull is wound the same way and for the same reason: the
    * broadcast carries it twice too, and the bar over their head is the same
-   * fraction.
+   * fraction. A cast is that same bargain a third time.
    */
-  private windExtraction(dtMs: number) {
-    if (this.extracting) windPull(this.extracting, dtMs);
+  private windBars(dtMs: number) {
+    if (this.extracting) windProgress(this.extracting, dtMs);
     for (const running of this.extractionsById.values()) {
-      windPull(running, dtMs);
+      windProgress(running, dtMs);
+    }
+    // Casts on the same clock and for the same reason, the viewer's own
+    // included: the broadcast carries both halves of the fraction twice a cast,
+    // and the bar in between is this side's to fill.
+    for (const casting of this.castingsById.values()) {
+      windProgress(casting, dtMs);
     }
   }
 
@@ -1847,6 +1885,9 @@ export class RemoteSession implements PlaySession {
         id === this.selfId
           ? this.extracting
           : (this.extractionsById.get(id) ?? null),
+      // Everybody's off the broadcast, the viewer's own included: a cast has no
+      // owner's half. @see castingsById
+      casting: this.castingsById.get(id) ?? null,
     };
   }
 
@@ -2008,6 +2049,10 @@ export class RemoteSession implements PlaySession {
       // here would be a second answer to "what level am I".
       masteries: masteriesFromXp(this.masteryXp),
       caster: this.casterPoint(from, motion.walk?.to ?? null),
+      // Off the broadcast rather than predicted, on the terms the cooldown is:
+      // the cast is the server's clock, and a bar this side started would dim
+      // the row for a cast the far end never began. @see castingsById
+      casting: this.castingsById.get(this.selfId) ?? null,
       target: to ? this.castPoint(to) : null,
     };
   }
@@ -2464,10 +2509,7 @@ function offscreenActor(id: string): ActorSnapshot {
     statuses: NO_STATUSES,
     carriedLights: NO_CARRIED_LIGHTS,
     extracting: null,
+    casting: null,
   };
 }
 
-/** Take a frame off a pull, floored at zero. @see RemoteSession.windExtraction */
-function windPull(running: ExtractionProgress, dtMs: number) {
-  running.remainingMs = Math.max(0, running.remainingMs - dtMs);
-}

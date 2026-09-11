@@ -8,6 +8,7 @@ import type { ConsumeSource } from "../game/itemUse";
 import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import { masteryXpBlockSchema, type MasteryXp } from "../lib/mastery";
 import type { Extraction, ExtractionProgress } from "../game/extract";
+import type { Progress } from "../game/progress";
 import type { PlacedTile } from "../lib/types";
 import { TRANSITION_SIDES, type TileTransitionNote } from "../lib/tileTransition";
 import { MAX_CHAT_RAW_LENGTH } from "./chat";
@@ -131,6 +132,21 @@ const statusIdsPatchSchema = v.object({
 });
 
 const extractionPatchSchema = v.object({
+  actorId: v.string(),
+  progress: v.nullable(
+    v.object({ remainingMs: v.number(), durationMs: v.number() }),
+  ),
+});
+
+/**
+ * The cast a body is part-way through, shaped exactly like the pull above it.
+ *
+ * Two schemas rather than one shared one, because they are two facts that
+ * happen to be two numbers: a body may be told to stop pulling and to start
+ * casting in the same patch, and a single field would make that one message
+ * arguing with itself. @see CastingPatch
+ */
+const castingPatchSchema = v.object({
   actorId: v.string(),
   progress: v.nullable(
     v.object({ remainingMs: v.number(), durationMs: v.number() }),
@@ -361,6 +377,27 @@ export type StatusIdsPatch = {
 export type ExtractionPatch = {
   actorId: string;
   progress: ExtractionProgress | null;
+};
+
+/**
+ * The cast a body is part-way through, or null once it has stopped.
+ *
+ * {@link ExtractionPatch} for spells, and it carries the same two numbers for
+ * the same reason: what everybody else can see of somebody's cast is a bar over
+ * their head and the word they shouted, and the bar needs both halves of a
+ * fraction to fill on its own.
+ *
+ * **Which stone is deliberately not here.** Nothing draws it — the bar is the
+ * same bar whatever is being cast — and the caster's own screen needs no telling
+ * either: a body that is casting cannot press anything, whichever square it came
+ * out of, so the row of buttons dims off this alone. @see `../game/casting`'s
+ * `CastContext.casting`
+ *
+ * Sent when a cast starts and when it ends, never while it runs.
+ */
+export type CastingPatch = {
+  actorId: string;
+  progress: Progress | null;
 };
 
 export type MotionEvent =
@@ -614,6 +651,12 @@ export type ServerMessage =
        * frame, and the next patch about it is the one saying it has finished.
        */
       extractions: ExtractionPatch[];
+      /**
+       * Everybody's casts in progress, on the terms {@link extractions} is sent
+       * in full here: somebody who was half way through a flame when this client
+       * arrived has to have a bar on the first frame.
+       */
+      castings: CastingPatch[];
       /** What this viewer is carrying. Theirs alone — see {@link Equipment}. */
       equipment: Equipment;
       /**
@@ -780,6 +823,8 @@ export type ServerMessage =
       statusIds: StatusIdsPatch[];
       /** Only the actors whose pull started or ended since the last patch. */
       extractions: ExtractionPatch[];
+      /** Only the actors whose cast started or ended since the last patch. */
+      castings: CastingPatch[];
     }
   /**
    * Something somebody said, pinned to the cell they said it in.
@@ -1283,6 +1328,9 @@ const serverMessageSchema = v.variant("type", [
     // Optional with an empty default, on `statusIds`' terms: a skew degrades to
     // "nobody else's pull is drawn".
     extractions: v.optional(v.array(extractionPatchSchema), () => []),
+    // And the same for casts, on the same terms: a skew degrades to "nobody
+    // else's cast bar is drawn".
+    castings: v.optional(v.array(castingPatchSchema), () => []),
     equipment: tolerantEquipmentSchema,
     tags: v.array(v.string()),
     // Optional with a null default, on `statusIds`' terms: a version skew
@@ -1440,6 +1488,7 @@ const serverMessageSchema = v.variant("type", [
     // The output type is still required, because the server always sends it.
     statusIds: v.optional(v.array(statusIdsPatchSchema), () => []),
     extractions: v.optional(v.array(extractionPatchSchema), () => []),
+    castings: v.optional(v.array(castingPatchSchema), () => []),
   }),
   v.object({
     type: v.literal("chat"),

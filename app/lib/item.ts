@@ -951,6 +951,43 @@ export type ArcaneStoneItem = {
    */
   cooldownMs: number;
   /**
+   * How long pressing it takes before anything happens, in milliseconds, for a
+   * caster who meets its requirements exactly.
+   *
+   * **Absent is instant**, which is what every stone in the world was before
+   * this existed and what most of them still are. A cast time is a cost paid in
+   * a different currency from {@link cooldownMs}: a cooldown is what the stone
+   * owes afterwards, and this is what the caster owes in front of everybody
+   * before the spell arrives — standing there with a bar over their head that
+   * anybody can break.
+   *
+   * **Scaled by how far past the requirements the caster has got**, so this is a
+   * ceiling rather than a fixed price: a caster bringing 110% of what the stone
+   * asks casts it in 90% of this, and one who has doubled it casts instantly.
+   * That is the whole of how a spell learnt at the start of the game becomes a
+   * cantrip rather than something you stop carrying. @see `../game/casting`'s
+   * `castDurationMs`
+   *
+   * Nothing is spent when it starts. The cooldown, the experience and the effect
+   * all land together when the bar fills, so a cast that is interrupted or that
+   * finds its cell blocked has cost the caster nothing but the time.
+   */
+  castTimeMs?: number;
+  /**
+   * Whether taking damage leaves this cast running.
+   *
+   * **Absent is interruptible**, because being knocked out of a spell is the
+   * whole reason a cast time is interesting: it is what makes a long cast a
+   * decision about where you are standing rather than a delay. A stone marked
+   * here is the exception an author writes deliberately — a ward you can finish
+   * while being hit is worth carrying precisely because everything else is not.
+   *
+   * Says nothing about an instant stone, which has no window to be interrupted
+   * in, and nothing about the other ways a cast ends: a caster who dies or
+   * leaves the board stops casting whatever this says.
+   */
+  uninterruptible?: boolean;
+  /**
    * What this asks of whoever casts it, mastery by mastery.
    *
    * The same block a weapon's {@link WeaponItem.requirements} is, read the same
@@ -1393,6 +1430,24 @@ export const DEFAULT_SHIELD: ShieldItem = { type: "shield", def: 2 };
  */
 export const MIN_STONE_COOLDOWN_MS = 1_000;
 export const MAX_STONE_COOLDOWN_MS = 60 * 60 * 1000;
+
+/**
+ * Shortest and longest a stone's cast time may be authored at.
+ *
+ * The floor is a fifth of a second because a cast is a bar somebody watches and
+ * has a chance to interrupt, and neither of those means anything below about
+ * that: a cast shorter than this is an instant one with a flicker on it, and an
+ * instant one is what an absent {@link ArcaneStoneItem.castTimeMs} already says.
+ * The ceiling is a minute, which is far past anything worth standing still for
+ * and near enough that a typo'd extra digit reads as malformed.
+ *
+ * Neither bound is what a cast actually takes: what is authored here is the time
+ * for a caster who meets the requirements exactly, and somebody who has outgrown
+ * the stone casts it faster — see `../game/casting`'s `castDurationMs`, which is
+ * where the floor of zero lives.
+ */
+export const MIN_CAST_TIME_MS = 200;
+export const MAX_CAST_TIME_MS = 60 * 1000;
 
 /**
  * The furthest one press of a stone may move somebody's health, either way.
@@ -1869,6 +1924,20 @@ const stoneSchema = v.object({
     v.minValue(MIN_STONE_COOLDOWN_MS),
     v.maxValue(MAX_STONE_COOLDOWN_MS),
   ),
+  // Optional and bounded, and absent is an instant cast — see the field's own
+  // note, which is also where the reason there is no defaulting lives: a stone
+  // that says nothing about time is one nobody has to wait for.
+  castTimeMs: v.optional(
+    v.pipe(
+      v.number(),
+      v.integer(),
+      v.minValue(MIN_CAST_TIME_MS),
+      v.maxValue(MAX_CAST_TIME_MS),
+    ),
+  ),
+  // Optional, and absent is a cast a blow breaks, which is what makes the flag
+  // worth writing at all.
+  uninterruptible: v.optional(v.boolean()),
   // Optional, and an empty object allowed through rather than refused — the
   // same tolerance a weapon's requirements block is under, and for the same
   // reason: it says what no key says, and refusing it would make a round trip
@@ -2305,6 +2374,12 @@ function stoneForSave(stone: ArcaneStoneItem): ArcaneStoneItem {
     type: "stone",
     effect: stoneEffectForSave(stone.effect),
     cooldownMs: Math.round(stone.cooldownMs),
+    // Both drop when they say nothing, on the terms every other optional here
+    // is saved: a `castTimeMs: 0` and an `uninterruptible: false` are an instant
+    // interruptible stone written out at length, which is every stone that has
+    // never been given a cast time.
+    ...(stone.castTimeMs ? { castTimeMs: Math.round(stone.castTimeMs) } : {}),
+    ...(stone.uninterruptible ? { uninterruptible: true } : {}),
     ...(Object.keys(requirements).length > 0 ? { requirements } : {}),
     // Written whenever it is stated, and absent stays absent — unlike a weapon's,
     // which is always spelled out. A stone that reaches only its holder has no

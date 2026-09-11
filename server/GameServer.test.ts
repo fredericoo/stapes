@@ -4312,6 +4312,25 @@ describe("saving authored content", () => {
 describe("tile transitions", () => {
   const STONE = "arcane-stone-of-flame";
 
+  /**
+   * The shipped stone with its cast time taken off.
+   *
+   * What this case is about is the *flush* — a conjure that lands on the input
+   * rather than on a tick has to be announced in the same breath — and Flame is
+   * authored to take three seconds, which lands it on a tick like everything
+   * else. So the stone is made instant here, which is exactly what it becomes in
+   * the hands of any caster who has outgrown it.
+   */
+  function tilesWithInstantStone() {
+    return (tilesJson as Array<Record<string, unknown>>).map((def) => {
+      if (def.id !== STONE) return def;
+      const interactions = def.interactions as Record<string, unknown>;
+      const item = interactions.item as Record<string, unknown>;
+      const { castTimeMs: _takenOff, ...instant } = item;
+      return { ...def, interactions: { ...interactions, item: instant } };
+    });
+  }
+
   /** Alice facing south over grass, with a flame stone at her feet. */
   function checkpointWithStone(): {
     map: FlatMapFile;
@@ -4333,6 +4352,11 @@ describe("tile transitions", () => {
   }
 
   it("announces a conjured tile's way in on the cast's own flush", async () => {
+    await harness.blobs.put(
+      "tiles.json",
+      JSON.stringify(tilesWithInstantStone()),
+      JSON_TYPE,
+    );
     const alice = await connect("alice");
     await putCheckpoint(checkpointWithStone());
     await simulateEviction();
@@ -4472,6 +4496,123 @@ describe("a pull somebody else is making", () => {
     const bob = await connect("bob");
 
     expect(bob.hello.extractions).toEqual([
+      expect.objectContaining({ actorId: "alice" }),
+    ]);
+  });
+});
+
+describe("a cast somebody else is making", () => {
+  const STONE = "arcane-stone-of-flame";
+
+  /** Long enough to take a message each end of, short enough to wait out. */
+  const CAST_MS = 2_000;
+
+  /**
+   * The shipped player, born holding a stone that takes time.
+   *
+   * The cast time is written on here rather than read off the shipped stone, on
+   * the terms every other tile override in this file is: what these two cases
+   * are about is the two messages, and a case that would go quiet the day
+   * somebody retuned Flame would be asserting the content instead. The player's
+   * authored masteries are exactly what the stone asks, so the cast runs at its
+   * full length rather than at some scaled fraction nobody typed.
+   * @see `../app/game/casting`'s `castDurationMs`
+   */
+  function tilesWithArcanist() {
+    return (tilesJson as Array<Record<string, unknown>>).map((def) => {
+      if (def.id === STONE) {
+        const interactions = def.interactions as Record<string, unknown>;
+        const item = interactions.item as Record<string, unknown>;
+        return {
+          ...def,
+          interactions: {
+            ...interactions,
+            item: { ...item, castTimeMs: CAST_MS },
+          },
+        };
+      }
+      if (def.id !== "player") return def;
+      const interactions = def.interactions as Record<string, unknown>;
+      const battler = interactions.battler as Record<string, unknown>;
+      return {
+        ...def,
+        interactions: {
+          ...interactions,
+          battler: {
+            ...battler,
+            kit: [
+              ...(battler.kit as unknown[]),
+              { slot: "charm", tileId: STONE, chance: 100 },
+            ],
+          },
+        },
+      };
+    });
+  }
+
+  /** The next patch entry about this body's cast, or null if none comes. */
+  function castWithin(
+    ws: TestSocket,
+    actorId: string,
+  ): Promise<Record<string, unknown> | null> {
+    return new Promise((resolve) => {
+      const done = (value: Record<string, unknown> | null) => {
+        clearTimeout(timer);
+        ws.removeEventListener("message", onMessage);
+        resolve(value);
+      };
+      const onMessage = (event: { data: string }) => {
+        const message = JSON.parse(event.data) as Record<string, unknown>;
+        if (message.type !== "patch") return;
+        const entries = (message.castings ?? []) as Record<string, unknown>[];
+        const entry = entries.find((e) => e.actorId === actorId);
+        if (entry) done(entry);
+      };
+      const timer = setTimeout(() => done(null), MESSAGE_TIMEOUT_MS);
+      ws.addEventListener("message", onMessage);
+    });
+  }
+
+  it("is broadcast to everybody when it starts and when it lands", async () => {
+    await harness.blobs.put(
+      "tiles.json",
+      JSON.stringify(tilesWithArcanist()),
+      JSON_TYPE,
+    );
+    const alice = await connect("alice");
+    const bob = await connect("bob");
+
+    const starting = castWithin(bob.ws, "alice");
+    send(alice.ws, { type: "cast", square: "charm" });
+    const started = await starting;
+    const progress = started?.progress as {
+      remainingMs: number;
+      durationMs: number;
+    };
+    expect(progress.durationMs).toBeGreaterThan(0);
+    expect(progress.remainingMs).toBeLessThanOrEqual(progress.durationMs);
+    // Which stone is nobody else's business, and nothing draws it.
+    expect(progress).not.toHaveProperty("square");
+
+    expect(await castWithin(bob.ws, "alice")).toEqual({
+      actorId: "alice",
+      progress: null,
+    });
+  });
+
+  it("is handed to somebody who arrives part-way through it", async () => {
+    await harness.blobs.put(
+      "tiles.json",
+      JSON.stringify(tilesWithArcanist()),
+      JSON_TYPE,
+    );
+    const alice = await connect("alice");
+    send(alice.ws, { type: "cast", square: "charm" });
+    await messageWithin(alice.ws, "patch", MESSAGE_TIMEOUT_MS);
+
+    const bob = await connect("bob");
+
+    expect(bob.hello.castings).toEqual([
       expect.objectContaining({ actorId: "alice" }),
     ]);
   });

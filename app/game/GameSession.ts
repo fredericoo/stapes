@@ -202,6 +202,7 @@ import {
   CAST_SQUARES,
   castability,
   castableStones,
+  castDurationMs,
   COOLDOWN_STEP_MS,
   type CastContext,
   type CasterPoint,
@@ -211,6 +212,7 @@ import {
   coolingNotice,
   type SpellButton,
 } from "./casting";
+import type { Progress } from "./progress";
 import { equipmentForBody } from "./battlerKit";
 import {
   attackerEarnings,
@@ -511,6 +513,24 @@ export type ActorSnapshot = {
    * diffs the broadcast on. @see ./extract's `Extraction`
    */
   extracting: ExtractionProgress | null;
+  /**
+   * The cast this body is part-way through, or null for almost everybody.
+   *
+   * Beside {@link extracting} rather than folded into it, and the pairing is
+   * deliberate: they are two different facts that happen to be drawn with one
+   * picture. A bar over a head says "this body is part-way through something and
+   * you have until it fills"; what the something *is* — a bush being picked, a
+   * flame being called — is said by the board around them and by the word they
+   * shouted. @see `../render/GameRenderer`, which draws whichever is running.
+   *
+   * Never both at once: starting either takes the other off you, because both
+   * are what a body's hands are doing. @see GameSession.cast
+   *
+   * By reference to the object the runtime winds in place, so its identity
+   * changes only when a cast starts or ends. That identity is what the server
+   * diffs the broadcast on. @see ./progress
+   */
+  casting: Progress | null;
 };
 
 /**
@@ -1077,6 +1097,48 @@ type ExtractionRun = {
 };
 
 /**
+ * One cast being made, as the session has to hold it.
+ *
+ * The {@link Progress} everybody downstream draws, plus the three facts that
+ * decide what happens when it fills. All three are recorded at the start rather
+ * than re-derived, on {@link ExtractionRun}'s terms: every one of them is a
+ * thing that can change out from under the cast, and the point is to notice.
+ */
+type CastingRun = {
+  /** The half that goes out on the snapshot and the wire, wound in place. */
+  progress: Progress;
+  /** Which square the stone is being cast from. */
+  square: CastSquare;
+  /**
+   * Which particular stone, so a caster who swaps hands mid-cast finishes
+   * nothing.
+   *
+   * The instance id rather than the tile, on {@link extractKey}'s reasoning: two
+   * identical stones in two hands are two stones, and the one that spends its
+   * cooldown has to be the one that was pressed.
+   */
+  itemId: string;
+  /**
+   * Whether a blow leaves it running, read off the stone when it started.
+   *
+   * Recorded rather than looked up at the moment of the blow, so that a cast is
+   * decided by the stone it was begun with — the same discipline the run above
+   * keeps about the tile it was begun against.
+   */
+  uninterruptible: boolean;
+};
+
+/**
+ * What a player is told when a cast is broken.
+ *
+ * Said for the reason an interrupted pull's line is said: the bar vanishing is
+ * exactly what a *finished* cast looks like, so without a line a flame broken at
+ * two and a half seconds and one that simply did nothing are the same event on
+ * screen.
+ */
+const CAST_INTERRUPTED_NOTICE = "Your cast is broken";
+
+/**
  * What a player is told when a pull is taken off them.
  *
  * Said rather than left to the bar disappearing, because the bar disappearing
@@ -1180,6 +1242,23 @@ type ActorRuntime = {
    * nothing is allocated for a body that never works anything.
    */
   extraction: ExtractionRun | null;
+  /**
+   * The cast this actor is part-way through, or null.
+   *
+   * **The one thing a stone costs before it does anything**, and the only state
+   * in the game a blow can take away from somebody who was not holding still —
+   * see {@link GameSession.applyDamage}, which breaks it.
+   *
+   * **Not durable**, like {@link extraction} and for the same reason: it records
+   * something that is happening rather than something that happened, and a world
+   * that has gone quiet is one where nobody is mid-spell. Nothing has been spent
+   * when it is dropped — the cooldown and the experience are paid when the bar
+   * fills — so a cast lost to a restart costs the caster the seconds and nothing
+   * else.
+   *
+   * Null for the great majority of actors, every creature in the world included.
+   */
+  casting: CastingRun | null;
   /**
    * The authored body with this actor's earned masteries in it, keyed on the
    * authored block it was built from.
@@ -2165,6 +2244,7 @@ export class GameSession implements PlaySession {
       attackCooldownMs: 0,
       attackRecoveryMs: 0,
       extraction: null,
+      casting: null,
       targetId: null,
       attacking: false,
       input: { directions: [] },
@@ -2344,6 +2424,10 @@ export class GameSession implements PlaySession {
     const leaving = this.actors.get(id);
     if (!leaving) return;
     this.cancelExtraction(leaving);
+    // Nothing to hand back, unlike the pull above — a cast holds no reservation
+    // and has spent nothing — but the run is dropped with the body all the same,
+    // so a player who reconnects is not mid-spell in a world they have left.
+    this.cancelCasting(leaving);
     this.actors.delete(id);
     // Found before the tile comes off, which is the only record of where it
     // stood — and a player leaving is their body going, which plays its way out.
@@ -2761,6 +2845,11 @@ export class GameSession implements PlaySession {
     // making it moved and whether the thing they were working is still there.
     // @see advanceExtractions
     this.advanceExtractions(tickMs);
+    // Beside the pulls and after them, on the same argument: a cast that lands
+    // this tick is resolved against the board the tick leaves behind, so the
+    // crate somebody dropped in front of the caster is in the way of the flame
+    // rather than in the way of the next one. @see advanceCastings
+    this.advanceCastings(tickMs);
 
     // Last, and once for the whole board: plates and channels answer to the
     // board the tick leaves behind, not to any particular actor having caused
@@ -4451,6 +4540,13 @@ export class GameSession implements PlaySession {
     // a bandage is applied (see `consume`), and being healed mid-mine is not an
     // interruption.
     if (amount > 0) this.cancelExtraction(target, EXTRACT_INTERRUPTED_NOTICE);
+    // And a cast, on the same gate and for a sharper reason: what makes a long
+    // cast a decision about where you are standing is that anybody can take it
+    // off you. A stone authored `uninterruptible` is the exception somebody
+    // wrote on purpose. @see `../lib/item`'s {@link ArcaneStoneItem.uninterruptible}
+    if (amount > 0 && target.casting && !target.casting.uninterruptible) {
+      this.cancelCasting(target, CAST_INTERRUPTED_NOTICE);
+    }
 
     this.floatSwing(target, "hit", amount);
 
@@ -4522,6 +4618,10 @@ export class GameSession implements PlaySession {
     // read it, and the death screen has already said what happened.
     const loc = this.tryLocate(target);
     this.cancelExtraction(target);
+    // A dead caster is not casting, whatever the stone said about being
+    // uninterruptible: that flag is about blows landing, and this is the body
+    // going. No notice, on the line above's terms.
+    this.cancelCasting(target);
 
     this.actors.delete(target.id);
     this.forgetTileIndex();
@@ -4918,6 +5018,11 @@ export class GameSession implements PlaySession {
       // experience becomes levels.
       masteries: body?.masteries ?? {},
       caster: this.casterPointOf(actor, from),
+      // What the body's hands are already doing, which refuses every square
+      // while it runs. Read off the runtime rather than passed in, so the one
+      // caller that must *not* see it — {@link finishCasting} — arranges that by
+      // clearing the run before it asks. @see `./casting`'s `CastContext`
+      casting: actor.casting?.progress ?? null,
       target: to ? this.castPointOf(to) : null,
     };
   }
@@ -4973,13 +5078,20 @@ export class GameSession implements PlaySession {
   /**
    * Press the stone in this square.
    *
-   * **The cooldown is spent before anything is resolved**, on exactly the terms
-   * a swing's is spent before the dice are rolled: a bolt that healed nothing
-   * has still been cast, and a cost that depended on the outcome would make
-   * pressing at the wrong moment free. The only things that cost nothing are
-   * the refusals `castability` names, which are the ones the button was dimmed
-   * for — and a conjure with nowhere to land is one of those, so a flame that
-   * does not appear was never cast. @see `./casting`'s `conjureLanding`
+   * **Two shapes of cast, and the difference is one number.** A stone with no
+   * cast time authored resolves here and now, which is what every stone in the
+   * world did before cast times existed. A stone with one starts a
+   * {@link CastingRun} and resolves when the bar fills — see
+   * {@link finishCasting} — and everything in between is the caster standing
+   * there in front of whoever is watching.
+   *
+   * **Nothing is spent when a cast starts.** The cooldown, the experience and
+   * the effect all land together in {@link resolveCast}, so a cast that is
+   * broken by a blow or that finds its cell blocked has cost the caster the
+   * seconds and nothing else. That is the same argument the old instant path
+   * already made about a conjure with nowhere to land — a flame that never
+   * appeared is a press the player cannot tell from a dropped key — carried
+   * forward to the one case where a player can plainly see why.
    *
    * Nothing here is predicted by a client. A browser sends "cast the stone in
    * this square" and finds out what came of it from the equipment message and
@@ -4992,8 +5104,9 @@ export class GameSession implements PlaySession {
     const context = this.castContextFor(actor);
     if (!context) return false;
 
+    const held = actor.equipment[square];
     const stone = stoneIn(actor.equipment, this.tilesById, square);
-    if (!stone) return false;
+    if (!held || !stone) return false;
 
     const verdict = castability(context, square);
     if (!verdict.ok) {
@@ -5005,6 +5118,117 @@ export class GameSession implements PlaySession {
       return false;
     }
 
+    // What the caster brings against what the stone asks, which is the whole of
+    // how long this takes. @see `./casting`'s `castDurationMs`
+    const durationMs = castDurationMs(stone, context.masteries);
+    if (durationMs <= 0) {
+      this.resolveCast(actor, square, stone, context);
+      return true;
+    }
+
+    // Both hands, one job — the mirror of what starting a pull does to a cast.
+    // @see extract
+    this.cancelExtraction(actor);
+    actor.casting = {
+      square,
+      itemId: held.id,
+      uninterruptible: stone.uninterruptible === true,
+      progress: { remainingMs: durationMs, durationMs },
+    };
+    return true;
+  }
+
+  /**
+   * Wind every cast on, and land the ones that have arrived.
+   *
+   * **Late in the tick and directly after the pulls**, for the pulls' own
+   * reason: a cast is resolved against the board the rest of the tick left
+   * behind, so a crate dropped in front of the caster this tick is in the way of
+   * this flame rather than of the next one.
+   *
+   * The great majority of actors hold no cast at all and pay one null check.
+   */
+  private advanceCastings(tickMs: number) {
+    for (const actor of this.actors.values()) {
+      this.advanceCasting(actor, tickMs);
+    }
+  }
+
+  /**
+   * Wind one cast on, and see whether it has landed.
+   *
+   * **Nothing is re-checked here.** A pull asks every tick whether the person
+   * making it has moved and whether the thing they were working is still there;
+   * a cast asks nothing until the moment it lands, and that difference is the
+   * design. What takes a cast off you is a blow — see {@link applyDamage} — and
+   * making it also depend on standing still would mean a caster could not walk
+   * out of a fire while finishing a spell, which is a rule nobody would guess at
+   * from watching. Everything else the cast depends on is asked once, at the
+   * end, where a stone swapped or a target lost simply comes to nothing.
+   */
+  private advanceCasting(actor: ActorRuntime, tickMs: number) {
+    const run = actor.casting;
+    if (!run) return;
+
+    run.progress.remainingMs -= tickMs;
+    if (run.progress.remainingMs > 0) return;
+    // Floored rather than left negative, on a pull's terms: whatever draws this
+    // reads it as a fraction of the whole.
+    run.progress.remainingMs = 0;
+    this.finishCasting(actor, run);
+  }
+
+  /**
+   * Land a cast whose bar has filled, or let it come to nothing.
+   *
+   * **The run comes off the actor first**, and it has to: everything below asks
+   * `castability` again, and a body that is still recorded as casting refuses
+   * every square — including the one it is finishing. @see `./casting`'s
+   * `CastRefusal`
+   *
+   * **A cast that can no longer be made simply does not happen**, which is the
+   * whole of what the second check is for. The obvious case is the motivating
+   * one — a flame aimed at a cell somebody has since dropped a crate on — and
+   * the rest fall out of the same call for free: a target who walked out of
+   * range, a target who died, a stone swapped into the other hand, a stone put
+   * away entirely. Nothing is spent and nothing is said. The stone is still
+   * ready, which is the sentence a player would have wanted anyway, and it is
+   * said in the one way that cannot be missed.
+   */
+  private finishCasting(actor: ActorRuntime, run: CastingRun) {
+    actor.casting = null;
+
+    const held = actor.equipment[run.square];
+    // The same stone, not merely a stone: two identical stones in two hands are
+    // two stones, and the one that pays is the one that was pressed.
+    if (!held || held.id !== run.itemId) return;
+
+    const stone = stoneIn(actor.equipment, this.tilesById, run.square);
+    if (!stone) return;
+
+    const context = this.castContextFor(actor);
+    if (!context) return;
+    if (!castability(context, run.square).ok) return;
+
+    this.resolveCast(actor, run.square, stone, context);
+  }
+
+  /**
+   * Spend the cooldown, pay for the practice, and run the effect.
+   *
+   * **Everything a cast costs and everything it does, in one place and in one
+   * order**, which is what makes the instant path and the timed path the same
+   * cast. The cooldown is spent before the effect, on exactly the terms a
+   * swing's is spent before the dice are rolled: a bolt that healed nothing has
+   * still been cast, and a cost that depended on the outcome would make pressing
+   * at the wrong moment free.
+   */
+  private resolveCast(
+    actor: ActorRuntime,
+    square: CastSquare,
+    stone: ArcaneStoneItem,
+    context: CastContext,
+  ) {
     // What the spell is made of, read once at the top and handed to whichever
     // arm runs: the elements decide what the cast trains and what it is worth
     // against whoever it lands on, and re-deriving them per arm would be three
@@ -5022,8 +5246,20 @@ export class GameSession implements PlaySession {
     if (stone.effect.kind === "bolt") {
       this.castBolt(actor, square, stone, stone.effect, elements);
     } else this.castConjure(actor, context, stone.effect.tileId, elements);
+  }
 
-    return true;
+  /**
+   * Take a cast off somebody.
+   *
+   * **Nothing is handed back**, unlike a pull's cancel: a cast holds no
+   * reservation and has spent nothing, so dropping the run is the whole of it.
+   * The notice is optional for a pull's reason — a caster who has just started a
+   * different job has already said what they meant.
+   */
+  private cancelCasting(actor: ActorRuntime, notice?: string) {
+    if (!actor.casting) return;
+    actor.casting = null;
+    if (notice) this.say(actor.id, notice);
   }
 
   /**
@@ -7171,6 +7407,10 @@ export class GameSession implements PlaySession {
     // the reservation below, so a player tapping two slots of the same cell in
     // turn releases the first hold before taking the second.
     this.cancelExtraction(actor);
+    // Both hands, one job: reaching into a bush is not something you do while
+    // holding a spell half-said. The mirror of what starting a cast does to a
+    // pull. @see cast
+    this.cancelCasting(actor);
 
     const run: ExtractionRun = {
       ref,
@@ -8275,6 +8515,9 @@ export class GameSession implements PlaySession {
       // By reference, like `walk`: wound in place and replaced only when a pull
       // starts or ends, so the same object across two ticks is the same pull.
       extracting: actor.extraction?.progress ?? null,
+      // By reference on exactly the terms above, and never non-null at the same
+      // time as its neighbour. @see ActorSnapshot.casting
+      casting: actor.casting?.progress ?? null,
     };
   }
 
@@ -8379,6 +8622,13 @@ export class GameSession implements PlaySession {
       // and the vein's reservation together until somebody happened to move.
       // Bounded by what an author wrote, like every other clock in here.
       if (actor.extraction) return false;
+      // A cast being made, on exactly a pull's terms and for its sharper
+      // reason: the bar is the only thing standing between the player and the
+      // spell, and this loop is the only clock winding it. Falling asleep under
+      // one would leave a caster mid-flame until somebody happened to move —
+      // and the cast has spent nothing yet, so there is not even a cooldown on
+      // the board to hold the world awake in its place.
+      if (actor.casting) return false;
       if (actor.input.directions.length > 0) return false;
       // Somebody standing still next to the thing they are fighting is not an
       // idle world: the next swing is on a cooldown that only this loop winds
