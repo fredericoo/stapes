@@ -28927,7 +28927,7 @@
   },
   {
     "id": "stale-berry",
-    "name": "Berry",
+    "name": "Stale Berry",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -28943,7 +28943,7 @@
         "type": "consumable",
         "label": "Eat",
         "sound": "squish",
-        "hp": -2,
+        "hp": 0,
         "statuses": [
           {
             "id": "fed",
@@ -28951,9 +28951,8 @@
             "toMs": 20000
           },
           {
-            "id": "poison",
-            "fromMs": 1000,
-            "toMs": 60000
+            "id": "food-poisoning",
+            "chance": 65
           }
         ],
         "pile": 12
@@ -29926,7 +29925,7 @@
   },
   {
     "id": "stale-cheese",
-    "name": "Cheese",
+    "name": "Mouldy Cheese",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -29950,9 +29949,8 @@
             "toMs": 20000
           },
           {
-            "id": "poison",
-            "fromMs": 1000,
-            "toMs": 60000
+            "id": "food-poisoning",
+            "chance": 50
           }
         ],
         "pile": 4
