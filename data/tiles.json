@@ -23837,8 +23837,8 @@
     "attributes": {},
     "anchor": {
       "tilesetId": "equipment",
-      "x": 12,
-      "y": 2
+      "x": 15,
+      "y": 1
     },
     "lightPassing": true,
     "intangible": true,
@@ -23878,8 +23878,8 @@
     "attributes": {},
     "anchor": {
       "tilesetId": "equipment",
-      "x": 10,
-      "y": 2
+      "x": 15,
+      "y": 0
     },
     "lightPassing": true,
     "intangible": true,
