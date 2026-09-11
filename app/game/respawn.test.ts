@@ -3,6 +3,7 @@ import { DEFAULT_WEAPON, isItem } from "../lib/item";
 import { resolveRespawn } from "../lib/interactions";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
+import { parseTileTransitions } from "../lib/tileTransition";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { GameSession } from "./GameSession";
@@ -511,5 +512,108 @@ describe("GameSession.respawnAt", () => {
       placed: { tileId: "nope" },
     };
     expect(session.respawnAt(orphan).kind).toBe("done");
+  });
+});
+
+describe("ways in and out, for bodies and what grows back", () => {
+  const WAYS = {
+    appear: {
+      durationMs: 300,
+      dissolve: { pattern: "noise", edgeColor: "#8ce6ff", edgeWidth: 0.1 },
+    },
+    disappear: {
+      durationMs: 300,
+      dissolve: { pattern: "noise", edgeColor: "#ff9e40", edgeWidth: 0.1 },
+    },
+  };
+  /** A player who can be killed, with a way in and out. */
+  const mortalPlayer = tile({
+    id: "player",
+    height: 4,
+    directional: true,
+    walkable: false,
+    kind: "battler",
+    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    interactions: {
+      battler: { baseHp: 8, masteries: { toughness: 1 }, naturalWeapon: DEFAULT_WEAPON },
+    },
+    transitions: WAYS,
+  });
+  /** The same catalogue, with the gnome and the player given ways in and out. */
+  const forming = tiles.map((def) => {
+    if (def.id === "player") return mortalPlayer;
+    if (def.id === "gnome") return { ...def, transitions: parseTileTransitions(WAYS) };
+    return def;
+  });
+  const authored = withGnome(strip(6));
+  const gnomePoint = pointFor(authored, GNOME_OWNER);
+
+  it("plays a respawned creature's way in, at the slot it grew into", () => {
+    const session = new GameSession(strip(6), forming);
+    session.drainTransitions();
+
+    session.respawnAt(gnomePoint);
+    expect(session.drainTransitions()).toEqual([
+      {
+        id: expect.any(String),
+        side: "appear",
+        tileId: "gnome",
+        x: GNOME_X,
+        y: 0,
+        z: 0,
+        stackIndex: 1,
+      },
+    ]);
+  });
+
+  it("says nothing for a point that was already filled", () => {
+    const session = new GameSession(authored, forming);
+    session.drainTransitions();
+
+    session.respawnAt(gnomePoint);
+    expect(session.drainTransitions()).toEqual([]);
+  });
+
+  it("plays a player's way in when their body is placed", () => {
+    const session = new GameSession(strip(6), forming, { actorIds: [] });
+    session.drainTransitions();
+
+    session.spawn("bob");
+    const [arrived, ...rest] = session.drainTransitions();
+    expect(rest).toEqual([]);
+    expect(arrived).toMatchObject({ side: "appear", tileId: "player" });
+    const stack = getStack(session.getMap(), arrived!.x, arrived!.y, arrived!.z);
+    expect(stack[arrived!.stackIndex]?.owner).toBe("bob");
+  });
+
+  it("says nothing for a re-seat onto a board the editor replaced", () => {
+    const session = new GameSession(strip(6), forming, { actorIds: [] });
+    session.drainTransitions();
+
+    session.spawn("bob", {}, { announce: false });
+    expect(session.drainTransitions()).toEqual([]);
+  });
+
+  it("plays a player's way out where they stood when they leave", () => {
+    const session = new GameSession(strip(6), forming, { actorIds: [] });
+    session.spawn("bob");
+    const [arrived] = session.drainTransitions();
+
+    session.despawn("bob");
+    expect(session.drainTransitions()).toEqual([
+      { ...arrived, id: expect.any(String), side: "disappear" },
+    ]);
+  });
+
+  it("plays a body's way out where it fell", () => {
+    const session = new GameSession(strip(6), forming, { actorIds: [] });
+    session.spawn("bob");
+    const [arrived] = session.drainTransitions();
+
+    session.runCommand("/health 0", "bob");
+    expect(session.drainDeaths().map((death) => death.id)).toEqual(["bob"]);
+    expect(session.drainTransitions()).toEqual([
+      { ...arrived, id: expect.any(String), side: "disappear" },
+    ]);
   });
 });

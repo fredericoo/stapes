@@ -4272,3 +4272,114 @@ describe("saving authored content", () => {
     await expect(stub().reloadContent()).resolves.toBeUndefined();
   });
 });
+
+/**
+ * A tile that forms is announced by the server, on the flush that follows the
+ * cast rather than on the next tick's.
+ *
+ * A conjure lands on input, not on a tick, so the only thing that gets its
+ * `tileTransition` out promptly is `flushBlows` running after the message is
+ * handled. Driven end to end over the socket, with the shipped
+ * `arcane-flame`, which has a way in authored: a stone underfoot is picked up,
+ * held, and cast.
+ */
+describe("tile transitions", () => {
+  const STONE = "arcane-stone-of-flame";
+
+  /** Alice facing south over grass, with a flame stone at her feet. */
+  function checkpointWithStone(): {
+    map: FlatMapFile;
+    spawn: { x: number; y: number; z: number; stackIndex: number };
+  } {
+    const ground: Record<string, unknown[]> = {};
+    for (let x = 0; x < 3; x++) {
+      for (let y = 0; y < 3; y++) ground[`${x},${y}`] = [{ tileId: "grass" }];
+    }
+    ground["1,0"] = [
+      { tileId: "grass" },
+      { tileId: STONE, itemId: "stone-1" },
+      { tileId: "player", direction: "s", owner: "alice" },
+    ];
+    return {
+      map: { version: 1, levels: { "0": ground } } as FlatMapFile,
+      spawn: { x: 1, y: 0, z: 0, stackIndex: 1 },
+    };
+  }
+
+  it("announces a conjured tile's way in on the cast's own flush", async () => {
+    const alice = await connect("alice");
+    await putCheckpoint(checkpointWithStone());
+    await simulateEviction();
+
+    send(alice.ws, { type: "pickUp", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } });
+    const kit = await equipmentWithin(alice.ws);
+    const index = contentsOf(kit ?? {}).findIndex((item) => item.tileId === STONE);
+    expect(index).toBeGreaterThanOrEqual(0);
+
+    send(alice.ws, {
+      type: "moveItem",
+      from: { kind: "contents", index },
+      to: { kind: "offhand" },
+    });
+    await equipmentWithin(alice.ws);
+
+    send(alice.ws, { type: "cast", square: "offhand" });
+    const formed = await eventWithin(alice.ws, "tileTransition", 2000);
+
+    expect(formed).toMatchObject({
+      kind: "tileTransition",
+      side: "appear",
+      tileId: "arcane-flame",
+      x: 1,
+      y: 1,
+      z: 0,
+    });
+  });
+
+  const DISSOLVE = {
+    durationMs: 300,
+    dissolve: { pattern: "noise", edgeColor: "#8ce6ff", edgeWidth: 0.1 },
+  };
+
+  /** The real tile set, with the player given the sides named. */
+  function tilesWithPlayer(transitions: Record<string, unknown>) {
+    return (tilesJson as { id: string }[]).map((def) =>
+      def.id === "player" ? { ...def, transitions } : def,
+    );
+  }
+
+  it("sends a joining player's way in, although a join is not a tick", async () => {
+    await harness.blobs.put(
+      "tiles.json",
+      JSON.stringify(tilesWithPlayer({ appear: DISSOLVE })),
+      JSON_TYPE,
+    );
+    const alice = await connect("alice");
+    const arrived = await eventWithin(alice.ws, "tileTransition", 2000);
+
+    expect(arrived).toMatchObject({
+      kind: "tileTransition",
+      side: "appear",
+      tileId: "player",
+    });
+  });
+
+  it("sends a leaving player's way out to everybody still here", async () => {
+    await harness.blobs.put(
+      "tiles.json",
+      JSON.stringify(tilesWithPlayer({ disappear: DISSOLVE })),
+      JSON_TYPE,
+    );
+    const alice = await connect("alice");
+    const bob = await connect("bob");
+    // Listening before the close, which is what raises it.
+    const left = eventWithin(alice.ws, "tileTransition", 2000);
+    await disconnect(bob.pair);
+
+    expect(await left).toMatchObject({
+      kind: "tileTransition",
+      side: "disappear",
+      tileId: "player",
+    });
+  });
+});

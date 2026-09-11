@@ -65,6 +65,7 @@ import { BattleTab } from "./BattleTab";
 import { ItemTab } from "./ItemTab";
 import type { StatusDef } from "../lib/status";
 import { RespawnTab } from "./RespawnTab";
+import { EffectsTab } from "./EffectsTab";
 import { BrainEditor } from "./BrainEditor";
 import { DialogEditor } from "./DialogEditor";
 import {
@@ -488,6 +489,7 @@ const TAB_DIALOG = "dialog";
 const TAB_BATTLE = "battle";
 const TAB_ITEM = "item";
 const TAB_RESPAWN = "respawn";
+const TAB_EFFECTS = "effects";
 
 export function TileEditorDialog({
   open,
@@ -995,6 +997,7 @@ export function TileEditorDialog({
           : undefined,
       climbFrom: climbFromForSave(draft, climbByFacing),
       particles: draft.particles,
+      transitions: draft.transitions,
       interactions: interactionsForSave(draft.interactions),
       states: savedStates,
     };
@@ -1900,6 +1903,10 @@ export function TileEditorDialog({
               value: TAB_RESPAWN,
               label: draft.interactions?.respawn ? "Respawn •" : "Respawn",
             },
+            {
+              value: TAB_EFFECTS,
+              label: draft.transitions ? "Effects •" : "Effects",
+            },
           ]}
         >
           <TabPanel value={TAB_INTERACTIVE}>
@@ -1951,6 +1958,16 @@ export function TileEditorDialog({
 
           <TabPanel value={TAB_RESPAWN}>
             <RespawnTab draft={draft} onChange={setDraft} />
+          </TabPanel>
+
+          <TabPanel value={TAB_EFFECTS}>
+            <EffectsTab
+              draft={draft}
+              onChange={setDraft}
+              tilesets={tilesets}
+              previewSubject={previewSubject}
+              previewVfx={previewVfx}
+            />
           </TabPanel>
 
           <TabPanel value={TAB_TILE} className="flex flex-col gap-3">

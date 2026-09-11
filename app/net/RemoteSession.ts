@@ -12,6 +12,12 @@ import {
   type StatusInstance,
 } from "../game/statuses";
 import type { ProjectileFlight } from "../game/projectile";
+import {
+  MAX_HELD_TRANSITIONS,
+  MAX_TRANSITION_MS,
+  type HeldTransition,
+  type TileTransitionNote,
+} from "../lib/tileTransition";
 import type { StrikeState } from "../game/strike";
 import {
   actorDirection,
@@ -316,6 +322,16 @@ export class RemoteSession implements PlaySession {
    * an empty cell while the arrow finishes its flight.
    */
   private projectiles: ProjectileFlight[] = [];
+  /**
+   * Tile transitions heard but not yet taken by the renderer, with when.
+   *
+   * Stamped against a clock that keeps running while the tab is hidden —
+   * frames stop, and the socket keeps delivering — so a player coming back to
+   * a background tab is handed the few that could still be running, never a
+   * backlog. See `../lib/tileTransition`.
+   */
+  private transitions: Array<{ note: TileTransitionNote; heardAtMs: number }> =
+    [];
   /** Who this client is pointing at; echoed back in the snapshot for the outline. */
   private targetId: string | null = null;
   /**
@@ -365,6 +381,8 @@ export class RemoteSession implements PlaySession {
   constructor(
     private readonly socket: WebSocket,
     tiles: TileDef[],
+    /** Milliseconds on a clock that keeps running while the tab is hidden. */
+    private readonly now: () => number = () => performance.now(),
   ) {
     this.tilesById = tilesByIdFromList(tiles);
     socket.addEventListener("message", this.onMessage);
@@ -553,6 +571,8 @@ export class RemoteSession implements PlaySession {
       // And every arrow is measured between two cells in a world that no longer
       // exists, on the same terms the bubbles above are.
       this.projectiles = [];
+      // And every transition names a slot in a world that no longer exists.
+      this.transitions = [];
       // A target in the old world names nobody in this one, and the server has
       // already dropped it — leaving it set here would draw a red outline
       // around whoever happens to answer to that id next.
@@ -1006,6 +1026,15 @@ export class RemoteSession implements PlaySession {
       return;
     }
 
+    // Before the prediction guard, with the others that move nobody: a tile
+    // forming or dissolving is not a claim about where any body is, and it
+    // carries no actor for the guard to ask about.
+    if (event.kind === "tileTransition") {
+      const { kind: _kind, ...note } = event;
+      this.holdTransition(note);
+      return;
+    }
+
     // Before the prediction guard for the third time, and for the reason the
     // two above are: a blow moves nobody, so it can neither confirm nor
     // contradict a step this client is holding a guess about. Run through that
@@ -1140,6 +1169,41 @@ export class RemoteSession implements PlaySession {
     this.expireNoises(dtMs);
     this.expireDamage(dtMs);
     this.expireProjectiles(dtMs);
+  }
+
+  /**
+   * Every tile transition heard since the last call that could still be
+   * running, with how long ago it was heard, handed over and forgotten.
+   *
+   * The renderer's to call once a frame. It owns how far along each one is, and
+   * the age is what lets it start one that waited where it would have been
+   * rather than from the beginning.
+   */
+  takeTransitions(): HeldTransition[] {
+    const at = this.now();
+    const taken: HeldTransition[] = [];
+    for (const held of this.transitions) {
+      const ageMs = at - held.heardAtMs;
+      if (ageMs < MAX_TRANSITION_MS) taken.push({ note: held.note, ageMs });
+    }
+    this.transitions = [];
+    return taken;
+  }
+
+  /**
+   * Keep a note for the renderer, dropping anything that could have finished
+   * and then the oldest past the cap.
+   *
+   * Against the longest a transition may be rather than its own duration, so
+   * this side never has to look a tile up to know when it is done with one.
+   */
+  private holdTransition(note: TileTransitionNote) {
+    const at = this.now();
+    this.transitions = this.transitions.filter(
+      (held) => at - held.heardAtMs < MAX_TRANSITION_MS,
+    );
+    this.transitions.push({ note, heardAtMs: at });
+    if (this.transitions.length > MAX_HELD_TRANSITIONS) this.transitions.shift();
   }
 
   /**

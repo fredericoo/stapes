@@ -2232,6 +2232,9 @@ export class GameRenderer {
 
     const motions = this.tileMotionsFor(snap);
     const vfx = this.statusVfxFor(snap, dtMs);
+    // Taken once a frame, whether or not anything else changed: the renderer
+    // owns how far along each one is, and starts it from the moment it takes it.
+    const transitions = this.session.takeTransitions();
 
     this.world.setView({
       map: snap.map,
@@ -2252,6 +2255,7 @@ export class GameRenderer {
       spriteTints: vfx.tints,
       particleEmitters: vfx.emitters,
       roofCut: cut,
+      transitions: transitions.length > 0 ? transitions : undefined,
     });
 
     this.world.setOverlays(this.overlaysFor(snap));

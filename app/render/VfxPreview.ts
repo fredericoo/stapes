@@ -25,6 +25,19 @@ import {
   writeTintUniforms,
 } from "./spriteTint";
 import {
+  isFinished,
+  liveShown,
+  noTransitionUniforms,
+  pixelSnappedQuad,
+  transitionPose,
+  writeTransitionUniforms,
+  type TransitionPose,
+  type LiveTransition,
+  type TransitionSprite,
+  type TransitionUniforms,
+} from "./tileTransitions";
+import type { Transition, TransitionSide } from "../lib/tileTransition";
+import {
   buildSingleQuadGeometry,
   injectWorldShader,
   type LevelLightUniforms,
@@ -94,6 +107,21 @@ const FLOOR_DARK = "#484a77";
 /** Behind everything, and never depth-tested — it is a backdrop, not a floor. */
 const FLOOR_RENDER_ORDER = -1;
 
+/** The note a previewed transition is played under. Never on any wire. */
+const PREVIEW_TRANSITION_ID = "preview";
+
+/**
+ * How long a played transition's end is held before the subject is whole again.
+ *
+ * Long enough to see where it landed, and no longer: a disappear that let go
+ * at once would leave the author unsure it had played at all, and one that
+ * never let go would leave them looking at an empty floor.
+ */
+const TRANSITION_HOLD_MS = 600;
+
+/** A previewed transition's burst, beside the plume and never mistaken for it. */
+const PREVIEW_BURST_ID = "preview-burst";
+
 /** The plume's own id. One subject, one status, so it never needs to vary. */
 const PREVIEW_EMITTER_ID = "preview";
 
@@ -143,6 +171,21 @@ export class VfxPreview {
    * throwing the material away sixty times a second.
    */
   private readonly tintU: TintUniforms = noTintUniforms();
+  /**
+   * The subject's transition, bound into its material the way the tint is, so
+   * playing one is a handful of number writes. @see playTransition
+   */
+  private readonly transitionU: TransitionUniforms = noTransitionUniforms();
+  private playing: LiveTransition | null = null;
+  /** When the playing transition's held end is let go. */
+  private playEndsMs = 0;
+  /**
+   * Where the subject stands: its middle for the sweep's origin, and the
+   * middle of its base cell for the scale's pivot.
+   */
+  private subjectSprite:
+    | (TransitionSprite & { pivotX: number; pivotY: number })
+    | null = null;
 
   private subject: THREE.Mesh | null = null;
   private subjectMaterial: THREE.MeshBasicMaterial | null = null;
@@ -364,6 +407,7 @@ export class VfxPreview {
       this.clockMs += dt;
       this.particles.update(dt, undefined);
       this.updateSubjectFrame();
+      this.advanceTransition();
       this.render();
     };
     this.raf = requestAnimationFrame(loop);
@@ -393,32 +437,60 @@ export class VfxPreview {
     this.renderer.dispose();
   }
 
-  /** The plume this frame, or none when the status emits nothing. */
+  /**
+   * The plume this frame, and a playing transition's burst.
+   *
+   * The plume thins with a playing transition the way a tile's own plume does in
+   * the world, and the burst comes after it — the same order play serves them in.
+   */
   private emitterSpecs(): ParticleEmitterSpec[] {
-    const particles = this.vfx.particles;
-    if (!particles) return [];
+    const specs: ParticleEmitterSpec[] = [];
+    const playing = this.playing;
+    const shown = playing ? liveShown(playing, this.clockMs) : 1;
     // The same rule play applies: a two-high tile standing on top of the
     // subject's stack. Derived from the subject's own height, so a wall's plume
     // starts where a wall ends and a bush's where a bush does.
     const height = this.def?.height ?? HEIGHT_PER_LEVEL;
-    return [
-      {
+    const box = depthBox(
+      SUBJECT_CELL.x,
+      SUBJECT_CELL.y,
+      height,
+      height + HEIGHT_PER_LEVEL,
+    );
+    const particles = this.vfx.particles;
+    if (particles) {
+      specs.push({
         id: PREVIEW_EMITTER_ID,
         config: particles,
         cx: SUBJECT_CELL.x + 0.5,
         cy: SUBJECT_CELL.y + 0.5,
         footElev: 0,
         z: 0,
-        box: depthBox(
-          SUBJECT_CELL.x,
-          SUBJECT_CELL.y,
-          height,
-          height + HEIGHT_PER_LEVEL,
-        ),
+        box,
         stackBias: depthStackBias(0, 1),
-        taper: this.taper,
-      },
-    ];
+        taper: this.taper * shown,
+      });
+    }
+    const burst =
+      playing && !isFinished(playing, this.clockMs)
+        ? playing.transition.particles
+        : undefined;
+    if (burst) {
+      specs.push({
+        id: PREVIEW_BURST_ID,
+        config: burst,
+        cx: SUBJECT_CELL.x + 0.5,
+        cy: SUBJECT_CELL.y + 0.5,
+        footElev: 0,
+        z: 0,
+        // The tile's own box, as play gives a burst — not the plume's, which
+        // stands on top of the tile.
+        box: depthBox(SUBJECT_CELL.x, SUBJECT_CELL.y, 0, this.def?.height ?? 0),
+        stackBias: depthStackBias(0, 0),
+        taper: 1,
+      });
+    }
+    return specs;
   }
 
   private applyTint() {
@@ -436,10 +508,8 @@ export class VfxPreview {
     this.clearSubjectMesh();
 
     const rect = spriteRect(this.def.anchor, frame.sprite);
-    const origin = spriteWorldOrigin(
-      baseCellWorldOrigin(SUBJECT_CELL.x, SUBJECT_CELL.y, 0, 0),
-      frame.sprite.base,
-    );
+    const baseOrigin = baseCellWorldOrigin(SUBJECT_CELL.x, SUBJECT_CELL.y, 0, 0);
+    const origin = spriteWorldOrigin(baseOrigin, frame.sprite.base);
     const w = rect.w * CELL_SIZE;
     const h = rect.h * CELL_SIZE;
     const quad: Omit<Quad, "x" | "y"> = {
@@ -475,6 +545,7 @@ export class VfxPreview {
         // The preview draws one sprite and rewrites its own UVs; there is no
         // level and no table for it to read.
         noAnimUniforms(this.whiteTex),
+        this.transitionU,
       );
     };
     material.customProgramCacheKey = () => WORLD_SHADER_CACHE_KEY;
@@ -489,6 +560,86 @@ export class VfxPreview {
 
     this.subject = mesh;
     this.subjectMaterial = material;
+    this.subjectSprite = {
+      centreX: origin.x + w / 2,
+      centreY: origin.y + h / 2,
+      pivotX: baseOrigin.x + CELL_SIZE / 2,
+      pivotY: baseOrigin.y + CELL_SIZE / 2,
+      w,
+      h,
+    };
+    // The art can change while a transition plays, and the sweep and the noise
+    // are laid out against the sprite: re-point them at the one just built.
+    if (this.playing) {
+      writeTransitionUniforms(this.transitionU, this.playing, this.subjectSprite);
+    }
+    this.advanceTransition();
+  }
+
+  /**
+   * Play one side of a transition on the subject, from the top.
+   *
+   * Through the world's own shader and uniforms, so what an author watches
+   * here is what a conjure or a decay will look like. The end is held for a
+   * beat, then the subject is whole again. See {@link TRANSITION_HOLD_MS}.
+   */
+  playTransition(transition: Transition, side: TransitionSide) {
+    this.playing = {
+      note: {
+        id: PREVIEW_TRANSITION_ID,
+        side,
+        tileId: this.def?.id ?? "",
+        x: SUBJECT_CELL.x,
+        y: SUBJECT_CELL.y,
+        z: 0,
+        stackIndex: 0,
+      },
+      transition,
+      startMs: this.clockMs,
+    };
+    this.playEndsMs = this.clockMs + transition.durationMs + TRANSITION_HOLD_MS;
+    writeTransitionUniforms(
+      this.transitionU,
+      this.playing,
+      this.subjectSprite ?? undefined,
+    );
+    this.advanceTransition();
+  }
+
+  /** Wind the playing transition on, and let it go once its end has been held. */
+  private advanceTransition() {
+    const live = this.playing;
+    if (!live) return;
+    if (this.clockMs >= this.playEndsMs) {
+      this.playing = null;
+      writeTransitionUniforms(this.transitionU, null);
+      this.poseSubject({ scale: 1, dropLevels: 0 });
+      this.particles.setEmitters(this.emitterSpecs());
+      return;
+    }
+    const shown = liveShown(live, this.clockMs);
+    this.transitionU.uFxShown.value = shown;
+    this.poseSubject(transitionPose(live.transition, shown));
+    // Every frame while one plays: the plume thins with the tile and the
+    // burst runs for as long as the transition does.
+    this.particles.setEmitters(this.emitterSpecs());
+  }
+
+  /**
+   * Stand the subject as the transition says: shrunk towards the middle of the
+   * cell it stands on, and lifted by whole storeys for a drop. The preview has one tile and
+   * nothing to sort it against, so only the picture moves, not its depth.
+   */
+  private poseSubject(pose: TransitionPose) {
+    const mesh = this.subject;
+    const sprite = this.subjectSprite;
+    if (!mesh || !sprite) return;
+    // On the world-pixel grid, as play does. @see pixelSnappedQuad
+    const at = pixelSnappedQuad(sprite, pose);
+    mesh.scale.set(at.scaleX, at.scaleY, 1);
+    mesh.position.set(at.x, at.y, 0);
+    mesh.updateMatrix();
+    mesh.updateMatrixWorld(true);
   }
 
   /** Point the subject at whatever frame the shared clock says is live. */

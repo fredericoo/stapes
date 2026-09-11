@@ -17,6 +17,16 @@ import {
   TINT_GLSL_FRAGMENT,
   type TintUniforms,
 } from "./spriteTint";
+import {
+  NO_TRANSITION_UNIFORMS,
+  TRANSITION_GLSL_COMMON,
+  TRANSITION_GLSL_DISCARD,
+  TRANSITION_GLSL_EDGE,
+  TRANSITION_GLSL_SNAP,
+  TRANSITION_GLSL_VERTEX,
+  TRANSITION_GLSL_VERTEX_COMMON,
+  type TransitionUniforms,
+} from "./tileTransitions";
 
 /**
  * One tile sprite: a screen-space rectangle of texture, plus the solid box it
@@ -148,7 +158,7 @@ const VERTS_PER_QUAD = 4;
 const BOX_COMPONENTS = 4;
 
 /** Both renderers must agree, or the same tile sorts differently in each. */
-export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v10";
+export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v11";
 
 function glsl(n: number): string {
   return Number.isInteger(n) ? `${n}.0` : `${n}`;
@@ -415,6 +425,10 @@ export function writeBoxAttr(
  * Tint: an optional OKLab wash worn by whatever is carrying a status, applied to
  * the sampled texel before the light reaches it. Free on the materials that do
  * not have one — see `./spriteTint`.
+ *
+ * Transition: an optional dissolve worn by a tile that is forming or going,
+ * on the same terms — a material of its own, and a skipped branch everywhere
+ * else. See `./tileTransitions`.
  */
 export function injectWorldShader(
   shader: { vertexShader: string; fragmentShader: string; uniforms: object },
@@ -422,8 +436,9 @@ export function injectWorldShader(
   tint: TintUniforms,
   cut: LevelCutUniforms,
   anim: LevelAnimUniforms,
+  transition: TransitionUniforms = NO_TRANSITION_UNIFORMS,
 ) {
-  Object.assign(shader.uniforms, lightUniforms, tint, cut, anim);
+  Object.assign(shader.uniforms, lightUniforms, tint, cut, anim, transition);
   shader.vertexShader = shader.vertexShader
     .replace(
       "#include <common>",
@@ -444,6 +459,7 @@ varying vec4 vBox;
 varying float vStack;
 varying vec2 vWorldPx;
 varying vec2 vLightScale;
+${TRANSITION_GLSL_VERTEX_COMMON}
 
 // Where this row's frame at clockMs sits, relative to frame 0, in UV space.
 //
@@ -475,6 +491,7 @@ vBox = aBox;
 vStack = aStack;
 vLightScale = aLightScale;
 vWorldPx = (modelMatrix * vec4(position, 1.0)).xy;
+${TRANSITION_GLSL_VERTEX}
 #ifdef USE_MAP
 if (uAnimEnabled > 0.5 && aAnim.x >= 0.0) {
   // Straight onto the map coordinate, which is sound because nothing here sets
@@ -504,11 +521,13 @@ varying vec4 vBox;
 varying float vStack;
 varying vec2 vWorldPx;
 varying vec2 vLightScale;
-${TINT_GLSL_COMMON}`,
+${TINT_GLSL_COMMON}
+${TRANSITION_GLSL_COMMON}`,
     )
     .replace(
       "#include <map_fragment>",
       /* glsl */ `#include <map_fragment>
+${TRANSITION_GLSL_SNAP}
 // The roof cut, first, because a discarded fragment is not worth shading.
 //
 // vBox.xy are this quad's own base cell — the unshifted east and south edges in
@@ -520,6 +539,7 @@ if (uCutEnabled > 0.5) {
   vec2 cutUv = (cutCell - uCutOrigin) / uCutSize;
   if (texture2D(uCutMask, cutUv).r > 0.5) discard;
 }
+${TRANSITION_GLSL_DISCARD}
 ${TINT_GLSL_FRAGMENT}
 // Everything below samples at the centre of the art pixel this fragment falls
 // in, not at the fragment itself. A fragment is smaller than a texel once
@@ -539,6 +559,7 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
   vec3 light = min(vec3(1.0), lightTexel.a * uAmbient + lightTexel.rgb);
   diffuseColor.rgb *= light;
 }
+${TRANSITION_GLSL_EDGE}
 // Depth, at that same pixel centre, so a crossing between two sprites can only
 // ever land on a texel boundary.
 // Where the ray leaves the box: each visible (south/east/top) face caps how far

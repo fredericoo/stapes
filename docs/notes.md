@@ -4731,6 +4731,147 @@ last, and that last turns in place exactly as a single berry always did. The pee
 that becomes *nothing* needs no room and happens anywhere. A refused peel is put
 back rather than left half-done.
 
+## A tile can form and dissolve, and only when it says so
+
+`TileDef.transitions` (`app/lib/tileTransition.ts`) is how a tile arrives and
+how it leaves: an `appear` and a `disappear` side, each a duration plus any of a
+dissolve (noise, sweep or dither), a scale into its base cell, a drop from above
+and a particle burst. It is authored in the tile editor's **Effects** tab, beside
+a preview that plays it through the world's own shader.
+
+**Opt-in, and only for a cause the server can name.** A cell patch cannot tell a
+flame that burned out from a berry that was picked up, so the cause travels as a
+`tileTransition` motion event and the client never guesses it from a diff. The
+rule is **anything that was not on the board and now is plays its appear**:
+`castConjure`, `/tile` (each placement a count makes — a pour into a pile
+makes none), `respawnAt`, `spawn` placing a player's body (a join, a rebirth,
+a wake whose body was reaped — not the re-seat after an editor save, which
+passes `announce: false`), and what a decay turns into. A disappear is a
+decay, a death (`kill`, where the body fell) or a player leaving (`despawn`). A thing that moved — a drop, a pickup, loot out of a kit, gravity
+— existed all along and plays nothing, and neither does a tile swapped in
+place by a switch, a plate or an extraction. All of it only when the tile
+has that side authored; everything else changes instantly, which is what
+every tile did before this existed, and costs the wire nothing.
+
+**The new event kind needed a second edit, and the first version shipped
+without it.** A `MotionEvent` kind has to be in the TS union *and* in
+`serverMessageSchema`'s variant. Without the variant the client fails
+validation on the whole message and drops the frame, patch included, with
+nothing logged, and a typecheck passes either way. `protocol.test.ts` now
+round-trips one of every kind from a record keyed by kind, so a new kind with
+no fixture does not compile.
+
+**The server holds no transition state.** Notes are drained each tick and after
+input (a conjure lands on a cast, and `flushBlows` is what sends it) and never
+aged. `seatActor`, `dropSocket` and `processDueRespawns` drain their own as
+well: a join, a leave and the alarm's respawns happen outside a tick, and a tick empties what is pending
+before its own drain, so a note raised there would otherwise never be sent. A visual timer on the server would keep brains, settle and checkpoints
+running for something nobody can be hurt by. The clock is the renderer's:
+`RemoteSession` stamps a note on arrival against a clock that runs while the tab
+is hidden, drops what could have finished, and caps what it holds, because
+frames stop in a background tab while the socket keeps delivering. Offline
+`/play` keeps its own capped list, since `update` can run several ticks between
+two frames and each tick empties the list a server drains.
+
+**A note's slot is a hint.** `stackIndex` is exact when the change happens, and
+gravity, extraction or a creature eating in the same tick can still move things
+before anybody is told. The renderer trusts the slot only while the named tile
+is still there, then takes the cell's only copy, then gives up and lets the tile
+change instantly (`resolveTransitionSlot`). `applyDecay` reports each turn at two
+addresses — its slot in the stack the pass started from, and its replacement's
+slot in the stack it ends with — because `[grass, puddle, ember]` with the
+puddle drying to nothing ends `[grass, ash]`.
+
+**Only a transitioning tile pays.** This is the tint's bargain (see "The tint is a
+uniform"): a forming or dissolving placement is drawn as a mesh of its own for
+the length of the effect, with its own material carrying the uniforms, and the
+merged batches carry nothing extra. Three consequences worth knowing:
+
+- **A forming tile is handed back to its chunk when it finishes**, by rebuilding
+  that chunk. Left alone, the first patch that touched its cell would drop it,
+  because the batch that should hold it was never told it existed. Rebuilds are
+  queued and flushed once per pass.
+- **A note can arrive a frame after the tile it is about** — the board flush in
+  the input path can go out before the tick that carries the event. By then the
+  tile may already be in the batch, and the batch's merged-signature compare
+  cannot see the difference, so a tile the drawn board already holds has its
+  chunk rebuilt at once. A disappear cannot be late: decay only happens on a
+  tick, and a tick's events ride with its patch.
+- **A body forms by its name, not its cell.** A placement with an owner or an
+  item id (`placementIdentity`) is found by that, so a creature that steps in
+  the first half-second of its respawn goes on forming in the next cell. Its
+  mesh is its own for good, so when the appear ends it is stood whole and
+  given its plain material back instead of a rebuild; its step is added to
+  its pose; and a tint waits until the appear is over, because the
+  transition's material has no tint in it and a tint's has no transition. Nor
+  is it ghosted onto the level below while it takes the stairs, since the
+  ghost's material is a plain one too.
+- **A dissolving tile is a copy** built from the previous map, in a named
+  `tileTransitions` group that `discardGeometry` exempts, hidden with its storey
+  when the roof cut hides the whole level.
+
+**Dither, not alpha.** World tiles write their own per-pixel depth, so blending
+would break sorting, and a half-transparent pixel would land off the palette.
+Every pattern is read per art pixel at the sprite's *unscaled* position
+(`vFxPx`), so noise stays fixed to the art while the mesh shrinks rather than
+sliding across it.
+
+**A scale shrinks into the middle of the cell the tile stands on, on the pixel
+grid.** The pivot is the centre of the tile's base cell: half a cell up and
+half a cell right of that cell's bottom-left corner. For a one-cell tile that
+is the sprite's own middle; for a larger sprite it is not — the flame's base
+is the lower-right cell of its 2×2, and it shrinks towards that cell rather
+than towards the middle of its art. And it never draws pixels smaller than
+the world's: `pixelSnappedQuad` rounds the scaled quad's size, corner and
+drop lift to whole world pixels, and the shader redraws a transitioning mesh
+one texel per world pixel (`TRANSITION_GLSL_SNAP`), so a shrinking sprite
+loses whole rows and columns of art instead of showing mixels beside
+full-size neighbours. The art pixel under each world pixel is chosen with a
+nudge smaller than a pixel, because at scales like ½ a world pixel's centre
+lands exactly on an art-pixel edge, and the fragments inside it would
+otherwise disagree about which side they are on.
+
+**A drop is in storeys, and its depth goes up with it.** One level up lands on
+the same pixel as one cell up-left, so a stone "dropping from x-2 y-2" and one
+falling two storeys look the same — but only the storeys sort right. The mesh
+is moved by `levelScreenOffset` and its depth box's foot and top are raised by
+the same levels, every frame, since `applyTileMotions` writes a movable mesh's
+box back to its cell on each view. The box's xy never move, so the roof cut
+keeps reading the tile's own cell.
+
+**The tile's own plume goes with it.** A forming tile's plume thins in: its spec
+belongs to the chunk and is rebuilt at full strength when the tile rejoins the
+batch. A dissolving tile took its plume off the board, so the copy carries its
+config on, tapering, under an id of its own. Not the original id: the slot may
+already hold what the tile turned into, with a plume of its own under that
+id, and two specs under one id leave one drawn with the other's config. The
+original's sparks finish by themselves once it is retired. Both are
+`appendTransitionEmitters`, which replaces a forming tile's spec with a
+tapered copy rather than writing into the one its chunk owns. A transition's
+own burst is one more emitter for its duration, appended after the board's,
+and capped by rate × duration at `MAX_BURST_PARTICLES` so one burst cannot
+empty the pool.
+
+**The light fades on a shared grid.** The bake dropped the tile's light the
+moment it left the map, so a dissolving tile's light is painted back as an
+emitter override that steps down every `LIGHT_FADE_STEP_MS`, measured on one
+grid for every fade rather than from each one's start — the overlay cache keys on
+each light's intensity, so concurrent fades cost one rebake per step between them.
+The override waits until the bake has moved on from the grid that still held the
+tile's light; painted over that grid it doubled the light for a few frames and
+the room flared before it dimmed. That rests on one assumption worth knowing:
+a grid of a new identity is taken to be one baked without the tile. A bake
+started before the tile left and landing after it would break that, for a few
+frames of slightly doubled light. A forming tile's light arrives with the tile:
+ramping it in needs a per-placement omission from the bake that does not exist
+yet (`omitLightTileIds` is keyed by tile id).
+
+**Watching one needs a slow copy.** Headless screenshots here take a few hundred
+milliseconds each, so a 700 ms effect is over by the second frame. To look at
+one, raise its duration in `data/tiles.json`, post the file to the dev server
+(which, under `bun dev`, writes the file too — that is the editor's save path),
+and put it back afterwards.
+
 ## The save is the repair path, so it must not need a working world
 
 `replaceWorld` is the only way to change the world, which makes it the only way

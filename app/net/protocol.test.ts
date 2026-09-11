@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parseClientMessage, parseServerMessage } from "./protocol";
+import {
+  parseClientMessage,
+  parseServerMessage,
+  type MotionEvent,
+} from "./protocol";
 import { SWING_OUTCOMES } from "../game/GameSession";
 import { MAX_COMMAND_LENGTH } from "../game/commands";
 
@@ -517,5 +521,78 @@ describe("nothing is quietly dropped in transit", () => {
     );
 
     expect(message?.type === "patch" && message.hps[0]).toEqual(hp);
+  });
+
+  /**
+   * One of every kind, so a kind added to the union and not to the schema fails
+   * here rather than in a browser — where the whole frame, patch and all, is
+   * dropped without a word. Keyed by kind, so a new kind with no entry here is a
+   * type error before it is a test failure.
+   */
+  it("carries one of every event kind through whole", () => {
+    const oneOfEach: {
+      [K in MotionEvent["kind"]]: Extract<MotionEvent, { kind: K }>;
+    } = {
+      walkStarted: {
+        kind: "walkStarted",
+        actorId: "rat",
+        from: { x: 0, y: 0, z: 0 },
+        to: { x: 1, y: 0, z: 0 },
+        direction: "e",
+      },
+      fallStarted: { kind: "fallStarted", actorId: "rat", feetAbs: 4, landingAbs: 0 },
+      slideStarted: {
+        kind: "slideStarted",
+        actorId: "rat",
+        object: { x: 1, y: 0, z: 0, stackIndex: 1 },
+        from: { x: 0, y: 0, z: 0 },
+        count: 1,
+      },
+      strikeStarted: {
+        kind: "strikeStarted",
+        actorId: "rat",
+        strike: "swing",
+        dx: 1,
+        dy: 0,
+        dElev: 0,
+      },
+      teleported: { kind: "teleported", actorId: "rat" },
+      swung: { kind: "swung", actorId: "rat" },
+      joined: { kind: "joined", actorId: "rat", playerCount: 2 },
+      left: { kind: "left", actorId: "rat", playerCount: 1 },
+      spawned: { kind: "spawned", actorId: "rat" },
+      projectileFired: {
+        kind: "projectileFired",
+        id: "shot-1",
+        tileId: "arrow",
+        from: { x: 0, y: 0, elevAbs: 2 },
+        to: { x: 3, y: 0, elevAbs: 2 },
+        durationMs: 300,
+      },
+      tileTransition: {
+        kind: "tileTransition",
+        id: "transition-1",
+        side: "appear",
+        tileId: "flame",
+        x: 1,
+        y: 0,
+        z: 0,
+        stackIndex: 1,
+      },
+      damage: damageEvent,
+    };
+
+    for (const event of Object.values(oneOfEach)) {
+      const message = parseServerMessage(
+        JSON.stringify({
+          type: "patch",
+          cells: [],
+          events: [event],
+          hps: [],
+          carriedLights: [],
+        }),
+      );
+      expect(message?.type === "patch" && message.events[0]).toEqual(event);
+    }
   });
 });

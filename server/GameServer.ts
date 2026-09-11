@@ -1079,6 +1079,9 @@ export class GameServer {
       if (this.adoptSpawnedItem(point, outcome.itemId)) pointsDirty = true;
     }
     if (pointsDirty) this.persistRespawnPoints();
+    // Collected here and not left to the tick, because the alarm grows
+    // things back too, and the tick it wakes empties what is pending first.
+    this.collectTransitionEvents(session);
     if (dirty) {
       this.persistRespawnPending();
       this.scheduleRespawnAlarm();
@@ -2104,6 +2107,9 @@ export class GameServer {
     if (!session) return;
     this.collectDamageEvents(session);
     this.collectProjectileEvents(session);
+    // A conjure lands on the cast, not on a tick, so its flame has to be
+    // announced in the same flush as the blow it came with.
+    this.collectTransitionEvents(session);
   }
 
   /**
@@ -2692,6 +2698,9 @@ export class GameServer {
     // of who gets forgotten first, which is precisely backwards.
     this.saveActors([attachment.actorId], true);
     this.session?.despawn(attachment.actorId);
+    // Collected now, because the tick this wakes empties what is pending
+    // before it drains: the body's way out rides the patch that removes it.
+    if (this.session) this.collectTransitionEvents(this.session);
     this.writtenActors.delete(attachment.actorId);
     this.sentMotion.delete(attachment.actorId);
     this.announcedActors.delete(attachment.actorId);
@@ -2908,25 +2917,29 @@ export class GameServer {
       const attachment = ws.deserializeAttachment() as Attachment | null;
       if (!attachment) continue;
       const kit = carried.get(attachment.actorId);
-      this.session.spawn(attachment.actorId, {
-        // Honoured only if the cell still has room for them; `findEntryCell`
-        // bubbles outward and gives up at the new spawn, so a position kept
-        // across a deploy can never seat somebody inside a wall.
-        at: standing.get(attachment.actorId),
-        carrying: kit
-          ? restoredEquipment(kit, tilesById)
-          : await this.lastEquipmentOf(attachment.actorId),
-        tagged:
-          taken.get(attachment.actorId) ??
-          (await this.lastTagsOf(attachment.actorId)),
-        earned:
-          learnt.get(attachment.actorId) ??
-          (await this.lastMasteriesOf(attachment.actorId)),
-        statuses:
-          running.get(attachment.actorId) ??
-          (await this.lastStatusesOf(attachment.actorId)),
-        hp: health.get(attachment.actorId) ?? (await this.lastHpOf(attachment.actorId)),
-      });
+      this.session.spawn(
+        attachment.actorId,
+        {
+          // Honoured only if the cell still has room for them; `findEntryCell`
+          // bubbles outward and gives up at the new spawn, so a position kept
+          // across a deploy can never seat somebody inside a wall.
+          at: standing.get(attachment.actorId),
+          carrying: kit
+            ? restoredEquipment(kit, tilesById)
+            : await this.lastEquipmentOf(attachment.actorId),
+          tagged:
+            taken.get(attachment.actorId) ??
+            (await this.lastTagsOf(attachment.actorId)),
+          earned:
+            learnt.get(attachment.actorId) ??
+            (await this.lastMasteriesOf(attachment.actorId)),
+          statuses:
+            running.get(attachment.actorId) ??
+            (await this.lastStatusesOf(attachment.actorId)),
+          hp: health.get(attachment.actorId) ?? (await this.lastHpOf(attachment.actorId)),
+        },
+        { announce: false },
+      );
     }
     for (const ws of this.ctx.getWebSockets()) {
       const attachment = ws.deserializeAttachment() as Attachment | null;
@@ -3212,6 +3225,7 @@ export class GameServer {
     this.collectMotionEvents(actors);
     this.collectDamageEvents(session);
     this.collectProjectileEvents(session);
+    this.collectTransitionEvents(session);
     this.collectTeleportEvents(session);
     this.collectSwingEvents(session);
     this.noteDeaths(session);
@@ -3455,6 +3469,10 @@ export class GameServer {
     this.silenced.delete(actorId);
     await this.rememberSpawn(actorId);
     this.session!.spawn(actorId, await this.restoredActor(actorId));
+    // A seat happens on a join, a wake or a rebirth, never inside a tick, and
+    // the next tick empties whatever it finds pending before it drains: the
+    // body's way in has to be collected here or it is never sent.
+    this.collectTransitionEvents(this.session!);
   }
 
   /**
@@ -3553,6 +3571,19 @@ export class GameServer {
         to: flight.to,
         durationMs: flight.durationMs,
       });
+    }
+  }
+
+  /**
+   * Turn this tick's tile transitions into events.
+   *
+   * Drained rather than diffed, on the terms a shot is: the cell patch in this
+   * same frame says a flame is gone, and no pair of readings says whether it
+   * burned out or was picked up. See `../app/lib/tileTransition`.
+   */
+  private collectTransitionEvents(session: GameSession) {
+    for (const note of session.drainTransitions()) {
+      this.events.push({ kind: "tileTransition", ...note });
     }
   }
 

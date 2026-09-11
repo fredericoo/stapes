@@ -136,6 +136,29 @@ const tiles: TileDef[] = [
     height: 0,
     interactions: { decay: { tileId: "", fromMs: STAIN_MS, toMs: STAIN_MS } },
   }),
+  // Opted in on both sides, unlike everything else here: an ember plays out and
+  // the ash it leaves plays in. Blood and stain above opt into nothing.
+  tile({
+    id: "ember",
+    height: 0,
+    transitions: {
+      disappear: {
+        durationMs: 700,
+        dissolve: { pattern: "noise", edgeColor: "#ff9e40", edgeWidth: 0.2 },
+      },
+    },
+    interactions: { decay: { tileId: "ash", fromMs: BLOOD_MS, toMs: BLOOD_MS } },
+  }),
+  tile({
+    id: "ash",
+    height: 0,
+    transitions: {
+      appear: {
+        durationMs: 700,
+        dissolve: { pattern: "dither", edgeColor: "#b0a8a0", edgeWidth: 0 },
+      },
+    },
+  }),
   // Draws its lifetime from a spread rather than taking a fixed one.
   tile({
     id: "spatter",
@@ -523,6 +546,127 @@ describe("GameSession decay", () => {
     const ref = { x: 0, y: 0, z: 0, stackIndex: 1 };
     expect(session.canInteract(ref)).toBe(false);
     expect(session.interact(ref)).toBe(false);
+  });
+});
+
+/**
+ * What a decay announces for the renderer to play, as a server would drain it.
+ *
+ * Drained after every tick, because a session empties the list at the top of
+ * the next one — the same hand-over the server makes.
+ */
+function runHearing(session: GameSession, ms: number): string[] {
+  const heard: string[] = [];
+  for (let i = 0; i <= Math.ceil(ms / TICK_MS); i++) {
+    session.tick(TICK_MS);
+    for (const note of session.drainTransitions()) {
+      heard.push(`${note.side} ${note.tileId} @${note.x},${note.y},${note.z}#${note.stackIndex}`);
+    }
+  }
+  return heard;
+}
+
+describe("GameSession transitions", () => {
+  it("announces nothing for a decay nobody authored a way out of", () => {
+    const map = withIdlePlayer(
+      replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "blood" }]),
+    );
+    const session = new GameSession(map, tiles);
+
+    expect(runHearing(session, BLOOD_MS)).toEqual([]);
+    expect(stackIds(session.getMap(), 0, 0)).toEqual(["grass", "stain"]);
+  });
+
+  it("plays an ember out and the ash it leaves in, at the slot it sat in", () => {
+    const map = withIdlePlayer(
+      replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "ember" }]),
+    );
+    const session = new GameSession(map, tiles);
+
+    expect(runHearing(session, BLOOD_MS)).toEqual([
+      "disappear ember @0,0,0#1",
+      "appear ash @0,0,0#1",
+    ]);
+    expect(stackIds(session.getMap(), 0, 0)).toEqual(["grass", "ash"]);
+  });
+
+  it("announces every copy in the cell, each at its own slot", () => {
+    const map = withIdlePlayer(
+      replaceStack(emptyMap(), 0, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "ember" },
+        { tileId: "ember" },
+      ]),
+    );
+    const session = new GameSession(map, tiles);
+
+    expect(runHearing(session, BLOOD_MS).sort()).toEqual([
+      "appear ash @0,0,0#1",
+      "appear ash @0,0,0#2",
+      "disappear ember @0,0,0#1",
+      "disappear ember @0,0,0#2",
+    ]);
+  });
+
+  it("announces nothing when an authored thing is merely picked up", () => {
+    const glowcap = tile({
+      id: "glowcap",
+      height: 0,
+      kind: "item",
+      intangible: true,
+      interactions: { item: EDIBLE },
+      transitions: {
+        appear: {
+          durationMs: 700,
+          dissolve: { pattern: "noise", edgeColor: "#8ce6ff", edgeWidth: 0.2 },
+        },
+        disappear: {
+          durationMs: 700,
+          dissolve: { pattern: "noise", edgeColor: "#8ce6ff", edgeWidth: 0.2 },
+        },
+      },
+    });
+    // In front of the idle player, who faces south from (9,9).
+    const map = replaceStack(withIdlePlayer(emptyMap()), 9, 10, 0, [
+      { tileId: "grass" },
+      { tileId: "glowcap", itemId: "cap-1" },
+    ]);
+    const session = new GameSession(map, [...tiles, glowcap]);
+
+    expect(session.pickUp({ x: 9, y: 10, z: 0, stackIndex: 1 })).toBe(true);
+    expect(session.drainTransitions()).toEqual([]);
+    expect(runHearing(session, TICK_MS)).toEqual([]);
+
+    // And putting it back down is a move too.
+    expect(
+      session.drop({ kind: "contents", index: 0 }, { x: 9, y: 10, z: 0 }),
+    ).toBe(true);
+    expect(session.drainTransitions()).toEqual([]);
+    expect(session.takeTransitions()).toEqual([]);
+  });
+
+  it("plays each one out of the slot a viewer last saw it in", () => {
+    // Dries to nothing on the ember's own clock, below it in the same cell — so
+    // the ember's slot in the stack a viewer holds is not the ash's slot after.
+    const puddle = tile({
+      id: "puddle",
+      height: 0,
+      interactions: { decay: { tileId: "", fromMs: BLOOD_MS, toMs: BLOOD_MS } },
+    });
+    const map = withIdlePlayer(
+      replaceStack(emptyMap(), 0, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "puddle" },
+        { tileId: "ember" },
+      ]),
+    );
+    const session = new GameSession(map, [...tiles, puddle]);
+
+    expect(runHearing(session, BLOOD_MS)).toEqual([
+      "disappear ember @0,0,0#2",
+      "appear ash @0,0,0#1",
+    ]);
+    expect(stackIds(session.getMap(), 0, 0)).toEqual(["grass", "ash"]);
   });
 });
 

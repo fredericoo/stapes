@@ -11,6 +11,7 @@ import {
   spriteWorldOrigin,
 } from "../lib/geometry";
 import {
+  emitterCenter,
   overlayEmitterOverridesPacked,
   VOID_BACKGROUND,
   type EmitterOverride,
@@ -29,10 +30,28 @@ import {
   terrainHeight,
 } from "../lib/mapData";
 import {
+  cellInMeshWindow,
   chunkAddressKey,
   parseChunkAddress,
   visibleChunkKeys,
 } from "./meshWindow";
+import {
+  admitTransitions,
+  placementIdentity,
+  appendTransitionEmitters,
+  fadingLightScale,
+  isFinished,
+  liveShown,
+  pixelSnappedQuad,
+  resolveTransitionSlot,
+  transitionAddress,
+  transitionPose,
+  transitionUniforms,
+  type LiveTransition,
+  type TransitionPose,
+  type TransitionUniforms,
+} from "./tileTransitions";
+import { transitionOf, type HeldTransition } from "../lib/tileTransition";
 import {
   type RoofCut,
   cutHides,
@@ -68,7 +87,7 @@ import {
 } from "../lib/types";
 import { hasSpriteStates, isMobileTile } from "../lib/interactions";
 import { clumpExtents } from "./depthClump";
-import { getFrames, resolveTileSprite } from "../lib/tileResolve";
+import { getFrames, resolveLight, resolveTileSprite } from "../lib/tileResolve";
 import {
   ChunkedLighting,
   LIGHT_WINDOW_MARGIN,
@@ -195,6 +214,17 @@ type ProjectileMesh = {
 /** One quad the builder will emit, plus what decides how it is drawn. */
 type BuildItem = Quad & {
   texture: THREE.Texture;
+  /** The placement's slot in its stack, so a transition can find its quads. */
+  stackIndex: number;
+  /** The appear this placement is forming under, if any. @see formingAt */
+  transitionId?: string;
+  /**
+   * The middle of the cell the placement stands on, in world pixels: what a
+   * transition's scale shrinks towards, so a tile shrinks into its own cell
+   * rather than into the bottom of its sprite.
+   */
+  pivotX: number;
+  pivotY: number;
   /** Set when this tile gets its own mesh rather than joining a merged batch. */
   tileKey?: string;
   anim?: Omit<AnimatedInstance, "mesh" | "key">;
@@ -223,6 +253,110 @@ type BuildItem = Quad & {
    */
   emitter?: ParticleEmitterSpec;
 };
+
+/** A transition this renderer is playing, and the meshes wearing it. */
+type TransitionState = {
+  live: LiveTransition;
+  uniforms: TransitionUniforms | null;
+  material: THREE.MeshBasicMaterial | null;
+  meshes: TransitionMesh[];
+  /**
+   * The baked light as it was when the tile left, which still holds that
+   * tile's light. Its fading light is painted only once the bake has moved on.
+   * @see WorldRenderer.withFadingLights
+   */
+  gridAtStart: PackedLightGrid | null;
+  /** Appear only: the placement's own plume, thinned in while it forms. */
+  plumeId: string | null;
+  /** Disappear only: the plume the tile gave off, carried on by its copy. */
+  plume: ParticleEmitterSpec | null;
+  /** The transition's own burst, for as long as it runs. */
+  burst: ParticleEmitterSpec | null;
+};
+
+/**
+ * One mesh wearing a transition, and where it stands when it is whole.
+ *
+ * A copy is a quad of a tile the map no longer has, and is disposed when the
+ * transition ends. Anything else is the placement's own mesh, which is handed
+ * back to its chunk's batch.
+ */
+type TransitionMesh = {
+  mesh: THREE.Mesh;
+  texture: THREE.Texture;
+  z: number;
+  /** The quad's middle when whole, in world pixels. */
+  centreX: number;
+  centreY: number;
+  /** The middle of its base cell, which a scale shrinks towards. */
+  pivotX: number;
+  pivotY: number;
+  w: number;
+  h: number;
+  copy: boolean;
+  /** Its depth box and bias where it stands, before a drop lifts them. */
+  box: DepthBox;
+  stackBias: number;
+  /**
+   * Set when the placement has a mesh of its own for good — an actor,
+   * anything that moves. Its motion is added to its pose, and when the
+   * transition ends it gets its plain material back instead of a rebuild:
+   * it has no batch to rejoin, and may be cells from where it formed.
+   */
+  tileKey?: string;
+};
+
+/**
+ * Stand a transitioning sprite as its pose says: shrunk towards the middle of
+ * the cell it stands on, and lifted by whole storeys for a drop — its depth box lifted with it, so it
+ * sorts as something above its own cell rather than as a tile standing on the
+ * cell up-left of it, and the roof cut keeps reading its own cell.
+ */
+function poseTransitionMesh(
+  held: TransitionMesh,
+  pose: TransitionPose,
+  dropping: boolean,
+  motion: TileMotion | undefined,
+) {
+  // A body mid-step is posed where the step has it, not back at its cell.
+  const ox = motion?.ox ?? 0;
+  const oy = motion?.oy ?? 0;
+  // On the world-pixel grid, so the shader's one-texel-per-pixel redraw has
+  // whole pixels to fill. @see pixelSnappedQuad
+  const at = pixelSnappedQuad(
+    {
+      centreX: held.centreX + ox,
+      centreY: held.centreY + oy,
+      pivotX: held.pivotX + ox,
+      pivotY: held.pivotY + oy,
+      w: held.w,
+      h: held.h,
+    },
+    pose,
+  );
+  held.mesh.scale.set(at.scaleX, at.scaleY, 1);
+  held.mesh.position.set(at.x, at.y, 0);
+  held.mesh.updateMatrix();
+  held.mesh.updateMatrixWorld(true);
+  // Every frame and not only when it changes: `applyTileMotions` writes a
+  // movable mesh's box back to its cell on each view.
+  if (dropping) {
+    // The storeys drawn, not the storeys asked for, so the depth is raised by
+    // exactly as much as the picture was.
+    const up = at.dropLevels * HEIGHT_PER_LEVEL;
+    const box = motion
+      ? depthBox(motion.box.x, motion.box.y, motion.box.foot, motion.box.top)
+      : held.box;
+    writeBoxAttr(
+      held.mesh.geometry,
+      { ...box, foot: box.foot + up, top: box.top + up },
+      motion ? motion.box.stackBias : held.stackBias,
+    );
+  }
+}
+
+/** A transitioning sprite stood as it is on the board. */
+const WHOLE_POSE: TransitionPose = { scale: 1, dropLevels: 0 };
 
 /** Shared empties, so the common frame allocates nothing to say "none". */
 const EMPTY_EMITTERS: readonly ParticleEmitterSpec[] = [];
@@ -313,6 +447,13 @@ export type WorldView = {
    * nothing for it to be an offset of.
    */
   projectiles?: ProjectileView[];
+  /**
+   * Tile transitions taken this frame, for the renderer to play from now on.
+   *
+   * A hand-over rather than a reading: each is passed once, and the renderer
+   * keeps it for as long as it plays. See `./tileTransitions`.
+   */
+  transitions?: readonly HeldTransition[];
   /**
    * How each placement looks right now, keyed by {@link TileInstanceKey}, and
    * holding only the entries that are *not* {@link SpriteState} `idle`.
@@ -677,6 +818,31 @@ export class WorldRenderer {
   private spriteStates: ReadonlyMap<string, SpriteState> | undefined;
   /** Separate meshes that can receive {@link TileMotion} offsets (anim or in-motion). */
   private movableMeshes = new Map<string, THREE.Mesh>();
+  /** Every transition playing, by note id. @see ./tileTransitions */
+  private liveTransitions = new Map<string, TransitionState>();
+  /**
+   * Placements forming under an appear, by {@link transitionAddress}, which
+   * is what `cellItems` asks to give one a mesh of its own while it plays.
+   */
+  private formingAt = new Map<string, string>();
+  /** The same, for a placement with a name, by that name. @see placementIdentity */
+  private formingByPlacement = new Map<string, string>();
+  /**
+   * Every placement mesh wearing a transition's material. A tint leaves
+   * these alone until the transition is over: the transition's material
+   * has no tint in it, and a tint's material has no transition.
+   */
+  private transitioningMeshes = new Set<THREE.Mesh>();
+  /** This view's motions by placement, so a posed body keeps its step. */
+  private currentMotions: ReadonlyMap<string, TileMotion> = new Map();
+  /**
+   * Chunks a transition needs rebuilt, flushed once per pass rather than per
+   * transition: a burst of flames finishing in one chunk is one rebuild and
+   * one walk of the world's matrices, not one of each per flame.
+   */
+  private chunksToRebuild = new Set<string>();
+  /** Copies of tiles already gone from the map, dissolving where they stood. */
+  private transitionGroup: THREE.Group;
   /**
    * The arrows currently in the air, by flight id.
    *
@@ -829,6 +995,11 @@ export class WorldRenderer {
     this.projectileGroup.matrixAutoUpdate = false;
     this.projectileGroup.updateMatrix();
     this.world.add(this.projectileGroup);
+    this.transitionGroup = new THREE.Group();
+    this.transitionGroup.name = "tileTransitions";
+    this.transitionGroup.matrixAutoUpdate = false;
+    this.transitionGroup.updateMatrix();
+    this.world.add(this.transitionGroup);
 
     const data = new Uint8Array([255, 0, 255, 255]);
     this.magentaTex = new THREE.DataTexture(data, 1, 1, THREE.RGBAFormat);
@@ -895,6 +1066,10 @@ export class WorldRenderer {
     // Before applyMap, which is what reads it: a cell rebuilt this frame has to
     // come back in the state this view says it is in.
     this.spriteStates = view.spriteStates;
+    // Before applyMap, which is the whole of the ordering: a forming tile has
+    // to be on record when its chunk is patched, and a going one has to be read
+    // off `prevMap` while that still holds it.
+    this.ingestTransitions(view);
     this.applyCamera(view.camera.x, view.camera.y, view.zoom);
 
     // Before applyMap, which advances prevMap — the light cache needs to see
@@ -906,6 +1081,7 @@ export class WorldRenderer {
     this.time("map", () => {
       this.applyMap(view.map, this.cameraWindow(view), false);
       this.applyRoofCut(view.roofCut);
+      this.flushChunkRebuilds();
     });
     if (this.lightingEnabled) {
       this.time("light", () => this.updateLighting(view));
@@ -941,19 +1117,21 @@ export class WorldRenderer {
    */
   private emittersFor(view: WorldView): readonly ParticleEmitterSpec[] {
     if (this.tileEmittersStale) this.refreshTileEmitters();
-    if (this.tileEmittersByLevel.size === 0) {
+    if (this.tileEmittersByLevel.size === 0 && this.liveTransitions.size === 0) {
       return view.particleEmitters ?? EMPTY_EMITTERS;
     }
 
     const out = this.visibleEmitters;
     out.length = 0;
     if (view.particleEmitters) out.push(...view.particleEmitters);
-    return appendVisibleTileEmitters(
+    appendVisibleTileEmitters(
       this.tileEmittersByLevel,
       this.cameraWindow(view),
       view.roofCut,
       out,
     );
+    appendTransitionEmitters(out, this.liveTransitions.values(), this.animClock);
+    return out;
   }
 
   /**
@@ -1282,6 +1460,13 @@ export class WorldRenderer {
     // light bake reads the same clock, and an emitter can sit outside the built
     // geometry while its light still reaches inside the window.
     this.animClock += dt;
+    // Beside the clock it reads, and before the early return below: a tile
+    // forming in an otherwise still world is exactly the frame that reports
+    // nothing else to do.
+    if (this.liveTransitions.size > 0) {
+      this.advanceTransitions();
+      this.needsRender = true;
+    }
     // Before the animation check, for the reason the pulse is: a plume is a
     // thing that moves while the world is perfectly still, which is exactly the
     // case `updateAnimations` reports nothing to do in.
@@ -1378,6 +1563,7 @@ export class WorldRenderer {
     this.outlineMaterials.dispose();
     disposeGroupChildren(this.projectileGroup);
     this.projectileMeshes.clear();
+    this.retireAllTransitions();
     // Dropped with the meshes they belong to: a disposed material written to on
     // a stray tick is a use-after-free as far as WebGL is concerned.
     this.pulsingOutlines = [];
@@ -1401,6 +1587,7 @@ export class WorldRenderer {
   private applyTileMotions(motions: TileMotion[] | undefined) {
     const byKey = new Map<string, TileMotion>();
     for (const m of motions ?? []) byKey.set(this.tileKey(m), m);
+    this.currentMotions = byKey;
 
     const activeGhosts = new Set<string>();
 
@@ -1429,9 +1616,12 @@ export class WorldRenderer {
       // Descending movers: also draw under the destination level so roof-cut can
       // hide the origin group without the sprite vanishing mid-lerp. Hide the
       // origin mesh while the dest copy is up so we never double-draw.
-      if (motion?.alsoDrawAtZ != null) {
+      // Not while it forms: the ghost wears a plain material, so a body taking
+      // the stairs mid-appear would drop its appear for that step.
+      const ghostZ = this.transitioningMeshes.has(mesh) ? undefined : motion?.alsoDrawAtZ;
+      if (ghostZ != null) {
         activeGhosts.add(key);
-        const ghost = this.ensureMotionGhost(key, mesh, motion.alsoDrawAtZ);
+        const ghost = this.ensureMotionGhost(key, mesh, ghostZ);
         this.syncMotionGhost(ghost, mesh);
         ghost.visible = true;
         mesh.visible = false;
@@ -1969,8 +2159,9 @@ export class WorldRenderer {
     // The dynamic emitters' own phase belongs in the key as well as the static
     // one. Their light is painted, not baked, so nothing about the grid or the
     // override positions would change as their frames tick over.
+    const overrides = this.withFadingLights(view, base);
     const overridesKey = [
-      emitterOverridesKey(view.emitterOverrides),
+      emitterOverridesKey(overrides),
       ...this.flickeringDynamicDefs.map((def) =>
         tileEmissionPhase(def, this.animClock),
       ),
@@ -1981,7 +2172,6 @@ export class WorldRenderer {
     this.staticLightGrid = base;
     this.lightingKey = overridesKey;
 
-    const overrides = view.emitterOverrides;
     if (!overrides?.length) {
       this.uploadPackedGrid(base);
       return;
@@ -2087,8 +2277,14 @@ export class WorldRenderer {
    */
   private discardGeometry() {
     this.clearMotionGhosts();
+    // Every transition names a slot on a board this is about to throw away.
+    this.retireAllTransitions();
     for (const child of [...this.world.children]) {
-      if (child === this.projectileGroup || child === this.particles.mesh) {
+      if (
+        child === this.projectileGroup ||
+        child === this.transitionGroup ||
+        child === this.particles.mesh
+      ) {
         continue;
       }
       this.world.remove(child);
@@ -2583,7 +2779,11 @@ export class WorldRenderer {
       // because `moving` is the only state and `availableStates` gates it on
       // exactly this predicate. A state that a still tile can be in — an opened
       // chest — would need its own term here; see plans/stateful-sprites.md.
-      const separate = isMobileTile(def);
+      // Or while it is forming under an appear, which is played on a mesh of
+      // its own and handed back to the batch when it is done — see
+      // `./tileTransitions`.
+      const forming = this.formingTransitionAt(x, y, z, stackIndex, placed);
+      const separate = isMobileTile(def) || forming !== undefined;
       // The shader moves a merged quad, so it is built at frame 0 and the table's
       // offsets are measured from there. A separate one is built at the frame the
       // clock is on and moved by `updateAnimations`. Mixing the two would shift a
@@ -2703,6 +2903,10 @@ export class WorldRenderer {
           lightY1: y + 1,
           unlit: tileCanEmitLight(def),
           tileKey: separate ? instanceKey : undefined,
+          stackIndex,
+          transitionId: forming,
+          pivotX: baseOrigin.x + CELL_SIZE / 2 + offset.dx,
+          pivotY: baseOrigin.y + CELL_SIZE / 2 + offset.dy,
           mergedAnim,
           // On the first quad only — a heap of six berries is one placement and
           // gives off one plume, not six.
@@ -2738,6 +2942,426 @@ export class WorldRenderer {
     return items;
   }
 
+  /**
+   * Take on this frame's transitions.
+   *
+   * Each note's slot is resolved against the board it is about — the new map
+   * for an appear, the previous one for a disappear — and trusted only while
+   * the tile it names is still there (see `resolveTransitionSlot`). A note that
+   * cannot be placed is not played, and its tile simply changes.
+   */
+  private ingestTransitions(view: WorldView) {
+    // A world that restarts counts its ids from zero again, so a client that
+    // reconnects mid-transition can be handed an id it is still playing. Taking
+    // it again would orphan the first one's meshes for good — and it is dropped
+    // here, before the cap, so it cannot take a slot from a new one.
+    const heard = view.transitions?.filter(
+      (held) => !this.liveTransitions.has(held.note.id),
+    );
+    if (!heard?.length) return;
+    const window = this.meshedWindow;
+    const admitted = admitTransitions(heard, {
+      clockMs: this.animClock,
+      live: this.liveTransitions.size,
+      transitionOf: (note) => transitionOf(view.tilesById[note.tileId], note.side),
+      inWindow: (note) =>
+        window !== null && cellInMeshWindow(window, note.x, note.y, note.z),
+    });
+    for (const live of admitted) {
+      const state: TransitionState = {
+        live,
+        uniforms: null,
+        material: null,
+        meshes: [],
+        gridAtStart: this.staticLightGrid,
+        plumeId: null,
+        plume: null,
+        burst: null,
+      };
+      const played =
+        live.note.side === "appear"
+          ? this.markForming(state, view.map)
+          : this.playOutCopy(state);
+      if (played) this.liveTransitions.set(live.note.id, state);
+    }
+  }
+
+  /**
+   * Put a forming placement on record, so its chunk builds it as a mesh of its
+   * own. False when the new map has no telling which placement was meant.
+   */
+  private markForming(state: TransitionState, map: MapFile): boolean {
+    const { note } = state.live;
+    const stack = getStack(map, note.x, note.y, note.z);
+    const slot = resolveTransitionSlot(stack, note);
+    const placed = slot === undefined ? undefined : stack[slot];
+    if (slot === undefined || !placed) return false;
+    const identity = placementIdentity(placed);
+    if (identity) this.formingByPlacement.set(identity, note.id);
+    else this.formingAt.set(transitionAddress({ ...note, stackIndex: slot }), note.id);
+    state.plumeId = tileEmitterId(
+      this.tileKey({ x: note.x, y: note.y, z: note.z, stackIndex: slot }),
+    );
+    // **A note can arrive a frame after the tile it is about.** The board may
+    // already have drawn the tile into its chunk's batch, and nothing about
+    // the next map change would take it back out: the batch compares its cells
+    // with this tile routed away on both sides, sees no difference and keeps
+    // the whole copy drawn under the forming one. So a tile the drawn board
+    // already holds has its chunk rebuilt now. Arriving together, the map
+    // change this frame builds it right and this finds nothing to do.
+    const prev = this.prevMap;
+    if (
+      prev &&
+      resolveTransitionSlot(getStack(prev, note.x, note.y, note.z), note) !==
+        undefined
+    ) {
+      this.queueChunkRebuild(note.x, note.y, note.z);
+    }
+    return true;
+  }
+
+  /**
+   * A copy of a tile the map no longer has, to dissolve where it stood.
+   *
+   * Built by `cellItems` over the whole previous stack, so the copy stands at
+   * exactly the height and depth it did, and then only its own quads are kept.
+   */
+  private playOutCopy(state: TransitionState): boolean {
+    // Unlike an appear, a disappear cannot arrive after its patch: a decay
+    // only ever happens on a tick, and a tick's events ride in the same
+    // message as its cell patches. So `prevMap` still holds the tile here.
+    const prev = this.prevMap;
+    const { note } = state.live;
+    if (!prev) return false;
+    const stack = getStack(prev, note.x, note.y, note.z);
+    const slot = resolveTransitionSlot(stack, note);
+    if (slot === undefined) return false;
+    const items = this.cellItems(prev, note.z, note.x, note.y, stack).filter(
+      (item) => item.stackIndex === slot,
+    );
+    state.plume = items.find((item) => item.emitter)?.emitter ?? null;
+    for (const item of items) {
+      const mesh = this.addQuadMesh(this.transitionGroup, item, item.texture, note.z);
+      mesh.visible = !cutHidesWholeLevel(this.roofCut, note.z);
+      this.attachTransition(state, mesh, item, note.z, true);
+    }
+    return items.length > 0;
+  }
+
+  /** The appear playing on this placement, if one is. */
+  private formingTransitionAt(
+    x: number,
+    y: number,
+    z: number,
+    stackIndex: number,
+    placed: { tileId: string; owner?: string; itemId?: string },
+  ): string | undefined {
+    if (this.formingAt.size === 0 && this.formingByPlacement.size === 0) {
+      return undefined;
+    }
+    const identity = placementIdentity(placed);
+    const id = identity
+      ? this.formingByPlacement.get(identity)
+      : this.formingAt.get(transitionAddress({ x, y, z, stackIndex }));
+    if (!id) return undefined;
+    const tileId = this.liveTransitions.get(id)?.live.note.tileId;
+    return tileId === placed.tileId ? id : undefined;
+  }
+
+  /**
+   * Dress a mesh in its transition.
+   *
+   * One material per transition, made on the first mesh and shared by the rest
+   * — a heap of berries is several quads and one transition. The sweep is laid
+   * out against that first quad's sprite.
+   */
+  private attachTransition(
+    state: TransitionState,
+    mesh: THREE.Mesh,
+    item: BuildItem,
+    z: number,
+    copy: boolean,
+  ) {
+    const centreX = item.x + item.w / 2;
+    if (!state.material) {
+      state.uniforms = transitionUniforms(state.live, {
+        centreX,
+        centreY: item.y + item.h / 2,
+        w: item.w,
+        h: item.h,
+      });
+      state.uniforms.uFxShown.value = liveShown(state.live, this.animClock);
+      state.material = this.transitionMaterial(item.texture, z, state.uniforms);
+      state.burst = this.burstFor(state.live, item);
+    }
+    mesh.material = state.material;
+    const held: TransitionMesh = {
+      mesh,
+      texture: item.texture,
+      z,
+      centreX,
+      centreY: item.y + item.h / 2,
+      pivotX: item.pivotX,
+      pivotY: item.pivotY,
+      w: item.w,
+      h: item.h,
+      copy,
+      box: item.box,
+      stackBias: item.stackBias,
+      tileKey: copy ? undefined : item.tileKey,
+    };
+    state.meshes.push(held);
+    if (!copy) this.transitioningMeshes.add(mesh);
+    const { scale, drop } = state.live.transition;
+    if (scale || drop) {
+      poseTransitionMesh(
+        held,
+        transitionPose(state.live.transition, liveShown(state.live, this.animClock)),
+        Boolean(drop),
+        this.motionOf(held),
+      );
+    }
+  }
+
+  /**
+   * A world material wearing one transition's uniforms.
+   *
+   * Uncached, unlike {@link materialFor}: it belongs to one transition and is
+   * disposed with it. It shares the world program — same cache key — so making
+   * one compiles nothing, and disposing one releases nothing the others need.
+   */
+  private transitionMaterial(
+    texture: THREE.Texture,
+    z: number,
+    uniforms: TransitionUniforms,
+  ): THREE.MeshBasicMaterial {
+    const lightUniforms = this.ensureLightUniforms(z);
+    const cutUniforms = this.ensureCutUniforms(z);
+    const mat = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+    mat.onBeforeCompile = (shader) => {
+      injectWorldShader(
+        shader,
+        lightUniforms,
+        noTintUniforms(),
+        cutUniforms,
+        this.ensureAnimUniforms(z),
+        uniforms,
+      );
+    };
+    mat.customProgramCacheKey = () => WORLD_SHADER_CACHE_KEY;
+    mat.alphaTest = 0.5;
+    mat.transparent = true;
+    mat.depthTest = true;
+    mat.depthWrite = true;
+    return mat;
+  }
+
+  /** Wind every transition on to the clock, and retire the ones that are done. */
+  private advanceTransitions() {
+    for (const [id, state] of this.liveTransitions) {
+      if (this.transitionIsOver(state)) {
+        this.retireTransition(id, state);
+        continue;
+      }
+      // A patch or a rebuild replaces a forming placement's mesh, and the one
+      // it replaced is off the graph. Scaling it every frame would be work on
+      // a mesh nobody draws.
+      state.meshes = state.meshes.filter((held) => this.stillDrawn(held));
+      const shown = liveShown(state.live, this.animClock);
+      if (state.uniforms) state.uniforms.uFxShown.value = shown;
+      const { scale, drop } = state.live.transition;
+      const pose = transitionPose(state.live.transition, shown);
+      for (const held of state.meshes) {
+        // After `applyTileMotions`, which resets every movable mesh to its
+        // cell centre on each `setView`: the host runs the view, then this
+        // tick, then the render, so the pivot set here is the one drawn.
+        if (scale || drop) {
+          poseTransitionMesh(held, pose, Boolean(drop), this.motionOf(held));
+        }
+        if (held.copy) held.mesh.visible = !cutHidesWholeLevel(this.roofCut, held.z);
+      }
+    }
+    this.flushChunkRebuilds();
+  }
+
+  /**
+   * Done playing, and for a tile going away, done lighting too.
+   *
+   * Its light steps down on a shared grid that can lag the dissolve by up to
+   * one step, so the transition is kept until that reaches nothing — or the
+   * last step of light would cut out on the frame the copy went.
+   */
+  private transitionIsOver(state: TransitionState): boolean {
+    if (!isFinished(state.live, this.animClock)) return false;
+    if (state.live.note.side !== "disappear") return true;
+    return fadingLightScale(state.live, this.animClock) <= 0;
+  }
+
+  /**
+   * End a transition.
+   *
+   * A copy is simply thrown away. A formed placement is handed back to its
+   * chunk: the chunk is rebuilt now, so the tile is merged into the batch again
+   * on the same frame its own mesh goes. Left for the next edit to find, it
+   * would be dropped by the first patch that touched its cell, because the
+   * batch that should hold it was never told it existed.
+   */
+  private retireTransition(id: string, state: TransitionState) {
+    this.liveTransitions.delete(id);
+    for (const [key, formingId] of this.formingAt) {
+      if (formingId === id) this.formingAt.delete(key);
+    }
+    for (const [key, formingId] of this.formingByPlacement) {
+      if (formingId === id) this.formingByPlacement.delete(key);
+    }
+    for (const held of state.meshes) this.retireMesh(state, held);
+    state.material?.dispose();
+    const merged = state.meshes.some((held) => !held.copy && !held.tileKey);
+    if (state.live.note.side === "appear" && merged) {
+      const { x, y, z } = state.live.note;
+      this.queueChunkRebuild(x, y, z);
+    }
+  }
+
+  /**
+   * Take a transition off one mesh.
+   *
+   * A copy is thrown away. A placement with a mesh of its own for good is
+   * stood whole and given its plain material back. A merged tile's mesh is
+   * left for its chunk's rebuild, which replaces it.
+   */
+  private retireMesh(state: TransitionState, held: TransitionMesh) {
+    this.transitioningMeshes.delete(held.mesh);
+    if (held.copy) {
+      held.mesh.parent?.remove(held.mesh);
+      held.mesh.geometry.dispose();
+      return;
+    }
+    if (!held.tileKey || !held.mesh.parent) return;
+    const { scale, drop } = state.live.transition;
+    if (scale || drop) {
+      poseTransitionMesh(held, WHOLE_POSE, Boolean(drop), this.motionOf(held));
+    }
+    held.mesh.material = this.materialFor(held.texture, held.z);
+  }
+
+  /** Whether a transitioning mesh is still on the graph; forgotten if not. */
+  private stillDrawn(held: TransitionMesh): boolean {
+    if (held.mesh.parent !== null) return true;
+    this.transitioningMeshes.delete(held.mesh);
+    return false;
+  }
+
+  /** Where this frame's motion has a transitioning placement, if it is moving. */
+  private motionOf(held: TransitionMesh): TileMotion | undefined {
+    return held.tileKey ? this.currentMotions.get(held.tileKey) : undefined;
+  }
+
+  private retireAllTransitions() {
+    for (const [id, state] of [...this.liveTransitions]) {
+      for (const held of state.meshes) {
+        if (!held.copy) continue;
+        held.mesh.parent?.remove(held.mesh);
+        held.mesh.geometry.dispose();
+      }
+      state.material?.dispose();
+      this.liveTransitions.delete(id);
+    }
+    this.formingAt.clear();
+    this.formingByPlacement.clear();
+    this.transitioningMeshes.clear();
+    this.chunksToRebuild.clear();
+  }
+
+  /** Ask for the chunk holding this cell to be rebuilt at the next flush. */
+  private queueChunkRebuild(x: number, y: number, z: number) {
+    this.chunksToRebuild.add(chunkAddressKey(z, chunkKeyFor(x, y)));
+  }
+
+  /**
+   * Rebuild every queued chunk against the map it was built from, then pay
+   * once for the index and the matrices however many there were.
+   */
+  private flushChunkRebuilds() {
+    const map = this.prevMap;
+    if (this.chunksToRebuild.size === 0 || !map) return;
+    for (const key of this.chunksToRebuild) {
+      if (!this.chunkGeometry.has(key)) continue;
+      const { z, chunk } = parseChunkAddress(key);
+      this.dropChunk(key);
+      this.buildChunk(map, z, chunk);
+    }
+    this.chunksToRebuild.clear();
+    this.rebuildAnimatedIndex();
+    this.world.updateMatrixWorld(true);
+  }
+
+  /**
+   * The view's own overrides, plus the light of every tile dissolving away,
+   * dimming with it on the shared step grid. @see fadingLightScale
+   *
+   * The tile has already left the map, so the bake has dropped its light; this
+   * paints it back as an `EmitterOverride` carrying the tile's own light, the
+   * same path `view.emitterOverrides` uses for a light that is not on the
+   * board. Frame 0's light, so a flickering sprite adds no steps of its own
+   * to the cache key.
+   *
+   * **Not until the bake has dropped it.** The bake can run off the main
+   * thread, so for a few frames after the tile leaves the grid being drawn is
+   * still the one that holds its light. Painting the fade over that doubled
+   * the light for exactly those frames — the room flared before it dimmed.
+   */
+  private withFadingLights(
+    view: WorldView,
+    base: PackedLightGrid,
+  ): EmitterOverride[] | undefined {
+    let out: EmitterOverride[] | undefined;
+    for (const { live, gridAtStart } of this.liveTransitions.values()) {
+      if (live.note.side !== "disappear") continue;
+      if (gridAtStart !== null && base === gridAtStart) continue;
+      const def = view.tilesById[live.note.tileId];
+      const light = def ? resolveLight(def, {}, 0) : undefined;
+      if (!def || !light) continue;
+      const scale = fadingLightScale(live, this.animClock);
+      if (scale <= 0) continue;
+      const { x, y, z } = live.note;
+      const stack = getStack(view.map, x, y, z);
+      const at = emitterCenter(x, y, z, stack, stack.length, view.tilesById);
+      out ??= [...(view.emitterOverrides ?? [])];
+      out.push({
+        x,
+        y,
+        z,
+        fx: at.fx,
+        fy: at.fy,
+        fz: at.fz + (def.height ?? 0) / 2 / HEIGHT_PER_LEVEL,
+        lights: [{ ...light, intensity: light.intensity * scale }],
+      });
+    }
+    return out ?? view.emitterOverrides;
+  }
+
+  /** A transition's burst, anchored to the placement it plays on. */
+  private burstFor(
+    live: LiveTransition,
+    item: BuildItem,
+  ): ParticleEmitterSpec | null {
+    const config = live.transition.particles;
+    if (!config) return null;
+    const { x, y, z } = live.note;
+    return {
+      id: `transition:${live.note.id}`,
+      config,
+      cx: x + CELL_CENTRE,
+      cy: y + CELL_CENTRE,
+      footElev: item.box.foot,
+      z,
+      box: item.box,
+      stackBias: item.stackBias,
+      taper: 1,
+    };
+  }
+
   /** Give an item its own mesh and register it in whichever indexes claim it. */
   private installSeparate(entry: ChunkGeometry, item: BuildItem) {
     const mesh = this.addQuadMesh(entry.group, item, item.texture, entry.z);
@@ -2755,6 +3379,10 @@ export class WorldRenderer {
     }
     if (item.anim) {
       entry.animated.push({ mesh, key: item.tileKey ?? "", ...item.anim });
+    }
+    if (item.transitionId) {
+      const state = this.liveTransitions.get(item.transitionId);
+      if (state) this.attachTransition(state, mesh, item, entry.z, false);
     }
   }
 
@@ -2856,7 +3484,8 @@ export class WorldRenderer {
       // A level rebuilt under a tinted placement hands back a fresh, untinted
       // mesh, and the one held here is off the graph. Restoring onto it would
       // write to a mesh nobody draws.
-      if (this.movableMeshes.get(key) === worn.mesh) {
+      const drawn = this.movableMeshes.get(key) === worn.mesh;
+      if (drawn && !this.transitioningMeshes.has(worn.mesh)) {
         worn.mesh.material = this.materialFor(worn.texture, worn.z, null);
       }
       this.tintedMeshes.delete(key);
@@ -2864,7 +3493,8 @@ export class WorldRenderer {
 
     for (const [key, tint] of tints ?? EMPTY_TINTS) {
       const mesh = this.movableMeshes.get(key);
-      if (!mesh) continue;
+      // Put on once its transition is over, by the first view after.
+      if (!mesh || this.transitioningMeshes.has(mesh)) continue;
       const tintKey = tintCacheKey(tint);
       const held = this.tintedMeshes.get(key);
       // Nothing to do for a placement already wearing this exact colour on this

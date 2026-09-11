@@ -29319,6 +29319,30 @@
     },
     "lightPassing": true,
     "intangible": true,
+    "transitions": {
+      "appear": {
+        "durationMs": 500,
+        "dissolve": {
+          "pattern": "sweep",
+          "clumpPx": 3,
+          "edgeColor": "#8ce6ff",
+          "edgeWidth": 0.15,
+          "from": {
+            "x": 1,
+            "y": 1
+          }
+        }
+      },
+      "disappear": {
+        "durationMs": 500,
+        "dissolve": {
+          "pattern": "noise",
+          "clumpPx": 3,
+          "edgeColor": "#ff9e40",
+          "edgeWidth": 0.15
+        }
+      }
+    },
     "particles": {
       "ratePerSecond": 14,
       "ttlFromMs": 900,
