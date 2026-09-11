@@ -32093,5 +32093,922 @@
         }
       ]
     }
+  },
+  {
+    "id": "mud",
+    "name": "Mud",
+    "height": 0,
+    "type": "autotile",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "floors",
+      "x": 8,
+      "y": 0
+    },
+    "connectsTo": [
+      "half-stone",
+      "hole"
+    ],
+    "slices": {
+      "0": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 5,
+              "intensity": 1,
+              "color": "#ffcc88"
+            }
+          }
+        ]
+      },
+      "1": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "2": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "3": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "4": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "5": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "6": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "7": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "8": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "9": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "10": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "11": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "12": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "13": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 1,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "14": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "15": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "16": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "17": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "18": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "19": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "20": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "21": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "22": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "23": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "24": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "25": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "26": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "27": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "28": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "29": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "30": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "31": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 1,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "32": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "33": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "34": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "35": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "36": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 3,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "37": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "38": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "39": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "40": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "41": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "42": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 3,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "43": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "44": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "45": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "46": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
   }
 ]
