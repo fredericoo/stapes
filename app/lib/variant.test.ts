@@ -4,18 +4,30 @@ import { getFrames, resolveTileSprite } from "./tileResolve";
 import { pickVariantSprite, variantKeys } from "./variant";
 import { animationKey } from "../render/spriteQuad";
 
-function sprite(tilesetId: string, frames = 1): TileSprite {
+/**
+ * A sprite identifiable by where it sits, so a resolution can be checked against
+ * which art came back rather than only against something coming back.
+ *
+ * The row is the marker: `sprite(3)` is the fourth row of the block, and its
+ * frames run along it. One sheet for the whole tile — see `TileDef.anchor` — so
+ * the sheet cannot be the marker any more.
+ */
+function sprite(row: number, frames = 1): TileSprite {
   return {
     frames: Array.from({ length: frames }, (_, i) => ({
       sprite: {
-        tilesetId,
-        rect: { x: i, y: 0, w: 1, h: 1 },
+        rect: { x: i, y: row, w: 1, h: 1 },
         base: { x: 0, y: 0 },
       },
       durationMs: 200,
     })),
   };
 }
+
+const GRASS = 0;
+const PLANKS = 1;
+const SAND = 2;
+const PLANKS_MOVING = 3;
 
 function hole(): TileDef {
   return {
@@ -25,16 +37,18 @@ function hole(): TileDef {
     type: "variant",
     kind: "prop",
     attributes: {},
+    anchor: { tilesetId: "holes", x: 0, y: 0 },
     variants: {
-      grass: sprite("grass-sheet"),
-      planks: sprite("planks-sheet", 4),
-      sand: sprite("sand-sheet"),
+      grass: sprite(GRASS),
+      planks: sprite(PLANKS, 4),
+      sand: sprite(SAND),
     },
   };
 }
 
-function tilesetOf(def: TileDef, variant: string | undefined): string | undefined {
-  return resolveTileSprite(def, { variant })?.frames[0]?.sprite.tilesetId;
+/** Which face came back, read off the row its art sits on. */
+function rowOf(def: TileDef, variant: string | undefined): number | undefined {
+  return resolveTileSprite(def, { variant })?.frames[0]?.sprite.rect.y;
 }
 
 describe("a variant tile draws the face its placement names", () => {
@@ -43,12 +57,12 @@ describe("a variant tile draws the face its placement names", () => {
   });
 
   it("draws the named face", () => {
-    expect(tilesetOf(hole(), "planks")).toBe("planks-sheet");
-    expect(tilesetOf(hole(), "sand")).toBe("sand-sheet");
+    expect(rowOf(hole(), "planks")).toBe(PLANKS);
+    expect(rowOf(hole(), "sand")).toBe(SAND);
   });
 
   it("falls back to the first authored face when the placement names none", () => {
-    expect(tilesetOf(hole(), undefined)).toBe("grass-sheet");
+    expect(rowOf(hole(), undefined)).toBe(GRASS);
   });
 
   // A face renamed in the tile editor leaves every placement naming the old one
@@ -56,7 +70,7 @@ describe("a variant tile draws the face its placement names", () => {
   // drawing nothing reads as a hole in the world, which for this tile is
   // indistinguishable from it working.
   it("falls back rather than blanking when the name is gone", () => {
-    expect(tilesetOf(hole(), "gravel")).toBe("grass-sheet");
+    expect(rowOf(hole(), "gravel")).toBe(GRASS);
     expect(pickVariantSprite({ variants: {} }, "grass")).toBeUndefined();
   });
 
@@ -64,38 +78,38 @@ describe("a variant tile draws the face its placement names", () => {
     const def = hole();
     const at = (x: number, y: number, z: number) =>
       resolveTileSprite(def, { variant: "sand", x, y, z })?.frames[0]?.sprite
-        .tilesetId;
-    expect(at(0, 0, 0)).toBe("sand-sheet");
-    expect(at(97, -13, -2)).toBe("sand-sheet");
+        .rect.y;
+    expect(at(0, 0, 0)).toBe(SAND);
+    expect(at(97, -13, -2)).toBe(SAND);
   });
 });
 
 describe("a state may redraw one face without taking the others", () => {
   const def: TileDef = {
     ...hole(),
-    states: { moving: { variants: { planks: sprite("planks-moving") } } },
+    states: { moving: { variants: { planks: sprite(PLANKS_MOVING) } } },
   };
 
   it("uses the state's face where it has one", () => {
     expect(
       resolveTileSprite(def, { state: "moving", variant: "planks" })?.frames[0]
-        ?.sprite.tilesetId,
-    ).toBe("planks-moving");
+        ?.sprite.rect.y,
+    ).toBe(PLANKS_MOVING);
   });
 
   it("falls through to idle's same face, never to the state's other faces", () => {
     expect(
       resolveTileSprite(def, { state: "moving", variant: "sand" })?.frames[0]
-        ?.sprite.tilesetId,
-    ).toBe("sand-sheet");
+        ?.sprite.rect.y,
+    ).toBe(SAND);
   });
 
   // The key is settled against idle before either holder answers, so a
   // placement naming no face does not change face when it starts moving.
   it("settles an unnamed face against idle, not against the state", () => {
     expect(
-      resolveTileSprite(def, { state: "moving" })?.frames[0]?.sprite.tilesetId,
-    ).toBe("grass-sheet");
+      resolveTileSprite(def, { state: "moving" })?.frames[0]?.sprite.rect.y,
+    ).toBe(GRASS);
   });
 });
 
@@ -131,11 +145,14 @@ describe("normalizeTileDef and the two meanings of `variants`", () => {
       type: "simple",
       kind: "prop",
       attributes: {},
-      sprite: sprite("props"),
+      anchor: { tilesetId: "props", x: 0, y: 0 },
+      sprite: sprite(GRASS),
       variants: { default: [{ durationMs: 200 }] },
     });
     expect(def.variants).toBeUndefined();
-    expect(getFrames(def)?.[0]?.sprite.tilesetId).toBe("props");
+    // The tile's real art survives the drop, rather than the legacy table
+    // overwriting it on the way through.
+    expect(getFrames(def)?.[0]?.sprite.rect.y).toBe(GRASS);
   });
 
   it("still migrates a legacy tile that has no type at all", () => {
@@ -159,6 +176,6 @@ describe("normalizeTileDef and the two meanings of `variants`", () => {
       },
     });
     expect(def.type).toBe("simple");
-    expect(def.sprite?.frames[0]?.sprite.tilesetId).toBe("props");
+    expect(def.anchor.tilesetId).toBe("props");
   });
 });

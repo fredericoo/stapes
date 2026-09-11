@@ -35,7 +35,7 @@ import {
   type WeaponMastery,
 } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
-import type { SpriteRef } from "../lib/types";
+import type { AnchoredSprite } from "../lib/types";
 import type { TileDef } from "../lib/types";
 import { swingIntervalMs } from "./combat";
 
@@ -125,7 +125,7 @@ export type ItemCardEffect = {
    * its icon is two chances for them to show different ones. Absent for a
    * status nobody has drawn yet — see `../lib/status`, which allows that.
    */
-  icon?: SpriteRef;
+  icon?: AnchoredSprite;
   /**
    * How often a connecting blow leaves it, as a percentage, or null for
    * something that always happens.

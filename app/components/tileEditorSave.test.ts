@@ -7,7 +7,6 @@ function sprite(extra: Partial<TileSprite> = {}): TileSprite {
     frames: [
       {
         sprite: {
-          tilesetId: "sheet",
           rect: { x: 0, y: 0, w: 1, h: 1 },
           base: { x: 0, y: 0 },
         },

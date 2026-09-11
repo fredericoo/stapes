@@ -11,7 +11,13 @@ import {
 } from "../lib/status";
 import { snapToTick } from "../game/statuses";
 import type { StatusVfx } from "../lib/statusVfx";
-import { defaultBase, type SpriteRef, type TileDef, type TilesetDef } from "../lib/types";
+import {
+  defaultBase,
+  type AnchoredSprite,
+  type SpriteRef,
+  type TileDef,
+  type TilesetDef,
+} from "../lib/types";
 import {
   Button,
   Dialog,
@@ -168,8 +174,20 @@ export function StatusEditorDialog({
    * changes the sheet — and a base left over from a wider rectangle on the last
    * sheet is out of bounds on this one.
    */
-  const setIcon = (next: SpriteRef) =>
+  const setIcon = (next: AnchoredSprite) =>
     patch({ icon: { ...next, base: next.base ?? defaultBase(next.rect) } });
+
+  /**
+   * A rectangle picked off the sheet, with the sheet it was picked from.
+   *
+   * `SpriteSelector` deals only in cells of the picture in front of it — see its
+   * `value` — and an icon is the one sprite that carries its own sheet, so this
+   * is where the two are put back together.
+   */
+  const setIconRect = (next: SpriteRef) => {
+    if (!iconTileset) return;
+    setIcon({ ...next, tilesetId: iconTileset.id });
+  };
   // The same function every catalogue is built with, so what this button is
   // gated on and what the world will accept cannot come apart.
   const valid = resolveStatus(status) !== null;
@@ -271,7 +289,7 @@ export function StatusEditorDialog({
             <SpriteSelector
               tileset={iconTileset}
               value={icon}
-              onChange={setIcon}
+              onChange={setIconRect}
             />
           </div>
           <div className="flex flex-col items-center gap-1">

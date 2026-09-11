@@ -13,7 +13,6 @@ import {
 function frameAt(x: number, w = 1, h = 1): Frame {
   return {
     sprite: {
-      tilesetId: "t",
       rect: { x, y: 0, w, h },
       base: { x: w - 1, y: h - 1 },
     },
@@ -33,6 +32,7 @@ function deer(states?: TileDef["states"]): TileDef {
     type: "directional",
     kind: "battler",
     attributes: {},
+    anchor: { tilesetId: "t", x: 0, y: 0 },
     actor: true,
     sprites: {
       n: spriteAt(0),
@@ -53,6 +53,7 @@ describe("availableStates", () => {
       type: "simple",
       kind: "prop",
       attributes: {},
+      anchor: { tilesetId: "t", x: 0, y: 0 },
       sprite: spriteAt(0),
     };
     expect(availableStates(wall)).toEqual(["idle"]);
@@ -121,6 +122,7 @@ describe("resolveTileSprite with a state", () => {
       type: "simple",
       kind: "prop",
       attributes: {},
+      anchor: { tilesetId: "t", x: 0, y: 0 },
       affectedByGravity: true,
       sprite: spriteAt(0),
       states: { moving: { sprite: spriteAt(5) } },
@@ -137,6 +139,7 @@ describe("resolveTileSprite with a state", () => {
       type: "autotile",
       kind: "prop",
       attributes: {},
+      anchor: { tilesetId: "t", x: 0, y: 0 },
       slices: { 0: spriteAt(0), 5: spriteAt(1) },
       states: { moving: { slices: { 5: spriteAt(7) } } },
     };

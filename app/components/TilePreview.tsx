@@ -1,15 +1,15 @@
 import { useEffect, useRef } from "react";
 import { tilesetUrl } from "../lib/api";
 import type {
+  AnchoredSprite,
   AutotileSlice,
   Frame,
   Octant,
-  SpriteRef,
   SpriteState,
   TileDef,
   TilesetDef,
 } from "../lib/types";
-import { facingKeysFor, isDirectional } from "../lib/types";
+import { anchoredSprite, facingKeysFor, isDirectional } from "../lib/types";
 import { getFrames } from "../lib/tileResolve";
 
 type Props = {
@@ -109,7 +109,7 @@ const MISSING = "#ff00ff";
  * Paint one sprite reference into a square of canvas.
  *
  * Split out of {@link TilePreview} because a sprite is not always a tile: a
- * status carries a bare {@link SpriteRef} and has no def to resolve frames from.
+ * status carries a bare {@link AnchoredSprite} and has no def to resolve frames from.
  * The *function* rather than a component, because `TilePreview` animates on its
  * own rAF loop and needs to repaint without a React render per frame — sharing
  * the component would have meant setting state five times a second per thumbnail.
@@ -120,7 +120,7 @@ const MISSING = "#ff00ff";
  */
 export async function drawSprite(
   ctx: CanvasRenderingContext2D,
-  sprite: SpriteRef,
+  sprite: AnchoredSprite,
   tilesets: TilesetDef[],
   size: number,
 ): Promise<void> {
@@ -166,7 +166,7 @@ export function SpritePreview({
   size = 48,
   className = "",
 }: {
-  sprite: SpriteRef | null;
+  sprite: AnchoredSprite | null;
   tilesets: TilesetDef[];
   size?: number;
   className?: string;
@@ -287,7 +287,7 @@ export function TilePreview({
         t -= f.durationMs;
       }
 
-      await drawSprite(ctx, frame.sprite, tilesets, size);
+      await drawSprite(ctx, anchoredSprite(tile.anchor, frame.sprite), tilesets, size);
       if (!alive) return;
 
       again();

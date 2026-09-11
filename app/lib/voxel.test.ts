@@ -249,7 +249,7 @@ describe("sheet export", () => {
 
   it("emits typed sprites for TileDef export", () => {
     const project = testProject();
-    const sheet = sheetSprites(project, "my-sheet");
+    const sheet = sheetSprites(project);
     expect(sheet.type).toBe("directional");
     expect(sheet.sprites?.e?.frames[0].sprite.rect).toEqual({
       x: 0,
@@ -263,7 +263,7 @@ describe("sheet export", () => {
     const project = testProject({ directional: false });
     const variants = sheetVariants(project, "my-sheet");
     expect(Object.keys(variants)).toEqual(["default"]);
-    const sheet = sheetSprites(project, "my-sheet");
+    const sheet = sheetSprites(project);
     expect(sheet.type).toBe("simple");
     expect(sheet.sprite?.frames).toHaveLength(1);
   });

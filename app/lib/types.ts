@@ -88,13 +88,97 @@ export type CellRect = {
   h: number;
 };
 
-export type SpriteRef = {
+/**
+ * Where a block of art sits: the sheet it is cut from, and the cell on that
+ * sheet the block starts at.
+ *
+ * One object rather than a sheet beside a coordinate, because the two are only
+ * ever useful together — a coordinate on an unnamed sheet locates nothing — and
+ * because moving a block of art is a single edit to a single value. It is also
+ * the whole of what it takes to say "draw this art somewhere else", which is
+ * what an equipped sprite will be.
+ */
+export type SpriteAnchor = {
   tilesetId: string;
-  /** Rectangle in 8px cells, not pixels. */
+  /** Cell column on the sheet, not pixels. */
+  x: number;
+  /** Cell row on the sheet, not pixels. */
+  y: number;
+};
+
+/**
+ * One sprite within a tile's block of art.
+ *
+ * **`rect` is relative to {@link TileDef.anchor}**, which is the point: a
+ * character is eight facings times however many states of art, drawn as one
+ * block on the sheet, and every rect in it is at a fixed offset from every
+ * other. Storing them absolutely made moving that block a job of re-picking
+ * every sprite by hand — twenty-four drag-selects, any one of which can land a
+ * cell off without saying so — and made "the same art, cut from somewhere else"
+ * inexpressible. Relative, moving the block is moving the anchor.
+ *
+ * Which sheet is the anchor's answer too, so a tile draws from one sheet and
+ * cannot half-move to another.
+ */
+export type SpriteRef = {
+  /** Rectangle in 8px cells, relative to {@link TileDef.anchor}. */
   rect: CellRect;
   /** Cell within rect (0..w-1, 0..h-1). Defaults to bottom-right. */
   base: { x: number; y: number };
 };
+
+/**
+ * A sprite that says where it is: the sheet, and a rectangle measured from that
+ * sheet's own corner.
+ *
+ * Two things arrive as one of these. A status icon is authored this way — it is
+ * one rectangle drawn in a panel rather than a block of art with facings and
+ * frames, so there is no block for it to be relative to. And a tile's sprite
+ * becomes one when something outside the world draws it: a thumbnail has no
+ * anchor of its own to measure against, so it is handed the answer instead.
+ */
+export type AnchoredSprite = {
+  tilesetId: string;
+  /** Rectangle in 8px cells, absolute on the sheet. */
+  rect: CellRect;
+  /** Cell within rect (0..w-1, 0..h-1). Defaults to bottom-right. */
+  base: { x: number; y: number };
+};
+
+/**
+ * Where this sprite actually sits on its sheet.
+ *
+ * The one place a relative rect is turned into an absolute one, so nothing
+ * drawing a sprite has to remember that it is holding half a coordinate.
+ */
+export function spriteRect(anchor: SpriteAnchor, ref: SpriteRef): CellRect {
+  return {
+    x: anchor.x + ref.rect.x,
+    y: anchor.y + ref.rect.y,
+    w: ref.rect.w,
+    h: ref.rect.h,
+  };
+}
+
+/**
+ * This sprite as art that says where it is, for anything drawing one outside the
+ * world.
+ *
+ * The renderers take {@link spriteRect} instead and keep the sheet they already
+ * looked up: they resolve one tileset per level and reuse it across every quad
+ * on it, so composing an object per sprite would be building a thing they throw
+ * away. A thumbnail draws one sprite and needs the whole answer.
+ */
+export function anchoredSprite(
+  anchor: SpriteAnchor,
+  ref: SpriteRef,
+): AnchoredSprite {
+  return {
+    tilesetId: anchor.tilesetId,
+    rect: spriteRect(anchor, ref),
+    base: ref.base,
+  };
+}
 
 export type LightDef = {
   /** Reach in cells, where attenuation hits zero. */
@@ -309,6 +393,21 @@ export type TileDef = StateSprites & {
   name: string;
   height: TileHeight;
   type: TileType;
+  /**
+   * Where this tile's block of art sits, and the sheet it is cut from. Every
+   * {@link SpriteRef} on the tile is relative to it.
+   *
+   * **One anchor for the whole tile, not one per sprite and not one per frame.**
+   * A tile's facings, its frames and its states are one drawing that happens to
+   * be cut into pieces, and every piece of it holds still against every other:
+   * a walk cycle whose second frame came from a different sheet is not a thing
+   * anybody wants to be able to author. So the sheet is asked once, and moving
+   * the whole drawing is one edit.
+   *
+   * Filled in by {@link normalizeTileDef} for a tile written before it existed,
+   * which took its sheet from each sprite and its rects absolutely.
+   */
+  anchor: SpriteAnchor;
   /** What this tile is — see {@link TileKind}. Required; absent reads as prop. */
   kind: TileKind;
   /** Reserved for flammable/wet/frozen/pushable later. */
@@ -1049,6 +1148,77 @@ function readKind(raw: Record<string, unknown>): TileKind {
 }
 
 /**
+ * A sprite as it was written before {@link TileDef.anchor}: its own sheet, and a
+ * rect measured from the corner of it.
+ */
+type AbsoluteSpriteRef = SpriteRef & { tilesetId?: string };
+
+/**
+ * A tile written before {@link TileDef.anchor}, given one, with every rect made
+ * relative to it.
+ *
+ * **The anchor is the top-left corner of everything the tile draws**, so every
+ * rect comes out non-negative and moving the anchor moves the whole drawing. It
+ * is not required to be the corner of any one sprite: what is being named is the
+ * block, and a character whose north-facing row starts a cell in from its
+ * east-facing one is ordinary art rather than a mistake.
+ *
+ * The sheet is the first one found. No tile in `data/tiles.json` has ever spread
+ * itself across two — 1373 sprite refs, checked before this was written — and
+ * the editor asks for the sheet once now, so there is no second one to lose.
+ *
+ * Idempotent: a tile that already has an anchor is returned untouched, which is
+ * every tile after the file has been rewritten once.
+ */
+function anchorSprites(def: TileDef): TileDef {
+  if (def.anchor) return def;
+
+  let tilesetId = "";
+  let left = Number.POSITIVE_INFINITY;
+  let top = Number.POSITIVE_INFINITY;
+  mapTileSprites(def, (sprite) => {
+    for (const frame of sprite.frames) {
+      const ref = frame.sprite as AbsoluteSpriteRef;
+      if (!tilesetId && ref.tilesetId) tilesetId = ref.tilesetId;
+      left = Math.min(left, ref.rect.x);
+      top = Math.min(top, ref.rect.y);
+    }
+    return sprite;
+  });
+
+  // A tile with no art at all — one being drawn right now in the editor — has no
+  // corner to measure and no sheet to name. It gets the origin of a sheet it has
+  // not chosen, which is what an empty tile has always drawn from.
+  const anchor: SpriteAnchor = {
+    tilesetId,
+    x: Number.isFinite(left) ? left : 0,
+    y: Number.isFinite(top) ? top : 0,
+  };
+
+  const relative = mapTileSprites(def, (sprite) => ({
+    ...sprite,
+    frames: sprite.frames.map((frame) => {
+      const { tilesetId: _wasOwnSheet, ...ref } = frame.sprite as AbsoluteSpriteRef;
+      return {
+        ...frame,
+        sprite: {
+          ...ref,
+          // `base` is a cell *within* the rect, so re-measuring the rect carries
+          // it along untouched.
+          rect: {
+            ...ref.rect,
+            x: ref.rect.x - anchor.x,
+            y: ref.rect.y - anchor.y,
+          },
+        },
+      };
+    }),
+  }));
+
+  return { ...relative, anchor };
+}
+
+/**
  * The tail every {@link normalizeTileDef} exit goes through.
  *
  * {@link lightPassingForced} is applied here as well as in
@@ -1058,7 +1228,7 @@ function readKind(raw: Record<string, unknown>): TileKind {
  * tells you what the game will do with it.
  */
 function settleTileDef(def: TileDef): TileDef {
-  const settled = normalizeTileVfx(def);
+  const settled = normalizeTileVfx(anchorSprites(def));
   if (!lightPassingForced(settled) || settled.lightPassing === true) {
     return settled;
   }
@@ -1194,6 +1364,35 @@ function mapStateSprites<T extends StateSprites>(
   return out;
 }
 
+/**
+ * Every sprite the tile has, idle and per-state, rebuilt through `fn`.
+ *
+ * {@link mapStateSprites} one level up, and the level that was being written out
+ * by hand at each of the three callers that needed it — a state walk one of them
+ * could forget, which is the same mistake one field at a time.
+ *
+ * Structural rather than led by {@link TileDef.type}, unlike
+ * {@link stateSpritesOn}: art left behind by a tile that changed type is dead
+ * and stays dead, but a rewrite that skipped it would leave it disagreeing with
+ * the rest of the tile about how it is encoded.
+ */
+function mapTileSprites(
+  tile: TileDef,
+  fn: (sprite: TileSprite) => TileSprite,
+): TileDef {
+  const out = mapStateSprites(tile, fn);
+  if (!out.states) return out;
+  return {
+    ...out,
+    states: Object.fromEntries(
+      Object.entries(out.states).map(([state, sprites]) => [
+        state,
+        sprites ? mapStateSprites(sprites, fn) : sprites,
+      ]),
+    ) as TileDef["states"],
+  };
+}
+
 function clampStateLight<T extends StateSprites>(state: T): T {
   return mapStateSprites(state, clampSpriteLight);
 }
@@ -1232,17 +1431,7 @@ export function withSpritePhase(
     }
     return { ...sprite, phase: wanted };
   };
-  const out = mapStateSprites(tile, apply);
-  if (!out.states) return out;
-  return {
-    ...out,
-    states: Object.fromEntries(
-      Object.entries(out.states).map(([k, v]) => [
-        k,
-        v ? mapStateSprites(v, apply) : v,
-      ]),
-    ) as TileDef["states"],
-  };
+  return mapTileSprites(tile, apply);
 }
 
 /**

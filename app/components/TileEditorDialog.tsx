@@ -6,6 +6,7 @@ import type {
   Frame,
   LightDef,
   Octant,
+  SpriteAnchor,
   SpriteRef,
   OverrideSpriteState,
   SpritePhase,
@@ -41,16 +42,16 @@ import {
   resolveIntangible,
   resolveLightPassing,
   resolveWalkable,
+  spriteRect,
   tilePhase,
   withSpritePhase,
 } from "../lib/types";
 import { resolveScatterIndex } from "../lib/scatter";
 import {
   nextFreeTileId,
-  offsetFits,
-  offsetTileSprites,
-  type CellOffset,
-} from "../lib/spriteOffset";
+  anchorFits,
+  spriteRefAt,
+} from "../lib/spriteAnchor";
 import { variantKeys } from "../lib/variant";
 import { SpriteSelector } from "./SpriteSelector";
 import { TilePreview } from "./TilePreview";
@@ -90,16 +91,20 @@ import {
 
 const DEFAULT_FRAME_DURATION_MS = 200;
 
-function emptyFrame(tilesetId: string): Frame {
+/**
+ * A frame sitting on the tile's own anchor, which is where a sprite nobody has
+ * drawn yet belongs: the top-left cell of the block, one cell across.
+ */
+function emptyFrame(): Frame {
   const rect = { x: 0, y: 0, w: 1, h: 1 };
   return {
-    sprite: { tilesetId, rect, base: defaultBase(rect) },
+    sprite: { rect, base: defaultBase(rect) },
     durationMs: DEFAULT_FRAME_DURATION_MS,
   };
 }
 
-function emptySprite(tilesetId: string): TileSprite {
-  return { frames: [emptyFrame(tilesetId)] };
+function emptySprite(): TileSprite {
+  return { frames: [emptyFrame()] };
 }
 
 const DEFAULT_LIGHT: LightDef = {
@@ -109,7 +114,6 @@ const DEFAULT_LIGHT: LightDef = {
 };
 
 function blankTile(tilesets: TilesetDef[]): TileDef {
-  const ts = tilesets[0]?.id ?? "";
   return {
     id: "",
     name: "New Tile",
@@ -123,7 +127,8 @@ function blankTile(tilesets: TilesetDef[]): TileDef {
     intangible: false,
     walkable: true,
     climbFrom: { default: { n: true, e: true, s: true, w: true } },
-    sprite: emptySprite(ts),
+    anchor: { tilesetId: tilesets[0]?.id ?? "", x: 0, y: 0 },
+    sprite: emptySprite(),
   };
 }
 
@@ -512,9 +517,8 @@ export function TileEditorDialog({
     null,
   );
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
-  /** The pending sheet offset, or null when that dialog is closed. */
-  const [offset, setOffset] = useState<CellOffset | null>(null);
-  const [offsetError, setOffsetError] = useState<string | null>(null);
+  /** Why the last anchor edit was refused, or null when it was taken. */
+  const [anchorError, setAnchorError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -530,8 +534,7 @@ export function TileEditorDialog({
     setError(null);
     setDuplicate(null);
     setDuplicateError(null);
-    setOffset(null);
-    setOffsetError(null);
+    setAnchorError(null);
   }, [open, tile, tilesets]);
 
   const at: SpriteCursor = { dir, slice, face, variant: variantKey };
@@ -543,7 +546,7 @@ export function TileEditorDialog({
       ? Boolean(spriteHolder(draft, state).slices?.[slice])
       : true;
   const tileset =
-    tilesets.find((t) => t.id === frame?.sprite.tilesetId) ?? tilesets[0] ?? null;
+    tilesets.find((t) => t.id === draft.anchor.tilesetId) ?? tilesets[0] ?? null;
 
   /**
    * The preview's two inputs, held steady across edits that do not reach them.
@@ -620,8 +623,29 @@ export function TileEditorDialog({
     );
   };
 
+  /**
+   * A rectangle picked off the sheet, stored the way the tile keeps it.
+   *
+   * `SpriteSelector` deals in cells of the picture in front of it and the tile
+   * keeps every rect relative to its anchor — see {@link spriteRefAt}, which is
+   * where the two meet.
+   */
   const setFrameSprite = (s: SpriteRef) => {
-    updateFrame({ sprite: s });
+    updateFrame({ sprite: spriteRefAt(draft.anchor, s) });
+  };
+
+  /**
+   * Move the whole tile's art, or point it at another sheet.
+   *
+   * Refused rather than clamped when the block would run off the edge, for the
+   * reason `anchorFits` gives: everything on the tile holds still against
+   * everything else, and an anchor nudged back on would break that quietly.
+   */
+  const setAnchor = (anchor: SpriteAnchor) => {
+    const problem = anchorFits(draft, anchor, tilesets);
+    setAnchorError(problem);
+    if (problem) return;
+    setDraft((d) => ({ ...d, anchor }));
   };
 
   const changeType = (type: TileType) => {
@@ -631,7 +655,6 @@ export function TileEditorDialog({
     // rather than carried across as copies of the new idle, which is what they
     // would collapse to on save anyway.
     setState("idle");
-    const ts = tilesets[0]?.id ?? "";
     const from =
       draft.sprite ??
       draft.sprites?.n ??
@@ -639,7 +662,7 @@ export function TileEditorDialog({
       draft.slices?.[0] ??
       draft.scatter?.[0] ??
       Object.values(draft.variants ?? {})[0] ??
-      emptySprite(ts);
+      emptySprite();
 
     if (type === "simple") {
       if (
@@ -952,6 +975,7 @@ export function TileEditorDialog({
       type: draft.type,
       kind: draft.kind,
       attributes: {},
+      anchor: draft.anchor,
       lightPassing:
         draft.lightPassing || lightPassingForced(draft) ? true : undefined,
       intangible: draft.intangible ? true : undefined,
@@ -1037,17 +1061,6 @@ export function TileEditorDialog({
     setDuplicate(null);
     if (!saved) return;
     onDuplicate({ ...saved, id, name });
-  };
-
-  const applyOffset = () => {
-    if (!offset) return;
-    const problem = offsetFits(draft, offset, tilesets);
-    if (problem) {
-      setOffsetError(problem);
-      return;
-    }
-    setDraft(offsetTileSprites(draft, offset));
-    setOffset(null);
   };
 
   const dirTabs = facingKeysFor(draft).map((d) => ({
@@ -1165,38 +1178,13 @@ export function TileEditorDialog({
     </div>
   ) : null;
 
-  /**
-   * Moving the whole tile's art sideways on the sheet.
-   *
-   * Beside the state picker rather than in the frame editor because it is not
-   * an edit to the frame in front of the author: it moves every frame of every
-   * facing at once, which is the point — a character sheet is drawn as one
-   * block and the next character is the block beside it.
-   */
-  const sheetTools = (
-    <div className="flex items-center gap-3 pt-1">
-      <FieldLabel info="Moves every frame of every facing, slice, face and state by the same number of 8px cells — for art copied to the block beside it on the sheet. Lands in the draft; save to keep it.">
-        Sprite sheet
-      </FieldLabel>
-      <Button
-        size="sm"
-        onClick={() => {
-          setOffset({ x: 0, y: 0 });
-          setOffsetError(null);
-        }}
-      >
-        Offset all sprites…
-      </Button>
-    </div>
-  );
-
   const frameEditor = (
     <Tabs
       value={String(frameIndex)}
       onValueChange={(v) => {
         if (v === "add") {
           const clone = structuredClone(
-            frames[frames.length - 1] ?? emptyFrame(tilesets[0]?.id ?? ""),
+            frames[frames.length - 1] ?? emptyFrame(),
           );
           setFrames([...frames, clone]);
           setFrameIndex(frames.length);
@@ -1316,27 +1304,53 @@ export function TileEditorDialog({
           picker into its own. */}
       <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px]">
         <div className="flex min-w-0 flex-col gap-2">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase text-muted">Tileset</span>
-            <Select
-              value={tileset?.id ?? null}
-              onValueChange={(id) => {
-                if (!id || !frame) return;
-                setFrameSprite({
-                  tilesetId: id,
-                  rect: { ...frame.sprite.rect },
-                  base: frame.sprite.base,
-                });
-              }}
-              options={tilesets.map((t) => ({
-                value: t.id,
-                label: t.name,
-              }))}
-            />
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <FieldLabel info="One sheet for the whole tile — every facing, slice, face, frame and state is cut from it.">
+                Sheet
+              </FieldLabel>
+              <Select
+                value={draft.anchor.tilesetId || null}
+                onValueChange={(id) => {
+                  if (!id) return;
+                  setAnchor({ ...draft.anchor, tilesetId: id });
+                }}
+                options={tilesets.map((t) => ({
+                  value: t.id,
+                  label: t.name,
+                }))}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <FieldLabel info="The cell every sprite on this tile is measured from. Move it and the whole drawing moves with it — which is how art copied to the block beside it on the sheet is picked up.">
+                Anchor
+              </FieldLabel>
+              <NumberInput
+                className="w-16"
+                step={1}
+                value={draft.anchor.x}
+                onChange={(x) => setAnchor({ ...draft.anchor, x })}
+              />
+              <NumberInput
+                className="w-16"
+                step={1}
+                value={draft.anchor.y}
+                onChange={(y) => setAnchor({ ...draft.anchor, y })}
+              />
+            </div>
           </div>
+          {anchorError ? (
+            <div className="border-2 border-danger bg-danger/10 px-2 py-1 text-sm text-danger">
+              {anchorError}
+            </div>
+          ) : null}
           <SpriteSelector
             tileset={tileset}
-            value={frame?.sprite ?? null}
+            value={
+              frame
+                ? { rect: spriteRect(draft.anchor, frame.sprite), base: frame.sprite.base }
+                : null
+            }
             onChange={setFrameSprite}
           />
         </div>
@@ -1391,7 +1405,7 @@ export function TileEditorDialog({
                   if (!draft.slices?.[i]) {
                     const base =
                       draft.slices?.[0] ??
-                      emptySprite(tilesets[0]?.id ?? "");
+                      emptySprite();
                     setDraft({
                       ...draft,
                       slices: {
@@ -1528,7 +1542,7 @@ export function TileEditorDialog({
               // on the same grounds the autotile grid clones slice 0: a second
               // bush is the first bush with a few pixels moved.
               const base =
-                faces[face] ?? faces[0] ?? emptySprite(tilesets[0]?.id ?? "");
+                faces[face] ?? faces[0] ?? emptySprite();
               setDraft({
                 ...draft,
                 scatter: [...faces, structuredClone(base)],
@@ -1717,7 +1731,7 @@ export function TileEditorDialog({
               const base =
                 draft.variants?.[variantKey] ??
                 Object.values(draft.variants ?? {})[0] ??
-                emptySprite(tilesets[0]?.id ?? "");
+                emptySprite();
               // Numbered from the count rather than from the length, so adding
               // a face after one was renamed does not collide with a name
               // already in use.
@@ -2135,8 +2149,6 @@ export function TileEditorDialog({
 
         {draft.type === "simple" ? climbPad : null}
 
-        {sheetTools}
-
         {statePicker}
 
         {phasePicker}
@@ -2196,57 +2208,6 @@ export function TileEditorDialog({
         </div>
       </Dialog>
 
-      <Dialog
-        open={offset !== null}
-        onOpenChange={(o) => {
-          if (!o) setOffset(null);
-        }}
-        title="Offset sprites"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setOffset(null)}>
-              Cancel
-            </Button>
-            <Button variant="primary" onClick={applyOffset}>
-              Offset
-            </Button>
-          </>
-        }
-      >
-        <div className="flex flex-col gap-3">
-          {offsetError ? (
-            <div className="border-2 border-danger bg-danger/10 px-2 py-1 text-sm text-danger">
-              {offsetError}
-            </div>
-          ) : null}
-          <div className="flex flex-wrap items-center gap-4">
-            <label className="flex items-center gap-2 text-xs">
-              <span className="font-bold uppercase text-muted">Right</span>
-              <NumberInput
-                className="w-20"
-                step={1}
-                value={offset?.x ?? 0}
-                onChange={(x) => setOffset((o) => (o ? { ...o, x } : o))}
-              />
-            </label>
-            <label className="flex items-center gap-2 text-xs">
-              <span className="font-bold uppercase text-muted">Down</span>
-              <NumberInput
-                className="w-20"
-                step={1}
-                value={offset?.y ?? 0}
-                onChange={(y) => setOffset((o) => (o ? { ...o, y } : o))}
-              />
-            </label>
-          </div>
-          <p className="text-xs text-muted">
-            In 8px cells; negative moves left or up. Every frame of every facing,
-            slice, face and state moves together, so the tile keeps drawing the
-            same shape from a different block of the sheet. Refused if any sprite
-            would land off the sheet.
-          </p>
-        </div>
-      </Dialog>
     </Dialog>
   );
 }

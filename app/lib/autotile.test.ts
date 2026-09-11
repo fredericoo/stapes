@@ -22,7 +22,7 @@ import {
   NW,
 } from "./autotile";
 import type { MapFile, TileDef } from "./types";
-import { coordKey, levelKey } from "./types";
+import { coordKey, levelKey, spriteRect } from "./types";
 
 describe("autotile blob", () => {
   it("produces 47 unique slices", () => {
@@ -147,6 +147,7 @@ describe("pickAutotileSprite", () => {
     type: "autotile",
     kind: "prop",
     attributes: {},
+    anchor: { tilesetId: "walls", x: 0, y: 0 },
     slices: {
       0: { frames: [frame("#000000")] },
       5: { frames: [frame("#050505")] },
@@ -203,8 +204,11 @@ describe("wooden floor inner", () => {
     return mapWith(cells);
   }
 
+  // Where the sprite actually sits on the sheet, not where it sits in its own
+  // tile's block: these are two tiles with two anchors, and the claim below is
+  // about the distance between them on the picture.
   const rectOf = (tile: TileDef, ctx: Parameters<typeof resolveTileSprite>[1]) =>
-    resolveTileSprite(tile, ctx)!.frames[0]!.sprite.rect;
+    spriteRect(tile.anchor, resolveTileSprite(tile, ctx)!.frames[0]!.sprite);
 
   it("connects to the floor it sits on", () => {
     expect(inner.connectsTo).toContain("wooden-floor");

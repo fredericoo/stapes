@@ -13,6 +13,7 @@ const grass = (
   type: "scatter",
   kind: "prop",
   attributes: {},
+  anchor: { tilesetId: "t", x: 0, y: 0 },
   scatter,
   ...extra,
 });
@@ -22,7 +23,6 @@ function spriteAt(x: number): TileSprite {
     frames: [
       {
         sprite: {
-          tilesetId: "t",
           rect: { x, y: 0, w: 1, h: 1 },
           base: { x: 0, y: 0 },
         },

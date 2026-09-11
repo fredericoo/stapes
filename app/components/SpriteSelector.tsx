@@ -5,6 +5,16 @@ import { defaultBase } from "../lib/types";
 
 type Props = {
   tileset: TilesetDef | null;
+  /**
+   * The selection, in cells of `tileset` and measured from its corner.
+   *
+   * **Absolute on the sheet in front of you, whatever the caller stores.** A
+   * tile's sprites are relative to its {@link TileDef.anchor} and a status icon
+   * is not, and neither of those is a fact about picking a rectangle out of a
+   * picture. The caller converts on the way in and on the way out, which is also
+   * what decides whether there is a selection to show at all: a value for a
+   * different sheet is passed as null rather than filtered out here.
+   */
   value: SpriteRef | null;
   onChange: (sprite: SpriteRef) => void;
   zoom?: number;
@@ -73,7 +83,7 @@ export function SpriteSelector({
       ctx.stroke();
     }
 
-    if (value && value.tilesetId === tileset.id) {
+    if (value) {
       const { rect, base } = value;
       ctx.fillStyle = "rgba(45, 106, 79, 0.28)";
       ctx.fillRect(
@@ -166,11 +176,7 @@ export function SpriteSelector({
             const w = Math.abs(c.x - startX) + 1;
             const h = Math.abs(c.y - startY) + 1;
             const rect = { x, y, w, h };
-            onChange({
-              tilesetId: tileset.id,
-              rect,
-              base: defaultBase(rect),
-            });
+            onChange({ rect, base: defaultBase(rect) });
           }
         }}
         onMouseLeave={() => setHover(null)}
@@ -180,7 +186,6 @@ export function SpriteSelector({
           // If click inside existing selection, set base
           if (
             value &&
-            value.tilesetId === tileset.id &&
             c.x >= value.rect.x &&
             c.y >= value.rect.y &&
             c.x < value.rect.x + value.rect.w &&
@@ -197,11 +202,7 @@ export function SpriteSelector({
           }
           dragRef.current = { startX: c.x, startY: c.y, dragging: true };
           const rect = { x: c.x, y: c.y, w: 1, h: 1 };
-          onChange({
-            tilesetId: tileset.id,
-            rect,
-            base: defaultBase(rect),
-          });
+          onChange({ rect, base: defaultBase(rect) });
         }}
         onMouseUp={(e) => {
           const c = cellAt(e.clientX, e.clientY);

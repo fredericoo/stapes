@@ -133,6 +133,7 @@ describe("chunked lighting", () => {
       type: "simple",
       kind: "prop",
       attributes: {},
+      anchor: { tilesetId: "t", x: 0, y: 0 },
       lightPassing: true,
       intangible: true,
     } as const;
@@ -498,6 +499,7 @@ describe("chunked lighting", () => {
         type: "simple",
         kind: "prop",
         attributes: {},
+        anchor: { tilesetId: "t", x: 0, y: 0 },
         lightPassing: true,
         intangible: true,
       } as const;
@@ -926,6 +928,7 @@ describe("a flicker's reach", () => {
     type: "simple",
     kind: "prop",
     attributes: {},
+    anchor: { tilesetId: "t", x: 0, y: 0 },
     sprite: {
       frames: [1, 0.5].map((intensity) => ({
         sprite: {

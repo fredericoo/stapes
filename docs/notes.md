@@ -2470,6 +2470,55 @@ did decide, roof-cut visibility, is a line of code instead. The mesh takes the
 material of whichever level its *height* puts it over, re-asked per frame so a
 shot from a balcony is not lit by the room it left for the whole descent.
 
+### A tile names one sheet, and every rect is measured from one cell
+
+`TileDef.anchor` is a `SpriteAnchor` — a sheet and a cell on it — and every
+`SpriteRef` the tile carries is a rect *relative to that cell*. `spriteRect`
+turns a pair back into where the art actually sits, and `spriteRefAt` is its
+inverse, which is the editor's picker on the way back in.
+
+Both halves used to be per sprite: each `SpriteRef` named its own `tilesetId`
+and measured from the sheet's corner. Neither was ever varied. All 138 tiles in
+the catalogue drew from exactly one sheet across all 1373 of their sprite refs,
+and a walk cycle whose second frame came from another picture is not a thing
+anybody wants to be able to author — `AnimationTable` refused one outright, and
+that check is gone because the shape can no longer say it.
+
+What the absolute rects cost was moving a drawing. A character is four or eight
+facings times however many frames times however many states, drawn as one block,
+and the next character is the block beside it. Re-pointing a tile at that block
+meant re-picking every sprite by hand: twenty-four drag-selects, any one of which
+can land a cell off without saying so and without anything failing. There was a
+tool for it — `offsetTileSprites`, which walked every sprite field and every
+state and added a vector to each — and it is gone too. Moving the anchor is the
+whole operation now, and the tile editor's *Anchor* is two numbers next to the
+sheet picker.
+
+**A rect may be negative.** The anchor is the point the art is measured from, not
+a corner it is boxed into, so a sprite picked above or to the left of it is art
+somebody meant. `anchorFits` checks both edges for that reason, and refuses
+rather than clamping: an anchor nudged back onto the sheet would leave every
+sprite at its old distance from every other, which is a character drawn from
+whatever happened to be under the new corner.
+
+The anchor is also the whole of what it takes to say *draw this art from
+somewhere else*, which is what equipment on a body will be.
+
+**Migration.** `normalizeTileDef` gives a tile written the old way an anchor —
+the sheet off its first sprite, the cell at the top-left corner of everything it
+draws — and rewrites every rect relative to it. `scripts/anchor-tiles.ts` did
+that to `data/tiles.json` once so that reading the file tells you what the game
+will do with it; the migration stays because a hand-edit or an old export can
+still arrive in the old encoding. It refuses a tile whose sprites disagree about
+their sheet rather than silently drawing the rest of it from the wrong picture.
+
+**A status icon is not one of these.** `StatusDef.icon` is an `AnchoredSprite` —
+sheet, absolute rect, base — because it is one rectangle drawn in a panel rather
+than a block of art with facings and frames, so there is no block for it to be
+relative to. A tile's sprite becomes one of those too when something outside the
+world draws it: `anchoredSprite` composes one, and a thumbnail has no anchor of
+its own to measure against.
+
 ### Tiles can be eight-way
 
 `TileType` has `directional8` beside `directional`: the same `sprites` field with
@@ -5059,8 +5108,7 @@ purpose, with a visual pass, not by accident.
 Two operations in the tile editor exist because authoring an NPC meant
 re-picking every sprite of an existing one by hand: four or eight facings times
 however many states, each a drag-select on the sheet that can land a cell off
-without saying so. Both live in `app/lib/spriteOffset.ts`, which is where the
-tests are.
+without saying so. `app/lib/spriteAnchor.ts` is where the tests are.
 
 **Duplicate writes the draft, not the file.** The footer's *Duplicate* asks for
 an id and a name, then runs the draft through the same checks Save does and
@@ -5071,19 +5119,15 @@ refuse. The default id counts up from whatever number is already on the end
 siblings and `guard-copy-copy` is what appending gives you on the third one.
 The dialog then swaps to the copy, since duplicating is never the whole job.
 
-**Offset moves the whole tile at once.** *Offset all sprites…* shifts every
-frame of every facing, slice, face and state by the same number of 8px cells.
-That is the point: a character sheet is drawn as one block, the next character
-is the block beside it, and one number turns twenty-four drag-selects into a
-copy plus a `+2`. `base` is a cell *within* the rect, so moving the rect carries
-it.
+**The anchor moves the whole tile at once.** *Anchor* is two numbers beside the
+sheet picker, and every sprite the tile has is measured from it — see *A tile
+names one sheet, and every rect is measured from one cell*. That is what turns
+twenty-four drag-selects into a duplicate plus a `+8`: a character sheet is drawn
+as one block, and the next character is the block beside it.
 
-An offset that would put any sprite off its sheet is **refused, not clamped**.
-Clamping moves some sprites and not others, and the result is a character whose
-facings are drawn from different places on the sheet — a bug that shows up in
-the world, not in the editor. A tileset the tile names but that is not in the
-library is skipped: its size is unknown, and a missing tileset is already its
-own problem.
+An anchor whose block would run off its sheet is **refused, not clamped**, and
+`anchorFits` is where that is decided. It checks both edges, since a rect
+relative to the anchor may be negative.
 
 ## Moving the editor's camera
 

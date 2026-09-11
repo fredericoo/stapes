@@ -44,6 +44,7 @@ import type {
   Frame,
   MapFile,
   PlacedTile,
+  SpriteAnchor,
   SpriteState,
   TileDef,
   TilesetDef,
@@ -60,6 +61,7 @@ import {
   parseCoordKey,
   resolveActor,
   resolveLightPassing,
+  spriteRect,
   tileCanEmitLight,
   tileEmissionPhase,
   tileLightVaries,
@@ -1492,15 +1494,15 @@ export class WorldRenderer {
     if (!def) return null;
     const frames = getFrames(def, { direction: view.direction });
     if (!frames?.length) return null;
-    const tileset = this.tilesetById.get(frames[0]!.sprite.tilesetId);
+    const tileset = this.tilesetById.get(def.anchor.tilesetId);
     if (!tileset) return null;
 
     const texture = this.textures.get(tileset.id) ?? this.magentaTex;
-    const { rect } = frames[0]!.sprite;
+    const rect = spriteRect(def.anchor, frames[0]!.sprite);
     const quad: Omit<Quad, "x" | "y"> = {
       w: rect.w * CELL_SIZE,
       h: rect.h * CELL_SIZE,
-      ...frameUvs(frames[0]!, tileset),
+      ...frameUvs(def.anchor, frames[0]!, tileset),
       // Placeholders. Every one of these is rewritten by `placeProjectile`
       // before the frame is drawn, and they exist here only because a geometry
       // has to be built with something in its attributes.
@@ -1544,7 +1546,7 @@ export class WorldRenderer {
     const frame = entry.frames[frameIdx]!;
     if (frameIdx !== entry.frameIdx) {
       entry.frameIdx = frameIdx;
-      writeFrameUvs(entry.mesh, frame, entry.tileset);
+      writeFrameUvs(entry.mesh, entry.def.anchor, frame, entry.tileset);
     }
 
     // The level's own light and the level's own roof-cut, both re-asked every
@@ -2561,7 +2563,7 @@ export class WorldRenderer {
       const live = frames?.[frameIdx];
       if (!live || !frames) return;
 
-      const tileset = this.tilesetById.get(live.sprite.tilesetId);
+      const tileset = this.tilesetById.get(def.anchor.tilesetId);
       if (!tileset) return;
 
       const animates = frames.length > 1;
@@ -2599,7 +2601,7 @@ export class WorldRenderer {
       const foot = absoluteElevation(z, elev);
       const baseOrigin = baseCellWorldOrigin(x, y, z, elev);
       const origin = spriteWorldOrigin(baseOrigin, art.sprite.base);
-      const { rect } = art.sprite;
+      const rect = spriteRect(def.anchor, art.sprite);
       const w = rect.w * CELL_SIZE;
       const h = rect.h * CELL_SIZE;
       const u0 = (rect.x * CELL_SIZE) / tileset.width;
@@ -2810,7 +2812,7 @@ export class WorldRenderer {
       for (const inst of instances) {
         if (inst.frameIdx === idx) continue;
         inst.frameIdx = idx;
-        writeFrameUvs(inst.mesh, frame, sample.tileset);
+        writeFrameUvs(inst.mesh, sample.def.anchor, frame, sample.tileset);
         changed = true;
       }
     }
@@ -2908,7 +2910,7 @@ export class WorldRenderer {
       inst.frames = frames;
       inst.animKey = animationKey(inst.def, inst.placed, x, y, z, next);
       inst.frameIdx = idx;
-      writeFrameUvs(inst.mesh, frames[idx]!, inst.tileset);
+      writeFrameUvs(inst.mesh, inst.def.anchor, frames[idx]!, inst.tileset);
       swapped = true;
     }
 
@@ -2927,10 +2929,11 @@ export class WorldRenderer {
  * exactly the kind of arithmetic that gets copied slightly wrong.
  */
 function frameUvs(
+  anchor: SpriteAnchor,
   frame: Frame,
   tileset: TilesetDef,
 ): { u0: number; v0: number; u1: number; v1: number } {
-  const { rect } = frame.sprite;
+  const rect = spriteRect(anchor, frame.sprite);
   return {
     u0: (rect.x * CELL_SIZE) / tileset.width,
     u1: ((rect.x + rect.w) * CELL_SIZE) / tileset.width,
@@ -2941,10 +2944,11 @@ function frameUvs(
 
 function writeFrameUvs(
   mesh: THREE.Mesh,
+  anchor: SpriteAnchor,
   frame: Frame,
   tileset: TilesetDef,
 ): void {
-  const { u0, v0, u1, v1 } = frameUvs(frame, tileset);
+  const { u0, v0, u1, v1 } = frameUvs(anchor, frame, tileset);
   const uvs = mesh.geometry.attributes.uv!;
   uvs.setXY(0, u0, v0);
   uvs.setXY(1, u1, v0);

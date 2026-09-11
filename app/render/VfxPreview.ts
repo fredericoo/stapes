@@ -10,7 +10,12 @@ import { hexToRgb01, STAPES_PALETTE } from "../lib/palette";
 import { taperedGlow, taperedTint, type StatusVfx } from "../lib/statusVfx";
 import { getFrames } from "../lib/tileResolve";
 import type { Frame, TileDef, TilesetDef } from "../lib/types";
-import { CELL_SIZE, frameIndexAtTime, HEIGHT_PER_LEVEL } from "../lib/types";
+import {
+  CELL_SIZE,
+  frameIndexAtTime,
+  HEIGHT_PER_LEVEL,
+  spriteRect,
+} from "../lib/types";
 import { ParticleLayer } from "./particleLayer";
 import type { ParticleEmitterSpec } from "./particles";
 import { PalettePass } from "./palettePass";
@@ -233,7 +238,7 @@ export class VfxPreview {
       held?.dispose();
       return;
     }
-    const tileset = tilesets.find((t) => t.id === first.sprite.tilesetId);
+    const tileset = tilesets.find((t) => t.id === def.anchor.tilesetId);
     if (!tileset) {
       held?.dispose();
       return;
@@ -430,7 +435,7 @@ export class VfxPreview {
 
     this.clearSubjectMesh();
 
-    const { rect } = frame.sprite;
+    const rect = spriteRect(this.def.anchor, frame.sprite);
     const origin = spriteWorldOrigin(
       baseCellWorldOrigin(SUBJECT_CELL.x, SUBJECT_CELL.y, 0, 0),
       frame.sprite.base,
@@ -493,8 +498,8 @@ export class VfxPreview {
     if (idx === this.frameIdx) return;
     this.frameIdx = idx;
     const frame = this.frames[idx];
-    if (!frame || !this.tileset) return;
-    const { rect } = frame.sprite;
+    if (!frame || !this.tileset || !this.def) return;
+    const rect = spriteRect(this.def.anchor, frame.sprite);
     const attr = this.subject.geometry.getAttribute("uv") as THREE.BufferAttribute;
     const uv = attr.array as Float32Array;
     const u0 = (rect.x * CELL_SIZE) / this.tileset.width;
