@@ -3510,7 +3510,7 @@ swords wants to know the difference between them — not which is better, which 
 what the fighting settles — and there is no way to separate a fast light blade
 from a slow heavy one without giving both numbers.
 
-Three rules keep it from becoming the requirements panel that was deleted:
+Four rules keep it from becoming the requirements panel that was deleted:
 
 - **Nothing volunteers.** The equipment panel at rest is a grid of squares. The
   card only exists while somebody holds a slot with the eye on, or rests a finger
@@ -3525,6 +3525,21 @@ Three rules keep it from becoming the requirements panel that was deleted:
   definition of what a weapon is worth would diverge the next time somebody
   changed the falloff. The mastery rebalance replaced every formula underneath
   and the card needed no arithmetic changed.
+- **A row is a caption and a figure, not a sentence.** `dmg 12`, `def 4`,
+  `hp +5`, `every 1.2s`. The rows used to read "Blocks — 1 a blow" and
+  "Restores — 5 health", which spend a verb and a noun getting one number
+  across; six of those are a paragraph the reader has to take apart before they
+  can compare two swords. A worn thing's kind line is the caption on the square
+  it goes in — "Armour", "Head", "Footwear" — matching
+  `app/components/EquipmentPanel.tsx` exactly, rather than "Worn on your body",
+  which made the reader match a sentence to a picture.
+
+  What a poison costs is signed rather than worded — `hp −6` against `hp +5` —
+  on the terms `damageNumbers`' mend sign is: colour alone leaves a reader who
+  cannot separate the two hues with a bare figure. The abbreviations do not
+  survive being read out, so `ItemCardStat.spoken` carries the word for the
+  route that speaks the card, and `speech` says "Damage: 12" where the drawing
+  says `dmg 12`.
 
 Each item kind reports what it has and nothing else. A weapon has a profile, a
 gate and a share; armour has a defence figure and a resistance table but no
