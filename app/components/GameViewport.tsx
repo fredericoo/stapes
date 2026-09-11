@@ -97,7 +97,7 @@ export function GameViewport({
   onDirectionRelease,
   onSay,
   onTypingChange,
-  mode = "interact",
+  mode = "target",
   onModeChange,
   readouts,
   interactions = [],
@@ -138,8 +138,9 @@ export function GameViewport({
    * What a tap on the world means, of which exactly one thing is true at a time.
    * See `./usePlayModes`, which owns the machine and the keys that drive it.
    *
-   * Defaulted to plain interaction so a route that has not wired the switch up
-   * still behaves like a game rather than like nothing.
+   * Defaulted to target rather than to the player's starting mode: a route that
+   * has not wired the switch up has no button to put the sword away with, so it
+   * gets the mode that never swings.
    */
   mode?: PlayMode;
   /** Absent on a route with no switch to draw; the row folds away without it. */

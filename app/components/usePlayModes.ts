@@ -23,11 +23,27 @@ import { bindAttackKey, bindLookKey } from "../game/heldDirections";
  * fighting were separate latches, so a player could be in both at once, in
  * neither, and — the case people actually hit — in attack mode without any idea
  * they were, because nothing said what the *absence* of a mode was called.
- * Naming the third state is what makes the other two legible: "interact" is a
+ * Naming the third state is what makes the other two legible: "target" is a
  * mode you can see you are in and can deliberately go back to, where "neither
  * button is lit" was a state you had to infer.
+ *
+ * Called "target" because that is the one thing it does differently from
+ * attack: every object on the board answers a tap the same way in both, and
+ * only a body differs — picked out here, picked out and swung at there.
  */
-export type PlayMode = "interact" | "inspect" | "attack";
+export type PlayMode = "target" | "inspect" | "attack";
+
+/**
+ * Where a player starts: sword out.
+ *
+ * Attack rather than target because tapping a creature is nearly always the
+ * start of a fight, and a first fight that began with a white outline and no
+ * blows read as the game not working. A person with something to say is still
+ * talked to by a tap in this mode — `talk` ranks above `target` in
+ * `../game/interactionOptions` — so the default does not turn a shopkeeper
+ * into a fight.
+ */
+export const INITIAL_PLAY_MODE: PlayMode = "attack";
 
 export type PlayModes = {
   /**
@@ -58,12 +74,12 @@ export function modeInForce(chosen: PlayMode, lookHeld: boolean): PlayMode {
  *
  * A way in and a way out, so E is the whole of the keyboard's story about
  * fighting: pressed while already fighting it puts the sword away, which is the
- * same thing tapping the lit button does. It returns to plain interaction rather
- * than to whatever came before, because "before" was very often inspect and
- * ending a fight by dropping into look mode is not what anybody means.
+ * same thing tapping the lit button does. It returns to target rather than to
+ * whatever came before, because "before" was very often inspect and ending a
+ * fight by dropping into look mode is not what anybody means.
  */
 export function modeAfterAttackKey(chosen: PlayMode): PlayMode {
-  return chosen === "attack" ? "interact" : "attack";
+  return chosen === "attack" ? "target" : "attack";
 }
 
 export function usePlayModes(): PlayModes {
@@ -78,7 +94,7 @@ export function usePlayModes(): PlayModes {
    * survives underneath it — which is exactly what "revert to the previous one on
    * release" means, with no previous-mode bookkeeping to get wrong.
    */
-  const [chosen, setChosen] = useState<PlayMode>("interact");
+  const [chosen, setChosen] = useState<PlayMode>(INITIAL_PLAY_MODE);
   const [lookHeld, setLookHeld] = useState(false);
 
   useEffect(() => {

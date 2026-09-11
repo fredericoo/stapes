@@ -2245,13 +2245,21 @@ both cases because the pulse is what separates a *chosen* body from one the
 cursor happens to be over.
 
 **What a tap means is one setting with three positions, not a pair of switches.**
-Interact, inspect and attack are the three, exactly one holds at a time, and the
-machine is `app/components/usePlayModes.ts`. They were two independent latches
+Target, inspect and attack are the three, exactly one holds at a time, and the
+machine is `app/components/usePlayModes.ts`. (Target was called "interact"
+until it was clear that picking a body out without swinging is the only thing
+it does differently from attack — objects answer a tap the same way in both.) They were two independent latches
 and the failure was reported rather than guessed at: with no *name* for "neither
 one is on", people drew the sword, walked off, and never connected the red
 outline under everything they pointed at with a button they had pressed a minute
 before. Two consequences worth knowing about:
 
+- **A player starts in attack** (`INITIAL_PLAY_MODE`). Tapping a creature is
+  nearly always the start of a fight, and a first fight that began with a white
+  outline and no blows read as the game not working. The shipped shopkeepers
+  have no hit points, so there is nothing to swing at; for an NPC authored with
+  both, `talk` outranks `target` in `ACTION_ORDER`, so a tap within
+  `TALK_REACH_CELLS` talks in every mode. Out of talking reach it targets.
 - **Shift covers the chosen mode rather than replacing it.** The key is momentary
   and the buttons latch, so the chosen mode is kept in its own piece of state and
   shift is read over the top of it — which is the whole of "revert on release",

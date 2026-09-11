@@ -151,6 +151,17 @@ const tiles: TileDef[] = [
       battler: { baseHp: 8, maxHp: 10, atk: 2, def: 0, acc: 50, flee: 0, spd: 50 },
     },
   }),
+  // A battler with something to say: the one body a tap could mean two things on.
+  tile({
+    id: "salesman",
+    name: "Salesman",
+    height: 4,
+    actor: true,
+    interactions: {
+      battler: { baseHp: 8, maxHp: 10, atk: 2, def: 0, acc: 50, flee: 0, spd: 50 },
+      dialog: { script: [{ kind: "say", text: "Hello." }] },
+    },
+  }),
   // A body that is both shovable and fightable, as the player tile is: the one
   // thing that has to come back as two entries sharing a name.
   tile({
@@ -1265,6 +1276,42 @@ describe("topInteractionAt", () => {
       stackIndex: 1,
     });
     expect(top?.action).toBe("pickUp");
+  });
+
+  /**
+   * A tap on a talking battler opens the conversation rather than picking it
+   * out — with the sword out too, since attack is the mode a player starts in.
+   */
+  it("takes talk over target on a body with a dialog, sword out or not", () => {
+    for (const attacking of [false, true]) {
+      let map = field();
+      map = place(map, 2, 0, ["grass", "salesman"]);
+      const me = playerAt(map);
+      const npc = actor("npc:salesman", "salesman", 2, 0, map, 10);
+      const options = listInteractionOptions(
+        map,
+        tilesById,
+        me,
+        [me, npc],
+        null,
+        KIT,
+        null,
+        [],
+        attacking,
+      );
+
+      expect(topInteractionAt(options, npc)?.action).toBe("talk");
+    }
+  });
+
+  it("targets a body with a dialog that is out of talking reach", () => {
+    let map = field();
+    map = place(map, 4, 0, ["grass", "salesman"]);
+    const me = playerAt(map);
+    const npc = actor("npc:salesman", "salesman", 4, 0, map, 10);
+    const options = listInteractionOptions(map, tilesById, me, [me, npc], null, KIT);
+
+    expect(topInteractionAt(options, npc)?.action).toBe("target");
   });
 });
 
