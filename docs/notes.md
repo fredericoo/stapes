@@ -1241,6 +1241,21 @@ carry it.
   - *What it rules out is a room whose only way in is a flame or a portal* —
     nothing will route into it. Walking in by hand still works; none of this
     touches `canWalk`, and the server validates the same steps it always did.
+  - *A random step reads the same rule, and no author opts out of it.*
+    `step_random` and `walk_n_steps` pick from `brainRuntime`'s `footing`, which
+    now drops a direction the session calls a hazard as well as one that goes
+    over a ledge — `GameSession.stepLandsInHazard`, which is `unsafeToStepOn`
+    asked of one leg. Without it the same animal was safe while it was hunting
+    and burned while it was idling, because which cells it could end up in
+    depended on which action moved it. The two refusals have different standing
+    and are written that way: `allowDrops` is the author's, because a bat is
+    meant to fly off a plinth, while a flame is nobody's. Asked of where the leg
+    *lands*, so a creature that may take drops does not fall into a fire at the
+    bottom of one; the ledge check goes first because it is the cheaper half.
+    It does not show up in a tick: `bun scripts/bench-server.ts --scenario
+    spread` reads 0.79ms at p50 with the rule and 0.78–0.85ms across baseline
+    runs, which is the noise. A wander pays one `canWalk` per direction it has
+    not already refused as a ledge, against the up-to-128 nodes a chase pays.
 
 **Two caps, doing two different jobs, and it is worth not confusing them.**
 `PATH_DETOUR_SLACK` is about *behaviour*: a route far longer than the gap is not

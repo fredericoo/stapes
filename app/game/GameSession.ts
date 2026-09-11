@@ -265,7 +265,12 @@ import {
   standingAbs,
   surfacesInClimbBand,
 } from "./movement";
-import { findPath, findRefuge } from "./pathfinding";
+import {
+  dropLanding,
+  findPath,
+  findRefuge,
+  unsafeToStepOn,
+} from "./pathfinding";
 import { brainReach, resolveBrain } from "../lib/brain";
 import { resolveDialog } from "../lib/dialog";
 import {
@@ -3190,6 +3195,8 @@ export class GameSession implements PlaySession {
       thingStillThere: (at, tileId) => this.thingStillThere(at, tileId),
       positionOf: (id) => this.actorCell(id),
       wouldDrop: (direction) => this.stepLeavesGround(loc, direction),
+      wouldStepIntoHazard: (direction) =>
+        this.stepLandsInHazard(actor, loc, direction),
       step: (direction) =>
         this.applyStepRequest(actor, { directions: [direction] }),
       walkTo: (goal, allowDrops) => this.setWalkOrder(actor, goal, allowDrops),
@@ -5399,6 +5406,76 @@ export class GameSession implements PlaySession {
         loc.y + dy,
         this.tilesById,
       ).length === 0
+    );
+  }
+
+  /**
+   * Would a step this way put the body somewhere that does something to it?
+   *
+   * `./pathfinding`'s `unsafeToStepOn` asked of a single leg rather than of a
+   * whole search, and asked with the same catalogues, so a creature that
+   * wanders avoids exactly the cells a creature that walks a route avoids. The
+   * argument for refusing them at all is written there and in `docs/notes.md`;
+   * this is only the place that happens to hold the board.
+   *
+   * **Where the leg lands, which is not always the cell it was aimed at.** A
+   * step off a ledge is settled by gravity, so a flame at the bottom of the
+   * drop is what that leg walks into — the same reading `neighbours` takes of a
+   * falling edge.
+   *
+   * Two answers of "no" that are not about safety. A step the board would
+   * refuse is not a step, and a fall with nothing under it lands nowhere at
+   * all: both are {@link stepLeavesGround}'s business or the walk loop's, and
+   * saying "unsafe" about either would hide a refusal behind a caution.
+   */
+  private stepLandsInHazard(
+    actor: ActorRuntime,
+    loc: ActorLocation,
+    direction: Direction,
+  ): boolean {
+    const def = this.defFor(actor);
+    const check = canWalk(
+      this.map,
+      { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+      direction,
+      def,
+      this.tilesById,
+    );
+    if (!check.ok) return false;
+
+    const landing = this.stepLandingCell(loc, direction, def, check.to);
+    if (!landing) return false;
+    return unsafeToStepOn(this.map, landing, this.tilesById, this.statusDefs);
+  }
+
+  /**
+   * The cell a permitted step comes to rest in: the one it walked into, or the
+   * one gravity carries it down to when it walked off a ledge.
+   *
+   * Null for a step into a column nothing will hold the body in.
+   */
+  private stepLandingCell(
+    loc: ActorLocation,
+    direction: Direction,
+    def: TileDef,
+    walkedInto: Coord,
+  ): Coord | null {
+    if (!this.stepLeavesGround(loc, direction)) return walkedInto;
+    const { dx, dy } = DIR_DELTA[direction];
+    return dropLanding(
+      this.map,
+      loc.x + dx,
+      loc.y + dy,
+      standingAbs(
+        this.map,
+        loc.x,
+        loc.y,
+        loc.z,
+        loc.stackIndex,
+        this.tilesById,
+      ),
+      def,
+      this.tilesById,
     );
   }
 

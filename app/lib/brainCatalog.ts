@@ -247,7 +247,7 @@ export const ACTIONS: Record<
   },
   step_random: {
     label: "step random",
-    hint: "Step to a random walkable neighbour. Fails when hemmed in.",
+    hint: "Step to a random walkable neighbour, never onto a flame or a portal. Fails when hemmed in.",
     params: [{ key: "allowDrops", kind: "boolean", label: "allow drops" }],
     make: () => ({ action: "step_random" }),
   },
