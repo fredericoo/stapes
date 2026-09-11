@@ -8,7 +8,7 @@ import {
   masteryLevel,
   xpForLevel,
 } from "../lib/mastery";
-import { statusesById } from "../lib/status";
+import { COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import type { Coord, MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
@@ -1828,13 +1828,21 @@ describe("a charm worn on the charm square", () => {
     expect(hpOf(play)).toBe(full);
   });
 
+  /**
+   * What the charm put there, leaving out the combat flag the `/health` that
+   * wounded the wearer put there first.
+   */
+  function grantedBy(play: GameSession): string[] {
+    return (play.statusesOf("local") ?? [])
+      .map((s) => s.defId)
+      .filter((id) => id !== COMBAT_STATUS_ID);
+  }
+
   it("grants what it is authored to grant, on the same tick", () => {
     const { play } = hurt("beacon-charm");
-    expect(play.statusesOf("local") ?? []).toEqual([]);
+    expect(grantedBy(play)).toEqual([]);
     runMs(play, CHARM_INTERVAL_MS);
-    expect((play.statusesOf("local") ?? []).map((s) => s.defId)).toEqual([
-      "warded",
-    ]);
+    expect(grantedBy(play)).toEqual(["warded"]);
   });
 
   /** Both halves are optional, and a charm of statuses alone is a real thing. */
@@ -1842,9 +1850,7 @@ describe("a charm worn on the charm square", () => {
     const { play, before } = hurt("ward-charm");
     runMs(play, CHARM_INTERVAL_MS);
     expect(hpOf(play)).toBe(before);
-    expect((play.statusesOf("local") ?? []).map((s) => s.defId)).toEqual([
-      "warded",
-    ]);
+    expect(grantedBy(play)).toEqual(["warded"]);
   });
 
   /** A body wearing none has no clock, and nothing happens to it. */

@@ -345,10 +345,16 @@ import {
   applyItemDecay,
   findDecayCells,
 } from "./decay";
-import type { StatusDef } from "../lib/status";
+import {
+  COMBAT_STATUS,
+  COMBAT_STATUS_ID,
+  type StatusDef,
+} from "../lib/status";
 import {
   advanceStatuses,
   applyStatus,
+  enterCombat,
+  inCombat,
   NO_STATUSES,
   type StatusInstance,
   statusReading,
@@ -1998,7 +2004,10 @@ export class GameSession implements PlaySession {
   ) {
     this.map = structuredClone(map);
     this.tilesById = tilesByIdFromList(tiles);
-    this.statusDefs = statusDefs;
+    // The combat flag's def is the engine's, and a session built from a bare
+    // catalogue — a test fixture, a tool — must still know it: an unknown def
+    // is dropped on the next tick, and the flag with it.
+    this.statusDefs = { ...statusDefs, [COMBAT_STATUS_ID]: COMBAT_STATUS };
     this.rng = new Rng(seed);
     this.decay = new DecayIndex(this.rng);
 
@@ -3972,6 +3981,11 @@ export class GameSession implements PlaySession {
     // recovery would spend the whole fight being told to walk back.
     attacker.attackRecoveryMs = resolveWalkDurationMs(this.defFor(attacker));
     this.pendingSwings.push(attacker.id);
+    // On the swing rather than on the blow landing, and both sides of it: a
+    // player dodging a wolf is in a fight whether or not anything connects,
+    // and flagging only on damage would let them close the tab mid-dodge.
+    this.flagCombat(attacker);
+    this.flagCombat(target);
 
     // Thrown before the dice, and on the same grounds the cooldown is spent
     // before them: what the lean says is *this body swung at that one*, which is
@@ -4427,6 +4441,39 @@ export class GameSession implements PlaySession {
     }
   }
 
+  /**
+   * Start a body's combat minute again. See `../lib/status`'s `COMBAT_STATUS`.
+   *
+   * Players only. What the flag is *for* is keeping a body in the world after
+   * its socket closes, and a creature has no socket; flagging every rat in a
+   * fight would broadcast status ids and keep the world awake for nothing.
+   */
+  private flagCombat(actor: ActorRuntime) {
+    if (actor.resident) return;
+    actor.statuses = enterCombat(actor.statuses);
+    this.noteStatusReading(actor);
+  }
+
+  /** Whether this player fought, or was hurt, within the last minute. */
+  inCombat(id: string): boolean {
+    const actor = this.actors.get(id);
+    return actor ? inCombat(actor.statuses) : false;
+  }
+
+  /**
+   * Stop a body doing anything on its own: no held keys, no swinging.
+   *
+   * For a body whose player has gone but which stays in the world until its
+   * fight is over. It stands there to be hit; it does not go on fighting, or
+   * a fight against something that heals would keep it in the world for good.
+   */
+  standIdle(id: string) {
+    const actor = this.actors.get(id);
+    if (!actor) return;
+    actor.input = { directions: [] };
+    actor.attacking = false;
+  }
+
   /** Remember who hit whom, for the brains' next round of decisions. */
   private notePendingHurt(targetId: string, attackerId: string) {
     const attackers = this.pendingHurt.get(targetId);
@@ -4451,6 +4498,9 @@ export class GameSession implements PlaySession {
     // a bandage is applied (see `consume`), and being healed mid-mine is not an
     // interruption.
     if (amount > 0) this.cancelExtraction(target, EXTRACT_INTERRUPTED_NOTICE);
+    // Every harm comes through here — a blow, a bolt, a poison tick, a burn
+    // nobody lit — so this one line is "taking damage puts you in combat".
+    if (amount > 0) this.flagCombat(target);
 
     this.floatSwing(target, "hit", amount);
 
@@ -4826,6 +4876,12 @@ export class GameSession implements PlaySession {
             damage,
             change.elements ?? NO_ELEMENTS,
           );
+          // The caster of a flame that is still burning somebody is dealing
+          // that damage, a minute after they lit it or not.
+          const causer = change.causedBy
+            ? this.actors.get(change.causedBy)
+            : undefined;
+          if (causer && damage > 0) this.flagCombat(causer);
           // A body that has just died is off the board, and everything after
           // this would be arithmetic on a corpse.
           if (actor.hp === 0) break;
@@ -5174,6 +5230,12 @@ export class GameSession implements PlaySession {
     );
 
     if (rolled > 0) {
+      // Before armour has its say, on the terms a swing flags on the swing: a
+      // harmful bolt at somebody is an attack whether or not mail eats it.
+      if (context.atSomebodyElse) {
+        this.flagCombat(actor);
+        this.flagCombat(subject);
+      }
       // Armour first and the wheel second, which is the order a conjured flame's
       // burn already goes through: what the fire is worth against this body is
       // decided after what got through the mail. Read as an arcane blow, because
@@ -8389,6 +8451,10 @@ export class GameSession implements PlaySession {
       // player standing there watching a deer must not hold the world awake for
       // as long as they keep it in sight.
       if (actor.attacking && actor.targetId !== null) return false;
+      // The combat minute is a clock this loop is the only thing winding, and
+      // the server waits on it to let a disconnected body leave: asleep, the
+      // body would stand there until somebody else happened to move.
+      if (!actor.resident && inCombat(actor.statuses)) return false;
 
       if (!actor.resident) {
         observed = true;

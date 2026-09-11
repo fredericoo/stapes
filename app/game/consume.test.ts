@@ -8,7 +8,7 @@ import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { BRAIN_TICK_MS, NOISE_LIFETIME_MS, TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
-import { statusesById } from "../lib/status";
+import { COMBAT_STATUS_ID, statusesById } from "../lib/status";
 
 /**
  * The bag `player`'s kit is authored with — see `app/lib/kit.ts`. A literal
@@ -611,6 +611,16 @@ describe("eating something that grants a status", () => {
     }
   }
 
+  /**
+   * What eating put on the body, leaving out the combat flag that the wound
+   * before it put there — being hurt by the poison is being hurt.
+   */
+  function eatenOn(session: GameSession): string[] {
+    return (session.statusesOf("local") ?? [])
+      .map((s) => s.defId)
+      .filter((id) => id !== COMBAT_STATUS_ID);
+  }
+
   it("moves no hit points on the tick it is eaten", () => {
     const session = fedWorld();
     wound(session);
@@ -619,7 +629,7 @@ describe("eating something that grants a status", () => {
 
     expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(true);
     expect(hpOf(session)).toBe(before);
-    expect(session.statusesOf("local")?.map((s) => s.defId)).toEqual(["fed"]);
+    expect(eatenOn(session)).toEqual(["fed"]);
   });
 
   it("heals one a second, rounded up, for as long as it runs", () => {
@@ -650,9 +660,28 @@ describe("eating something that grants a status", () => {
     session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
     runSeconds(session, FED_MS / 1000);
 
-    expect(session.statusesOf("local")).toEqual([]);
+    expect(eatenOn(session)).toEqual([]);
     // Ten seconds of Fed against ten points of poison, which is the whole of it.
     expect(hpOf(session)).toBe(PLAYER_MAX_HP);
+  });
+
+  it("puts somebody hurt by what they ate in combat", () => {
+    const session = fedWorld();
+    expect(session.inCombat("local")).toBe(false);
+    wound(session);
+    expect(session.inCombat("local")).toBe(true);
+  });
+
+  /** A burn or a poison nobody is answerable for still hurts, and still counts. */
+  it("puts somebody a status is hurting in combat", () => {
+    const authored = statusesById(statusesJson as unknown[]);
+    const session = new GameSession(field(), tiles, { statuses: authored });
+    session.runCommand("/status poison");
+    expect(session.inCombat("local")).toBe(false);
+
+    runSeconds(session, authored.poison!.everyMs / 1000);
+
+    expect(session.inCombat("local")).toBe(true);
   });
 
   it("stacks a second helping onto what is left", () => {
