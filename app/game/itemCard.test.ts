@@ -394,6 +394,60 @@ describe("itemCard", () => {
     });
 
     /**
+     * **The interval is the whole cost of a charm** — see `../lib/item`'s
+     * `CharmItem.everyMs`. One that mends a point every ten seconds and one that
+     * mends it every ten minutes are the same `hp` row and completely different
+     * things to be wearing, so a card giving the first without the second would
+     * be the more useful half of the answer missing.
+     */
+    it("says what a charm does and how often it does it", () => {
+      const card = itemCard(
+        tileWith({ type: "charm", everyMs: 10_000, hp: 1 }),
+        null,
+        NOTHING_LEARNT,
+      )!;
+
+      expect(card.kind).toBe("Charm");
+      expect(statAt(card.stats, "hp")).toMatchObject({ label: "hp", value: "+1" });
+      expect(statAt(card.stats, "every").value).toBe("10s");
+      // Nothing is asked of a body wearing one, and there is no share of it to
+      // get: a charm acts on its own.
+      expect(card.requirements).toEqual([]);
+      expect(card.effectiveness).toBeNull();
+    });
+
+    it("leaves the health row off a charm that only grants statuses", () => {
+      const luck: StatusDef = {
+        id: "luck",
+        name: "Luck",
+        description: "Fortune favours you",
+        tone: "good",
+        fromMs: 70_000,
+        toMs: 70_000,
+        stacks: false,
+        maxMs: 70_000,
+        everyMs: 1_000,
+        effects: {},
+        modifiers: {},
+        vfx: { tint: null, particles: null, light: null, taperMs: 0 },
+      };
+      const card = itemCard(
+        tileWith({ type: "charm", everyMs: 60_000, statuses: [{ id: "luck" }] }),
+        null,
+        NOTHING_LEARNT,
+        { luck },
+      )!;
+
+      // A charm that mends nothing is an ordinary thing to author, and "+0"
+      // would say it mends nothing rather than that mending is not its job.
+      expect(card.stats.some((row) => row.key === "hp")).toBe(false);
+      expect(statAt(card.stats, "every").value).toBe("1m");
+      // Its list is the consumable's, rolled by the same `inflictedBy` — so the
+      // card has to read it from the same place. See `../lib/item`'s `CharmItem`.
+      expect(card.effects).toMatchObject([{ name: "Luck", chance: null }]);
+    });
+
+    /**
      * An artifact is the kind with no fields. Everything it does it does by
      * being a placement — its light, its sprite, its being in the way — so
      * there is nothing for a profile to report.

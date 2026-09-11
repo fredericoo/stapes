@@ -10,6 +10,7 @@ import {
   type ArcaneStoneItem,
   type ArmorItem,
   type ArmorSlot,
+  type CharmItem,
   type ConsumableItem,
   type ContainerItem,
   type ItemDef,
@@ -559,6 +560,43 @@ function consumableStats(consumable: ConsumableItem): ItemCardStat[] {
   ];
 }
 
+/**
+ * What a charm does, and how often it does it.
+ *
+ * **The interval is not decoration here, it is the whole cost of the thing** —
+ * see `../lib/item`'s `CharmItem.everyMs`. A trinket mending one point every ten
+ * seconds and one mending it every ten minutes are the same `hp` row and
+ * completely different objects to be wearing.
+ *
+ * The health row is dropped where there is none, because a charm that only
+ * grants statuses is an ordinary thing to author and a row of `+0` would say it
+ * mends nothing rather than that mending is not what it is for. The statuses
+ * themselves are the effects list, not a row.
+ */
+function charmStats(charm: CharmItem): ItemCardStat[] {
+  const stats: ItemCardStat[] = [];
+  if (charm.hp) {
+    // Signed like a consumable's, though a charm's may only ever be positive:
+    // the two rows sit under the same heading on a body's worth of kit, and one
+    // of them wearing its sign would read as the other having lost it.
+    stats.push({
+      key: "hp",
+      label: "hp",
+      spoken: "health",
+      value: `+${charm.hp}`,
+      tone: "good",
+    });
+  }
+  stats.push({
+    key: "every",
+    label: "every",
+    spoken: "acts every",
+    value: seconds(charm.everyMs),
+    tone: "plain",
+  });
+  return stats;
+}
+
 function containerStats(
   container: ContainerItem,
   instance: ItemInstance | null,
@@ -663,6 +701,10 @@ function demandsOf(item: ItemDef): Masteries | undefined {
  */
 function grantsOn(item: ItemDef): readonly (StatusGrant & { chance?: number })[] | undefined {
   if (item.type === "weapon" || item.type === "consumable") return item.statuses;
+  // A charm's list is the consumable's, validated by the consumable's schema
+  // and rolled by the same `inflictedBy` — see `../lib/item`'s `CharmItem`. Its
+  // cadence is the `every` row rather than part of the heading.
+  if (item.type === "charm") return item.statuses;
   if (item.type === "stone" && item.effect.kind === "bolt") return item.effect.statuses;
   return undefined;
 }
@@ -703,6 +745,7 @@ function statsFor(
   if (item.type === "shield") return shieldStats(item);
   if (item.type === "stone") return stoneStats(item);
   if (item.type === "consumable") return consumableStats(item);
+  if (item.type === "charm") return charmStats(item);
   if (item.type === "container") return containerStats(item, instance);
   // An artifact is the kind with no fields at all — a torch, a key, a shard —
   // and everything it does it does by being a placement: its light, its sprite,

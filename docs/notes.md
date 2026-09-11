@@ -3546,8 +3546,10 @@ gate and a share; armour has a defence figure and a resistance table but no
 share, because it has no requirements to meet; a shield has the one defence
 figure; a stone reports what it moves, on whom, its cooldown and its reach, and
 its requirements without a share, because an unmet requirement refuses a cast
-rather than weakening it. An artifact reports nothing at all: it is the kind with
-no fields, and everything it does it does by being a placement.
+rather than weakening it; a charm reports what each tick puts back and how often
+a tick comes, because the interval is the whole of what a charm costs. An
+artifact reports nothing at all: it is the kind with no fields, and everything it
+does it does by being a placement.
 
 A resistance row shows the **total** a blow of that kind loses — `def +
 resist[kind]` — with the flat number struck through beside it. A bare "+3" has to
