@@ -4760,7 +4760,7 @@ export class GameSession implements PlaySession {
       // level a stone can be cast on — see {@link bodyOf}, which is where
       // experience becomes levels.
       masteries: body?.masteries ?? {},
-      caster: this.casterPointOf(from),
+      caster: this.casterPointOf(actor, from),
       target: to ? this.castPointOf(to) : null,
     };
   }
@@ -4769,12 +4769,34 @@ export class GameSession implements PlaySession {
     return { ...this.reachPointOf(loc), stackIndex: loc.stackIndex };
   }
 
-  /** Where this body casts from, and the facing and legs a conjure steps with. */
-  private casterPointOf(from: ActorLocation): CasterPoint {
+  /**
+   * Where this body casts from: where it stands, or the cell it is walking
+   * into.
+   *
+   * The walk's destination rather than the board's cell, because a step is
+   * committed only when it lands and the browser has drawn the body there
+   * already. Measured from the cell being left, a conjure with nobody targeted
+   * landed on the cell being entered — which is where the caster was about to
+   * stand. @see `./casting`'s `CasterPoint`
+   *
+   * The stack index is one past the top of the destination, which is where the
+   * body will be once it arrives: `moveEntity` appends.
+   */
+  private casterPointOf(actor: ActorRuntime, from: ActorLocation): CasterPoint {
+    const facing = actorDirection(from);
+    const tileId = from.placed.tileId;
+    const to = actor.walk?.to;
+    if (!to) return { ...this.castPointOf(from), facing, tileId };
+
+    const stack = getStack(this.map, to.x, to.y, to.z);
     return {
-      ...this.castPointOf(from),
-      facing: actorDirection(from),
-      tileId: from.placed.tileId,
+      x: to.x,
+      y: to.y,
+      z: to.z,
+      stackIndex: stack.length,
+      elevAbs: absoluteStandingElevation(to.z, stack, this.tilesById),
+      facing,
+      tileId,
     };
   }
 

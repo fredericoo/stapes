@@ -2818,6 +2818,16 @@ refuses on it and `castConjure` places with it, and the browser runs it too, so
 the button dims when you face a wall. Stepping into open air is still a legal
 step — gravity needs it — so a flame can still be laid over a drop.
 
+#### A cast is resolved from where the caster is arriving
+
+A flame landed on its own caster when the server's idea of where they stood
+lagged the browser's:
+
+- **A step commits only when it lands.** Mid-step the board still holds the
+  body in the cell it is leaving, so the cell "in front" was the cell being
+  entered. `casterPointOf` (session) and `casterPoint` (browser) both cast from
+  the walk's destination instead.
+
 ### The cooldown is per stone, durable, and locks the square
 
 `ItemInstance.cooldownMs`, so two identical stones in two hands cool

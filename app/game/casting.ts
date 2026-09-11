@@ -125,6 +125,13 @@ export type CastPoint = ReachPoint & {
  * Where the caster is, plus the two things a conjure with nobody targeted needs
  * to find the cell in front: which way they face, and what body is doing the
  * stepping.
+ *
+ * **A caster who is walking casts from the cell they are arriving in**, not
+ * the one the board still holds them in. Both sides build it that way — the
+ * session from its walk, the browser from its prediction — because a step is
+ * only committed when it lands, and a cast resolved from the cell being left
+ * put the flame on the cell being entered: exactly where the caster was about
+ * to be standing.
  */
 export type CasterPoint = CastPoint & {
   facing: Direction;

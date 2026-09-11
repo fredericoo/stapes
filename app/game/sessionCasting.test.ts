@@ -1008,6 +1008,28 @@ describe("conjuring", () => {
       reason: "blocked",
     });
   });
+
+  /**
+   * A step is committed to the board only when it lands, so a caster mid-step
+   * is still in the cell they are leaving. The flame goes in front of the cell
+   * they are walking into — laid in front of the one they left, it was laid
+   * exactly where they were about to stand.
+   */
+  it("lays it ahead of a caster mid-step, not in the cell they are entering", () => {
+    const play = session({ weapon: "flame-stone" });
+    expect(play.requestStep("local", "e")).toBe("started");
+
+    expect(play.cast("weapon")).toBe(true);
+    expect(getStack(play.getMap(), 1, 0, 0).map((p) => p.tileId)).not.toContain(
+      "conjured-flame",
+    );
+    expect(getStack(play.getMap(), 2, 0, 0).map((p) => p.tileId)).toContain(
+      "conjured-flame",
+    );
+
+    run(play, TICKS_PER_SECOND);
+    expect(play.statusesOf("local")).toEqual([]);
+  });
 });
 
 /**
