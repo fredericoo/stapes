@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PLAYER_TILE_ID } from "../game/constants";
 import type { StatusVfx } from "../lib/statusVfx";
+import type { Transition, TransitionSide } from "../lib/tileTransition";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { VfxPreview as PreviewRenderer } from "../render/VfxPreview";
 import { Select, Switch } from "../ui";
@@ -57,11 +58,23 @@ const NO_SUBJECT = "~none";
 /** Shared empty, so a caller with a fixed subject allocates nothing to say so. */
 const NO_TILES: TileDef[] = [];
 
+/**
+ * A transition to play on the subject, replayed each time a new one is handed
+ * in. `token` is what makes pressing Play twice play twice: the transition and
+ * side can be the same, and the object never is.
+ */
+export type TransitionPlay = {
+  transition: Transition;
+  side: TransitionSide;
+  token: number;
+};
+
 export function VfxPreview({
   vfx,
   tiles = NO_TILES,
   tilesets,
   subject: fixedSubject,
+  transitionPlay = null,
 }: {
   vfx: StatusVfx;
   /**
@@ -81,6 +94,8 @@ export function VfxPreview({
    * that has no sprite authored yet.
    */
   subject?: TileDef | null;
+  /** Play one side of a transition on the subject. @see TransitionPlay */
+  transitionPlay?: TransitionPlay | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const previewRef = useRef<PreviewRenderer | null>(null);
@@ -137,6 +152,14 @@ export function VfxPreview({
   useEffect(() => {
     previewRef.current?.setTaper(taper);
   }, [taper]);
+
+  useEffect(() => {
+    if (!transitionPlay) return;
+    previewRef.current?.playTransition(
+      transitionPlay.transition,
+      transitionPlay.side,
+    );
+  }, [transitionPlay]);
 
   return (
     <div className="flex flex-col gap-2">
