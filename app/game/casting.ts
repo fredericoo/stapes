@@ -91,6 +91,16 @@ export type Castability =
 /** The unit a countdown is drawn in, and so the grain {@link spellReading} compares at. */
 const MS_PER_SECOND = 1000;
 
+/**
+ * How much of a stone's cooldown the session winds off at a time.
+ *
+ * A second — see `./GameSession`'s `advanceStoneCooldowns` for why the truth is
+ * kept that coarse. Exported because the button that draws the countdown reads
+ * it too: it knows the next figure will be one step lower, one step from now,
+ * and animates towards it rather than waiting for it. @see `../components/SpellBar`
+ */
+export const COOLDOWN_STEP_MS = 1000;
+
 /** Shared, so the overwhelmingly common answer costs no allocation. */
 const CASTABLE: Castability = { ok: true };
 
@@ -349,10 +359,10 @@ export function castableStones(context: CastContext): SpellButton[] {
  * a button can actually show is its sprite, whether it is dimmed and a countdown
  * to the second, so that is the grain worth comparing at.
  *
- * Whole seconds rather than the raw remainder, which makes the bar advance in
- * steps of a second. That is the honest resolution of the thing being drawn: the
- * bar is a countdown and not an animation, and a smoother one would cost a React
- * render per frame for a difference of two pixels on a five-second spell.
+ * Whole seconds rather than the raw remainder, because that is the grain the
+ * session winds a cooldown at — see {@link COOLDOWN_STEP_MS}. The ring still
+ * moves smoothly: the button animates between steps in the browser, so the page
+ * renders once a second and not once a frame. @see `../components/SpellBar`
  */
 export function spellReading(buttons: readonly SpellButton[]): string {
   if (buttons.length === 0) return "";

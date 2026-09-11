@@ -2820,6 +2820,15 @@ and the server there is an equipment message to send — so a per-tick countdown
 would re-render the page and put a whole inventory on the wire thirty times a
 second, for ever, for a number nothing can show that finely.
 
+**The ring is smooth anyway, and that is the browser's work, not React's.**
+Drawn straight from the figures, the arc in `app/components/SpellBar.tsx` jumped
+once a second. Each new figure now starts a Web Animations API animation on the
+arc's `stroke-dashoffset`, from wherever it currently is to one
+`COOLDOWN_STEP_MS` lower over one step. The page still renders once a second.
+Starting from the arc's computed position rather than the figure is what keeps
+it continuous when the first step after a cast comes early — the stone clock is
+shared by the whole world, so its phase against any one cast is arbitrary.
+
 **A cooling stone is locked in its square**: it cannot be moved, swapped or put
 down. This is the second cross-cutting square rule after the two-handed weapon,
 and it lives beside it in `app/game/equipment.ts`. Without it a caster carries

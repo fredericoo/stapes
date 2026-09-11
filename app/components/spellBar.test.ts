@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CastRefusal } from "../game/casting";
-import { spellAppearance, spellPressable } from "./SpellBar";
+import { cooldownShare, spellAppearance, spellPressable } from "./SpellBar";
 
 /**
  * Which of the three appearances a stone wears, and whether pressing it sends
@@ -29,6 +29,32 @@ describe("spellAppearance", () => {
       expect(spellAppearance({ ok: false, reason })).toBe("unavailable");
     },
   );
+});
+
+describe("cooldownShare", () => {
+  const TOTAL_MS = 5600;
+
+  it("is the whole ring for a stone just cast", () => {
+    expect(cooldownShare(TOTAL_MS, TOTAL_MS)).toBe(1);
+  });
+
+  it("is the remaining fraction part-way through", () => {
+    expect(cooldownShare(1400, TOTAL_MS)).toBe(0.25);
+  });
+
+  /** The ring aims one step below the last figure, which on the final step of
+   * a 5.6s stone is 600 - 1000. */
+  it("stops at empty rather than running backwards past the last step", () => {
+    expect(cooldownShare(-400, TOTAL_MS)).toBe(0);
+  });
+
+  it("never draws more than a whole ring", () => {
+    expect(cooldownShare(TOTAL_MS * 2, TOTAL_MS)).toBe(1);
+  });
+
+  it("draws nothing for a stone with no cooldown to divide by", () => {
+    expect(cooldownShare(1000, 0)).toBe(0);
+  });
 });
 
 describe("spellPressable", () => {
