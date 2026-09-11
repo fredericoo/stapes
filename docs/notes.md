@@ -2254,6 +2254,12 @@ one is on", people drew the sword, walked off, and never connected the red
 outline under everything they pointed at with a button they had pressed a minute
 before. Two consequences worth knowing about:
 
+- **A player starts in attack** (`INITIAL_PLAY_MODE`). Tapping a creature is
+  nearly always the start of a fight, and a first fight that began with a white
+  outline and no blows read as the game not working. The shipped shopkeepers
+  have no hit points, so there is nothing to swing at; for an NPC authored with
+  both, `talk` outranks `target` in `ACTION_ORDER`, so a tap within
+  `TALK_REACH_CELLS` talks in every mode. Out of talking reach it targets.
 - **Shift covers the chosen mode rather than replacing it.** The key is momentary
   and the buttons latch, so the chosen mode is kept in its own piece of state and
   shift is read over the top of it — which is the whole of "revert on release",

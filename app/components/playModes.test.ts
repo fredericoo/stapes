@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { modeAfterAttackKey, modeInForce } from "./usePlayModes";
+import {
+  INITIAL_PLAY_MODE,
+  modeAfterAttackKey,
+  modeInForce,
+} from "./usePlayModes";
 
 /**
  * What a tap on the world means, and the two inputs that argue about it.
@@ -48,5 +52,11 @@ describe("the attack key", () => {
   /** Pressed again it puts the sword away, and lands somewhere usable. */
   it("puts it away again, back to target", () => {
     expect(modeAfterAttackKey("attack")).toBe("target");
+  });
+});
+
+describe("the starting mode", () => {
+  it("has the sword out", () => {
+    expect(INITIAL_PLAY_MODE).toBe("attack");
   });
 });

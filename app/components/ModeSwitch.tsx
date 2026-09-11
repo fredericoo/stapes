@@ -61,10 +61,11 @@ const ICON_SIZE_PX: Record<ActionButtonSize, number> = {
 /**
  * What each position is, in the order a hand meets them.
  *
- * Target first because it is where you start and where you come back to,
+ * Target first because it is where the attack key puts the sword away to,
  * inspect in the middle because it is the one shift reaches, and attack last
- * because it is the one with consequences — a thumb travelling to the end of the
- * row is a small deliberate act, which is the right price for drawing a sword.
+ * because it is the one with consequences. Attack is also where a player starts
+ * (see `INITIAL_PLAY_MODE`), so the lit position at the end of the row is the
+ * first thing the switch says.
  */
 const MODES: {
   mode: PlayMode;

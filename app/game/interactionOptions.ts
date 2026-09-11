@@ -323,17 +323,20 @@ export function interactionText(option: InteractionOption): string {
  * to change that again.
  */
 const ACTION_ORDER: Record<InteractionAction, number> = {
-  target: 0,
+  // Above the target, so a plain tap on a body with a dialog talks to it. That
+  // only matters for an NPC authored with both a dialog and hit points: with
+  // the target first, a tap on it would pick it out — or, in attack mode, which
+  // is where a player starts, swing at it — and the conversation could only be
+  // reached from the list. Only offered within `TALK_REACH_CELLS`, so the same
+  // NPC tapped from across the room is still targeted.
+  talk: 0,
+  target: 1,
   // Directly under the target, which is the only place it can go: they are the
   // two rows about the same body and the pair is read as one. Below rather than
   // above because a tap on a body has to single it out — this order is what a
   // plain tap on the world runs, and a tap that set off walking after a wolf
   // instead of pointing at it would be answering a question nobody asked.
-  follow: 1,
-  // Beside the target and above everything the board offers: it is a row about
-  // a body, drawn in that body's box, and a person you can talk to is a person
-  // before they are a thing to take from.
-  talk: 2,
+  follow: 2,
   // Above everything the board offers, and above `open` in particular: a chest
   // authored as both a reward and a container is one you are meant to be *given*
   // the contents of, and rummaging in it is the lesser reading of the same tap.

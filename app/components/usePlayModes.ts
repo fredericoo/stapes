@@ -33,6 +33,18 @@ import { bindAttackKey, bindLookKey } from "../game/heldDirections";
  */
 export type PlayMode = "target" | "inspect" | "attack";
 
+/**
+ * Where a player starts: sword out.
+ *
+ * Attack rather than target because tapping a creature is nearly always the
+ * start of a fight, and a first fight that began with a white outline and no
+ * blows read as the game not working. A person with something to say is still
+ * talked to by a tap in this mode — `talk` ranks above `target` in
+ * `../game/interactionOptions` — so the default does not turn a shopkeeper
+ * into a fight.
+ */
+export const INITIAL_PLAY_MODE: PlayMode = "attack";
+
 export type PlayModes = {
   /**
    * The mode in force, which is what the buttons draw and what the world obeys.
@@ -82,7 +94,7 @@ export function usePlayModes(): PlayModes {
    * survives underneath it — which is exactly what "revert to the previous one on
    * release" means, with no previous-mode bookkeeping to get wrong.
    */
-  const [chosen, setChosen] = useState<PlayMode>("target");
+  const [chosen, setChosen] = useState<PlayMode>(INITIAL_PLAY_MODE);
   const [lookHeld, setLookHeld] = useState(false);
 
   useEffect(() => {
