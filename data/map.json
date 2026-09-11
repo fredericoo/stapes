@@ -316178,9 +316178,6 @@
         },
         {
           "tileId": "dirt"
-        },
-        {
-          "tileId": "arcane-crystal-1"
         }
       ],
       "-15,54": [
@@ -321580,7 +321577,7 @@
       ],
       "-9,50": [
         {
-          "tileId": "grass-2"
+          "tileId": "half-stone"
         }
       ],
       "-9,51": [
@@ -322380,32 +322377,26 @@
       ],
       "-8,46": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "-8,47": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "-8,48": [
         {
-          "tileId": "half-stone"
-        },
-        {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         }
       ],
       "-8,49": [
-        {
-          "tileId": "half-stone"
-        },
         {
           "tileId": "half-stone"
         }
@@ -323163,46 +323154,19 @@
           "tileId": "fence"
         }
       ],
-      "-7,43": [
-        {
-          "tileId": "half-stone"
-        }
-      ],
-      "-7,44": [
-        {
-          "tileId": "half-stone"
-        }
-      ],
-      "-7,45": [
-        {
-          "tileId": "half-stone"
-        },
-        {
-          "tileId": "half-stone"
-        }
-      ],
       "-7,46": [
         {
-          "tileId": "half-stone"
-        },
-        {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         }
       ],
       "-7,47": [
         {
-          "tileId": "half-stone"
-        },
-        {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         }
       ],
       "-7,48": [
         {
-          "tileId": "half-stone"
-        },
-        {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         }
       ],
       "-7,49": [
@@ -323961,22 +323925,6 @@
         },
         {
           "tileId": "fence"
-        }
-      ],
-      "-6,44": [
-        {
-          "tileId": "half-stone"
-        },
-        {
-          "tileId": "half-stone"
-        }
-      ],
-      "-6,45": [
-        {
-          "tileId": "half-stone"
-        },
-        {
-          "tileId": "half-stone"
         }
       ],
       "-6,46": [
@@ -324739,22 +324687,6 @@
           "tileId": "fence"
         }
       ],
-      "-5,44": [
-        {
-          "tileId": "half-stone"
-        },
-        {
-          "tileId": "half-stone"
-        }
-      ],
-      "-5,45": [
-        {
-          "tileId": "half-stone"
-        },
-        {
-          "tileId": "half-stone"
-        }
-      ],
       "-5,46": [
         {
           "tileId": "half-stone"
@@ -324835,9 +324767,6 @@
         },
         {
           "tileId": "dirt"
-        },
-        {
-          "tileId": "arcane-crystal-1"
         }
       ],
       "-5,57": [
@@ -325550,22 +325479,6 @@
         },
         {
           "tileId": "fence"
-        }
-      ],
-      "-4,44": [
-        {
-          "tileId": "half-stone"
-        },
-        {
-          "tileId": "half-stone"
-        }
-      ],
-      "-4,45": [
-        {
-          "tileId": "half-stone"
-        },
-        {
-          "tileId": "half-stone"
         }
       ],
       "-4,46": [
@@ -326367,22 +326280,6 @@
         },
         {
           "tileId": "fence"
-        }
-      ],
-      "-3,44": [
-        {
-          "tileId": "half-stone"
-        },
-        {
-          "tileId": "half-stone"
-        }
-      ],
-      "-3,45": [
-        {
-          "tileId": "half-stone"
-        },
-        {
-          "tileId": "half-stone"
         }
       ],
       "-3,46": [
@@ -327252,22 +327149,6 @@
         },
         {
           "tileId": "wooden-floor"
-        }
-      ],
-      "-2,44": [
-        {
-          "tileId": "half-stone"
-        },
-        {
-          "tileId": "half-stone"
-        }
-      ],
-      "-2,45": [
-        {
-          "tileId": "half-stone"
-        },
-        {
-          "tileId": "half-stone"
         }
       ],
       "-2,46": [
@@ -334353,9 +334234,6 @@
       "6,45": [
         {
           "tileId": "half-stone"
-        },
-        {
-          "tileId": "half-stone"
         }
       ],
       "6,46": [
@@ -335182,9 +335060,6 @@
       "7,40": [
         {
           "tileId": "half-stone"
-        },
-        {
-          "tileId": "half-stone"
         }
       ],
       "7,41": [
@@ -335221,10 +335096,10 @@
       ],
       "7,45": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "7,46": [
@@ -336119,32 +335994,29 @@
       ],
       "8,44": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "8,45": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "8,46": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "8,47": [
-        {
-          "tileId": "half-stone"
-        },
         {
           "tileId": "half-stone"
         }
@@ -337008,34 +336880,34 @@
       ],
       "9,44": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "9,45": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "9,46": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "9,47": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "9,48": [
@@ -337839,50 +337711,50 @@
       ],
       "10,43": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "10,44": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "10,45": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "10,46": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "10,47": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "10,48": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "10,49": [
@@ -338703,66 +338575,66 @@
       ],
       "11,43": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "11,44": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "11,45": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "11,46": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "11,47": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "11,48": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "11,49": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "11,50": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "11,51": [
@@ -339562,9 +339434,6 @@
         },
         {
           "tileId": "dirt"
-        },
-        {
-          "tileId": "arcane-crystal-1"
         }
       ],
       "12,41": [
@@ -339582,74 +339451,74 @@
       ],
       "12,43": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "12,44": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "12,45": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "12,46": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "12,47": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "12,48": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "12,49": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "12,50": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "12,51": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "12,52": [
@@ -340442,9 +340311,6 @@
       "13,40": [
         {
           "tileId": "half-stone"
-        },
-        {
-          "tileId": "half-stone"
         }
       ],
       "13,41": [
@@ -340459,74 +340325,77 @@
       ],
       "13,43": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "13,44": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "13,45": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "13,46": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "13,47": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "13,48": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "13,49": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "arcane-crystal-1"
         }
       ],
       "13,50": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "13,51": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "13,52": [
@@ -341321,78 +341190,81 @@
       "14,42": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "grass"
         }
       ],
       "14,43": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "14,44": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "14,45": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "14,46": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "14,47": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "14,48": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "14,49": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "14,50": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "14,51": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "14,52": [
@@ -342202,80 +342074,77 @@
       ],
       "15,43": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "15,44": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "15,45": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "15,46": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "15,47": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "15,48": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "15,49": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "15,50": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "15,51": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "15,52": [
-        {
-          "tileId": "half-stone"
-        },
         {
           "tileId": "half-stone"
         }
@@ -343112,74 +342981,74 @@
       ],
       "16,43": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "16,44": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "16,45": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "16,46": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "16,47": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "16,48": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "16,49": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "16,50": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "16,51": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "16,52": [
@@ -344006,66 +343875,66 @@
       ],
       "17,43": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "17,44": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "17,45": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "17,46": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "17,47": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "17,48": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "17,49": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "17,50": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "17,51": [
@@ -344881,66 +344750,66 @@
       ],
       "18,43": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "18,44": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "18,45": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "18,46": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "18,47": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "18,48": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "18,49": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "18,50": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "18,51": [
@@ -345806,66 +345675,60 @@
       ],
       "19,42": [
         {
-          "tileId": "half-stone"
-        },
-        {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         }
       ],
       "19,43": [
         {
-          "tileId": "half-stone"
-        },
-        {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         }
       ],
       "19,44": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "19,45": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "19,46": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "19,47": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "19,48": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "19,49": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "19,50": [
@@ -346761,48 +346624,42 @@
       ],
       "20,42": [
         {
-          "tileId": "half-stone"
-        },
-        {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         }
       ],
       "20,43": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "20,44": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "20,45": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "20,46": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "20,47": [
-        {
-          "tileId": "half-stone"
-        },
         {
           "tileId": "half-stone"
         }
@@ -347699,6 +347556,9 @@
       "21,38": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "grass"
         }
       ],
       "21,39": [
@@ -347721,24 +347581,21 @@
       ],
       "21,42": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "21,43": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "21,44": [
-        {
-          "tileId": "half-stone"
-        },
         {
           "tileId": "half-stone"
         }
@@ -506247,9 +506104,6 @@
       "40,77": [
         {
           "tileId": "dirt"
-        },
-        {
-          "tileId": "hand-lantern"
         }
       ],
       "40,78": [
@@ -507888,10 +507742,6 @@
       "43,81": [
         {
           "tileId": "dirt"
-        },
-        {
-          "tileId": "rat",
-          "direction": "s"
         }
       ],
       "43,82": [
@@ -508394,6 +508244,9 @@
       "44,75": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "flame"
         }
       ],
       "44,76": [
@@ -509458,18 +509311,12 @@
       ],
       "46,78": [
         {
-          "tileId": "half-stone"
-        },
-        {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "46,79": [
         {
-          "tileId": "half-stone"
-        },
-        {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "46,80": [
@@ -509979,16 +509826,25 @@
       "47,73": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "47,74": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "47,75": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "47,76": [
@@ -510003,31 +509859,31 @@
       ],
       "47,78": [
         {
-          "tileId": "half-stone"
-        },
-        {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         }
       ],
       "47,79": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "stone-wall"
         }
       ],
       "47,80": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "stone-wall"
         }
       ],
       "47,81": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "47,82": [
@@ -510474,61 +510330,73 @@
       "48,73": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "48,74": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
         }
       ],
       "48,75": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "48,76": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
         }
       ],
       "48,77": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
         }
       ],
       "48,78": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "48,79": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "48,80": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "48,81": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "stone-wall"
         }
       ],
       "48,82": [
@@ -510984,58 +510852,73 @@
       "49,73": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "49,74": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "49,75": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "49,76": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "49,77": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
         }
       ],
       "49,78": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
         }
       ],
       "49,79": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
         }
       ],
       "49,80": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "49,81": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "49,82": [
@@ -511494,58 +511377,73 @@
       "50,73": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "50,74": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "50,75": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "50,76": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "50,77": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "50,78": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
         }
       ],
       "50,79": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
         }
       ],
       "50,80": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
         }
       ],
       "50,81": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "50,82": [
@@ -511978,65 +511876,74 @@
       ],
       "51,73": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "stone-wall"
         }
       ],
       "51,74": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "51,75": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "51,76": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "51,77": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "51,78": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "51,79": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
         }
       ],
       "51,80": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
         }
       ],
       "51,81": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "51,82": [
@@ -512444,10 +512351,6 @@
       "52,71": [
         {
           "tileId": "dirt"
-        },
-        {
-          "tileId": "wolf",
-          "direction": "s"
         }
       ],
       "52,72": [
@@ -512457,68 +512360,77 @@
       ],
       "52,73": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "stone-wall"
         }
       ],
       "52,74": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "52,75": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "52,76": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "52,77": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-forge-flame"
         }
       ],
       "52,78": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "52,79": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "52,80": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
         }
       ],
       "52,81": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "52,82": [
@@ -512947,68 +512859,74 @@
       ],
       "53,73": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "stone-wall"
         }
       ],
       "53,74": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "53,75": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "53,76": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "53,77": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "53,78": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "53,79": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "53,80": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
         }
       ],
       "53,81": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "53,82": [
@@ -513431,67 +513349,73 @@
       "54,73": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "54,74": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "54,75": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "54,76": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "54,77": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "54,78": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "54,79": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "54,80": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "cobblestone"
         }
       ],
       "54,81": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "54,82": [
@@ -513899,58 +513823,73 @@
       "55,73": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "55,74": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "55,75": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "55,76": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "stone-wall"
         }
       ],
       "55,77": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "stone-wall"
         }
       ],
       "55,78": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "stone-wall"
         }
       ],
       "55,79": [
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "stone-wall"
         }
       ],
       "55,80": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "55,81": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "55,82": [
