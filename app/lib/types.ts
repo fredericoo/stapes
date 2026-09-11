@@ -5,6 +5,7 @@ import {
   particleEmitterSchema,
   type ParticleEmitterDef,
 } from "./particleVfx";
+import { parseTileTransitions, type TileTransitions } from "./tileTransition";
 import type { ItemInstance } from "./itemInstance";
 
 export type Direction = "n" | "e" | "s" | "w";
@@ -533,6 +534,12 @@ export type TileDef = StateSprites & {
    * anything here having to say so.
    */
   particles?: ParticleEmitterDef;
+  /**
+   * How this tile arrives and leaves when the server says why — a conjure, a
+   * decay. Absent for almost every tile, which then changes the instant the map
+   * does. Read by the renderer and by nothing else. See `./tileTransition`.
+   */
+  transitions?: TileTransitions;
   /**
    * Sprites for the non-idle {@link SpriteState}s, sparse at every level.
    *
@@ -1485,7 +1492,21 @@ function clampTileLight(def: TileDef): TileDef {
  * that grew only half of it is the bug this shape exists to make impossible.
  */
 function normalizeTileVfx(def: TileDef): TileDef {
-  return withCheckedParticles(clampTileLight(def));
+  return withCheckedTransitions(withCheckedParticles(clampTileLight(def)));
+}
+
+/**
+ * A tile whose transitions parse, side by side, or the same tile without them.
+ *
+ * Dropped rather than refused on the terms {@link withCheckedParticles} gives:
+ * a world that would not load over a dissolve is worse than a flame that simply
+ * appears. See `./tileTransition`.
+ */
+function withCheckedTransitions(def: TileDef): TileDef {
+  if (def.transitions === undefined) return def;
+  const { transitions: raw, ...rest } = def;
+  const transitions = parseTileTransitions(raw);
+  return transitions ? { ...rest, transitions } : rest;
 }
 
 /**
