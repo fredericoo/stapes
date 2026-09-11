@@ -364,6 +364,12 @@ export default function OnlinePage() {
       // *reconnect* builds a fresh one, and a listener attached on the renderer
       // path would be one the second session never got.
       remote.setOnDead(setDead);
+      // The renderer runs the clock forward from one anchor, so a `/time` has
+      // to reach it as a new anchor. Before the first `hello` there is no
+      // renderer yet, and `setOnReady` below reads the hour for itself.
+      remote.setOnClockSet((minutes) =>
+        rendererRef.current?.setMinutesOfDay(minutes),
+      );
 
       // The renderer only starts once there is a world: it centres on the
       // viewer's own actor, and before `hello` there is nobody to centre on.

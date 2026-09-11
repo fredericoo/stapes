@@ -31,7 +31,11 @@ import {
 } from "../app/game/equipment";
 import { DEFAULT_FACING } from "../app/game/actors";
 import { resolveRespawn } from "../app/lib/interactions";
-import { minutesOfDayAt } from "../app/lib/clock";
+import {
+  minutesOfDayAt,
+  wrapMinutes,
+  type MinutesOfDay,
+} from "../app/lib/clock";
 import { masteryXpBlockSchema, type MasteryXp } from "../app/lib/mastery";
 import {
   changedCellsOnLevel,
@@ -574,6 +578,18 @@ export class GameServer {
   ) {}
 
   private session: GameSession | null = null;
+  /**
+   * How far `/time` has moved the world's clock from the wall clock, in
+   * minutes.
+   *
+   * An offset rather than a stored hour, so the clock is still a pure function
+   * of `Date.now()` and keeps running through hibernation exactly as before.
+   * Held here rather than on the session, because a session is replaced on
+   * eviction and on every content save, and the hour somebody chose should
+   * outlive both. It does not outlive the process: nothing checkpoints it, so a
+   * deploy puts the world back on the wall clock.
+   */
+  private clockOffsetMinutes = 0;
   private tiles: TileDef[] = [];
   /**
    * The status catalogue, compiled. Empty until {@link load} runs, which is the
@@ -1848,7 +1864,7 @@ export class GameServer {
       // Read here rather than tracked: time of day is a function of the
       // server's clock, so it costs nothing to keep and cannot fall behind
       // while the object is hibernating.
-      minutesOfDay: minutesOfDayAt(Date.now()),
+      minutesOfDay: this.minutesOfDay(),
     };
     ws.send(JSON.stringify(message));
     // This socket is now current as of the map it was just sent, but the
@@ -1980,6 +1996,7 @@ export class GameServer {
     this.flushConversations();
     this.flushExtracting();
     this.flushNotices();
+    this.flushClock();
     this.flushMasteries();
     // Eating happens between ticks, and the world may be asleep when it does —
     // the same reason the kit is flushed here rather than only on the loop.
@@ -2195,6 +2212,25 @@ export class GameServer {
         ws.send(JSON.stringify({ type: "notice", text } satisfies ServerMessage));
       }
     }
+  }
+
+  /** The world's time of day right now: the wall clock, moved by `/time`. */
+  private minutesOfDay(): MinutesOfDay {
+    return wrapMinutes(minutesOfDayAt(Date.now()) + this.clockOffsetMinutes);
+  }
+
+  /**
+   * Move the world's clock to the hour `/time` asked for, and tell everybody.
+   *
+   * Broadcast rather than addressed, because the hour is the world's: a client
+   * anchors its clock once from `hello` and runs it forward from there, so one
+   * that is not told keeps the old hour until it reconnects.
+   */
+  private flushClock() {
+    const minutes = this.session?.drainClockSet();
+    if (minutes === null || minutes === undefined) return;
+    this.clockOffsetMinutes = minutes - minutesOfDayAt(Date.now());
+    this.broadcast({ type: "clock", minutesOfDay: minutes });
   }
 
   /**

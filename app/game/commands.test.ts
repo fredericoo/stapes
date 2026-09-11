@@ -1034,3 +1034,67 @@ describe("going somewhere", () => {
     }
   });
 });
+
+const MINUTES_PER_HOUR = 60;
+const SIX_PM_MINUTES = 18 * MINUTES_PER_HOUR;
+const HALF_SIX_AM_MINUTES = 6 * MINUTES_PER_HOUR + 30;
+
+/**
+ * `/time`, which is the one command about the world rather than a body.
+ *
+ * The session only queues the hour — the clock is the server's — so what these
+ * pin is the reading of a 24-hour time and that the request is handed on once.
+ * Whether the wire carries it is `server/GameServer.test.ts`'s question.
+ */
+describe("setting the time", () => {
+  it("reads a 24-hour time as minutes past midnight", () => {
+    expect(parseCommand("/time 18:00")).toEqual({
+      ok: true,
+      command: { name: "time", minutes: SIX_PM_MINUTES },
+    });
+    expect(parseCommand("/time 00:00")).toEqual({
+      ok: true,
+      command: { name: "time", minutes: 0 },
+    });
+  });
+
+  it("forgives a leading zero nobody typed", () => {
+    expect(parseCommand("/time 6:30")).toMatchObject({
+      ok: true,
+      command: { minutes: HALF_SIX_AM_MINUTES },
+    });
+  });
+
+  it("names the word that is not a time, whichever way it is wrong", () => {
+    for (const typed of ["24:00", "18:60", "noon", "18", "6pm", "-1:00"]) {
+      expect(parseCommand(`/time ${typed}`)).toEqual({
+        ok: false,
+        refusal: { kind: "badTime", typed },
+      });
+    }
+  });
+
+  it("hands back the grammar when the count of words is wrong", () => {
+    const session = world();
+    session.runCommand("/time", "me");
+    expect(session.drainNotices("me")).toEqual([`Say ${COMMAND_USAGE.time}`]);
+    session.runCommand("/time 18:00 19:00", "me");
+    expect(session.drainNotices("me")).toEqual([`Say ${COMMAND_USAGE.time}`]);
+    expect(session.drainClockSet()).toBeNull();
+  });
+
+  it("queues the hour for the server once, and says what it is now", () => {
+    const session = world();
+    session.runCommand("/time 18:00", "me");
+    expect(session.drainNotices("me")).toEqual(["It is now 18:00"]);
+    expect(session.drainClockSet()).toBe(SIX_PM_MINUTES);
+    expect(session.drainClockSet()).toBeNull();
+  });
+
+  it("keeps the last hour typed when two land between flushes", () => {
+    const session = world();
+    session.runCommand("/time 06:30", "me");
+    session.runCommand("/time 18:00", "me");
+    expect(session.drainClockSet()).toBe(SIX_PM_MINUTES);
+  });
+});

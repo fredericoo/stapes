@@ -492,6 +492,29 @@ describe("time of day", () => {
       minutesApart(hello.minutesOfDay as number, minutesOfDayAt(Date.now())),
     ).toBeLessThan(CLOCK_TOLERANCE_MINUTES);
   });
+
+  /**
+   * A client anchors its clock once and runs it forward, so a `/time` that only
+   * moved the server would be seen by nobody until they reconnected. Both halves
+   * are asked: somebody already standing there is told, and somebody arriving
+   * after an eviction is handed the moved hour rather than the wall clock's.
+   */
+  it("moves everybody to the hour /time names, and keeps it", async () => {
+    const sixPmMinutes = 18 * 60;
+    const alice = await connect("alice");
+    const bob = await connect("bob");
+
+    command(alice.ws, "/time 18:00");
+
+    const clock = await nextMessageOfType(bob.ws, "clock");
+    expect(clock.minutesOfDay).toBe(sixPmMinutes);
+
+    await simulateEviction();
+    const carol = await connect("carol");
+    expect(
+      minutesApart(carol.hello.minutesOfDay as number, sixPmMinutes),
+    ).toBeLessThan(CLOCK_TOLERANCE_MINUTES);
+  });
 });
 
 describe("surviving eviction", () => {

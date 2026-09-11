@@ -106,7 +106,9 @@ import {
   statusesClearedNotice,
   statusGrantedNotice,
   tileNotice,
+  timeNotice,
 } from "./notices";
+import type { MinutesOfDay } from "../lib/clock";
 import { leaveResidue } from "./residue";
 import {
   GOTO_COMMAND,
@@ -117,12 +119,14 @@ import {
   resolveCell,
   STATUS_COMMAND,
   TILE_COMMAND,
+  TIME_COMMAND,
   type Command,
   type CommandRefusal,
   type HealthCommand,
   type MasteryCommand,
   type StatusCommand,
   type TileCommand,
+  type TimeCommand,
 } from "./commands";
 import { findEntryCell } from "./entry";
 import {
@@ -1641,6 +1645,14 @@ export class GameSession implements PlaySession {
    * one send on the next flush.
    */
   private readonly masteriesChanged = new Set<string>();
+  /**
+   * The hour somebody asked the world's clock to read, waiting for the server.
+   *
+   * Held rather than acted on, because the session has no clock: time of day
+   * is a function of the server's wall clock, which this object never reads.
+   * The server drains it and moves its own. @see drainClockSet
+   */
+  private pendingClockSet: MinutesOfDay | null = null;
   private readonly plateCells = new Map<string, Coord>();
   /**
    * Cells holding a placement wired to a signal channel — emitters and
@@ -6825,6 +6837,19 @@ export class GameSession implements PlaySession {
     return changed;
   }
 
+  /**
+   * The hour `/time` last asked for, if anybody has since this was last read.
+   *
+   * A drain on the terms the queues above are, because a change of hour is an
+   * event: the server moves its clock once, tells everybody once, and from
+   * there the clock runs on its own.
+   */
+  drainClockSet(): MinutesOfDay | null {
+    const minutes = this.pendingClockSet;
+    this.pendingClockSet = null;
+    return minutes;
+  }
+
   canTakeReward(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.idle(actor)) return false;
@@ -7213,7 +7238,22 @@ export class GameSession implements PlaySession {
         return this.runGotoCommand(command, id);
       case MOVE_COMMAND:
         return this.runMoveCommand(command, id);
+      case TIME_COMMAND:
+        return this.runTimeCommand(command, id);
     }
+  }
+
+  /**
+   * `/time` — ask for the world's clock to read that hour.
+   *
+   * Never refused: every hour that parsed is one the clock can read, and
+   * nobody needs a body to change it. The latest request wins when two land
+   * between flushes, which is the hour the last person typed.
+   */
+  private runTimeCommand(command: TimeCommand, id: string): null {
+    this.pendingClockSet = command.minutes;
+    this.say(id, timeNotice(command.minutes));
+    return null;
   }
 
   /**

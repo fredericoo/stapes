@@ -3712,10 +3712,9 @@ A line beginning with `/` is an instruction rather than something to say.
 `app/game/commands.ts` owns that one rule and the grammar behind it,
 `GameSession.runCommand` is the only place it changes anything, and
 `app/game/notices.ts` turns every refusal into the sentence the player reads.
-Today there are two — `/mastery <mastery> <level> [player id]`, which sets a
-mastery on yourself or on anybody whose id you can name, and
-`/tile <tile> [x] [y] [z]`, which calls any tile in the catalogue into the
-world.
+The verbs are `/mastery`, `/tile`, `/status`, `/health`, `/goto`, `/move` and
+`/time`; `COMMAND_USAGE` in `app/game/commands.ts` is the grammar of each, and
+is the line a player is shown when they get one wrong.
 
 - **Nobody is checked.** Any connected player may set any mastery on anybody and
   put anything anywhere. That is deliberate and temporary: it is a world with no
@@ -3837,6 +3836,29 @@ it is worth knowing before going looking for the field in single-player.
   `summonedOwnerId` takes the names this same command has already minted: with
   nothing adopted until the end, the runtime cannot see a clash inside one
   `/tile wolf x3` for itself.
+
+### `/time` moves the world's clock, for everybody
+
+`/time 18:00` puts the whole world at six in the evening. The hour belongs to
+the world rather than to a body, so there is no target and nothing to refuse
+beyond a time that does not parse.
+
+- **The session only queues it.** `GameSession` has no clock — time of day is
+  `minutesOfDayAt(Date.now())`, which the server reads — so `runTimeCommand`
+  records the hour and `drainClockSet` hands it to `GameServer.flushClock`.
+- **The server keeps an offset, not an hour.** `clockOffsetMinutes` is added to
+  the wall-clock reading, so the clock still runs through hibernation without
+  being ticked or checkpointed. It lives on `GameServer` rather than the session
+  because a session is replaced on eviction and on every content save. Nothing
+  persists it, so a deploy puts the world back on the wall clock.
+- **It needs its own message.** A client anchors its clock once, from `hello`,
+  and runs it forward itself; a server that only moved its own clock would be
+  seen by nobody until they reconnected. `clock` is broadcast to every socket,
+  and `RemoteSession` also re-announces the hour on every `hello`, so a renderer
+  that outlives a rebirth picks up the hour it missed while dead.
+- **It says the hour back.** Moving within the day plateau (09:00–16:00) or the
+  night plateau (19:00–04:00) changes nothing on screen, so a silent success
+  would read as a dropped command.
 
 ## A reward happens to the player, not to the board
 

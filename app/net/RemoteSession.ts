@@ -358,6 +358,8 @@ export class RemoteSession implements PlaySession {
   /** How many people the server last said were here. */
   private players = 0;
   private onPlayers: ((count: number) => void) | null = null;
+  /** Told the hour whenever the server says one. See {@link setOnClockSet}. */
+  private onClockSet: ((minutes: MinutesOfDay) => void) | null = null;
 
   constructor(
     private readonly socket: WebSocket,
@@ -465,14 +467,31 @@ export class RemoteSession implements PlaySession {
   }
 
   /**
-   * The world's time of day as of the last `hello`.
+   * The world's time of day as of the last `hello` or `clock`.
    *
-   * Read once, when the renderer starts: from there the renderer runs the same
-   * rate the server does, so a single anchor is enough to keep two browsers in
-   * the same hour without a clock on the wire every tick.
+   * Read when the renderer starts: from there the renderer runs the same rate
+   * the server does, so a single anchor is enough to keep two browsers in the
+   * same hour without a clock on the wire every tick. A `/time` is the one
+   * thing that moves the anchor, and {@link setOnClockSet} is how it is heard.
    */
   minutesOfDay(): MinutesOfDay {
     return this.serverMinutesOfDay;
+  }
+
+  /**
+   * Watch for the server saying what hour it is.
+   *
+   * Fires on every `hello` as well as on a `clock`, because both are the
+   * server's hour and a renderer that outlives a rebirth or a replaced world
+   * would otherwise keep the one it started with.
+   */
+  setOnClockSet(cb: ((minutes: MinutesOfDay) => void) | null) {
+    this.onClockSet = cb;
+  }
+
+  private setClock(minutes: MinutesOfDay) {
+    this.serverMinutesOfDay = minutes;
+    this.onClockSet?.(minutes);
   }
 
   dispose() {
@@ -505,9 +524,14 @@ export class RemoteSession implements PlaySession {
       return;
     }
 
+    if (message.type === "clock") {
+      this.setClock(message.minutesOfDay);
+      return;
+    }
+
     if (message.type === "hello") {
       this.selfId = message.selfId;
-      this.serverMinutesOfDay = message.minutesOfDay;
+      this.setClock(message.minutesOfDay);
       this.serverMap = chunkifyMap(message.map as FlatMapFile);
       this.map = this.serverMap;
       // A restart moves everyone, so nothing that was animating still applies —

@@ -1,3 +1,4 @@
+import { formatClock, type MinutesOfDay } from "../lib/clock";
 import type { ExtractInteraction, PlacedReward } from "../lib/interactions";
 import { DEFAULT_EXTRACT_VERB } from "../lib/interactions";
 import {
@@ -297,6 +298,10 @@ export function commandRefusalNotice(refusal: CommandRefusal): string {
       return `Nothing will fit at ${cellName(refusal.at)}`;
     case "badHealth":
       return `"${refusal.typed}" is not a number of hit points. Say a figure, or one with a + or - in front of it`;
+    case "badTime":
+      // Both ends of the range named, because the two ways to get this wrong
+      // are a twelve-hour habit and a missing colon, and an example fixes both.
+      return `"${refusal.typed}" is not a time. Write it like 18:00, from 00:00 to 23:59`;
     case "unharmableTarget":
       // Named rather than explained, on the terms `unteachableTarget` is: "that
       // body has no battler block" is a fact about the engine, and the player
@@ -415,6 +420,17 @@ export function noRouteNotice(why: PathRefusal): string {
 }
 
 /** What a body is told when a status is put on it by hand. */
+/**
+ * What `/time` says back to whoever typed it.
+ *
+ * Said at all, unlike `/goto`, because the change is often invisible: the sky
+ * holds one colour from 09:00 to 16:00 and another from 19:00 to 04:00, so
+ * moving within either looks exactly like a command that was dropped.
+ */
+export function timeNotice(minutes: MinutesOfDay): string {
+  return `It is now ${formatClock(minutes)}`;
+}
+
 export function statusGrantedNotice(name: string): string {
   return `${name}.`;
 }
