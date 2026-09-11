@@ -521,6 +521,17 @@ export type MotionEvent =
     };
 
 export type ServerMessage =
+  /**
+   * The world's clock was moved, by `/time`, to this hour.
+   *
+   * Broadcast to everybody, because a client anchors its clock once from
+   * {@link hello} and runs it forward on its own: without this, only a joiner
+   * would ever see the new hour.
+   */
+  | {
+      type: "clock";
+      minutesOfDay: number;
+    }
   /** Full state, on join and after the world restarts. */
   | {
       type: "hello";
@@ -1267,6 +1278,10 @@ const serverMessageSchema = v.variant("type", [
     text: v.string(),
   }),
   v.object({
+    type: v.literal("clock"),
+    minutesOfDay: v.number(),
+  }),
+  v.object({
     type: v.literal("statuses"),
     statuses: v.array(statusPatchSchema),
   }),
@@ -1484,7 +1499,7 @@ export const GAME_SOCKET_PATH = "/online/ws";
  * This is deliberately not the build id. A client deploy that changes no
  * messages should not disconnect anybody, and most client deploys are that.
  */
-export const PROTOCOL_VERSION = 6;
+export const PROTOCOL_VERSION = 7;
 
 /**
  * How often the world says nothing, to keep a proxy from hanging up.

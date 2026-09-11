@@ -1,3 +1,4 @@
+import type { MinutesOfDay } from "../lib/clock";
 import { MAX_CONSUMABLE_HP_SHIFT } from "../lib/item";
 import {
   MASTERIES,
@@ -68,6 +69,7 @@ export const STATUS_COMMAND = "status";
 export const HEALTH_COMMAND = "health";
 export const GOTO_COMMAND = "goto";
 export const MOVE_COMMAND = "move";
+export const TIME_COMMAND = "time";
 
 /** The argument that takes everything off instead of putting something on. */
 export const STATUS_CLEAR_ARGUMENT = "clear";
@@ -79,7 +81,8 @@ export type CommandName =
   | typeof STATUS_COMMAND
   | typeof HEALTH_COMMAND
   | typeof GOTO_COMMAND
-  | typeof MOVE_COMMAND;
+  | typeof MOVE_COMMAND
+  | typeof TIME_COMMAND;
 
 /**
  * How each command is written, in one place.
@@ -116,6 +119,7 @@ export const COMMAND_USAGE: Record<CommandName, string> = {
   // sign used to.
   [GOTO_COMMAND]: `${COMMAND_PREFIX}${GOTO_COMMAND} <x> <y> [z]`,
   [MOVE_COMMAND]: `${COMMAND_PREFIX}${MOVE_COMMAND} <east> <south> [up]`,
+  [TIME_COMMAND]: `${COMMAND_PREFIX}${TIME_COMMAND} <hh:mm>`,
 };
 
 /**
@@ -234,12 +238,23 @@ export type Command =
       health: HealthChange;
       /** Null for the body that typed it — either `self` or nothing at all. */
       target: string | null;
+    }
+  | {
+      name: typeof TIME_COMMAND;
+      /**
+       * The hour to put the world's clock at, as minutes past midnight.
+       *
+       * No target, because there is nobody to point it at: the clock belongs to
+       * the world, so every player standing in it moves to this hour together.
+       */
+      minutes: MinutesOfDay;
     };
 
 export type MasteryCommand = Extract<Command, { name: typeof MASTERY_COMMAND }>;
 export type TileCommand = Extract<Command, { name: typeof TILE_COMMAND }>;
 export type StatusCommand = Extract<Command, { name: typeof STATUS_COMMAND }>;
 export type HealthCommand = Extract<Command, { name: typeof HEALTH_COMMAND }>;
+export type TimeCommand = Extract<Command, { name: typeof TIME_COMMAND }>;
 
 /**
  * What a health command asks for.
@@ -281,6 +296,7 @@ export type CommandRefusal =
   // mastery refusal does.
   | { kind: "unknownStatus"; typed: string; known: readonly string[] }
   | { kind: "badHealth"; typed: string }
+  | { kind: "badTime"; typed: string }
   /** A body with no hit points to move — a crate, a sign, a tuft of grass. */
   | { kind: "unharmableTarget"; name: string };
 
@@ -327,6 +343,8 @@ export function parseCommand(raw: string): CommandParse {
       return parseGotoArguments(args);
     case MOVE_COMMAND:
       return parseMoveArguments(args);
+    case TIME_COMMAND:
+      return parseTimeArguments(args);
     default:
       return {
         ok: false,
@@ -672,6 +690,45 @@ function parseMoveArguments(args: string[]): CommandParse {
 
   const [x, y, z] = parsed.values;
   return { ok: true, command: { name: MOVE_COMMAND, by: { x: x!, y: y!, z: z ?? 0 } } };
+}
+
+/**
+ * An hour and a minute on a 24-hour clock, the hour with or without its
+ * leading zero.
+ *
+ * Anchored at both ends on {@link HEALTH_PATTERN}'s terms. The range is checked
+ * after the match rather than written into the pattern, so `24:00` and `18:60`
+ * reach the same refusal as `noon` and name the word back.
+ */
+const TIME_PATTERN = /^(\d{1,2}):(\d{2})$/;
+
+const HOURS_PER_DAY = 24;
+const MINUTES_PER_HOUR = 60;
+
+/**
+ * `/time <hh:mm>` — put the world's clock at that hour.
+ *
+ * Only the reading is settled here. The clock itself is the server's — see
+ * `server/GameServer`'s `flushClock` — so this hands back minutes past midnight
+ * and nothing about how the world gets there.
+ */
+function parseTimeArguments(args: string[]): CommandParse {
+  if (args.length !== 1) {
+    return { ok: false, refusal: { kind: "badArguments", command: TIME_COMMAND } };
+  }
+
+  const [token = ""] = args;
+  const match = TIME_PATTERN.exec(token);
+  const hours = match ? Number(match[1]) : Number.NaN;
+  const minutes = match ? Number(match[2]) : Number.NaN;
+  if (!(hours < HOURS_PER_DAY && minutes < MINUTES_PER_HOUR)) {
+    return { ok: false, refusal: { kind: "badTime", typed: token } };
+  }
+
+  return {
+    ok: true,
+    command: { name: TIME_COMMAND, minutes: hours * MINUTES_PER_HOUR + minutes },
+  };
 }
 
 /**
