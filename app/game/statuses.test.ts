@@ -1,11 +1,20 @@
 import { describe, expect, it } from "vitest";
 import statusesJson from "../../data/statuses.json";
-import { resolveStatus, type StatusDef } from "../lib/status";
+import {
+  COMBAT_DURATION_MS,
+  COMBAT_STATUS,
+  COMBAT_STATUS_ID,
+  resolveStatus,
+  type StatusDef,
+  statusesById,
+} from "../lib/status";
 import { TICK_MS } from "./constants";
 import { Rng } from "./rng";
 import {
   advanceStatuses,
   applyStatus,
+  enterCombat,
+  inCombat,
   rollDurationMs,
   snapToTick,
   type StatusInstance,
@@ -306,5 +315,57 @@ describe("modifiers", () => {
     const out = withStatusModifiers(base, held, catalogue(def), 8);
     expect(out.maxHp).toBe(base.maxHp * 2);
     expect(out.damage).toBe(base.damage + base.maxHp);
+  });
+});
+
+describe("the combat flag", () => {
+  it("starts at the full minute", () => {
+    expect(enterCombat([])).toEqual([
+      {
+        defId: COMBAT_STATUS_ID,
+        durationMs: COMBAT_DURATION_MS,
+        remainingMs: COMBAT_DURATION_MS,
+        sinceEffectMs: 0,
+      },
+    ]);
+  });
+
+  it("starts the minute again rather than adding a second one", () => {
+    const nearlyOver = enterCombat([]).map((s) => ({ ...s, remainingMs: 1 }));
+    const again = enterCombat(nearlyOver);
+    expect(again).toHaveLength(1);
+    expect(again[0]!.remainingMs).toBe(COMBAT_DURATION_MS);
+  });
+
+  it("leaves every other status exactly as it was", () => {
+    const fed = applyStatus([], status(), new Rng(1));
+    const flagged = enterCombat(fed);
+    expect(flagged[0]).toBe(fed[0]);
+    expect(inCombat(fed)).toBe(false);
+    expect(inCombat(flagged)).toBe(true);
+  });
+
+  it("runs out on the tick clock like any other status", () => {
+    const out = advanceStatuses(
+      enterCombat([]),
+      COMBAT_DURATION_MS,
+      { hp: 10, maxHp: 10 },
+      statusesById([]),
+    );
+    expect(out.statuses).toEqual([]);
+    expect(out.expired).toBe(true);
+  });
+
+  it("is in every catalogue, whatever was authored under its id", () => {
+    expect(statusesById([])[COMBAT_STATUS_ID]).toBe(COMBAT_STATUS);
+    const impostor = {
+      id: COMBAT_STATUS_ID,
+      name: "Impostor",
+      description: "Authored over the engine's own.",
+      tone: "good",
+      fromMs: 1000,
+      toMs: 1000,
+    };
+    expect(statusesById([impostor])[COMBAT_STATUS_ID]).toBe(COMBAT_STATUS);
   });
 });

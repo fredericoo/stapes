@@ -3533,6 +3533,63 @@ player standing in front of it. `WorldLabelLayer` orders the *elements* rather
 than writing z-indexes, so the stylesheet's bands — name under speech under
 damage — keep deciding everything they already decided.
 
+## Closing the tab does not end a fight
+
+A player is **in combat** for a minute after they last swung, were swung at,
+cast a harmful bolt at somebody, or lost hit points to anything — a blow, a
+bolt, a poison tick, a burn nobody lit, a `/health -n`. Every one of those
+restarts the minute; a heal never does. While it runs, closing the last socket
+does not take the body off the board: it stands there, idle and hittable, and
+leaves only when the minute runs out. Reconnecting in the meantime is an
+ordinary join — `spawn` keeps the body already on the board — so the returning
+player is back in it, mid-fight.
+
+**The flag is a status, and the engine owns it.** `COMBAT_STATUS` in
+`app/lib/status.ts` is defined in code and merged into every catalogue by
+`statusesById`, and into the session's own by `GameSession`'s constructor. So
+it rides everything a status already has — the strip, the stats panel, the
+viewer's `statuses` message, the broadcast status ids, the `status:` row —
+and nothing in `data/statuses.json` can delete the rule that hangs off it. An
+authored entry with the id `combat` is overridden.
+
+**Nothing rolls it.** `enterCombat` in `app/game/statuses.ts` writes the
+instance at full length directly rather than through `applyStatus`, which
+draws a die for the duration. One more draw per swing would change what every
+fight after it rolled, seeded tests included.
+
+**Players only.** `flagCombat` skips residents: a creature has no socket to
+close, and flagging every rat in a fight would broadcast status ids and keep
+the world awake for nothing.
+
+**The world stays awake while anybody is in combat** (`isAtRest`). The minute
+is a clock only the tick winds, and a lingering body waits on it: asleep, it
+would stand there until somebody else moved.
+
+**On the server** (`GameServer.dropSocket`):
+
+- The close drops what only a connection had (`forgetConnection`) and, if the
+  body is in combat, parks the id in `lingering` and calls `standIdle` — no
+  held keys, attack mode off. It does not keep swinging: a fight against
+  something that heals would keep it in the world for good.
+- **The body goes fifteen minutes after the close at the latest**
+  (`MAX_LINGER_MS`), in combat or not. An idle body cannot end a fight: a rat
+  that cannot get through its armour, or keeps missing, restarts the minute on
+  every swing, and without the cap that body never leaves.
+- The close force-saves the actor before parking it, as an ordinary close
+  saves before its despawn. A restart inside the minute reaps the body without
+  releasing it, and the drain saves no actors.
+- `releaseLingerers` runs every tick, **after `noteDeaths`**. A lingering body
+  killed this tick has no runtime and so reads as out of combat; releasing it
+  first would take it out of `lingering` before `noteDeaths` could see it there
+  and write its death down — and a kit on the floor that storage still said
+  was in the bag is an item existing twice.
+- `left` is sent when the body goes, not when the socket did. A client forgets
+  everything about an actor on `left`, and a body still standing there without
+  its name or health bar is a body nobody can tell is still there.
+- An editor save carries lingering bodies into the new world beside the
+  connected ones (`presentActorIds`). A reset and a restart do not: neither
+  seats anybody without a socket.
+
 ## A gate must say what it is, and the rest can be prose
 
 **A figure a player can read is a figure a player will optimise against**, and

@@ -5,7 +5,11 @@ import { defFrom, maxHpFrom, resolveBattler } from "../lib/battler";
 import { ATTACKER_SELECTOR, resolveBrain, slot } from "../lib/brain";
 import { conditionLeaves } from "../lib/conditions";
 import { emptyMap, replaceStack } from "../lib/mapData";
-import { statusesById } from "../lib/status";
+import {
+  COMBAT_DURATION_MS,
+  COMBAT_STATUS_ID,
+  statusesById,
+} from "../lib/status";
 import type { MapFile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, normalizeTileDef, normalizeTiles } from "../lib/types";
 import {
@@ -996,9 +1000,15 @@ describe("venom", () => {
     // makes the player the one carrying the venom at the end.
     fight(session, bodyOf(session, "viper")!.id);
 
-    advanceUntil(session, () => (session.statusesOf("local") ?? []).length > 0);
+    // For the venom by name: the first swing puts the player in combat, which
+    // is a status too, and waiting for "anything" stopped there.
+    advanceUntil(session, () =>
+      (session.statusesOf("local") ?? []).some((s) => s.defId === "venom"),
+    );
 
-    const held = session.statusesOf("local")!;
+    const held = (session.statusesOf("local") ?? []).filter(
+      (status) => status.defId !== COMBAT_STATUS_ID,
+    );
     expect(held.map((status) => status.defId)).toEqual(["venom"]);
     // The weapon's range, not the status's ten seconds — see `StatusGrant`.
     expect(held[0]!.durationMs).toBeGreaterThanOrEqual(30_000);
@@ -1011,7 +1021,11 @@ describe("venom", () => {
     });
     fight(session, bodyOf(session, "viper")!.id);
 
-    advanceUntil(session, () => (session.statusesOf("local") ?? []).length > 0);
+    // For the venom by name: the first swing puts the player in combat, which
+    // is a status too, and waiting for "anything" stopped there.
+    advanceUntil(session, () =>
+      (session.statusesOf("local") ?? []).some((s) => s.defId === "venom"),
+    );
 
     expect(statusesOn(session, "viper")).toEqual([]);
   });
@@ -1252,6 +1266,9 @@ describe("what a swing costs in footwork", () => {
     session.tick(TICK_MS);
     session.setAttackMode(false);
     session.setTarget(null);
+    // The swing put them in combat, which holds the loop open for a minute of
+    // its own. Cleared, so the recovery is measured alone.
+    session.runCommand("/status clear");
 
     // Past the lean and past the blow's own paperwork, so what is left holding
     // the loop open is the recovery and nothing else.
@@ -1369,5 +1386,46 @@ describe("being outnumbered", () => {
     const chipped = settled - hpOfMe(session);
     expect(settled).toBeGreaterThan(0);
     expect(chipped).toBeLessThan(PLAYER_MAX_HP - settled);
+  });
+});
+
+/**
+ * A minute since you last swung, or were swung at or hurt.
+ *
+ * What the flag is for is `server/GameServer`'s — a body that stays on the
+ * board after its player closes the tab. These are the half of it a session
+ * decides: when it starts, who carries it, and when it ends.
+ */
+describe("being in combat", () => {
+  const ONE_SECOND_MS = 1000;
+
+  function combatOn(session: GameSession, id: string): boolean {
+    return (session.statusesOf(id) ?? []).some(
+      (status) => status.defId === COMBAT_STATUS_ID,
+    );
+  }
+
+  it("starts on the first swing, for the player and not the body swung at", () => {
+    const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
+    const dummy = bodyOf(session, "dummy")!.id;
+    fight(session, dummy);
+
+    advanceUntil(session, () => session.inCombat("local"));
+
+    expect(combatOn(session, "local")).toBe(true);
+    // A creature has no socket to close, so nothing would ever read its flag.
+    expect(combatOn(session, dummy)).toBe(false);
+  });
+
+  it("runs out a minute after the last swing, and not before", () => {
+    const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
+    fight(session, bodyOf(session, "dummy")!.id);
+    advanceUntil(session, () => session.inCombat("local"));
+    session.setAttackMode(false);
+
+    advance(session, COMBAT_DURATION_MS - ONE_SECOND_MS);
+    expect(session.inCombat("local")).toBe(true);
+    advance(session, ONE_SECOND_MS * 2);
+    expect(session.inCombat("local")).toBe(false);
   });
 });
