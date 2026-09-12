@@ -763,9 +763,8 @@ contents, because the map takes a new identity on every commit anywhere in the
 world and somebody walking across the room must not re-render the page.
 
 **Targeting is bounded by the view, not by reach**, and that is not an
-inconsistency with `inAttackRange`. Tapping a body does not swing at it — it
-sets the target, and attack mode plus the server decide whether a blow lands
-from there. So the
+inconsistency with `inAttackRange`. Picking a body out is not a blow: the client
+says who, and the server decides whether one lands from there. So the
 question is "who could I single out", whose honest bound is what is on
 screen: choosing your target while walking towards it is how a fight normally
 starts. `GameRenderer` owns that test, because the camera is its business —
@@ -2262,46 +2261,61 @@ are load-bearing.
   as somebody stood watching a deer. It is a target *and* the mode that costs a
   world its sleep. The cost is a busy core rather than a bill now, and on a box
   shared with several preview worlds that is still worth not paying.
-- **The stance is re-sent, not remembered.** `hello` seats a fresh body that is
-  not swinging at anybody, so `RemoteSession` says the mode again on a world
-  replacement and the page says it again on a reconnect, exactly as held
-  directions are resent. The target is dropped instead of resent, because it
-  names somebody in a world that no longer exists.
+- **The stance is re-sent on a world replacement, and on nothing else.** `hello`
+  seats a fresh body that is not swinging at anybody, so `RemoteSession` says it
+  again when the world is replaced under a live socket — the target it was about
+  is dropped instead, because it names somebody in a world that no longer
+  exists. A *reconnect* re-sends nothing: the page used to, back when the stance
+  was a mode a player could be left in, and it is now one half of a press about
+  one creature that a fresh body has not made.
 
-The colour of the outline follows from the mode rather than from having a target
-at all: white while you are only watching, red once it is a fight, and pulsing in
-both cases because the pulse is what separates a *chosen* body from one the
+The colour of the outline follows from the stance rather than from having a
+target at all: white while you are only watching, red once it is a fight, and
+pulsing in both cases because the pulse is what separates a *chosen* body from one the
 cursor happens to be over.
 
-**What a tap means is one setting with three positions, not a pair of switches.**
-Target, inspect and attack are the three, exactly one holds at a time, and the
-machine is `app/components/usePlayModes.ts`. (Target was called "interact"
-until it was clear that picking a body out without swinging is the only thing
-it does differently from attack — objects answer a tap the same way in both.) They were two independent latches
-and the failure was reported rather than guessed at: with no *name* for "neither
-one is on", people drew the sword, walked off, and never connected the red
-outline under everything they pointed at with a button they had pressed a minute
-before. Two consequences worth knowing about:
+### There are no interaction modes
 
-- **A player starts in attack** (`INITIAL_PLAY_MODE`). Tapping a creature is
-  nearly always the start of a fight, and a first fight that began with a white
-  outline and no blows read as the game not working. The shipped shopkeepers
-  have no hit points, so there is nothing to swing at; for an NPC authored with
-  both, `talk` outranks `target` in `ACTION_ORDER`, so a tap within
-  `TALK_REACH_CELLS` talks in every mode. Out of talking reach it targets.
-- **Shift covers the chosen mode rather than replacing it.** The key is momentary
-  and the buttons latch, so the chosen mode is kept in its own piece of state and
-  shift is read over the top of it — which is the whole of "revert on release",
-  with no previous-mode bookkeeping to fall out of step. Holding shift in attack
-  mode suspends the fight and letting go resumes it.
-- **A body offers both rows, side by side, and the stance decides which is lit.**
-  A battler's box holds "Attack" and "Target" on one line — see `actionRows` —
-  and `attacking` picks which of the two is drawn as the state you are in. The
-  row's *label* never changes with the stance, but `active` does, which is why
-  the stance is still part of what `GameRenderer` diffs before handing the list
-  to React. `attack` is above `target` in `ACTION_ORDER`, so a click on a
-  creature in the world starts a fight — which is what it always did, since
-  attack mode shipped on by default.
+What a tap meant used to be a setting: target, inspect or attack, one switch with
+three positions under the world, driven by a hook called `usePlayModes`. It
+replaced two independent latches, which were worse. Both are gone, and the
+report that ended them is the plainest kind there is — **people could not work
+out what any of the three were for.** A switch you have to find before your tap
+means what you wanted is a switch that is wrong twice: once when you have not
+found it, and again every time you forget which way you left it.
+
+What replaced each of the three:
+
+- **Attack and target are two rows on the body itself**, side by side inside its
+  box, exactly one lit. Pressing either says who *and* whether you are swinging
+  — see `applyInteraction` — so the question is asked where the answer is about
+  to be used, rather than a switch's width away from it. `attack` outranks
+  `target` in `ACTION_ORDER`, so a click on a creature in the world fights it;
+  that is what a click already did, since attack mode shipped on by default. For
+  an NPC authored with both a dialog and hit points, `talk` still outranks both
+  within `TALK_REACH_CELLS`, so a tap on a shopkeeper talks.
+- **Inspecting the world is a held shift, or a held finger.** Both live in
+  `GameRenderer` now — `applyLooking` ORs them, and neither can cancel the
+  other. A finger is the interesting half: there is nothing for a press to mean
+  yet at the moment it lands, so a touch press starts a `LOOK_HOLD_MS` timer and
+  *the lift* runs the tap that never became a hold. Hold, then drag, and the
+  world names whatever is under your finger; travel before the wait is up calls
+  it off, because that is a finger on its way somewhere. A mouse still acts on
+  the press — it has shift to say which it meant, and needs no wait.
+- **Inspecting a thing in the interface is hovering or holding it** — see
+  `ItemSlot`'s `asking`. The eye used to be the only way to read what was in a
+  square without using it; a held finger already did that job on a phone, and a
+  mouse has hover for the asking.
+
+Escape drops the target *and* the stance, and `E` swings at whoever is picked or
+stops. Neither can pick a body: choosing who you are fighting is done by
+pointing at them, and a key that chose for you is how a fight used to start with
+somebody nobody had looked at.
+
+The pair of rows is drawn by `actionRows`, and the *labels* never change with
+the stance — only which of the two is `active`. That is still part of what
+`GameRenderer` diffs before handing the list to React, since it changes without
+anything on the board having moved.
 
 The formulas live in `app/game/combat.ts`, kept pure so they can be asserted:
 
@@ -3685,22 +3699,22 @@ The third rule was that bands are counted in the design's own constants rather
 than in fractions, and it went with the bands: there are no bands left to place.
 `MASTERY_BRIDGE` went with them, having no consumer once the phrasing did.
 
-**Inspecting is a mode, and the mode is what makes the sentence reachable.** Look
-mode (shift, or the eye) already meant "I am asking about things rather than
-doing them" — a tap on the world reads a door instead of opening it — and the kit
-now follows the same rule: while the eye is on, a slot cannot be tapped to wield
-or eat what is in it and cannot be dragged, and instead it describes itself the
-moment a pointer rests on it (`app/components/ItemSlot.tsx`). That trade is what
-makes the words reachable on a phone at all. There is no hover on a touchscreen,
-so the description has to come from a press — and a press that both eats your
-apple *and* tells you about it is a gesture nobody can use to look at food they
-want to keep. Taking the actions away is what makes the same gesture safe.
+**A square describes itself when a pointer rests on it**
+(`app/components/ItemSlot.tsx`): a mouse hovering, or a finger held past
+`DWELL_MS`. Resting is the whole gesture, and it is the same one on both
+devices. There is no hover on a touchscreen, so the description has to come from
+a press — and a press that both eats your apple *and* tells you about it is no
+use for looking at food you want to keep, which is why the *held* press is the
+one that answers: it is the one press that unambiguously is not a tap.
+
+This used to be a mode. The eye turned every square on the screen into a label
+at once and took their taps away, which bought the same safety at the price of a
+mode nobody found. The held finger already did the job without one.
 
 The tooltip is drawn rather than handed to the browser's `title`, and that is the
 whole point of it existing: `title` waits half a second and never appears under a
-thumb, where look mode's promise is that pointing at something tells you about it
-now. Entering the mode also cancels a drag in flight, since shift is a key that
-can be pressed halfway through one.
+thumb, where the promise here is that resting on something tells you about it
+now.
 
 ### The gate is one section of a card
 

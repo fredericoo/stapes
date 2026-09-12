@@ -22,9 +22,7 @@ import { DragLayer } from "./DragLayer";
 import { ConversationPanel } from "./ConversationPanel";
 import { InteractionList } from "./InteractionList";
 import type { ActionButtonSize } from "./actionButton";
-import { ModeSwitch } from "./ModeSwitch";
 import { SpellBar } from "./SpellBar";
-import type { PlayMode } from "./usePlayModes";
 import { BagButton, EquipmentToggle, StatsToggle } from "./PanelToggle";
 import { StatsPanel } from "./StatsPanel";
 import type { ActiveStatus, StatusDef } from "../lib/status";
@@ -98,8 +96,6 @@ export function GameViewport({
   onDirectionRelease,
   onSay,
   onTypingChange,
-  mode = "target",
-  onModeChange,
   readouts,
   interactions = [],
   onInteract,
@@ -135,17 +131,6 @@ export function GameViewport({
   /** Given only by a route with somebody to talk to; the bar is absent without it. */
   onSay?: (text: string) => void;
   onTypingChange?: (typing: boolean) => void;
-  /**
-   * What a tap on the world means, of which exactly one thing is true at a time.
-   * See `./usePlayModes`, which owns the machine and the keys that drive it.
-   *
-   * Defaulted to target rather than to the player's starting mode: a route that
-   * has not wired the switch up has no button to put the sword away with, so it
-   * gets the mode that never swings.
-   */
-  mode?: PlayMode;
-  /** Absent on a route with no switch to draw; the row folds away without it. */
-  onModeChange?: (mode: PlayMode) => void;
   /**
    * What the world says about itself — the hour, and on a connected world
    * whether the connection is up.
@@ -485,25 +470,14 @@ export function GameViewport({
   );
 
   /**
-   * The two halves of the controls, in whichever size the hand reaching for them
-   * wants: what a tap on the world means, and what you can open.
+   * What you can open, in whichever size the hand reaching for them wants.
    *
-   * Kept apart because a phone and a desktop want them arranged differently and
-   * for opposite reasons. A thumb wants one row, in one order, everything under
-   * it at once. The desktop column is 224px wide and cannot hold that row —
-   * seven controls in it wrapped, and what wrapped was the bag, alone, on a
-   * second line under a rule that no longer meant anything. So there it is two
-   * deliberate rows in the order the column already reads in: what a tap means,
-   * then what you have.
-   *
-   * The same buttons in the same order either way, so what you learned on a
-   * phone is where you left it on a desktop.
+   * The row used to have a second half — a switch saying what a tap on the world
+   * meant — and the switch is gone: a tap means what the thing under it offers,
+   * and reading rather than acting is a held shift or a held finger. What is
+   * left is only the panels, in one order on both devices, so what you learned
+   * on a phone is where you left it on a desktop.
    */
-  const hasModes = Boolean(onModeChange);
-  const modeSwitch = (size: ActionButtonSize) =>
-    onModeChange ? (
-      <ModeSwitch mode={mode} onChange={onModeChange} size={size} />
-    ) : null;
   const panelButtons = (size: ActionButtonSize) => (
     <>
       <StatsToggle open={showStats} onChange={openStats} size={size} />
@@ -523,7 +497,7 @@ export function GameViewport({
       {/* Last, and only ever drawn where the shell has given up its header —
           see {@link AppMenuButton}. Everything about the page rather than about
           the world, which is why it sits with the things that only open
-          something rather than beside the switch. */}
+          something rather than beside the game itself. */}
       <AppMenuButton size={size} />
     </>
   );
@@ -664,20 +638,24 @@ export function GameViewport({
           </div>
         </div>
 
-        {coarse && (onSay || hasModes) ? (
-          // Everything a tap can mean, in one row directly under the world it
-          // applies to: say something, look at something, fight something. The
-          // field itself hides behind the button — it was a permanent row for
-          // something used in bursts, and on a phone that row is the game's.
+        {coarse ? (
+          // One row directly under the world: what you can say, and what you can
+          // open. The field itself hides behind the button — it was a permanent
+          // row for something used in bursts, and on a phone that row is the
+          // game's.
           <div className="flex w-full shrink-0 items-center gap-2 px-3 py-2">
             {onSay ? (
-              <ChatButton onSay={onSay} onTypingChange={noteTyping} />
+              <>
+                <ChatButton onSay={onSay} onTypingChange={noteTyping} />
+                {/* Ruled off from the panels beside it, because they are a
+                    different kind of button: this one puts words into the world
+                    and those only open something. */}
+                <span
+                  className="h-8 w-px shrink-0 bg-paper/20"
+                  aria-hidden="true"
+                />
+              </>
             ) : null}
-            {modeSwitch("touch")}
-            {/* Ruled off from the switch beside it, because they are a
-                different kind of button: the switch changes what a tap on the
-                world means, and these only open something. */}
-            <span className="h-8 w-px shrink-0 bg-paper/20" aria-hidden="true" />
             {panelButtons("touch")}
           </div>
         ) : onSay ? (
@@ -806,23 +784,16 @@ export function GameViewport({
               tilesets={tilesets}
             />
           </div>
-          {/* Modes above the list and ruled off from it, because they are a
-              different kind of thing: the rows below say what you could do to
-              one particular object, and these say what doing anything means. */}
-          {hasModes ? (
-            <div className="flex shrink-0 items-center gap-1 border-b-2 border-paper/20 pb-2">
-              {modeSwitch("compact")}
-            </div>
-          ) : null}
-          {/* And what you can open, on its own line under them. */}
+          {/* What you can open, above the list and ruled off from it. */}
           <div className="flex shrink-0 items-center gap-1 border-b-2 border-paper/20 pb-2">
             {panelButtons("compact")}
           </div>
           {/* The same row of stones a phone gets, with the same order and the
               same buttons — a desktop simply also has `1`, `2` and `3` for them.
-              Below the switches rather than above, because those say what a tap
-              *means* and this is a thing you do; and absent for anybody carrying
-              no stones, so a column that has never seen magic is unchanged. */}
+              Below the panels rather than above, because those only open
+              something and this is a thing you do to the world; and absent for
+              anybody carrying no stones, so a column that has never seen magic
+              is unchanged. */}
           {spells.length > 0 ? (
             <div className="flex shrink-0 items-center gap-1 border-b-2 border-paper/20 pb-2">
               <SpellBar

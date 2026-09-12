@@ -15,7 +15,6 @@ import { type Equipment, emptyEquipment } from "../game/equipment";
 import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import type { MasteryXp } from "../lib/mastery";
 import { bindCastKeys, bindKeyboard, HeldDirections } from "../game/heldDirections";
-import { usePlayModes } from "../components/usePlayModes";
 import {
   applyInteraction,
   type InteractionOption,
@@ -232,22 +231,11 @@ export default function OnlinePage() {
   );
 
   const [lightingEnabled, setLightingEnabled] = useState(true);
-  const { mode, looking, attacking, setMode } = usePlayModes();
-  // Same reason as the lighting ref below: a reconnect builds a fresh renderer,
-  // and it has to come up in whatever mode the player is already in.
-  const lookingRef = useRef(looking);
-  lookingRef.current = looking;
   // Mirrored into a ref because the cast keys are bound once, with the socket,
   // and must read whatever the row is showing *now* rather than the empty list
   // it was carrying before the first `hello`.
   const spellsRef = useRef(spells);
   spellsRef.current = spells;
-  // And a fresh *session*, which is where attack mode lives — the server seats a
-  // body that is not swinging at anybody, so the stance has to be said again on
-  // every connection. See `RemoteSession`'s handling of `hello` for the other
-  // half of this, when the world itself is replaced under a live socket.
-  const attackingRef = useRef(attacking);
-  attackingRef.current = attacking;
   // Through a ref because the renderer is built on `hello`, and a reconnect
   // builds another one — both must come up at whatever the toggle says now.
   // Held in a ref as well as pushed, because the renderer is built by an effect
@@ -269,16 +257,6 @@ export default function OnlinePage() {
   useEffect(() => {
     rendererRef.current?.setStatuses(statusDefs);
   }, [statusDefs]);
-
-  useEffect(() => {
-    rendererRef.current?.setLookMode(looking);
-  }, [looking]);
-
-  // At the session rather than the renderer: the server is what swings, and the
-  // outline colour comes back in the snapshot rather than being held twice.
-  useEffect(() => {
-    sessionRef.current?.setAttackMode(attacking);
-  }, [attacking]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -397,7 +375,6 @@ export default function OnlinePage() {
         // is a visible flicker on the frame a player is most likely watching.
         renderer.setStatuses(statusDefsRef.current);
         renderer.setLightingEnabled(lightingRef.current);
-        renderer.setLookMode(lookingRef.current);
         renderer.setMinutesOfDay(remote.minutesOfDay());
         renderer.setOnClock(setMinutesOfDay);
         renderer.setOnStats(setStats);
@@ -416,12 +393,15 @@ export default function OnlinePage() {
         renderer.setDirections(input);
         rendererRef.current = renderer;
         renderer.start();
-        // The fresh session knows nothing about keys held across the reconnect,
-        // nor about a sword that was already drawn. Both are said again here
-        // rather than when the socket was created, because until `hello` there
-        // is nothing at the other end listening.
+        // The fresh session knows nothing about keys held across the reconnect.
+        // They are said again here rather than when the socket was created,
+        // because until `hello` there is nothing at the other end listening.
+        //
+        // The stance is not re-sent, and needs no longer be: a fresh body is
+        // swinging at nobody and has nobody picked, and swinging is now
+        // something you ask for about one creature rather than a mode you could
+        // be left in. The next press on a body says both halves again.
         input.resend();
-        remote.setAttackMode(attackingRef.current);
       });
 
       socket.addEventListener("close", (event) => {
@@ -564,8 +544,6 @@ export default function OnlinePage() {
                 onDirectionRelease={releaseDirection}
                 onSay={say}
                 onTypingChange={noteTyping}
-                mode={mode}
-                onModeChange={setMode}
                 readouts={
                   <>
                     {status === "live" ? null : statusChip}

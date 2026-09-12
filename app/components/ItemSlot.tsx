@@ -319,9 +319,9 @@ export function ItemSlot({
   /**
    * The lift that ends a hold must not also use the thing.
    *
-   * The whole point of the gesture is looking at food you want to keep — the
-   * same trade look mode makes — so once the square has answered, the click the
-   * browser synthesises behind the finger is swallowed rather than eaten.
+   * The whole point of the gesture is looking at food you want to keep, so once
+   * the square has answered, the click the browser synthesises behind the finger
+   * is swallowed rather than eaten.
    */
   const swallowClick = useRef(false);
 

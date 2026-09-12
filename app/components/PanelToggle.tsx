@@ -11,11 +11,10 @@ import { useTap } from "./useTap";
 /**
  * The buttons that open what you are carrying, and what you are.
  *
- * Drawn in the same row and at the same size as the mode toggles, and
- * deliberately *not* coloured like them. A mode toggle wears the colour of the
- * outline it puts in the world, which is a promise these cannot keep: opening a
- * panel changes nothing out there. So on is plain paper — clearly a state, and
- * clearly not one of the two modes.
+ * Drawn in the row under the world, at the size everything else in it takes —
+ * see `./actionButton`. Lit in plain paper and in none of the colours the world
+ * uses for pointing at things, because that is a promise these cannot keep:
+ * opening a panel changes nothing out there.
  */
 
 function toggleClass(on: boolean, size: ActionButtonSize): string {

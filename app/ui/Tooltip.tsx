@@ -52,9 +52,9 @@ export function Tooltip({
    * Force it open or shut, instead of letting a hover decide.
    *
    * For a surface whose own rules say when a description is wanted — an item
-   * slot answers a hover in look mode and a held finger anywhere, with none of
-   * the half-second delay a hover tooltip is built around. Absent is the
-   * ordinary case and leaves Base UI in charge.
+   * slot answers a resting mouse or a held finger, with none of the half-second
+   * delay a hover tooltip is built around. Absent is the ordinary case and
+   * leaves Base UI in charge.
    */
   open?: boolean;
   /** Extra classes on the popup, for a tooltip that is a card rather than a line. */
