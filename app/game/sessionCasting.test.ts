@@ -750,6 +750,27 @@ describe("a cooling stone is locked in its square", () => {
     expect(said[0]).toMatch(/cooling/i);
   });
 
+  /**
+   * The other end of the same square. A drag onto a taken square trades the two
+   * things — see `./itemMoves`' `swapInto` — so the stone in it is on its way
+   * out as surely as one being dragged out, and the lock has to hold from this
+   * side too. Silently would read as the panel being broken, which is the whole
+   * reason this refusal speaks at all.
+   */
+  it("cannot be traded out by something dropped on top of it", () => {
+    const play = session({ charm: "mend-stone", weapon: "flame-stone" });
+    play.cast("charm");
+    play.drainNotices();
+
+    expect(play.moveItem({ kind: "weapon" }, { kind: "charm" })).toBe(false);
+    expect(play.equipmentOf("local")?.charm?.tileId).toBe("mend-stone");
+    expect(play.equipmentOf("local")?.weapon?.tileId).toBe("flame-stone");
+
+    const said = play.drainNotices();
+    expect(said).toHaveLength(1);
+    expect(said[0]).toMatch(/cooling/i);
+  });
+
   it("comes out freely once it is ready", () => {
     const play = session({ charm: "mend-stone" });
     cool(play, "charm", 1_000);

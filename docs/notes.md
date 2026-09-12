@@ -4687,6 +4687,89 @@ one level of spilling is the whole of it.
 It applies to players exactly as it does to a deer, which is the point: there is
 one death, and a deer that had picked a bush leaves the berries it was carrying.
 
+## A drag onto a taken square trades the two things
+
+`applyItemMove` used to refuse a destination that was full. It swaps now, and
+the reason is what the gesture is: somebody took hold of a thing and let go of
+it over one particular square. Refusing meant unequipping first and dragging
+again, with a bag that had to have room for the gap in between. What comes out
+goes where the dragged thing came from — `swapInto` — so a swap is one gesture
+and its own undo, and the bag never has to hold both.
+
+**Squares on a body only.** A container appends: its slots fill in order and a
+destination index means nothing, so there is no "the thing that was there" to
+hand back. A full bag still refuses.
+
+**Both slots are emptied before either is filled**, which is the whole of the
+correctness. A swap is two moves that each have to be legal in the state the
+other leaves behind: a greatsword may enter a hand whose partner is about to be
+emptied, and the dagger coming out of that hand may not go back into one the
+greatsword now claims. Checking against the state as it stands would get the
+first wrong and the second wrong the other way. The returning half is held to
+everything the outward half is — the source slot has to accept it, so a pack
+coming off a hand cannot go back into the bag it was dragged out of — and to the
+cooling-stone lock, which `GameSession.moveItem` now says out loud for the
+destination square as well as the source.
+
+**Two of one thing is not a trade.** Four berries against a ceiling of three is
+refused rather than swapped: exchanging the piles would leave you holding the
+number you were trying to add to. Two single swords of one tile still trade,
+because one of them may be written on.
+
+The rule that did *not* change is equipping off the floor. `equipSlotFrom` still
+only offers an empty square, because a row in the world is offered by the
+interface rather than aimed at, and one that quietly put your sword on the floor
+to make room for a worse one is the kind of thing you notice a fight later.
+
+## Dropping on the equipment button ranks every square the thing could be worn in
+
+The shirt button in the control strip takes a drop. Wearing something out of
+your bag used to mean opening the equipment panel to have a square to aim at,
+and on a phone that panel replaces the bag you are dragging out of, so the two
+squares were never on screen together.
+
+A drop there names no square, so `equipDestination` has to work out which one
+was meant — and it has to keep working for a kind of item nobody has written
+yet. So it is a ranking rather than a lookup. Every square the thing would be
+*equipped* in is a candidate, sorted by two keys:
+
+1. **What making room there would cost you**, as a ladder: an empty square (or a
+   pile it pours into) costs nothing, then the same kind of thing, then a
+   weapon, then anything else held, then anything worn. The middle rung is the
+   trade the gesture almost always is — a sword for a sword — and the one below
+   it says that anything you put in a hand is something to do with that hand
+   instead of swinging, which is what you still have another hand for.
+2. **The square it belongs in** (`equipSlotOf`) over any other, which settles
+   ties. Two free hands give a sword the one it is swung with; two swords give
+   the same answer, so "replace the main hand" needs no rule of its own.
+
+**A hand is a candidate only for a thing that belongs in a hand.** Both hands
+take anything you can carry — `handAccepts` — which is right for a drag onto the
+square itself and wrong here: holding a helmet is carrying it, not wearing it.
+Without that clause a second helm lands in your free fist instead of trading
+with the one on your head. It is also what keeps an arcane stone interesting:
+a stone belongs in a hand, so its candidates are both hands *and* the charm, and
+an empty charm beats displacing either.
+
+The drag hands the ranking `lands` — `canMoveItem` with the source end filled in
+— so the best square *the move rules will honour* wins rather than the best
+square outright. The ranking knows what a square will take and cannot know what
+the source end will accept back, and a swap has to satisfy both.
+
+With nothing honoured it answers with the square the thing belongs in anyway,
+and the move is refused there. That is deliberate: answering with no square at
+all would leave the release with nothing under the pointer and fall through to a
+world drop, so a pike dropped on the button with both hands full would land on
+the floor. Something with no square on a body at all — a berry, a chest —
+answers with nothing, and the drop behaves as it does over the stats button
+beside it.
+
+`DropTarget` in `app/components/useItemDrag.ts` is what makes this expressible:
+a registered target is a `SlotRef` or a function asked for one, given what is
+being dragged and the rules to check it against. It is asked when the drag is
+lifted and again when it lands, so it reads the kit as it is then rather than as
+it was when the button drew.
+
 ## Decay is a switch whose input is time
 
 `DecayInteraction` turns a placement into another tile, or into nothing, once it

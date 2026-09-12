@@ -491,10 +491,12 @@ export function equipSlotOf(def: TileDef): EquipSlot | null {
  * that used to be reachable only for a backpack, since that was the one thing
  * with somewhere to go.
  *
- * The slot has to be **empty**. Equipping never displaces what you are already
- * holding: a swap is two deliberate acts, and a tap that quietly put your sword
- * on the floor to make room for a worse one is the kind of thing you notice a
- * fight later. Taking the second sword is what the bag is for.
+ * The slot has to be **empty**, and this is the one place that rule still holds
+ * outright. A drag names a square, so landing on a taken one trades what is in
+ * it — see `./itemMoves`' `swapInto`. A row in the world names nothing: it is
+ * offered by the interface rather than aimed at, and one that quietly put your
+ * sword on the floor to make room for a worse one is the kind of thing you
+ * notice a fight later. Taking the second sword is what the bag is for.
  */
 export function equipSlotFrom(
   map: MapFile,

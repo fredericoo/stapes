@@ -19,8 +19,9 @@ import type { SlotRef } from "./itemMoves";
  *
  * - a container is for looking inside, so a tap opens it;
  * - a weapon is for holding and armour is for wearing, so a tap puts either in
- *   the square it belongs in — and taps the thing already there back into your
- *   bag, because the inverse of a use is the same gesture again;
+ *   the square it belongs in — trading with whatever was there — and taps the
+ *   thing already equipped back into your bag, because the inverse of a use is
+ *   the same gesture again;
  * - a consumable is for eating or drinking, so a tap spends it — the case this
  *   module was written expecting to gain.
  *
@@ -43,9 +44,11 @@ export type ItemUse =
    *
    * Deliberately not a use of its own: wielding a sword is `moveItem` and
    * nothing else, so it is validated once, by the rules that already say what a
-   * slot will take. A refused move is a tap that does nothing — which is the
-   * honest outcome when your hand is already full, since the model has no swap
-   * and inventing one here would be inventing it in the wrong place.
+   * slot will take. It follows that a tap trades with a full square rather than
+   * doing nothing, because that is what a move onto one does now — see
+   * `./itemMoves`' `swapInto`. A refused move is still a tap that does nothing,
+   * and it is still the honest outcome: there is nothing to say about a square
+   * the rules will not have.
    */
   | { type: "move"; to: SlotRef };
 
