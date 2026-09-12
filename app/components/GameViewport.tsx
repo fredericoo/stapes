@@ -262,9 +262,6 @@ export function GameViewport({
   tilesets?: TilesetDef[];
 }) {
   const coarse = useCoarsePointer();
-  // Read off the one mode rather than carried as a flag of its own: the panels
-  // want to know whether the player is inspecting, and that is this answer.
-  const looking = mode === "inspect";
   // Zooming a fixed-square world only crops the controls off the screen. Held
   // to the game rather than declared for the whole site, so the editor keeps
   // the magnifying glass it has a real use for. See `./useNoZoom`.
@@ -413,19 +410,6 @@ export function GameViewport({
   });
 
   /**
-   * Picking up the eye puts down whatever was in hand.
-   *
-   * Look mode takes the slots out of service — see `./ItemSlot` — and shift is a
-   * key that can be pressed halfway through a drag. Without this the sprite
-   * would stay stuck to the pointer over squares that no longer answer it, and
-   * letting go would land a move made in a mode that has no moves in it.
-   */
-  const { cancel: cancelDrag } = drag;
-  useEffect(() => {
-    if (looking) cancelDrag();
-  }, [looking, cancelDrag]);
-
-  /**
    * A panel is a thing you opened, and a hand you have emptied is not one.
    *
    * The same rule the bag panel follows by asking `equipment.bag` before it
@@ -572,7 +556,6 @@ export function GameViewport({
           tiles={tiles}
           tilesets={tilesets}
           drag={drag}
-          inspecting={looking}
         />
       ) : null}
       {/* A panel is a thing you opened, and a bag you are not wearing is not one:
@@ -588,7 +571,6 @@ export function GameViewport({
           title="Bag"
           onClose={() => openBag(false)}
           drag={drag}
-          inspecting={looking}
           masteryXp={masteryXp}
           statusDefs={statusDefs}
         />
@@ -604,7 +586,6 @@ export function GameViewport({
           title={tilesById[heldContainer.tileId]?.name ?? "Container"}
           onClose={() => setOpenHand(null)}
           drag={drag}
-          inspecting={looking}
           masteryXp={masteryXp}
           statusDefs={statusDefs}
         />
@@ -624,7 +605,6 @@ export function GameViewport({
           }
           onClose={() => onOpenContainer?.(null)}
           drag={drag}
-          inspecting={looking}
           masteryXp={masteryXp}
           statusDefs={statusDefs}
         />

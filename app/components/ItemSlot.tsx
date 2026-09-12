@@ -36,21 +36,21 @@ import { TilePreview } from "./TilePreview";
  * also what makes an empty slot a place to *drop* something, which a missing
  * square could not be.
  *
- * ## Look mode turns a slot from a control into a label
+ * ## A square describes itself when a pointer rests on it
  *
- * While the eye is on, a slot does nothing: it cannot be tapped to wield or eat
- * what is in it, and it cannot be dragged. What it does instead is describe
- * itself the moment a pointer is over it — see `./ItemCard`.
+ * Resting is the whole gesture, on either device: a mouse hovers, and a finger
+ * is held still for {@link DWELL_MS}. Both mean "this one, but wait", and
+ * neither of them uses what is in the square — which is the point, because a
+ * gesture that both eats your apple *and* tells you about it is no use for
+ * looking at food you want to keep.
  *
- * That trade is what makes the description reachable at all on a phone. There is
- * no hover on a touchscreen, so the words have to come from a press; but a press
- * that both eats your apple *and* tells you about it is a gesture nobody can use
- * to look at food they want to keep. Look mode already means "I am asking about
- * things rather than doing them" everywhere else on the screen — a tap on the
- * world reads a door instead of opening it — so the kit follows the same rule,
- * and the same gesture is safe because it no longer does the other thing.
+ * It used to be a mode. The eye turned every square on the screen into a label
+ * at once and took away their taps, which made the description reachable on a
+ * phone at the cost of a mode nobody found. The held finger already did the
+ * same job without one, so the mode is gone and the gesture is all that is
+ * left — the same gesture, and the same delay, a trade offer already uses.
  *
- * Either gesture produces a whole card rather than three lines — see
+ * Either pointer produces a whole card rather than three lines — see
  * `./ItemCard` — drawn through the shared `../ui/Tooltip` and rendered into a
  * portal. The portal matters: a span positioned inside this button is clipped by
  * the `overflow-y-auto` column the panels sit in on a phone, which makes
@@ -161,7 +161,6 @@ export function ItemSlot({
   emptyIcon: EmptyIcon,
   open,
   drag,
-  inspecting = false,
   masteryXp = {},
   statusDefs = NO_STATUS_DEFS,
   sizePx = ITEM_SLOT_SIZE_PX,
@@ -224,15 +223,6 @@ export function ItemSlot({
    */
   drag: ItemDrag;
   /**
-   * Look mode is on, so this square describes rather than acts.
-   *
-   * Passed down from whoever owns the mode rather than read from a store,
-   * because it is the same flag the canvas is drawing its blue outlines from:
-   * a slot that had its own idea of whether the player was looking would be a
-   * second answer to a question the eye button already settles.
-   */
-  inspecting?: boolean;
-  /**
    * What the viewer has learnt, as raw experience — see `GameSnapshot`.
    *
    * Here because half of what a weapon has to say is about the hands holding it.
@@ -287,14 +277,17 @@ export function ItemSlot({
   );
 
   /**
-   * A pointer is resting on this square, or a keyboard has focused it.
+   * A mouse is resting on this square, or a keyboard has focused it.
    *
-   * Only ever read while inspecting, and held here rather than lifted to the
-   * panel because only one square can be under a pointer at a time and nothing
-   * outside this one needs to know which. `pointerenter` and `pointerleave`
-   * cover a mouse and a thumb in the same pair of events — a touch enters on the
-   * finger landing and leaves when it lifts — which is what makes "held over"
-   * mean the same thing on both.
+   * The fine pointer's half of the question the dwell below answers for a
+   * finger. Held here rather than lifted to the panel because only one square
+   * can be under a pointer at a time and nothing outside this one needs to know
+   * which.
+   *
+   * `pointerenter` fires for a landing finger too, which is why this is read
+   * only on a pointer that hovers: a card that appeared the instant a thumb
+   * touched down would flash on every tap that was only ever meant to use the
+   * thing.
    */
   // The one question the interface asks about the device, asked here because a
   // held finger is a gesture a mouse does not make. See `../lib/useMediaQuery`.
@@ -303,11 +296,9 @@ export function ItemSlot({
   /**
    * A finger has been resting on this square long enough to be asking about it.
    *
-   * **The thumb's version of hovering.** Look mode was the only way to read a
-   * square without also using what was in it, and on a phone that means finding
-   * a mode before you can find out what you are carrying — where a mouse gets
-   * the same sentence for free by not clicking. A held finger is the gesture
-   * that already means "this one, but wait": it costs no mode, and it is the one
+   * **The thumb's version of hovering**, and now the only way a phone reads a
+   * square without also using what is in it. A held finger is the gesture that
+   * already means "this one, but wait": it costs no mode, and it is the one
    * press a player can make that unambiguously is not a tap.
    *
    * Only ever set on a coarse pointer. A mouse held down on a square is the
@@ -367,11 +358,14 @@ export function ItemSlot({
    * "Rusty Sword", and a look that swapped one for the other would leave a
    * player unable to find out what they had picked up.
    *
-   * Behind the mode, because reading a weapon's block means parsing it and a
+   * Behind the gesture, because reading a weapon's block means parsing it and a
    * panel redraws with the board — the same reason `pressHintFor` is the only
    * other thing here that touches an item's interactions.
+   *
+   * Hover on a mouse, a held finger on a thumb. The device question is asked
+   * once, here, so everything below reads one answer.
    */
-  const asking = inspecting || dwelling;
+  const asking = dwelling || (!coarse && pointedAt);
   const inspected = useMemo(() => {
     if (!asking || !tile) return null;
     const card = itemCard(tile, instance, masteryXp, statusDefs);
@@ -407,28 +401,24 @@ export function ItemSlot({
   // it is doing: the state belongs to the *thing* in the slot, and a slot whose
   // thing has been dropped has no state left to be in.
   const isOpen = instance ? open : undefined;
-  // Nothing is pressed while looking, so nothing is promised either: a hint
-  // saying "Press to wield it" over a square that will not is worse than silence.
-  const pressHint = inspecting
-    ? null
-    : pressHintFor(instance, slot, tilesById, isOpen);
-  // Dwelling is already "a finger is on this square", so it needs no second
-  // test that the pointer is here; looking wants one, because every square in
-  // the bag is in look mode at once and only the pointed-at one has a question.
-  const showTooltip =
-    inspected != null && (dwelling || (inspecting && pointedAt));
+  const pressHint = pressHintFor(instance, slot, tilesById, isOpen);
+  // The same question {@link asking} answers, and it is asked twice rather than
+  // shared because they are not the same fact: that one decides whether the
+  // card is *built*, and a card that cannot be built for a square with nothing
+  // in it must not put an empty popup on the screen.
+  const showTooltip = inspected != null && asking;
 
   const square = (
     <button
       type="button"
       ref={attach}
       onPointerDown={(event) => {
-        if (instance && !inspecting) startDrag(event, slot, instance);
+        if (instance) startDrag(event, slot, instance);
         // Started alongside the drag rather than instead of it, because which
         // gesture this is has not been decided yet: whichever of the two
         // resolves first — six pixels of travel, or {@link DWELL_MS} of
         // stillness — calls the other off.
-        if (coarse && instance && !inspecting) {
+        if (coarse && instance) {
           dwellTimer.current = setTimeout(() => {
             dwellTimer.current = null;
             dwellingRef.current = true;
@@ -443,7 +433,7 @@ export function ItemSlot({
           swallowClick.current = false;
           return;
         }
-        if (!inspecting) tap(slot, instance);
+        tap(slot, instance);
       }}
       onPointerEnter={() => setPointedAt(true)}
       onPointerLeave={() => {
@@ -451,7 +441,7 @@ export function ItemSlot({
         endDwell();
       }}
       // A keyboard has no pointer to rest anywhere, and focus is the gesture it
-      // has instead — so tabbing through a bag while looking reads it out.
+      // has instead — so tabbing through a bag reads it out.
       onFocus={() => setPointedAt(true)}
       onBlur={() => setPointedAt(false)}
       className={[
@@ -493,19 +483,18 @@ export function ItemSlot({
         // moving the item, and the pointermove events stop arriving entirely.
         touchAction: "none",
       }}
-      // The browser's own tooltip is what a slot says when you are *not*
-      // looking, and it stands down while you are: its half-second delay is
-      // precisely what look mode is promising to skip, and two tooltips over one
-      // square would be the page answering a question twice.
+      // The browser's own tooltip is what a slot says before the card arrives,
+      // and it stands down once it has: two tooltips over one square would be
+      // the page answering a question twice.
       title={asking ? undefined : instance ? name : emptyHint}
       // What is here, and what pressing it would do. The second half is the
       // whole of the label's job now that a press uses a thing rather than
       // moving it: "Rusty Sword" says what you are on, and only the hint says
       // what happens if you commit to it.
       //
-      // While looking, what the square would say aloud takes the hint's place —
-      // the same swap the sighted reader gets, since a press does nothing and
-      // what the thing is and would be like is the whole of what is left to say.
+      // Once the card is up, what it says aloud takes the hint's place — the
+      // same swap the sighted reader gets, since the card is the longer answer
+      // to the same question.
       aria-label={
         inspected
           ? `${label}: ${inspected.card.speech}`
@@ -571,9 +560,9 @@ export function ItemSlot({
   );
 
   // Wrapped whether or not there is anything to say. A square that gained and
-  // lost a parent as look mode toggled would remount its button, and the button
-  // holds this slot's registration in the page-wide drag. A closed tooltip
-  // mounts no portal, so an idle square costs one context.
+  // lost a parent as the pointer arrived would remount its button, and the
+  // button holds this slot's registration in the page-wide drag. A closed
+  // tooltip mounts no portal, so an idle square costs one context.
   return (
     <Tooltip
       content={

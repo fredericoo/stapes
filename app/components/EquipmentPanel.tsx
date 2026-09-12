@@ -186,7 +186,6 @@ export function EquipmentPanel({
   tiles,
   tilesets,
   drag,
-  inspecting = false,
   className = "",
 }: {
   equipment: Equipment;
@@ -225,8 +224,6 @@ export function EquipmentPanel({
   tilesets: TilesetDef[];
   /** The one move in progress, page-wide. See `./useItemDrag`. */
   drag: ItemDrag;
-  /** Look mode is on, so the slots describe rather than act. See `./ItemSlot`. */
-  inspecting?: boolean;
   className?: string;
 }) {
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
@@ -271,7 +268,6 @@ export function EquipmentPanel({
               open={isOpen(square.slot, { bagOpen, handOpen })}
               spilledInto={square.slot.kind === claimed ? spilling : null}
               drag={drag}
-              inspecting={inspecting}
               masteryXp={masteryXp}
               statusDefs={statusDefs}
             />
