@@ -158,12 +158,23 @@ export function labelScreenPosition(
  * it would close up at low zoom and yawn at high, which is the same argument
  * that took this text out of the scene in the first place.
  *
- * Two, not the line and a half it was, because a name tag is no longer one line:
- * a battler's carries a health bar under it, and the pair stand about
- * one-and-two-thirds ems tall. The old figure cleared the name it was measured
- * against and would now clip the top of it.
+ * It has been raised twice, each time because the group it clears grew a row.
+ * One and a half cleared a name on its own; two cleared the health bar that
+ * came to sit under it, the pair standing about one-and-two-thirds ems tall.
+ * Two and three quarters clears the bar a pull or a cast draws *over* the name
+ * — see {@link WorldLabelLayer.fill} for why it goes there — which is a further
+ * half an em of track, border and margin.
+ *
+ * **Measured against the tallest the group ever gets, not the usual one**, and
+ * that is the trade: every bubble in the world sits a little higher than it
+ * strictly has to so that the one over a caster's head does not land on the bar
+ * announcing the spell they just shouted. A clearance that changed with the
+ * group would be a bubble that jumped the moment somebody started casting, and
+ * speech is anchored to the cell it was said in rather than to the body — it
+ * outlives both the caster and the cast, so there is nothing live to size it
+ * against anyway.
  */
-const ANCHOR_CLEARANCE_EMS = 2;
+const ANCHOR_CLEARANCE_EMS = 2.75;
 
 /** The bar's track; its single child is the filled part. @see app/app.css */
 const BAR_CLASS = "world-label__bar";
@@ -671,8 +682,17 @@ export class WorldLabelLayer {
    * The bar goes last because the column flows downward from a bottom edge on
    * the anchor, so the final child is the one nearest the head — a name sitting
    * above the health of the thing it names, which is the order both are read in.
-   * A pull goes first, over the name, so starting one grows the group upwards
-   * and leaves the name and the health bar where they were.
+   * A pull or a cast goes first, over the name, so starting one grows the group
+   * upwards and leaves the name and the health bar exactly where they were. A
+   * body that shifted a brick every time it started casting would be a twitch on
+   * every press.
+   *
+   * **What that costs is a row in the one place a label may be covered**, since
+   * a name is not in `labelLayout`'s contest and a bubble is placed without
+   * regard to it. `ANCHOR_CLEARANCE_EMS` is what keeps speech off it, and it is
+   * sized for this group at its tallest — name, bar in progress, health — for
+   * exactly the case a cast makes ordinary: a caster shouts the spell's name at
+   * the moment the bar appears, so the two are always on screen together.
    */
   private fill(element: HTMLDivElement, label: WorldLabel) {
     const rows: HTMLElement[] = [];

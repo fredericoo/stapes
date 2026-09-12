@@ -1,5 +1,6 @@
 import { getStack, replaceStack } from "../lib/mapData";
-import { resolveContainer } from "../lib/item";
+import type { ItemDef } from "../lib/item";
+import { resolveContainer, resolveItem } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import {
   countOf,
@@ -12,12 +13,18 @@ import {
 } from "../lib/piles";
 import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
-import { reachableItemDefAt, type Actor, type ObjectRef } from "./affordances";
+import {
+  equipSlotOf,
+  reachableItemDefAt,
+  type Actor,
+  type ObjectRef,
+} from "./affordances";
 import {
   type Equipment,
   type Hand,
   handAccepts,
   handHasRoomFor,
+  otherHand,
   stoneLocked,
   wornAccepts,
 } from "./equipment";
@@ -192,7 +199,7 @@ export type BodySlotRef = Extract<SlotRef, { kind: EquipSlot }>;
  * index `Equipment`" are the same fact, and returning only the first would leave
  * every caller re-narrowing it by hand.
  */
-function isBodySlot(slot: SlotRef): slot is BodySlotRef {
+export function isBodySlot(slot: SlotRef): slot is BodySlotRef {
   return BODY_SLOT_KINDS.has(slot.kind);
 }
 
@@ -361,17 +368,7 @@ function slotHasRoom(
   instance: ItemInstance,
 ): boolean {
   if (isBodySlot(slot)) {
-    // A square that is taken is still a destination for exactly one thing: a
-    // pile of the same food with room for all of it. That is the one place in
-    // the game a move lands on something rather than beside it, and it is not a
-    // swap — nothing comes back out, because there is nothing left of what went
-    // in. See `../lib/piles`.
-    const held = equipment[slot.kind];
-    if (held) return fuses(held, instance, tilesById);
-    const def = tilesById[instance.tileId];
-    return isHand(slot.kind) && def
-      ? handHasRoomFor(equipment, tilesById, slot.kind, def)
-      : true;
+    return bodySlotHasRoom(equipment, tilesById, slot.kind, instance);
   }
   if (slot.kind === "contents") {
     const holder = equipment[contentsHolder(slot)];
@@ -388,6 +385,186 @@ function slotHasRoom(
   const def = tilesById[placed.tileId];
   const size = def ? (resolveContainer(def)?.size ?? 0) : 0;
   return stowFits(placed.contents ?? [], instance, size, tilesById);
+}
+
+/**
+ * Is there room in a square on a body for this thing?
+ *
+ * Apart from {@link slotHasRoom} because {@link equipDestination} asks it of
+ * several squares at once and has no board or actor to offer: what fits in a
+ * square on a body is decided by the kit alone, where what fits in a container
+ * is decided by the container — and only the second needs a map to find. Two
+ * readings of "is this square free" would be two things for the equipment
+ * button and the square it sends to to disagree about.
+ *
+ * A square that is taken is still a destination for exactly one thing: a pile
+ * of the same food with room for all of it. That is the one place in the game a
+ * move lands on something rather than beside it, and it is not a swap — nothing
+ * comes back out, because there is nothing left of what went in. See
+ * `../lib/piles`.
+ */
+export function bodySlotHasRoom(
+  equipment: Equipment,
+  tilesById: Record<string, TileDef>,
+  kind: EquipSlot,
+  instance: ItemInstance,
+): boolean {
+  const held = equipment[kind];
+  if (held) return fuses(held, instance, tilesById);
+  const def = tilesById[instance.tileId];
+  return isHand(kind) && def
+    ? handHasRoomFor(equipment, tilesById, kind, def)
+    : true;
+}
+
+/**
+ * How much a square costs to make room in, lowest first.
+ *
+ * **The whole of what "best fit" means**, and it is a ladder rather than a
+ * special case per kind of thing, so a square added to the body or an item kind
+ * added to the game is ranked by the same four rules everything else is.
+ *
+ * The order is what somebody dragging a thing in would give up least of. A
+ * square with nothing in it costs nothing. A square holding **the same kind of
+ * thing** is the next cheapest, because that is the trade the gesture almost
+ * always is: a sword for a sword, a stone for a stone, a helm for a helm.
+ * Failing that, what comes out should be the thing the incoming one most nearly
+ * stands in for — **a weapon**, since anything you can put in a hand is
+ * something to do with that hand instead of swinging it, and swinging is what
+ * you still have another hand for. **Something else held** — a shield, a torch,
+ * a pack — goes only when no weapon is there to go, because it is doing a job
+ * the incoming thing does not do. **Something worn** is last: armour and charms
+ * are only ever displaced by a square that takes nothing else, so reaching this
+ * rung at all means every other square refused.
+ */
+const NOTHING_TO_DISPLACE = 0;
+const THE_SAME_KIND = 1;
+const A_WEAPON = 2;
+const SOMETHING_ELSE_HELD = 3;
+const SOMETHING_WORN = 4;
+
+function displacementCost(
+  held: ItemInstance | null,
+  incoming: ItemDef,
+  instance: ItemInstance,
+  tilesById: Record<string, TileDef>,
+): number {
+  // A pile the thing pours into costs nothing to make room in either: nothing
+  // comes out, because there is nothing left of what went in. See `../lib/piles`.
+  if (!held || fuses(held, instance, tilesById)) return NOTHING_TO_DISPLACE;
+  const def = tilesById[held.tileId];
+  const item = def ? resolveItem(def) : null;
+  // A tile the catalogue has lost is something in the way and nothing more,
+  // which is the same answer every other lookup here gives it.
+  if (!item) return SOMETHING_ELSE_HELD;
+  if (item.type === incoming.type) return THE_SAME_KIND;
+  if (item.type === "weapon") return A_WEAPON;
+  if (item.type === "armor" || item.type === "charm") return SOMETHING_WORN;
+  return SOMETHING_ELSE_HELD;
+}
+
+/**
+ * Whether this square could hold the thing, once whatever is in it has gone.
+ *
+ * The difference from {@link bodySlotHasRoom} is one square's occupant, and it
+ * matters for exactly one rule: a hand holding a greatsword has its partner
+ * spoken for, and the partner stops being spoken for the moment the greatsword
+ * is the thing being traded out. Asked in the state the swap lands in, which is
+ * the same state {@link swapInto} checks itself against.
+ */
+function squareCouldTake(
+  equipment: Equipment,
+  tilesById: Record<string, TileDef>,
+  kind: EquipSlot,
+  home: EquipSlot,
+  instance: ItemInstance,
+  def: TileDef,
+): boolean {
+  if (!slotTakes(kind, def)) return false;
+  // **A hand is a place you hold things, and holding a helmet is carrying it
+  // rather than wearing it.** Both hands take anything you can carry — see
+  // `./equipment`'s `handAccepts` — which is right for a drag onto the square
+  // itself and wrong here: the button means "wear this", and a free fist is not
+  // an answer to it. So a hand is a candidate only for a thing that belongs in
+  // one, which is what keeps a second helm trading with the one on your head
+  // instead of ending up in your grip.
+  if (isHand(kind) && !isHand(home)) return false;
+  if (bodySlotHasRoom(equipment, tilesById, kind, instance)) return true;
+  if (!equipment[kind]) return false;
+  const emptied: Equipment = { ...equipment, [kind]: null };
+  return bodySlotHasRoom(emptied, tilesById, kind, instance);
+}
+
+/**
+ * The square a thing goes into when somebody asks to equip it without saying
+ * where.
+ *
+ * **What a drop on the equipment button means.** Dropping onto a square is
+ * somebody naming the square, and the generous {@link slotTakes} rule answers
+ * that — a hand takes anything you can carry. Dropping onto the button says
+ * only "wear this", so this has to work out which square they would have aimed
+ * at, and the answer has to hold for a kind of item nobody had written when it
+ * was drafted.
+ *
+ * So it is a ranking rather than a lookup. **Every square the thing would be
+ * equipped in is a candidate** — for an arcane stone that is both hands and the
+ * charm, for a helm only your head, for a wearable pack only your back — and
+ * they are sorted by two keys:
+ *
+ * 1. {@link displacementCost}: what making room there would cost you. An empty
+ *    square beats a taken one, and among taken ones the ladder decides.
+ * 2. Its {@link equipSlotOf} square — where the thing *belongs* — over any
+ *    other, which is what settles a tie. Two free hands give a sword the one it
+ *    is swung with; two swords give the same answer, so "replace the main hand"
+ *    needs no rule of its own.
+ *
+ * Ties below that keep `EQUIP_SLOTS` order, so the answer is stable: a body
+ * that has swapped nothing must not be offered a different square for asking
+ * twice.
+ *
+ * `lands` is the move rules having the last word — `canMoveItem` bound to where
+ * the drag started. The ranking knows what a *square* will take and cannot know
+ * what the source end will accept back, and a swap has to satisfy both: a bag
+ * coming off a hand cannot go into the bag it was dragged out of, because
+ * nothing nests. So the best square the rules will honour wins, rather than the
+ * best square outright. It defaults to honouring everything, for callers with
+ * no board to ask against.
+ *
+ * With nothing honoured, this answers with the square the thing belongs in
+ * anyway, and the move is then refused there. That is deliberate: answering
+ * with no square at all would leave the release with nothing under the pointer
+ * and fall through to a world drop, so a two-handed pike dropped on the button
+ * while both hands are full would land on the floor.
+ *
+ * Null only for something with no square on a body at all — a berry, a rock, a
+ * chest — where there is nothing for the button to mean.
+ */
+export function equipDestination(
+  equipment: Equipment,
+  tilesById: Record<string, TileDef>,
+  instance: ItemInstance,
+  lands: (to: BodySlotRef) => boolean = () => true,
+): BodySlotRef | null {
+  const def = tilesById[instance.tileId];
+  const item = def ? resolveItem(def) : null;
+  const home = def ? equipSlotOf(def) : null;
+  if (!def || !item || !home) return null;
+
+  const ranked = EQUIP_SLOTS.filter((kind) =>
+    squareCouldTake(equipment, tilesById, kind, home, instance, def),
+  )
+    .map((kind) => ({
+      kind,
+      cost: displacementCost(equipment[kind], item, instance, tilesById),
+      belongs: kind === home ? 0 : 1,
+    }))
+    // Stable, so squares that tie on both keys stay in `EQUIP_SLOTS` order.
+    .sort((a, b) => a.cost - b.cost || a.belongs - b.belongs);
+
+  for (const { kind } of ranked) {
+    if (lands({ kind })) return { kind };
+  }
+  return { kind: home };
 }
 
 /** Rewrite a ground container's contents, leaving the rest of its slot alone. */
@@ -451,6 +628,17 @@ export type ItemMoveResult = { map: MapFile; equipment: Equipment };
  * A move *within* one container is refused. There is no reordering: slots fill
  * in order and position in a bag means nothing, so a drag from one of its
  * squares to another is asking for something the model does not have.
+ *
+ * **Landing on a taken square on a body trades the two things.** It used to
+ * refuse, on the grounds that equipping should never quietly put down what you
+ * were holding — and that is still the rule everywhere nobody named a square:
+ * see `./affordances`' `equipSlotFrom`, which only ever offers an empty one, so
+ * the row in the world cannot cost you your sword. A drag is the opposite case.
+ * Somebody has taken hold of a thing and let go of it over one particular
+ * square; refusing that meant unequipping first and dragging again, with a bag
+ * that had to have room for the gap in between. What comes out goes where the
+ * dragged thing came from — see {@link swapInto} — so a swap is one gesture and
+ * its own undo.
  */
 export function applyItemMove(
   map: MapFile,
@@ -477,7 +665,14 @@ export function applyItemMove(
   // `stoneLocked` for what it is protecting.
   if (stoneLocked(instance, tilesById)) return null;
   if (!slotAccepts(to.kind, instance, tilesById)) return null;
-  if (!slotHasRoom(map, tilesById, actor, equipment, to, instance)) return null;
+  // A taken square on a body is no longer the end of it: the two things change
+  // places. See {@link swapInto}, and note that a container destination has no
+  // version of this — it appends, so it is never "taken" to begin with.
+  if (!slotHasRoom(map, tilesById, actor, equipment, to, instance)) {
+    return isBodySlot(to)
+      ? swapInto(map, tilesById, actor, equipment, from, to, instance)
+      : null;
+  }
 
   const emptied = clearSlot(map, tilesById, actor, equipment, from);
   if (!emptied) return null;
@@ -501,6 +696,92 @@ export function canMoveItem(
   to: SlotRef,
 ): boolean {
   return applyItemMove(map, tilesById, actor, equipment, from, to) != null;
+}
+
+/**
+ * Put a thing into a square that is already taken, and send what was in it back
+ * the way the new one came.
+ *
+ * **Only a square on a body, and only because those are the squares that hold
+ * exactly one thing.** A container appends — its slots fill in order and a
+ * destination index means nothing — so there is no "the thing that was there"
+ * to hand back, which is why a full bag still refuses rather than trading.
+ *
+ * Both slots are emptied before either is filled, and that is the whole of the
+ * correctness here. A swap is two moves that each have to be legal in the state
+ * the other leaves behind: a greatsword may enter a hand whose partner is about
+ * to be emptied, and the dagger coming out of it may not go back into a hand
+ * the greatsword now claims. Asking each half against the emptied pair gets
+ * both right, where checking against the state as it stands would refuse the
+ * first and allow the second.
+ *
+ * Everything the outward half is held to, the returning half is held to as
+ * well: it must be a thing the source slot would accept — a bag coming off a
+ * hand may not go back into the bag it came out of, because nothing nests — and
+ * it must be free to move, which a cooling stone is not. Refusing outright
+ * rather than dropping it somewhere else is the only honest answer: there is no
+ * second destination the player asked for.
+ */
+function swapInto(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  equipment: Equipment,
+  from: SlotRef,
+  to: BodySlotRef,
+  instance: ItemInstance,
+): ItemMoveResult | null {
+  const displaced = equipment[to.kind];
+  // Nothing there means the caller is here for some other refusal — a hand
+  // spoken for by a two-hander, most likely — and there is nothing to trade.
+  if (!displaced?.id) return null;
+  // **Two of the same thing is not a trade.** A pile that would not take yours
+  // — four berries against a ceiling of three — has already been through
+  // {@link bodySlotHasRoom} and been refused, and exchanging the two piles
+  // answers a question nobody asked: you would be holding the number you were
+  // trying to add to. Told apart from a genuine trade by there being more than
+  // one of something, which is what a pile *is*; two single swords of one tile
+  // are still two swords, and one of them may be written on.
+  if (
+    displaced.tileId === instance.tileId &&
+    countOf(displaced) + countOf(instance) > 2
+  ) {
+    return null;
+  }
+  if (stoneLocked(displaced, tilesById)) return null;
+  if (!slotAccepts(from.kind, displaced, tilesById)) return null;
+
+  const source = clearSlot(map, tilesById, actor, equipment, from);
+  if (!source) return null;
+  const both = clearSlot(source.map, tilesById, actor, source.equipment, to);
+  if (!both) return null;
+
+  if (!slotHasRoom(both.map, tilesById, actor, both.equipment, to, instance)) {
+    return null;
+  }
+  const filled = fillSlot(
+    both.map,
+    tilesById,
+    actor,
+    both.equipment,
+    to,
+    instance,
+  );
+  if (!filled) return null;
+
+  if (
+    !slotHasRoom(filled.map, tilesById, actor, filled.equipment, from, displaced)
+  ) {
+    return null;
+  }
+  return fillSlot(
+    filled.map,
+    tilesById,
+    actor,
+    filled.equipment,
+    from,
+    displaced,
+  );
 }
 
 /**

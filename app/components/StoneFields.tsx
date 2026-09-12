@@ -8,6 +8,7 @@ import type {
 } from "../lib/item";
 import {
   DEFAULT_PROJECTILE_SPEED,
+  MAX_CAST_TIME_MS,
   MAX_PERCENT_STAT,
   MAX_PROJECTILE_SPEED,
   MAX_REACH_CELLS,
@@ -15,6 +16,7 @@ import {
   MAX_SPELL_DAMAGE,
   MAX_STONE_COOLDOWN_MS,
   MELEE_REACH,
+  MIN_CAST_TIME_MS,
   MIN_PERCENT_STAT,
   MIN_PROJECTILE_SPEED,
   MIN_STONE_COOLDOWN_MS,
@@ -36,7 +38,7 @@ import {
 } from "../lib/element";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
-import { FieldLabel, Segmented, Select } from "../ui";
+import { FieldLabel, Segmented, Select, SwitchField } from "../ui";
 import { StatusGrants } from "./StatusGrants";
 import { StatField } from "./StatField";
 import {
@@ -107,6 +109,9 @@ const DEFAULT_STONE_STATUS_CHANCE = 100;
 
 /** A cooldown reads far better in seconds than in five digits of milliseconds. */
 const MS_PER_SECOND = 1000;
+
+/** The step a cast time is typed in, and so the grain its box reads back at. */
+const HALF_SECOND_MS = MS_PER_SECOND / 2;
 
 /** And past a minute it reads better still in minutes, which is where the shipped stones live. */
 const SECONDS_PER_MINUTE = 60;
@@ -334,6 +339,29 @@ export function StoneFields({
           readout={describeCooldown(stone.cooldownMs)}
         />
         <StatField
+          label="Cast (s)"
+          info="How long the caster stands there before anything happens, at exactly the requirements below. Every point past them is time off — 110% of what it asks casts in 90% of this, and double casts instantly. Zero is instant. A blow breaks a cast; nothing is spent until it lands."
+          // To the half-second the box steps in, so a stone authored at 2.5s
+          // reads as 2.5 rather than as a 3 that overwrites it on the next edit.
+          value={Math.round((stone.castTimeMs ?? 0) / HALF_SECOND_MS) / 2}
+          min={0}
+          max={MAX_CAST_TIME_MS / MS_PER_SECOND}
+          step={HALF_SECOND_MS / MS_PER_SECOND}
+          // Zero clears the field rather than writing one, because absent is
+          // what an instant stone says — see `../lib/item`'s `castTimeMs`. The
+          // floor below it is the schema's, so a half-second typed into a box
+          // that steps in halves cannot come out as a stone that will not parse.
+          onChange={(seconds) =>
+            onChange({
+              castTimeMs:
+                seconds > 0
+                  ? Math.max(MIN_CAST_TIME_MS, seconds * MS_PER_SECOND)
+                  : undefined,
+            })
+          }
+          readout={describeCastTime(stone.castTimeMs)}
+        />
+        <StatField
           label="Reach"
           info={`Radius in cells. Read only when the stone acts on somebody else; at the caster it is always at arm's length. Default ${MELEE_REACH.cells}.`}
           value={reach.cells}
@@ -354,6 +382,20 @@ export function StoneFields({
           readout={describeReachHeight(reach.height)}
         />
       </div>
+
+      {/* Only for a stone that takes time, because it is an answer to a
+          question an instant one never raises: there is no window to be knocked
+          out of. */}
+      {stone.castTimeMs ? (
+        <SwitchField
+          checked={stone.uninterruptible === true}
+          onCheckedChange={(uninterruptible) =>
+            onChange({ uninterruptible: uninterruptible || undefined })
+          }
+          label="Uninterruptible"
+          info="Taking damage leaves this cast running. Off for everything else, which is what makes a long cast a decision about where you are standing."
+        />
+      ) : null}
 
       <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
         <FieldLabel info="An unmet requirement refuses the cast outright. Arcane is what casting trains, and every cast pays a small flat amount whatever the stone asks. An element asked for makes this a spell of that element; everybody starts with a point of each.">
@@ -419,6 +461,19 @@ function describeCooldown(cooldownMs: number): string {
   const minutes = Math.floor(seconds / SECONDS_PER_MINUTE);
   const rest = seconds % SECONDS_PER_MINUTE;
   return `Ready again after ${minutes}m${rest ? ` ${rest}s` : ""}.`;
+}
+
+/**
+ * What a cast time reads as, and what it says about growing out of it.
+ *
+ * The second sentence is the whole reason the field is worth a readout: the
+ * number typed in the box is what it costs *today*, at exactly the requirement,
+ * and an author who does not know that will author for the wrong player.
+ */
+function describeCastTime(castTimeMs: number | undefined): string {
+  if (!castTimeMs) return "Cast lands at once.";
+  const seconds = Math.round(castTimeMs / HALF_SECOND_MS) / 2;
+  return `${seconds}s at exactly the requirements, and nothing at double them.`;
 }
 
 /**

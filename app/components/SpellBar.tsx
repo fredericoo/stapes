@@ -69,6 +69,9 @@ import { TilePreview } from "./TilePreview";
  * arc bends towards the new target rather than jumping back to meet it.
  */
 
+/** The unit a duration is read in, which is the only unit a player thinks in. */
+const MS_PER_SECOND = 1000;
+
 /** Where in the disc the sprite sits, leaving the rim to the ring. */
 const SPRITE_SHARE = 0.55;
 
@@ -164,6 +167,32 @@ export function cooldownShare(remainingMs: number, totalMs: number): number {
   return Math.min(1, Math.max(0, remainingMs / totalMs));
 }
 
+/**
+ * How long this stone takes to cast, in words, or nothing for an instant one.
+ *
+ * **Said rather than drawn**, which is the whole decision here. A cast time is
+ * not a state the button is in — it is what pressing it will cost, and the
+ * picture of that is the bar over the caster's own head once they have pressed.
+ * A second ring around the rim would be two countdowns on one disc meaning
+ * different things.
+ *
+ * **The scaled figure**, so it is the time this caster will actually wait — see
+ * `../game/casting`'s `castDurationMs`. It moves when a level does, which is
+ * most of why it is worth saying: a player who has just earned a point of Fire
+ * can read what it bought them.
+ *
+ * Absent for a stone with no cast time, which is nearly all of them, rather than
+ * "instant" — a phrase on every tooltip in the row would make the one stone that
+ * does take time harder to notice, not easier.
+ */
+export function castTimeNote(castTimeMs: number): string {
+  if (castTimeMs <= 0) return "";
+  // To a tenth, because that is the grain a bar can be read at and a cast scaled
+  // by a caster's masteries is very rarely a whole number of seconds.
+  const seconds = Math.round(castTimeMs / (MS_PER_SECOND / 10)) / 10;
+  return `${seconds}s to cast`;
+}
+
 export function SpellBar({
   spells,
   onCast,
@@ -255,11 +284,17 @@ function SpellSquare({
   // is spelled out rather than collapsed into "unavailable": the picture no
   // longer says which, and for a stone with nothing targeted it does not even
   // say that there is a which.
-  const state = verdict.ok
+  const refusal = verdict.ok
     ? key
       ? `ready, key ${key}`
       : "ready"
     : CAST_REFUSAL_NOTES[verdict.reason];
+  // After the state rather than before it, because what a player is asking the
+  // button is "can I press this" first and "what does it cost" second. Said on a
+  // dimmed stone too: a spell you have not learnt yet is one you are deciding
+  // whether to go and learn.
+  const cast = castTimeNote(spell.castTimeMs);
+  const state = cast ? `${refusal}, ${cast}` : refusal;
 
   return (
     <Tooltip content={`${spell.name}${key ? ` (${key})` : ""} — ${state}`}>

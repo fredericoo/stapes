@@ -15,6 +15,7 @@ import {
   MAX_PERCENT_STAT,
   MAX_WEAPON_DAMAGE,
   MELEE_REACH,
+  MIN_CAST_TIME_MS,
   consumeVerb,
   equipVerb,
   isItem,
@@ -604,6 +605,55 @@ describe("itemForSave", () => {
     const saved = itemForSave(draft);
     expect(saved).toEqual(draft);
     expect(resolveItem(tile("item", { item: saved }))).toEqual(draft);
+  });
+
+  /**
+   * **Absent is instant and absent is interruptible**, which is what every stone
+   * in the world says and what a zero and a `false` would say at length. The
+   * same rule every other optional on the arm is saved under.
+   */
+  it("drops a cast time of nothing and an uninterruptible of false", () => {
+    const saved = itemForSave({
+      type: "stone",
+      effect: { kind: "bolt", damage: -5, on: "caster" },
+      cooldownMs: 10_000,
+      castTimeMs: 0,
+      uninterruptible: false,
+    });
+    expect(saved).toEqual({
+      type: "stone",
+      effect: { kind: "bolt", damage: -5, on: "caster" },
+      cooldownMs: 10_000,
+    });
+  });
+
+  it("round-trips a stone that takes time and cannot be broken", () => {
+    const draft: ItemDef = {
+      type: "stone",
+      effect: { kind: "conjure", tileId: "flame" },
+      cooldownMs: 45_000,
+      castTimeMs: 3_000,
+      uninterruptible: true,
+      requirements: { arcane: 5, fire: 1 },
+    };
+    const saved = itemForSave(draft);
+    expect(saved).toEqual(draft);
+    expect(resolveItem(tile("item", { item: saved }))).toEqual(draft);
+  });
+
+  /**
+   * The floor is a design bound rather than a sanity one — see
+   * {@link MIN_CAST_TIME_MS} — so a stone authored below it is a file that will
+   * not parse rather than one that quietly casts on the next tick.
+   */
+  it("refuses a cast time shorter than a bar is worth drawing", () => {
+    const flicker = {
+      type: "stone" as const,
+      effect: { kind: "bolt" as const, damage: 5, on: "caster" as const },
+      cooldownMs: 10_000,
+      castTimeMs: MIN_CAST_TIME_MS - 1,
+    };
+    expect(resolveItem(tile("item", { item: flicker }))).toBeNull();
   });
 
   /** A row somebody added and never named drops, on a weapon's own terms. */

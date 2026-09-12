@@ -10,6 +10,7 @@ import {
 import type { ItemInstance } from "../lib/itemInstance";
 import { statusesById } from "../lib/status";
 import { resolveBattler } from "../lib/battler";
+import { type Masteries, MAX_MASTERY } from "../lib/mastery";
 import { type Element, ELEMENTS } from "../lib/element";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
@@ -19,6 +20,7 @@ import {
   CAST_SQUARES,
   castability,
   castableStones,
+  castDurationMs,
   type CastContext,
   type CasterPoint,
   type CastPoint,
@@ -228,6 +230,7 @@ function context(
     equipment: { ...emptyEquipment(), ...equipment },
     masteries: {},
     caster: HERE,
+    casting: null,
     target: null,
     ...extra,
   };
@@ -250,6 +253,27 @@ describe("why a stone cannot be cast", () => {
     expect(castability(context({ weapon: instance("sword") }), "weapon")).toEqual(
       { ok: false, reason: "empty" },
     );
+  });
+
+  /**
+   * A body mid-cast has its hands full, and the refusal is about the *body*
+   * rather than the square — so the stone in the other hand is refused too, and
+   * the whole row dims and comes back together.
+   */
+  it("refuses every square while a cast is running", () => {
+    const casting = context(
+      { weapon: instance("mend-stone"), offhand: instance("ward-stone") },
+      { casting: { remainingMs: 1_500, durationMs: 3_000 } },
+    );
+
+    expect(castability(casting, "weapon")).toEqual({
+      ok: false,
+      reason: "casting",
+    });
+    expect(castability(casting, "offhand")).toEqual({
+      ok: false,
+      reason: "casting",
+    });
   });
 
   it("refuses a stone that is still cooling", () => {
@@ -761,6 +785,37 @@ describe("the stones we ship", () => {
     expect(shipped[first.projectile!.tileId]).toBeDefined();
   });
 
+  /**
+   * **The one stone on the shelf that takes time, and the ladder untouched.**
+   * Flame is fire's utility stone rather than a rung — it conjures, it costs
+   * three quarters of a minute, and what it asks is the bottom of the ladder —
+   * so it is the one place a cast time can be tried without slowing down the
+   * spells a fight is fought with.
+   */
+  it("gives Flame a cast time and leaves every other stone instant", () => {
+    const withCastTimes = SHIPPED.filter(
+      (id) => (resolveStone(shipped[id]!)!.castTimeMs ?? 0) > 0,
+    );
+    expect(withCastTimes).toEqual(["arcane-stone-of-flame"]);
+  });
+
+  /**
+   * Three seconds for the caster who has only just earned it, and quick for one
+   * who has grown past it. The figures are the design rather than the
+   * arithmetic — `castDurationMs` has its own cases — and what they say is that
+   * a starter spell becomes a cantrip rather than something you stop carrying.
+   */
+  it("makes Flame quick for an arcanist who has outgrown it", () => {
+    const flame = resolveStone(shipped["arcane-stone-of-flame"]!)!;
+    const asks = flame.requirements!;
+
+    expect(castDurationMs(flame, asks)).toBe(3_000);
+    expect(castDurationMs(flame, { ...asks, arcane: 8 })).toBeLessThan(2_000);
+    expect(castDurationMs(flame, { arcane: MAX_MASTERY, fire: MAX_MASTERY })).toBe(
+      0,
+    );
+  });
+
   it("names a status and a tile the world actually has", () => {
     for (const element of ELEMENTS) {
       for (let index = 0; index < LADDER[element].length; index++) {
@@ -991,5 +1046,86 @@ describe("the stones we ship", () => {
     // And it goes round a neck and nowhere else.
     expect(wornAccepts("charm", def)).toBe(true);
     expect(handAccepts(def)).toBe(false);
+  });
+});
+
+/**
+ * How long a cast takes in a particular pair of hands.
+ *
+ * The one piece of arithmetic a player is told in words — the tooltip says the
+ * figure and the bar draws it — so the cases below are the sentence the design
+ * is stated in: 110% of what it asks is 10% less time, and double is none.
+ */
+describe("how long a cast takes", () => {
+  const AUTHORED_MS = 3_000;
+
+  /** A stone asking ten points in all, which makes a percentage easy to read. */
+  const ASKS = { arcane: 8, fire: 2 };
+
+  function stone(
+    castTimeMs: number | undefined,
+    requirements: Masteries = ASKS,
+  ) {
+    return {
+      type: "stone" as const,
+      effect: { kind: "bolt" as const, damage: 10, on: "target" as const },
+      cooldownMs: 10_000,
+      requirements,
+      ...(castTimeMs === undefined ? {} : { castTimeMs }),
+    };
+  }
+
+  it("is nothing at all for a stone with no cast time authored", () => {
+    expect(castDurationMs(stone(undefined), { arcane: 8, fire: 2 })).toBe(0);
+  });
+
+  it("is the authored time for a caster who meets it exactly", () => {
+    expect(castDurationMs(stone(AUTHORED_MS), { arcane: 8, fire: 2 })).toBe(
+      AUTHORED_MS,
+    );
+  });
+
+  /** The sentence the whole feature is stated in. */
+  it("takes a tenth off for a caster bringing 110% of it", () => {
+    expect(castDurationMs(stone(AUTHORED_MS), { arcane: 9, fire: 2 })).toBe(
+      AUTHORED_MS * 0.9,
+    );
+  });
+
+  it("is half for a caster half again past it", () => {
+    expect(castDurationMs(stone(AUTHORED_MS), { arcane: 13, fire: 2 })).toBe(
+      AUTHORED_MS / 2,
+    );
+  });
+
+  it("is instant for a caster who has doubled it, and never negative", () => {
+    expect(castDurationMs(stone(AUTHORED_MS), { arcane: 16, fire: 4 })).toBe(0);
+    expect(castDurationMs(stone(AUTHORED_MS), { arcane: 100, fire: 100 })).toBe(
+      0,
+    );
+  });
+
+  /**
+   * Pooled across the block, so a point of Fire is worth exactly as much off the
+   * clock as a point of Arcane. What it must not do is grow longer: a caster
+   * short of the requirements is refused the cast outright, and the arm above
+   * the authored time would only ever describe one that cannot happen.
+   */
+  it("counts every requirement, and never runs longer than authored", () => {
+    expect(castDurationMs(stone(AUTHORED_MS), { arcane: 8, fire: 3 })).toBe(
+      AUTHORED_MS * 0.9,
+    );
+    expect(castDurationMs(stone(AUTHORED_MS), {})).toBe(AUTHORED_MS);
+  });
+
+  /**
+   * A stone that asks nothing takes exactly as long as it says, for ever. There
+   * is nothing to have outgrown, and reading the empty block as "instantly met"
+   * would make a requirement-free stone the fastest thing in the game.
+   */
+  it("holds a stone that asks nothing at its authored time", () => {
+    expect(castDurationMs(stone(AUTHORED_MS, {}), { arcane: 100 })).toBe(
+      AUTHORED_MS,
+    );
   });
 });

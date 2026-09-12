@@ -944,10 +944,11 @@ export function heldDefence(
  * exactly as generous as it was — see {@link handAccepts}, which is the separate
  * question of what a hand will take at all.
  *
- * **Deliberately not a swap.** Arriving with a greatsword does not put down the
- * dagger in your other fist, on the terms equipping never displaces what you are
- * already holding: a swap is two deliberate acts, and one that quietly emptied a
- * hand is the kind of thing you notice a fight later.
+ * **Never the *other* hand.** Dropping a thing on a square does trade with what
+ * is in that square — see `./itemMoves`' `swapInto` — because somebody aimed at
+ * it. Nobody aimed at the neighbour, so arriving with a greatsword does not put
+ * down the dagger in your other fist; it is refused instead, and putting the
+ * dagger away first is the deliberate act that makes room.
  *
  * Here rather than in `./itemMoves` for the reason {@link handAccepts} is: it is
  * a fact about the squares, and the squares are defined by this module. The move

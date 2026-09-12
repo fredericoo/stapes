@@ -2638,9 +2638,10 @@ facing on a body is always a row somebody copied and forgot to move.
 ## Magic is a stone you carry, and there is nothing else to it
 
 There is no mana, no spell book and no spell slots. What a caster can do is
-decided by which **arcane stones** they are carrying and how recently each was
-used — so the whole of a loadout is two hands and a charm, which is why the
-desktop binding is `1`, `2`, `3` and stops there.
+decided by which **arcane stones** they are carrying, how recently each was used
+and — for the stones that take time — how far past what one asks the caster has
+got. The whole of a loadout is two hands and a charm, which is why the desktop
+binding is `1`, `2`, `3` and stops there.
 
 A stone is an arm of the item union beside weapon, armour, shield, consumable,
 container and artifact, and it is a kind of its own for the reason a shield is:
@@ -2882,6 +2883,11 @@ refuses on it and `castConjure` places with it, and the browser runs it too, so
 the button dims when you face a wall. Stepping into open air is still a legal
 step — gravity needs it — so a flame can still be laid over a drop.
 
+**A stone with a cast time asks it twice**, once when it is pressed and once
+when the bar fills, and the second is the one somebody can do something about:
+drop a crate in front of a caster mid-flame and nothing happens, with the stone
+still ready. @see "A cast can take time" below
+
 #### A cast is resolved from where the caster is arriving
 
 Three things made a flame land on its own caster, or beside where they were
@@ -2941,6 +2947,83 @@ The lock is on *player-initiated* moves only — a death drops the whole kit
 regardless, and what lands is ready. It is also the only refusal in the item
 model that says anything out loud, because it is the only one where a player can
 plainly see something in a square and plainly cannot empty it.
+
+### A cast can take time, and what the caster brings past the requirements takes it off
+
+`ArcaneStoneItem.castTimeMs` is what a stone costs *in front*, where the cooldown
+is what it costs afterwards. Absent is instant, which is what every stone was
+before this and what all but one still is. The shipped Stone of Flame is
+authored at three seconds.
+
+- **Nothing is spent until the bar fills.** The cooldown, the practice
+  experience and the effect all land together in `resolveCast`, so a cast that
+  is broken or that finds nowhere to land has cost the caster the seconds and
+  nothing else. That is the argument a blocked conjure already made — a flame
+  that never appeared is a press the player cannot tell from a dropped key —
+  carried to the one case where they can plainly see why.
+- **The scaling is a subtraction, not a curve.** `castDurationMs` reads
+  `requirementCoverage` — `requirementShare` with the cap taken off — and takes
+  the surplus straight off the clock: 110% of what the stone asks is 90% of the
+  time, 150% is half, and double is instant. One subtraction because a player has
+  to be able to hold it in their head while looking at the requirements grid, and
+  because the figure is on the button's tooltip where a level-up visibly moves it.
+- **That is what keeps a starter spell worth carrying.** Flame asks Arcane 5 and
+  Fire 1, so it is three seconds the day you can first hold one and instant by
+  Arcane 11. The spell does not get stronger, it gets quick. The stones at the
+  top of the ladder ask thirty-odd points and stay slow for a long time, which is
+  the whole shape of the trade — and it is why the cap belongs off this number
+  and on `requirementShare`, where a weapon reads it.
+- **A cast plants you where you stand.** `applyStepRequest` refuses the step
+  while `casting` is set, on exactly the terms it refuses one during a swing's
+  recovery — and the turn goes through for that rule's reason too: a conjure with
+  nobody targeted lands in the cell the caster faces, so aiming while the bar
+  runs is the one piece of control a rooted caster keeps. A shove and a fall are
+  not asked for there and so are not refused: what a cast costs is your own legs.
+  `RemoteSession.predictStep` re-runs the rule, because a step this side
+  predicted would be one the server refuses and drags back — which means the root
+  outlasts the cast by the round trip that clears it, the same lateness a
+  cooldown on a button has.
+- **A blow breaks it, and `uninterruptible` is the exception an author writes.**
+  Cancelled from inside `applyDamage` on the same gate a pull is — `amount > 0`,
+  so being bandaged mid-cast is not an interruption — and said out loud, because
+  a bar vanishing is exactly what a *finished* cast looks like. Nothing else
+  breaks one: a caster may walk, turn and be shoved while casting, and making it
+  depend on standing still as well would be a rule nobody could guess at from
+  watching.
+- **Everything else is asked once, at the end.** `finishCasting` takes the run
+  off the actor and then asks `castability` again, so a target who walked out of
+  range, a target who died, a stone swapped to the other hand and a cell somebody
+  has since dropped a crate on all come to the same thing: nothing happens, and
+  the stone is still ready. The run is cleared *before* the question because a
+  body recorded as casting refuses every square, itself included.
+- **One cast at a time, and it refuses the whole row.** `CastContext.casting`
+  carries only the clock — which stone is the session's business — so every
+  button dims and comes back together, which is a picture a player can read
+  without knowing which one started it.
+- **A cast and a pull are one pair of hands.** Starting either takes the other
+  off you, which is what keeps `ActorSnapshot.casting` and
+  `ActorSnapshot.extracting` from ever being set at once and lets one bar draw
+  both.
+- **It holds the world awake.** `isAtRest` returns false while anybody is
+  casting — the same clause a pull and a cooling stone have, and sharper than
+  either: the cooldown has not been spent yet, so there is nothing else on the
+  board that would have kept the clock running, and a world that slept here would
+  leave the caster in a spell that never lands.
+- **`advanceCastings` runs late in the tick**, directly after
+  `advanceExtractions`, so a cast is resolved against the board the rest of the
+  tick left behind: a crate dropped in front of the caster this tick is in the
+  way of *this* flame rather than of the next one.
+
+### The caster says the name of the spell
+
+Every cast, timed or instant, puts the stone's name and an exclamation mark over
+the caster's head — `recordSpeech`, so it is sanitised, pinned to the cell and
+broadcast as chat like anything else anybody says. It is the one thing about a
+cast that everybody nearby learns for free: the bar says somebody is doing
+something, and the word says which spell, which is what makes standing out of the
+way — or walking up and hitting them — a decision rather than a guess. The name
+comes off the instance's description before the tile's, so a stone somebody has
+written on says what they wrote.
 
 ### Castability is one pure module, and it answers with a reason
 
@@ -4344,7 +4427,7 @@ contrast.
 | ---------- | ----------------------- | -------------------------- | --------------------- |
 | reward     | one player, once        | nothing on the board       | a tag on you          |
 | transmute  | anybody, repeatedly     | nothing on the board       | your bag              |
-| extract    | everybody, together     | the placement's durability | anything that moves or hurts you |
+| extract    | everybody, together     | the placement's durability | anything that moves or hurts you, or a spell you start |
 
 - **The cost is paid in front, not after.** A tap buys a place at the vein and
   nothing else: `durationMs` runs while the player stands there, and only when
@@ -4531,7 +4614,7 @@ player's pull is still running on the body they left.
   identity is the change signal the renderer gates its whole interaction list on,
   and a tick advancing a pull costs no allocation and no rebuild. The same
   hand-over-by-reference a `walk` or a `strike` already travels on.
-  `RemoteSession.windExtraction` does the same against the render clock — which
+  `RemoteSession.windBars` does the same against the render clock — which
   is not a prediction of anything, since only the server's message ever clears
   it; it keeps the *number* true between the two messages.
 - **Whether a vein is free travels on the board**, as the reservation on the
@@ -4548,6 +4631,28 @@ player's pull is still running on the body they left.
   everybody. The key is left off because only the owner's row matches against
   it, and the diff does not read `drainExtractionChanges` because that queue is
   the owner's.
+- **The bar sits over the name, and the group grows upward into it.** The bottom
+  edge is pinned to the head, so a row added at the top leaves the name and the
+  health bar exactly where they were — a body that shifted a brick every time it
+  started casting would be a twitch on every press. What that costs is a row in
+  the one place a label may be covered, since speech is placed first and a name
+  is not in `labelLayout`'s contest: a bubble is placed without regard to it.
+  `ANCHOR_CLEARANCE_EMS` is what keeps the two apart, and it is now 2.75 rather
+  than 2 — sized for the group at its tallest, bar included, because a caster
+  shouts the spell's name at the moment the bar appears and the two are always on
+  screen together. Every bubble in the world therefore sits a little higher than
+  it strictly has to; a clearance that changed with the group would be a bubble
+  that jumped when somebody started casting, and speech is anchored to the cell
+  rather than the body, so there is nothing live to size it against.
+- **A cast is the same picture on a second channel.** `CastingPatch` is
+  `ExtractionPatch`'s twin, diffed by identity the same way and drawn by the same
+  bar, and `app/game/progress.ts` is the two numbers both of them are — a third
+  module because `casting` and `extract` cannot import each other. Two channels
+  rather than one field because a body can be told to stop pulling and to start
+  casting in the same patch, and one field would be a message arguing with
+  itself. Nothing about a cast is addressed to its owner: there is no key and no
+  row, and which stone it came out of is not drawn, so what the owner needs — the
+  whole row dims — is in the broadcast they are already in.
 - **Not durable.** `hp`'s bargain rather than a tag's: a tag records that
   something *happened* and can never be rebuilt, where this records something
   that is happening, and a world that has gone quiet is a world where nobody is
@@ -4713,6 +4818,89 @@ one level of spilling is the whole of it.
 
 It applies to players exactly as it does to a deer, which is the point: there is
 one death, and a deer that had picked a bush leaves the berries it was carrying.
+
+## A drag onto a taken square trades the two things
+
+`applyItemMove` used to refuse a destination that was full. It swaps now, and
+the reason is what the gesture is: somebody took hold of a thing and let go of
+it over one particular square. Refusing meant unequipping first and dragging
+again, with a bag that had to have room for the gap in between. What comes out
+goes where the dragged thing came from — `swapInto` — so a swap is one gesture
+and its own undo, and the bag never has to hold both.
+
+**Squares on a body only.** A container appends: its slots fill in order and a
+destination index means nothing, so there is no "the thing that was there" to
+hand back. A full bag still refuses.
+
+**Both slots are emptied before either is filled**, which is the whole of the
+correctness. A swap is two moves that each have to be legal in the state the
+other leaves behind: a greatsword may enter a hand whose partner is about to be
+emptied, and the dagger coming out of that hand may not go back into one the
+greatsword now claims. Checking against the state as it stands would get the
+first wrong and the second wrong the other way. The returning half is held to
+everything the outward half is — the source slot has to accept it, so a pack
+coming off a hand cannot go back into the bag it was dragged out of — and to the
+cooling-stone lock, which `GameSession.moveItem` now says out loud for the
+destination square as well as the source.
+
+**Two of one thing is not a trade.** Four berries against a ceiling of three is
+refused rather than swapped: exchanging the piles would leave you holding the
+number you were trying to add to. Two single swords of one tile still trade,
+because one of them may be written on.
+
+The rule that did *not* change is equipping off the floor. `equipSlotFrom` still
+only offers an empty square, because a row in the world is offered by the
+interface rather than aimed at, and one that quietly put your sword on the floor
+to make room for a worse one is the kind of thing you notice a fight later.
+
+## Dropping on the equipment button ranks every square the thing could be worn in
+
+The shirt button in the control strip takes a drop. Wearing something out of
+your bag used to mean opening the equipment panel to have a square to aim at,
+and on a phone that panel replaces the bag you are dragging out of, so the two
+squares were never on screen together.
+
+A drop there names no square, so `equipDestination` has to work out which one
+was meant — and it has to keep working for a kind of item nobody has written
+yet. So it is a ranking rather than a lookup. Every square the thing would be
+*equipped* in is a candidate, sorted by two keys:
+
+1. **What making room there would cost you**, as a ladder: an empty square (or a
+   pile it pours into) costs nothing, then the same kind of thing, then a
+   weapon, then anything else held, then anything worn. The middle rung is the
+   trade the gesture almost always is — a sword for a sword — and the one below
+   it says that anything you put in a hand is something to do with that hand
+   instead of swinging, which is what you still have another hand for.
+2. **The square it belongs in** (`equipSlotOf`) over any other, which settles
+   ties. Two free hands give a sword the one it is swung with; two swords give
+   the same answer, so "replace the main hand" needs no rule of its own.
+
+**A hand is a candidate only for a thing that belongs in a hand.** Both hands
+take anything you can carry — `handAccepts` — which is right for a drag onto the
+square itself and wrong here: holding a helmet is carrying it, not wearing it.
+Without that clause a second helm lands in your free fist instead of trading
+with the one on your head. It is also what keeps an arcane stone interesting:
+a stone belongs in a hand, so its candidates are both hands *and* the charm, and
+an empty charm beats displacing either.
+
+The drag hands the ranking `lands` — `canMoveItem` with the source end filled in
+— so the best square *the move rules will honour* wins rather than the best
+square outright. The ranking knows what a square will take and cannot know what
+the source end will accept back, and a swap has to satisfy both.
+
+With nothing honoured it answers with the square the thing belongs in anyway,
+and the move is refused there. That is deliberate: answering with no square at
+all would leave the release with nothing under the pointer and fall through to a
+world drop, so a pike dropped on the button with both hands full would land on
+the floor. Something with no square on a body at all — a berry, a chest —
+answers with nothing, and the drop behaves as it does over the stats button
+beside it.
+
+`DropTarget` in `app/components/useItemDrag.ts` is what makes this expressible:
+a registered target is a `SlotRef` or a function asked for one, given what is
+being dragged and the rules to check it against. It is asked when the drag is
+lifted and again when it lands, so it reads the kit as it is then rather than as
+it was when the button drew.
 
 ## Decay is a switch whose input is time
 
