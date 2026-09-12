@@ -227,6 +227,7 @@ function actor(
     statuses: [],
     carriedLights: [],
     extracting: null,
+    casting: null,
   };
 }
 

@@ -55,7 +55,11 @@ function tile(partial: Record<string, unknown>): TileDef {
   });
 }
 
-function stoneTile(id: string, item: Record<string, unknown>): TileDef {
+function stoneTile(
+  id: string,
+  item: Record<string, unknown>,
+  extra: Record<string, unknown> = {},
+): TileDef {
   return tile({
     id,
     kind: "item",
@@ -63,6 +67,7 @@ function stoneTile(id: string, item: Record<string, unknown>): TileDef {
     intangible: true,
     affectedByGravity: true,
     interactions: { item: { type: "stone", ...item } },
+    ...extra,
   });
 }
 
@@ -102,6 +107,22 @@ function charmTile(id: string, item: Record<string, unknown>): TileDef {
     interactions: { item: { type: "charm", ...item } },
   });
 }
+
+/**
+ * What a stone with a cast time is authored at, for a caster who meets it
+ * exactly.
+ *
+ * Three seconds, which is the shipped Stone of Flame's — long enough that "not
+ * yet" and "now" are a second apart in these cases, and the same figure a player
+ * would be standing through.
+ */
+const CAST_MS = 3_000;
+
+/** What {@link CAST_MS} comes to in whole ticks, rounded the way a tick loop is. */
+const CAST_TICKS = Math.ceil(CAST_MS / TICK_MS);
+
+/** What a stone asks of a caster who is expected to have to grow into it. */
+const ADEPT_LEVEL = 10;
 
 /** A ward's cooldown, and the clock the floor cases run on. */
 const WARD_COOLDOWN_MS = 30_000;
@@ -468,6 +489,43 @@ const props: TileDef[] = [
       statuses: [{ id: "warded", chance: 100 }],
     },
     cooldownMs: WARD_COOLDOWN_MS,
+  }),
+  // The four stones the cast-time cases are about. A mend rather than a bolt
+  // wherever the effect does not matter, so what is asserted is a health bar
+  // moving at a moment rather than a draw against a rat's guard.
+  stoneTile("slow-mend-stone", {
+    effect: { kind: "bolt", damage: -MEND_HP, on: "caster" },
+    cooldownMs: MEND_COOLDOWN_MS,
+    castTimeMs: CAST_MS,
+  }),
+  // The same stone that cannot be knocked out of a caster's hands, which is the
+  // exception an author writes on purpose.
+  stoneTile("steady-mend-stone", {
+    effect: { kind: "bolt", damage: -MEND_HP, on: "caster" },
+    cooldownMs: MEND_COOLDOWN_MS,
+    castTimeMs: CAST_MS,
+    uninterruptible: true,
+  }),
+  // A conjure with a cast time, for the case a bar makes possible: the cell was
+  // clear when it was pressed and is not when it fills.
+  stoneTile(
+    "slow-flame-stone",
+    {
+      effect: { kind: "conjure", tileId: "conjured-flame" },
+      cooldownMs: 10_000,
+      castTimeMs: CAST_MS,
+      reach: { cells: 3, height: 2 },
+    },
+    // Named, because what a caster shouts is the name of the stone and a
+    // fixture called `slow-flame-stone` would assert the id instead.
+    { name: "Flame" },
+  ),
+  // A stone with something to outgrow, so the scaling has somewhere to move.
+  stoneTile("apprentice-stone", {
+    effect: { kind: "bolt", damage: -MEND_HP, on: "caster" },
+    cooldownMs: MEND_COOLDOWN_MS,
+    castTimeMs: CAST_MS,
+    requirements: { arcane: ADEPT_LEVEL },
   }),
   charmTile("life-charm", { everyMs: CHARM_INTERVAL_MS, hp: CHARM_HP }),
   // Both halves on one tick, which is what a charm's two optional fields are
@@ -1963,5 +2021,284 @@ describe("what a mend floats", () => {
     // Three intervals passed and the wearer was one point down: one tick had
     // somewhere to put its health, and the other two had none.
     expect([...seen.values()]).toEqual([CHARM_HP]);
+  });
+});
+
+/**
+ * A cast that takes time, from the outside.
+ *
+ * What a player would notice: pressing a heavy stone does nothing for three
+ * seconds, everybody nearby hears what is coming, a blow takes it off you, and a
+ * spell that cannot land when the bar fills simply does not happen — with the
+ * stone still ready to try again. The arithmetic behind the three seconds has
+ * its own unit suite in `./casting`; these are about the thread from a press to
+ * a health bar.
+ */
+describe("a cast that takes time", () => {
+  const HURT_HP = 10;
+
+  it("does nothing at all until the bar fills", () => {
+    const play = session({ charm: "slow-mend-stone" });
+    play.runCommand(`/health ${HURT_HP}`);
+    play.drainNotices();
+
+    expect(play.cast("charm")).toBe(true);
+    run(play, CAST_TICKS - 1);
+    expect(hpOf(play)).toBe(HURT_HP);
+
+    run(play, 1);
+    expect(hpOf(play)).toBe(HURT_HP + MEND_HP);
+  });
+
+  it("spends nothing when it is pressed, and everything when it lands", () => {
+    const play = session({ charm: "slow-mend-stone" });
+    play.runCommand(`/health ${HURT_HP}`);
+    play.drainNotices();
+    play.cast("charm");
+
+    // The stone is still ready as far as anything can see, which is what makes
+    // an interrupted cast free.
+    expect(coolingIn(play, "charm")).toBeUndefined();
+
+    run(play, CAST_TICKS);
+    expect(coolingIn(play, "charm")).toBe(MEND_COOLDOWN_MS);
+  });
+
+  it("shouts the name of the spell as it starts", () => {
+    const play = session({ charm: "slow-flame-stone" });
+
+    play.cast("charm");
+
+    expect(play.drainSpeech().map((bubble) => bubble.text)).toEqual(["Flame!"]);
+  });
+
+  it("shouts for an instant spell too, since a press is a press", () => {
+    const play = session({ charm: "flame-stone" });
+
+    play.cast("charm");
+
+    expect(play.drainSpeech()).toHaveLength(1);
+  });
+
+  it("refuses a second cast while one is running", () => {
+    const play = session({
+      weapon: "slow-mend-stone",
+      offhand: "mend-stone",
+    });
+    play.cast("weapon");
+
+    // The other hand as well as the same one: a body mid-cast has its hands
+    // full, and the whole row says so.
+    expect(play.cast("offhand")).toBe(false);
+    expect(play.cast("weapon")).toBe(false);
+    expect(
+      play.spells().map((spell) => spell.castability),
+    ).toEqual([
+      { ok: false, reason: "casting" },
+      { ok: false, reason: "casting" },
+    ]);
+  });
+
+  it("draws a bar everybody can see, and takes it away when it lands", () => {
+    const play = session({ charm: "slow-mend-stone" });
+    play.cast("charm");
+
+    const casting = () =>
+      play.actorSnapshots().find((actor) => actor.id === "local")?.casting;
+    expect(casting()).toEqual({ remainingMs: CAST_MS, durationMs: CAST_MS });
+
+    run(play, CAST_TICKS);
+    expect(casting()).toBeNull();
+  });
+
+  it("is broken by a blow, and costs the caster nothing", () => {
+    const play = session({ charm: "slow-mend-stone" });
+    play.runCommand(`/health ${PLAYER_MAX_HP}`);
+    play.cast("charm");
+    run(play, 1);
+
+    // The same door every blow in the game comes through — see
+    // `GameSession.applyDamage`, which is where a cast is taken off somebody.
+    play.runCommand(`/health ${PLAYER_MAX_HP - 1}`);
+    play.drainNotices();
+    run(play, CAST_TICKS);
+
+    expect(hpOf(play)).toBe(PLAYER_MAX_HP - 1);
+    expect(coolingIn(play, "charm")).toBeUndefined();
+  });
+
+  it("says so, rather than leaving the bar to vanish without a word", () => {
+    const play = session({ charm: "slow-mend-stone" });
+    play.runCommand(`/health ${PLAYER_MAX_HP}`);
+    play.cast("charm");
+    play.drainNotices();
+
+    play.runCommand(`/health ${PLAYER_MAX_HP - 1}`);
+
+    expect(play.drainNotices()).toContain("Your cast is broken");
+  });
+
+  it("is not broken by being healed, which is not a blow", () => {
+    const play = session({ charm: "slow-mend-stone" });
+    play.runCommand(`/health ${HURT_HP}`);
+    play.cast("charm");
+    play.runCommand(`/health ${HURT_HP + 1}`);
+    play.drainNotices();
+
+    run(play, CAST_TICKS);
+
+    expect(hpOf(play)).toBe(HURT_HP + 1 + MEND_HP);
+  });
+
+  it("finishes through a blow when the stone says it cannot be broken", () => {
+    const play = session({ charm: "steady-mend-stone" });
+    play.runCommand(`/health ${HURT_HP}`);
+    play.cast("charm");
+    play.runCommand(`/health ${HURT_HP - 1}`);
+    play.drainNotices();
+
+    run(play, CAST_TICKS);
+
+    expect(hpOf(play)).toBe(HURT_HP - 1 + MEND_HP);
+  });
+
+  /**
+   * The motivating case for resolving at the end rather than at the press: a
+   * flame aimed at the cell in front, and a wall standing there by the time the
+   * bar fills. Nothing is placed, nothing is spent, and nothing is said — the
+   * stone is still ready, which is the only sentence a player needed.
+   */
+  it("comes to nothing when it can no longer land, and stays ready", () => {
+    const play = session({ charm: "slow-flame-stone" });
+    play.cast("charm");
+
+    // A wall in the cell it was aimed at, put there while the bar was filling.
+    play.runCommand("/tile wall +1");
+    play.drainNotices();
+    run(play, CAST_TICKS);
+
+    const stack = getStack(play.getMap(), 1, 0, 0);
+    expect(stack.some((placed) => placed.tileId === "conjured-flame")).toBe(
+      false,
+    );
+    expect(coolingIn(play, "charm")).toBeUndefined();
+  });
+
+  it("comes to nothing when the stone has left the hand it was cast from", () => {
+    const play = session({ weapon: "slow-mend-stone" });
+    play.runCommand(`/health ${HURT_HP}`);
+    play.drainNotices();
+    play.cast("weapon");
+
+    // The same stone, in the other hand: what pays is the stone that was
+    // pressed, in the square it was pressed from.
+    play.moveItem({ kind: "weapon" }, { kind: "offhand" });
+    run(play, CAST_TICKS);
+
+    expect(hpOf(play)).toBe(HURT_HP);
+  });
+
+  /**
+   * Two casters and one stone, which is the only way to say "quicker" without
+   * naming a number. What is not asserted is how much either of them mends: a
+   * mend is scaled by Arcane too, so the caster who casts faster also heals more
+   * — that is `../lib/battler`'s arithmetic and has its own cases.
+   */
+  /**
+   * The world ticks only while something is happening — see
+   * `GameSession.isAtRest` — and a cast is the one clock with nothing else on
+   * the board to stand in for it: the cooldown is not spent yet, so a world that
+   * slept here would leave the caster in a spell that never lands.
+   */
+  it("keeps the world awake until it lands", () => {
+    const play = session({ charm: "slow-mend-stone" });
+    expect(play.isAtRest()).toBe(true);
+
+    play.cast("charm");
+    play.drainSpeech();
+
+    // Nothing else on the board is holding it awake: the cooldown has not been
+    // spent, so the cast is the only clock there is. What takes over once it
+    // lands is that cooldown, which has its own clause and its own cases.
+    expect(play.isAtRest()).toBe(false);
+  });
+
+  /**
+   * **A cast plants you where you stand**, which is what makes a long one a
+   * decision about where you are standing. The turn is deliberately not refused:
+   * a conjure with nobody targeted lands in the cell the caster faces, so aiming
+   * it while it runs is the one piece of control a rooted caster keeps — and it
+   * is the same split a swing's recovery already draws.
+   */
+  it("plants the caster, and still lets them turn", () => {
+    const play = session({ charm: "slow-mend-stone" });
+    const before = play.actorSnapshots().find((actor) => actor.id === "local")!;
+    play.cast("charm");
+
+    play.setInput({ directions: ["e"] });
+    run(play, CAST_TICKS - 1);
+
+    const during = play.actorSnapshots().find((actor) => actor.id === "local")!;
+    expect({ x: during.x, y: during.y }).toEqual({ x: before.x, y: before.y });
+    expect(during.walk).toBeNull();
+    // Facing where they were asked to go, having not gone.
+    expect(during.direction).toBe("e");
+  });
+
+  it("lets them walk again the moment it lands", () => {
+    const play = session({ charm: "slow-mend-stone" });
+    play.cast("charm");
+    play.setInput({ directions: ["e"] });
+    run(play, CAST_TICKS + 1);
+
+    const after = play.actorSnapshots().find((actor) => actor.id === "local")!;
+    expect(after.walk).not.toBeNull();
+  });
+
+  /**
+   * A body whose player has gone stays in the world until its fight is over —
+   * see `GameSession.standIdle` — and a spell landing out of it two seconds
+   * later would be that body still fighting.
+   */
+  it("is dropped when the caster's player leaves the body standing", () => {
+    const play = session({ charm: "slow-mend-stone" });
+    play.runCommand(`/health ${HURT_HP}`);
+    play.drainNotices();
+    play.cast("charm");
+
+    play.standIdle("local");
+    run(play, CAST_TICKS);
+
+    expect(hpOf(play)).toBe(HURT_HP);
+  });
+
+  it("is quicker for a caster who has outgrown what the stone asks", () => {
+    // Half the requirement over is half the time off, so a tick past the
+    // half-way mark separates the two.
+    const halfWay = Math.ceil(CAST_MS / 2 / TICK_MS) + 1;
+
+    const casting = (arcane: number) => {
+      const play = session({ charm: "apprentice-stone" });
+      play.runCommand(`/mastery arcane ${arcane}`);
+      play.runCommand(`/health ${HURT_HP}`);
+      play.drainNotices();
+      play.cast("charm");
+      run(play, halfWay);
+      return hpOf(play);
+    };
+
+    expect(casting(ADEPT_LEVEL)).toBe(HURT_HP);
+    expect(casting(ADEPT_LEVEL + ADEPT_LEVEL / 2)).toBeGreaterThan(HURT_HP);
+  });
+
+  it("lands on the press for a caster who has doubled it", () => {
+    const play = session({ charm: "apprentice-stone" });
+    play.runCommand(`/mastery arcane ${ADEPT_LEVEL * 2}`);
+    play.runCommand(`/health ${HURT_HP}`);
+    play.drainNotices();
+
+    play.cast("charm");
+
+    expect(hpOf(play)).toBeGreaterThan(HURT_HP);
   });
 });

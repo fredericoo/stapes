@@ -24685,6 +24685,7 @@
           "tileId": "arcane-flame"
         },
         "cooldownMs": 45000,
+        "castTimeMs": 3000,
         "requirements": {
           "arcane": 5,
           "fire": 1

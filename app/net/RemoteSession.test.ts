@@ -692,6 +692,75 @@ describe("RemoteSession attack recovery", () => {
   });
 });
 
+/**
+ * A cast roots the body, and this side has to re-run that rule for the reason it
+ * re-runs a recovery: the server refuses the step, and a client that predicted
+ * one would walk the body a cell and have it dragged back. @see `../game/GameSession`
+ */
+describe("RemoteSession casting", () => {
+  const CAST_MS = 3_000;
+
+  /** What the broadcast says about this body's cast, starting or ending. */
+  const casting = (progress: { remainingMs: number; durationMs: number } | null) => ({
+    ...patch([]),
+    castings: [{ actorId: SELF, progress }],
+  });
+
+  it("refuses to predict a step while this body is casting", () => {
+    const { socket, session } = connected();
+    socket.deliver(casting({ remainingMs: CAST_MS, durationMs: CAST_MS }));
+
+    session.setInput({ directions: ["e"] });
+
+    expect(session.getSnapshot().self.walk).toBeNull();
+    expect(stepsSent(socket)).toEqual([]);
+  });
+
+  /** The turn is not refused: a conjure lands where the caster faces. */
+  it("still turns a rooted caster to face where it is asked to go", () => {
+    const { socket, session } = connected();
+    socket.deliver(casting({ remainingMs: CAST_MS, durationMs: CAST_MS }));
+
+    session.setInput({ directions: ["n"] });
+
+    expect(session.getSnapshot().self.direction).toBe("n");
+    expect(framesOfType(socket, "face")).toHaveLength(1);
+  });
+
+  /**
+   * The root lifts on the server's word rather than on this side's clock: the
+   * bar here can reach zero a round trip before the message that clears it.
+   */
+  it("walks again once the server says the cast has ended", () => {
+    const { socket, session } = connected();
+    socket.deliver(casting({ remainingMs: CAST_MS, durationMs: CAST_MS }));
+    session.setInput({ directions: ["e"] });
+
+    socket.deliver(casting(null));
+    session.setInput({ directions: ["e"] });
+
+    expect(session.getSnapshot().self.walk?.to).toEqual({ x: 1, y: 0, z: 0 });
+  });
+
+  /** Somebody else's cast says nothing about this body's footwork. */
+  it("ignores a cast being made by anybody else", () => {
+    const { socket, session } = connected();
+    socket.deliver({
+      ...patch([]),
+      castings: [
+        {
+          actorId: "somebody-else",
+          progress: { remainingMs: CAST_MS, durationMs: CAST_MS },
+        },
+      ],
+    });
+
+    session.setInput({ directions: ["e"] });
+
+    expect(session.getSnapshot().self.walk?.to).toEqual({ x: 1, y: 0, z: 0 });
+  });
+});
+
 describe("RemoteSession prediction", () => {
   it("walks on the key press, without waiting for the server", () => {
     const { socket, session } = connected();

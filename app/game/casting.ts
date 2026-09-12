@@ -4,6 +4,8 @@ import {
   type Masteries,
   masteryLevel,
   MASTERIES,
+  requirementCoverage,
+  REQUIREMENTS_MET,
 } from "../lib/mastery";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { canPlace } from "../lib/validation";
@@ -11,6 +13,7 @@ import { canReach } from "./combat";
 import type { ReachPoint } from "./distance";
 import type { Equipment } from "./equipment";
 import { canWalk } from "./movement";
+import type { Progress } from "./progress";
 
 /**
  * Which stones a body could cast right now, and why not the rest.
@@ -76,6 +79,8 @@ const _everyCastSquareIsWorn: readonly (keyof Equipment)[] = CAST_SQUARES;
 export type CastRefusal =
   /** Nothing in the square, or something that is not a stone. */
   | "empty"
+  /** This body is already part-way through a cast. @see CastContext.casting */
+  | "casting"
   /** Still counting down. @see ArcaneStoneItem.cooldownMs */
   | "cooling"
   /** The caster has not earned what it asks. @see ArcaneStoneItem.requirements */
@@ -164,6 +169,21 @@ export type CastContext = {
   masteries: Masteries;
   caster: CasterPoint;
   /**
+   * The cast this body is already part-way through, or null for a body with
+   * both hands free.
+   *
+   * **One cast at a time, and it refuses every square rather than its own.** A
+   * caster half way through a three-second flame has their hands full, and the
+   * stone they are not casting is no more pressable than the one they are — so
+   * the whole row dims and comes back together, which is a picture a player can
+   * read without knowing which button started it.
+   *
+   * Only the clock, never which stone: what a *button* needs to know is that
+   * nothing can be pressed, and the square the cast came out of is the session's
+   * own business. @see `./progress`
+   */
+  casting: Progress | null;
+  /**
    * Where the caster's target is standing, or null for a body pointing at
    * nobody.
    *
@@ -188,6 +208,11 @@ export function castability(
 ): Castability {
   const stone = stoneInSquare(context, square);
   if (!stone) return refused("empty");
+
+  // Before the cooldown, because it is the fact that will still be true when
+  // the cooldown has run out: a body mid-cast cannot start another whatever
+  // else is ready. @see CastContext.casting
+  if (context.casting) return refused("casting");
 
   const instance = context.equipment[square];
   // Read off the instance rather than off the def, because two identical stones
@@ -369,6 +394,45 @@ export function meetsRequirements(
   );
 }
 
+/**
+ * How long this stone takes to cast in these hands, in milliseconds.
+ *
+ * **What is authored is the price at exactly the asking level, and every point
+ * past that is time off.** A caster bringing 110% of what a stone asks casts it
+ * in 90% of its authored time, one bringing 150% in half of it, and one who has
+ * doubled the requirement casts instantly. That is one subtraction rather than a
+ * curve on purpose: a player who has just put a point into Fire should be able
+ * to see where it went, and "10% more than it asks is 10% faster" is a sentence
+ * they can hold in their head while looking at the requirements grid.
+ *
+ * **It is what makes a starter spell worth keeping.** A stone of Flame asks
+ * Arcane 5 and Fire 1, so three seconds at the moment you can first hold one and
+ * instant by Arcane 11 — the spell does not get stronger, it gets quick, and a
+ * caster who has grown past it is throwing it as fast as they can press. The
+ * stones at the top of the ladder ask thirty-odd points and stay slow for a long
+ * time, which is the whole shape of the trade.
+ *
+ * Never longer than the authored time, however short the caster falls: a
+ * shortfall refuses the cast outright — see {@link meetsRequirements} — so the
+ * arm above 1 would only ever describe a cast that cannot happen. Floored at
+ * zero, which is an instant cast and reads as one everywhere downstream.
+ *
+ * @see `../lib/mastery`'s {@link requirementCoverage} for what the share counts.
+ */
+export function castDurationMs(
+  stone: ArcaneStoneItem,
+  masteries: Masteries,
+): number {
+  const authored = stone.castTimeMs ?? 0;
+  if (authored <= 0) return 0;
+  const coverage = requirementCoverage(masteries, stone.requirements);
+  const share = Math.min(
+    REQUIREMENTS_MET,
+    REQUIREMENTS_MET - (coverage - REQUIREMENTS_MET),
+  );
+  return Math.max(0, Math.round(authored * share));
+}
+
 /** The stone in this square, or null when there is not one. */
 function stoneInSquare(
   context: CastContext,
@@ -407,6 +471,17 @@ export type SpellButton = {
   cooldownMs: number;
   /** What a full cooldown is, so a bar has a denominator. */
   cooldownTotalMs: number;
+  /**
+   * How long pressing it would take **in these hands**, or zero for an instant
+   * stone. @see castDurationMs
+   *
+   * The scaled figure rather than the authored one, because the authored one is
+   * a fact about the stone and this is the answer to "what happens if I press
+   * it". It is the one number on a button that a level-up moves, which is worth
+   * having on the tooltip: a caster watching three seconds become two has been
+   * shown what the point they just earned bought them.
+   */
+  castTimeMs: number;
   castability: Castability;
 };
 
@@ -441,6 +516,7 @@ export function castableStones(context: CastContext): SpellButton[] {
       name: instance.description?.trim() || def?.name || instance.tileId,
       cooldownMs: instance.cooldownMs ?? 0,
       cooldownTotalMs: stone.cooldownMs,
+      castTimeMs: castDurationMs(stone, context.masteries),
       castability: castability(context, square),
     });
   }
@@ -467,7 +543,10 @@ export function spellReading(buttons: readonly SpellButton[]): string {
     .map((button) => {
       const refusal = button.castability.ok ? "" : button.castability.reason;
       const seconds = Math.ceil(button.cooldownMs / MS_PER_SECOND);
-      return `${button.square}:${button.itemId}:${seconds}:${refusal}`;
+      // The cast time moves only when a level does, and it is on the tooltip —
+      // so it is compared here for the reason everything else is: a figure the
+      // button can show and never re-renders for is a figure that goes stale.
+      return `${button.square}:${button.itemId}:${seconds}:${button.castTimeMs}:${refusal}`;
     })
     .join("|");
 }
@@ -482,6 +561,7 @@ export function spellReading(buttons: readonly SpellButton[]): string {
  */
 export const CAST_REFUSAL_NOTES: Record<CastRefusal, string> = {
   empty: "nothing there",
+  casting: "already casting",
   cooling: "still cooling",
   mastery: "not learnt yet",
   noTarget: "nothing targeted",

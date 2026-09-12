@@ -230,6 +230,50 @@ export function requirementShare(
 }
 
 /**
+ * How much of what a stone asks this body brings, as a fraction of 1, **with the
+ * surplus counted**.
+ *
+ * {@link requirementShare} with the cap taken off, and the pair is the whole of
+ * the difference between a weapon and a stone. A weapon's requirements are a
+ * gate: meeting them is worth everything and exceeding them is worth nothing —
+ * see {@link REQUIREMENTS_MET}, which is where that argument is written down. A
+ * stone's are a gate *and* a dial, because a cast takes time and what shortens
+ * it is how far past the requirement the caster has got. Somebody bringing 110%
+ * of what a stone asks casts it in 90% of the time. @see `../game/casting`'s
+ * `castDurationMs`
+ *
+ * Pooled across every requirement on the same terms, and uncapped on both sides
+ * of each: a stone asking Arcane 5 and Fire 1 asks for six points, and Arcane 8
+ * with Fire 1 brings nine of them. Surplus carrying *is* the point here, so
+ * there is no `min` — which also means a caster can pay for a shortfall in one
+ * requirement with a surplus in another, as far as this function is concerned.
+ * Nothing is cast on that basis: a shortfall anywhere refuses the cast outright,
+ * through {@link meetsRequirements}, long before this is asked.
+ *
+ * A stone that asks nothing is {@link REQUIREMENTS_MET}, so it takes exactly as
+ * long as it is authored to take however good the caster is. That is the honest
+ * answer rather than a special case: there is nothing to have outgrown.
+ */
+export function requirementCoverage(
+  masteries: Masteries,
+  requirements: Masteries | undefined,
+): number {
+  if (!requirements) return REQUIREMENTS_MET;
+
+  let asked = 0;
+  let brought = 0;
+  for (const mastery of MASTERIES) {
+    const required = requirements[mastery] ?? 0;
+    if (required <= 0) continue;
+    asked += required;
+    brought += masteryLevel(masteries, mastery);
+  }
+
+  if (asked === 0) return REQUIREMENTS_MET;
+  return brought / asked;
+}
+
+/**
  * How sharply a weapon stops teaching you once you have passed what it asks.
  *
  * **Three, and it was six.** The intent has not changed — you cannot grind one

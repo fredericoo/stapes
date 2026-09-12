@@ -34,7 +34,8 @@ import {
   topInteractionAt,
   type InteractionOption,
 } from "../game/interactionOptions";
-import { extractionFraction, type Extraction } from "../game/extract";
+import type { Extraction } from "../game/extract";
+import { progressFraction } from "../game/progress";
 import { describedNearby } from "./nearbyDescriptions";
 import { WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
@@ -1965,12 +1966,21 @@ export class GameRenderer {
         // track says the same thing to somebody seeing it for the first time,
         // and it means every battler on screen is measured on the same ruler.
         bar: { fraction },
-        // Only while this body is working something — a deer at a bush, somebody
-        // else at a vein. What it is working is on the board beside it, so the
-        // bar says nothing else.
-        progress: actor.extracting
-          ? { fraction: extractionFraction(actor.extracting) }
-          : undefined,
+        // Only while this body is part-way through something — a deer at a
+        // bush, somebody else at a vein, a caster half way through a flame. One
+        // bar for both, because it is one thing to read: how long until whatever
+        // they are doing happens, and how long you have to do something about
+        // it. What they are actually doing is said by the board beside them and
+        // by the name they shouted as they started — see `GameSession.cast` — so
+        // the bar itself says nothing else.
+        //
+        // Never both at once: starting either takes the other off them.
+        // @see `../game/GameSession`'s `ActorSnapshot.casting`
+        progress: actor.casting
+          ? { fraction: progressFraction(actor.casting) }
+          : actor.extracting
+            ? { fraction: progressFraction(actor.extracting) }
+            : undefined,
       });
     }
   }

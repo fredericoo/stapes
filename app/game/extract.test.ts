@@ -16,7 +16,6 @@ import {
   clearExtractReservations,
   extractFits,
   extractKey,
-  extractionFraction,
   rollExtract,
   type Extraction,
 } from "./extract";
@@ -471,32 +470,6 @@ describe("rolling a pull", () => {
     const extract = resolveExtract(tilesById.crystal)!;
 
     expect(rollExtract(extract, () => 0.99)).toEqual([]);
-  });
-});
-
-describe("how far through a pull", () => {
-  /** Past the end or before the start, as two unsynchronised clocks leave it. */
-  const OVERSHOOT_MS = 100;
-
-  it("runs from nothing to done", () => {
-    const at = (remainingMs: number) =>
-      extractionFraction({ remainingMs, durationMs: EXTRACT_MS });
-
-    expect(at(EXTRACT_MS)).toBe(0);
-    expect(at(EXTRACT_MS / 4)).toBe(0.75);
-    expect(at(0)).toBe(1);
-  });
-
-  it("stays inside the bar when a clock overshoots", () => {
-    const at = (remainingMs: number) =>
-      extractionFraction({ remainingMs, durationMs: EXTRACT_MS });
-
-    expect(at(-OVERSHOOT_MS)).toBe(1);
-    expect(at(EXTRACT_MS + OVERSHOOT_MS)).toBe(0);
-  });
-
-  it("calls a pull authored at no time at all done", () => {
-    expect(extractionFraction({ remainingMs: 0, durationMs: 0 })).toBe(1);
   });
 });
 
