@@ -2289,11 +2289,22 @@ What replaced each of the three:
 - **Attack and target are two rows on the body itself**, side by side inside its
   box, exactly one lit. Pressing either says who *and* whether you are swinging
   — see `applyInteraction` — so the question is asked where the answer is about
-  to be used, rather than a switch's width away from it. `attack` outranks
-  `target` in `ACTION_ORDER`, so a click on a creature in the world fights it;
-  that is what a click already did, since attack mode shipped on by default. For
-  an NPC authored with both a dialog and hit points, `talk` still outranks both
-  within `TALK_REACH_CELLS`, so a tap on a shopkeeper talks.
+  to be used, rather than a switch's width away from it.
+- **Left picks, right fights.** `target` outranks `attack` in `ACTION_ORDER`, so
+  the verb a plain press runs on a body is the target, and the right button runs
+  the fight beside it (`GameRenderer`'s `fightAt`). That is the arrangement
+  every game with a mouse in it uses, which is the whole argument for it: it is
+  the one part of this interface nobody has to be taught. A tap on a phone is
+  the left button, so a thumb cannot start a fight by accident — the row in the
+  list is how it starts one. The canvas cancels its context menu, because the
+  right button is a game button there. For an NPC authored with both a dialog
+  and hit points, `talk` still outranks both within `TALK_REACH_CELLS`, so a
+  press on a shopkeeper talks.
+
+  Hovering was tried first and did the targeting on its own, with alt to make it
+  a fight. It reads well in a sentence and badly in the hand: every sweep of the
+  mouse across a room re-targeted, and a decision nobody made is a decision that
+  is hard to trust.
 - **Inspecting the world is a held shift, or a held finger.** Both live in
   `GameRenderer` now — `applyLooking` ORs them, and neither can cancel the
   other. A finger is the interesting half: there is nothing for a press to mean

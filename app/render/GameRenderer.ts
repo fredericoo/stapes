@@ -1159,6 +1159,7 @@ export class GameRenderer {
   }
 
   private attachPointer() {
+    this.canvas.addEventListener("contextmenu", this.onContextMenu);
     this.canvas.addEventListener("pointermove", this.onPointerMove);
     this.canvas.addEventListener("pointerdown", this.onPointerDown);
     this.canvas.addEventListener("pointerup", this.onPointerUp);
@@ -1167,12 +1168,22 @@ export class GameRenderer {
   }
 
   private detachPointer() {
+    this.canvas.removeEventListener("contextmenu", this.onContextMenu);
     this.canvas.removeEventListener("pointermove", this.onPointerMove);
     this.canvas.removeEventListener("pointerdown", this.onPointerDown);
     this.canvas.removeEventListener("pointerup", this.onPointerUp);
     this.canvas.removeEventListener("pointercancel", this.onPointerCancel);
     this.canvas.removeEventListener("pointerleave", this.onPointerLeave);
   }
+
+  /**
+   * The right button is a game button, so the browser's menu over the world is
+   * never what was being asked for. Cancelled on the canvas alone — every other
+   * surface on the page keeps its menu.
+   */
+  private onContextMenu = (e: MouseEvent) => {
+    e.preventDefault();
+  };
 
   private localPoint(e: PointerEvent): { x: number; y: number } {
     const rect = this.canvas.getBoundingClientRect();
@@ -1202,6 +1213,32 @@ export class GameRenderer {
     }
     this.pointerRef = this.pickRefAt(this.lastPointer, snap);
   };
+
+  /**
+   * The right button swings at whoever is under it.
+   *
+   * **Left picks, right fights**, which is the arrangement every game with a
+   * mouse in it already uses — so it is the one thing about this interface
+   * nobody has to be taught. It is the same pair of rows the creature's box
+   * offers, reached without looking away from the creature: the left button
+   * runs whatever the world offers, which on a body is the target, and this
+   * runs the fight beside it.
+   *
+   * Only a body offers one, so a right press on a crate or on the ground does
+   * nothing at all. Pressing it again on the body you are already fighting
+   * changes nothing either — stopping is what the target row, a left click and
+   * Escape are for, and a button that called the fight off when mashed
+   * mid-fight would be the worst possible answer to the gesture people make.
+   */
+  private fightAt(point: { x: number; y: number }, snap: GameSnapshot) {
+    this.pointerRef = this.pickRefAt(point, snap);
+    if (!this.pointerRef) return;
+    const ref = this.pointerRef;
+    const fight = this.interactionsSent.find(
+      (option) => option.action === "attack" && sameRef(option.ref, ref),
+    );
+    if (fight) applyInteraction(this.session, fight, this);
+  }
 
   /**
    * Interactive object drawn under a canvas-relative point, if any.
@@ -1245,7 +1282,9 @@ export class GameRenderer {
    * which it meant with shift and needs no wait.
    */
   private onPointerDown = (e: PointerEvent) => {
-    if (e.button !== 0) return;
+    // The two buttons this game has. Anything else — a middle click, a thumb
+    // button — is left to the browser.
+    if (e.button !== 0 && e.button !== 2) return;
 
     const point = this.localPoint(e);
     this.lastPointer = point;
@@ -1263,6 +1302,15 @@ export class GameRenderer {
         this.touchLooking = true;
         this.applyLooking();
       }, LOOK_HOLD_MS);
+      return;
+    }
+
+    if (e.button === 2) {
+      // Swallowed whether or not there is anybody there, because the menu it
+      // would otherwise open covers the world it was opened over. @see
+      // onContextMenu, which is what actually stops it.
+      e.preventDefault();
+      if (!this.lookMode) this.fightAt(point, this.session.getSnapshot());
       return;
     }
 
