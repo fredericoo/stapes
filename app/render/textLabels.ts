@@ -158,12 +158,23 @@ export function labelScreenPosition(
  * it would close up at low zoom and yawn at high, which is the same argument
  * that took this text out of the scene in the first place.
  *
- * Two, not the line and a half it was, because a name tag is no longer one line:
- * a battler's carries a health bar under it, and the pair stand about
- * one-and-two-thirds ems tall. The old figure cleared the name it was measured
- * against and would now clip the top of it.
+ * It has been raised twice, each time because the group it clears grew a row.
+ * One and a half cleared a name on its own; two cleared the health bar that
+ * came to sit under it, the pair standing about one-and-two-thirds ems tall.
+ * Two and three quarters clears the bar a pull or a cast draws *over* the name
+ * — see {@link WorldLabelLayer.fill} for why it goes there — which is a further
+ * half an em of track, border and margin.
+ *
+ * **Measured against the tallest the group ever gets, not the usual one**, and
+ * that is the trade: every bubble in the world sits a little higher than it
+ * strictly has to so that the one over a caster's head does not land on the bar
+ * announcing the spell they just shouted. A clearance that changed with the
+ * group would be a bubble that jumped the moment somebody started casting, and
+ * speech is anchored to the cell it was said in rather than to the body — it
+ * outlives both the caster and the cast, so there is nothing live to size it
+ * against anyway.
  */
-const ANCHOR_CLEARANCE_EMS = 2;
+const ANCHOR_CLEARANCE_EMS = 2.75;
 
 /** The bar's track; its single child is the filled part. @see app/app.css */
 const BAR_CLASS = "world-label__bar";
@@ -662,32 +673,30 @@ export class WorldLabelLayer {
   }
 
   /**
-   * One child per line, in order, and the bars under them.
+   * One child per line, in order, and the bar last.
    *
    * Rebuilt wholesale rather than diffed: a group holds at most a few lines, and
    * the alternative is a reconciler for something that changes when somebody
    * speaks.
    *
-   * The health bar goes last because the column flows downward from a bottom
-   * edge on the anchor, so the final child is the one nearest the head — a name
-   * sitting above the health of the thing it names, which is the order both are
-   * read in.
+   * The bar goes last because the column flows downward from a bottom edge on
+   * the anchor, so the final child is the one nearest the head — a name sitting
+   * above the health of the thing it names, which is the order both are read in.
+   * A pull or a cast goes first, over the name, so starting one grows the group
+   * upwards and leaves the name and the health bar exactly where they were. A
+   * body that shifted a brick every time it started casting would be a twitch on
+   * every press.
    *
-   * **A pull or a cast goes between them, and it used to go above the name.**
-   * Over the name was the cheaper arrangement: the group grows upward from a
-   * pinned bottom edge, so a row added at the top left the name and the health
-   * bar exactly where they were. What it cost was the row itself. A name tag is
-   * the one label allowed to be covered — see `labelLayout`, where speech is
-   * placed first and names are not in the contest — so a bubble lands squarely
-   * on whatever is at the top of this group. That was a rare collision while a
-   * bar only ever meant a pull, and it is a certainty now that a cast draws one:
-   * a caster shouts the spell's name at the moment the bar appears, and the
-   * bubble hangs there for longer than the cast takes. Below the name, the
-   * sentence covers the name it is allowed to cover and the bar stays readable;
-   * what it costs is the name shifting up a brick as a bar comes and goes.
+   * **What that costs is a row in the one place a label may be covered**, since
+   * a name is not in `labelLayout`'s contest and a bubble is placed without
+   * regard to it. `ANCHOR_CLEARANCE_EMS` is what keeps speech off it, and it is
+   * sized for this group at its tallest — name, bar in progress, health — for
+   * exactly the case a cast makes ordinary: a caster shouts the spell's name at
+   * the moment the bar appears, so the two are always on screen together.
    */
   private fill(element: HTMLDivElement, label: WorldLabel) {
     const rows: HTMLElement[] = [];
+    if (label.progress) rows.push(this.track(PROGRESS_BAR_CLASS));
     for (const line of label.lines) {
       const row = document.createElement("div");
       // Set as text, never as markup: this is the one string on screen that
@@ -695,7 +704,6 @@ export class WorldLabelLayer {
       row.textContent = line.text;
       rows.push(row);
     }
-    if (label.progress) rows.push(this.track(PROGRESS_BAR_CLASS));
     if (label.bar) rows.push(this.track(HEALTH_BAR_CLASS));
 
     element.replaceChildren(...rows);

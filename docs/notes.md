@@ -4584,9 +4584,9 @@ player's pull is still running on the body they left.
   placement. A cell patch already goes to everybody, and a client that knows the
   vein has nothing free knows enough to grey the row.
 - **That somebody else is pulling travels in the shared patch, without the
-  key.** A deer at a bush or another player at a vein gets a white bar under its
-  name (`WorldLabel.progress`, drawn by `WorldLabelLayer` between the name and
-  the health bar — so only on bodies that have a name tag, which is battlers). `ActorSnapshot`
+  key.** A deer at a bush or another player at a vein gets a white bar over its
+  name (`WorldLabel.progress`, drawn by `WorldLabelLayer` above the name line —
+  so only on bodies that have a name tag, which is battlers). `ActorSnapshot`
   carries the runtime's `Extraction` by reference, and
   `GameServer.diffExtractions` sends an `ExtractionPatch` whenever that identity
   changes: a start and an end, the same two messages the owner gets. It goes in
@@ -4594,15 +4594,19 @@ player's pull is still running on the body they left.
   everybody. The key is left off because only the owner's row matches against
   it, and the diff does not read `drainExtractionChanges` because that queue is
   the owner's.
-- **The bar sits under the name, and it used to sit over it.** Over the name was
-  cheaper — the group grows upward from a pinned bottom edge, so a row added at
-  the top left the name and the health bar exactly where they were — and it put
-  the bar in the one place a label may be covered: speech is placed first and a
-  name is not in the contest, so a bubble lands on whatever is at the top of that
-  group. That was a rare collision while a bar only meant a pull. It is a
-  certainty now that a cast draws one, because the caster shouts the spell's name
-  as the bar appears and the bubble outlives the cast. What the move costs is the
-  name shifting up a brick as a bar comes and goes.
+- **The bar sits over the name, and the group grows upward into it.** The bottom
+  edge is pinned to the head, so a row added at the top leaves the name and the
+  health bar exactly where they were — a body that shifted a brick every time it
+  started casting would be a twitch on every press. What that costs is a row in
+  the one place a label may be covered, since speech is placed first and a name
+  is not in `labelLayout`'s contest: a bubble is placed without regard to it.
+  `ANCHOR_CLEARANCE_EMS` is what keeps the two apart, and it is now 2.75 rather
+  than 2 — sized for the group at its tallest, bar included, because a caster
+  shouts the spell's name at the moment the bar appears and the two are always on
+  screen together. Every bubble in the world therefore sits a little higher than
+  it strictly has to; a clearance that changed with the group would be a bubble
+  that jumped when somebody started casting, and speech is anchored to the cell
+  rather than the body, so there is nothing live to size it against.
 - **A cast is the same picture on a second channel.** `CastingPatch` is
   `ExtractionPatch`'s twin, diffed by identity the same way and drawn by the same
   bar, and `app/game/progress.ts` is the two numbers both of them are — a third
