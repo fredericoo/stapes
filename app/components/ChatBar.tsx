@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MAX_CHAT_LENGTH } from "../net/chat";
 import { isTypingTarget } from "../game/heldDirections";
 import { Tooltip } from "../ui/Tooltip";
-import { ACTION_BUTTON_SIZE_CLASS } from "./ModeSwitch";
+import { ACTION_BUTTON_SIZE_CLASS } from "./actionButton";
 
 /**
  * Where you type what you say, in the two shapes it needs to be.

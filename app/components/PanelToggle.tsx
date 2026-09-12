@@ -4,7 +4,7 @@ import { resolveContainer } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { Tooltip } from "../ui/Tooltip";
-import { ACTION_BUTTON_SIZE_CLASS, type ActionButtonSize } from "./ModeSwitch";
+import { ACTION_BUTTON_SIZE_CLASS, type ActionButtonSize } from "./actionButton";
 import type { ItemDrag } from "./useItemDrag";
 import { useTap } from "./useTap";
 
