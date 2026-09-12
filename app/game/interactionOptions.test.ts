@@ -12,8 +12,10 @@ import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import type { ActorSnapshot } from "./GameSession";
+import type { ActorSnapshot, PlaySession } from "./GameSession";
 import {
+  actionRows,
+  applyInteraction,
   groupInteractionOptions,
   interactionText,
   listInteractionOptions,
@@ -468,7 +470,7 @@ describe("listInteractionOptions — battlers", () => {
 
     const targets = listInteractionOptions(map, tilesById, me, [me, deer], null, KIT);
 
-    expect(actionsIn(targets)).toEqual(["target", "follow"]);
+    expect(actionsIn(targets)).toEqual(["target", "attack", "follow"]);
     expect(targets[0]!.name).toBe("Deer");
     expect(targets[0]!.actorId).toBe("npc:deer");
     expect(targets[0]!.active).toBe(false);
@@ -484,7 +486,7 @@ describe("listInteractionOptions — battlers", () => {
 
     const targets = listInteractionOptions(map, tilesById, me, [me, deer], null, KIT);
 
-    expect(actionsIn(targets)).toEqual(["target", "follow"]);
+    expect(actionsIn(targets)).toEqual(["target", "attack", "follow"]);
   });
 
   /**
@@ -525,30 +527,30 @@ describe("listInteractionOptions — battlers", () => {
   });
 
   /**
-   * The row is the same row and does one thing either way; what changes is the
-   * word, because "Target Deer" describes the mechanism and "Attack Deer"
-   * describes what is about to happen. In attack mode the tap *is* the first
-   * swing, and people were reading the neutral verb and being surprised by the
-   * fight.
+   * The two rows are the two positions of one decision about this body, so the
+   * stance decides which of them is lit and nothing else: same rows, same
+   * verbs, same ids. A player who can see which one is lit can say what their
+   * next press does, which is the whole thing the mode could not tell them.
    */
-  it("names a body's row for the fight while the sword is out", () => {
+  it("lights the fight rather than the watch while the sword is out", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "deer"]);
     const me = playerAt(map);
     const deer = actor("npc:deer", "deer", 1, 0, map, 10);
 
     const peaceful = listInteractionOptions(
-      map, tilesById, me, [me, deer], null, KIT, null, [], false,
+      map, tilesById, me, [me, deer], "npc:deer", KIT, null, [], false,
     );
     const armed = listInteractionOptions(
-      map, tilesById, me, [me, deer], null, KIT, null, [], true,
+      map, tilesById, me, [me, deer], "npc:deer", KIT, null, [], true,
     );
 
-    expect(peaceful[0]!.label).toBe("Target");
-    expect(armed[0]!.label).toBe("Attack");
-    // Same row, same act: only the word changed.
-    expect(armed[0]!.action).toBe("target");
-    expect(armed[0]!.id).toBe(peaceful[0]!.id);
+    const lit = (options: InteractionOption[]) =>
+      options.filter((o) => o.active).map((o) => o.action);
+    expect(lit(peaceful)).toEqual(["target"]);
+    expect(lit(armed)).toEqual(["attack"]);
+    expect(armed.map((o) => o.label)).toEqual(peaceful.map((o) => o.label));
+    expect(armed.map((o) => o.id)).toEqual(peaceful.map((o) => o.id));
   });
 
   it("never offers the viewer their own body", () => {
@@ -573,7 +575,11 @@ describe("listInteractionOptions — battlers", () => {
       KIT,
     );
 
+    // The watching half of the pair is lit, since nothing said a sword was out.
+    expect(targets[0]!.action).toBe("target");
     expect(targets[0]!.active).toBe(true);
+    expect(targets[1]!.action).toBe("attack");
+    expect(targets[1]!.active).toBe(false);
   });
 
   it("ignores a body with no hit points to take", () => {
@@ -612,6 +618,7 @@ describe("listInteractionOptions — health", () => {
       { hp: 10, maxHp: 10 },
       { hp: 10, maxHp: 10 },
       { hp: 10, maxHp: 10 },
+      { hp: 10, maxHp: 10 },
     ]);
   });
 
@@ -627,7 +634,7 @@ describe("listInteractionOptions — health", () => {
 });
 
 describe("listInteractionOptions — a body that is both", () => {
-  it("lists a shovable body's two verbs as two entries, fight first", () => {
+  it("lists a shovable body's verbs as separate entries, the body first", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "player"]);
     const me = playerAt(map);
@@ -635,7 +642,7 @@ describe("listInteractionOptions — a body that is both", () => {
 
     const targets = listInteractionOptions(map, tilesById, me, [me, them], null, KIT);
 
-    expect(actionsIn(targets)).toEqual(["target", "follow", "push"]);
+    expect(actionsIn(targets)).toEqual(["target", "attack", "follow", "push"]);
   });
 
   it("names both entries after whoever is in the body, not after its tile", () => {
@@ -664,7 +671,12 @@ describe("listInteractionOptions — ordering", () => {
 
     const targets = listInteractionOptions(map, tilesById, me, [me, deer], null, KIT);
 
-    expect(targets.map((o) => o.name)).toEqual(["Crate", "Deer", "Deer"]);
+    expect(targets.map((o) => o.name)).toEqual([
+      "Crate",
+      "Deer",
+      "Deer",
+      "Deer",
+    ]);
   });
 
   it("sorts several bodies by how far off they are", () => {
@@ -690,13 +702,16 @@ describe("listInteractionOptions — ordering", () => {
       KIT,
     );
 
-    // Two rows each, and they stay in pairs: the sort settles distance first
-    // and only then which of a body's own verbs comes above the other.
+    // Three rows each, and they stay together: the sort settles distance first
+    // and only then which of a body's own verbs comes above the others.
     expect(targets.map((o) => o.actorId)).toEqual([
       "npc:near",
       "npc:near",
+      "npc:near",
       "npc:mid",
       "npc:mid",
+      "npc:mid",
+      "npc:far",
       "npc:far",
       "npc:far",
     ]);
@@ -723,6 +738,8 @@ describe("listInteractionOptions — ordering", () => {
     expect(targets.map((o) => o.actorId)).toEqual([
       "npc:here",
       "npc:here",
+      "npc:here",
+      "npc:up",
       "npc:up",
       "npc:up",
     ]);
@@ -1115,6 +1132,7 @@ describe("listInteractionOptions — standing on things", () => {
     );
 
     expect(actionsIn(options).sort()).toEqual([
+      "attack",
       "follow",
       "pickUp",
       "push",
@@ -1312,6 +1330,8 @@ describe("topInteractionAt", () => {
     const npc = actor("npc:salesman", "salesman", 4, 0, map, 10);
     const options = listInteractionOptions(map, tilesById, me, [me, npc], null, KIT);
 
+    // The left button picks somebody out; the right one fights them. So the
+    // verb a plain press runs is never the fight — see `ACTION_ORDER`.
     expect(topInteractionAt(options, npc)?.action).toBe("target");
   });
 });
@@ -1366,7 +1386,7 @@ describe("groupInteractionOptions", () => {
     };
   }
 
-  it("says one body once and both of its verbs under it", () => {
+  it("says one body once and all of its verbs under it", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "player"]);
     const me = playerAt(map);
@@ -1379,6 +1399,7 @@ describe("groupInteractionOptions", () => {
     expect(groups).toHaveLength(1);
     expect(actionsIn(groups[0]!.options)).toEqual([
       "target",
+      "attack",
       "follow",
       "push",
     ]);
@@ -1468,7 +1489,7 @@ describe("groupInteractionOptions", () => {
     // The body comes first because its fight does, and its shove comes with it
     // rather than staying behind the crate it was sorted against.
     expect(groups.map((g) => actionsIn(g.options))).toEqual([
-      ["target", "follow", "push"],
+      ["target", "attack", "follow", "push"],
       ["push"],
     ]);
     expect(groups[1]!.options[0]!.name).toBe("Crate");
@@ -1477,5 +1498,98 @@ describe("groupInteractionOptions", () => {
 
   it("has nothing to say about an empty list", () => {
     expect(groupInteractionOptions([])).toEqual([]);
+  });
+});
+
+describe("actionRows", () => {
+  /**
+   * The pair's adjacency is `ACTION_ORDER`'s doing rather than this function's,
+   * so the two are asserted together against a real body: a player standing
+   * next to you offers all four verbs, and only two of them share a line.
+   */
+  it("draws a body's fight and watch on one line, watching first", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "player"]);
+    const me = playerAt(map);
+    const them = actor("them", "player", 1, 0, map, 10);
+
+    const groups = groupInteractionOptions(
+      listInteractionOptions(map, tilesById, me, [me, them], null, KIT),
+    );
+    const rows = actionRows(groups[0]!.options);
+
+    expect(rows.map((row) => row.map((o) => o.action))).toEqual([
+      ["target", "attack"],
+      ["follow"],
+      ["push"],
+    ]);
+  });
+
+  it("has nothing to draw for a box with nothing in it", () => {
+    expect(actionRows([])).toEqual([]);
+  });
+});
+
+/**
+ * What a press asks the session for, which for a body is two questions at once:
+ * who, and whether you are swinging at them. They used to be two decisions made
+ * in two places — a row here and a mode elsewhere — and pressing one told you
+ * nothing about the other.
+ */
+describe("applyInteraction — the fight and the watch", () => {
+  /** Just enough of a session to record what a press asked of it. */
+  function recorder() {
+    const calls: string[] = [];
+    const session = {
+      setTarget: (actorId: string | null) => calls.push(`target ${actorId}`),
+      setAttackMode: (enabled: boolean) => calls.push(`swinging ${enabled}`),
+    } as unknown as PlaySession;
+    return { calls, session };
+  }
+
+  function bodyOptions(targetId: string | null, attacking: boolean) {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "deer"]);
+    const me = playerAt(map);
+    const deer = actor("npc:deer", "deer", 1, 0, map, 10);
+    return listInteractionOptions(
+      map, tilesById, me, [me, deer], targetId, KIT, null, [], attacking,
+    );
+  }
+
+  function row(options: InteractionOption[], action: "attack" | "target") {
+    return options.find((o) => o.action === action)!;
+  }
+
+  it("picks the body out and starts swinging, in one press", () => {
+    const { calls, session } = recorder();
+
+    applyInteraction(session, row(bodyOptions(null, false), "attack"));
+
+    expect(calls).toEqual(["target npc:deer", "swinging true"]);
+  });
+
+  it("keeps swinging when pressed again, rather than calling the fight off", () => {
+    const { calls, session } = recorder();
+
+    applyInteraction(session, row(bodyOptions("npc:deer", true), "attack"));
+
+    expect(calls).toEqual(["target npc:deer", "swinging true"]);
+  });
+
+  it("stops the fight and keeps the body when the watch beside it is pressed", () => {
+    const { calls, session } = recorder();
+
+    applyInteraction(session, row(bodyOptions("npc:deer", true), "target"));
+
+    expect(calls).toEqual(["target npc:deer", "swinging false"]);
+  });
+
+  it("lets the body go when the lit watch is pressed", () => {
+    const { calls, session } = recorder();
+
+    applyInteraction(session, row(bodyOptions("npc:deer", false), "target"));
+
+    expect(calls).toEqual(["target null", "swinging false"]);
   });
 });

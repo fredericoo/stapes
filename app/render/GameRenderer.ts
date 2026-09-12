@@ -156,13 +156,17 @@ const TARGET_HOVER_COLOR = 0xffffff;
 const TARGET_COLOR = 0xffffff;
 
 /**
- * The one you have picked while in attack mode. Red for the rest of the fight.
+ * The one you are swinging at. Red for the rest of the fight.
  *
- * Colour carries the mode and nothing else, which is why the pulse is on both:
- * red is not "this is your target", it is "this target is a fight", and turning
- * attack mode off leaves the outline exactly where it was in white.
+ * Colour carries the stance and nothing else, which is why the pulse is on
+ * both: red is not "this is your target", it is "this target is a fight", and
+ * pressing the watch row beside the fight leaves the outline exactly where it
+ * was in white.
  */
 const ATTACK_TARGET_COLOR = 0xff3b30;
+
+/** The fight outline lightened, as every other label ink here is. */
+const ATTACK_LABEL_INK = "#ff9b94";
 
 /**
  * Looking is blue, acting is yellow. Never both at once: two outlines in two
@@ -211,8 +215,9 @@ const REWARD_LABEL_INK = "#d9a9ff";
 /**
  * What colour an option paints its subject, and what ink its words are in.
  *
- * Three of them — white for a body that could be singled out, purple for
- * something you can be given once, yellow for everything else you could act on.
+ * Four of them — red for a body a click would swing at, white for one merely
+ * singled out, purple for something you can be given once, yellow for
+ * everything else you could act on.
  * A row under a finger and a sprite under a cursor are two ways of pointing at
  * one thing, so pointing either way has to look identical.
  *
@@ -221,12 +226,17 @@ const REWARD_LABEL_INK = "#d9a9ff";
  * and a text weight of pure `#ffcc00` is a headline rather than a caption.
  */
 function interactionColor(option: InteractionOption): number {
+  // Red before white, because a click on a body runs the fight: the outline has
+  // to say what the click does, and "Attack Rat" over a white silhouette would
+  // be the two halves of one answer disagreeing.
+  if (option.action === "attack") return ATTACK_TARGET_COLOR;
   if (option.action === "target") return TARGET_HOVER_COLOR;
   if (option.action === "reward") return REWARD_COLOR;
   return HOVER_COLOR;
 }
 
 function interactionInk(option: InteractionOption): string {
+  if (option.action === "attack") return ATTACK_LABEL_INK;
   if (option.action === "target") return "#ffffff";
   if (option.action === "reward") return REWARD_LABEL_INK;
   return HOVER_LABEL_INK;

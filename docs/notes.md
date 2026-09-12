@@ -2294,12 +2294,14 @@ before. Two consequences worth knowing about:
   shift is read over the top of it — which is the whole of "revert on release",
   with no previous-mode bookkeeping to fall out of step. Holding shift in attack
   mode suspends the fight and letting go resumes it.
-- **A body's row is renamed rather than replaced.** In attack mode the row on a
-  battler says "Attack Rat" instead of "Target Rat"; it is the same row running
-  the same `target` action, because the tap does one thing either way. Which
-  means the label is part of what `GameRenderer` diffs before handing the list to
-  React — a key of ids and health would recompute the right words and then decide
-  nothing had changed.
+- **A body offers both rows, side by side, and the stance decides which is lit.**
+  A battler's box holds "Attack" and "Target" on one line — see `actionRows` —
+  and `attacking` picks which of the two is drawn as the state you are in. The
+  row's *label* never changes with the stance, but `active` does, which is why
+  the stance is still part of what `GameRenderer` diffs before handing the list
+  to React. `attack` is above `target` in `ACTION_ORDER`, so a click on a
+  creature in the world starts a fight — which is what it always did, since
+  attack mode shipped on by default.
 
 The formulas live in `app/game/combat.ts`, kept pure so they can be asserted:
 

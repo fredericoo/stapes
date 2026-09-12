@@ -72,17 +72,30 @@ import type { Conversation } from "./dialogRuntime";
  */
 
 /**
- * What an entry does. The push/switch pair plus the two things a body offers.
+ * What an entry does. The push/switch pair plus the three things a body offers.
  *
- * `target` and not `attack`: picking somebody out is its own act now, and
- * whether it turns into blows is attack mode's answer rather than this list's —
- * see {@link GameSnapshot.attacking}. The row is the same row either way, which
- * is the point: you choose who you are interested in once, and change your mind
- * about what to do with them without having to choose again.
+ * `target` and `attack` are two rows rather than one row read through a mode.
+ * They used to be one: a body offered "Target", and whether pressing it started
+ * a fight came from a switch elsewhere on the screen — which nobody found, so
+ * nobody could say what their next tap on a creature was going to do. Two rows
+ * side by side say it in the only place a player is already looking.
  */
 export type InteractionAction =
   | InteractionKind
   | "target"
+  /**
+   * Single this body out *and* swing at it.
+   *
+   * Target plus the stance, in one press, because those are the two halves of
+   * one decision — see `./GameSession`'s {@link setAttackMode}, which is still
+   * where the stance lives and still the server's to honour. Never what a plain
+   * press on the world runs: it is the row beside the target, the right mouse
+   * button, and `E`. Pressing it again changes nothing: the way out of a fight
+   * is the target beside it, or Escape, and a button that stopped a fight when
+   * mashed mid-fight would be the worst possible answer to the gesture people
+   * actually make.
+   */
+  | "attack"
   /**
    * Walk after this body until told otherwise.
    *
@@ -224,6 +237,8 @@ export type OptionBlock =
 
 const LABELS: Record<InteractionAction, string> = {
   target: "Target",
+  // What the row beside it does, in the word the rest of the game uses for it.
+  attack: "Attack",
   // The verb, not the state: every other row here is named for what pressing it
   // does, and a row reading "Following" would be the one that named a condition.
   // Which of the two it is in is the lit border's job. @see InteractionOption.active
@@ -287,22 +302,6 @@ const CLOSE_LABEL = "Close";
 const NOTHING_EXTRACTING: Extraction | null = null;
 
 /**
- * What a target row says while the sword is out.
- *
- * The row is the same row — picking somebody out is still one act, and attack
- * mode is still what decides whether it turns into blows — but "Target Rat" is
- * an honest description of a mechanism and a poor description of what is about
- * to happen. People read the list, tapped it, and were surprised to find
- * themselves in a fight, which is the report that put this here: in attack mode
- * the tap *is* the first swing, so the verb says so.
- *
- * A label rather than a second action, deliberately. Two actions would be two
- * ranks to keep in {@link ACTION_ORDER}, two icons, and two paths through
- * {@link applyInteraction} for one press that does one thing.
- */
-const ATTACK_LABEL = "Attack";
-
-/**
  * One entry as a sentence: the verb and what it is about.
  *
  * The list draws these on two lines because it has a column to fill; anything
@@ -332,57 +331,66 @@ const ACTION_ORDER: Record<InteractionAction, number> = {
   // reached from the list. Only offered within `TALK_REACH_CELLS`, so the same
   // NPC tapped from across the room is still targeted.
   talk: 0,
+  // **What a plain press on the world runs**, which on a body is picking it out
+  // rather than hitting it: the left button chooses and the right button
+  // fights, the arrangement every game with a mouse in it uses. A tap on a
+  // phone is the left button, so a thumb cannot start a fight by accident
+  // either — the row in the list is how it starts one.
   target: 1,
-  // Directly under the target, which is the only place it can go: they are the
-  // two rows about the same body and the pair is read as one. Below rather than
-  // above because a tap on a body has to single it out — this order is what a
-  // plain tap on the world runs, and a tap that set off walking after a wolf
-  // instead of pointing at it would be answering a question nobody asked.
-  follow: 2,
+  // Never what a plain press runs, and reached three other ways: the row beside
+  // the target in the list, the right button on the world (see
+  // `../render/GameRenderer`'s `fightAt`), and `E`.
+  attack: 2,
+  // Directly under the pair, which is the only place it can go: they are the
+  // rows about the same body and they are read together. Below rather than
+  // above because a tap on a body has to be about the body — this order is what
+  // a plain tap on the world runs, and a tap that set off walking after a wolf
+  // instead of fighting it would be answering a question nobody asked.
+  follow: 3,
   // Above everything the board offers, and above `open` in particular: a chest
   // authored as both a reward and a container is one you are meant to be *given*
   // the contents of, and rummaging in it is the lesser reading of the same tap.
-  reward: 3,
+  reward: 4,
   // Above the switch, for the reason the session's own precedence puts it
   // there: a door authored to both open and lead through is one tap, and the
   // half that takes you somewhere is the one with consequences.
-  teleport: 4,
-  switch: 5,
+  teleport: 5,
+  switch: 6,
   // Below the switch, on the session's own precedence: this is the only entry
   // here that changes the *presser* rather than the board, so a brazier that
   // both lights a room and burns the hand that lit it spends the tap on the
   // half the player can see.
-  addStatus: 6,
+  addStatus: 7,
   // Below the switch and above everything to do with carrying, which is where
   // an explicit authored act belongs — and it never competes with the tap
   // anyway, since a transmute row is reached by name and a tile that both
   // cooked and swung open would spend its tap on the hinge either way.
-  transmute: 7,
+  transmute: 8,
   // Below the transmute and above everything to do with carrying, which is
   // where the session's own precedence puts it and for the same reason: an
   // explicit authored act comes before lifting a thing off the floor. It never
   // actually competes with the four above it — nobody authors a door you can
   // also mine — and if they did, the hinge is the half the player can see.
-  extract: 8,
+  extract: 9,
   // Above pick-up, and this is the one that decides what a plain tap on a sword
   // does. An empty hand is the strongest thing a player can be saying about what
   // they want done with a weapon on the floor, and stowing it afterwards is one
   // drag; the reverse — fishing a sword back out of a bag you did not mean it to
   // go into — is the annoying direction. It only ever appears when the slot is
   // free, so it cannot take a tap away from anybody who is already armed.
-  equip: 9,
+  equip: 10,
   // Above pick-up, and only ever up against it on a container: a pack you are
   // already wearing the twin of can be taken into a hand now, and a tap that
   // picked it up rather than looking inside would be answering the less
   // interesting of the two questions. Nothing else in the game is both.
-  open: 10,
-  pickUp: 11,
+  open: 11,
+  pickUp: 12,
   // Below pick-up on purpose, and pick-up is what a plain tap on the tile runs:
   // eating destroys the thing where lifting it is reversible, so the row you
   // have to *find* is the destructive one and the gesture you can fire by
   // accident is the safe one.
-  consume: 12,
-  push: 13,
+  consume: 13,
+  push: 14,
 };
 
 /**
@@ -448,10 +456,11 @@ const LEVEL_DISTANCE_WEIGHT = 100;
  *   inside the view. Attacking is picking a target rather than swinging, so it
  *   is offered at any distance you can point at, and how far the view reaches
  *   is the renderer's question rather than this one's.
- * @param attacking whether the sword is out, which changes what a body's row is
- *   *called* and nothing else about it. See {@link ATTACK_LABEL}. Defaulted, so
- *   a caller that has no stance to report gets the neutral verb rather than
- *   having to invent an answer.
+ * @param attacking whether the viewer is swinging at whoever they have picked,
+ *   which decides *which* of a body's two rows is lit and nothing else: the
+ *   rows are the same rows, with the same verbs, in every stance. Defaulted, so
+ *   a caller with no stance to report lights the watching one rather than having
+ *   to invent an answer.
  * @param extracting the pull this viewer is part-way through, if any — see
  *   `./extract`'s {@link Extraction}. Theirs alone, exactly as {@link tags} is:
  *   what somebody else is half way through mining reaches this list through the
@@ -586,6 +595,45 @@ export function groupSubject(group: InteractionGroup): InteractionOption {
 }
 
 /**
+ * One box's verbs, cut into the lines they are drawn on.
+ *
+ * **One verb per line everywhere except on a body, where fighting and watching
+ * share one.** They are the two positions of a single decision about that
+ * creature, and stacking them read as two unrelated things you might do — which
+ * is the reading that had people pressing "Target" and wondering why nothing was
+ * happening. Side by side, the pair is one control with two ends, and which end
+ * you are at is which one is lit.
+ *
+ * Written here rather than in the component because the adjacency it relies on
+ * is {@link ACTION_ORDER}'s: the pair sorts together, so a row is closed by the
+ * first verb that is not one of them. Order inside the line is stated rather
+ * than inherited — watching on the left, fighting on the right, so the pair
+ * reads as an escalation in the direction it is read.
+ */
+export function actionRows(
+  options: readonly InteractionOption[],
+): InteractionOption[][] {
+  const rows: InteractionOption[][] = [];
+  let pair: InteractionOption[] | null = null;
+
+  for (const option of options) {
+    if (option.action !== "attack" && option.action !== "target") {
+      pair = null;
+      rows.push([option]);
+      continue;
+    }
+    if (!pair) {
+      pair = [];
+      rows.push(pair);
+    }
+    if (option.action === "target") pair.unshift(option);
+    else pair.push(option);
+  }
+
+  return rows;
+}
+
+/**
  * Where a follow is turned on and off.
  *
  * A shape rather than the renderer itself, because that is the whole of what
@@ -605,10 +653,6 @@ export type Follower = {
  * entry is a session call, and both routes would otherwise write the same three
  * lines against sessions they hold differently. The list itself knows nothing
  * about pushing or fighting; it hands the option back and this decides.
- *
- * Tapping the one you are already pointing at drops it. That is the only way to
- * clear a target with a thumb — the keyboard has Escape and a touch screen has
- * nothing — and it is why the entry says which one is active at all.
  *
  * @param follower who does the walking, for the one row that is not the board's
  *   business. Optional, and a route that leaves it out simply has a follow row
@@ -635,8 +679,21 @@ export function applyInteraction(
     return;
   }
   if (!session) return;
+  // The two halves of one decision, and the pair is why neither has to ask what
+  // the other left behind: fighting says who *and* that you are swinging, and
+  // watching says who and that you are not. Nothing can end up swinging at
+  // somebody it never picked, which is exactly what the old mode allowed.
+  if (option.action === "attack") {
+    session.setTarget(option.actorId);
+    session.setAttackMode(true);
+    return;
+  }
   if (option.action === "target") {
+    // Pressing the lit one drops the body. That is the only way to let go of a
+    // target with a thumb — the keyboard has Escape and a touch screen has
+    // nothing — and it is why the row says which one is active at all.
     session.setTarget(option.active ? null : option.actorId);
+    session.setAttackMode(false);
     return;
   }
   // Opens the panel; pressing it again while lit closes it, on the target's
@@ -1070,8 +1127,8 @@ function talkOptions(
 }
 
 /**
- * Two entries per body the viewer can see — single it out, and walk after it —
- * each saying whether it is the one already in force.
+ * Three entries per body the viewer can see — fight it, single it out, and walk
+ * after it — each saying whether it is the one already in force.
  *
  * **Range is deliberately not consulted.** Tapping a body does not swing at it —
  * it marks it as the target, and attack mode plus the session decide when and
@@ -1085,9 +1142,13 @@ function talkOptions(
  * reason: a body you are beside is the one body there is no point setting off
  * after.
  *
- * Both rows for every battler, with no rule about which pairs with which. A
+ * All three rows for every battler, with no rule about which pairs with which. A
  * battler is anything with hit points, which the snapshot already says: `hp` is
  * null for a body that has none.
+ *
+ * **Exactly one of the fight row and the target row is ever lit**, because they
+ * are the two positions of one decision about this body: swinging at it, or
+ * watching it. Neither is lit for a body that is not the one you have picked.
  */
 function battlerOptions(
   tilesById: Record<string, TileDef>,
@@ -1112,10 +1173,11 @@ function battlerOptions(
       tilesById,
     );
     const health = healthOf(actor);
+    const picked = actor.id === targetId;
     out.push({
-      id: `target:${actor.id}`,
-      action: "target",
-      label: attacking ? ATTACK_LABEL : LABELS.target,
+      id: `attack:${actor.id}`,
+      action: "attack",
+      label: LABELS.attack,
       ref,
       actorId: actor.id,
       recipeIndex: null,
@@ -1123,7 +1185,20 @@ function battlerOptions(
       tileId: actor.tileId,
       name,
       health,
-      active: actor.id === targetId,
+      active: picked && attacking,
+    });
+    out.push({
+      id: `target:${actor.id}`,
+      action: "target",
+      label: LABELS.target,
+      ref,
+      actorId: actor.id,
+      recipeIndex: null,
+      blocked: null,
+      tileId: actor.tileId,
+      name,
+      health,
+      active: picked && !attacking,
     });
     out.push({
       id: `follow:${actor.id}`,

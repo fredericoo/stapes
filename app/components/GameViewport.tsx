@@ -262,11 +262,9 @@ export function GameViewport({
   tilesets?: TilesetDef[];
 }) {
   const coarse = useCoarsePointer();
-  // Read off the one mode rather than carried as two flags of their own: the
-  // panels want to know whether the player is inspecting and the list wants to
-  // know whether a target is a fight, and both of those are this one answer.
+  // Read off the one mode rather than carried as a flag of its own: the panels
+  // want to know whether the player is inspecting, and that is this answer.
   const looking = mode === "inspect";
-  const attacking = mode === "attack";
   // Zooming a fixed-square world only crops the controls off the screen. Held
   // to the game rather than declared for the whole site, so the editor keeps
   // the magnifying glass it has a real use for. See `./useNoZoom`.
@@ -481,7 +479,6 @@ export function GameViewport({
       options={interactions}
       tiles={tiles}
       tilesets={tilesets}
-      attacking={attacking}
       onAct={(option) => {
         // Opening is the one row that never reaches the session: a container's
         // contents are already here, riding on its placement, so looking inside
