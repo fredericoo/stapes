@@ -12,12 +12,18 @@ import {
 } from "../lib/piles";
 import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
-import { reachableItemDefAt, type Actor, type ObjectRef } from "./affordances";
+import {
+  equipSlotOf,
+  reachableItemDefAt,
+  type Actor,
+  type ObjectRef,
+} from "./affordances";
 import {
   type Equipment,
   type Hand,
   handAccepts,
   handHasRoomFor,
+  otherHand,
   stoneLocked,
   wornAccepts,
 } from "./equipment";
@@ -361,17 +367,7 @@ function slotHasRoom(
   instance: ItemInstance,
 ): boolean {
   if (isBodySlot(slot)) {
-    // A square that is taken is still a destination for exactly one thing: a
-    // pile of the same food with room for all of it. That is the one place in
-    // the game a move lands on something rather than beside it, and it is not a
-    // swap — nothing comes back out, because there is nothing left of what went
-    // in. See `../lib/piles`.
-    const held = equipment[slot.kind];
-    if (held) return fuses(held, instance, tilesById);
-    const def = tilesById[instance.tileId];
-    return isHand(slot.kind) && def
-      ? handHasRoomFor(equipment, tilesById, slot.kind, def)
-      : true;
+    return bodySlotHasRoom(equipment, tilesById, slot.kind, instance);
   }
   if (slot.kind === "contents") {
     const holder = equipment[contentsHolder(slot)];
@@ -388,6 +384,85 @@ function slotHasRoom(
   const def = tilesById[placed.tileId];
   const size = def ? (resolveContainer(def)?.size ?? 0) : 0;
   return stowFits(placed.contents ?? [], instance, size, tilesById);
+}
+
+/**
+ * Is there room in a square on a body for this thing?
+ *
+ * Apart from {@link slotHasRoom} because {@link equipDestination} asks it of
+ * several squares at once and has no board or actor to offer: what fits in a
+ * square on a body is decided by the kit alone, where what fits in a container
+ * is decided by the container — and only the second needs a map to find. Two
+ * readings of "is this square free" would be two things for the equipment
+ * button and the square it sends to to disagree about.
+ *
+ * A square that is taken is still a destination for exactly one thing: a pile
+ * of the same food with room for all of it. That is the one place in the game a
+ * move lands on something rather than beside it, and it is not a swap — nothing
+ * comes back out, because there is nothing left of what went in. See
+ * `../lib/piles`.
+ */
+export function bodySlotHasRoom(
+  equipment: Equipment,
+  tilesById: Record<string, TileDef>,
+  kind: EquipSlot,
+  instance: ItemInstance,
+): boolean {
+  const held = equipment[kind];
+  if (held) return fuses(held, instance, tilesById);
+  const def = tilesById[instance.tileId];
+  return isHand(kind) && def
+    ? handHasRoomFor(equipment, tilesById, kind, def)
+    : true;
+}
+
+/**
+ * The square a thing goes into when somebody asks to equip it without saying
+ * where.
+ *
+ * **What a drop on the equipment button means.** Dropping onto a square is
+ * somebody naming the square, and the generous {@link slotTakes} rule answers
+ * that — a hand takes anything you can carry. Dropping onto the button says
+ * only "wear this", so the answer starts where every other unnamed destination
+ * starts: `./affordances`' `equipSlotOf`, which is also what a tap and the
+ * floor's "Wield" row are built from, so the button cannot send a sword
+ * somewhere a tap would not.
+ *
+ * **A hand falls back to the other hand, and a worn square has no fallback.**
+ * Both hands take the same things and both swing, so a second sword goes into
+ * the free fist rather than being refused — which is most of what makes the
+ * button worth dragging to. There is no second head or second pair of boots, so
+ * a worn square is the only square its armour has.
+ *
+ * **Never a swap.** A full square is not emptied to make room, on the terms
+ * `equipSlotFrom` already refuses a floor pickup: taking off what you are
+ * wearing is a drag of its own, and one that happened by itself is the kind of
+ * thing you notice a fight later. With nothing free this answers with the
+ * square the thing belongs in anyway, and {@link applyItemMove} refuses the
+ * move there — the same silence dropping it on that square directly gives. That
+ * is deliberate rather than incidental: a helm dropped on the button while you
+ * are wearing one has to stay where it was, and answering with no square at all
+ * would let the release fall through to the world and put it on the floor.
+ *
+ * Null only for something with no square on a body at all — a berry, a rock, a
+ * chest — where there is nothing for the button to mean. The drop is then no
+ * different from one onto the stats button beside it.
+ */
+export function equipDestination(
+  equipment: Equipment,
+  tilesById: Record<string, TileDef>,
+  instance: ItemInstance,
+): BodySlotRef | null {
+  const def = tilesById[instance.tileId];
+  const belongs = def ? equipSlotOf(def) : null;
+  if (!belongs) return null;
+  const candidates: EquipSlot[] = isHand(belongs)
+    ? [belongs, otherHand(belongs)]
+    : [belongs];
+  for (const kind of candidates) {
+    if (bodySlotHasRoom(equipment, tilesById, kind, instance)) return { kind };
+  }
+  return { kind: belongs };
 }
 
 /** Rewrite a ground container's contents, leaving the rest of its slot alone. */

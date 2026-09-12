@@ -1,5 +1,7 @@
 import { IconBackpack, IconHeartbeat, IconShirt } from "@tabler/icons-react";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
+import type { Equipment } from "../game/equipment";
+import { equipDestination } from "../game/itemMoves";
 import { resolveContainer } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { TileDef, TilesetDef } from "../lib/types";
@@ -62,16 +64,72 @@ export function StatsToggle({
   );
 }
 
-/** Show or hide what you are wearing. */
+/**
+ * The registry key the equipment button holds a drop target under.
+ *
+ * Its own key rather than a square's, for the reason the bag button has one:
+ * the square a drop resolves to may already be on screen in the open panel, and
+ * two elements cannot share one entry. See {@link BAG_BUTTON_TARGET_KEY}.
+ */
+const EQUIPMENT_BUTTON_TARGET_KEY = "equipment-button";
+
+/**
+ * Show or hide what you are wearing, and equip what is dropped on it.
+ *
+ * **A drop here names no square.** Everywhere else a drag says exactly where a
+ * thing goes; this button says only "wear this", and where that is comes from
+ * `../game/itemMoves`' `equipDestination` — the square the thing belongs in, or
+ * the other hand when the first is full. That is the same answer a tap on the
+ * item gives, so the two gestures cannot send one sword to two places.
+ *
+ * It exists because the panel is a detour. Wearing something out of your bag
+ * meant opening the equipment panel to have a square to aim at — and on a phone
+ * that panel replaces the bag you are dragging out of, so the two squares were
+ * never on screen together. The button is on screen whether the panel is open
+ * or not.
+ */
 export function EquipmentToggle({
   open,
   onChange,
+  equipment,
+  tilesById,
+  drag,
   size = "touch",
 }: {
   open: boolean;
   onChange: (open: boolean) => void;
+  /** What is already worn, which is half of where a dropped thing can go. */
+  equipment: Equipment;
+  tilesById: Record<string, TileDef>;
+  /** The one move in progress, page-wide. See `./useItemDrag`. */
+  drag: ItemDrag;
   size?: ActionButtonSize;
 }) {
+  const { register } = drag;
+  // The kit is read through a ref rather than closed over, so the resolver
+  // keeps one identity for the life of the button: it is handed to `register`
+  // by a ref callback, and one that changed whenever a snapshot arrived would
+  // tear this target down and rebuild it on every frame the game drew.
+  const latest = useRef({ equipment, tilesById });
+  latest.current = { equipment, tilesById };
+  const destination = useCallback(
+    (instance: ItemInstance) =>
+      equipDestination(
+        latest.current.equipment,
+        latest.current.tilesById,
+        instance,
+      ),
+    [],
+  );
+  const attach = useCallback(
+    (el: HTMLElement | null) =>
+      register(EQUIPMENT_BUTTON_TARGET_KEY, destination, el),
+    [register, destination],
+  );
+
+  const wouldTake = drag.targets.has(EQUIPMENT_BUTTON_TARGET_KEY);
+  const isOver = drag.over === EQUIPMENT_BUTTON_TARGET_KEY;
+
   // Pointer-driven rather than click-driven, so the row still answers a thumb
   // that is holding the d-pad down. See `./useTap`.
   const tap = useTap(() => onChange(!open));
@@ -80,10 +138,21 @@ export function EquipmentToggle({
     <Tooltip content="Equipment">
       <button
         type="button"
+        ref={attach}
         aria-pressed={open}
         aria-label="Equipment"
         {...tap}
-        className={toggleClass(open, size)}
+        className={[
+          toggleClass(open, size),
+          isOver
+            ? "border-accent bg-accent/30"
+            : wouldTake
+              ? "border-accent/60"
+              : "",
+        ].join(" ")}
+        // Without this a finger dragging over the button scrolls the page
+        // instead, and the moves stop arriving — the same reason a slot sets it.
+        style={{ touchAction: "none" }}
       >
         <IconShirt
           size={size === "touch" ? 24 : 18}

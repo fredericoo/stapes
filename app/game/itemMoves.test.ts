@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
+import {
+  DEFAULT_ARTIFACT,
+  DEFAULT_CONSUMABLE,
+  DEFAULT_CONTAINER,
+  DEFAULT_WEAPON,
+} from "../lib/item";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { MapFile, TileDef } from "../lib/types";
@@ -7,7 +12,13 @@ import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import type { ObjectRef } from "./affordances";
 import { emptyEquipment, type Equipment } from "./equipment";
-import { applyItemMove, canMoveItem, slotIn, slotKey } from "./itemMoves";
+import {
+  applyItemMove,
+  canMoveItem,
+  equipDestination,
+  slotIn,
+  slotKey,
+} from "./itemMoves";
 
 /**
  * Moving one thing from a slot to a slot.
@@ -58,6 +69,15 @@ const tiles = [
     id: "helm",
     kind: "item",
     interactions: { item: { type: "armor", slot: "head", def: 2 } },
+  }),
+  // A thing you hold and never swing, which is where the off hand's default
+  // comes from — see `./affordances`' `equipSlotOf`.
+  tile({ id: "torch", kind: "item", interactions: { item: DEFAULT_ARTIFACT } }),
+  // Worn nowhere at all: the case the equipment button has no answer for.
+  tile({
+    id: "berry",
+    kind: "item",
+    interactions: { item: DEFAULT_CONSUMABLE },
   }),
 ];
 const tilesById = tilesByIdFromList(tiles);
@@ -908,5 +928,134 @@ describe("a container held in a hand", () => {
 
   it("keys apart from the same index in the worn pack", () => {
     expect(slotKey(HELD_SLOT)).not.toBe(slotKey({ kind: "contents", index: 0 }));
+  });
+});
+
+/**
+ * Where a thing goes when nobody has named a square — a drop on the equipment
+ * button, which says "wear this" and nothing more.
+ *
+ * The rules worth pinning are the two that separate it from a drop onto a
+ * square: it starts from where a thing *belongs* rather than from what a square
+ * will take, and it never empties a square to make room. The second is why a
+ * full square is still the answer: the move is then refused, which is the same
+ * silence dropping it on that square gives, where no answer at all would let
+ * the release fall through to the floor.
+ */
+describe("equipping without naming a square", () => {
+  const torch: ItemInstance = { id: "itm_torch", tileId: "torch" };
+  const helmet: ItemInstance = { id: "itm_helm", tileId: "helm" };
+  const pack: ItemInstance = { id: "itm_pack", tileId: "bag", contents: [] };
+  const berry: ItemInstance = { id: "itm_berry", tileId: "berry" };
+
+  it("sends a weapon to the hand it is swung with", () => {
+    expect(equipDestination(emptyEquipment(), tilesById, sword("itm_a"))).toEqual(
+      { kind: "weapon" },
+    );
+  });
+
+  /** The whole of what the button adds over "the square this belongs in". */
+  it("sends a second weapon to the free hand", () => {
+    const held = { ...emptyEquipment(), weapon: sword("itm_a") };
+    expect(equipDestination(held, tilesById, sword("itm_b"))).toEqual({
+      kind: "offhand",
+    });
+  });
+
+  /** A torch belongs in the hand you do not fight with, and falls back likewise. */
+  it("sends a torch to the off hand, and to the other one when it is full", () => {
+    expect(equipDestination(emptyEquipment(), tilesById, torch)).toEqual({
+      kind: "offhand",
+    });
+    const held = { ...emptyEquipment(), offhand: sword("itm_a") };
+    expect(equipDestination(held, tilesById, torch)).toEqual({ kind: "weapon" });
+  });
+
+  /** Armour names its own square, and there is no second head to fall back to. */
+  it("sends a helm to the head and never to a hand", () => {
+    expect(equipDestination(emptyEquipment(), tilesById, helmet)).toEqual({
+      kind: "head",
+    });
+  });
+
+  it("sends a wearable pack to the back", () => {
+    expect(equipDestination(emptyEquipment(), tilesById, pack)).toEqual({
+      kind: "bag",
+    });
+  });
+
+  /**
+   * Never a swap: what is worn stays worn, and the move the button names is
+   * refused rather than falling past every square to the floor.
+   */
+  it("answers with the taken square, which then refuses the move", () => {
+    const worn = { ...emptyEquipment(), head: helmet };
+    const spare: ItemInstance = { id: "itm_helm_b", tileId: "helm" };
+    const to = equipDestination(worn, tilesById, spare);
+    expect(to).toEqual({ kind: "head" });
+    expect(
+      canMoveItem(
+        emptyMap(),
+        tilesById,
+        ME,
+        { ...worn, bag: { id: "itm_bag", tileId: "bag", contents: [spare] } },
+        { kind: "contents", index: 0 },
+        to!,
+      ),
+    ).toBe(false);
+  });
+
+  /** A hand that is free is not room enough for a weapon that needs both. */
+  it("refuses a two-handed weapon while the other hand is full", () => {
+    const held = { ...emptyEquipment(), offhand: sword("itm_a") };
+    const pike: ItemInstance = { id: "itm_pike", tileId: "pike" };
+    expect(equipDestination(held, tilesById, pike)).toEqual({ kind: "weapon" });
+    expect(
+      canMoveItem(
+        emptyMap(),
+        tilesById,
+        ME,
+        { ...held, bag: { id: "itm_bag", tileId: "bag", contents: [pike] } },
+        { kind: "contents", index: 0 },
+        { kind: "weapon" },
+      ),
+    ).toBe(false);
+  });
+
+  /** Nothing to mean: there is no square on a body for a berry or a chest. */
+  it("has no answer for something that is worn nowhere", () => {
+    expect(equipDestination(emptyEquipment(), tilesById, berry)).toBeNull();
+    expect(
+      equipDestination(emptyEquipment(), tilesById, {
+        id: "itm_chest",
+        tileId: "chest",
+        contents: [],
+      }),
+    ).toBeNull();
+  });
+
+  /** A tile the catalogue has lost, on the terms every other lookup answers it. */
+  it("has no answer for a tile that is not in the world", () => {
+    expect(
+      equipDestination(emptyEquipment(), tilesById, {
+        id: "itm_ghost",
+        tileId: "ghost",
+      }),
+    ).toBeNull();
+  });
+
+  /** And the answer is a move that actually lands. */
+  it("names a square the move rules then honour", () => {
+    const held = kit([sword("itm_a")]);
+    const to = equipDestination(held, tilesById, sword("itm_a"));
+    const moved = applyItemMove(
+      emptyMap(),
+      tilesById,
+      ME,
+      held,
+      { kind: "contents", index: 0 },
+      to!,
+    );
+    expect(moved?.equipment.weapon).toEqual(sword("itm_a"));
   });
 });

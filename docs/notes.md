@@ -4687,6 +4687,39 @@ one level of spilling is the whole of it.
 It applies to players exactly as it does to a deer, which is the point: there is
 one death, and a deer that had picked a bush leaves the berries it was carrying.
 
+## Dropping on the equipment button equips into the square the thing belongs in
+
+Every other drag names a square. A drop on the shirt button in the control strip
+names none — it says "wear this" — and `equipDestination` in
+`app/game/itemMoves.ts` works out where that is. It starts from `equipSlotOf`,
+which is also what a tap on the item and the floor's "Wield" row are built from,
+so one thing cannot have two homes. It adds exactly one rule on top: a hand falls
+back to the other hand, because both hands take the same things and both swing,
+so a second sword goes into the free fist. A worn square has no twin and gets no
+fallback.
+
+The button exists because the panel was a detour. Wearing something out of your
+bag meant opening the equipment panel first to have a square to aim at, and on a
+phone that panel replaces the bag you are dragging out of — so the two squares
+were never on screen together. The button is there whether the panel is open or
+not.
+
+**It never swaps.** Nothing comes off to make room, on the terms `equipSlotFrom`
+already refuses a pickup off the floor. When no square is free the answer is the
+taken square anyway and `applyItemMove` refuses the move there, which is the same
+silence dropping the thing on that square directly gives. Answering with no
+square at all would be worse than silence: the release would find no target under
+the pointer and fall through to a world drop, so a helm dropped on the button
+while you are wearing one would land on the floor. A thing with no square on a
+body at all — a berry, a chest — does answer with nothing, and the drop then
+behaves as it does over the stats button beside it.
+
+The drag hook takes a target as a function rather than a square for this:
+`DropTarget` in `app/components/useItemDrag.ts` is a `SlotRef` or a resolver
+asked for one, and the resolver is asked when the drag is lifted and again when
+it lands, so the answer is about the kit as it is then rather than as it was when
+the button drew.
+
 ## Decay is a switch whose input is time
 
 `DecayInteraction` turns a placement into another tile, or into nothing, once it
