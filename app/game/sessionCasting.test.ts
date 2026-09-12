@@ -674,6 +674,12 @@ function run(play: GameSession, ticks: number) {
 /** One second of simulated time, which is the grain a cooldown moves in. */
 const TICKS_PER_SECOND = Math.ceil(1000 / TICK_MS);
 
+/** Which way the caster is looking, read off the body at the origin. */
+function facingOfCaster(play: GameSession): string | undefined {
+  return getStack(play.getMap(), 0, 0, 0).find((p) => p.tileId === "player")
+    ?.direction;
+}
+
 function hpOf(play: GameSession, id = "local"): number | null {
   return play.actorSnapshots().find((a) => a.id === id)?.hp ?? null;
 }
@@ -1510,6 +1516,20 @@ describe("a bolt thrown at somebody", () => {
     const { play, target, before } = boltAt("bolt-stone");
     expect(play.cast("weapon")).toBe(true);
     expectThrough(took(play, target, before));
+  });
+
+  /**
+   * A bolt at somebody is this body attacking that one, so the caster turns into
+   * it — the same turn a swing owes whoever it is thrown at, and the only thing
+   * that differs is which hand it left. Without it a player pressing a stone at
+   * something behind them loosed a bolt out of the back of their head.
+   */
+  it("turns the caster into whoever it was thrown at", () => {
+    const { play } = boltAt("bolt-stone");
+    play.faceActor("local", "w");
+
+    expect(play.cast("weapon")).toBe(true);
+    expect(facingOfCaster(play)).toBe("e");
   });
 
   /**

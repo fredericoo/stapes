@@ -8,6 +8,7 @@ import {
 import type { FlatMapFile, PlacedTile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { emptyEquipment } from "../game/equipment";
+import { STRIKE_RECOVERY_STEPS } from "../game/combat";
 import { CHAT_LIFETIME_MS } from "./chat";
 import { RemoteSession, STEP_CONFIRM_TIMEOUT_MS } from "./RemoteSession";
 import type { CellPatch, HpPatch, MotionEvent } from "./protocol";
@@ -620,6 +621,17 @@ describe("RemoteSession strikes", () => {
 const swung: MotionEvent = { kind: "swung", actorId: SELF };
 
 /**
+ * The turn the same blow made, as the patch that carried it states it.
+ *
+ * The two travel together: the tick that throws a blow turns the body into what
+ * it threw it at, so the facing is on the board by the time this side reads the
+ * event beside it.
+ */
+const turnedEast: CellPatch[] = [
+  { x: 0, y: 0, z: 0, stack: [grass, { ...player, direction: "e" }] },
+];
+
+/**
  * The one rule this side has to re-run rather than be told the outcome of.
  *
  * Everything else about a fight arrives settled — what a blow came to, what a
@@ -644,22 +656,53 @@ describe("RemoteSession attack recovery", () => {
     socket.deliver(patch([], [swung]));
     session.setInput({ directions: ["e"] });
 
-    session.update(WALK_DURATION_MS);
+    session.update(WALK_DURATION_MS * STRIKE_RECOVERY_STEPS);
 
     expect(session.getSnapshot().self.walk?.to).toEqual({ x: 1, y: 0, z: 0 });
     expect(stepsSent(socket)).toHaveLength(1);
   });
 
   /**
-   * A blow costs the step, not the aim — the same split the simulation draws,
-   * and it has to be drawn in the same place or a planted player would face one
-   * way here and another there.
+   * The second of the two steps a blow costs, drawn on this side too. Both ends
+   * read the length off the same rule, and a client that stopped at one would
+   * send a step the server answers with `"later"` and then walk the body a cell
+   * it has to be dragged back out of.
    */
-  it("still turns a planted body to face where it is asked to go", () => {
+  it("holds the step past the first of the two steps it costs", () => {
     const { socket, session } = connected();
     socket.deliver(patch([], [swung]));
+    session.setInput({ directions: ["e"] });
+
+    session.update(WALK_DURATION_MS);
+
+    expect(session.getSnapshot().self.walk).toBeNull();
+    expect(stepsSent(socket)).toEqual([]);
+  });
+
+  /**
+   * A blow plants the aim with the body — the same gate the simulation draws,
+   * and it has to be drawn in the same place or a planted player would face
+   * their target there and their escape route here. The facing the blow made
+   * arrives in the patch that carried the swing, so what this side owes it is to
+   * stop painting over it.
+   */
+  it("refuses to turn a planted body, and keeps the facing it struck with", () => {
+    const { socket, session } = connected();
+    socket.deliver(patch(turnedEast, [swung]));
 
     session.setInput({ directions: ["n"] });
+
+    expect(session.getSnapshot().self.direction).toBe("e");
+    expect(framesOfType(socket, "face")).toEqual([]);
+  });
+
+  /** And turns again the moment the plant is spent. */
+  it("turns the frame the recovery runs out", () => {
+    const { socket, session } = connected();
+    socket.deliver(patch([], [swung]));
+    session.setInput({ directions: ["n"] });
+
+    session.update(WALK_DURATION_MS * STRIKE_RECOVERY_STEPS);
 
     expect(session.getSnapshot().self.direction).toBe("n");
     expect(framesOfType(socket, "face")).toHaveLength(1);

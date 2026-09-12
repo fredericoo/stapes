@@ -469,7 +469,7 @@ export type MotionEvent =
    */
   | { kind: "teleported"; actorId: string }
   /**
-   * A body threw a blow, and is planted for one of its own steps because of it.
+   * A body threw a blow, and is planted for two of its own steps because of it.
    *
    * **Its own event rather than a flag on `strikeStarted`, because half the
    * blows in the game do not lean.** An archer never throws itself at anything
@@ -478,9 +478,13 @@ export type MotionEvent =
    * the wrong weapon.
    *
    * Carries no duration, on exactly the terms a walk carries none: how long a
-   * body is planted is how long that body takes to walk one cell, and both ends
-   * read that off the tile it is. See `../game/movement`'s
-   * `resolveWalkDurationMs`.
+   * body is planted is how long that body takes to walk, twice, and both ends
+   * read that off the tile it is. See `../game/combat`'s `strikeRecoveryMs`.
+   *
+   * What it plants is the aim as well as the feet — a body that has just swung
+   * faces what it swung at until the recovery runs out — so this is also the
+   * event that tells a predicting client to stop painting its own facing over
+   * the server's. @see `../game/GameSession`'s `turnToward`
    *
    * What it is *for* is the one body a client decides the footwork of — its
    * own. Everybody else's walking arrives as `walkStarted` already gated, so

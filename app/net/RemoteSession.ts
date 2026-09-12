@@ -76,6 +76,7 @@ import type {
   WalkState,
 } from "../game/GameSession";
 import { resolveWalkDurationMs, standingAbs } from "../game/movement";
+import { STRIKE_RECOVERY_STEPS, strikeRecoveryMs } from "../game/combat";
 import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
 import {
   absoluteStandingElevation,
@@ -1115,11 +1116,17 @@ export class RemoteSession implements PlaySession {
       if (event.actorId !== this.selfId) return;
       const def = this.tilesById[PLAYER_TILE_ID];
       // The body's own pace, not the constant, so a player authored to walk
-      // slowly is planted for one of *their* steps — the same reading the
-      // simulation takes. @see `../game/movement`
+      // slowly is planted for two of *their* steps — the same reading the
+      // simulation takes. @see `../game/combat`'s `strikeRecoveryMs`
       this.attackRecoveryMs = def
-        ? resolveWalkDurationMs(def)
-        : WALK_DURATION_MS;
+        ? strikeRecoveryMs(def)
+        : WALK_DURATION_MS * STRIKE_RECOVERY_STEPS;
+      // And the aim is planted with the body, which on this side means giving
+      // the facing back to the server for the length of it. The turn into the
+      // target was made by the tick that threw the blow and arrives in the same
+      // patch as this event; held locally, {@link facing} would paint over it
+      // with whichever way the player is running. @see rebuildPredicted
+      this.facing = null;
       return;
     }
 
@@ -1484,11 +1491,15 @@ export class RemoteSession implements PlaySession {
     );
     if (!choice) return;
 
+    // Before the turn, exactly where the simulation gates it: a blow plants the
+    // aim with the body, so neither side lets a held key turn a body that has
+    // just swung. Drawn in the same place on both sides or a planted player
+    // faces their target here and their escape route there.
+    // @see `../game/GameSession`'s `applyStepRequest`
+    if (this.attackRecoveryMs > 0) return;
+
     this.face(loc, choice.facing);
     if (!choice.step) return;
-    // After the turn, exactly as the simulation gates it after the turn: a blow
-    // costs the step and not the aim. @see `../game/GameSession`
-    if (this.attackRecoveryMs > 0) return;
     // And a cast roots you, on the same terms and for the same reason this side
     // asks at all: the server refuses the step, so a client that predicted one
     // would walk the body a cell and have it dragged back. Read off the

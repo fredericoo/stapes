@@ -181,6 +181,7 @@ import {
   damageFraction,
   inflictedBy,
   rollAttack,
+  strikeRecoveryMs,
   underPressure,
 } from "./combat";
 import type { Equipment, Hand } from "./equipment";
@@ -1517,11 +1518,15 @@ type ActorRuntime = {
    * and a plant that scaled with a stat would be one more thing to train out of
    * the way.
    *
-   * Exactly one of this body's steps, read off the tile it is — see
-   * {@link resolveWalkDurationMs}. Not a constant of its own, and that is what
-   * makes it fair rather than merely fixed: a blow costs a creature one step of
-   * *its* walking, so something authored to move slowly is not punished twice
-   * for it.
+   * Two of this body's steps, read off the tile it is — see `./combat`'s
+   * {@link strikeRecoveryMs}. Not a constant of its own, and that is what makes
+   * it fair rather than merely fixed: a blow costs a creature two steps of *its*
+   * walking, so something authored to move slowly is not punished twice for it.
+   *
+   * **It plants the aim as well**, which is the other half of what a blow costs
+   * and the reason turning into a target is worth doing at all: see
+   * {@link turnToward} and {@link applyStepRequest}, which gates above the
+   * facing rather than below it.
    *
    * Only the *start* of a step is gated. A walk already in flight when the blow
    * goes out finishes it — a body cannot be stopped mid-cell without leaving it
@@ -4063,13 +4068,14 @@ export class GameSession implements PlaySession {
     // the better one of two worth flailing with.
     attacker.nextHand = swung ? otherHand(swung) : attacker.nextHand;
 
-    // And the body is planted for exactly one of its own steps, on the same
-    // terms and for the balance the cooldown alone could not buy: see
-    // {@link ActorRuntime.attackRecoveryMs}. Announced as well as stored,
-    // because the one client that predicts its own footwork has to refuse the
-    // same steps this side is about to — a browser that walked through its
-    // recovery would spend the whole fight being told to walk back.
-    attacker.attackRecoveryMs = resolveWalkDurationMs(this.defFor(attacker));
+    // And the body is planted for two of its own steps, on the same terms and
+    // for the balance the cooldown alone could not buy: see
+    // {@link ActorRuntime.attackRecoveryMs} and `./combat`'s
+    // {@link strikeRecoveryMs}. Announced as well as stored, because the one
+    // client that predicts its own footwork has to refuse the same steps this
+    // side is about to — a browser that walked through its recovery would spend
+    // the whole fight being told to walk back.
+    attacker.attackRecoveryMs = strikeRecoveryMs(this.defFor(attacker));
     this.pendingSwings.push(attacker.id);
     // On the swing rather than on the blow landing, and both sides of it: a
     // player dodging a wolf is in a fight whether or not anything connects,
@@ -4101,20 +4107,19 @@ export class GameSession implements PlaySession {
     // nowhere.
     this.fireProjectile(attackerStats.projectile, fromPoint, toPoint);
 
-    // Turning into the blow, so a creature that fights while cornered is facing
-    // what it is fighting. Free when it already is — `setEntityDirection` guards
-    // the no-op, which matters because this runs on every swing.
-    const facing = facingToward(from, to);
-    if (facing) {
-      this.map = setEntityDirection(
-        this.map,
-        from.x,
-        from.y,
-        from.z,
-        from.stackIndex,
-        facing,
-      );
-    }
+    // Turning into the blow, so a body that swings at something is looking at
+    // it — and on the same terms everything above happens on, which is to say
+    // whatever the blow comes to. A miss, a dodge and a blow that armour ate are
+    // all this body having attacked that one, and a turn that waited for damage
+    // would be a fight where half the swings came from a body facing the other
+    // way. Free when it already is — `setEntityDirection` guards the no-op,
+    // which matters because this runs on every swing.
+    //
+    // Onto the walk as well as onto the board, which is what makes it true of
+    // somebody swinging on their way out: `commitWalk` writes the walk's own
+    // direction when the step lands, so a turn that only touched the board was
+    // undone a few ticks later by the step it interrupted. @see turnToward
+    this.turnToward(attacker, from, to);
 
     // Counted before the dice and including this swing, so the body throwing it
     // is one of the ones bearing down on the target: a lone attacker is an
@@ -5438,7 +5443,17 @@ export class GameSession implements PlaySession {
     // Loosed before anything lands, on the terms an arrow is: a shot somebody
     // saw taken, whatever came of it. Never at yourself — a flight from a body
     // to itself is a frame of art sitting on somebody's head.
-    if (atSomebodyElse) this.fireBolt(effect.projectile, actor, subject);
+    if (atSomebodyElse) {
+      this.fireBolt(effect.projectile, actor, subject);
+      // And the caster turns into it, on exactly the terms a swing does: a bolt
+      // at somebody is this body attacking that one, and the only difference
+      // between it and an arrow is which hand it left. Nothing plants a caster
+      // afterwards — what a cast costs is the bar and the cooldown — so this is
+      // a turn they can undo with the next step they take. @see turnToward
+      const at = this.tryLocate(actor);
+      const on = this.tryLocate(subject);
+      if (at && on) this.turnToward(actor, at, on);
+    }
 
     this.moveHealth(actor, subject, stone, effect, elements, {
       atSomebodyElse,
@@ -5660,6 +5675,13 @@ export class GameSession implements PlaySession {
     const where = conjureLanding(context, tileId);
     if (!where) return;
     const at = where.at;
+
+    // Turned into the cell it is laid in, which for a targeted conjure is
+    // somebody else's — the same turn a swing and a bolt owe whoever they are
+    // aimed at. An untargeted conjure lands in the cell the caster already
+    // faces, so this is the no-op `setEntityDirection` guards. @see turnToward
+    const casting = this.tryLocate(actor);
+    if (casting) this.turnToward(actor, casting, at);
 
     const placed: PlacedTile = {
       tileId: def.id,
@@ -8905,27 +8927,32 @@ export class GameSession implements PlaySession {
     );
     if (!choice) return false;
 
-    this.map = setEntityDirection(
-      this.map,
-      loc.x,
-      loc.y,
-      loc.z,
-      loc.stackIndex,
-      choice.facing,
-    );
+    // **Before the turn, because a blow plants the aim with the body.** This
+    // used to gate the step alone, on the argument that a cornered fighter has
+    // to be able to point somewhere other than at what is already hitting them.
+    // What that bought in practice was a turn nobody could see: a body swinging
+    // on its way out of a fight was turned into its target by `tryAttack` and
+    // turned straight back by the next frame of a held movement key, so the one
+    // thing the rule is for — a fight you can read from outside it — lasted
+    // about a thirtieth of a second. The aim is now planted for exactly as long
+    // as the footwork, which is the whole of what attacking while retreating
+    // costs beyond the distance. @see turnToward
+    //
+    // The fought corner is still aimable: the plant is two of this body's steps
+    // and runs out between blows for every weapon anybody has authored.
+    if (actor.attackRecoveryMs > 0) return false;
+
+    this.turnActor(actor, loc, choice.facing);
 
     if (!choice.step) return false;
-    // After the turn, not before it. A body planted by its own blow can still
-    // face where it wants to go — what a swing costs is the *step*, and
-    // refusing the turn as well would make a fought corner impossible to aim
-    // out of. It is also the same split `chooseStep` already draws.
-    if (actor.attackRecoveryMs > 0) return false;
-    // **A cast plants you where you stand**, on exactly those terms: the turn
-    // goes through and the step does not. That is what makes a long cast a
-    // decision about where you are standing rather than something you do on the
-    // way somewhere — and the turn is worth keeping, because a conjure with
-    // nobody targeted lands in the cell you are facing, so aiming it while it
-    // runs is the one piece of control a rooted caster still has.
+    // **A cast plants you where you stand**, and unlike a blow it leaves you the
+    // turn: the gate is here, below the facing, rather than above it. That is
+    // what makes a long cast a decision about where you are standing rather than
+    // something you do on the way somewhere — and the turn is worth keeping,
+    // because a conjure with nobody targeted lands in the cell you are facing,
+    // so aiming it while the bar runs is the one piece of control a rooted
+    // caster still has. A blow has no such bar to aim during: it is over in the
+    // tick it was thrown, and what it aims at is whoever it was thrown at.
     //
     // A shove and a fall are not asked for here, so neither is refused: what a
     // cast costs is your own legs, and being knocked out of the cell you chose
@@ -8985,24 +9012,63 @@ export class GameSession implements PlaySession {
   }
 
   /**
-   * Turn an actor on the spot, without asking them to go anywhere.
+   * Turn an actor on the spot, because a client says it has turned.
+   *
+   * The turn half of what a held key asks for, arriving on its own because the
+   * browser sends a facing the moment it changes and a step only when it takes
+   * one — a player pressing into a wall turns and never steps. It lands on the
+   * walk as well as on the board for the reason every turn does; see
+   * {@link turnActor}, which is where that rule and its history live.
+   */
+  faceActor(id: string, direction: Direction) {
+    const actor = this.actor(id);
+    // A blow plants the aim with the body, and a turn asked for over the wire is
+    // the same turn a held key asks for — refused in `applyStepRequest` for the
+    // whole of the recovery. Honouring it here would hand a browser the turn its
+    // own prediction has already refused itself. @see turnToward
+    if (actor.attackRecoveryMs > 0) return;
+    this.turnActor(actor, this.locate(actor), direction);
+  }
+
+  /**
+   * Turn a body toward another, if the two are not in one cell.
+   *
+   * **What every form of striking owes whoever it is aimed at.** A swing, an
+   * arrow, a bolt and a conjure laid at somebody's feet are all this body
+   * attacking that one, and each of them turns the striker into it — whatever
+   * the blow came to, and whether or not it landed at all. Nothing reads the
+   * facing to decide a fight; what it decides is whether the fight is legible,
+   * and a body attacking something behind its own back is a fight nobody can
+   * read.
+   *
+   * Null only for two bodies in one cell, which is a direction of nothing rather
+   * than a turn worth making. @see facingToward
+   */
+  private turnToward(actor: ActorRuntime, from: ActorLocation, to: Coord) {
+    const facing = facingToward(from, to);
+    if (facing) this.turnActor(actor, from, facing);
+  }
+
+  /**
+   * Write a facing onto a body, and onto the step it is half way through.
    *
    * **A turn made mid-walk is the facing the walk lands with.** `commitWalk`
-   * writes the walk's direction onto the body when it arrives, so without this a
-   * turn that reached the server during a step was undone by the step landing.
-   * That is the common case, not an edge: a predicting browser has already
-   * landed the step it is turning after. Turned into a wall with the server
-   * still facing the last way it walked, a flame went there instead.
+   * writes the walk's own direction onto the body when it arrives, so a turn
+   * that touched only the board is undone a few ticks later by the step that was
+   * already in flight — which is exactly the case a blow thrown on the way out
+   * of a fight is in.
    *
    * Written onto the walk in place rather than by replacing it, because the
    * walk's identity is what says a new one started — a fresh object would be
    * announced to every client as a second step. @see GameServer's
    * `collectMotionEvents`
    */
-  faceActor(id: string, direction: Direction) {
-    const actor = this.actor(id);
+  private turnActor(
+    actor: ActorRuntime,
+    loc: ActorLocation,
+    direction: Direction,
+  ) {
     if (actor.walk) actor.walk.direction = direction;
-    const loc = this.locate(actor);
     this.map = setEntityDirection(
       this.map,
       loc.x,
