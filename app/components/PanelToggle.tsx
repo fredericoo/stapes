@@ -1,13 +1,13 @@
 import { IconBackpack, IconHeartbeat, IconShirt } from "@tabler/icons-react";
 import { useCallback, useRef } from "react";
 import type { Equipment } from "../game/equipment";
-import { equipDestination } from "../game/itemMoves";
+import { equipDestination, type SlotRef } from "../game/itemMoves";
 import { resolveContainer } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { Tooltip } from "../ui/Tooltip";
 import { ACTION_BUTTON_SIZE_CLASS, type ActionButtonSize } from "./ModeSwitch";
-import type { ItemDrag } from "./useItemDrag";
+import type { HeldItem, ItemDrag } from "./useItemDrag";
 import { useTap } from "./useTap";
 
 /**
@@ -77,10 +77,11 @@ const EQUIPMENT_BUTTON_TARGET_KEY = "equipment-button";
  * Show or hide what you are wearing, and equip what is dropped on it.
  *
  * **A drop here names no square.** Everywhere else a drag says exactly where a
- * thing goes; this button says only "wear this", and where that is comes from
- * `../game/itemMoves`' `equipDestination` — the square the thing belongs in, or
- * the other hand when the first is full. That is the same answer a tap on the
- * item gives, so the two gestures cannot send one sword to two places.
+ * thing goes; this button says only "wear this", and working out which square
+ * that means is `../game/itemMoves`' `equipDestination` — every square that
+ * would take the thing, ranked by what putting it there would cost you. The
+ * rules it ranks against are the drag's own, handed to it as `lands`, so the
+ * button cannot light up for a move the session would then refuse.
  *
  * It exists because the panel is a detour. Wearing something out of your bag
  * meant opening the equipment panel to have a square to aim at — and on a phone
@@ -113,11 +114,12 @@ export function EquipmentToggle({
   const latest = useRef({ equipment, tilesById });
   latest.current = { equipment, tilesById };
   const destination = useCallback(
-    (instance: ItemInstance) =>
+    (held: HeldItem, lands: (to: SlotRef) => boolean) =>
       equipDestination(
         latest.current.equipment,
         latest.current.tilesById,
-        instance,
+        held.instance,
+        lands,
       ),
     [],
   );

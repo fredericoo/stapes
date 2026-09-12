@@ -58,18 +58,19 @@ export type HeldItem = { instance: ItemInstance; from: SlotRef };
  * again when it lands, rather than once at registration, so the answer is about
  * the kit as it is then rather than as it was when the panel drew.
  *
+ * It is handed `lands` — the same question the drag asks of every other target,
+ * with the source end already filled in — so a resolver choosing between
+ * several squares can discard the ones the move rules would refuse rather than
+ * offering one and going dark. Nothing here knows those rules; this is how a
+ * resolver reaches them.
+ *
  * Null from one is an element that has nothing to offer *this* thing, and it is
  * then not a target at all — the release falls past it exactly as it falls past
  * the buttons that register nothing.
  */
 export type DropTarget =
   | SlotRef
-  | ((instance: ItemInstance) => SlotRef | null);
-
-/** The square a target stands for, given what is being dragged. */
-function targetSlot(target: DropTarget, instance: ItemInstance): SlotRef | null {
-  return typeof target === "function" ? target(instance) : target;
-}
+  | ((held: HeldItem, lands: (to: SlotRef) => boolean) => SlotRef | null);
 
 /** What letting go does, once it is known what the pointer was over. */
 export type Release =
@@ -206,6 +207,9 @@ export function useItemDrag({
   /** Read by the window listeners, which are bound once. */
   const worldRef = useRef(world);
   worldRef.current = world;
+  /** The same, for the rules a resolver is handed. See {@link DropTarget}. */
+  const canMoveRef = useRef(canMove);
+  canMoveRef.current = canMove;
   /**
    * A drag ended on this element, so the click it is about to fire is the tail
    * of that drag rather than a tap. Without it, dragging a sword and letting go
@@ -217,6 +221,21 @@ export function useItemDrag({
   heldRef.current = held;
   overRef.current = over;
   acceptingRef.current = targets;
+
+  /**
+   * The square a target stands for, for this drag.
+   *
+   * Its own identity for the life of the hook, because the listeners are bound
+   * once: the rules it hands a resolver are read off a ref rather than closed
+   * over, exactly as the world drop target is.
+   */
+  const resolveTarget = useCallback(
+    (target: DropTarget, held: HeldItem): SlotRef | null =>
+      typeof target === "function"
+        ? target(held, (to) => canMoveRef.current(held.from, to))
+        : target,
+    [],
+  );
 
   const register = useCallback(
     (key: string, target: DropTarget, el: HTMLElement | null) => {
@@ -237,12 +256,12 @@ export function useItemDrag({
     (held: HeldItem): Set<string> => {
       const out = new Set<string>();
       for (const [key, { target }] of slots.current) {
-        const slot = targetSlot(target, held.instance);
+        const slot = resolveTarget(target, held);
         if (slot && canMove(held.from, slot)) out.add(key);
       }
       return out;
     },
-    [canMove],
+    [canMove, resolveTarget],
   );
 
   /**
@@ -275,19 +294,19 @@ export function useItemDrag({
    * from one that landed on the page.
    */
   const slotAt = useCallback(
-    (x: number, y: number, instance: ItemInstance): SlotRef | null => {
+    (x: number, y: number, held: HeldItem): SlotRef | null => {
       for (const { target, el } of slots.current.values()) {
         const box = el.getBoundingClientRect();
         if (x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) {
           // A target with no square for this thing is not a square under the
           // pointer, so the search goes on past it.
-          const slot = targetSlot(target, instance);
+          const slot = resolveTarget(target, held);
           if (slot) return slot;
         }
       }
       return null;
     },
-    [],
+    [resolveTarget],
   );
 
   /** The slot under a point, if it is one that would take what is in hand. */
@@ -399,11 +418,11 @@ export function useItemDrag({
       if (!inHand) return;
       const landing = overRef.current;
       const entry = landing ? slots.current.get(landing) : null;
-      const target = entry ? targetSlot(entry.target, inHand.instance) : null;
+      const target = entry ? resolveTarget(entry.target, inHand) : null;
       const point = pointRef.current;
       const release = releaseTo(
         target,
-        point ? slotAt(point.x, point.y, inHand.instance) : null,
+        point ? slotAt(point.x, point.y, inHand) : null,
         point,
       );
       if (release.kind === "slot") onMove(inHand.from, release.to);
@@ -442,7 +461,7 @@ export function useItemDrag({
       window.removeEventListener("pointercancel", onPointerUp);
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [clear, findTargets, moveLayerTo, onMove, slotAt, targetAt]);
+  }, [clear, findTargets, moveLayerTo, onMove, resolveTarget, slotAt, targetAt]);
 
   return {
     held,

@@ -243,6 +243,7 @@ import {
   canMoveItem,
   capacityOf,
   clearSlot,
+  isBodySlot,
   itemInSlot,
   peelSlot,
   stashInContainer,
@@ -6762,6 +6763,12 @@ export class GameSession implements PlaySession {
     // something in and plainly cannot empty. Silence there reads as the panel
     // being broken rather than as a rule.
     if (this.noteCoolingRefusal(actor, loc, from)) return false;
+    // And the square being moved *into*, now that landing on a taken one trades
+    // the two things: the stone on its way out of that square is as stuck as one
+    // being dragged out of it, and the refusal looks identical from the outside.
+    // Squares on a body only — a container appends, so whatever is at an index
+    // there is not in the way of anything.
+    if (isBodySlot(to) && this.noteCoolingRefusal(actor, loc, to)) return false;
 
     const moved = applyItemMove(
       this.map,
