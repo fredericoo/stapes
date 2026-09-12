@@ -2,7 +2,12 @@ import type { FightingStats } from "../lib/battler";
 import type { Element } from "../lib/element";
 import type { FormulaScope } from "../lib/formula";
 import { MAX_PERCENT_STAT } from "../lib/item";
-import { MODIFIER_KEYS, type StatusDef } from "../lib/status";
+import {
+  COMBAT_DURATION_MS,
+  COMBAT_STATUS_ID,
+  MODIFIER_KEYS,
+  type StatusDef,
+} from "../lib/status";
 import { TICK_MS } from "./constants";
 import type { Rng } from "./rng";
 
@@ -276,6 +281,37 @@ export function applyStatus(
       ...(elements?.length ? { elements } : {}),
     };
   });
+}
+
+/**
+ * Put somebody in combat, or start their minute again.
+ *
+ * **Not {@link applyStatus}**, and on purpose: that draws a die for the
+ * duration, and this runs on every swing. One more draw per blow would change
+ * what every fight in the world rolled after it — every seeded fight in the
+ * tests included — for a duration that is never in doubt anyway.
+ *
+ * Refreshed to the full minute rather than stacked: the rule is "a minute
+ * since you last fought", not "a minute per blow".
+ */
+export function enterCombat(
+  current: readonly StatusInstance[],
+): readonly StatusInstance[] {
+  const fresh: StatusInstance = {
+    defId: COMBAT_STATUS_ID,
+    durationMs: COMBAT_DURATION_MS,
+    remainingMs: COMBAT_DURATION_MS,
+    sinceEffectMs: 0,
+  };
+  if (!inCombat(current)) return [...current, fresh];
+  return current.map((instance) =>
+    instance.defId === COMBAT_STATUS_ID ? fresh : instance,
+  );
+}
+
+/** Whether this list holds the combat flag. See `../lib/status`'s `COMBAT_STATUS`. */
+export function inCombat(statuses: readonly StatusInstance[]): boolean {
+  return statuses.some((instance) => instance.defId === COMBAT_STATUS_ID);
 }
 
 /**

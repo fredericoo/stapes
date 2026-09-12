@@ -407,14 +407,19 @@ describe("dragging a pile between squares", () => {
     expect(bag(session)).toEqual([]);
   });
 
-  it("refuses a hand holding something the pile cannot join", () => {
+  /**
+   * Two different things in one square is a trade rather than a pour — see
+   * `./itemMoves`' `swapInto`. The pile does not join the bread; it takes the
+   * bread's place, and the bread goes back where the pile came from.
+   */
+  it("trades with a hand holding something the pile cannot join", () => {
     const session = world(
       carrying([{ id: "itm_a", tileId: "berry" }], {
         offhand: { id: "itm_c", tileId: "bread" },
       }),
     );
 
-    expect(session.canMoveItem(BAG_SLOT, OFFHAND, WHO)).toBe(false);
+    expect(session.canMoveItem(BAG_SLOT, OFFHAND, WHO)).toBe(true);
   });
 
   it("refuses a hand whose pile has no room for all of it", () => {
@@ -425,7 +430,9 @@ describe("dragging a pile between squares", () => {
     );
 
     // Two and two is four against a ceiling of three. One would fit and that is
-    // not on offer: a move lands whole or is refused.
+    // not on offer: a move lands whole or is refused. Nor is it rescued by the
+    // trade a full square otherwise gets — two of one thing is not a trade, and
+    // exchanging the piles would leave you holding the number you were adding to.
     expect(session.canMoveItem(BAG_SLOT, OFFHAND, WHO)).toBe(false);
   });
 

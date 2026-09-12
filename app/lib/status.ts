@@ -305,6 +305,52 @@ export function resolveStatus(raw: unknown): StatusDef | null {
   return parsed.success ? compileStatus(parsed.output) : null;
 }
 
+/** The id the combat flag runs under. See {@link COMBAT_STATUS}. */
+export const COMBAT_STATUS_ID = "combat";
+
+/** How long one blow, swing or hurt keeps somebody in combat. */
+export const COMBAT_DURATION_MS = 60_000;
+
+/**
+ * Being in a fight: the one status the engine owns rather than an author.
+ *
+ * **Code, not `data/statuses.json`**, because a rule hangs off it: closing the
+ * tab while this is running leaves the body standing in the world until it
+ * runs out (`server/GameServer`'s `lingering`). A rule that an edit in the
+ * status editor could delete is not a rule — and a catalogue that dropped a
+ * malformed entry would drop the rule with it.
+ *
+ * It is a status rather than a field of its own so that everything a status
+ * already has comes for free: the strip draws it with a countdown bar, the
+ * stats panel names it, it rides the viewer's `statuses` message and the
+ * broadcast status ids, and it is stored and restored beside the rest.
+ *
+ * Nothing rolls it. `../game/statuses`'s `enterCombat` writes it at full
+ * length directly, so a fight draws exactly as many dice as it did before
+ * this existed. `fromMs`, `toMs` and `maxMs` are all the one figure so the bar
+ * reads full at the moment of the blow.
+ */
+export const COMBAT_STATUS: StatusDef = {
+  id: COMBAT_STATUS_ID,
+  name: "In combat",
+  description: "You fought recently. Leaving now leaves your body here until it ends.",
+  tone: "bad",
+  // The iron sword's picture on the equipment sheet.
+  icon: {
+    tilesetId: "equipment",
+    rect: { x: 0, y: 18, w: 1, h: 1 },
+    base: { x: 0, y: 0 },
+  },
+  fromMs: COMBAT_DURATION_MS,
+  toMs: COMBAT_DURATION_MS,
+  stacks: false,
+  maxMs: COMBAT_DURATION_MS,
+  everyMs: 0,
+  effects: {},
+  modifiers: {},
+  vfx: NO_VFX,
+};
+
 /**
  * The catalogue, keyed by id.
  *
@@ -312,6 +358,9 @@ export function resolveStatus(raw: unknown): StatusDef | null {
  * duplicate id keeps the **first**, which is the same rule `tilesByIdFromList`
  * runs on and is the one that makes an accidental paste inert rather than
  * silently authoritative.
+ *
+ * {@link COMBAT_STATUS} is always in it, and wins over an authored entry with
+ * the same id: that id belongs to the engine.
  */
 export function statusesById(raw: unknown[]): Record<string, StatusDef> {
   const out: Record<string, StatusDef> = {};
@@ -320,6 +369,7 @@ export function statusesById(raw: unknown[]): Record<string, StatusDef> {
     if (!status || out[status.id]) continue;
     out[status.id] = status;
   }
+  out[COMBAT_STATUS_ID] = COMBAT_STATUS;
   return out;
 }
 

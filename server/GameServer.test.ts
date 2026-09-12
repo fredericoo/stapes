@@ -19,6 +19,7 @@ import type { FlatMapFile, MapFile, TileDef } from "../app/lib/types";
 import { tilesByIdFromList } from "../app/lib/validation";
 import { CHAT_MIN_INTERVAL_MS } from "../app/net/chat";
 import { CLOSE_REPLACED } from "../app/net/protocol";
+import { COMBAT_STATUS_ID } from "../app/lib/status";
 import {
   CHAT_LOG_MAX_ROWS,
   MAX_REMEMBERED_ACTORS,
@@ -472,6 +473,185 @@ describe("joining and leaving", () => {
 
     expect(playerOwners(hello.map as FlatMapFile)).toEqual(["carol"]);
     expect(hello.actorIds).not.toContain("alice");
+  });
+
+  /**
+   * Closing the tab is not a way out of a fight. The body stays, idle and
+   * hittable, until a minute after its last blow, and only then goes the way
+   * any other close would have taken it.
+   */
+  describe("leaving in the middle of a fight", () => {
+    /** Long enough for a tick that was going to do something to have done it. */
+    const SETTLE_MS = 300;
+    /** More than anything on the mastery scale can survive. */
+    const LETHAL_DAMAGE = 10_000;
+
+    /** Hurt somebody through the command anybody can type — a real harm. */
+    async function hurt(ws: TestSocket) {
+      const flagged = messageWithin(ws, "statuses", MESSAGE_TIMEOUT_MS);
+      send(ws, { type: "command", text: "/health -1" });
+      expect(await flagged).not.toBeNull();
+    }
+
+    /**
+     * Wind somebody's combat minute down to its last millisecond. Reaching in
+     * rather than waiting a real minute: the countdown is `statuses.test.ts`'s.
+     */
+    async function endCombat(actorId: string) {
+      await runInDurableObject(stub(), (instance: GameServer) => {
+        const internals = instance as unknown as {
+          session: {
+            statusesOf(id: string): { defId: string; remainingMs: number }[] | null;
+          };
+        };
+        for (const status of internals.session.statusesOf(actorId) ?? []) {
+          if (status.defId === COMBAT_STATUS_ID) status.remainingMs = 1;
+        }
+      });
+    }
+
+    /** Whether a patch saying this actor left arrives within the window. */
+    function departureWithin(
+      ws: TestSocket,
+      actorId: string,
+      ms: number,
+    ): Promise<boolean> {
+      return new Promise((resolve) => {
+        const done = (left: boolean) => {
+          clearTimeout(timer);
+          ws.removeEventListener("message", onMessage);
+          resolve(left);
+        };
+        const onMessage = (event: { data: string }) => {
+          const message = JSON.parse(event.data) as {
+            type?: string;
+            events?: { kind: string; actorId?: string }[];
+          };
+          if (message.type !== "patch") return;
+          const left = message.events?.some(
+            (e) => e.kind === "left" && e.actorId === actorId,
+          );
+          if (left) done(true);
+        };
+        const timer = setTimeout(() => done(false), ms);
+        ws.addEventListener("message", onMessage);
+      });
+    }
+
+    it("keeps the body on the board after the last socket closes", async () => {
+      const alice = await connect("alice");
+      await hurt(alice.ws);
+
+      await disconnect(alice.pair);
+      const { hello } = await connect("carol");
+
+      expect(playerOwners(hello.map as FlatMapFile).sort()).toEqual([
+        "alice",
+        "carol",
+      ]);
+      expect(hello.actorIds).toContain("alice");
+    });
+
+    it("takes the body off once the fight is over, and says so only then", async () => {
+      const alice = await connect("alice");
+      const bob = await connect("bob");
+      await hurt(alice.ws);
+
+      await disconnect(alice.pair);
+      expect(await departureWithin(bob.ws, "alice", SETTLE_MS)).toBe(false);
+
+      const departure = departureWithin(bob.ws, "alice", MESSAGE_TIMEOUT_MS);
+      await endCombat("alice");
+      expect(await departure).toBe(true);
+
+      const { hello } = await connect("carol");
+      expect(playerOwners(hello.map as FlatMapFile).sort()).toEqual([
+        "bob",
+        "carol",
+      ]);
+    });
+
+    it("hands the body back to a player who returns mid-fight", async () => {
+      const alice = await connect("alice");
+      await hurt(alice.ws);
+      await disconnect(alice.pair);
+
+      const back = await connect("alice");
+      // One body, and it is still in the fight it was left in.
+      expect(playerOwners(back.hello.map as FlatMapFile)).toEqual(["alice"]);
+      expect(
+        (back.hello.statuses as { defId: string }[]).map((s) => s.defId),
+      ).toContain(COMBAT_STATUS_ID);
+
+      // Theirs again, so the fight ending leaves them standing.
+      await endCombat("alice");
+      await wait(SETTLE_MS);
+      const { hello } = await connect("carol");
+      expect(playerOwners(hello.map as FlatMapFile).sort()).toEqual([
+        "alice",
+        "carol",
+      ]);
+    });
+
+    it("writes down the death of a body left standing in a fight", async () => {
+      const alice = await connect("alice");
+      await hurt(alice.ws);
+      await disconnect(alice.pair);
+
+      type Internals = {
+        session: {
+          actors: Map<string, unknown>;
+          actorIds(): Iterable<string>;
+          applyDamage(actor: unknown, amount: number): void;
+        };
+        saveActors(actorIds: Iterable<string>, force: boolean): void;
+        tick(): void;
+      };
+      await runInDurableObject(stub(), (instance: GameServer) => {
+        const internals = instance as unknown as Internals;
+        internals.saveActors(internals.session.actorIds(), true);
+      });
+      const hurtRow = await runInDurableObject(stub(), (_instance, state) =>
+        state.storage.get<{ hp: number | null }>("hp:alice"),
+      );
+      // The premise: a row saying she is hurt, which the death has to replace.
+      expect(hurtRow?.hp).toBeGreaterThan(0);
+
+      await runInDurableObject(stub(), (instance: GameServer) => {
+        const internals = instance as unknown as Internals;
+        const body = internals.session.actors.get("alice");
+        internals.session.applyDamage(body, LETHAL_DAMAGE);
+        internals.tick();
+      });
+
+      const deadRow = await runInDurableObject(stub(), (_instance, state) =>
+        state.storage.get<{ hp: number | null }>("hp:alice"),
+      );
+      expect(deadRow?.hp).toBeNull();
+    });
+
+    /**
+     * An idle body cannot end a fight — a rat that cannot get through its
+     * armour restarts the minute on every swing — so the cap is what
+     * guarantees it goes.
+     */
+    it("lets the body go at the cap, even while the fight is still on", async () => {
+      const alice = await connect("alice");
+      const bob = await connect("bob");
+      await hurt(alice.ws);
+      await disconnect(alice.pair);
+
+      const departure = departureWithin(bob.ws, "alice", MESSAGE_TIMEOUT_MS);
+      // Past the cap, with the combat minute left exactly where it was.
+      await runInDurableObject(stub(), (instance: GameServer) => {
+        const internals = instance as unknown as {
+          lingering: Map<string, number>;
+        };
+        internals.lingering.set("alice", Date.now() - 1);
+      });
+
+      expect(await departure).toBe(true);
+    });
   });
 });
 
@@ -3562,7 +3742,8 @@ describe("dying and coming back", () => {
     // passes on a world that never wrote either row.
     const before = await storedBody("alice");
     expect(before.hp?.hp).toBeGreaterThan(0);
-    expect(before.statuses?.statuses).toHaveLength(1);
+    // The hurt put them in combat as well, which is not what this is about.
+    expect(before.statuses?.statuses.map((s) => s.defId)).toContain("poison");
 
     await killAndTick("alice");
 

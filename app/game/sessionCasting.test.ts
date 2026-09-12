@@ -8,7 +8,7 @@ import {
   masteryLevel,
   xpForLevel,
 } from "../lib/mastery";
-import { statusesById } from "../lib/status";
+import { COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import type { Coord, MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
@@ -803,6 +803,27 @@ describe("a cooling stone is locked in its square", () => {
   it("says why, rather than refusing in silence", () => {
     const play = armed();
     play.moveItem({ kind: "charm" }, { kind: "weapon" });
+    const said = play.drainNotices();
+    expect(said).toHaveLength(1);
+    expect(said[0]).toMatch(/cooling/i);
+  });
+
+  /**
+   * The other end of the same square. A drag onto a taken square trades the two
+   * things — see `./itemMoves`' `swapInto` — so the stone in it is on its way
+   * out as surely as one being dragged out, and the lock has to hold from this
+   * side too. Silently would read as the panel being broken, which is the whole
+   * reason this refusal speaks at all.
+   */
+  it("cannot be traded out by something dropped on top of it", () => {
+    const play = session({ charm: "mend-stone", weapon: "flame-stone" });
+    play.cast("charm");
+    play.drainNotices();
+
+    expect(play.moveItem({ kind: "weapon" }, { kind: "charm" })).toBe(false);
+    expect(play.equipmentOf("local")?.charm?.tileId).toBe("mend-stone");
+    expect(play.equipmentOf("local")?.weapon?.tileId).toBe("flame-stone");
+
     const said = play.drainNotices();
     expect(said).toHaveLength(1);
     expect(said[0]).toMatch(/cooling/i);
@@ -1886,13 +1907,21 @@ describe("a charm worn on the charm square", () => {
     expect(hpOf(play)).toBe(full);
   });
 
+  /**
+   * What the charm put there, leaving out the combat flag the `/health` that
+   * wounded the wearer put there first.
+   */
+  function grantedBy(play: GameSession): string[] {
+    return (play.statusesOf("local") ?? [])
+      .map((s) => s.defId)
+      .filter((id) => id !== COMBAT_STATUS_ID);
+  }
+
   it("grants what it is authored to grant, on the same tick", () => {
     const { play } = hurt("beacon-charm");
-    expect(play.statusesOf("local") ?? []).toEqual([]);
+    expect(grantedBy(play)).toEqual([]);
     runMs(play, CHARM_INTERVAL_MS);
-    expect((play.statusesOf("local") ?? []).map((s) => s.defId)).toEqual([
-      "warded",
-    ]);
+    expect(grantedBy(play)).toEqual(["warded"]);
   });
 
   /** Both halves are optional, and a charm of statuses alone is a real thing. */
@@ -1900,9 +1929,7 @@ describe("a charm worn on the charm square", () => {
     const { play, before } = hurt("ward-charm");
     runMs(play, CHARM_INTERVAL_MS);
     expect(hpOf(play)).toBe(before);
-    expect((play.statusesOf("local") ?? []).map((s) => s.defId)).toEqual([
-      "warded",
-    ]);
+    expect(grantedBy(play)).toEqual(["warded"]);
   });
 
   /** A body wearing none has no clock, and nothing happens to it. */
@@ -2194,6 +2221,23 @@ describe("a cast that takes time", () => {
     // spent, so the cast is the only clock there is. What takes over once it
     // lands is that cooldown, which has its own clause and its own cases.
     expect(play.isAtRest()).toBe(false);
+  });
+
+  /**
+   * A body whose player has gone stays in the world until its fight is over —
+   * see `GameSession.standIdle` — and a spell landing out of it two seconds
+   * later would be that body still fighting.
+   */
+  it("is dropped when the caster's player leaves the body standing", () => {
+    const play = session({ charm: "slow-mend-stone" });
+    play.runCommand(`/health ${HURT_HP}`);
+    play.drainNotices();
+    play.cast("charm");
+
+    play.standIdle("local");
+    run(play, CAST_TICKS);
+
+    expect(hpOf(play)).toBe(HURT_HP);
   });
 
   it("is quicker for a caster who has outgrown what the stone asks", () => {

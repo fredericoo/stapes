@@ -528,6 +528,9 @@ export function GameViewport({
       <EquipmentToggle
         open={showEquipment}
         onChange={openEquipment}
+        equipment={equipment}
+        tilesById={tilesById}
+        drag={drag}
         size={size}
       />
       <BagButton

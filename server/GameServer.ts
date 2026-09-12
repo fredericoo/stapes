@@ -831,6 +831,32 @@ export class GameServer {
    * {@link webSocketClose}.
    */
   private readonly subscribed = new Map<string, Set<string>>();
+  /**
+   * Players whose last socket closed while they were in combat, and whose body
+   * is therefore still standing in the world.
+   *
+   * **Closing the tab is not a way out of a fight.** The body stays, idle and
+   * hittable, until the combat minute runs out — then {@link releaseLingerers}
+   * takes it off exactly as an ordinary close would have. Reconnecting in the
+   * meantime is an ordinary join: `spawn` keeps the body already on the board,
+   * so the returning player is back in it, mid-fight.
+   *
+   * Not checkpointed. A restart drops every socket anyway, and the load reaps
+   * every body without one; a lingering body is reaped with them.
+   *
+   * Keyed to the wall-clock time the body goes whatever is happening — see
+   * {@link GameServer.MAX_LINGER_MS}.
+   */
+  private readonly lingering = new Map<string, number>();
+  /**
+   * The longest a body stays after its last socket closes, in combat or not.
+   *
+   * An idle body cannot end a fight. A rat that cannot get through its armour,
+   * or keeps missing, restarts the combat minute on every swing, and without
+   * this the body would never leave. Fifteen minutes is long enough that no
+   * real fight is escaped by closing the tab, and still bounds a stalemate.
+   */
+  private static readonly MAX_LINGER_MS = 15 * 60_000;
   /** Where the world grows things back, by spawn-point key. */
   private respawnPoints = new Map<string, SpawnPoint>();
   /**
@@ -2771,6 +2797,64 @@ export class GameServer {
     // that the actor has really gone, rather than trusting that it always will.
     if (this.hasSocket(attachment.actorId, ws)) return;
 
+    this.forgetConnection(attachment.actorId);
+
+    // **A body in a fight stays in it.** Otherwise closing the tab is the
+    // best move in any losing fight. It stands idle — see `standIdle` for why
+    // it does not go on swinging — until {@link releaseLingerers} sees the
+    // combat minute run out and finishes what this close started.
+    if (this.session?.inCombat(attachment.actorId)) {
+      // Written now, as an ordinary close writes before its despawn: a restart
+      // inside the minute reaps this body without ever releasing it, and
+      // nothing else between here and there saves an actor. Left to the
+      // periodic flush, the kit on disk could be half a minute behind the
+      // board the drain checkpoints.
+      this.saveActors([attachment.actorId], true);
+      this.session.standIdle(attachment.actorId);
+      this.lingering.set(
+        attachment.actorId,
+        Date.now() + GameServer.MAX_LINGER_MS,
+      );
+      // The minute only runs down while the world ticks.
+      this.wake();
+      return;
+    }
+
+    this.leaveWorld(attachment.actorId, ws);
+  }
+
+  /**
+   * Drop what only a connection had, whether or not the body goes with it.
+   *
+   * Split from {@link leaveWorld} because a player in combat loses their
+   * connection at the close and their body a minute later, and everything here
+   * belongs to the first of those.
+   */
+  private forgetConnection(actorId: string) {
+    // What ground they had been sent, which is only true of a connection. A
+    // returning tab is a fresh `hello` and a fresh subscription, so keeping it
+    // would be a row per visitor the world has ever had.
+    this.subscribed.delete(actorId);
+    // A step nobody is holding the key for any more.
+    this.queuedIntents.delete(actorId);
+    this.lastSaidAt.delete(actorId);
+    // Their last socket has gone, so there is nothing left to be silent
+    // towards. `dead` is deliberately *not* cleared beside it — that is the
+    // record keeping them off the board, and closing a tab is not a way to come
+    // back to life. This is only the sending rule, and it has nobody to apply
+    // to; left behind, it would be a row per player the world has ever killed,
+    // growing with visitors rather than with anything.
+    this.silenced.delete(actorId);
+  }
+
+  /**
+   * Take a player's body off the board, and tell the room they have gone.
+   *
+   * @param closing the socket whose close this is, when it is one — still
+   *   listed while its close is handled, so {@link playerCount} is told to skip
+   *   it. Absent when a lingering body leaves on a tick, long after the close.
+   */
+  private leaveWorld(actorId: string, closing?: GameSocket) {
     // Before the despawn, which is what takes their tile — and with it the only
     // record of where they were — off the board.
     //
@@ -2779,34 +2863,61 @@ export class GameServer {
     // is what {@link pruneOldest} ranks by. Somebody who stood still for an hour
     // and then left would otherwise be carrying an hour-old stamp into the queue
     // of who gets forgotten first, which is precisely backwards.
-    this.saveActors([attachment.actorId], true);
-    this.session?.despawn(attachment.actorId);
+    this.saveActors([actorId], true);
+    this.session?.despawn(actorId);
     // Collected now, because the tick this wakes empties what is pending
     // before it drains: the body's way out rides the patch that removes it.
     if (this.session) this.collectTransitionEvents(this.session);
-    this.writtenActors.delete(attachment.actorId);
-    this.sentMotion.delete(attachment.actorId);
-    this.announcedActors.delete(attachment.actorId);
-    // What ground they had been sent, which is only true of a connection. A
-    // returning tab is a fresh `hello` and a fresh subscription, so keeping it
-    // would be a row per visitor the world has ever had.
-    this.subscribed.delete(attachment.actorId);
-    this.queuedIntents.delete(attachment.actorId);
-    this.lastSaidAt.delete(attachment.actorId);
-    // Their last socket has gone, so there is nothing left to be silent
-    // towards. `dead` is deliberately *not* cleared beside it — that is the
-    // record keeping them off the board, and closing a tab is not a way to come
-    // back to life. This is only the sending rule, and it has nobody to apply
-    // to; left behind, it would be a row per player the world has ever killed,
-    // growing with visitors rather than with anything.
-    this.silenced.delete(attachment.actorId);
+    this.writtenActors.delete(actorId);
+    this.sentMotion.delete(actorId);
+    this.announcedActors.delete(actorId);
+    // Sent when the body goes rather than when the socket did: a client drops
+    // everything it knows about an actor on `left`, and a lingering body that
+    // lost its name and health bar a minute early would be a body nobody could
+    // tell was still there to be hit.
     this.events.push({
       kind: "left",
-      actorId: attachment.actorId,
-      playerCount: this.playerCount(ws),
+      actorId,
+      playerCount: this.playerCount(closing),
     });
     // Their tile just left the board, so the removal has to reach everyone else.
     this.wake();
+  }
+
+  /**
+   * Let lingering bodies go once their fight is over, and forget the ones
+   * their players came back to.
+   *
+   * After {@link noteDeaths} in the tick, and it has to be: a lingering body
+   * killed this tick is out of combat by virtue of having no runtime, and
+   * releasing it first would take it out of {@link lingering} before the death
+   * could see it there and write down what it was carrying.
+   */
+  private releaseLingerers() {
+    const nowMs = Date.now();
+    for (const [actorId, releaseAtMs] of this.lingering) {
+      if (this.hasSocket(actorId)) {
+        this.lingering.delete(actorId);
+        continue;
+      }
+      const fighting = this.session?.inCombat(actorId) ?? false;
+      if (fighting && nowMs < releaseAtMs) continue;
+      this.lingering.delete(actorId);
+      this.leaveWorld(actorId);
+    }
+  }
+
+  /**
+   * Everybody whose body belongs on the board: the connected, and the bodies
+   * still standing in a fight their players have left.
+   */
+  private presentActorIds(): Set<string> {
+    const ids = new Set(this.lingering.keys());
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (attachment) ids.add(attachment.actorId);
+    }
+    return ids;
   }
 
   /**
@@ -2882,9 +2993,10 @@ export class GameServer {
     const running = new Map<string, readonly StatusInstance[]>();
     const health = new Map<string, number>();
     const standing = new Map<string, ActorPosition>();
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (!attachment) continue;
+    // Lingering bodies included: a save re-creates the world, not the people
+    // in it, and a body still standing in a fight is somebody in it.
+    const present = this.presentActorIds();
+    for (const actorId of present) {
       // Where they are standing, if anybody asked for that to survive. Off the
       // runtime rather than the `pos:` rows because a flush is up to
       // `ACTOR_FLUSH_INTERVAL_MS` behind — the same staleness argument the kit
@@ -2892,31 +3004,31 @@ export class GameServer {
       // which is right: `dead` is cleared below, and where a body that no
       // longer exists last stood is not a place anybody should come back to.
       if (options.keepPositions) {
-        const position = this.session?.actorPosition(attachment.actorId);
-        if (position) standing.set(attachment.actorId, position);
+        const position = this.session?.actorPosition(actorId);
+        if (position) standing.set(actorId, position);
       }
-      const kit = this.session?.equipmentOf(attachment.actorId);
-      if (kit) carried.set(attachment.actorId, kit);
+      const kit = this.session?.equipmentOf(actorId);
+      if (kit) carried.set(actorId, kit);
       // Read here rather than from storage alone, for the reason the kit is: a
       // reward taken since the last flush is on the runtime and nowhere else,
       // and the world it was taken in is about to be replaced.
-      const tags = this.session?.tagsOf(attachment.actorId);
-      if (tags?.length) taken.set(attachment.actorId, [...tags]);
+      const tags = this.session?.tagsOf(actorId);
+      if (tags?.length) taken.set(actorId, [...tags]);
       // And the masteries, for the same reason again and with the least to
       // argue about of the three: a save is a statement about the world, and
       // nothing an author writes in one has any bearing on what a player has
       // already learnt.
-      const masteries = this.session?.masteryXpOf(attachment.actorId);
-      if (masteries) learnt.set(attachment.actorId, { ...masteries });
+      const masteries = this.session?.masteryXpOf(actorId);
+      if (masteries) learnt.set(actorId, { ...masteries });
       // And what is running on them, with what it has already done to them. A
       // save re-creates the world, not the people standing in it, and a berry
       // eaten four seconds before somebody hit save is on the runtime and
       // nowhere else. Dropping the pair would cure every poison in the world
       // and heal every wound, once per save — and the editor saves constantly.
-      const statuses = this.session?.statusesOf(attachment.actorId);
-      if (statuses?.length) running.set(attachment.actorId, statuses);
-      const hp = this.session?.storedHpOf(attachment.actorId);
-      if (hp !== null && hp !== undefined) health.set(attachment.actorId, hp);
+      const statuses = this.session?.statusesOf(actorId);
+      if (statuses?.length) running.set(actorId, statuses);
+      const hp = this.session?.storedHpOf(actorId);
+      if (hp !== null && hp !== undefined) health.set(actorId, hp);
     }
 
     this.tiles = tiles;
@@ -2996,30 +3108,23 @@ export class GameServer {
     // — see {@link TAGS_KEY_PREFIX}. Storage is the fallback for the world that
     // was too broken to have a session at all.
     const tilesById = tilesByIdFromList(tiles);
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (!attachment) continue;
-      const kit = carried.get(attachment.actorId);
+    for (const actorId of present) {
+      const kit = carried.get(actorId);
       this.session.spawn(
-        attachment.actorId,
+        actorId,
         {
           // Honoured only if the cell still has room for them; `findEntryCell`
           // bubbles outward and gives up at the new spawn, so a position kept
           // across a deploy can never seat somebody inside a wall.
-          at: standing.get(attachment.actorId),
+          at: standing.get(actorId),
           carrying: kit
             ? restoredEquipment(kit, tilesById)
-            : await this.lastEquipmentOf(attachment.actorId),
-          tagged:
-            taken.get(attachment.actorId) ??
-            (await this.lastTagsOf(attachment.actorId)),
-          earned:
-            learnt.get(attachment.actorId) ??
-            (await this.lastMasteriesOf(attachment.actorId)),
+            : await this.lastEquipmentOf(actorId),
+          tagged: taken.get(actorId) ?? (await this.lastTagsOf(actorId)),
+          earned: learnt.get(actorId) ?? (await this.lastMasteriesOf(actorId)),
           statuses:
-            running.get(attachment.actorId) ??
-            (await this.lastStatusesOf(attachment.actorId)),
-          hp: health.get(attachment.actorId) ?? (await this.lastHpOf(attachment.actorId)),
+            running.get(actorId) ?? (await this.lastStatusesOf(actorId)),
+          hp: health.get(actorId) ?? (await this.lastHpOf(actorId)),
         },
         { announce: false },
       );
@@ -3194,6 +3299,9 @@ export class GameServer {
     this.sentStatusIds.clear();
     this.queuedIntents.clear();
     this.lastSaidAt.clear();
+    // Their bodies went with the board, and a reset seats nobody who has no
+    // socket.
+    this.lingering.clear();
     this.events = [];
     // A death still waiting to be announced belongs to the world being thrown
     // away, and the `hello` below is about to seat its owner as a stranger.
@@ -3312,6 +3420,7 @@ export class GameServer {
     this.collectTeleportEvents(session);
     this.collectSwingEvents(session);
     this.noteDeaths(session);
+    this.releaseLingerers();
     this.broadcastSpeech(session, actors);
     this.broadcastNoise(session, actors);
 
@@ -3493,12 +3602,16 @@ export class GameServer {
       // had one — so this is "is there anyone to hand this to" without asking
       // the session, whose runtime for them is already gone. Without the test a
       // world that respawns wildlife would write a position and a kit per rat.
-      if (!this.hasSocket(actorId)) continue;
+      //
+      // A body left standing in a fight is somebody's too, with no socket: its
+      // kit is on the floor now, and not writing that down would hand it back
+      // to them on their next join as well.
+      const connected = this.hasSocket(actorId);
+      if (!connected && !this.lingering.has(actorId)) continue;
       this.pendingDeathWrites.set(actorId, death);
-      // The same test decides both: somebody with a socket is somebody to write
-      // down *and* somebody to tell. See {@link tick} for why the telling waits
-      // until after this tick's patch has gone out.
-      this.justDied.push(death);
+      // Only somebody connected is somebody to tell. See {@link tick} for why
+      // the telling waits until after this tick's patch has gone out.
+      if (connected) this.justDied.push(death);
     }
     // **Forced, here, rather than left to the next flush.** The board this tick
     // leaves behind no longer holds the body and does hold its kit, and the rows
