@@ -12,7 +12,6 @@ import { type Equipment, emptyEquipment } from "../game/equipment";
 import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import type { MasteryXp } from "../lib/mastery";
 import { bindCastKeys, bindKeyboard, HeldDirections } from "../game/heldDirections";
-import { usePlayModes } from "../components/usePlayModes";
 import {
   applyInteraction,
   type InteractionOption,
@@ -97,10 +96,6 @@ export default function PlayPage() {
     DEFAULT_PLAY_MINUTES,
   );
   const [clockPaused, setClockPaused] = useState(false);
-  // Held outside the renderer and the session because the buttons have to show
-  // it: a key and a button are two ways into one mode, and only one of them is
-  // in a position to know what the other did.
-  const { mode, looking, attacking, setMode } = usePlayModes();
   const [lightingEnabled, setLightingEnabled] = useState(true);
   const [stats, setStats] = useState<FrameStats | null>(null);
   const [interactions, setInteractions] = useState<InteractionOption[]>([]);
@@ -190,10 +185,6 @@ export default function PlayPage() {
   statusDefsRef.current = statusDefs;
   const lightingRef = useRef(lightingEnabled);
   lightingRef.current = lightingEnabled;
-  // Same, for the session: a map change builds a new one, and a player who had
-  // their sword out must not have it quietly put away by an editor save.
-  const attackingRef = useRef(attacking);
-  attackingRef.current = attacking;
   // Mirrored into a ref because the key binding is set up once, with the session,
   // and must read whatever the row is showing *now* rather than the empty list
   // it was carrying when the world was built.
@@ -212,7 +203,6 @@ export default function PlayPage() {
       return;
     }
     sessionRef.current = session;
-    session.setAttackMode(attackingRef.current);
 
     const renderer = new GameRenderer(
       canvas,
@@ -296,17 +286,6 @@ export default function PlayPage() {
     rendererRef.current?.setStatuses(statusDefs);
   }, [statusDefs]);
 
-  useEffect(() => {
-    rendererRef.current?.setLookMode(looking);
-  }, [looking]);
-
-  // At the session rather than the renderer, unlike looking: whether a blow
-  // lands is the simulation's business, and the outline colour follows from the
-  // snapshot it hands back rather than from a second copy held over here.
-  useEffect(() => {
-    sessionRef.current?.setAttackMode(attacking);
-  }, [attacking]);
-
   const scrubTime = (m: MinutesOfDay) => {
     setMinutesOfDay(m);
     rendererRef.current?.setMinutesOfDay(m);
@@ -366,8 +345,6 @@ export default function PlayPage() {
             labelRef={labelRef}
             onDirectionPress={pressDirection}
             onDirectionRelease={releaseDirection}
-            mode={mode}
-            onModeChange={setMode}
             readouts={<WorldClock minutesOfDay={minutesOfDay} />}
             interactions={interactions}
             onInteract={act}

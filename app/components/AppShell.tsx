@@ -3,7 +3,7 @@ import { IconMenu2, IconSettings } from "@tabler/icons-react";
 import { createContext, useContext, useState } from "react";
 import { NavLink } from "react-router";
 import { useMediaQuery } from "../lib/useMediaQuery";
-import { ACTION_BUTTON_SIZE_CLASS, type ActionButtonSize } from "./ModeSwitch";
+import { ACTION_BUTTON_SIZE_CLASS, type ActionButtonSize } from "./actionButton";
 import { Tooltip } from "../ui/Tooltip";
 
 /**

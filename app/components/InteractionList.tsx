@@ -10,6 +10,7 @@ import {
   IconPick,
   IconShirt,
   IconSwitch,
+  IconSword,
   IconTarget,
   IconTransform,
   IconWalk,
@@ -23,6 +24,7 @@ import type {
   OptionBlock,
 } from "../game/interactionOptions";
 import {
+  actionRows,
   groupInteractionOptions,
   groupSubject,
   interactionText,
@@ -59,6 +61,13 @@ import { useTap } from "./useTap";
  * name along behind them. See `groupInteractionOptions`, which decides what
  * counts as one thing.
  *
+ * **One verb per line, except fighting and watching, which share one.** They are
+ * the two ends of a single decision about a creature — swing at it, or merely
+ * keep an eye on it — and which end you are at is which of the two is lit. Side
+ * by side they read as one control with a setting, which is what they are; the
+ * screen used to say it with a mode switch somewhere else entirely, and nobody
+ * ever connected the two. See `actionRows`.
+ *
  * A box about a body carries its health under the name, on the same ramp the
  * bar over its head is drawn on. Two rats read as two identical boxes
  * otherwise, and the one thing you want to know before swinging is which of
@@ -73,6 +82,10 @@ const FRONT: "s" = "s";
 
 const ICONS: Record<InteractionAction, typeof IconTarget> = {
   target: IconTarget,
+  // A sword against the target's reticle, which is the difference the pair is
+  // drawing: both rows are about picking this creature out, and only one of them
+  // swings.
+  attack: IconSword,
   // Somebody walking, because that is literally what the row does — the
   // directions it presses are the ones a held key presses. Deliberately not a
   // second reticle or an arrow: it sits directly under the target row on the
@@ -124,7 +137,6 @@ export function InteractionList({
   options,
   tiles,
   tilesets,
-  attacking = false,
   onAct,
   onHover,
   className = "",
@@ -132,15 +144,6 @@ export function InteractionList({
   options: InteractionOption[];
   tiles: TileDef[];
   tilesets: TilesetDef[];
-  /**
-   * Whether a target is a fight, which is what colours the chosen row.
-   *
-   * The row wears whatever its subject is wearing out in the world — red in
-   * attack mode, white otherwise — so the list and the canvas are never two
-   * separate things to learn. It is the only thing in here that knows about
-   * attack mode at all: what a row *does* is unchanged by it.
-   */
-  attacking?: boolean;
   onAct: (option: InteractionOption) => void;
   /**
    * The row being pointed at, so the world can outline what it is talking
@@ -185,7 +188,6 @@ export function InteractionList({
             group={group}
             tile={tilesById[groupSubject(group).tileId] ?? null}
             tilesets={tilesets}
-            attacking={attacking}
             onAct={onAct}
             onHover={onHover}
           />
@@ -204,20 +206,19 @@ export function InteractionList({
  * cannot invent a fifth or borrow one of the other four.
  *
  * Which is why an open box is not red. The red belongs to a *fight*, and it is
- * worn by a target once attack mode has turned pointing at somebody into
- * swinging at them; a chest you have open has nothing to do with that mode, and
- * a panel that went red the moment you drew your sword would be saying so.
+ * worn by the row that swings; a chest you have open has nothing to do with a
+ * fight, and a panel that went red the moment you drew your sword would be
+ * saying so.
  */
-function litClass(option: InteractionOption, attacking: boolean): string {
+function litClass(option: InteractionOption): string {
   if (option.action === "open") {
     return "border-interact bg-interact/20 text-paper";
   }
-  // Ahead of the stance, and that is the point of it being here: following a
-  // rabbit with a sword out is following a rabbit. The red belongs to the row
-  // that swings, and two lit rows on one body have to be readable as the two
-  // different things they are.
-  if (option.action === "follow") return "border-paper bg-paper/15 text-paper";
-  if (attacking) return "border-danger bg-danger/20 text-paper";
+  // The one row in the list that is a fight, and the only one that is red.
+  // Following a rabbit with a sword out is still following a rabbit, and two
+  // lit rows on one body have to be readable as the two different things they
+  // are.
+  if (option.action === "attack") return "border-danger bg-danger/20 text-paper";
   return "border-paper bg-paper/15 text-paper";
 }
 
@@ -239,9 +240,8 @@ function litClass(option: InteractionOption, attacking: boolean): string {
 function boxClass(
   group: InteractionGroup,
   active: InteractionOption | null,
-  attacking: boolean,
 ): string {
-  if (active) return litClass(active, attacking);
+  if (active) return litClass(active);
   if (group.options.some((option) => option.action === "reward")) {
     return "border-reward/60 bg-reward/10 text-paper hover:border-reward";
   }
@@ -250,6 +250,11 @@ function boxClass(
 
 /**
  * What a verb wears inside the box.
+ *
+ * The fight is not marked out until it is the one you are in: unpressed it is
+ * an offer like every other verb in the column, and red is what says a fight is
+ * running. A button that arrived red would be shouting about a press nobody has
+ * made.
  *
  * Quieter than the box around it by a whole border width, and on purpose: the
  * box is what you find in a scan of the column, and the buttons are what you
@@ -261,7 +266,7 @@ function boxClass(
  * already said the offer is a one-off, and "Receive" in the same colour is what
  * says which of the verbs in it is the offer.
  */
-function actionClass(option: InteractionOption, attacking: boolean): string {
+function actionClass(option: InteractionOption): string {
   // Ahead of every other case, because it is the one that says the verb cannot
   // be run at all — a "Pick" that is also a reward is still a "Pick" nothing
   // can press. Dashed and faint on exactly the terms a cooling spell is, and
@@ -270,7 +275,7 @@ function actionClass(option: InteractionOption, attacking: boolean): string {
   if (option.blocked) {
     return "border-dashed border-paper/25 text-paper/40";
   }
-  if (option.active) return litClass(option, attacking);
+  if (option.active) return litClass(option);
   if (option.action === "reward") {
     return "border-reward/60 text-reward hover:border-reward hover:bg-reward/10";
   }
@@ -316,19 +321,18 @@ function InteractionBox({
   group,
   tile,
   tilesets,
-  attacking,
   onAct,
   onHover,
 }: {
   group: InteractionGroup;
   tile: TileDef | null;
   tilesets: TilesetDef[];
-  attacking: boolean;
   onAct: (option: InteractionOption) => void;
   onHover?: (optionId: string | null) => void;
 }) {
   const subject = groupSubject(group);
   const active = group.options.find((option) => option.active) ?? null;
+  const rows = useMemo(() => actionRows(group.options), [group.options]);
 
   return (
     <div
@@ -336,7 +340,7 @@ function InteractionBox({
       onMouseLeave={() => onHover?.(null)}
       className={[
         "flex w-full shrink-0 items-start gap-2 border-2 p-1",
-        boxClass(group, active, attacking),
+        boxClass(group, active),
       ].join(" ")}
     >
       <TilePreview
@@ -353,17 +357,22 @@ function InteractionBox({
         <span className="truncate text-xs text-paper/70">{subject.name}</span>
         {subject.health ? <RowHealth health={subject.health} /> : null}
         {/* Under the name and hard against it: the name is a heading for these
-            and a gap would let it float between the box above and this one. */}
+            and a gap would let it float between the box above and this one.
+            One line per verb, except the fight-or-watch pair on a body, which
+            is one line with two ends — see `actionRows`. */}
         <div className="mt-1 flex flex-col gap-px">
-          {group.options.map((option) => (
-            <ActionButton
-              key={option.id}
-              option={option}
-              subjectId={subject.id}
-              attacking={attacking}
-              onAct={onAct}
-              onHover={onHover}
-            />
+          {rows.map((row) => (
+            <div key={row[0]!.id} className="flex gap-px">
+              {row.map((option) => (
+                <ActionButton
+                  key={option.id}
+                  option={option}
+                  subjectId={subject.id}
+                  onAct={onAct}
+                  onHover={onHover}
+                />
+              ))}
+            </div>
           ))}
         </div>
       </div>
@@ -442,7 +451,6 @@ function ProgressFill({ extraction }: { extraction: Extraction }) {
 function ActionButton({
   option,
   subjectId,
-  attacking,
   onAct,
   onHover,
 }: {
@@ -455,7 +463,6 @@ function ActionButton({
    * nothing in particular must not leave the world claiming a shove.
    */
   subjectId: string;
-  attacking: boolean;
   onAct: (option: InteractionOption) => void;
   onHover?: (optionId: string | null) => void;
 }) {
@@ -495,11 +502,12 @@ function ActionButton({
       // and one that vanished from the keyboard's reach whenever it went grey
       // would be unreachable at precisely the moment it is interesting.
       aria-disabled={blocked ? true : undefined}
-      // Pointing at somebody, walking after them and having a box open are
-      // states you are in, and all three buttons toggle out of them; a push
+      // Fighting somebody, watching them, walking after them and having a box
+      // open are states you are in, so all four say which they are in; a push
       // happens and is over, and a button that claimed otherwise would be
       // announced as stuck on.
       aria-pressed={
+        option.action === "attack" ||
         option.action === "target" ||
         option.action === "follow" ||
         option.action === "open"
@@ -514,9 +522,13 @@ function ActionButton({
         // `relative` so the wait can be drawn behind the verb rather than
         // beside it; `overflow-hidden` so the fill is clipped by the border
         // rather than by the box two levels up.
-        "relative overflow-hidden flex w-full min-h-6 items-center gap-1 border px-1 py-0.5 text-left pointer-coarse:min-h-9",
+        // `flex-1` and `min-w-0` rather than a plain full width, because a line
+        // may hold two of these: on its own a button still fills the line, and
+        // on a shared one the pair splits it evenly and each verb truncates
+        // inside its own half.
+        "relative overflow-hidden flex min-w-0 flex-1 min-h-6 items-center gap-1 border px-1 py-0.5 text-left pointer-coarse:min-h-9",
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-        actionClass(option, attacking),
+        actionClass(option),
       ].join(" ")}
     >
       {/* The pull, filling the row from the left as it is made. Behind the

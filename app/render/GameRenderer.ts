@@ -46,7 +46,11 @@ import { strikeOffset } from "./strikeMotion";
 import { isCellVisible } from "./cameraSight";
 import { labelHeadroomPx } from "./labelHeadroom";
 import { sceneryStack } from "../game/movement";
-import type { HeldDirections } from "../game/heldDirections";
+import {
+  bindAttackKey,
+  bindLookKey,
+  type HeldDirections,
+} from "../game/heldDirections";
 import { WalkTo, type WalkView } from "../game/walkTo";
 import type { EmitterOverride } from "../lib/lighting";
 import {
@@ -56,6 +60,7 @@ import {
   type MinutesOfDay,
 } from "../lib/clock";
 import { emitterCenter } from "../lib/lighting";
+import { DWELL_MS } from "../lib/useDwell";
 import { elevationAt, getStack, stackHeight } from "../lib/mapData";
 import { pileTally } from "../lib/piles";
 import {
@@ -157,13 +162,17 @@ const TARGET_HOVER_COLOR = 0xffffff;
 const TARGET_COLOR = 0xffffff;
 
 /**
- * The one you have picked while in attack mode. Red for the rest of the fight.
+ * The one you are swinging at. Red for the rest of the fight.
  *
- * Colour carries the mode and nothing else, which is why the pulse is on both:
- * red is not "this is your target", it is "this target is a fight", and turning
- * attack mode off leaves the outline exactly where it was in white.
+ * Colour carries the stance and nothing else, which is why the pulse is on
+ * both: red is not "this is your target", it is "this target is a fight", and
+ * pressing the watch row beside the fight leaves the outline exactly where it
+ * was in white.
  */
 const ATTACK_TARGET_COLOR = 0xff3b30;
+
+/** The fight outline lightened, as every other label ink here is. */
+const ATTACK_LABEL_INK = "#ff9b94";
 
 /**
  * Looking is blue, acting is yellow. Never both at once: two outlines in two
@@ -171,6 +180,26 @@ const ATTACK_TARGET_COLOR = 0xff3b30;
  * mode takes the interaction hover off the screen entirely.
  */
 const LOOK_COLOR = 0x3fa9ff;
+
+/**
+ * How long a finger has to rest on the world before it reads it instead of
+ * tapping it.
+ *
+ * The same wait an item square gives a held finger, imported rather than
+ * restated: it is one gesture — "this one, but wait" — and a player who learnt
+ * it on their bag is making the same press here. @see ../lib/useDwell
+ */
+const LOOK_HOLD_MS = DWELL_MS;
+
+/**
+ * How far that finger may travel before the wait is called off.
+ *
+ * The gesture is hold *then* drag, so movement before the hold has fired is a
+ * finger on its way somewhere rather than one asking about what it landed on.
+ * The same ten pixels a tap is allowed elsewhere — under the width of a
+ * fingertip. @see ../components/useTap
+ */
+const LOOK_HOLD_SLOP_PX = 10;
 
 /**
  * Floors above and below the viewer that a pick can reach.
@@ -212,8 +241,9 @@ const REWARD_LABEL_INK = "#d9a9ff";
 /**
  * What colour an option paints its subject, and what ink its words are in.
  *
- * Three of them — white for a body that could be singled out, purple for
- * something you can be given once, yellow for everything else you could act on.
+ * Four of them — red for a body a click would swing at, white for one merely
+ * singled out, purple for something you can be given once, yellow for
+ * everything else you could act on.
  * A row under a finger and a sprite under a cursor are two ways of pointing at
  * one thing, so pointing either way has to look identical.
  *
@@ -222,12 +252,17 @@ const REWARD_LABEL_INK = "#d9a9ff";
  * and a text weight of pure `#ffcc00` is a headline rather than a caption.
  */
 function interactionColor(option: InteractionOption): number {
+  // Red before white, because a click on a body runs the fight: the outline has
+  // to say what the click does, and "Attack Rat" over a white silhouette would
+  // be the two halves of one answer disagreeing.
+  if (option.action === "attack") return ATTACK_TARGET_COLOR;
   if (option.action === "target") return TARGET_HOVER_COLOR;
   if (option.action === "reward") return REWARD_COLOR;
   return HOVER_COLOR;
 }
 
 function interactionInk(option: InteractionOption): string {
+  if (option.action === "attack") return ATTACK_LABEL_INK;
   if (option.action === "target") return "#ffffff";
   if (option.action === "reward") return REWARD_LABEL_INK;
   return HOVER_LABEL_INK;
@@ -486,8 +521,34 @@ export class GameRenderer {
    * destination is not this class's business at all — see `../game/walkTo`.
    */
   private walkTo: WalkTo | null = null;
-  /** @see setLookMode */
+  /**
+   * The world is being read rather than acted on. @see applyLooking
+   *
+   * Two things can raise it and they are the same gesture on two devices, which
+   * is why neither is the flag itself: a mouse holds shift, and a finger holds
+   * still. Kept apart underneath so that letting go of one cannot cancel the
+   * other — the bug the modes had, in miniature.
+   */
   private lookMode = false;
+  /** Shift is down. @see attachKeys */
+  private lookKeyHeld = false;
+  /** A finger has been held on the world past {@link LOOK_HOLD_MS}. */
+  private touchLooking = false;
+  /** The wait a finger is still inside, or null. @see onPointerDown */
+  private lookHold: ReturnType<typeof setTimeout> | null = null;
+  /** Where that finger landed, so travel can call the wait off. */
+  private touchDownAt: { x: number; y: number } | null = null;
+  /**
+   * Which finger the press belongs to, or null between presses.
+   *
+   * One gesture at a time, held by whichever finger landed first: a second one
+   * arriving while the world is being read is a hand steadying the phone, and
+   * without an owner it would start a second wait over the top of the first and
+   * end the reading when it lifted.
+   */
+  private touchId: number | null = null;
+  private unbindLookKey: (() => void) | null = null;
+  private unbindAttackKey: (() => void) | null = null;
   private lookedAt: ObjectRef | null = null;
   /**
    * Where the pointer was last seen, in canvas pixels.
@@ -1026,6 +1087,7 @@ export class GameRenderer {
     // renderer's own. @see ../game/walkTo
     this.walkTo?.cancel();
     this.walkTo = null;
+    this.cancelLookHold();
     this.labelLayer?.dispose();
     this.labelLayer = null;
     this.damageLayer?.dispose();
@@ -1036,21 +1098,39 @@ export class GameRenderer {
   }
 
   /**
-   * Escape drops the target.
+   * The three keys that are about pointing at the world rather than walking
+   * across it: shift reads what is under the pointer, E swings at whoever is
+   * picked, and Escape lets them go.
+   *
+   * Held here rather than by the page, because all three are answers to
+   * questions this class already owns — what the pointer is over, who is
+   * targeted, and what the outline is drawn in. They used to live in a hook
+   * beside a row of buttons that showed which mode they had left you in; the
+   * buttons are gone, so there is no second holder of the answer to keep in
+   * step, and the page has nothing to pass down.
    *
    * On the window rather than the canvas, because a canvas cannot hold focus in
    * any way a player would recognise: they click a creature, move the mouse, and
-   * press escape — and by then the pointer may be anywhere. Deliberately the
-   * only key this class listens for; movement belongs to whoever owns the page.
+   * press escape — and by then the pointer may be anywhere. Movement still
+   * belongs to whoever owns the page. @see ../game/heldDirections
    */
   private attachKeys() {
     if (typeof window === "undefined") return;
     window.addEventListener("keydown", this.onKeyDown);
+    this.unbindLookKey = bindLookKey((held) => {
+      this.lookKeyHeld = held;
+      this.applyLooking();
+    });
+    this.unbindAttackKey = bindAttackKey(() => this.toggleSwing());
   }
 
   private detachKeys() {
     if (typeof window === "undefined") return;
     window.removeEventListener("keydown", this.onKeyDown);
+    this.unbindLookKey?.();
+    this.unbindLookKey = null;
+    this.unbindAttackKey?.();
+    this.unbindAttackKey = null;
   }
 
   private onKeyDown = (e: KeyboardEvent) => {
@@ -1059,19 +1139,52 @@ export class GameRenderer {
     // listening for the same key must still get it.
     if (this.session.getSnapshot().targetId === null) return;
     this.session.setTarget(null);
+    // The stance goes with the body it was about. Left on, the next creature
+    // pointed at would be swung at by a player who never said to.
+    this.session.setAttackMode(false);
   };
 
+  /**
+   * E swings at whoever is picked, and E again stops without letting them go.
+   *
+   * The keyboard's half of the pair of rows on a body — see
+   * `../game/interactionOptions`' `attack` — and deliberately only that half: it
+   * cannot *pick* anybody. Choosing who you are fighting is done by pointing at
+   * them, and a key that chose for you is how a fight used to start with
+   * somebody nobody had looked at. With nothing picked it does nothing at all.
+   */
+  private toggleSwing() {
+    const snap = this.session.getSnapshot();
+    if (snap.targetId === null) return;
+    this.session.setAttackMode(!snap.attacking);
+  }
+
   private attachPointer() {
+    this.canvas.addEventListener("contextmenu", this.onContextMenu);
     this.canvas.addEventListener("pointermove", this.onPointerMove);
     this.canvas.addEventListener("pointerdown", this.onPointerDown);
+    this.canvas.addEventListener("pointerup", this.onPointerUp);
+    this.canvas.addEventListener("pointercancel", this.onPointerCancel);
     this.canvas.addEventListener("pointerleave", this.onPointerLeave);
   }
 
   private detachPointer() {
+    this.canvas.removeEventListener("contextmenu", this.onContextMenu);
     this.canvas.removeEventListener("pointermove", this.onPointerMove);
     this.canvas.removeEventListener("pointerdown", this.onPointerDown);
+    this.canvas.removeEventListener("pointerup", this.onPointerUp);
+    this.canvas.removeEventListener("pointercancel", this.onPointerCancel);
     this.canvas.removeEventListener("pointerleave", this.onPointerLeave);
   }
+
+  /**
+   * The right button is a game button, so the browser's menu over the world is
+   * never what was being asked for. Cancelled on the canvas alone — every other
+   * surface on the page keeps its menu.
+   */
+  private onContextMenu = (e: MouseEvent) => {
+    e.preventDefault();
+  };
 
   private localPoint(e: PointerEvent): { x: number; y: number } {
     const rect = this.canvas.getBoundingClientRect();
@@ -1080,6 +1193,20 @@ export class GameRenderer {
 
   private onPointerMove = (e: PointerEvent) => {
     this.lastPointer = this.localPoint(e);
+    // A finger on its way somewhere is not a finger asking a question. The
+    // gesture is hold *then* drag, so travel before the wait is up calls it off
+    // and leaves the press an ordinary tap. @see onPointerDown
+    if (
+      this.lookHold !== null &&
+      this.touchDownAt &&
+      e.pointerId === this.touchId
+    ) {
+      const dx = this.lastPointer.x - this.touchDownAt.x;
+      const dy = this.lastPointer.y - this.touchDownAt.y;
+      if (dx * dx + dy * dy > LOOK_HOLD_SLOP_PX * LOOK_HOLD_SLOP_PX) {
+        this.cancelLookHold();
+      }
+    }
     const snap = this.session.getSnapshot();
     if (this.lookMode) {
       this.lookedAt = this.lookAt(this.lastPointer, snap);
@@ -1087,6 +1214,32 @@ export class GameRenderer {
     }
     this.pointerRef = this.pickRefAt(this.lastPointer, snap);
   };
+
+  /**
+   * The right button swings at whoever is under it.
+   *
+   * **Left picks, right fights**, which is the arrangement every game with a
+   * mouse in it already uses — so it is the one thing about this interface
+   * nobody has to be taught. It is the same pair of rows the creature's box
+   * offers, reached without looking away from the creature: the left button
+   * runs whatever the world offers, which on a body is the target, and this
+   * runs the fight beside it.
+   *
+   * Only a body offers one, so a right press on a crate or on the ground does
+   * nothing at all. Pressing it again on the body you are already fighting
+   * changes nothing either — stopping is what the target row, a left click and
+   * Escape are for, and a button that called the fight off when mashed
+   * mid-fight would be the worst possible answer to the gesture people make.
+   */
+  private fightAt(point: { x: number; y: number }, snap: GameSnapshot) {
+    this.pointerRef = this.pickRefAt(point, snap);
+    if (!this.pointerRef) return;
+    const ref = this.pointerRef;
+    const fight = this.interactionsSent.find(
+      (option) => option.action === "attack" && sameRef(option.ref, ref),
+    );
+    if (fight) applyInteraction(this.session, fight, this);
+  }
 
   /**
    * Interactive object drawn under a canvas-relative point, if any.
@@ -1121,25 +1274,95 @@ export class GameRenderer {
    * One button for everything: a tap on an object runs whatever it offers.
    * The alternative — a modifier or a second button per interaction — is the
    * thing that made this unlearnable, and touch has neither.
+   *
+   * **A mouse acts on the press and a finger on the lift**, which is the whole
+   * of what hold-to-read costs: a finger has not said what it meant yet at the
+   * moment it lands. Held still it is a question, and lifted it is a tap, and
+   * the only way to tell is to wait — so the press starts a timer and
+   * {@link onPointerUp} runs the tap that never became a hold. A mouse says
+   * which it meant with shift and needs no wait.
    */
   private onPointerDown = (e: PointerEvent) => {
-    if (e.button !== 0) return;
+    // The two buttons this game has. Anything else — a middle click, a thumb
+    // button — is left to the browser.
+    if (e.button !== 0 && e.button !== 2) return;
 
+    const point = this.localPoint(e);
+    this.lastPointer = point;
+
+    if (e.pointerType === "touch") {
+      if (this.touchId !== null) return;
+      this.touchId = e.pointerId;
+      this.touchDownAt = point;
+      // Captured so the read survives the finger leaving the canvas: a drag
+      // that wanders over the controls below would otherwise stop reporting
+      // mid-sentence, and the lift that ends it would land somewhere else.
+      this.canvas.setPointerCapture(e.pointerId);
+      this.lookHold = setTimeout(() => {
+        this.lookHold = null;
+        this.touchLooking = true;
+        this.applyLooking();
+      }, LOOK_HOLD_MS);
+      return;
+    }
+
+    if (e.button === 2) {
+      // Swallowed whether or not there is anybody there, because the menu it
+      // would otherwise open covers the world it was opened over. @see
+      // onContextMenu, which is what actually stops it.
+      e.preventDefault();
+      if (!this.lookMode) this.fightAt(point, this.session.getSnapshot());
+      return;
+    }
+
+    this.act(point, e);
+  };
+
+  /**
+   * The lift decides what a finger meant, because the press could not.
+   *
+   * A hold that fired has already been answered — the world was read under it,
+   * and the lift only ends the reading. Anything else is the tap this press was
+   * always going to be, run here at the point it was lifted from.
+   */
+  private onPointerUp = (e: PointerEvent) => {
+    if (e.pointerType !== "touch") return;
+    if (e.pointerId !== this.touchId) return;
+    this.touchId = null;
+    this.touchDownAt = null;
+    if (this.endLookHold()) return;
+    if (e.button !== 0) return;
+    const point = this.localPoint(e);
+    this.lastPointer = point;
+    this.act(point, e);
+  };
+
+  /**
+   * A gesture the browser took away — a call arriving, a scroll it decided was
+   * its own. Nothing is run: what was cancelled is precisely a press nobody
+   * completed.
+   */
+  private onPointerCancel = (e: PointerEvent) => {
+    if (e.pointerId !== this.touchId) return;
+    this.touchId = null;
+    this.touchDownAt = null;
+    this.endLookHold();
+  };
+
+  /** Do whatever the pointer means at this point: read it, use it, or walk. */
+  private act(point: { x: number; y: number }, e: PointerEvent) {
     const snap = this.session.getSnapshot();
 
-    // Looking and acting cannot share a tap: a finger has no hover, so on touch
-    // the mode *is* the distinction. A tap on a door while looking reads it and
-    // leaves it shut.
+    // Reading and acting cannot share a press: a tap on a door while shift is
+    // down reads it and leaves it shut.
     if (this.lookMode) {
       e.preventDefault();
-      this.lastPointer = this.localPoint(e);
-      this.lookedAt = this.lookAt(this.lastPointer, snap);
+      this.lookedAt = this.lookAt(point, snap);
       return;
     }
 
     // Resolved here rather than read off the last hover: touch has no hover
     // at all, and a press that outruns its move event would otherwise miss.
-    const point = this.localPoint(e);
     this.pointerRef = this.pickRefAt(point, snap);
     const option = this.pointerOption();
     if (option) {
@@ -1161,7 +1384,28 @@ export class GameRenderer {
     // focus — which `isTypingTarget` reads as typing, so the arrow keys stop
     // walking the body and go on filling the field instead.
     this.walkToPointer(point, snap);
-  };
+  }
+
+  /** Forget a hold that has not fired yet, leaving the press an ordinary tap. */
+  private cancelLookHold() {
+    if (this.lookHold === null) return;
+    clearTimeout(this.lookHold);
+    this.lookHold = null;
+  }
+
+  /**
+   * Stop reading the world, and say whether it was being read at all.
+   *
+   * The answer is what {@link onPointerUp} needs: a lift that ended a reading
+   * must not also act, and one that ended nothing is a tap.
+   */
+  private endLookHold(): boolean {
+    this.cancelLookHold();
+    if (!this.touchLooking) return false;
+    this.touchLooking = false;
+    this.applyLooking();
+    return true;
+  }
 
   /**
    * Set off for whatever the pointer is over, when there was nothing to do to
@@ -1312,14 +1556,15 @@ export class GameRenderer {
   }
 
   /**
-   * Enter or leave look mode: shift on a keyboard, the eye button on a touch
-   * screen. Leaving clears what was being looked at; entering re-picks from
-   * where the pointer already is rather than waiting for it to move.
+   * Start or stop reading the world, from whichever hand is asking.
    *
-   * Touch keeps its target until the next tap — {@link onPointerLeave} never
-   * fires for a finger, which is exactly the stickiness that mode wants.
+   * Leaving clears what was being read; entering re-picks from where the
+   * pointer already is rather than waiting for it to move — shift is a key
+   * rather than a pointer event, so on a still hand the wait reads as the key
+   * being broken.
    */
-  setLookMode(enabled: boolean) {
+  private applyLooking() {
+    const enabled = this.lookKeyHeld || this.touchLooking;
     if (enabled === this.lookMode) return;
     this.lookMode = enabled;
     if (!enabled) {
@@ -1327,7 +1572,7 @@ export class GameRenderer {
       return;
     }
     // Whatever the pointer was aimed at is no longer a hover target, and the
-    // yellow outline has to go with the mode that owns it.
+    // yellow outline has to go with the pointing that owned it.
     this.pointerRef = null;
     if (this.lastPointer) {
       this.lookedAt = this.lookAt(this.lastPointer, this.session.getSnapshot());
@@ -1441,9 +1686,9 @@ export class GameRenderer {
       pulse,
     });
 
-    // The row under the cursor points into the world, whatever mode the canvas
-    // is in: the eye governs what a tap on the *canvas* means, and a hand on the
-    // list is already pointing at something explicitly.
+    // The row under the cursor points into the world whether or not the world
+    // is being read: holding shift governs what a press on the *canvas* means,
+    // and a hand on the list is already pointing at something explicitly.
     const listed = this.listHoverOption();
 
     if (this.lookMode) {
@@ -1784,12 +2029,13 @@ export class GameRenderer {
    * text directly beneath — the same stacking speech already uses, which is why
    * a look reads like a bubble rather than a tooltip.
    *
-   * **Two modes, one label.** Look mode names whatever you point at, in blue.
-   * Outside it the pointer names *items* and nothing else, in the yellow of the
-   * outline already round them — because a rusty sword and a hand lantern are
-   * both a small thing on the floor, and which one you are about to bend down
-   * for is worth knowing before you do. They cannot both appear: entering look
-   * mode takes the interaction hover off the screen.
+   * **Two readings, one label.** While the world is being read — shift, or a
+   * held finger — it names whatever you point at, in blue. Otherwise the
+   * pointer names *items* and nothing else, in the yellow of the outline
+   * already round them, because a rusty sword and a hand lantern are both a
+   * small thing on the floor and which one you are about to bend down for is
+   * worth knowing before you do. They cannot both appear: reading takes the
+   * interaction hover off the screen.
    *
    * One id for both, because there is only ever one thing under a pointer: the
    * layer reuses a single element and refills it only when the words change,
@@ -2134,7 +2380,7 @@ export class GameRenderer {
   /**
    * Same signal as the outline, for the pointer. Looking gets `help` rather
    * than `pointer`: the object is not going to do anything if you click it, and
-   * a hand that promises otherwise is the cursor lying about the mode.
+   * a hand that promises otherwise is the cursor lying about what a click does.
    */
   private applyCursor() {
     if (this.lookMode) {

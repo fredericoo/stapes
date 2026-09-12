@@ -204,7 +204,7 @@ export function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 /**
- * Hold shift to look. Returns the unbind.
+ * Hold shift to read the world instead of acting on it. Returns the unbind.
  *
  * Lives beside the direction bindings rather than in the renderer because it
  * shares their two hard-won rules — {@link isTypingTarget}, so a capital letter
@@ -218,12 +218,11 @@ export function isTypingTarget(target: EventTarget | null): boolean {
  *
  * **Only the press is gated by focus.** A release always counts, wherever it
  * lands: press shift over the world, click into the chat field, let go — gating
- * that keyup would leave the mode stuck on with no way to turn it off.
+ * that keyup would leave the world stuck being read with no way to stop.
  *
- * Reports whether shift is *down*, which is only half of whether the player is
- * looking: the button latches the same mode on, and the caller ORs the two. Told
- * the whole answer instead, this would turn a stray tap of shift into a way of
- * silently cancelling a mode the player had clicked on.
+ * Reports whether shift is *down*, which is only half of whether the world is
+ * being read: a held finger says the same thing on a phone, and the caller ORs
+ * the two. See `../render/GameRenderer`'s `applyLooking`.
  */
 export function bindLookKey(onChange: (looking: boolean) => void): () => void {
   let looking = false;
@@ -253,24 +252,25 @@ export function bindLookKey(onChange: (looking: boolean) => void): () => void {
   };
 }
 
-/** The key that flips attack mode. */
+/** The key that starts and stops swinging at whoever is picked. */
 const ATTACK_MODE_CODE = "KeyE";
 
 /**
- * Press E to fight, press it again to stop. Returns the unbind.
+ * Press E to fight whoever you have picked, press it again to stop. Returns the
+ * unbind.
  *
  * A latch rather than a modifier, which is the opposite of {@link bindLookKey}
- * and deliberately so: looking is something you do for a second while your hand
- * is already on the keys, and fighting is a stance you are in for the length of
- * a fight. Nobody is going to hold a key down for that, and a mode that ended
- * whenever a hand moved would end mid-swing.
+ * and deliberately so: reading something is what you do for a second while your
+ * hand is already on the keys, and fighting lasts as long as the fight. Nobody
+ * is going to hold a key down for that, and a stance that ended whenever a hand
+ * moved would end mid-swing.
  *
  * Gated on {@link isTypingTarget} for the same reason the directions are: an "e"
  * typed into the chat bar is a letter, not a decision to start swinging.
  *
- * Deliberately reports the press rather than a state, leaving the caller to hold
- * what the mode is: the button in the UI toggles the same thing, and two
- * booleans for one mode is how they drift apart.
+ * Deliberately reports the press rather than a state, leaving the caller to read
+ * the stance off the session it belongs to: the rows on a body say the same
+ * thing, and two booleans for one stance is how they drift apart.
  */
 export function bindAttackKey(onToggle: () => void): () => void {
   const onKeyDown = (e: KeyboardEvent) => {

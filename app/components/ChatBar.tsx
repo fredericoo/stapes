@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MAX_CHAT_LENGTH } from "../net/chat";
 import { isTypingTarget } from "../game/heldDirections";
 import { Tooltip } from "../ui/Tooltip";
-import { ACTION_BUTTON_SIZE_CLASS } from "./ModeSwitch";
+import { ACTION_BUTTON_SIZE_CLASS } from "./actionButton";
 
 /**
  * Where you type what you say, in the two shapes it needs to be.
@@ -14,9 +14,9 @@ import { ACTION_BUTTON_SIZE_CLASS } from "./ModeSwitch";
  *
  * On a phone it is a button that opens the field, because the bar was costing
  * the game a permanent row to hold a field that is empty almost all the time —
- * and a phone is where that row is worth the most. The button sits with the two
- * mode toggles, which is the honest place for it: talking is a third thing a tap
- * can mean, and it belongs beside looking and fighting rather than above them.
+ * and a phone is where that row is worth the most. The button leads the row of
+ * controls under the world, which is the honest place for it: it is the one
+ * thing there that puts something into the world rather than opening a panel.
  */
 
 /**
@@ -191,7 +191,7 @@ export function ChatButton({
             "flex items-center justify-center border-2 shadow-hard",
             ACTION_BUTTON_SIZE_CLASS.touch,
             "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-            // Lit while the field is open, on the same terms the mode toggles
+            // Lit while the field is open, on the same terms the panel toggles
             // are lit: something is claiming your taps and the screen says so.
             "border-paper/40 bg-transparent text-paper data-[popup-open]:border-paper data-[popup-open]:bg-paper data-[popup-open]:text-ink",
           ].join(" ")}
