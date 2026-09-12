@@ -17,6 +17,7 @@ import {
   attackIntervalMs,
   MIN_ATTACK_TICKS,
   MIN_GUARD_SHARE,
+  STRIKE_RECOVERY_STEPS,
 } from "./combat";
 import { STRIKE_DURATION_MS, TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
@@ -1102,10 +1103,15 @@ describe("venom", () => {
  *
  * A fight used to be winnable by holding a movement key: the swinging is
  * automatic and cost nothing, so the strictly better way to fight was to never
- * stand still. Every blow now plants its thrower for exactly one of that body's
- * steps — read off the tile rather than from a constant, so a creature authored
- * to walk slowly is not punished twice for it, and off the tile rather than off
- * Agility, so it is the one thing in a fight nobody can train away.
+ * stand still. Every blow now plants its thrower for two of that body's steps —
+ * read off the tile rather than from a constant, so a creature authored to walk
+ * slowly is not punished twice for it, and off the tile rather than off Agility,
+ * so it is the one thing in a fight nobody can train away.
+ *
+ * Two rather than one, because one was very nearly free: a retreat that swung on
+ * the way out gave up a fraction of a step per blow and there was no decision in
+ * it. The plant holds the aim as well as the feet, which is the other half of
+ * the same rule — see the turning tests below.
  */
 describe("what a swing costs in footwork", () => {
   /**
@@ -1116,6 +1122,9 @@ describe("what a swing costs in footwork", () => {
    * the same order as the lean and the cooldown it sits between.
    */
   const PLODDER_WALK_MS = WALK_DURATION_MS * 3;
+
+  /** What a blow plants a body for, as the rule states it. */
+  const recoveryOf = (walkMs: number) => walkMs * STRIKE_RECOVERY_STEPS;
 
   /**
    * A player who swings once and then not again for twenty seconds.
@@ -1174,9 +1183,25 @@ describe("what a swing costs in footwork", () => {
     session.setInput({ directions: ["n"] });
 
     session.tick(TICK_MS);
-    advance(session, PLODDER_WALK_MS + TICK_MS);
+    advance(session, recoveryOf(PLODDER_WALK_MS) + TICK_MS);
 
     expect(self(session).walk).not.toBeNull();
+  });
+
+  /**
+   * The second step is the whole of what this change bought, so it is asserted
+   * on its own: at one step the body would already be walking here, and the
+   * distance a retreat gives up per blow is the difference.
+   */
+  it("holds the step past the first of the two steps it costs", () => {
+    const session = planted(ponderous(PLODDER_WALK_MS));
+    session.setInput({ directions: ["n"] });
+
+    session.tick(TICK_MS);
+    advance(session, PLODDER_WALK_MS + TICK_MS);
+
+    expect(self(session).walk).toBeNull();
+    expect(self(session).y).toBe(0);
   });
 
   /**
@@ -1188,31 +1213,48 @@ describe("what a swing costs in footwork", () => {
     const quick = planted(ponderous());
     quick.setInput({ directions: ["n"] });
     quick.tick(TICK_MS);
-    advance(quick, WALK_DURATION_MS + TICK_MS);
+    advance(quick, recoveryOf(WALK_DURATION_MS) + TICK_MS);
 
     const slow = planted(ponderous(PLODDER_WALK_MS));
     slow.setInput({ directions: ["n"] });
     slow.tick(TICK_MS);
-    advance(slow, WALK_DURATION_MS + TICK_MS);
+    advance(slow, recoveryOf(WALK_DURATION_MS) + TICK_MS);
 
     expect(self(quick).walk).not.toBeNull();
     expect(self(slow).walk).toBeNull();
   });
 
   /**
-   * A blow costs the step, not the aim. Refusing the turn as well would leave a
-   * cornered fighter unable to point anywhere but at what is already hitting
-   * them.
+   * A blow plants the aim with the feet, which is what makes the turn into a
+   * target worth making at all: a turn a held movement key undoes on the next
+   * frame is a turn nobody watching the fight ever sees.
    */
-  it("still turns a planted body to face where it is asked to go", () => {
+  it("holds a planted body facing what it struck", () => {
     const session = planted(ponderous(PLODDER_WALK_MS));
     session.tick(TICK_MS);
+    expect(self(session).direction).toBe("e");
 
     session.setInput({ directions: ["n"] });
     session.tick(TICK_MS);
 
-    expect(self(session).direction).toBe("n");
+    expect(self(session).direction).toBe("e");
     expect(self(session).walk).toBeNull();
+  });
+
+  /**
+   * And gives the aim back with the footwork. The fought corner the old rule
+   * worried about is still aimable — the plant runs out between blows for every
+   * weapon anybody has authored — it is simply not aimable *during* a blow.
+   */
+  it("turns again the moment the recovery is spent", () => {
+    const session = planted(ponderous(PLODDER_WALK_MS));
+    session.tick(TICK_MS);
+    session.setAttackMode(false);
+
+    session.setInput({ directions: ["n"] });
+    advance(session, recoveryOf(PLODDER_WALK_MS) + TICK_MS);
+
+    expect(self(session).direction).toBe("n");
   });
 
   /**
@@ -1233,6 +1275,33 @@ describe("what a swing costs in footwork", () => {
     advance(session, PLODDER_WALK_MS + TICK_MS);
 
     expect(self(session).y).toBe(-1);
+  });
+
+  /**
+   * The turn a blow makes has to outlive the step it was thrown during, which is
+   * the whole case this rule exists for: somebody swinging on their way out of a
+   * fight. `commitWalk` writes the walk's own direction onto the body when it
+   * lands, so a turn written only onto the board was undone a few ticks later by
+   * the step that was already in flight — and the body finished its retreat
+   * facing away from the thing it had just hit.
+   */
+  it("keeps facing what it struck when the step it swung on lands", () => {
+    const session = new GameSession(
+      withBody(field(), 1, 0, "anvil"),
+      ponderous(PLODDER_WALK_MS),
+    );
+    session.setInput({ directions: ["w"] });
+    session.tick(TICK_MS);
+    expect(self(session).walk).not.toBeNull();
+    expect(self(session).direction).toBe("w");
+
+    fight(session, bodyOf(session, "anvil")!.id);
+    session.tick(TICK_MS);
+    expect(self(session).direction).toBe("e");
+
+    advance(session, PLODDER_WALK_MS + TICK_MS);
+    expect(self(session).x).toBe(-1);
+    expect(self(session).direction).toBe("e");
   });
 
   /**
@@ -1276,7 +1345,7 @@ describe("what a swing costs in footwork", () => {
     expect(self(session).strike).toBeNull();
     expect(session.isAtRest()).toBe(false);
 
-    advance(session, PLODDER_WALK_MS);
+    advance(session, recoveryOf(PLODDER_WALK_MS));
     expect(session.isAtRest()).toBe(true);
   });
 });

@@ -2434,7 +2434,7 @@ It applies to the Agility row too. A dodge you never needed to make is worth as
 little as a blow you cannot feel, and exempting Agility would have left the whole
 thing standing one mastery over.
 
-### A blow costs the thrower a step
+### A blow costs the thrower two steps, and the aim with them
 
 Swinging is automatic and used to cost the body doing it nothing, so the
 strictly better way to fight was to never stand still: hold a movement key, let
@@ -2442,17 +2442,31 @@ the cooldown do the swinging, and a fight was decided by whoever was willing to
 keep walking. Every blow now plants its thrower — `ActorRuntime.attackRecoveryMs`,
 spent in `tryAttack` beside the cooldown and wound down beside it.
 
-- **The length is that body's own step**, read off the tile through
-  `resolveWalkDurationMs`, not a constant of its own. A creature authored to walk
-  slowly would otherwise be punished twice for it. It has nothing to do with
-  Agility, deliberately: this is the one cost in a fight nobody can train away.
+- **The length is two of that body's own steps**, read off the tile through
+  `combat.ts`'s `strikeRecoveryMs`, not a constant of its own. A creature
+  authored to walk slowly would otherwise be punished twice for it. It has
+  nothing to do with Agility, deliberately: this is the one cost in a fight
+  nobody can train away.
+- **Two rather than one, because one was very nearly free.** A retreat that swung
+  on the way out gave up a fraction of a step per blow, so attacking while
+  withdrawing was the obvious thing to do in every fight and there was no
+  decision in it. At two, a player at the 150ms default gives up 300ms of ground
+  per blow and a running fight is a choice between the distance and the damage.
+  The number is `STRIKE_RECOVERY_STEPS`, and it is counted in steps rather than
+  milliseconds so the fairness above survives it.
 - **Only the *start* of a step is gated.** A walk already in flight when the blow
   goes out finishes — a body cannot be stopped mid-cell without leaving it
   standing between two of them.
-- **The turn is free.** A blow costs the step, not the aim, or a cornered fighter
-  could point nowhere but at what is already hitting them. `applyStepRequest`
-  gates after the facing, and `RemoteSession.predictStep` gates in the same place
-  so a planted player faces the same way on both sides.
+- **The turn is planted with the feet.** This is a reversal: the recovery used to
+  gate the step alone, on the argument that a cornered fighter has to be able to
+  point somewhere other than at what is already hitting them. What that bought in
+  practice was a turn nobody could see — `tryAttack` turned the body into its
+  target and the next frame of a held movement key turned it straight back, so
+  the one thing the turn is for lasted about a thirtieth of a second.
+  `applyStepRequest` now gates above the facing, `faceActor` refuses a turn asked
+  for over the wire, and `RemoteSession.predictStep` gates in the same place. The
+  cornered fighter is still aimable: the plant runs out between blows for every
+  weapon anybody has authored.
 - **A queued step is `"later"`, never `"refused"`.** A recovery is a wait, so the
   step the client drew is one it is going to get; rejecting it would drag the body
   back to where it swung from.
@@ -2460,19 +2474,46 @@ spent in `tryAttack` beside the cooldown and wound down beside it.
 At the end of the curve a weapon whose blows come round faster than its holder
 walks roots them for as long as they keep swinging, because each recovery is
 reset before it runs out. Nothing authored is near it — the quickest natural
-weapon in `data/tiles.json` is the rat's, a blow every 867ms against a 150ms step
-— and that gap is the room the rule leaves for footwork.
+weapon in `data/tiles.json` is the rat's, a blow every 867ms against a 300ms
+plant — and that gap is the room the rule leaves for footwork.
 
 **The client has to re-run this rule, which is why `swung` is on the wire.** It
 is the only combat fact the browser cannot be told the outcome of: steps are the
 one thing it decides for itself, so a client predicting through a recovery draws
 a run the server holds a cell at a time and spends the fight being corrected.
 The event carries an id and nothing else — how long a body is planted is how long
-it takes to walk, and both ends read that off the tile, exactly as neither end is
-ever sent a walk's duration. It is its own event rather than a flag on
-`strikeStarted` because half the blows in the game do not lean: an archer never
-throws itself at anything, and a bow whose holder could keep walking while a fist
-could not would apply the rule to whoever picked the wrong weapon.
+it takes to walk, twice, and both ends read that off the tile, exactly as neither
+end is ever sent a walk's duration. It is also what tells that client to drop its
+own `facing` for the length of the plant, so the turn the blow made — already on
+the board in the patch the event arrived in — is the one it draws. It is its own
+event rather than a flag on `strikeStarted` because half the blows in the game do
+not lean: an archer never throws itself at anything, and a bow whose holder could
+keep walking while a fist could not would apply the rule to whoever picked the
+wrong weapon.
+
+#### Every form of striking turns the striker into its target
+
+A swing, an arrow, a bolt and a conjure laid at somebody's feet are all this body
+attacking that one, and each of them turns the striker into it — whatever the
+blow came to, and whether or not it landed at all. Nothing reads the facing to
+decide a fight; what it decides is whether the fight is legible, and a body
+attacking something behind its own back is a fight nobody can read.
+
+`GameSession.turnToward` is the one place it happens, called from `tryAttack`,
+from `castBolt` when the bolt is aimed at somebody else, and from `castConjure`
+with the cell the tile lands in. Two things it had to learn:
+
+- **The turn goes onto the walk as well as onto the board.** `commitWalk` writes
+  the walk's own direction onto the body when the step lands, so a turn that
+  touched only the board was undone a few ticks later by the step it interrupted
+  — which is exactly the case somebody swinging on their way out of a fight is
+  in. `turnActor` writes both, which is what `faceActor` had already learnt for
+  the same reason. @see "A cast is resolved from where the caster is arriving"
+- **It outlives the frame it was made in**, which is the recovery gating the turn
+  above. Without that half the rule is invisible to the one player it matters to.
+
+A caster is not planted afterwards — what a cast costs is the bar and the
+cooldown — so a bolt's turn is one the next step undoes. A blow's is not.
 
 ### Reach is a disc and a lid, and both belong to the weapon
 
@@ -2975,9 +3016,11 @@ authored at three seconds.
   and on `requirementShare`, where a weapon reads it.
 - **A cast plants you where you stand.** `applyStepRequest` refuses the step
   while `casting` is set, on exactly the terms it refuses one during a swing's
-  recovery — and the turn goes through for that rule's reason too: a conjure with
-  nobody targeted lands in the cell the caster faces, so aiming while the bar
-  runs is the one piece of control a rooted caster keeps. A shove and a fall are
+  recovery — and unlike a swing it leaves you the turn, its gate sitting below
+  the facing rather than above it: a conjure with nobody targeted lands in the
+  cell the caster faces, so aiming while the bar runs is the one piece of control
+  a rooted caster keeps. A blow has no such bar to aim during — it is over in the
+  tick it was thrown, and what it aims at is whoever it was thrown at. A shove and a fall are
   not asked for there and so are not refused: what a cast costs is your own legs.
   `RemoteSession.predictStep` re-runs the rule, because a step this side
   predicted would be one the server refuses and drags back — which means the root

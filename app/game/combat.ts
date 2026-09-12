@@ -13,6 +13,7 @@ import type { WeaponMastery } from "../lib/mastery";
 import type { MapFile, TileDef } from "../lib/types";
 import { TICK_MS } from "./constants";
 import { type ReachPoint, withinReach } from "./distance";
+import { resolveWalkDurationMs } from "./movement";
 import type { Rng } from "./rng";
 import { hasLineOfSight } from "./sight";
 
@@ -41,6 +42,42 @@ export const MIN_ATTACK_TICKS = 6;
 
 /** Ticks between blows at {@link FightingStats.spd} 0 — as slow as it gets. */
 export const MAX_ATTACK_TICKS = 600;
+
+/**
+ * How many of its own steps a blow costs the body that threw it.
+ *
+ * Two, and the second one is the price of swinging while you run. One step was
+ * enough to stop a fight being won by holding a movement key down, and no more
+ * than that: a blow came round, the body stood still for exactly as long as a
+ * step would have taken, and a retreat that swung on the way out gave up a
+ * fraction of its distance. Attacking while withdrawing was very nearly free,
+ * which made it the obvious thing to do in every fight — there was no decision
+ * in it.
+ *
+ * At two the decision is real. A player at the 150ms default gives up 300ms of
+ * ground per blow, so a running fight is now a choice between the distance and
+ * the damage rather than both at once. It is still counted in that body's own
+ * steps rather than in milliseconds, for the reason it always was: a creature
+ * authored to walk slowly is not punished twice for it.
+ *
+ * @see {@link strikeRecoveryMs}
+ */
+export const STRIKE_RECOVERY_STEPS = 2;
+
+/**
+ * How long a blow plants the body that threw it, in milliseconds.
+ *
+ * **Both ends of the wire read this, which is why it is a function and not a
+ * number written down twice.** How long a body is planted never travels — the
+ * `swung` event carries an id and nothing else — so the simulation and the
+ * browser predicting its own footwork each derive it from the tile the body is,
+ * exactly as neither end is ever sent a walk's duration. Two readings of the
+ * rule is one of them being changed alone, and the symptom would be a player
+ * walking a cell the server holds back.
+ */
+export function strikeRecoveryMs(def: TileDef): number {
+  return resolveWalkDurationMs(def) * STRIKE_RECOVERY_STEPS;
+}
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
