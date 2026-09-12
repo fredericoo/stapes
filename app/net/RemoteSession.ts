@@ -1489,6 +1489,13 @@ export class RemoteSession implements PlaySession {
     // After the turn, exactly as the simulation gates it after the turn: a blow
     // costs the step and not the aim. @see `../game/GameSession`
     if (this.attackRecoveryMs > 0) return;
+    // And a cast roots you, on the same terms and for the same reason this side
+    // asks at all: the server refuses the step, so a client that predicted one
+    // would walk the body a cell and have it dragged back. Read off the
+    // broadcast rather than predicted — the cast is the server's clock — which
+    // means the root outlasts the cast by the round trip that clears it. The
+    // same lateness the cooldown on a button has, and the same trade.
+    if (this.castingsById.get(this.selfId)) return;
 
     const seq = this.nextStepSeq++;
     motion.walk = {

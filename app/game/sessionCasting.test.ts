@@ -2224,6 +2224,38 @@ describe("a cast that takes time", () => {
   });
 
   /**
+   * **A cast plants you where you stand**, which is what makes a long one a
+   * decision about where you are standing. The turn is deliberately not refused:
+   * a conjure with nobody targeted lands in the cell the caster faces, so aiming
+   * it while it runs is the one piece of control a rooted caster keeps — and it
+   * is the same split a swing's recovery already draws.
+   */
+  it("plants the caster, and still lets them turn", () => {
+    const play = session({ charm: "slow-mend-stone" });
+    const before = play.actorSnapshots().find((actor) => actor.id === "local")!;
+    play.cast("charm");
+
+    play.setInput({ directions: ["e"] });
+    run(play, CAST_TICKS - 1);
+
+    const during = play.actorSnapshots().find((actor) => actor.id === "local")!;
+    expect({ x: during.x, y: during.y }).toEqual({ x: before.x, y: before.y });
+    expect(during.walk).toBeNull();
+    // Facing where they were asked to go, having not gone.
+    expect(during.direction).toBe("e");
+  });
+
+  it("lets them walk again the moment it lands", () => {
+    const play = session({ charm: "slow-mend-stone" });
+    play.cast("charm");
+    play.setInput({ directions: ["e"] });
+    run(play, CAST_TICKS + 1);
+
+    const after = play.actorSnapshots().find((actor) => actor.id === "local")!;
+    expect(after.walk).not.toBeNull();
+  });
+
+  /**
    * A body whose player has gone stays in the world until its fight is over —
    * see `GameSession.standIdle` — and a spell landing out of it two seconds
    * later would be that body still fighting.

@@ -8920,6 +8920,17 @@ export class GameSession implements PlaySession {
     // refusing the turn as well would make a fought corner impossible to aim
     // out of. It is also the same split `chooseStep` already draws.
     if (actor.attackRecoveryMs > 0) return false;
+    // **A cast plants you where you stand**, on exactly those terms: the turn
+    // goes through and the step does not. That is what makes a long cast a
+    // decision about where you are standing rather than something you do on the
+    // way somewhere — and the turn is worth keeping, because a conjure with
+    // nobody targeted lands in the cell you are facing, so aiming it while it
+    // runs is the one piece of control a rooted caster still has.
+    //
+    // A shove and a fall are not asked for here, so neither is refused: what a
+    // cast costs is your own legs, and being knocked out of the cell you chose
+    // is somebody else's doing.
+    if (actor.casting) return false;
 
     actor.walk = {
       from: { x: loc.x, y: loc.y, z: loc.z },

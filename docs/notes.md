@@ -2946,6 +2946,16 @@ authored at three seconds.
   top of the ladder ask thirty-odd points and stay slow for a long time, which is
   the whole shape of the trade — and it is why the cap belongs off this number
   and on `requirementShare`, where a weapon reads it.
+- **A cast plants you where you stand.** `applyStepRequest` refuses the step
+  while `casting` is set, on exactly the terms it refuses one during a swing's
+  recovery — and the turn goes through for that rule's reason too: a conjure with
+  nobody targeted lands in the cell the caster faces, so aiming while the bar
+  runs is the one piece of control a rooted caster keeps. A shove and a fall are
+  not asked for there and so are not refused: what a cast costs is your own legs.
+  `RemoteSession.predictStep` re-runs the rule, because a step this side
+  predicted would be one the server refuses and drags back — which means the root
+  outlasts the cast by the round trip that clears it, the same lateness a
+  cooldown on a button has.
 - **A blow breaks it, and `uninterruptible` is the exception an author writes.**
   Cancelled from inside `applyDamage` on the same gate a pull is — `amount > 0`,
   so being bandaged mid-cast is not an interruption — and said out loud, because
