@@ -26,6 +26,11 @@ a world in the way.
 - `bun run generate:npcs` — recolour the one humanoid in `people.png` into a
   sheet per NPC, so nobody in town is the player's twin. Writes
   `data/tilesets/townsfolk.png`, `smith.png` and `armourer.png`
+- `bun run generate:trees` — render every tree species but the original `tree`
+  from small 3D models in the game's own projection, quantised to the palette.
+  Writes them into `data/tilesets/tiny-ranch-tiles.png` and their entries in
+  `data/tiles.json`; the models are the table at the top of the script.
+  `--debug <dir>` also writes each tree's shading and depth, scaled up
 - `bun run carve:caves` — carve a multi-floor cave system into `data/map.json`,
   then walk every cell of it with the game's own movement rules. What to carve
   is the `SYSTEM` block at the top of the script; `--verify` checks the map as

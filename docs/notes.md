@@ -6177,6 +6177,93 @@ runs into a tree takes the tree out, and `cutFords` then breaks it wherever it
 would otherwise cut the wood in two. Undergrowth is the same scatter pass, on
 cells that are neither path nor water.
 
+## A tree is a 3D model rendered in the world's own projection
+
+`tree` is the hand-drawn 2×2 at cell (2,6) of `tiny-ranch-tiles`. Every other
+species — `oak`, `silver-birch`, `scots-pine`, `autumn-maple`, `jacaranda`,
+`palm`, `cherry-blossom`, `dead-tree` — is rendered by `scripts/generate-tree-sprites.ts`
+(`bun run generate:trees`) onto the sheet from row 20 down, which was empty,
+each 3×3 with the trunk foot in the bottom-right cell, laid out left to right
+and wrapping when a row is full. All are `height: 4` props, so a taller sprite
+is only taller art. They are not all British; the reds, violets and pinks the
+palette carries were going unused.
+
+**Hand-drawing a tree in this projection produces a skewed billboard.** Two
+attempts at drawing the three by hand came out flat: the crown sat where a
+crown sits, the trunk ran up-left where a vertical runs, and nothing about
+either said the thing was round. The projection is a real one — the ground
+seen from straight above, height moving a point one pixel up and one left per
+pixel of height (`levelScreenOffset`, `elevationScreenOffset`) — so the fix is
+to model the tree and let the projection place every pixel.
+
+**The model is a handful of solids, and the renderer is a ray cast along the
+projection.** A screen pixel sees the world along the line `(sx + t, sy + t,
+t)`, and the surface it shows is the intersection with the largest `t`. Two
+primitives cover everything: an ellipsoid (a crown lobe, a frond when yawed)
+and a tapered segment between two points with a radius at each end. A trunk
+is a segment standing on the origin, wider at the foot than the top, which is
+what makes it read as a trunk rather than a pipe; a branch is a segment
+leaning out of it, thick at the root and thin at the tip; a conifer's tier is
+a vertical segment that narrows to nothing. Both are intersected analytically;
+there is no mesh, no rasteriser and no GPU. Sixteen sub-samples
+per pixel decide coverage; the shading is averaged and the depth is the nearest
+sample, because a ledge averaged across a pixel is a slope.
+
+Things learned tuning it, each of which cost a round:
+
+- **The camera is above and to the south-east, at 35° elevation.** It sees a
+  vertical cylinder's south and east faces only, so a light from the north-west
+  (the sprite's top-left, where the original's highlights are) leaves every
+  trunk in shadow. The light comes from above, the west and a little south:
+  crowns still highlight top-left and trunks keep a lit side.
+- **A sphere projects to an ellipse stretched √3 along the diagonal.** The
+  original tree's crown is that shape too. It is not a mistake to fix.
+- **A conifer's tiers project to one lozenge.** From 35° above, each tier's
+  stretched ellipse lies inside the one below, whatever the radii, so a stack
+  of cones has no notches in its silhouette. What still tells the tiers apart
+  is depth: a tier shallower than the camera's elevation stands proud of the
+  one above, and the crease pass draws the step. The pine's cones are shallow
+  for that reason. A columnar tree is worse off — a tall narrow ellipsoid is
+  a long diagonal band, and reads as a felled log — so there is no cypress.
+- **A crease is a depth discontinuity, not a slope.** Lobes and tiers are
+  separated by drawing the outline colour where a neighbour is nearer the
+  camera by a jump. Tested on the first difference, every vertical surface
+  creases, since depth changes by a pixel per pixel along a trunk; the test is
+  on the second difference, which is zero across a wall.
+- **A crown must clear its own trunk on screen.** A lobe at `(x, y, z)` lands
+  at `(x − z, y − z)`, so lobes south-east of the trunk cover the foot unless
+  they are higher than they are wide. The oak's crown sits north-west of its
+  trunk for that reason.
+- **Bark is shaded half-Lambert.** The camera sees a trunk's south and east
+  faces only, and under plain Lambert everything east of south-east is equally
+  dark, so a trunk came out as two flat stripes and read as a square post.
+  Bark shades on `n·l / 2 + 1/2` so the gradient spans the visible half; leaves
+  stay plain Lambert, which is what gives a crown its dark side.
+- **An edge that meets the ground is not an edge.** The trunk continues into
+  the floor tile, so the outline pass skips the silhouette wherever the
+  visible surface is within a couple of pixels of `z = 0`. Drawn, that line
+  reads as a gap under the tree.
+- **A frond is a yawed ellipsoid.** Ellipsoids take an optional rotation about
+  `z`, which is all a palm needs: a ring of long flat lobes, each pointing its
+  own way.
+- **A twig keeps its colour.** The outline pass darkens any bark pixel with
+  nothing to its right, and a branch one pixel wide is nothing but such
+  pixels, so the dead tree's limbs came out as pure outline. A bark pixel with
+  no bark to its left is a twig and is left alone; the trunk, three wide,
+  still gets its shadow edge.
+
+**Shading is quantised to a ramp per material, not matched to the palette.**
+Three entries from shadow to light, thresholds chosen by eye, a per-pixel
+jitter for leaves so the crown dapples the way the original does and none for
+bark. The outline follows the original: the crown's own dark green on the lit
+side, `#2e222f` along the lower-right edge and around the trunk, with bark's
+lower edge left clear so a three-pixel trunk keeps two pixels of bark. Every
+colour is an entry of `STAPES_PALETTE`; the script refuses to run otherwise.
+
+`--debug <dir>` writes each species' unquantised shading and depth, scaled up.
+Look at those before touching a threshold: most of what looks like a bad ramp
+is a model problem.
+
 ## Renderer and simulation performance
 
 The game targets **120fps — an 8.3ms frame budget**, and the whole budget is

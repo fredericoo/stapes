@@ -12,6 +12,7 @@
     "generate:complement": "bun scripts/generate-autotile-complement.ts",
     "generate:npcs": "bun scripts/generate-npc-sheets.ts",
     "generate:water": "bun scripts/generate-water-tileset.ts",
+    "generate:trees": "bun scripts/generate-tree-sprites.ts",
     "carve:caves": "bun scripts/carve-caves.ts",
     "bench:server": "bun scripts/bench-server.ts",
     "test": "bun run test:unit && bun run test:server && bun run test:perf",
