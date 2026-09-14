@@ -234,6 +234,24 @@ export function isPlayerBody(placed: PlacedTile): boolean {
 }
 
 /**
+ * Whether this placement is somebody standing in the cell rather than part of
+ * the cell.
+ *
+ * The two halves a body comes in — a driven player and anything with a brain —
+ * as one question, because every caller that skips one skips the other: what a
+ * stack is made of, what a conjure lands beneath, what a generator refuses to
+ * bury. Written out per call site, it was the sort of pair where one half gets
+ * added and the other forgotten.
+ */
+export function isBodyPlacement(
+  placed: PlacedTile,
+  tilesById: Record<string, TileDef>,
+): boolean {
+  const def = tilesById[placed.tileId];
+  return isPlayerBody(placed) || (def !== undefined && resolveActor(def));
+}
+
+/**
  * How much this placement raises whatever is drawn or stood on above it.
  *
  * {@link physicalHeight} asks a *tile* how tall it is; this asks a *placement*
@@ -446,7 +464,7 @@ export function footingOfStack(
     elev = elevationAfter(elev, p, tilesById);
     const def = tilesById[p.tileId];
     if (!def) continue;
-    if (isPlayerBody(p) || resolveActor(def)) continue;
+    if (isBodyPlacement(p, tilesById)) continue;
     if (resolveIntangible(def)) continue;
     found = true;
     reusedFooting.elev = elev;
