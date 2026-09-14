@@ -158,25 +158,25 @@
     "description": "Your skin feels too hot.",
     "tone": "bad",
     "icon": {
-      "tilesetId": "ultima-vi",
       "rect": {
-        "x": 24,
-        "y": 72,
+        "x": 0,
+        "y": 12,
         "w": 2,
         "h": 2
       },
       "base": {
         "x": 1,
         "y": 1
-      }
+      },
+      "tilesetId": "tiny-ranch-tiles"
     },
     "fromMs": 4000,
     "toMs": 8000,
     "stacks": true,
     "maxMs": 24000,
-    "everyMs": 1000,
+    "everyMs": "250",
     "effects": {
-      "hp": "0 - max(4, ceil(MAX_HP / 10))"
+      "hp": "0 - ceil(MAX_HP / 100)"
     },
     "vfx": {
       "tint": {
@@ -301,7 +301,7 @@
   {
     "id": "luminous",
     "name": "Luminous",
-    "description": "Lit from within, in cold blue.",
+    "description": "Your skin emanates an intense light",
     "tone": "good",
     "icon": {
       "tilesetId": "ultima-vi",
@@ -329,7 +329,7 @@
       "light": {
         "radius": 10,
         "intensity": 1,
-        "color": "#66aaff"
+        "color": "#ffffff"
       },
       "taperMs": 5000
     }
