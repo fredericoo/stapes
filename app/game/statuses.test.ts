@@ -35,7 +35,7 @@ function status(over: Record<string, unknown> = {}): StatusDef {
     toMs: 30_000,
     stacks: true,
     maxMs: 3_600_000,
-    everyMs: 1_000,
+    everyMs: "ceil(MAX_HP / 100) * 300000 / MAX_HP",
     effects: { hp: "ceil(MAX_HP / 100)" },
     ...over,
   });
@@ -54,11 +54,12 @@ function runSeconds(
   statuses: readonly StatusInstance[],
   seconds: number,
   defs: Record<string, StatusDef>,
+  bearer = BEARER,
 ) {
   let current = statuses;
   const hpChanges: number[] = [];
   for (let i = 0; i < seconds * (1000 / TICK_MS); i++) {
-    const tick = advanceStatuses(current, TICK_MS, BEARER, defs);
+    const tick = advanceStatuses(current, TICK_MS, bearer, defs);
     current = tick.statuses;
     hpChanges.push(...tick.hpChanges.map((change) => change.amount));
   }
@@ -139,7 +140,7 @@ describe("cadence", () => {
 
   /** Thirty seconds at a one-second cadence owes thirty payouts, not twenty-nine. */
   it("pays out once per period for the whole life of a status", () => {
-    const def = status({ fromMs: 30_000, toMs: 30_000 });
+    const def = status({ fromMs: 30_000, toMs: 30_000, everyMs: 1_000 });
     const held = applyStatus([], def, new Rng(1));
     const { statuses, hpChanges } = runSeconds(held, 30, catalogue(def));
     expect(hpChanges).toHaveLength(30);
@@ -162,26 +163,115 @@ describe("cadence", () => {
 });
 
 describe("the effect itself", () => {
-  /**
-   * The berry, exactly as authored. `ceil` is what makes it a whole point on a
-   * body whose maximum is nowhere near a hundred.
-   */
-  it("heals one a second on a sixteen-point body", () => {
-    const def = status({ fromMs: 3_000, toMs: 3_000 });
-    const held = applyStatus([], def, new Rng(1));
-    expect(runSeconds(held, 3, catalogue(def)).hpChanges).toEqual([1, 1, 1]);
-  });
-
   it("keeps a harm signed rather than netting it away", () => {
     const poison = status({
       id: "poisoned",
       tone: "bad",
       fromMs: 2_000,
       toMs: 2_000,
+      everyMs: 1_000,
       effects: { hp: "0 - ELAPSED_SEC" },
     });
     const held = applyStatus([], poison, new Rng(1));
     expect(runSeconds(held, 2, catalogue(poison)).hpChanges).toEqual([-1, -2]);
+  });
+});
+
+/** A scope for a cadence that reads nothing. */
+const ANY_SCOPE = {
+  DURATION_SEC: 0,
+  REMAINING_SEC: 0,
+  ELAPSED_SEC: 0,
+  MAX_HP: 0,
+  HP: 0,
+};
+
+/**
+ * A cadence is a formula over the body — see `StatusDef.everyMs`. Fed pays a
+ * whole point a period and sets the period from the maximum, so a full heal
+ * takes three hundred seconds on every body: a small body's ticks are further
+ * apart rather than smaller, since a hit point cannot be.
+ */
+describe("a cadence set by the body", () => {
+  // Longer than the full heal, so the last period of a body whose share does
+  // not divide the tick lands inside the status rather than a tick after it.
+  const fed = status({ fromMs: 320_000, toMs: 320_000 });
+
+  it("heals one every three seconds on a hundred-point body", () => {
+    const held = applyStatus([], fed, new Rng(1));
+    const bearer = { hp: 10, maxHp: 100 };
+    expect(runSeconds(held, 9, catalogue(fed), bearer).hpChanges).toEqual([
+      1, 1, 1,
+    ]);
+  });
+
+  it("heals three every three seconds on a three-hundred-point body", () => {
+    const held = applyStatus([], fed, new Rng(1));
+    const bearer = { hp: 10, maxHp: 300 };
+    expect(runSeconds(held, 9, catalogue(fed), bearer).hpChanges).toEqual([
+      3, 3, 3,
+    ]);
+  });
+
+  it("heals one every six seconds on a fifty-point body", () => {
+    const held = applyStatus([], fed, new Rng(1));
+    const bearer = { hp: 10, maxHp: 50 };
+    const after = runSeconds(held, 12, catalogue(fed), bearer);
+    expect(after.hpChanges).toEqual([1, 1]);
+    // And nothing between: the period is longer, not the point smaller.
+    expect(runSeconds(held, 5, catalogue(fed), bearer).hpChanges).toEqual([]);
+  });
+
+  it("owes every period a catch-up tick skipped over, at the body's cadence", () => {
+    const held = applyStatus([], fed, new Rng(1));
+    const bearer = { hp: 10, maxHp: 50 };
+    // One fourteen-second tick: two six-second periods and change.
+    const tick = advanceStatuses(held, 14_000, bearer, catalogue(fed));
+    expect(tick.hpChanges.map((change) => change.amount)).toEqual([1, 1]);
+    expect(tick.statuses[0]!.sinceEffectMs).toBeCloseTo(2_000);
+  });
+
+  /**
+   * The whole point of the rule, on bodies of every size. Full between 290
+   * and 305 seconds rather than at 300 exactly, because a period is snapped up
+   * to whole ticks and a body whose share does not divide it is paid one share
+   * over at the end — both of which the clamp absorbs.
+   */
+  it("heals any body in full in about three hundred seconds", () => {
+    for (const maxHp of [7, 16, 50, 70, 100, 150, 185, 300]) {
+      const bearer = { hp: 0, maxHp };
+      const healedBy = (seconds: number) => {
+        const held = applyStatus([], fed, new Rng(1));
+        const paid = runSeconds(held, seconds, catalogue(fed), bearer);
+        return paid.hpChanges.reduce(
+          (hp, amount) => Math.min(maxHp, hp + amount),
+          0,
+        );
+      };
+      expect(healedBy(290)).toBeLessThan(maxHp);
+      expect(healedBy(305)).toBe(maxHp);
+    }
+  });
+
+  it("reads a number as a constant cadence", () => {
+    const def = status({ everyMs: 5_000 });
+    expect(def.everyMs.evaluate(ANY_SCOPE)).toBe(5_000);
+    expect(def.everyMs.source).toBe("5000");
+  });
+
+  it("fires nothing when the formula comes to zero or less", () => {
+    const def = status({
+      fromMs: 10_000,
+      toMs: 10_000,
+      everyMs: "MAX_HP - 100",
+      effects: { hp: "1" },
+    });
+    const held = applyStatus([], def, new Rng(1));
+    expect(runSeconds(held, 10, catalogue(def), { hp: 1, maxHp: 50 }).hpChanges).toEqual([]);
+  });
+
+  it("drops a status whose cadence is not a formula", () => {
+    expect(() => status({ everyMs: "every so often" })).toThrow();
   });
 });
 
@@ -221,7 +311,7 @@ describe("poison, as authored", () => {
   it("stacks up to ten minutes and ticks every five seconds", () => {
     expect(def.stacks).toBe(true);
     expect(def.maxMs).toBe(TEN_MIN);
-    expect(def.everyMs).toBe(5_000);
+    expect(def.everyMs.evaluate(ANY_SCOPE)).toBe(5_000);
   });
 
   it("bites five at ten minutes left, one as it runs out", () => {

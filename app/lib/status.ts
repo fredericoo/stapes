@@ -1,5 +1,5 @@
 import * as v from "valibot";
-import { type Formula, parseFormula } from "./formula";
+import { constantFormula, type Formula, parseFormula } from "./formula";
 import {
   NO_VFX,
   resolveStatusVfx,
@@ -112,10 +112,17 @@ export type StatusDef = {
   /** Ceiling on accumulated duration. Only read when {@link stacks}. */
   maxMs: number;
   /**
-   * How often {@link effects} fire. Zero means never — a status that only
-   * modifies stats has no cadence to have.
+   * How often {@link effects} fire, in milliseconds. Zero or less means never —
+   * a status that only modifies stats has no cadence to have.
+   *
+   * A formula rather than a number, evaluated against the same scope the
+   * effect is, so a cadence can depend on the body: Fed pays a whole point a
+   * period and sets the period from the maximum, which is how a fifty-point
+   * body is healed every six seconds and a hundred-point one every three,
+   * both full in the same three hundred. Authored as a plain number it is a
+   * constant, which is every status written before this was a formula.
    */
-  everyMs: number;
+  everyMs: Formula;
   /** What one period does to the bearer. */
   effects: { hp?: Formula };
   /** What holding this does to the numbers a fight is fought with. */
@@ -230,7 +237,10 @@ const statusSourceSchema = v.pipe(
     toMs: durationMs,
     stacks: v.optional(v.boolean(), false),
     maxMs: v.optional(durationMs, MAX_STATUS_DURATION_MS),
-    everyMs: v.optional(durationMs, 0),
+    // A number or a formula: see `StatusDef.everyMs`. A number is bounded the
+    // way the other durations are; a formula is bounded by what it comes to,
+    // which `snapToTick` reads as "never" at zero and below.
+    everyMs: v.optional(v.union([durationMs, v.string()]), 0),
     effects: v.optional(v.object({ hp: v.optional(v.string()) }), () => ({})),
     modifiers: v.optional(
       v.object(
@@ -273,6 +283,12 @@ function compileStatus(raw: StatusSource): StatusDef | null {
     effects.hp = hp;
   }
 
+  const everyMs =
+    typeof raw.everyMs === "number"
+      ? constantFormula(raw.everyMs)
+      : parseFormula(raw.everyMs);
+  if (!everyMs) return null;
+
   const modifiers: StatusModifiers = {};
   for (const key of MODIFIER_KEYS) {
     const source = raw.modifiers[key];
@@ -292,7 +308,7 @@ function compileStatus(raw: StatusSource): StatusDef | null {
     toMs: raw.toMs,
     stacks: raw.stacks,
     maxMs: raw.maxMs,
-    everyMs: raw.everyMs,
+    everyMs,
     effects,
     modifiers,
     vfx: resolveStatusVfx(raw.vfx),
@@ -345,7 +361,7 @@ export const COMBAT_STATUS: StatusDef = {
   toMs: COMBAT_DURATION_MS,
   stacks: false,
   maxMs: COMBAT_DURATION_MS,
-  everyMs: 0,
+  everyMs: constantFormula(0),
   effects: {},
   modifiers: {},
   vfx: NO_VFX,

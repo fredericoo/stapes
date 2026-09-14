@@ -381,6 +381,11 @@ export type StatusTick = {
  * `while` rather than an `if`, because `GameSession.update` runs up to ten ticks
  * in one call: a status whose cadence is shorter than the catch-up owes every one
  * of those periods, not the last.
+ *
+ * The cadence is a formula and is **evaluated once per tick**, against the same
+ * scope the effect sees, so what it says can depend on the body — see
+ * `StatusDef.everyMs`. A cadence that reads the clock changes as the clock
+ * runs, and the accumulator is compared against whatever it says now.
  */
 export function advanceStatuses(
   statuses: readonly StatusInstance[],
@@ -409,15 +414,13 @@ export function advanceStatuses(
 
     const remainingMs = instance.remainingMs - tickMs;
     let sinceEffectMs = instance.sinceEffectMs + tickMs;
-    const everyMs = snapToTick(def.everyMs);
-
-    if (everyMs > 0 && def.effects.hp) {
-      while (sinceEffectMs + TICK_EPSILON_MS >= everyMs) {
+    if (def.effects.hp) {
+      const scope = scopeFor(instance, remainingMs, bearer);
+      const everyMs = snapToTick(def.everyMs.evaluate(scope));
+      while (everyMs > 0 && sinceEffectMs + TICK_EPSILON_MS >= everyMs) {
         sinceEffectMs -= everyMs;
         hpChanges.push({
-          amount: def.effects.hp.evaluate(
-            scopeFor(instance, remainingMs, bearer),
-          ),
+          amount: def.effects.hp.evaluate(scope),
           // Carried from the instance rather than from the def, because who is
           // answerable is a fact about this application: one status def burns
           // for whoever lit each fire, and on whichever wheel lit it.

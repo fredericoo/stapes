@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { emptyMap, replaceStack } from "../lib/mapData";
+import { constantFormula } from "../lib/formula";
 import { DEFAULT_STATUS_SOURCE } from "../lib/status";
 import type { StatusDef, StatusTone } from "../lib/status";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
@@ -143,7 +144,7 @@ const statusDefs: Record<string, StatusDef> = {
 };
 
 function status(id: string, tone: StatusTone): StatusDef {
-  return { ...DEFAULT_STATUS_SOURCE, id, name: id, tone };
+  return { ...DEFAULT_STATUS_SOURCE, everyMs: constantFormula(0), id, name: id, tone };
 }
 
 /** The creature's own cell, with the slot its body sits in. */

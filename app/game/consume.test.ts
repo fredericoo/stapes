@@ -8,7 +8,8 @@ import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { BRAIN_TICK_MS, NOISE_LIFETIME_MS, TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
-import { COMBAT_STATUS_ID, statusesById } from "../lib/status";
+import { COMBAT_STATUS_ID, type StatusDef, statusesById } from "../lib/status";
+import { snapToTick } from "./statuses";
 
 /**
  * The bag `player`'s kit is authored with — see `app/lib/kit.ts`. A literal
@@ -563,8 +564,13 @@ describe("a consumer with no hit points", () => {
  * a typo in either file fails here rather than in a browser.
  */
 describe("eating something that grants a status", () => {
-  /** Fixed ends, so the roll is a constant and the arithmetic below is exact. */
-  const FED_MS = 10_000;
+  /**
+   * Fixed ends, so the roll is a constant and the arithmetic below is exact.
+   *
+   * The full three hundred seconds rather than the berry's ten to thirty, so
+   * that one helping is enough to run the wound below all the way back up.
+   */
+  const FED_MS = 300_000;
 
   const catalogue = statusesById([
     {
@@ -577,10 +583,25 @@ describe("eating something that grants a status", () => {
       toMs: FED_MS,
       stacks: true,
       maxMs: 3_600_000,
-      everyMs: 1_000,
+      everyMs: "ceil(MAX_HP / 100) * 300000 / MAX_HP",
       effects: { hp: "ceil(MAX_HP / 100)" },
     },
   ]);
+
+  /**
+   * What a status's cadence comes to on the player, as the loop will run it.
+   * The scope's clocks are zero because no shipped cadence reads them.
+   */
+  function cadenceSecondsOf(def: StatusDef): number {
+    const ms = def.everyMs.evaluate({
+      DURATION_SEC: 0,
+      REMAINING_SEC: 0,
+      ELAPSED_SEC: 0,
+      MAX_HP: PLAYER_MAX_HP,
+      HP: PLAYER_MAX_HP,
+    });
+    return snapToTick(ms) / 1000;
+  }
 
   /**
    * A berry to the east and a poison to the north.
@@ -632,25 +653,29 @@ describe("eating something that grants a status", () => {
     expect(eatenOn(session)).toEqual(["fed"]);
   });
 
-  it("heals one a second, rounded up, for as long as it runs", () => {
+  it("heals a whole share of the maximum on a cadence set by the maximum", () => {
     const session = fedWorld();
     wound(session);
     session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
     const start = hpOf(session)!;
 
-    runSeconds(session, 3);
-    // The authored formula is `ceil(MAX_HP / 100)`, paid once a second — so the
-    // figure is read off the maximum rather than typed, since Toughness no
-    // longer buys a hit point a point and the maximum moves with its curve.
-    const perSecond = Math.ceil(PLAYER_MAX_HP / 100);
-    expect(hpOf(session)).toBe(start + perSecond * 3);
+    // The authored effect is `ceil(MAX_HP / 100)` a period, and the period is
+    // however long that share takes at a full heal every three hundred
+    // seconds — both read off the maximum rather than typed, since Toughness
+    // no longer buys a hit point a point and the maximum moves with its curve.
+    const perPeriod = Math.ceil(PLAYER_MAX_HP / 100);
+    const periods = 3;
+    runSeconds(session, periods * cadenceSecondsOf(catalogue.fed!));
+    // Less than the wound, or the cap would be what this measured.
+    expect(perPeriod * periods).toBeLessThan(10);
+    expect(hpOf(session)).toBe(start + perPeriod * periods);
   });
 
   /** The cap still holds: a berry cannot make anybody overfull. */
   it("stops at the maximum", () => {
     const session = fedWorld();
     session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
-    runSeconds(session, 5);
+    runSeconds(session, 3 * cadenceSecondsOf(catalogue.fed!));
     expect(hpOf(session)).toBe(PLAYER_MAX_HP);
   });
 
@@ -661,7 +686,8 @@ describe("eating something that grants a status", () => {
     runSeconds(session, FED_MS / 1000);
 
     expect(eatenOn(session)).toEqual([]);
-    // Ten seconds of Fed against ten points of poison, which is the whole of it.
+    // Three hundred seconds of Fed is a full heal on any body, and this one
+    // was only ten points down.
     expect(hpOf(session)).toBe(PLAYER_MAX_HP);
   });
 
@@ -679,7 +705,7 @@ describe("eating something that grants a status", () => {
     session.runCommand("/status poison");
     expect(session.inCombat("local")).toBe(false);
 
-    runSeconds(session, authored.poison!.everyMs / 1000);
+    runSeconds(session, cadenceSecondsOf(authored.poison!));
 
     expect(session.inCombat("local")).toBe(true);
   });
@@ -714,7 +740,7 @@ describe("eating something that grants a status", () => {
 
     session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
 
-    // 60s from the loaf, not the 10s the status itself is authored at.
+    // 60s from the loaf, not the 300s the status itself is authored at here.
     expect(session.statusesOf("local")![0]!.remainingMs).toBe(60_000);
   });
 

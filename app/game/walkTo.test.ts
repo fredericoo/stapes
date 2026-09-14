@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { emptyMap, replaceStack } from "../lib/mapData";
+import { constantFormula } from "../lib/formula";
 import { DEFAULT_STATUS_SOURCE } from "../lib/status";
 import type { StatusDef } from "../lib/status";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
@@ -79,7 +80,7 @@ const playerDef = tilesById[PLAYER_TILE_ID]!;
  * @see ./pathfinding's `unsafeToStepOn`
  */
 const statusDefs: Record<string, StatusDef> = {
-  burned: { ...DEFAULT_STATUS_SOURCE, id: "burned", name: "Burned", tone: "bad" },
+  burned: { ...DEFAULT_STATUS_SOURCE, everyMs: constantFormula(0), id: "burned", name: "Burned", tone: "bad" },
 };
 
 /** Flat grass from -half to +half, and nothing standing on any of it. */

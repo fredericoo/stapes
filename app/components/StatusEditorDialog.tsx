@@ -191,16 +191,21 @@ export function StatusEditorDialog({
   // The same function every catalogue is built with, so what this button is
   // gated on and what the world will accept cannot come apart.
   const valid = resolveStatus(status) !== null;
-  // Authored milliseconds are not what the loop runs: a cadence that did not
-  // divide the tick rate would drift, so it is snapped up — and an author is
-  // told rather than left to find out.
-  const snapped = snapToTick(status.everyMs ?? 0);
+  // A cadence is a formula and may read the body, so it is previewed against
+  // the same sample body the effect is. Authored milliseconds are not what the
+  // loop runs: a cadence that did not divide the tick rate would drift, so it
+  // is snapped up — and an author is told rather than left to find out.
+  const cadenceSource = String(status.everyMs ?? 0);
+  const cadenceMs = parseFormula(cadenceSource)?.evaluate(SAMPLE_SCOPE);
+  const snapped = snapToTick(cadenceMs ?? 0);
   const cadenceHint =
-    !status.everyMs
-      ? "0 fires nothing — for a status that only changes stats."
-      : Math.abs(snapped - status.everyMs) < 1
-        ? `Every ${(snapped / 1000).toFixed(2)}s.`
-        : `Snapped up to ${snapped.toFixed(1)}ms — cadences run in whole ticks.`;
+    cadenceMs === undefined
+      ? undefined
+      : snapped === 0
+        ? "fires nothing — for a status that only changes stats."
+        : Math.abs(snapped - cadenceMs) < 1
+          ? `every ${(snapped / 1000).toFixed(2)}s on the sample body.`
+          : `snapped up to ${snapped.toFixed(1)}ms — cadences run in whole ticks.`;
 
   return (
     <Dialog
@@ -347,15 +352,15 @@ export function StatusEditorDialog({
         </div>
 
         <div className="border-t-2 border-border pt-3">
-          <FieldLabel info="Signed. Positive heals and clamps at max HP; negative goes through the same damage path as a blow — shows a number, wakes the brains, and can kill.">
+          <FieldLabel info="Every is milliseconds between periods, as a number or a formula over the same variables as the effect — so a cadence can depend on MAX_HP. Hit points are signed. Positive heals and clamps at max HP; negative goes through the same damage path as a blow — shows a number, wakes the brains, and can kill.">
             Per period
           </FieldLabel>
         </div>
         <div className="flex flex-wrap items-start gap-3">
-          <MsField
+          <FormulaField
             label="Every (ms)"
             hint={cadenceHint}
-            value={status.everyMs ?? 0}
+            value={cadenceSource}
             onChange={(everyMs) => patch({ everyMs })}
           />
           <FormulaField

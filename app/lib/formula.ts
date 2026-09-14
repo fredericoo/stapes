@@ -2,9 +2,9 @@
  * A tiny arithmetic language, so an amount can be *interpreted* rather than
  * stored.
  *
- * A status heals `ceil(MAX_HP / 100)` a second and a poison bites harder the
- * longer it has left; neither is a number an author can type, and both
- * are one line of arithmetic. That is the whole of what this is for — see
+ * A status heals a share of the maximum on a cadence set by that share, and a
+ * poison bites harder the longer it has left; neither is a number an author can
+ * type, and both are one line of arithmetic. That is the whole of what this is for — see
  * `./status`.
  *
  * ## Why a parser and not `eval`
@@ -282,6 +282,18 @@ class Parser {
     const apply = fn.apply;
     return (scope) => apply(args.map((arg) => arg(scope)));
   }
+}
+
+/**
+ * A formula that is always this number.
+ *
+ * For a field that may be authored as either — a status cadence is a plain
+ * `3000` on every status written before it could be a formula — so the reader
+ * evaluates one shape and the number is not a second branch at every use.
+ */
+export function constantFormula(value: number): Formula {
+  const rounded = integerise(value);
+  return { source: String(value), evaluate: () => rounded };
 }
 
 /** Compile a formula, or null when the source is not one. */
