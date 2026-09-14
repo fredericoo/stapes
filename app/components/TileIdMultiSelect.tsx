@@ -22,17 +22,29 @@ export function TilePickList({
   label,
   selectedIds,
   multiselectable = true,
+  mode = "select",
   onPick,
 }: {
   tiles: TileDef[];
   tilesets: TilesetDef[];
-  /** Names the listbox for a screen reader; the visible caption is the caller's. */
+  /** Names the list for a screen reader; the visible caption is the caller's. */
   label: string;
   /** Rows to mark as chosen, or none when choosing does not mark a row. */
   selectedIds?: ReadonlySet<string>;
   multiselectable?: boolean;
+  /**
+   * What activating a row means, and therefore what the rows *are*.
+   *
+   * "select" is a set the rows belong to, which is a listbox: a row is an
+   * option and carries whether it is chosen. "add" is an action that leaves the
+   * row exactly as it was — a contents list holds repeats, so there is no row
+   * state for `aria-selected` to be about, and announcing one would promise a
+   * selection that never changes however many times it is clicked.
+   */
+  mode?: "select" | "add";
   onPick: (tileId: string) => void;
 }) {
+  const asListbox = mode === "select";
   const [query, setQuery] = useState("");
 
   const matches = useMemo(() => {
@@ -47,6 +59,10 @@ export function TilePickList({
   return (
     <>
       <Input
+        // Named as well as placeheld: the placeholder is gone the moment
+        // anybody types, and a box whose only name was its placeholder is a box
+        // with no name for the rest of the session.
+        aria-label={`Search tiles to ${label.toLowerCase()}`}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search tiles"
@@ -54,8 +70,11 @@ export function TilePickList({
 
       <ScrollArea className="h-40 border-2 border-border bg-panel">
         <div
-          role="listbox"
-          aria-multiselectable={multiselectable}
+          // A group rather than a list of items when these are actions: the
+          // rows stay buttons, which is what they do, and nothing promises a
+          // selection to read back.
+          role={asListbox ? "listbox" : "group"}
+          {...(asListbox ? { "aria-multiselectable": multiselectable } : {})}
           aria-label={label}
         >
           {matches.map((tile) => {
@@ -64,8 +83,9 @@ export function TilePickList({
               <button
                 key={tile.id}
                 type="button"
-                role="option"
-                aria-selected={isSelected}
+                {...(asListbox
+                  ? { role: "option" as const, "aria-selected": isSelected }
+                  : { "aria-label": `${label}: ${tile.name}` })}
                 onClick={() => onPick(tile.id)}
                 className={[
                   "flex w-full items-center gap-2 px-1.5 py-1 text-left",

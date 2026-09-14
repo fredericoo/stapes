@@ -349,7 +349,11 @@ function SortableStackItem({
                 panel would push the stack off the bottom of it. What is in it
                 is the dialog's job. */}
             {placed.contents?.length ? (
-              <span className="shrink-0">▤ {placed.contents.length}</span>
+              <span className="shrink-0">
+                <span className="sr-only">Holds </span>
+                <span aria-hidden="true">▤ </span>
+                {placed.contents.length}
+              </span>
             ) : null}
             {placed.description ? (
               <span className="min-w-0 truncate" title={placed.description}>
