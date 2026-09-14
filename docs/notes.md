@@ -4959,6 +4959,49 @@ Read off the *body's* authored block rather than through `battlerOf`, which is
 where statuses feed into the numbers: reading it there would let a status decide
 whether a status may be applied.
 
+## Standing in a fire keeps burning you, once a second
+
+A `step` trigger used to fire on arrival and never again, so the way to survive
+a flame was to stop walking: Burned ran its four seconds out, the tile
+underneath had no further say, and a body could stand in the fire indefinitely
+taking nothing. The rule now is that **the cell you are standing on grants what
+it grants every second you stand there**, through the same `grantStatus` an
+arrival goes through — so it stacks where the status stacks and refreshes where
+it does not, and `GameSession.tickStandingStatuses` knows about neither.
+
+**Why a cadence and not every tick.** Every application draws a duration from
+the world's own generator, so a per-tick grant would be thirty seeded draws a
+second per body standing in a flame, and what every fight in the world rolled
+after it would depend on how long somebody loitered in a fire. It would also
+walk the column under every actor thirty times a second to find out whether
+there was anything to grant at all.
+
+**Why a second.** It is the rhythm the thing it feeds already runs on — Burned
+spends hit points once a second — so a helping per payout means the two clocks
+do not beat against each other. It is also exactly thirty ticks, which is what
+lets `ActorRuntime.standingStatusMs` be compared against it with nothing but the
+float slack `COOLDOWN_EPSILON_MS` absorbs. The accumulator is *drained* rather
+than zeroed on each payout, for the same reason a status's own is: a tick is not
+a whole number of milliseconds, and zeroing would lose the remainder every
+second and drift a standing body a tick further behind each time.
+
+**The clock runs for every body and the column is only read when it comes
+round.** The cheap half is a float add per actor per tick; the expensive half —
+locating the body and reading the stack under it — happens once a second per
+body. Arriving anywhere zeroes it, whether or not there was anything underfoot
+to take, so walking out of a flame and back in waits a whole period for the
+standing helping rather than inheriting however far the last cell had got. A
+body in mid-air is passed over and its clock left alone: it has not arrived
+anywhere, which is the same reason `tickMotion` will not run the arrival on one.
+
+**It is a balance change as much as a mechanism one.** Burned is four to eight
+seconds, stacks, and caps at twenty-four; three seconds of standing in a flame
+climbs to that ceiling and holds there, so walking out of one you loitered in
+costs a full twenty-four seconds of burning. That is the intent — a fire you
+stand in should be worse than one you walk through — but it means the two
+authored flames (`flame`, `arcane-flame`) hit considerably harder than they did,
+and a conjured one now earns its caster for as long as somebody stays in it.
+
 ## A status cadence is a formula, so Fed heals every body in the same time
 
 Fed used to heal `ceil(MAX_HP / 100)` every second: a hundred-point body was
