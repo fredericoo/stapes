@@ -443,7 +443,7 @@ export function GameViewport({
       masteryXp={masteryXp}
       statusDefs={statusDefs}
       onTalk={(action) => onTalk?.(action)}
-      className="min-h-0 w-full flex-1"
+      className="scrolls-past-toolbar min-h-0 w-full flex-1"
     />
   ) : null;
 
@@ -469,7 +469,10 @@ export function GameViewport({
       // never sends the matching leave, so the outline it lit would stay lit
       // over whatever the player did next.
       onHover={coarse ? undefined : onHoverInteraction}
-      className="min-h-0 w-full flex-1"
+      // The padding is inert in the desktop column — there is no inset to
+      // speak of on a machine with no toolbar over the page — so one list
+      // still serves both layouts. See `.scrolls-past-toolbar` in `../app.css`.
+      className="scrolls-past-toolbar min-h-0 w-full flex-1"
     />
   );
 
@@ -674,7 +677,12 @@ export function GameViewport({
           // to the side most thumbs are, and the list of what is in reach — the
           // thing you *read* before acting — sits on the other, out from under
           // the hand that is steering.
-          <div className="flex w-full min-h-0 flex-1 items-stretch gap-3 px-3 pb-3">
+          // No bottom padding on the row, because the reading column is meant to
+          // reach the physical bottom of the screen — see
+          // `.scrolls-past-toolbar` in `../app.css`. The arrows take their own
+          // gap back below, since they are the half that must not go under the
+          // toolbar.
+          <div className="flex w-full min-h-0 flex-1 items-stretch gap-3 px-3">
             <div
               className="flex min-h-0 flex-1 flex-col items-start gap-2"
               style={{ minWidth: INTERACTION_LIST_MIN_WIDTH_PX }}
@@ -685,7 +693,7 @@ export function GameViewport({
                   // thirty things in it must not be able to push the arrows off
                   // the bottom of the screen, which is the whole reason they are
                   // still here.
-                  <div className="flex w-full min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain">
+                  <div className="scrolls-past-toolbar flex w-full min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain">
                     {panels}
                   </div>
                 ) : (
@@ -701,13 +709,25 @@ export function GameViewport({
                 Shrinks rather than holding its size — see
                 {@link INTERACTION_LIST_MIN_WIDTH_PX}. */}
             <div
-              className="flex min-w-0 shrink flex-col items-center"
-              // A basis rather than letting it size to its contents: the pad is
-              // `w-full` of this box, so a shrink-to-fit parent would be asking
-              // the child how wide to be and getting `min-width` back — the pad
-              // sat pinned at its floor with free space beside it. Stating the
-              // ideal here is what gives flexbox something to shrink *from*.
-              style={{ flexBasis: MAX_PAD_SIZE_PX }}
+              className="flex min-w-0 shrink flex-col items-center pb-3"
+              style={{
+                // A basis rather than letting it size to its contents: the pad
+                // is `w-full` of this box, so a shrink-to-fit parent would be
+                // asking the child how wide to be and getting `min-width` back —
+                // the pad sat pinned at its floor with free space beside it.
+                // Stating the ideal here is what gives flexbox something to
+                // shrink *from*.
+                flexBasis: MAX_PAD_SIZE_PX,
+                // **Only this column comes up out of the toolbar's band.** The
+                // row runs to the bottom edge of the screen so the list beside
+                // this can use that height, and the arrows are the one thing
+                // there that cannot: a control half under the browser's toolbar
+                // is a control you cannot press, and there is no scrolling it
+                // clear. A margin rather than padding, so the column *ends*
+                // above the toolbar rather than merely holding its contents off
+                // it — the pad is `mt-auto`'d against that end.
+                marginBottom: "env(safe-area-inset-bottom)",
+              }}
             >
               {/* Rendered whether or not anything is running: a lane that
                   appeared on the first berry would push the pad down out from
@@ -724,7 +744,11 @@ export function GameViewport({
                   of decorations an inch above it is a stray press waiting to
                   happen — see `interactive={false}`, which is the other half of
                   the same worry. */}
-              <div className="mt-auto flex w-full flex-col gap-2">
+              {/* Takes whatever the lane above leaves, so the arrows end up at
+                  the far end of the column — `flex-1` rather than `mt-auto`,
+                  because the box below has to be told how tall it is and an
+                  auto margin says nothing. */}
+              <div className="flex w-full min-h-0 flex-1 flex-col gap-2">
                 {/* Directly above the arrows and exactly their width, because
                     the two are one cluster: the hand steering is on this side of
                     the screen, and the hand that is free is the one that casts.
@@ -742,7 +766,27 @@ export function GameViewport({
                   // reads as a control that has come loose from it.
                   className="justify-center"
                 />
-                <DirectionPad onPress={press} onRelease={release} />
+                {/* **The arrows are square against the shorter edge of what is
+                    left, which is the same trick the world square plays.** The
+                    pad is `aspect-square w-full`, so left alone its height comes
+                    from its *width* and a column too short to hold it does not
+                    shrink it — it simply overflows off the end. On an iPhone 13
+                    that is not hypothetical: Safari's viewport with its toolbars
+                    showing is 664px tall, which leaves this column 168px for a
+                    176px pad, and the south arrow sat under the toolbar.
+
+                    A sized container and `100cqmin` is what makes the squeeze
+                    reach it. Floored by `MIN_PAD_SIZE_PX` in `./DirectionPad`,
+                    past which there is nothing left to give and the phone is
+                    simply too short for the cluster. */}
+                <div
+                  className="flex w-full min-h-0 flex-1 items-end justify-center"
+                  style={{ containerType: "size" }}
+                >
+                  <div style={{ width: `min(100cqmin, ${MAX_PAD_SIZE_PX}px)` }}>
+                    <DirectionPad onPress={press} onRelease={release} />
+                  </div>
+                </div>
               </div>
               {/* The far corner, under the arrows, which is the one place on a
                   phone that is never on the way to anything: the thumb steering

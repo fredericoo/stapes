@@ -34,17 +34,21 @@ import type { Direction } from "../lib/types";
 export const MAX_PAD_SIZE_PX = 176;
 
 /**
- * How small the pad is allowed to get before the list starts giving room back.
+ * The smallest target WCAG will accept, doubled — which is what a d-pad is.
  *
- * Roughly a thumb. Below this the four directions stop being reliably separable
- * while walking, and a control you have to look at is worse than a cramped list.
+ * 44px is the minimum touch target in WCAG 2.5.5, and the pad is two of them
+ * across: west and east have to be separately hittable, and so do north and
+ * south. Below this the four directions stop being reliably separable while
+ * walking, and a control you have to look at is worse than a small one.
  *
- * Exported because the status lane beside it floors its own height here: a lane
- * sized purely by leftover space collapses to nothing on a squeezed layout, and
- * the pad is the thing it has to read as a cluster with. Floored at the pad's
- * *smallest*, so the lane can never be taller than the pad it sits against.
+ * It was 128, chosen as roughly a thumb, and that was a floor the layout could
+ * not honour: a phone whose browser toolbars leave the column shorter than the
+ * pad has to take the difference out of *something*, and every pixel this floor
+ * refuses to give comes out of the list beside it or pushes the arrows under the
+ * toolbar. The accessible minimum is the honest place to stop.
  */
-export const MIN_PAD_SIZE_PX = 128;
+const MIN_TOUCH_TARGET_PX = 44;
+const MIN_PAD_SIZE_PX = MIN_TOUCH_TARGET_PX * 2;
 
 /**
  * How far out from the centre each arrow sits, as a share of the disc's radius.
