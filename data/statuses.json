@@ -2,13 +2,13 @@
   {
     "id": "fed",
     "name": "Fed",
-    "description": "Slowly recovering health.",
+    "description": "Recovering health, twice as fast out of a fight.",
     "tone": "good",
     "fromMs": 10000,
     "toMs": 30000,
     "stacks": true,
     "maxMs": 3600000,
-    "everyMs": "ceil(MAX_HP / 100) * 300000 / MAX_HP",
+    "everyMs": "ceil(MAX_HP / 100) * 300000 / MAX_HP / (2 - has_status('combat'))",
     "effects": {
       "hp": "ceil(MAX_HP / 100)"
     },

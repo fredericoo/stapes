@@ -583,22 +583,24 @@ describe("eating something that grants a status", () => {
       toMs: FED_MS,
       stacks: true,
       maxMs: 3_600_000,
-      everyMs: "ceil(MAX_HP / 100) * 300000 / MAX_HP",
+      everyMs: "ceil(MAX_HP / 100) * 300000 / MAX_HP / (2 - has_status('combat'))",
       effects: { hp: "ceil(MAX_HP / 100)" },
     },
   ]);
 
   /**
    * What a status's cadence comes to on the player, as the loop will run it.
-   * The scope's clocks are zero because no shipped cadence reads them.
+   * The scope's clocks are zero because no shipped cadence reads them; whether
+   * the player is fighting matters, because Fed's does.
    */
-  function cadenceSecondsOf(def: StatusDef): number {
+  function cadenceSecondsOf(def: StatusDef, fighting: boolean): number {
     const ms = def.everyMs.evaluate({
       DURATION_SEC: 0,
       REMAINING_SEC: 0,
       ELAPSED_SEC: 0,
       MAX_HP: PLAYER_MAX_HP,
       HP: PLAYER_MAX_HP,
+      statuses: fighting ? [{ defId: COMBAT_STATUS_ID }] : [],
     });
     return snapToTick(ms) / 1000;
   }
@@ -665,7 +667,10 @@ describe("eating something that grants a status", () => {
     // no longer buys a hit point a point and the maximum moves with its curve.
     const perPeriod = Math.ceil(PLAYER_MAX_HP / 100);
     const periods = 3;
-    runSeconds(session, periods * cadenceSecondsOf(catalogue.fed!));
+    // The wound put them in combat, and the session has to say so to the
+    // formula: at the calm cadence this would have paid twice over.
+    expect(session.inCombat("local")).toBe(true);
+    runSeconds(session, periods * cadenceSecondsOf(catalogue.fed!, true));
     // Less than the wound, or the cap would be what this measured.
     expect(perPeriod * periods).toBeLessThan(10);
     expect(hpOf(session)).toBe(start + perPeriod * periods);
@@ -675,7 +680,7 @@ describe("eating something that grants a status", () => {
   it("stops at the maximum", () => {
     const session = fedWorld();
     session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
-    runSeconds(session, 3 * cadenceSecondsOf(catalogue.fed!));
+    runSeconds(session, 3 * cadenceSecondsOf(catalogue.fed!, false));
     expect(hpOf(session)).toBe(PLAYER_MAX_HP);
   });
 
@@ -705,7 +710,7 @@ describe("eating something that grants a status", () => {
     session.runCommand("/status poison");
     expect(session.inCombat("local")).toBe(false);
 
-    runSeconds(session, cadenceSecondsOf(authored.poison!));
+    runSeconds(session, cadenceSecondsOf(authored.poison!, false));
 
     expect(session.inCombat("local")).toBe(true);
   });
