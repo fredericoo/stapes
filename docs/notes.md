@@ -3710,13 +3710,17 @@ instance at full length directly rather than through `applyStatus`, which
 draws a die for the duration. One more draw per swing would change what every
 fight after it rolled, seeded tests included.
 
-**Players only.** `flagCombat` skips residents: a creature has no socket to
-close, and flagging every rat in a fight would broadcast status ids and keep
-the world awake for nothing.
+**Everybody, creatures included.** `flagCombat` used to skip residents — a
+creature has no socket to close, and flagging every rat in a fight broadcast
+status ids for nothing. Then formulas learned to read `has_status('combat')`,
+and a fed deer under attack had to heal at the fighting rate. The status-id
+patch per fighting creature is the accepted cost. The duel flags both sides on
+every swing for the same reason, when its catalogue is on at all.
 
-**The world stays awake while anybody is in combat** (`isAtRest`). The minute
+**The world stays awake while a player is in combat** (`isAtRest`). The minute
 is a clock only the tick winds, and a lingering body waits on it: asleep, it
-would stand there until somebody else moved.
+would stand there until somebody else moved. A creature's minute waits on
+nobody, so it freezes with the rest of the world.
 
 **On the server** (`GameServer.dropSocket`):
 
