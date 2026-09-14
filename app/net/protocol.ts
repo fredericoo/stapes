@@ -384,8 +384,7 @@ export type ExtractionPatch = {
  *
  * {@link ExtractionPatch} for spells, and it carries the same two numbers for
  * the same reason: what everybody else can see of somebody's cast is a bar over
- * their head and the word they shouted, and the bar needs both halves of a
- * fraction to fill on its own.
+ * their head, and the bar needs both halves of a fraction to fill on its own.
  *
  * **Which stone is deliberately not here.** Nothing draws it — the bar is the
  * same bar whatever is being cast — and the caster's own screen needs no telling

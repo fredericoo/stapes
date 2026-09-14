@@ -528,8 +528,8 @@ export type ActorSnapshot = {
    * deliberate: they are two different facts that happen to be drawn with one
    * picture. A bar over a head says "this body is part-way through something and
    * you have until it fills"; what the something *is* — a bush being picked, a
-   * flame being called — is said by the board around them and by the word they
-   * shouted. @see `../render/GameRenderer`, which draws whichever is running.
+   * flame being called — is said by the board around them.
+   * @see `../render/GameRenderer`, which draws whichever is running.
    *
    * Never both at once: starting either takes the other off you, because both
    * are what a body's hands are doing. @see GameSession.cast
@@ -5161,8 +5161,10 @@ export class GameSession implements PlaySession {
    * appeared is a press the player cannot tell from a dropped key — carried
    * forward to the one case where a player can plainly see why.
    *
-   * **The name is shouted at the start either way**, which is what tells a room
-   * what is coming while there is still time to do something about it.
+   * **Nothing is said at the start.** A cast used to shout the stone's name as
+   * it began; what a room hears now is the noise the stone is authored to make,
+   * and it hears it when the spell lands — see {@link recordCastSound}. A bar
+   * over the caster's head is what says something is coming.
    *
    * Nothing here is predicted by a client. A browser sends "cast the stone in
    * this square" and finds out what came of it from the equipment message and
@@ -5189,8 +5191,6 @@ export class GameSession implements PlaySession {
       return false;
     }
 
-    this.shoutSpell(actor, held);
-
     // What the caster brings against what the stone asks, which is the whole of
     // how long this takes. @see `./casting`'s `castDurationMs`
     const durationMs = castDurationMs(stone, context.masteries);
@@ -5209,31 +5209,6 @@ export class GameSession implements PlaySession {
       progress: { remainingMs: durationMs, durationMs },
     };
     return true;
-  }
-
-  /**
-   * Say the name of the spell, out loud, where it was cast.
-   *
-   * **The one thing about a cast that everybody nearby learns for free.** A bar
-   * over a head says somebody is doing something; the word says which spell it
-   * is, which is what makes standing out of the way — or walking up and hitting
-   * them — a decision rather than a guess. It is also what a cast with no bar at
-   * all leaves behind, so an instant spell is not silent.
-   *
-   * The stone's own name, so a stone somebody has written on says what they
-   * wrote: the same name the button carries, read the same way.
-   * @see `./casting`'s `castableStones`
-   *
-   * Through `recordSpeech` rather than a channel of its own, because it *is*
-   * speech — it hangs where it was said, it is sanitised like everything else a
-   * body can put on somebody's screen, and it goes out on the wire as chat.
-   */
-  private shoutSpell(actor: ActorRuntime, stone: ItemInstance) {
-    const loc = this.tryLocate(actor);
-    if (!loc) return;
-    const def = this.tilesById[stone.tileId];
-    const name = stone.description?.trim() || def?.name || stone.tileId;
-    this.recordSpeech(actor, loc, `${name}!`);
   }
 
   /**
@@ -5344,6 +5319,32 @@ export class GameSession implements PlaySession {
     if (stone.effect.kind === "bolt") {
       this.castBolt(actor, square, stone, stone.effect, elements);
     } else this.castConjure(actor, context, stone.effect.tileId, elements);
+
+    // After the effect rather than before it, so the noise is the sound of
+    // something that has happened. Here rather than in `cast`, because this is
+    // the one place both shapes of cast come through — and a cast that never
+    // gets here made nothing, so it makes no sound.
+    this.recordCastSound(actor, stone);
+  }
+
+  /**
+   * Make the noise a stone makes, where the caster stands as the spell lands.
+   *
+   * {@link recordConsumeSound}'s twin, on every one of its terms: a noise and
+   * not speech, so it arrives unattributed — "whoosh" is what the room heard,
+   * not something the caster said — and through {@link recordNoise}, so a
+   * creature in earshot listening for one gets to notice. That last part is a
+   * change from the shout this replaced: a spell's name was chat, and creatures
+   * do not hear chat; a whoosh is a sound, and they do.
+   *
+   * Located now rather than when the cast began: a caster may walk while a bar
+   * runs, and the noise belongs where the spell came out.
+   */
+  private recordCastSound(actor: ActorRuntime, stone: ArcaneStoneItem) {
+    if (!stone.sound?.trim()) return;
+    const loc = this.tryLocate(actor);
+    if (!loc) return;
+    this.recordNoise(actor.id, loc, stone.sound);
   }
 
   /**

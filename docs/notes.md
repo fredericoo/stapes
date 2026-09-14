@@ -3057,16 +3057,29 @@ authored at three seconds.
   tick left behind: a crate dropped in front of the caster this tick is in the
   way of *this* flame rather than of the next one.
 
-### The caster says the name of the spell
+### A stone makes its noise when the spell lands
 
-Every cast, timed or instant, puts the stone's name and an exclamation mark over
-the caster's head — `recordSpeech`, so it is sanitised, pinned to the cell and
-broadcast as chat like anything else anybody says. It is the one thing about a
-cast that everybody nearby learns for free: the bar says somebody is doing
-something, and the word says which spell, which is what makes standing out of the
-way — or walking up and hitting them — a decision rather than a guess. The name
-comes off the instance's description before the tile's, so a stone somebody has
-written on says what they wrote.
+`ArcaneStoneItem.sound` is the comic-book noise a stone makes — "whoosh",
+"crack" — and it is a consumable's `sound` on every term: bounded by
+`MAX_SOUND_LENGTH`, blank is silent, dropped from the file when blank, and made
+through `recordNoise` rather than `recordSpeech`, so it arrives unattributed and
+a creature in earshot listening for a noise gets to notice it.
+
+- **At the end, never at the start.** `resolveCast` records it after the effect,
+  so it is the sound of something that happened: an instant stone is heard at the
+  press, a timed one when the bar fills, and a cast that was broken or found its
+  cell blocked is silent. That is the rule the cooldown is already under — a
+  whoosh with no fire behind it would be a press the player could not tell from
+  one that worked.
+- **Where the caster stands as it lands**, located then rather than when the
+  cast began, because a caster may walk while a bar runs.
+- **It replaced a shout.** Every cast used to put the stone's name and an
+  exclamation mark over the caster's head as chat. That said the same thing on
+  every press, attributed a word to somebody who had not said one, and was noise
+  for nothing; the bar over their head already says somebody is doing something.
+  Chat was never heard by creatures and a noise is, so a spell landing in the
+  woods is now something a wolf can come and look at — the same rule eating in
+  the woods is under.
 
 ### Castability is one pure module, and it answers with a reason
 
@@ -4682,7 +4695,7 @@ player's pull is still running on the body they left.
   is not in `labelLayout`'s contest: a bubble is placed without regard to it.
   `ANCHOR_CLEARANCE_EMS` is what keeps the two apart, and it is now 2.75 rather
   than 2 — sized for the group at its tallest, bar included, because a caster
-  shouts the spell's name at the moment the bar appears and the two are always on
+  may well be speaking while the bar is over their head and the two are then on
   screen together. Every bubble in the world therefore sits a little higher than
   it strictly has to; a clearance that changed with the group would be a bubble
   that jumped when somebody started casting, and speech is anchored to the cell

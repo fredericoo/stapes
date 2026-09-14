@@ -988,6 +988,27 @@ export type ArcaneStoneItem = {
    */
   uninterruptible?: boolean;
   /**
+   * The noise the spell makes as it lands — "whoosh", "crack" — drawn over
+   * the caster where they stood when the cast resolved.
+   *
+   * The same field a consumable's {@link ConsumableItem.sound} is, and the same
+   * kind of thing: comic-book text on a noise's path, never speech. A cast used
+   * to shout the stone's name as it started, which attributed a word to the
+   * caster on every press and said the same thing every time; a noise is
+   * authored per stone, is not a sentence anybody uttered, and comes at the end,
+   * when the spell has actually done something.
+   *
+   * Made when the cast *resolves*, never when it starts, and never for a cast
+   * that came to nothing: an interrupted flame and a flame that found its cell
+   * blocked are both silent, which is the same rule the cooldown is under. A
+   * whoosh with no fire behind it would be a press the player could not tell
+   * from one that worked.
+   *
+   * Optional and bounded by {@link MAX_SOUND_LENGTH}. Blank is silent, which is
+   * the honest default: a stone that says nothing is a stone nobody heard.
+   */
+  sound?: string;
+  /**
    * What this asks of whoever casts it, mastery by mastery.
    *
    * The same block a weapon's {@link WeaponItem.requirements} is, read the same
@@ -1939,6 +1960,9 @@ const stoneSchema = v.object({
   // Optional, and absent is a cast a blow breaks, which is what makes the flag
   // worth writing at all.
   uninterruptible: v.optional(v.boolean()),
+  // Bounded on the terms a consumable's is: free text that ends up drawn over
+  // somebody's head. @see MAX_SOUND_LENGTH
+  sound: v.optional(v.pipe(v.string(), v.maxLength(MAX_SOUND_LENGTH))),
   // Optional, and an empty object allowed through rather than refused — the
   // same tolerance a weapon's requirements block is under, and for the same
   // reason: it says what no key says, and refusing it would make a round trip
@@ -2371,6 +2395,11 @@ function stoneForSave(stone: ArcaneStoneItem): ArcaneStoneItem {
     ),
   );
 
+  // Dropped when blank rather than written as `""`, exactly as a consumable's
+  // is: an empty string that means "silent" is a second way of saying what an
+  // absent key already says.
+  const sound = stone.sound?.trim();
+
   return {
     type: "stone",
     effect: stoneEffectForSave(stone.effect),
@@ -2381,6 +2410,7 @@ function stoneForSave(stone: ArcaneStoneItem): ArcaneStoneItem {
     // never been given a cast time.
     ...(stone.castTimeMs ? { castTimeMs: Math.round(stone.castTimeMs) } : {}),
     ...(stone.uninterruptible ? { uninterruptible: true } : {}),
+    ...(sound ? { sound } : {}),
     ...(Object.keys(requirements).length > 0 ? { requirements } : {}),
     // Written whenever it is stated, and absent stays absent — unlike a weapon's,
     // which is always spelled out. A stone that reaches only its holder has no

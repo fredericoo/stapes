@@ -311,6 +311,7 @@ const props: TileDef[] = [
     effect: { kind: "conjure", tileId: "conjured-flame" },
     cooldownMs: 10_000,
     reach: { cells: 3, height: 2 },
+    sound: "whoosh",
   }),
   // A bolt that harms, thrown with no variance so every case below is exact,
   // and with something in the air so the flight has somewhere to be asserted.
@@ -507,19 +508,15 @@ const props: TileDef[] = [
     uninterruptible: true,
   }),
   // A conjure with a cast time, for the case a bar makes possible: the cell was
-  // clear when it was pressed and is not when it fills.
-  stoneTile(
-    "slow-flame-stone",
-    {
-      effect: { kind: "conjure", tileId: "conjured-flame" },
-      cooldownMs: 10_000,
-      castTimeMs: CAST_MS,
-      reach: { cells: 3, height: 2 },
-    },
-    // Named, because what a caster shouts is the name of the stone and a
-    // fixture called `slow-flame-stone` would assert the id instead.
-    { name: "Flame" },
-  ),
+  // clear when it was pressed and is not when it fills. It makes a noise, so
+  // the cases about *when* a stone is heard have a timed one to listen to.
+  stoneTile("slow-flame-stone", {
+    effect: { kind: "conjure", tileId: "conjured-flame" },
+    cooldownMs: 10_000,
+    castTimeMs: CAST_MS,
+    reach: { cells: 3, height: 2 },
+    sound: "whoosh",
+  }),
   // A stone with something to outgrow, so the scaling has somewhere to move.
   stoneTile("apprentice-stone", {
     effect: { kind: "bolt", damage: -MEND_HP, on: "caster" },
@@ -2084,20 +2081,47 @@ describe("a cast that takes time", () => {
     expect(coolingIn(play, "charm")).toBe(MEND_COOLDOWN_MS);
   });
 
-  it("shouts the name of the spell as it starts", () => {
+  /**
+   * A cast used to shout the stone's name as it started. What a room hears now
+   * is the noise the stone is authored to make, and it hears it when the spell
+   * lands — a noise, not speech, so nothing is attributed to the caster.
+   */
+  it("makes the stone's noise when the bar fills, and says nothing at the press", () => {
     const play = session({ charm: "slow-flame-stone" });
 
     play.cast("charm");
+    expect(play.drainSpeech()).toEqual([]);
+    expect(play.drainNoise()).toEqual([]);
 
-    expect(play.drainSpeech().map((bubble) => bubble.text)).toEqual(["Flame!"]);
+    run(play, CAST_TICKS);
+    expect(play.drainSpeech()).toEqual([]);
+    expect(play.drainNoise().map((noise) => noise.text)).toEqual(["whoosh"]);
   });
 
-  it("shouts for an instant spell too, since a press is a press", () => {
+  it("makes it at once for an instant spell", () => {
     const play = session({ charm: "flame-stone" });
 
     play.cast("charm");
 
-    expect(play.drainSpeech()).toHaveLength(1);
+    expect(play.drainNoise().map((noise) => noise.text)).toEqual(["whoosh"]);
+  });
+
+  /** Where the caster stands as it lands, which is where the fire came out. */
+  it("makes it where the caster is standing", () => {
+    const play = session({ charm: "flame-stone" });
+
+    play.cast("charm");
+
+    expect(play.drainNoise()[0]).toMatchObject({ x: 0, y: 0, z: 0 });
+  });
+
+  it("is silent for a stone with no sound authored, which is most of them", () => {
+    const play = session({ charm: "slow-mend-stone" });
+
+    play.cast("charm");
+    run(play, CAST_TICKS);
+
+    expect(play.drainNoise()).toEqual([]);
   });
 
   it("refuses a second cast while one is running", () => {
@@ -2202,6 +2226,9 @@ describe("a cast that takes time", () => {
       false,
     );
     expect(coolingIn(play, "charm")).toBeUndefined();
+    // And nothing heard: a whoosh with no fire behind it would be a press the
+    // player could not tell from one that worked.
+    expect(play.drainNoise()).toEqual([]);
   });
 
   it("comes to nothing when the stone has left the hand it was cast from", () => {
