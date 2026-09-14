@@ -46,12 +46,34 @@
  * darkens the things that take no colour from us: the overscroll gutter, the
  * scrollbars, and the default rendering of any control that has not been given
  * an appearance of its own.
+ *
+ * **`100lvh` is what makes the page as tall as the screen rather than as tall as
+ * the gap above the toolbar.** `app.css` sizes the document at `height: 100%`,
+ * which on iOS is the viewport Safari is currently showing — so the layout ended
+ * where the toolbar began and the strip behind the toolbar was a band of ink
+ * nothing could use. The large viewport is the screen with the toolbars
+ * retracted, so the reading column runs the whole way down and the toolbar
+ * floats over its last rows, which `.scrolls-past-toolbar` lets you scroll clear
+ * of. `min-height` rather than `height`, so this can only ever add to whatever
+ * `app.css` worked out.
+ *
+ * Which is also why `overflow: hidden` comes with it and must: a document taller
+ * than the viewport is a document iOS will let you drag, and dragging this one
+ * scrolls the game out of the frame. Nothing here wants the page to scroll —
+ * every scrolling surface in the game is an inner one — so refusing it costs
+ * nothing and closes the hole `100lvh` would otherwise open.
  */
 const INK_DOCUMENT_CSS = `html, body {
   background-color: var(--color-ink);
 }
 html {
   color-scheme: dark;
+}
+html, body, #root {
+  min-height: 100lvh;
+}
+html, body {
+  overflow: hidden;
 }`;
 
 export function InkDocument() {

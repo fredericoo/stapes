@@ -196,24 +196,24 @@ export function AppShell({
       <div
         className="flex h-full flex-col"
         style={{
-          // The phone's own furniture, kept off the page. `viewport-fit=cover`
-          // in `../root.tsx` hands us the pixels behind the status bar and the
-          // toolbar, and this is the half that decides what may sit in them:
-          // nothing, except the ink this shell is painted in.
-          paddingTop: "env(safe-area-inset-top)",
+          // **A page that has taken the header away has taken the whole screen
+          // with it, top and bottom.** `viewport-fit=cover` in `../root.tsx`
+          // hands us the pixels behind the status bar and the toolbar, and this
+          // is the half that decides who may sit in them. For a page of chrome
+          // the answer is nobody: a row of navigation under the notch is a row
+          // nobody can read. For the game it is the world — the top of the map
+          // passes under the clock and the dynamic island, which costs a strip
+          // of scenery and buys the whole height of the screen, and the
+          // controls below it hold themselves off the toolbar individually.
+          // See `GameViewport`.
+          paddingTop: headerHidden ? undefined : "env(safe-area-inset-top)",
+          paddingBottom: headerHidden ? undefined : "env(safe-area-inset-bottom)",
           // Landscape, where the notch is on one side and the home indicator on
-          // the other. Zero in portrait, and zero everywhere that has neither.
+          // the other, and kept even for the game: a d-pad or a list of verbs
+          // behind the notch is not scenery, it is a control you cannot reach.
+          // Zero in portrait, and zero everywhere that has neither.
           paddingLeft: "env(safe-area-inset-left)",
           paddingRight: "env(safe-area-inset-right)",
-          // **The bottom is the page's own to deal with when the page has taken
-          // the header away.** A shell that inset it would end the layout above
-          // the toolbar and leave a band of ink under the game that no control
-          // could use, which is the opposite of what a phone wants. So the game
-          // reaches the bottom edge of the screen and scrolls its list clear of
-          // the toolbar instead — see `GameViewport`. Every other page keeps the
-          // inset, because its content ends wherever it ends and a row of it
-          // under the toolbar is simply a row nobody can read.
-          paddingBottom: headerHidden ? undefined : "env(safe-area-inset-bottom)",
         }}
       >
         {headerHidden ? null : (

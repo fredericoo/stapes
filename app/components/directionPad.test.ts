@@ -11,7 +11,7 @@ import { directionAt } from "./DirectionPad";
  */
 
 const FAR = 100;
-const DEAD_ZONE = 16;
+const DEAD_ZONE = 8;
 
 describe("directionAt", () => {
   it("reads the four cardinals", () => {

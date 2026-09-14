@@ -22,33 +22,29 @@ import type { Direction } from "../lib/types";
  * take no pointer events — the pad reads the geometry itself.
  */
 
-/**
- * Side of the pad's touch area at its most comfortable. The disc is inscribed
- * in it.
- *
- * A **maximum** rather than a fixed size: the pad is the thing that yields when
- * a phone is narrow, because the list beside it is text and text has a width
- * below which it stops being readable, where a d-pad merely gets smaller. See
- * {@link MIN_PAD_SIZE_PX}.
- */
-export const MAX_PAD_SIZE_PX = 176;
+/** The smallest touch target WCAG 2.5.5 will accept. */
+const MIN_TOUCH_TARGET_PX = 44;
 
 /**
- * The smallest target WCAG will accept, doubled — which is what a d-pad is.
+ * Side of the pad's touch area, and the disc is inscribed in it.
  *
- * 44px is the minimum touch target in WCAG 2.5.5, and the pad is two of them
- * across: west and east have to be separately hittable, and so do north and
- * south. Below this the four directions stop being reliably separable while
- * walking, and a control you have to look at is worse than a small one.
+ * **One size, and it is the accessible minimum rather than a comfortable
+ * maximum.** Two targets across is what a d-pad is — west and east have to be
+ * separately hittable, and so do north and south — so this is as small as the
+ * control is allowed to be, and there is nothing a larger one buys. A thumb
+ * steering it is resting on it, not aiming at it: direction comes from where the
+ * finger is relative to the centre, and a pointer captured at touch-down keeps
+ * steering even when it slides off the edge, so the disc does not have to be big
+ * enough to contain the gesture.
  *
- * It was 128, chosen as roughly a thumb, and that was a floor the layout could
- * not honour: a phone whose browser toolbars leave the column shorter than the
- * pad has to take the difference out of *something*, and every pixel this floor
- * refuses to give comes out of the list beside it or pushes the arrows under the
- * toolbar. The accessible minimum is the honest place to stop.
+ * It was fluid between 176 and 128, on the theory that the pad should be
+ * generous where there was room. What that actually bought was a control taking
+ * a fifth of a phone screen's width away from the list beside it, and a floor
+ * the layout still could not honour on a short viewport. Fixed and small, the
+ * arrows fit every phone, the column beside them gets the difference, and
+ * nothing has to be measured to lay either of them out.
  */
-const MIN_TOUCH_TARGET_PX = 44;
-const MIN_PAD_SIZE_PX = MIN_TOUCH_TARGET_PX * 2;
+export const PAD_SIZE_PX = MIN_TOUCH_TARGET_PX * 2;
 
 /**
  * How far out from the centre each arrow sits, as a share of the disc's radius.
@@ -74,23 +70,15 @@ const KNOB_TRAVEL_RATIO = 0.22;
 const KNOB_SIZE_RATIO = 0.34;
 
 /**
- * A thumb resting near the middle should not steer, as a share of the pad's
- * side.
+ * A thumb resting near the middle should not steer.
  *
- * Proportional rather than absolute, because the pad now shrinks: sixteen pixels
- * of a 176px pad is a tenth of it and sixteen pixels of a 128px pad is an
- * eighth, so a fixed zone would quietly grow into a shrinking pad and make the
- * directions harder to reach exactly where they are already tightest.
+ * A length rather than a ratio, now that the pad is one size: there is nothing
+ * left for it to be a share *of*. It is the same share of the radius the fluid
+ * pad had at its most comfortable — sixteen pixels of a 176px pad, eight of an
+ * 88px one — so halving the disc did not double how far you have to push it
+ * before it answers.
  */
-const DEAD_ZONE_RATIO = 16 / MAX_PAD_SIZE_PX;
-
-/** The dead zone this pad actually has, given how big it ended up. */
-function deadZoneFor(padSizePx: number): number {
-  return DEAD_ZONE_RATIO * padSizePx;
-}
-
-/** The dead zone at the pad's full size, which is what the default reads as. */
-const DEAD_ZONE_PX = deadZoneFor(MAX_PAD_SIZE_PX);
+const DEAD_ZONE_PX = 8;
 
 /**
  * The direction a point means, measured from the pad's centre — or null when it
@@ -174,9 +162,7 @@ export function DirectionPad({
       directionAt(
         clientX - (rect.left + rect.width / 2),
         clientY - (rect.top + rect.height / 2),
-        // Measured rather than assumed: the pad is whatever width the row had
-        // left for it, and the zone has to be a share of that.
-        deadZoneFor(rect.width),
+        DEAD_ZONE_PX,
       ),
     );
   };
@@ -212,12 +198,15 @@ export function DirectionPad({
   return (
     <div
       ref={padRef}
-      // Fluid between the two bounds, and square by ratio rather than by two
-      // matching lengths — the width is whatever the row gives it.
-      className="relative aspect-square w-full shrink touch-none select-none"
+      // One fixed square. It used to be fluid between two bounds, which meant
+      // the row it sat in had to be measured before either could be laid out,
+      // and a column too short to hold the result simply overflowed — the pad's
+      // height came from its width, so a vertical squeeze could not reach it.
+      // @see PAD_SIZE_PX
+      className="relative shrink-0 touch-none select-none"
       style={{
-        maxWidth: MAX_PAD_SIZE_PX,
-        minWidth: MIN_PAD_SIZE_PX,
+        width: PAD_SIZE_PX,
+        height: PAD_SIZE_PX,
         WebkitTouchCallout: "none",
         WebkitUserSelect: "none",
         WebkitTapHighlightColor: "transparent",

@@ -16,7 +16,7 @@ import { tilesByIdFromList } from "../lib/validation";
 import { AppMenuButton } from "./AppShell";
 import { ChatBar, ChatButton } from "./ChatBar";
 import { ContainerPanel } from "./ContainerPanel";
-import { DirectionPad, MAX_PAD_SIZE_PX } from "./DirectionPad";
+import { DirectionPad, PAD_SIZE_PX } from "./DirectionPad";
 import { EquipmentPanel } from "./EquipmentPanel";
 import { DragLayer } from "./DragLayer";
 import { ConversationPanel } from "./ConversationPanel";
@@ -75,17 +75,17 @@ const INTERACTION_PANEL_WIDTH_PX = 224;
  * Narrowest the reading column may get on a phone — the list of what is in
  * reach, or whichever panel is standing in for it.
  *
- * **The column wins ties with the pad, and that is the whole point of it being a
- * number here.** Both share one row, and only one of them is text: a d-pad that
- * loses twenty pixels is a smaller d-pad, where a list that loses twenty wraps
- * "Nothing in reach." onto two lines and then wraps every verb off its own row.
- * So the column states a floor and `DirectionPad` shrinks into whatever is left —
- * down to `MIN_PAD_SIZE_PX`, past which there is nothing left to give and both
- * are simply on a phone too narrow for either.
+ * **A floor that is no longer reached on any phone, and kept for the one that
+ * might be.** The two used to bid against each other for the row: the pad was
+ * fluid, it asked for 176px, and the column was left with whatever that did not
+ * take — which on a 375px screen was exactly this number and not a pixel more.
+ * The pad is one fixed square now (@see PAD_SIZE_PX), so the column simply gets
+ * the rest, and the rest is comfortably over this everywhere.
  *
- * The panels are the reason this floor is now load-bearing in a second way: they
- * used to take the whole screen, where now they live in this column beside the
- * arrows, and a slot is 44px. Below about this width a row of them holds two.
+ * It still states the width below which the column stops working, which is what
+ * a floor is for: the panels live in here beside the arrows and a slot is 44px,
+ * so below about this a row of them holds two, and "Nothing in reach." wraps
+ * onto two lines.
  */
 const INTERACTION_LIST_MIN_WIDTH_PX = 168;
 
@@ -717,7 +717,7 @@ export function GameViewport({
                 // the pad sat pinned at its floor with free space beside it.
                 // Stating the ideal here is what gives flexbox something to
                 // shrink *from*.
-                flexBasis: MAX_PAD_SIZE_PX,
+                flexBasis: PAD_SIZE_PX,
                 // **Only this column comes up out of the toolbar's band.** The
                 // row runs to the bottom edge of the screen so the list beside
                 // this can use that height, and the arrows are the one thing
@@ -726,7 +726,16 @@ export function GameViewport({
                 // clear. A margin rather than padding, so the column *ends*
                 // above the toolbar rather than merely holding its contents off
                 // it — the pad is `mt-auto`'d against that end.
-                marginBottom: "env(safe-area-inset-bottom)",
+                //
+                // Two things to clear and only one of them at a time, so the
+                // larger wins. `100lvh - 100dvh` is however much of the screen
+                // the browser's toolbars are covering *right now* — it is zero
+                // once they retract, and it tracks them as they go — and the
+                // inset is the home indicator, which is what is left to avoid
+                // when they have. Taking the sum instead would push the arrows
+                // a toolbar's height up a screen that has no toolbar showing.
+                marginBottom:
+                  "max(env(safe-area-inset-bottom), calc(100lvh - 100dvh))",
               }}
             >
               {/* Rendered whether or not anything is running: a lane that
@@ -766,26 +775,12 @@ export function GameViewport({
                   // reads as a control that has come loose from it.
                   className="justify-center"
                 />
-                {/* **The arrows are square against the shorter edge of what is
-                    left, which is the same trick the world square plays.** The
-                    pad is `aspect-square w-full`, so left alone its height comes
-                    from its *width* and a column too short to hold it does not
-                    shrink it — it simply overflows off the end. On an iPhone 13
-                    that is not hypothetical: Safari's viewport with its toolbars
-                    showing is 664px tall, which leaves this column 168px for a
-                    176px pad, and the south arrow sat under the toolbar.
-
-                    A sized container and `100cqmin` is what makes the squeeze
-                    reach it. Floored by `MIN_PAD_SIZE_PX` in `./DirectionPad`,
-                    past which there is nothing left to give and the phone is
-                    simply too short for the cluster. */}
-                <div
-                  className="flex w-full min-h-0 flex-1 items-end justify-center"
-                  style={{ containerType: "size" }}
-                >
-                  <div style={{ width: `min(100cqmin, ${MAX_PAD_SIZE_PX}px)` }}>
-                    <DirectionPad onPress={press} onRelease={release} />
-                  </div>
+                {/* Pushed to the far end of the column, which is as near the
+                    bottom of the screen as the arrows are allowed to get. One
+                    fixed square, so there is nothing here to measure or shrink —
+                    @see PAD_SIZE_PX. */}
+                <div className="mt-auto flex w-full justify-center">
+                  <DirectionPad onPress={press} onRelease={release} />
                 </div>
               </div>
               {/* The far corner, under the arrows, which is the one place on a
