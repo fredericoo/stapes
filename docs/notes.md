@@ -6331,6 +6331,193 @@ runs into a tree takes the tree out, and `cutFords` then breaks it wherever it
 would otherwise cut the wood in two. Undergrowth is the same scatter pass, on
 cells that are neither path nor water.
 
+## A tree is a 3D model rendered in the world's own projection
+
+Every tree — `tree`, `oak`, `silver-birch`, `scots-pine`, `autumn-maple`,
+`jacaranda`, `palm`, `cherry-blossom`, `dead-tree` — is rendered by
+`scripts/generate-tree-sprites.ts` (`bun run generate:trees`) onto
+`tiny-ranch-tiles` from row 20 down, which was empty, laid out left to right
+and wrapping when a row is full, each face with the trunk foot in the
+bottom-right cell of its rect. All are `height: 4` props, so a taller sprite
+is only taller art. They are not all British; the reds, violets and pinks the
+palette carries were going unused. The sheet grows to fit: the rows from 20
+down are the script's, and `tilesets.json` carries the size the renderer maps
+its texture coordinates with, so it is rewritten with the PNG.
+
+**`tree` is a scatter tile with eight faces, and the first is the hand-drawn
+original rebuilt.** The wood on the shipped map is seventeen thousand
+placements of one tile, and every one of them wore the same 16px sprite. A
+species in the generator is a list of faces, each a model; one face makes a
+`simple` tile, more make a `scatter` tile, whose placements each wear the face
+their coordinates hash to (see *A scatter tile is one tile with several
+faces*). The tree's first face is the original as a model — one round crown
+six pixels up, a stubby trunk — and the pixels of the hand-drawn original are
+still on the sheet at cell (2,6), unreferenced. The generator upserts the
+tile by id and drops the other type's sprite field, so a species can move
+between one face and several without leaving both.
+
+**Variety is height and footing, not only crown shape.** Four faces that
+varied the crown and nothing else — one size class, one crown height, the
+trunk on the same spot of every cell — still read as a mechanical repeat:
+the wood's trunks lined up into a grid of orange dots and the canopy had a
+rhythm. Three things break it. Faces come in two sizes: four small on 2×2 and
+four tall on 3×3, from a sapling to a two-headed tree twice its height, so a
+face carries its own rect and base rather than the species' — a scatter
+tile's faces may each have their own. Every trunk stands a pixel or two off
+its cell's centre, a different way per face (`shift`). And crowns range from
+low and wide through leaning with a bare limb to tall and narrow.
+
+**Hand-drawing a tree in this projection produces a skewed billboard.** Two
+attempts at drawing the three by hand came out flat: the crown sat where a
+crown sits, the trunk ran up-left where a vertical runs, and nothing about
+either said the thing was round. The projection is a real one — the ground
+seen from straight above, height moving a point one pixel up and one left per
+pixel of height (`levelScreenOffset`, `elevationScreenOffset`) — so the fix is
+to model the tree and let the projection place every pixel.
+
+**The model is a handful of solids, and the renderer is a ray cast along the
+projection.** A screen pixel sees the world along the line `(sx + t, sy + t,
+t)`, and the surface it shows is the intersection with the largest `t`. Three
+primitives cover everything: an ellipsoid (a frond when yawed, a leaf clump),
+a blob — an ellipsoid whose surface is pushed in and out by smooth 3D noise,
+for crown lobes — and a tapered segment between two points with a radius at
+each end. A trunk is a segment standing on the origin, wider at the foot than
+the top, which is what makes it read as a trunk rather than a pipe; a branch
+is a segment leaning out of it, thick at the root and thin at the tip; a
+conifer's tier is a vertical segment that narrows to nothing. Ellipsoids and
+segments are intersected analytically; a blob is marched down the line from
+the far side of its bounding ellipsoid and bisected, which at sprite size
+costs nothing. There is no mesh, no rasteriser and no GPU. Sixteen sub-samples
+per pixel decide coverage; the shading is averaged and the depth is the nearest
+sample, because a ledge averaged across a pixel is a slope.
+
+Things learned tuning it, each of which cost a round:
+
+- **The camera is above and to the south-east, at 35° elevation.** It sees a
+  vertical cylinder's south and east faces only, so a light from the north-west
+  (the sprite's top-left, where the original's highlights are) leaves every
+  trunk in shadow. The light comes from above, the west and a little south:
+  crowns still highlight top-left and trunks keep a lit side.
+- **A sphere projects to an ellipse stretched √3 along the diagonal.** The
+  original tree's crown is that shape too. It is not a mistake to fix.
+- **A conifer's tiers project to one lozenge.** From 35° above, each tier's
+  stretched ellipse lies inside the one below, whatever the radii, so a stack
+  of cones has no notches in its silhouette. What still tells the tiers apart
+  is depth: a tier shallower than the camera's elevation stands proud of the
+  one above, and the crease pass draws the step. The pine's cones are shallow
+  for that reason. A columnar tree is worse off — a tall narrow ellipsoid is
+  a long diagonal band, and reads as a felled log — so there is no cypress.
+- **A crease is a depth discontinuity, not a slope.** Lobes and tiers are
+  separated by drawing the outline colour where a neighbour is nearer the
+  camera by a jump. Tested on the first difference, every vertical surface
+  creases, since depth changes by a pixel per pixel along a trunk; the test is
+  on the second difference, which is zero across a wall.
+- **A crown must clear its own trunk on screen.** A lobe at `(x, y, z)` lands
+  at `(x − z, y − z)`, so lobes south-east of the trunk cover the foot unless
+  they are higher than they are wide. The oak's crown sits north-west of its
+  trunk for that reason, and no leaf clump is placed on a lobe's south-east
+  quadrant, which is the one that hangs over the foot. On a 2×2 rect the two
+  limits meet: a crown much over three pixels in radius cannot sit high enough
+  to clear its foot without clipping at the top-left, and when the small
+  tree's lobes grew into blobs its trunks vanished. The hand-drawn tree is
+  smaller than it looks.
+- **A crown must clear the rect's top and left edges too.** Height carries a
+  lobe up and left, and past the rect it is cut flat — and a flat top on a
+  tree is the first thing anybody sees. The generator refuses to write the
+  sheet while any face has an opaque pixel on its top row or left column, and
+  names the faces, so the fix is a lower or smaller model rather than a
+  sprite that looked fine at a glance. The palm is a cell wider than the
+  others for this reason; a fourth row is not available on the sheet.
+- **A species dropped from the table leaves a stale tile.** The generator
+  upserts by id, so a removed species' entry stayed in `tiles.json` pointing
+  at cells that now held another tree's art. The rows from 20 down are the
+  script's, and a tile anchored there that it did not render is deleted.
+- **Bark is shaded half-Lambert.** The camera sees a trunk's south and east
+  faces only, and under plain Lambert everything east of south-east is equally
+  dark, so a trunk came out as two flat stripes and read as a square post.
+  Bark shades on `n·l / 2 + 1/2` so the gradient spans the visible half; leaves
+  stay plain Lambert, which is what gives a crown its dark side.
+- **An edge that meets the ground is not an edge.** The trunk continues into
+  the floor tile, so the outline pass skips the silhouette wherever the
+  visible surface is within a couple of pixels of `z = 0`. Drawn, that line
+  reads as a gap under the tree.
+- **A frond is a yawed ellipsoid.** Ellipsoids take an optional rotation about
+  `z`, which is all a palm needs: a ring of long flat lobes, each pointing its
+  own way.
+- **A twig keeps its colour.** The outline pass darkens any bark pixel with
+  nothing to its right, and a branch one pixel wide is nothing but such
+  pixels, so the dead tree's limbs came out as pure outline. A bark pixel with
+  no bark to its left is a twig and is left alone; the trunk, three wide,
+  still gets its shadow edge.
+
+**Shading is quantised to a ramp per material, not matched to the palette.**
+Three entries from shadow to light, thresholds chosen by eye, and a speckle
+pass on top.
+
+**Texture is two speckle layers, and the shadow is dithered.** The hand-drawn
+tree is a third dark green, a third mid and a sixth light, with the dark
+scattered through the lit half as much as the shaded one. Three things were
+needed to get there, each learned after the previous one failed:
+
+- Jittering the intensity before quantising cannot do it: a lit pixel can
+  drop one step, never two, so the lit half of a crown has no dark speckle
+  and reads flat. The dapple is instead two layers after quantising, one
+  pushing pixels down the ramp and one pushing lit pixels up, each a seeded
+  per-pixel draw against a density the material sets.
+- Leaves are shaded half-Lambert, like bark. Under plain Lambert the whole
+  side of a crown that faces away from the light lands on the dark entry,
+  and once the crown is made of clumps — facets pointing every way, most of
+  the visible ones away from the light — nearly all of it does. Wrapped, that
+  side lands on mid, and the dark entry is left to the speckle and the
+  outline, which is how the original uses it.
+- The dark speckle density rises on the shaded side and the light density on
+  the lit side, so the shadow is carried by dither rather than by a band. The
+  light entry's threshold is high, for the facets that face the light
+  squarely: a sixth of the crown, the original's share.
+
+Measure rather than eyeball: count each palette entry's share of the sprite
+and compare with the original's. Two rounds were spent on changes that moved
+nothing because the darkness was in the base shading, not the speckle.
+
+**A crown is clumps, not a balloon.** `leafy` puts a handful of small
+ellipsoids just under a lobe's surface, seeded so a rerun paints the same
+tree. A smooth ellipsoid shades as one gradient; the clumps give the
+silhouette its lumps and the crease pass its lines.
+
+**A straight run on a crown's silhouette is a cut, and a smooth solid always
+has one somewhere.** An ellipsoid projects to an ellipse stretched along the
+45° diagonal, and its long flanks are clean 1:1 stair-steps five or six
+pixels long; tilted, the straight part moves to a plumb side or a flat top.
+Four rounds went into putting clumps where the straight part was — round the
+equator, on the north-east and south-west where the projected flanks come
+from, spread in height so their bottoms do not line up — and each round moved
+it somewhere else. What ended it:
+
+- A crown lobe is a blob, not an ellipsoid: the surface is displaced by noise
+  sampled on the unit sphere, so no part of its edge or its shading is
+  smooth. The displacement has to be more than a pixel or it quantises away,
+  and these lobes are three to five pixels in radius, so it is sized for
+  about a pixel and a half whatever the lobe — a large fraction of one. The
+  first attempt at a sixth of the radius changed nothing visible.
+- The generator measures the result: the longest run of crown-silhouette
+  pixels along a diagonal or an axis with the open side kept on one hand.
+  Five on a diagonal or seven on an axis fails the face (the hand-drawn
+  tree's own underside runs flat for five). A palm's fronds are straight on
+  purpose and its species opts out.
+- A face that fails is rebuilt with `variation` advanced — the clump seeds
+  and the lobes' yaws move on, the model does not — up to a dozen times, and
+  the first that passes both this and the clipping check is the one written.
+  Deterministic, so a rerun paints the same tree; the run reports which
+  variation a face settled on. Only a face that fails every variation stops
+  the run, and `--force` writes the sheet anyway, to look. The outline follows the original: the crown's own dark green on the lit
+side, `#2e222f` along the lower-right edge and around the trunk, with bark's
+lower edge left clear so a three-pixel trunk keeps two pixels of bark. Every
+colour is an entry of `STAPES_PALETTE`; the script refuses to run otherwise.
+
+`--debug <dir>` writes each species' unquantised shading and depth, scaled up.
+Look at those before touching a threshold: most of what looks like a bad ramp
+is a model problem.
+
 ## Renderer and simulation performance
 
 The game targets **120fps — an 8.3ms frame budget**, and the whole budget is
