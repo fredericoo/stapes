@@ -635,6 +635,44 @@ describe("the row of buttons", () => {
     expect(buttons.map((button) => button.square)).toEqual(["weapon", "charm"]);
   });
 
+  /**
+   * The refusal a button cannot help with. Every other one changes by standing
+   * somewhere else or waiting; this one changes by going away and levelling, so
+   * a disc that says "not learnt yet" for hours is a square spent on nothing.
+   */
+  it("leaves out a stone the caster has not earned", () => {
+    expect(
+      castableStones(
+        context({ weapon: instance("adept-stone") }, { masteries: { arcane: 9 } }),
+      ),
+    ).toEqual([]);
+  });
+
+  it("offers it as soon as the mastery is met", () => {
+    const buttons = castableStones(
+      context({ weapon: instance("adept-stone") }, { masteries: { arcane: 10 } }),
+    );
+    expect(buttons.map((button) => button.tileId)).toEqual(["adept-stone"]);
+  });
+
+  /**
+   * Read off the requirements rather than off the verdict, which reports the
+   * first refusal that is true: mid-cast every square answers `casting`, and an
+   * unearned stone would blink into the row for as long as the bar runs.
+   */
+  it("leaves it out while the caster is part-way through another cast", () => {
+    const buttons = castableStones(
+      context(
+        { weapon: instance("mend-stone"), charm: instance("adept-stone") },
+        {
+          masteries: { arcane: 9 },
+          casting: { remainingMs: 1_500, durationMs: 3_000, square: "weapon" },
+        },
+      ),
+    );
+    expect(buttons.map((button) => button.square)).toEqual(["weapon"]);
+  });
+
   it("carries the stone's own sprite and its cooldown", () => {
     const [button] = castableStones(
       context({ weapon: instance("mend-stone", 4_000) }),

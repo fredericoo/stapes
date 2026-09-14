@@ -3470,10 +3470,23 @@ broken or still cooling, and went and stood somewhere else. There are now three:
 - **Ready** — solid rim, full brightness.
 - **Cooling** — dimmed, with the arc. The one refusal that ends by itself, and
   the only one worth a picture, because the picture *is* how long is left.
-- **Unavailable** — dashed and faint. Not learnt yet, out of range, nothing in
-  the square: a player can do nothing about any of them from where they are
+- **Unavailable** — dashed and faint. Out of range, nowhere for a conjure to
+  land: a player can do nothing about either of them from where they are
   standing, so they stay collapsed into one appearance and the tooltip says
   which.
+
+A stone whose requirements the caster has not met is not one of these — **it has
+no button at all**, on the same grounds an automatic charm does not. Every other
+refusal changes by waiting, walking closer or pointing at somebody, so the button
+is worth keeping around to press when it does. A shortfall in mastery changes
+only by going away and levelling, and until then the disc says "not learnt yet"
+for hours while holding one of three squares. What the stone asks for is on its
+item card beside the levels the caster has, which is where somebody deciding
+whether to go and earn it is already looking. `castability` still answers
+`mastery` — the session and the server ask it about a square rather than about a
+row — and the filter is in `castableStones`, read off `meetsRequirements` rather
+than off the verdict, because mid-cast the verdict answers `casting` for every
+square and an unearned stone would blink into the row for as long as the bar runs.
 
 A `noTarget` refusal wears the ready appearance and the press goes through to the
 session, which refuses it and answers with a sentence — see `castRefusalNotice`
