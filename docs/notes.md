@@ -2906,6 +2906,13 @@ has to last long enough to be seen carrying it.
 below it, so a flame conjured on top of somebody would be a flame nobody is in —
 and a flame aimed at a target who is standing still would do nothing at all.
 
+The rule was the *target's*, which left it out of the case that needs it just as
+much: `canWalk` says yes to a cell somebody is standing in — that is how you walk
+into something to swing at it — so a flame cast with nobody targeted, at the
+creature directly in front, landed on top of that creature. It is read off the
+cell now (`lowestBodyIn`), under the lowest body there, so both ways of aiming
+put the tile in the same slot.
+
 #### A conjure lands where the caster could step, or is not cast
 
 With nobody targeted the cell is the one `canWalk` would step the caster's own
