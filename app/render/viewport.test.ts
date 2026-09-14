@@ -46,4 +46,30 @@ describe("fitViewport", () => {
     expect(fit.renderScale).toBe(1);
     expect(fit.bufferPx).toBe(VIEW_PX);
   });
+
+  /**
+   * The debug view asks for a multiple of the play square (`./debugView`). It
+   * has to come out on the same whole grid a normal frame does — a fractional
+   * render scale is what the fixed buffer exists to avoid, and a diagnostic
+   * that shimmers while you walk is a worse one.
+   */
+  it("keeps the whole pixel grid at a wider span", () => {
+    for (const zoomOut of [2, 3, 8]) {
+      const span = VIEW_PX * zoomOut;
+      for (const pane of [375, 900, 1013, 2560]) {
+        const fit = fitViewport(pane, span);
+        expect(Number.isInteger(fit.renderScale)).toBe(true);
+        expect(fit.bufferPx % span).toBe(0);
+        expect(fit.cssScale * span).toBe(pane);
+      }
+    }
+  });
+
+  /** More world on screen at the same pane size, which is the whole ask. */
+  it("shows a whole multiple more world than the play square", () => {
+    const pane = 900;
+    const play = fitViewport(pane);
+    const wide = fitViewport(pane, VIEW_PX * 3);
+    expect(play.cssScale / wide.cssScale).toBe(3);
+  });
 });

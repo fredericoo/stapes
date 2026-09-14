@@ -39,23 +39,31 @@ export type ViewportFit = {
 };
 
 /**
- * Fit the view to a square pane of `cssSize` CSS pixels.
+ * Fit a square of world to a square pane of `cssSize` CSS pixels.
  *
- * The buffer is a whole multiple of the view and the element is then stretched
+ * The buffer is a whole multiple of the span and the element is then stretched
  * over the pane, so the fit is exact with no letterbox *inside* the square. The
  * stretch is the only fractional step, and `image-rendering: pixelated` keeps
  * it a nearest-neighbour blow-up: some pixels land a device pixel wider than
  * their neighbours, but the unevenness is static rather than crawling with the
  * camera, which is what a fractional render scale would give.
+ *
+ * `spanPx` is {@link VIEW_PX} for everybody playing, and that is the only value
+ * it ever takes in a shipped frame. The debug view (`./debugView`) hands a
+ * multiple of it so the camera can be pulled back off the play square; passing
+ * it here rather than scaling the result afterwards is what keeps the whole
+ * pixel grid — the render scale is still whole, it is just a smaller whole
+ * number.
  */
-export function fitViewport(cssSize: number): ViewportFit {
+export function fitViewport(cssSize: number, spanPx: number = VIEW_PX): ViewportFit {
   const usable = Math.max(1, Math.floor(cssSize));
-  // At least 1: a pane narrower than the view still gets a whole buffer, shrunk
+  const span = Math.max(1, Math.floor(spanPx));
+  // At least 1: a pane narrower than the span still gets a whole buffer, shrunk
   // by the stretch rather than rendered at a fraction of a pixel.
-  const renderScale = Math.max(1, Math.floor(usable / VIEW_PX));
+  const renderScale = Math.max(1, Math.floor(usable / span));
   return {
-    bufferPx: VIEW_PX * renderScale,
+    bufferPx: span * renderScale,
     renderScale,
-    cssScale: usable / VIEW_PX,
+    cssScale: usable / span,
   };
 }

@@ -38,6 +38,7 @@ import type { Vitals } from "../game/GameSession";
 import { RemoteSession } from "../net/RemoteSession";
 import type { FrameStats } from "../render/frameProfile";
 import { GameRenderer } from "../render/GameRenderer";
+import { debugViewRequested } from "../render/debugView";
 
 export async function clientLoader() {
   // The session call is what mints the `HttpOnly` actor cookie, and it has to
@@ -382,6 +383,9 @@ export default function OnlinePage() {
         // is a visible flicker on the frame a player is most likely watching.
         renderer.setStatuses(statusDefsRef.current);
         renderer.setLightingEnabled(lightingRef.current);
+        // Undocumented on purpose — `?debug=1`, and `docs/notes.md`
+        // is where it is written down. @see ../render/debugView
+        renderer.setDebugView(debugViewRequested(window.location.search));
         renderer.setMinutesOfDay(remote.minutesOfDay());
         renderer.setOnClock(setMinutesOfDay);
         renderer.setOnStats(setStats);

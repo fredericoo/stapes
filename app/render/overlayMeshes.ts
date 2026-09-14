@@ -28,6 +28,8 @@ export function makeRectOutline(
   h: number,
   color: number,
   heavy = false,
+  /** Faint for a grid somebody is reading *past* — see `./debugView`. */
+  opacity = 1,
 ): THREE.Line[] {
   const makeLine = (
     ox: number,
@@ -59,7 +61,7 @@ export function makeRectOutline(
     return line;
   };
 
-  const lines = [makeLine(originX, originY, w, h, 1)];
+  const lines = [makeLine(originX, originY, w, h, opacity)];
   if (heavy) {
     lines.push(
       makeLine(
@@ -67,7 +69,7 @@ export function makeRectOutline(
         originY + HEAVY_INSET_PX,
         w - HEAVY_INSET_PX * 2,
         h - HEAVY_INSET_PX * 2,
-        HEAVY_INSET_OPACITY,
+        HEAVY_INSET_OPACITY * opacity,
       ),
     );
   }

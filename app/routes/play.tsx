@@ -31,6 +31,7 @@ import { fetchBootstrap, fetchMapText } from "../lib/api";
 import { parseMap } from "../lib/mapData";
 import { activeStatuses, statusesById } from "../lib/status";
 import { GameRenderer } from "../render/GameRenderer";
+import { debugViewRequested } from "../render/debugView";
 import { FrameStatsReadout } from "../components/FrameStatsReadout";
 import type { FrameStats } from "../render/frameProfile";
 
@@ -221,6 +222,9 @@ export default function PlayPage() {
     renderer.setMinutesOfDay(minutesRef.current);
     renderer.setClockPaused(pausedRef.current);
     renderer.setLightingEnabled(lightingRef.current);
+    // Undocumented on purpose — `?debug=1`, and `docs/notes.md`
+    // is where it is written down. @see ../render/debugView
+    renderer.setDebugView(debugViewRequested(window.location.search));
     renderer.setOnClock(setMinutesOfDay);
     renderer.setOnStats(setStats);
     renderer.setOnInteractions(setInteractions);

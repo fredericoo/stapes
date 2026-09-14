@@ -120,12 +120,24 @@ import { AnimationTable, tableCanHold } from "./animTable";
 import {
   disposeGroupChildren,
   makeFollowingSpriteOutline,
+  makeRectOutline,
   makeSpriteGhost,
   makeSpriteOutline,
   OutlineMaterials,
   OUTLINE_ALPHA_UNIFORM,
   pulseAlphaAt,
 } from "./overlayMeshes";
+import { DEBUG_COLORS } from "./debugColors";
+import {
+  boundsOfColumns,
+  builtChunkColumns,
+  chunkColumnRectPx,
+  columnTouches,
+  heldChunkColumns,
+  rectPx,
+  reachInCells,
+  type PxRect,
+} from "./debugView";
 import {
   NO_PILE_OFFSET,
   pileDepthNudge,
@@ -512,6 +524,18 @@ export type WorldView = {
    * listed is retired and its last sparks are allowed to finish.
    */
   particleEmitters?: readonly ParticleEmitterSpec[];
+  /**
+   * The square of world the player can actually see, in world pixels, when the
+   * camera has been pulled back off it.
+   *
+   * Absent in every shipped frame, where the camera *is* the play square and
+   * {@link camera} plus the buffer says so. Present only under the debug view
+   * (`./debugView`), and it is what keeps that view honest: every window this
+   * renderer decides — geometry, lighting, plumes — is derived from
+   * {@link cameraWindow}, so without this they would all grow with the pulled-back
+   * camera and the zoom-out would show nothing but a bigger normal frame.
+   */
+  playSquare?: { x: number; y: number; sizePx: number };
 };
 
 /** Silhouette outline around one placed tile, drawn over the finished frame. */
@@ -721,6 +745,78 @@ type ChunkGeometry = {
 };
 
 /** Do two windows name the same cells? Four compares on the common frame. */
+/**
+ * What the debug view can say in numbers — see {@link WorldRenderer.debugReading}.
+ *
+ * Every "reach" is cells past the edge of the play square on the side that
+ * reaches furthest, which is the comparison worth making: it is how much world
+ * is being paid for that nobody can see.
+ */
+export type DebugReading = {
+  /** Built chunks, counting each level of a column separately. */
+  meshChunks: number;
+  /** ...and the chunk columns those sit in, which is what gets outlined. */
+  meshColumns: number;
+  meshReachCells: number;
+  /** Light chunks in the cache, and how many of them are waiting on a rebake. */
+  lightChunks: number;
+  lightStale: number;
+  lightReachCells: number;
+  /** Chunk columns this client's map holds anything in — its subscription. */
+  heldColumns: number;
+  /** Null before the first chunks arrive. */
+  heldReachCells: number | null;
+  drawCalls: number;
+  triangles: number;
+};
+
+/**
+ * How faint each chunk grid is.
+ *
+ * The meshed grid is the brighter of the two because it is the one that moves:
+ * a column appears and disappears as you walk, and that is the event worth
+ * catching. What has been sent is context — a couple of hundred rectangles in
+ * single player — and at this weight it reads as a wash the other lines sit on
+ * rather than as competition for them.
+ */
+const DEBUG_MESH_GRID_OPACITY = 0.6;
+const DEBUG_HELD_GRID_OPACITY = 0.22;
+
+/**
+ * How far inside its chunk the meshed grid is drawn, in world pixels.
+ *
+ * A meshed column is always inside a sent one, so the two rectangles are the
+ * same four lines. Drawn coincident, one of them is invisible and which one is
+ * a matter of floating-point luck; a pixel apart, the frame says "this chunk is
+ * both sent and built" in a way that can be read at a glance.
+ */
+const DEBUG_GRID_INSET = 1;
+
+/** Render-order bump for the play square, over every window outline. */
+const DEBUG_PLAY_DEPTH = 4;
+
+/** How a debug rectangle is drawn. `depth` orders coincident ones. */
+type DebugRectStyle = { heavy?: boolean; opacity?: number; depth?: number };
+
+/** A rectangle drawn this many pixels inside another. */
+function inset(rect: PxRect, by: number): PxRect {
+  return { x: rect.x + by, y: rect.y + by, w: rect.w - by * 2, h: rect.h - by * 2 };
+}
+
+/**
+ * How often the debug view re-reads what the client has been sent.
+ *
+ * Chunks arrive a couple per tick, so four readings a second misses nothing a
+ * person watching could see — and the read is a walk of every level's chunk
+ * list, which at frame rate would be a cost invented by the tool measuring it.
+ */
+const DEBUG_READ_INTERVAL_MS = 250;
+
+/** A window as a string, for telling whether it has moved. */
+function rectSignature(rect: WorldRect | null): string {
+  return rect ? `${rect.x0},${rect.y0},${rect.x1},${rect.y1}` : "-";
+}
+
 function sameRect(a: WorldRect | null, b: WorldRect): boolean {
   return (
     a !== null && a.x0 === b.x0 && a.y0 === b.y0 && a.x1 === b.x1 && a.y1 === b.y1
@@ -750,6 +846,36 @@ export class WorldRenderer {
   private overlays: THREE.Group;
   /** null forces a rebuild; "" is the valid signature of an empty overlay set. */
   private overlaySig: string | null = null;
+  /**
+   * The debug view's window outlines, in a group of their own.
+   *
+   * Beside {@link overlays} rather than inside it because the two rebuild on
+   * different clocks: chrome is rebuilt whenever the pointer crosses a row, and
+   * these are rebuilt when the player crosses a chunk boundary. Sharing a
+   * signature would mean re-cutting forty chunk rectangles every time somebody
+   * moved the mouse.
+   */
+  private debugWindows: THREE.Group;
+  /** The play square, built once and moved — it slides with every walk frame. */
+  private debugPlayRect: THREE.Group | null = null;
+  private debugOn = false;
+  /** Windows the outlines were last cut for; null forces a rebuild. */
+  private debugWindowKey: string | null = null;
+  /** The map the held-chunk reading was last taken from, and that reading. */
+  private debugHeldMap: MapFile | null = null;
+  private debugHeldColumns: string[] = [];
+  private debugReadAtMs = 0;
+  /**
+   * What the last *whole* frame cost, summed across its passes.
+   *
+   * `renderer.info` resets itself on every `render` call, and a frame here is
+   * three of them — world, palette blit, chrome — so reading it live reports
+   * whichever pass happened to go last. Under the debug view the auto-reset is
+   * turned off and the total is banked at the end of the frame instead. @see
+   * renderOnce
+   */
+  private debugFrameCalls = 0;
+  private debugFrameTriangles = 0;
   /**
    * Materials of the outlines that breathe, and the clock they breathe on.
    *
@@ -1007,6 +1133,8 @@ export class WorldRenderer {
     this.overlayScene.matrixWorldAutoUpdate = false;
     this.overlays = new THREE.Group();
     this.overlayScene.add(this.overlays);
+    this.debugWindows = new THREE.Group();
+    this.overlayScene.add(this.debugWindows);
     this.projectileGroup = new THREE.Group();
     this.projectileGroup.matrixAutoUpdate = false;
     this.projectileGroup.updateMatrix();
@@ -1121,6 +1249,9 @@ export class WorldRenderer {
       // frame in which nothing at all changed still has sparks in it.
       this.particles.setEmitters(this.emittersFor(view));
     });
+    // Last, so it reports on the windows this frame settled on rather than the
+    // previous one's. Off in every shipped frame.
+    if (this.debugOn) this.syncDebugOverlay(view);
     this.needsRender = true;
   }
 
@@ -1227,6 +1358,180 @@ export class WorldRenderer {
       outline.matrix.copy(source.matrixWorld);
       outline.matrixWorld.copy(source.matrixWorld);
     }
+  }
+
+  /**
+   * Draw the renderer's own windows over the world, or stop.
+   *
+   * Only ever on under `?debug=1` — see `./debugView` for what the picture is
+   * of and `../render/GameRenderer` for how the camera gets pulled back off the
+   * play square so that there is anything to see.
+   */
+  setDebugView(on: boolean) {
+    if (on === this.debugOn) return;
+    this.debugOn = on;
+    // Counted per frame rather than per pass, and only while somebody is
+    // reading it: an accumulating counter nobody resets is a slow leak of a
+    // number into nonsense.
+    this.renderer.info.autoReset = !on;
+    if (!on) {
+      disposeGroupChildren(this.debugWindows);
+      if (this.debugPlayRect) {
+        this.overlayScene.remove(this.debugPlayRect);
+        disposeGroupChildren(this.debugPlayRect);
+        this.debugPlayRect = null;
+      }
+      this.debugWindowKey = null;
+      this.debugHeldMap = null;
+      this.debugHeldColumns = [];
+    }
+    this.needsRender = true;
+  }
+
+  /**
+   * Cut the window outlines again, when what they are outlining has moved.
+   *
+   * Two clocks, because the two halves move at different rates. The play square
+   * slides with every frame of a walk, so it is one rectangle built once and
+   * given a new position; the windows only change when the player crosses a
+   * chunk boundary or the server hands over a chunk, so they are re-cut against
+   * a key and, for the subscription, no more often than
+   * {@link DEBUG_READ_INTERVAL_MS} — the map takes a new identity on every
+   * commit anywhere in the world, and re-listing every level's chunks at sixty
+   * hertz to learn that nothing arrived is exactly the cost this view exists to
+   * warn about.
+   */
+  private syncDebugOverlay(view: WorldView) {
+    const square = view.playSquare;
+    if (!square) return;
+    this.placeDebugPlayRect(square);
+
+    const light = this.lightWindow(view);
+    const key = `${rectSignature(this.meshedWindow)}|${rectSignature(light)}`;
+    const nowMs = performance.now();
+    const mapMoved = view.map !== this.debugHeldMap;
+    const due = nowMs - this.debugReadAtMs >= DEBUG_READ_INTERVAL_MS;
+    if (key === this.debugWindowKey && !(mapMoved && due)) return;
+    if (mapMoved && due) {
+      this.debugHeldMap = view.map;
+      this.debugHeldColumns = heldChunkColumns(view.map);
+      this.debugReadAtMs = nowMs;
+    }
+    this.debugWindowKey = key;
+
+    disposeGroupChildren(this.debugWindows);
+    // Back to front, because a meshed column sits exactly on top of the sent
+    // column it is inside: same chunk, same four lines, and with nothing
+    // deciding between them the answer would change frame to frame. The
+    // {@link DEBUG_GRID_INSET} on the meshed grid is the other half of the same
+    // point — a line you can see *beside* the one underneath says more than a
+    // line that merely won.
+    const frame = this.drawnWindow(view);
+    for (const column of this.debugHeldColumns) {
+      if (!columnTouches(column, frame)) continue;
+      this.addDebugRect(chunkColumnRectPx(column), DEBUG_COLORS.held, {
+        opacity: DEBUG_HELD_GRID_OPACITY,
+        depth: 0,
+      });
+    }
+    const held = boundsOfColumns(this.debugHeldColumns);
+    if (held) {
+      this.addDebugRect(rectPx(held), DEBUG_COLORS.held, { heavy: true, depth: 1 });
+    }
+    this.addDebugRect(rectPx(light), DEBUG_COLORS.light, { depth: 2 });
+    for (const column of builtChunkColumns(this.chunkGeometry.keys())) {
+      if (!columnTouches(column, frame)) continue;
+      this.addDebugRect(inset(chunkColumnRectPx(column), DEBUG_GRID_INSET), DEBUG_COLORS.mesh, {
+        opacity: DEBUG_MESH_GRID_OPACITY,
+        depth: 3,
+      });
+    }
+    this.debugWindows.updateMatrixWorld(true);
+    this.needsRender = true;
+  }
+
+  private addDebugRect(
+    rect: PxRect,
+    color: number,
+    { heavy = false, opacity = 1, depth = 0 }: DebugRectStyle,
+  ) {
+    for (const line of makeRectOutline(
+      rect.x,
+      rect.y,
+      rect.w,
+      rect.h,
+      color,
+      heavy,
+      opacity,
+    )) {
+      line.renderOrder += depth;
+      this.debugWindows.add(line);
+    }
+  }
+
+  /**
+   * The play square, put where the play square now is.
+   *
+   * Built at the origin once and moved, rather than re-cut: this runs on every
+   * frame of every walk, and five points of throwaway `BufferGeometry` sixty
+   * times a second is the kind of thing this whole view is for spotting.
+   */
+  private placeDebugPlayRect(square: { x: number; y: number; sizePx: number }) {
+    if (!this.debugPlayRect) {
+      const group = new THREE.Group();
+      group.matrixAutoUpdate = false;
+      for (const line of makeRectOutline(
+        0,
+        0,
+        square.sizePx,
+        square.sizePx,
+        DEBUG_COLORS.play,
+        true,
+      )) {
+        // Over every window outline: this is the one rectangle that says what
+        // the game is, and the rest are what it costs.
+        line.renderOrder += DEBUG_PLAY_DEPTH;
+        group.add(line);
+      }
+      this.overlayScene.add(group);
+      this.debugPlayRect = group;
+    }
+    this.debugPlayRect.position.set(square.x, square.y, 0);
+    this.debugPlayRect.updateMatrix();
+    this.debugPlayRect.updateMatrixWorld(true);
+  }
+
+  /**
+   * What the debug view has to say in words, for the panel beside it.
+   *
+   * Read off the same state the outlines are cut from, so the number and the
+   * rectangle can never disagree. Null when the view is off, or before there is
+   * a frame to report on.
+   */
+  debugReading(): DebugReading | null {
+    if (!this.debugOn || !this.view?.playSquare) return null;
+    const square = this.view.playSquare;
+    const light = this.lightWindow(this.view);
+    const held = boundsOfColumns(this.debugHeldColumns);
+    const columns = builtChunkColumns(this.chunkGeometry.keys());
+    // The built columns rather than {@link meshedWindow}: that field holds the
+    // camera window the built set was *decided* from, which by construction
+    // reaches exactly as far as the view and would report zero forever. What
+    // was actually built is the window plus the margin, rounded out to chunks,
+    // and it is what the green outlines are drawn around.
+    const mesh = boundsOfColumns(columns);
+    return {
+      meshChunks: this.chunkGeometry.size,
+      meshColumns: columns.length,
+      meshReachCells: mesh ? reachInCells(mesh, square) : 0,
+      lightChunks: this.lighting.cachedChunks,
+      lightStale: this.lighting.staleChunks,
+      lightReachCells: reachInCells(light, square),
+      heldColumns: this.debugHeldColumns.length,
+      heldReachCells: held ? reachInCells(held, square) : null,
+      drawCalls: this.debugFrameCalls,
+      triangles: this.debugFrameTriangles,
+    };
   }
 
   /** Write this instant's brightness into every breathing outline. */
@@ -1539,6 +1844,7 @@ export class WorldRenderer {
       this.applyCamera(this.view.camera.x, this.view.camera.y, this.view.zoom);
     }
     const r = this.renderer;
+    if (this.debugOn) r.info.reset();
 
     // PROTOTYPE — always palettise play frames.
     const target = this.palettePass.sceneTarget(r);
@@ -1550,11 +1856,16 @@ export class WorldRenderer {
 
     // Quantise before chrome so hover outlines and target squares keep their
     // exact colour instead of snapping to the nearest palette entry.
-    if (this.overlays.children.length > 0) {
+    if (this.overlays.children.length > 0 || this.debugOn) {
       this.syncFollowingOutlines();
       r.autoClear = false;
       r.render(this.overlayScene, this.camera);
       r.autoClear = true;
+    }
+
+    if (this.debugOn) {
+      this.debugFrameCalls = r.info.render.calls;
+      this.debugFrameTriangles = r.info.render.triangles;
     }
 
     // After the draw, never before: the callback's whole job is to say that
@@ -1576,6 +1887,8 @@ export class WorldRenderer {
     this.particles.dispose();
     this.tintedMeshes.clear();
     disposeGroupChildren(this.overlays, this.outlineMaterials);
+    disposeGroupChildren(this.debugWindows);
+    this.debugPlayRect = null;
     this.outlineMaterials.dispose();
     disposeGroupChildren(this.projectileGroup);
     this.projectileMeshes.clear();
@@ -2101,7 +2414,8 @@ export class WorldRenderer {
   }
 
   /**
-   * The cells the camera covers **on level 0**, with no apron and no level span.
+   * The cells the **play view** covers on level 0, with no apron and no level
+   * span.
    *
    * The one honest primitive under both windows: the projection shifts level `z`
    * by exactly `z` cells, so every consumer's rect is this one plus whatever
@@ -2109,15 +2423,42 @@ export class WorldRenderer {
    * level span onto it because a light on any storey can reach here; a plume is
    * on one known level and takes that level's own shift instead — see
    * `./tileEmitters`.
+   *
+   * The play view is the drawn frame in every shipped frame and in the editor,
+   * which is why the camera answers for it. {@link WorldView.playSquare} is the
+   * one case where the two come apart.
    */
   private cameraWindow(view: WorldView): WorldRect {
-    const viewW = this.canvasW / view.zoom;
-    const viewH = this.canvasH / view.zoom;
+    const square = view.playSquare;
+    const x = square?.x ?? view.camera.x;
+    const y = square?.y ?? view.camera.y;
+    const w = square?.sizePx ?? this.canvasW / view.zoom;
+    const h = square?.sizePx ?? this.canvasH / view.zoom;
+    return {
+      x0: Math.floor(x / CELL_SIZE),
+      y0: Math.floor(y / CELL_SIZE),
+      x1: Math.floor((x + w) / CELL_SIZE),
+      y1: Math.floor((y + h) / CELL_SIZE),
+    };
+  }
+
+  /**
+   * The cells the camera actually draws, as opposed to the ones the play view
+   * covers.
+   *
+   * The same arithmetic {@link cameraWindow} did before the play square could
+   * come apart from the camera, and it has exactly one caller: the debug view,
+   * which culls its own outlines to the frame. Nothing about the world is
+   * decided from this — that is the whole point of the split.
+   */
+  private drawnWindow(view: WorldView): WorldRect {
+    const w = this.canvasW / view.zoom;
+    const h = this.canvasH / view.zoom;
     return {
       x0: Math.floor(view.camera.x / CELL_SIZE),
       y0: Math.floor(view.camera.y / CELL_SIZE),
-      x1: Math.floor((view.camera.x + viewW) / CELL_SIZE),
-      y1: Math.floor((view.camera.y + viewH) / CELL_SIZE),
+      x1: Math.floor((view.camera.x + w) / CELL_SIZE),
+      y1: Math.floor((view.camera.y + h) / CELL_SIZE),
     };
   }
 
