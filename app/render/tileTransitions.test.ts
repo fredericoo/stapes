@@ -19,6 +19,7 @@ import {
   isFinished,
   liveShown,
   pixelSnappedQuad,
+  rejoinsBatch,
   resolveTransitionSlot,
   transitionAddress,
   transitionPose,
@@ -378,5 +379,20 @@ describe("placementIdentity", () => {
 
   it("has nothing to say about an anonymous tile, which is found by its cell", () => {
     expect(placementIdentity({})).toBeUndefined();
+  });
+});
+
+describe("rejoinsBatch", () => {
+  it("hands a still tile back to its chunk when its appear is over", () => {
+    expect(rejoinsBatch({ copy: false, moves: false })).toBe(true);
+  });
+
+  it("leaves a mover its own mesh, which it keeps for good", () => {
+    expect(rejoinsBatch({ copy: false, moves: true })).toBe(false);
+  });
+
+  it("has no batch to offer a copy of a tile the map has dropped", () => {
+    expect(rejoinsBatch({ copy: true, moves: false })).toBe(false);
+    expect(rejoinsBatch({ copy: true, moves: true })).toBe(false);
   });
 });

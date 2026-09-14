@@ -43,6 +43,7 @@ import {
   isFinished,
   liveShown,
   pixelSnappedQuad,
+  rejoinsBatch,
   resolveTransitionSlot,
   transitionAddress,
   transitionPose,
@@ -225,8 +226,21 @@ type BuildItem = Quad & {
    */
   pivotX: number;
   pivotY: number;
-  /** Set when this tile gets its own mesh rather than joining a merged batch. */
+  /**
+   * Set when this tile is drawn as a mesh of its own rather than merged into a
+   * batch — because it moves, or only for as long as it is forming.
+   */
   tileKey?: string;
+  /**
+   * Whether the placement can ever change cell, which is what makes its own
+   * mesh permanent.
+   *
+   * **Not the same question as {@link tileKey}**, and reading one for the other
+   * is what left a conjured flame invisible: a still tile is separate only
+   * while its appear runs, and its batch has to take it back afterwards.
+   * @see ./tileTransitions#rejoinsBatch
+   */
+  moves?: boolean;
   anim?: Omit<AnimatedInstance, "mesh" | "key">;
   /**
    * The animation this quad plays from inside the merged batch, before the
@@ -298,11 +312,13 @@ type TransitionMesh = {
   box: DepthBox;
   stackBias: number;
   /**
-   * Set when the placement has a mesh of its own for good — an actor,
-   * anything that moves. Its motion is added to its pose, and when the
-   * transition ends it gets its plain material back instead of a rebuild:
-   * it has no batch to rejoin, and may be cells from where it formed.
+   * Set when the placement has a mesh of its own for good — an actor, anything
+   * that moves. Its motion is added to its pose, and when the transition ends
+   * it gets its plain material back instead of a rebuild: it has no batch to
+   * rejoin, and may be cells from where it formed. @see rejoinsBatch
    */
+  moves: boolean;
+  /** The placement's key, for the motion a mover is under. @see moves */
   tileKey?: string;
 };
 
@@ -2783,7 +2799,8 @@ export class WorldRenderer {
       // its own and handed back to the batch when it is done — see
       // `./tileTransitions`.
       const forming = this.formingTransitionAt(x, y, z, stackIndex, placed);
-      const separate = isMobileTile(def) || forming !== undefined;
+      const moves = isMobileTile(def);
+      const separate = moves || forming !== undefined;
       // The shader moves a merged quad, so it is built at frame 0 and the table's
       // offsets are measured from there. A separate one is built at the frame the
       // clock is on and moved by `updateAnimations`. Mixing the two would shift a
@@ -2903,6 +2920,7 @@ export class WorldRenderer {
           lightY1: y + 1,
           unlit: tileCanEmitLight(def),
           tileKey: separate ? instanceKey : undefined,
+          moves,
           stackIndex,
           transitionId: forming,
           pivotX: baseOrigin.x + CELL_SIZE / 2 + offset.dx,
@@ -3108,6 +3126,7 @@ export class WorldRenderer {
       copy,
       box: item.box,
       stackBias: item.stackBias,
+      moves: !copy && item.moves === true,
       tileKey: copy ? undefined : item.tileKey,
     };
     state.meshes.push(held);
@@ -3216,7 +3235,7 @@ export class WorldRenderer {
     }
     for (const held of state.meshes) this.retireMesh(state, held);
     state.material?.dispose();
-    const merged = state.meshes.some((held) => !held.copy && !held.tileKey);
+    const merged = state.meshes.some(rejoinsBatch);
     if (state.live.note.side === "appear" && merged) {
       const { x, y, z } = state.live.note;
       this.queueChunkRebuild(x, y, z);
@@ -3237,7 +3256,10 @@ export class WorldRenderer {
       held.mesh.geometry.dispose();
       return;
     }
-    if (!held.tileKey || !held.mesh.parent) return;
+    // A still tile is left as it is for the rebuild `retireTransition` has
+    // queued, which merges it back into its chunk's batch and throws this mesh
+    // away with the rest of the chunk.
+    if (rejoinsBatch(held) || !held.mesh.parent) return;
     const { scale, drop } = state.live.transition;
     if (scale || drop) {
       poseTransitionMesh(held, WHOLE_POSE, Boolean(drop), this.motionOf(held));

@@ -5248,9 +5248,16 @@ the length of the effect, with its own material carrying the uniforms, and the
 merged batches carry nothing extra. Three consequences worth knowing:
 
 - **A forming tile is handed back to its chunk when it finishes**, by rebuilding
-  that chunk. Left alone, the first patch that touched its cell would drop it,
-  because the batch that should hold it was never told it existed. Rebuilds are
-  queued and flushed once per pass.
+  that chunk. Rebuilds are queued and flushed once per pass. Left alone, the
+  first patch that touched its cell would drop it, because the batch that should
+  hold it was never told it existed — and that is not hypothetical: the test for
+  "does this rejoin a batch" read the placement's `tileKey`, which the builder
+  sets on *anything* drawn as its own mesh, forming included, so the rebuild was
+  never queued for the tiles that needed it. A conjured flame went invisible the
+  first time anything patched its cell — a body stepping off it, most often —
+  while it went on burning whoever stood in it, and a reload brought it back.
+  The two facts are now separate: `tileKey` says a placement is drawn on its own
+  and `moves` says its own mesh is permanent, which is what `rejoinsBatch` asks.
 - **A note can arrive a frame after the tile it is about** — the board flush in
   the input path can go out before the tick that carries the event. By then the
   tile may already be in the batch, and the batch's merged-signature compare
