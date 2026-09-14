@@ -172,6 +172,9 @@ const tiles: TileDef[] = [
   tile({ id: "fire", intangible: true, lightPassing: true }),
   // What does the stepping for a conjure with nobody targeted. @see CasterPoint
   tile({ id: "body", height: 2 }),
+  // Somebody standing in the cell in front: a brain is what makes a placement a
+  // body rather than scenery. @see resolveActor
+  tile({ id: "rat", height: 2, interactions: { brain: { kind: "wander" } } }),
   // The two shapes a height check alone said had room: a floor nobody can
   // stand on, and something low and solid that a flame used to be stacked on.
   tile({ id: "water", walkable: false }),
@@ -424,6 +427,23 @@ describe("a conjuring stone", () => {
 
     const west = context({}, { caster: { ...HERE, x: 3, facing: "w" } });
     expect(conjureLanding(west, "fire")).toEqual({ at: { x: 2, y: 0, z: 0 } });
+  });
+
+  /**
+   * The same rule as a target's, and the case that was missing it: `canWalk`
+   * says yes to a cell somebody is standing in, so an untargeted flame went on
+   * top of the rat in front of you — which is a flame nothing is standing in,
+   * and one that goes away the moment the rat takes a step.
+   */
+  it("lands beneath whoever is standing in the cell it faces", () => {
+    const state = context(
+      {},
+      { map: inFront("rat") },
+    );
+    expect(conjureLanding(state, "fire")).toEqual({
+      at: { x: 1, y: 0, z: 0 },
+      under: 1,
+    });
   });
 
   it("lands beneath a target, so they are standing in it", () => {

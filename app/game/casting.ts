@@ -7,7 +7,8 @@ import {
   requirementCoverage,
   REQUIREMENTS_MET,
 } from "../lib/mastery";
-import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
+import { getStack, isBodyPlacement } from "../lib/mapData";
+import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { canPlace } from "../lib/validation";
 import { canReach } from "./combat";
 import type { ReachPoint } from "./distance";
@@ -329,6 +330,10 @@ export type ConjureLanding = {
  * top of a bush, or floated on a pond, because a height check alone says both
  * have room. It also puts a flame laid at the top of a ramp on the ramp.
  *
+ * That cell can have somebody in it, and then the tile goes beneath them too —
+ * the same rule the target gets, read off the cell rather than off the target.
+ * @see lowestBodyIn
+ *
  * Either way the tile must fit where it lands — `canPlace`, the check the
  * editor stamps with.
  */
@@ -357,7 +362,36 @@ function cellInFront(context: CastContext): ConjureLanding | null {
   const body = tilesById[caster.tileId];
   if (!body) return null;
   const step = canWalk(map, caster, caster.facing, body, tilesById);
-  return step.ok ? { at: step.to } : null;
+  if (!step.ok) return null;
+  const { to } = step;
+  const under = lowestBodyIn(getStack(map, to.x, to.y, to.z), tilesById);
+  return under === undefined ? { at: to } : { at: to, under };
+}
+
+/**
+ * Where the lowest body in a stack is standing, or undefined for a cell nobody
+ * is in.
+ *
+ * **The cell in front can have somebody in it.** `canWalk` says yes to a cell
+ * a creature is standing in — that is how you walk into something to swing at
+ * it — so an untargeted conjure needs the rule a targeted one gets from the
+ * target's own stack index, read off the cell instead. Without it the flame you
+ * lay at the feet of the rat in front of you goes on top of the rat: a tile
+ * acts on what is *below* it, so that is a flame nothing is standing in, and it
+ * moves off the moment the rat does.
+ *
+ * The lowest, not the topmost, so a cell with two bodies in it puts the tile
+ * under both rather than between them.
+ */
+function lowestBodyIn(
+  stack: readonly PlacedTile[],
+  tilesById: Record<string, TileDef>,
+): number | undefined {
+  for (let i = 0; i < stack.length; i++) {
+    const placed = stack[i];
+    if (placed && isBodyPlacement(placed, tilesById)) return i;
+  }
+  return undefined;
 }
 
 /**
