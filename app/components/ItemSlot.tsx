@@ -151,6 +151,88 @@ function pressHintFor(
   return def ? `Press to ${equipVerb(def).toLocaleLowerCase()} it.` : null;
 }
 
+/**
+ * Which of the appearances a square wears. @see slotAppearance
+ *
+ * Exported because the order it is decided in is the whole of the decision, and
+ * it is worth asserting without a browser — the same arrangement
+ * `./SpellBar`'s `spellAppearance` is under.
+ */
+export type SlotAppearance =
+  /** Under the pointer and legal. */
+  | "landing"
+  /** Somewhere the thing in hand could go. */
+  | "candidate"
+  /** Where the thing in hand came from. */
+  | "source"
+  /** A container the player is looking into. */
+  | "open"
+  /** Holding a stone that is still cooling, and so cannot be moved. */
+  | "locked"
+  /** Holding something. */
+  | "filled"
+  /** Holding nothing. */
+  | "empty";
+
+/**
+ * What this square looks like right now.
+ *
+ * **The order is the argument.** A drag in progress is the loudest thing on the
+ * screen, because it is the one answering "will it land here"; being open is
+ * louder than merely being full, since it is a thing the player has just done;
+ * and a cooling stone comes last of the states with a thing in them, because it
+ * is a fact about the item rather than about the gesture.
+ *
+ * A table and a name rather than the chain of ternaries this was, which had
+ * grown seven deep inside a `className` — each new state pushed the previous
+ * ones further right and the reasons for the order were spread down the whole of
+ * it. An appearance added to the union is now a missing key rather than a branch
+ * somebody forgot.
+ */
+export function slotAppearance({
+  isOver,
+  wouldTake,
+  isSource,
+  isOpen,
+  locked,
+  filled,
+}: {
+  isOver: boolean;
+  wouldTake: boolean;
+  isSource: boolean;
+  isOpen: boolean;
+  locked: boolean;
+  filled: boolean;
+}): SlotAppearance {
+  if (isOver) return "landing";
+  if (wouldTake) return "candidate";
+  if (isSource) return "source";
+  if (isOpen) return "open";
+  if (locked) return "locked";
+  return filled ? "filled" : "empty";
+}
+
+/** How each appearance is drawn. @see SlotAppearance */
+const SLOT_APPEARANCE_CLASSES: Record<SlotAppearance, string> = {
+  // The strongest state on screen, because it is the one answering "will it
+  // land here".
+  landing: "border-accent bg-accent/30",
+  candidate: "border-accent/60 bg-accent/10",
+  // Where it came from, dimmed rather than emptied: the thing is still yours
+  // until you let go of it somewhere.
+  source: "border-dashed border-paper/60 bg-paper/5 opacity-50",
+  // The one colour the game uses for a thing you have acted on.
+  open: "border-interact bg-interact/20",
+  // Cooling, and so nailed down. Dimmed rather than dashed: dashed is what an
+  // *empty* square wears, and this one is conspicuously not empty — what it is
+  // saying is that the thing you can see is not currently yours to move.
+  locked: "border-paper/25 bg-paper/5 opacity-60",
+  filled: "border-paper/60 bg-paper/10 hover:border-paper",
+  // A dashed empty slot reads as a place something goes, where a solid one
+  // reads as a thing that is simply blank.
+  empty: "border-dashed border-paper/25 bg-transparent",
+};
+
 export function ItemSlot({
   slot,
   instance,
@@ -447,34 +529,16 @@ export function ItemSlot({
       className={[
         "relative flex shrink-0 items-center justify-center border-2 transition-colors",
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-        isOver
-          ? // Under the pointer and legal: the strongest state on screen, because
-            // it is the one answering "will it land here".
-            "border-accent bg-accent/30"
-          : wouldTake
-            ? "border-accent/60 bg-accent/10"
-            : isSource
-              ? // Where it came from, dimmed rather than emptied: the thing is
-                // still yours until you let go of it somewhere.
-                "border-dashed border-paper/60 bg-paper/5 opacity-50"
-              : isOpen
-                ? // Open, in the one colour the game uses for a thing you have
-                  // acted on. Above `instance` in this chain because a thing
-                  // being open is a louder fact than its merely being there.
-                  "border-interact bg-interact/20"
-                : locked
-                  ? // Cooling, and so nailed down. Dimmed rather than dashed:
-                    // dashed is what an *empty* square wears, and this one is
-                    // conspicuously not empty — what it is saying is that the
-                    // thing you can see is not currently yours to move. Below
-                    // every drag state above it, because what a drag in progress
-                    // is doing is the louder fact.
-                    "border-paper/25 bg-paper/5 opacity-60"
-                  : instance
-                    ? "border-paper/60 bg-paper/10 hover:border-paper"
-                    : // A dashed empty slot reads as a place something goes, where
-                      // a solid one reads as a thing that is simply blank.
-                      "border-dashed border-paper/25 bg-transparent",
+        SLOT_APPEARANCE_CLASSES[
+          slotAppearance({
+            isOver,
+            wouldTake,
+            isSource,
+            isOpen: isOpen === true,
+            locked,
+            filled: instance != null,
+          })
+        ],
       ].join(" ")}
       style={{
         width: sizePx,
