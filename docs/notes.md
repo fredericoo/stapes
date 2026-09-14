@@ -4845,6 +4845,56 @@ Read off the *body's* authored block rather than through `battlerOf`, which is
 where statuses feed into the numbers: reading it there would let a status decide
 whether a status may be applied.
 
+## A status cadence is a formula, so Fed heals every body in the same time
+
+Fed used to heal `ceil(MAX_HP / 100)` every second: a hundred-point body was
+full in a hundred seconds, and so was a three-hundred-point one, while a
+sixteen-point body was full in sixteen. The `ceil` is what hit points being
+whole forces on a share of the maximum, and at a fixed cadence it is what makes
+a small body heal at a hundred-point body's rate.
+
+The rule now is that **a full heal takes three hundred seconds on every body**,
+and the way to say that in data is to let the *period* depend on the body
+rather than the amount. `StatusDef.everyMs` is a `Formula`, evaluated once per
+tick against the same scope as the effect, and Fed is authored as:
+
+```
+everyMs: ceil(MAX_HP / 100) * 300000 / MAX_HP
+hp:      ceil(MAX_HP / 100)
+```
+
+That is "a whole share per period, and the period is however long that share
+takes at three hundred seconds for the whole". A hundred-point body is paid one
+point every three seconds; a three-hundred-point body three every three
+seconds; a fifty-point body one every six; a sixteen-point body one every
+eighteen and three quarters. The ticks on a small body are further apart rather
+than smaller, because a hit point cannot be smaller.
+
+**Why the cadence and not the amount.** The alternative was to let an effect
+pay a fraction and carry the remainder on the instance — `MAX_HP / 100` every
+three seconds, half a point owed per period on a fifty-point body, paid on the
+second. It works, and it is exact, but it needs a new persisted field on every
+`StatusInstance`, and the payouts on an awkward body land unevenly (a
+sixteen-point body every eighteen seconds, then twenty-one, then eighteen). A
+formula cadence needs no state, every payout is evenly spaced, and the JSON
+says what it does. The cost is that the two formulas have to agree on the
+share, and that a period is snapped up to whole ticks, so a body whose share
+does not divide the tick is full a tick or two after three hundred seconds
+rather than at it. Nobody can see either.
+
+**Authored as a number, it is a constant.** Every status written before this
+had a plain `everyMs: 1000`, and `constantFormula` wraps it so the reader
+evaluates one shape. A formula that comes to zero or less is "never", which is
+what a zero always meant, and a cadence that does not parse drops the status,
+on the terms a malformed effect already does. The status editor previews the
+cadence against its sample body and reports the snapped figure, as it did for
+a number.
+
+**What this cost the berry.** A berry is ten to thirty seconds of Fed and used to
+heal ten to thirty percent of a body; it now heals three to ten. That is the
+intended slowdown rather than a side effect — the item durations in `data/` were
+left alone, and rebalancing them is a content decision.
+
 ## A dead body's bag is destroyed and its contents spill
 
 Dropping the pack whole was the simpler rule and it made a killing a single

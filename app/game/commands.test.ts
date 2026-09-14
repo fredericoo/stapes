@@ -10,6 +10,7 @@ import {
   parseCommand,
 } from "./commands";
 import { displayNameFor } from "./displayName";
+import { constantFormula } from "../lib/formula";
 import { NO_VFX } from "../lib/statusVfx";
 import type { StatusDef } from "../lib/status";
 import { GameSession } from "./GameSession";
@@ -420,7 +421,7 @@ const BURN: StatusDef = {
   toMs: 10_000,
   stacks: false,
   maxMs: 10_000,
-  everyMs: 0,
+  everyMs: constantFormula(0),
   effects: {},
   modifiers: {},
   vfx: NO_VFX,

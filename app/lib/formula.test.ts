@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  constantFormula,
   type FormulaScope,
   integerise,
   parseFormula,
@@ -18,6 +19,20 @@ function evaluate(source: string, over: Partial<FormulaScope> = {}): number | nu
   const formula = parseFormula(source);
   return formula ? formula.evaluate({ ...scope, ...over }) : null;
 }
+
+describe("constantFormula", () => {
+  it("is the number, whatever the scope", () => {
+    const formula = constantFormula(3000);
+    expect(formula.evaluate(scope)).toBe(3000);
+    expect(formula.evaluate({ ...scope, MAX_HP: 1 })).toBe(3000);
+    expect(formula.source).toBe("3000");
+  });
+
+  it("rounds as a parsed formula would", () => {
+    expect(constantFormula(2.5).evaluate(scope)).toBe(3);
+    expect(constantFormula(Number.NaN).evaluate(scope)).toBe(0);
+  });
+});
 
 describe("parseFormula", () => {
   it("reads the variables", () => {

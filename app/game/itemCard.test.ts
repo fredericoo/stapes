@@ -8,6 +8,7 @@ import {
   xpForLevel,
   type MasteryXp,
 } from "../lib/mastery";
+import { constantFormula } from "../lib/formula";
 import type { StatusDef } from "../lib/status";
 import { weaponDemandFor } from "../lib/weaponDemand";
 import type { TileDef } from "../lib/types";
@@ -426,7 +427,7 @@ describe("itemCard", () => {
         toMs: 70_000,
         stacks: false,
         maxMs: 70_000,
-        everyMs: 1_000,
+        everyMs: constantFormula(1_000),
         effects: {},
         modifiers: {},
         vfx: { tint: null, particles: null, light: null, taperMs: 0 },
@@ -534,7 +535,7 @@ describe("itemCard", () => {
         toMs: 10_000,
         stacks: false,
         maxMs: 60_000,
-        everyMs: 1_000,
+        everyMs: constantFormula(1_000),
         effects: {},
         modifiers: {},
         vfx: { tint: null, particles: null, light: null, taperMs: 0 },
@@ -609,7 +610,7 @@ describe("itemCard", () => {
       toMs: 30_000,
       stacks: false,
       maxMs: 60_000,
-      everyMs: 1_000,
+      everyMs: constantFormula(1_000),
       effects: {},
       modifiers: {},
       vfx: { tint: null, particles: null, light: null, taperMs: 0 },

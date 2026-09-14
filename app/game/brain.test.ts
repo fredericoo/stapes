@@ -16,6 +16,7 @@ import {
   type Selector,
 } from "../lib/brain";
 import { group } from "../lib/conditions";
+import { constantFormula } from "../lib/formula";
 import { DEFAULT_STATUS_SOURCE, type StatusDef } from "../lib/status";
 import { displayNameFor } from "./displayName";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
@@ -1319,9 +1320,10 @@ describe("watching where it puts its feet", () => {
   ];
 
   const statuses: Record<string, StatusDef> = {
-    burned: { ...DEFAULT_STATUS_SOURCE, id: "burned", name: "burned", tone: "bad" },
+    burned: { ...DEFAULT_STATUS_SOURCE, everyMs: constantFormula(0), id: "burned", name: "burned", tone: "bad" },
     blessed: {
       ...DEFAULT_STATUS_SOURCE,
+      everyMs: constantFormula(0),
       id: "blessed",
       name: "blessed",
       tone: "good",
