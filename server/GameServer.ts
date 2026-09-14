@@ -30,7 +30,7 @@ import {
   wornInstances,
 } from "../app/game/equipment";
 import { DEFAULT_FACING } from "../app/game/actors";
-import type { CastSquare } from "../app/game/casting";
+import type { CastProgress, CastSquare } from "../app/game/casting";
 import { resolveRespawn } from "../app/lib/interactions";
 import {
   minutesOfDayAt,
@@ -235,7 +235,7 @@ function currentCastings(actors: ActorSnapshot[]): CastingPatch[] {
   const out: CastingPatch[] = [];
   for (const actor of actors) {
     if (!actor.casting) continue;
-    out.push({ actorId: actor.id, progress: progressOf(actor.casting) });
+    out.push({ actorId: actor.id, progress: castProgressOf(actor.casting) });
   }
   return out;
 }
@@ -247,11 +247,23 @@ function currentCastings(actors: ActorSnapshot[]): CastingPatch[] {
  * `Extraction`, key included, and the key is sent to its owner alone.
  */
 function progressOf(
-  running: NonNullable<ActorSnapshot["extracting"] | ActorSnapshot["casting"]>,
+  running: NonNullable<ActorSnapshot["extracting"]>,
 ): NonNullable<ExtractionPatch["progress"]> {
   return {
     remainingMs: running.remainingMs,
     durationMs: running.durationMs,
+  };
+}
+
+/**
+ * The two numbers of a cast and the square it came out of, copied off the
+ * runtime's object on {@link progressOf}'s terms.
+ */
+function castProgressOf(casting: CastProgress): CastProgress {
+  return {
+    remainingMs: casting.remainingMs,
+    durationMs: casting.durationMs,
+    square: casting.square,
   };
 }
 
@@ -2075,6 +2087,13 @@ export class GameServer {
       // {@link QueuedIntent}: where a cast lands depends on where the caster is
       // standing, and the client cast from a cell its steps had already reached.
       this.queueAction(actorId, { kind: "cast", square: message.square });
+    } else if (message.type === "cancelCast") {
+      // Honoured now rather than queued, unlike the cast it stops: where a cast
+      // lands depends on where the caster is standing, and stopping one does
+      // not. A client only sends this once the broadcast has shown it its own
+      // cast, so the cast is already running here rather than waiting behind
+      // a step. The castings diff on the next flush is what tells everybody.
+      session.cancelCast(actorId);
     } else if (message.type === "attackMode") {
       // The wake below matters more here than for a target: a world at rest
       // stays at rest while somebody merely points at a deer, and turning this
@@ -3951,7 +3970,10 @@ export class GameServer {
       if ((this.sentCastings.get(actor.id) ?? null) === now) continue;
       if (now) this.sentCastings.set(actor.id, now);
       else this.sentCastings.delete(actor.id);
-      out.push({ actorId: actor.id, progress: now ? progressOf(now) : null });
+      out.push({
+        actorId: actor.id,
+        progress: now ? castProgressOf(now) : null,
+      });
     }
     for (const id of this.sentCastings.keys()) {
       if (!live.has(id)) this.sentCastings.delete(id);

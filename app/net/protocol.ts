@@ -1,5 +1,9 @@
 import * as v from "valibot";
-import { CAST_SQUARES, type CastSquare } from "../game/casting";
+import {
+  CAST_SQUARES,
+  type CastProgress,
+  type CastSquare,
+} from "../game/casting";
 import type { Equipment } from "../game/equipment";
 import type { SlotRef } from "../game/itemMoves";
 import { SWING_OUTCOMES, type SwingOutcome } from "../game/GameSession";
@@ -149,7 +153,13 @@ const extractionPatchSchema = v.object({
 const castingPatchSchema = v.object({
   actorId: v.string(),
   progress: v.nullable(
-    v.object({ remainingMs: v.number(), durationMs: v.number() }),
+    v.object({
+      remainingMs: v.number(),
+      durationMs: v.number(),
+      // Which square, so the caster's own row can offer to stop it. A picklist
+      // off the game's own list, as the `cast` message's is. @see CastingPatch
+      square: v.picklist(CAST_SQUARES),
+    }),
   ),
 });
 
@@ -386,17 +396,17 @@ export type ExtractionPatch = {
  * the same reason: what everybody else can see of somebody's cast is a bar over
  * their head, and the bar needs both halves of a fraction to fill on its own.
  *
- * **Which stone is deliberately not here.** Nothing draws it — the bar is the
- * same bar whatever is being cast — and the caster's own screen needs no telling
- * either: a body that is casting cannot press anything, whichever square it came
- * out of, so the row of buttons dims off this alone. @see `../game/casting`'s
- * `CastContext.casting`
+ * **Which square travels too**, for the caster's own row: the button the cast
+ * came out of is the one that stops it, so it has to know it is that button.
+ * Nobody else draws it — the bar is the same bar whatever is being cast — and it
+ * rides the broadcast rather than an owner's channel because it is one word on
+ * a message that was going out anyway. @see `../game/casting`'s `CastProgress`
  *
  * Sent when a cast starts and when it ends, never while it runs.
  */
 export type CastingPatch = {
   actorId: string;
-  progress: Progress | null;
+  progress: CastProgress | null;
 };
 
 export type MotionEvent =
@@ -1125,6 +1135,22 @@ export type ClientMessage =
    */
   | { type: "cast"; square: CastSquare }
   /**
+   * "Stop the cast I am making."
+   *
+   * **Its own message rather than a second `cast` of the same square**, because
+   * a cast is queued behind the steps sent before it and a stop is not: stopping
+   * depends on nothing about where the caster is standing, and a "stop" that
+   * waited its turn behind a "start" would arrive to find nothing running. Two
+   * `cast`s that meant "start, then stop" would be told apart only by what the
+   * server happened to be doing when each came off the queue.
+   *
+   * Carries nothing. A body makes one cast at a time, and the server knows
+   * which. Sent only while this client can see itself casting — see
+   * `RemoteSession.cancelCast` — and harmless when it arrives late: a stop for
+   * a cast that has already landed stops nothing.
+   */
+  | { type: "cancelCast" }
+  /**
    * "Put me back in."
    *
    * The only thing a dead client may say. Every other message is dropped for
@@ -1296,6 +1322,9 @@ const clientMessageSchema = v.variant("type", [
     // square this schema already accepts and a client naming a bag is refused
     // before anything looks a kit up.
     square: v.picklist(CAST_SQUARES),
+  }),
+  v.object({
+    type: v.literal("cancelCast"),
   }),
   v.object({
     type: v.literal("rebirth"),

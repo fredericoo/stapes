@@ -5,6 +5,7 @@ import {
   type CastSquare,
   COOLDOWN_STEP_MS,
   type SpellButton,
+  spellPress,
 } from "../game/casting";
 import { castKeyLabel } from "../game/heldDirections";
 import type { TileDef, TilesetDef } from "../lib/types";
@@ -29,7 +30,7 @@ import { TilePreview } from "./TilePreview";
  * the reason the keyboard binding stops at `3`. Passives get no button, because
  * there is nothing to press — see `../game/casting`'s `castableStones`.
  *
- * ## Three appearances, and the middle one is the point
+ * ## Four appearances, and the second one is the point
  *
  * A button once had two: lit, or dimmed for every reason at once. Dimming is
  * right for a stone you cannot use, and it was wrong for the commonest reason a
@@ -45,6 +46,11 @@ import { TilePreview } from "./TilePreview";
  *   the square. These stay collapsed into one appearance, because a player can
  *   do nothing about any of them from where they are standing, and the tooltip
  *   and the accessible name say which.
+ * - **Casting.** The stone whose cast is running, lit in the accent and pulsing,
+ *   with a cross over the sprite. The rest of the row dims while a cast
+ *   runs, and this is the one button that does not: pressing it again stops the
+ *   cast. The pulse and the cross are what say so — a lit button in a dimmed row
+ *   would otherwise read as the one stone that somehow still works.
  *
  * **A stone with nobody targeted looks ready and presses**, and the refusal is
  * said in words at the foot of the view — see `../game/notices`'
@@ -125,13 +131,13 @@ function arcOffset(share: number): number {
 }
 
 /**
- * Which of the three appearances a stone wears. @see SpellBar
+ * Which of the four appearances a stone wears. @see SpellBar
  *
  * Exported because it is the whole of the decision and it is worth asserting
  * without a browser: the one that surprises people is `noTarget`, which reads as
  * ready.
  */
-export type SpellAppearance = "ready" | "cooling" | "unavailable";
+export type SpellAppearance = "ready" | "cooling" | "unavailable" | "casting";
 
 /** @see SpellAppearance */
 export function spellAppearance(castability: Castability): SpellAppearance {
@@ -140,19 +146,9 @@ export function spellAppearance(castability: Castability): SpellAppearance {
   // Not a fact about the stone but about who you are pointing at, so the button
   // says nothing about it and the press does. @see `../game/notices`
   if (castability.reason === "noTarget") return "ready";
+  // The one refused stone a press still does something to. @see spellPress
+  if (castability.reason === "underway") return "casting";
   return "unavailable";
-}
-
-/**
- * Whether pressing this button sends a cast at all.
- *
- * Wider than "would it fire", and deliberately: a stone refused for want of a
- * target is sent, refused by the session, and answered with a sentence. Every
- * other refusal is stopped here, because there is nothing to say that the
- * dimming has not already said.
- */
-export function spellPressable(castability: Castability): boolean {
-  return castability.ok || castability.reason === "noTarget";
 }
 
 /**
@@ -196,6 +192,7 @@ export function castTimeNote(castTimeMs: number): string {
 export function SpellBar({
   spells,
   onCast,
+  onStopCast,
   tilesById,
   tilesets,
   className = "",
@@ -207,6 +204,12 @@ export function SpellBar({
    */
   spells: SpellButton[];
   onCast: (square: CastSquare) => void;
+  /**
+   * Stop the cast this body is making. No square, because a body makes one cast
+   * at a time and the session knows which — the button that offers this is the
+   * one whose castability reads `underway`. @see `../game/casting`'s `spellPress`
+   */
+  onStopCast: () => void;
   tilesById: Record<string, TileDef>;
   tilesets: TilesetDef[];
   className?: string;
@@ -241,6 +244,7 @@ export function SpellBar({
           spell={spell}
           index={index}
           onCast={onCast}
+          onStopCast={onStopCast}
           tile={tilesById[spell.tileId]}
           tilesets={tilesets}
         />
@@ -253,18 +257,20 @@ function SpellSquare({
   spell,
   index,
   onCast,
+  onStopCast,
   tile,
   tilesets,
 }: {
   spell: SpellButton;
   index: number;
   onCast: (square: CastSquare) => void;
+  onStopCast: () => void;
   tile: TileDef | undefined;
   tilesets: TilesetDef[];
 }) {
   const verdict = spell.castability;
   const appearance = spellAppearance(verdict);
-  const pressable = spellPressable(verdict);
+  const press = spellPress(verdict);
   const key = castKeyLabel(index);
 
   // Pointer-driven rather than click-driven, so a spell still answers a thumb
@@ -274,9 +280,10 @@ function SpellSquare({
     // Refused here as well as by the session, and the session as well as the
     // server: a dimmed button that quietly sent anyway would be spending a
     // player's cooldown on a cast that was never going to land. A stone with
-    // nobody targeted is the exception and goes through — see
-    // {@link spellPressable}.
-    if (pressable) onCast(spell.square);
+    // nobody targeted is the exception and goes through, and the stone being
+    // cast asks for the opposite thing — see `../game/casting`'s `spellPress`.
+    if (press === "stop") onStopCast();
+    else if (press === "cast") onCast(spell.square);
   });
 
   // What it is, then whether it can be used and why not — in that order, because
@@ -307,7 +314,7 @@ function SpellSquare({
         // vanished from the keyboard's reach whenever it was cooling would be
         // unreachable exactly when somebody wants to know how long is left.
         // Pressing it does nothing, which is what the dimming promises.
-        aria-disabled={!pressable}
+        aria-disabled={press === null}
         {...tap}
         className={[
           // Round, which is an exception to the house rectangle and says so at
@@ -350,6 +357,31 @@ function SpellSquare({
           </span>
         ) : null}
 
+        {/* A cross over the sprite of the stone being cast: the mark on every
+            dismiss button, which is what "press this to make it stop" is. Drawn
+            twice, ink under paper, so it reads on the light and the dark parts
+            of a sprite alike. Announced by the label rather than here. */}
+        {appearance === "casting" ? (
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            className="pointer-events-none absolute left-1/2 top-1/2 h-[36%] w-[36%] -translate-x-1/2 -translate-y-1/2"
+          >
+            <path
+              d="M5 5 L19 19 M19 5 L5 19"
+              className="stroke-ink"
+              strokeWidth={7}
+              strokeLinecap="square"
+            />
+            <path
+              d="M5 5 L19 19 M19 5 L5 19"
+              className="stroke-paper"
+              strokeWidth={3.5}
+              strokeLinecap="square"
+            />
+          </svg>
+        ) : null}
+
         {spell.cooldownMs > 0 ? (
           <CooldownRing
             remainingMs={spell.cooldownMs}
@@ -369,6 +401,9 @@ function SpellSquare({
  */
 const APPEARANCE_CLASSES: Record<SpellAppearance, string> = {
   ready: "border-paper/60 bg-paper/10 text-paper hover:border-paper",
+  // The accent and a pulse, so it is plainly the live one in a row that has
+  // just dimmed around it, and plainly still a button.
+  casting: "animate-pulse border-accent bg-accent/15 text-paper hover:border-paper",
   // Solid, unlike the state below it, because the ring around the rim is the
   // thing to read and a dashed border competes with it for the same pixels.
   cooling: "border-paper/30 bg-transparent text-paper/40 opacity-60",

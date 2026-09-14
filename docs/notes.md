@@ -3040,9 +3040,25 @@ authored at three seconds.
   the stone is still ready. The run is cleared *before* the question because a
   body recorded as casting refuses every square, itself included.
 - **One cast at a time, and it refuses the whole row.** `CastContext.casting`
-  carries only the clock — which stone is the session's business — so every
-  button dims and comes back together, which is a picture a player can read
-  without knowing which one started it.
+  is a `CastProgress`: the clock, and which square the cast came out of. Every
+  other square is refused `casting` and dims; that square is refused `underway`,
+  which is the one refusal a press still does something with.
+- **Pressing the stone again stops the cast.** `spellPress` is the one place
+  that says what a press asks for — `cast`, `stop`, or nothing — and both the
+  button and the number keys ask it, so `1` on the stone being cast stops it
+  exactly as a tap does. The button wears a fourth appearance for it, lit in the
+  accent and pulsing with a cross over the sprite, because a lit button in a
+  row that has just dimmed would otherwise read as the one stone that somehow
+  still works. `PlaySession.cancelCast` is a verb of its own rather than a
+  second `cast` of the same square: the server queues a cast behind the steps
+  sent before it and honours a stop the moment it arrives, since stopping
+  depends on nothing about where anybody is standing — and two `cast`s that
+  meant "start, then stop" would be told apart only by what the server happened
+  to be doing when each came off the queue. Nothing is said when a cast is
+  stopped this way, unlike one a blow breaks: the caster chose it, and the stone
+  coming back lit with no cooldown on it is the whole of what there is to tell
+  them. `RemoteSession.cancelCast` sends only while the broadcast shows this
+  body casting, so the message means something when it arrives.
 - **A cast and a pull are one pair of hands.** Starting either takes the other
   off you, which is what keeps `ActorSnapshot.casting` and
   `ActorSnapshot.extracting` from ever being set at once and lets one bar draw
@@ -4707,8 +4723,8 @@ player's pull is still running on the body they left.
   rather than one field because a body can be told to stop pulling and to start
   casting in the same patch, and one field would be a message arguing with
   itself. Nothing about a cast is addressed to its owner: there is no key and no
-  row, and which stone it came out of is not drawn, so what the owner needs — the
-  whole row dims — is in the broadcast they are already in.
+  row, and which square it came out of is one word on the broadcast everybody is
+  already in, which is all the owner's row needs to offer to stop it.
 - **Not durable.** `hp`'s bargain rather than a tag's: a tag records that
   something *happened* and can never be rebuilt, where this records something
   that is happening, and a world that has gone quiet is a world where nobody is

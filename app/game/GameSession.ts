@@ -208,6 +208,7 @@ import {
   type CastContext,
   type CasterPoint,
   type CastPoint,
+  type CastProgress,
   type CastSquare,
   conjureLanding,
   coolingNotice,
@@ -537,8 +538,12 @@ export type ActorSnapshot = {
    * By reference to the object the runtime winds in place, so its identity
    * changes only when a cast starts or ends. That identity is what the server
    * diffs the broadcast on. @see ./progress
+   *
+   * Carries which square as well as the clock, because the caster's own row
+   * needs it: the button the cast came out of is the one that stops it. @see
+   * `./casting`'s `CastProgress`
    */
-  casting: Progress | null;
+  casting: CastProgress | null;
 };
 
 /**
@@ -956,6 +961,23 @@ export interface PlaySession {
    * that cannot be honoured is a race or a client making things up.
    */
   cast(square: CastSquare): boolean;
+  /**
+   * Stop the cast this body is making, or do nothing if it is making none.
+   *
+   * **A verb of its own rather than a second press of {@link cast}**, and the
+   * reason is the queue the server keeps: a cast is honoured behind the steps
+   * sent before it, so a press that meant "start" and a press that meant "stop"
+   * would be told apart only by what the server happened to be doing when each
+   * came off the queue. Two taps on a stone while walking would start a cast
+   * and stop it in the same tick. This says what it means, and it is honoured
+   * the moment it arrives, because stopping does not depend on where anybody is
+   * standing.
+   *
+   * No square, because a body makes one cast at a time. Nothing is spent by it
+   * and nothing is handed back: a cast costs nothing until it lands, so a cast
+   * stopped is a cast that cost the seconds. True if there was one to stop.
+   */
+  cancelCast(): boolean;
   canInteract(ref: ObjectRef): boolean;
   interact(ref: ObjectRef): boolean;
   /**
@@ -1113,10 +1135,14 @@ type ExtractionRun = {
  * thing that can change out from under the cast, and the point is to notice.
  */
 type CastingRun = {
-  /** The half that goes out on the snapshot and the wire, wound in place. */
-  progress: Progress;
-  /** Which square the stone is being cast from. */
-  square: CastSquare;
+  /**
+   * The half that goes out on the snapshot and the wire, wound in place.
+   *
+   * Which square the stone is being cast from travels inside it rather than
+   * beside it, because the caster's own buttons need to know — see `./casting`'s
+   * `CastProgress` — and one object is what the broadcast is diffed on.
+   */
+  progress: CastProgress;
   /**
    * Which particular stone, so a caster who swaps hands mid-cast finishes
    * nothing.
@@ -5203,11 +5229,25 @@ export class GameSession implements PlaySession {
     // @see extract
     this.cancelExtraction(actor);
     actor.casting = {
-      square,
       itemId: held.id,
       uninterruptible: stone.uninterruptible === true,
-      progress: { remainingMs: durationMs, durationMs },
+      progress: { remainingMs: durationMs, durationMs, square },
     };
+    return true;
+  }
+
+  /**
+   * Stop the cast this body is making. @see PlaySession.cancelCast
+   *
+   * Quietly: no notice, unlike a cast a blow breaks. That one is said because a
+   * bar vanishing is exactly what a finished cast looks like and the caster did
+   * not choose it; this one the caster asked for, and the stone coming back lit
+   * with no cooldown on it is the whole of what there is to tell them.
+   */
+  cancelCast(id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actors.get(id);
+    if (!actor?.casting) return false;
+    this.cancelCasting(actor);
     return true;
   }
 
@@ -5271,19 +5311,20 @@ export class GameSession implements PlaySession {
   private finishCasting(actor: ActorRuntime, run: CastingRun) {
     actor.casting = null;
 
-    const held = actor.equipment[run.square];
+    const square = run.progress.square;
+    const held = actor.equipment[square];
     // The same stone, not merely a stone: two identical stones in two hands are
     // two stones, and the one that pays is the one that was pressed.
     if (!held || held.id !== run.itemId) return;
 
-    const stone = stoneIn(actor.equipment, this.tilesById, run.square);
+    const stone = stoneIn(actor.equipment, this.tilesById, square);
     if (!stone) return;
 
     const context = this.castContextFor(actor);
     if (!context) return;
-    if (!castability(context, run.square).ok) return;
+    if (!castability(context, square).ok) return;
 
-    this.resolveCast(actor, run.square, stone, context);
+    this.resolveCast(actor, square, stone, context);
   }
 
   /**

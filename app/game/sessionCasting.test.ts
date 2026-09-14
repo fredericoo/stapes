@@ -2132,15 +2132,60 @@ describe("a cast that takes time", () => {
     play.cast("weapon");
 
     // The other hand as well as the same one: a body mid-cast has its hands
-    // full, and the whole row says so.
+    // full, and the whole row says so — in two words, because the square the
+    // cast came out of is the one that can stop it.
     expect(play.cast("offhand")).toBe(false);
     expect(play.cast("weapon")).toBe(false);
     expect(
       play.spells().map((spell) => spell.castability),
     ).toEqual([
-      { ok: false, reason: "casting" },
+      { ok: false, reason: "underway" },
       { ok: false, reason: "casting" },
     ]);
+  });
+
+  it("stops when the caster asks, and costs them nothing", () => {
+    const play = session({ charm: "slow-mend-stone" });
+    play.runCommand(`/health ${HURT_HP}`);
+    play.drainNotices();
+    play.cast("charm");
+    run(play, 1);
+
+    expect(play.cancelCast()).toBe(true);
+    run(play, CAST_TICKS);
+
+    expect(hpOf(play)).toBe(HURT_HP);
+    expect(coolingIn(play, "charm")).toBeUndefined();
+    expect(play.spells()[0]?.castability).toEqual({ ok: true });
+  });
+
+  it("stops nothing when nothing is being cast", () => {
+    const play = session({ charm: "slow-mend-stone" });
+
+    expect(play.cancelCast()).toBe(false);
+  });
+
+  /**
+   * No sentence, unlike a cast a blow breaks: that one is said because the
+   * caster did not choose it. This one they did, and the stone coming back lit
+   * with no cooldown on it is the whole of what there is to tell them.
+   */
+  it("stops quietly, since the caster chose it", () => {
+    const play = session({ charm: "slow-mend-stone" });
+    play.cast("charm");
+    play.drainNotices();
+
+    play.cancelCast();
+
+    expect(play.drainNotices()).toEqual([]);
+  });
+
+  it("can be cast again the moment it is stopped", () => {
+    const play = session({ charm: "slow-mend-stone" });
+    play.cast("charm");
+    play.cancelCast();
+
+    expect(play.cast("charm")).toBe(true);
   });
 
   it("draws a bar everybody can see, and takes it away when it lands", () => {
@@ -2149,7 +2194,13 @@ describe("a cast that takes time", () => {
 
     const casting = () =>
       play.actorSnapshots().find((actor) => actor.id === "local")?.casting;
-    expect(casting()).toEqual({ remainingMs: CAST_MS, durationMs: CAST_MS });
+    // Which square travels with the clock, for the caster's own row: the
+    // button the cast came out of is the one that stops it.
+    expect(casting()).toEqual({
+      remainingMs: CAST_MS,
+      durationMs: CAST_MS,
+      square: "charm",
+    });
 
     run(play, CAST_TICKS);
     expect(casting()).toBeNull();

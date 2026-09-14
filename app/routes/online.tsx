@@ -24,7 +24,7 @@ import { useGameAssets } from "../lib/gameAssets";
 import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
 import type { ObjectRef } from "../game/affordances";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
-import type { CastSquare, SpellButton } from "../game/casting";
+import { type CastSquare, type SpellButton, spellPress } from "../game/casting";
 import type { Direction } from "../lib/types";
 import {
   CLOSE_OUTDATED_CLIENT,
@@ -201,6 +201,9 @@ export default function OnlinePage() {
   const cast = useCallback((square: CastSquare) => {
     sessionRef.current?.cast(square);
   }, []);
+  const stopCast = useCallback(() => {
+    sessionRef.current?.cancelCast();
+  }, []);
   // Straight at the renderer, like the hover outline and for the same reason: a
   // ghost follows the pointer, and a page that re-rendered to move it would be
   // paying a frame's work per pixel of a drag.
@@ -286,7 +289,11 @@ export default function OnlinePage() {
     // the row is whatever the player is carrying at the moment they press.
     const unbindCast = bindCastKeys((index) => {
       const spell = spellsRef.current[index];
-      if (spell) sessionRef.current?.cast(spell.square);
+      if (!spell) return;
+      // The same question the button asks, so `1` on the stone being cast
+      // stops it exactly as a tap on it does. @see `../game/casting`'s `spellPress`
+      if (spellPress(spell.castability) === "stop") sessionRef.current?.cancelCast();
+      else sessionRef.current?.cast(spell.square);
     });
 
     const teardownRenderer = () => {
@@ -569,6 +576,7 @@ export default function OnlinePage() {
                 onDropOnWorld={dropOnWorld}
                 spells={spells}
                 onCast={cast}
+                onStopCast={stopCast}
                 tiles={tiles}
                 tilesets={tilesets}
               />

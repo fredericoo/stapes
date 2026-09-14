@@ -24,7 +24,7 @@ import {
 } from "../lib/clock";
 import type { ObjectRef } from "../game/affordances";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
-import type { CastSquare, SpellButton } from "../game/casting";
+import { type CastSquare, type SpellButton, spellPress } from "../game/casting";
 import { useGameAssets } from "../lib/gameAssets";
 import type { Direction } from "../lib/types";
 import { fetchBootstrap, fetchMapText } from "../lib/api";
@@ -143,6 +143,9 @@ export default function PlayPage() {
   const cast = useCallback((square: CastSquare) => {
     sessionRef.current?.cast(square);
   }, []);
+  const stopCast = useCallback(() => {
+    sessionRef.current?.cancelCast();
+  }, []);
   // Straight at the renderer, like the hover outline and for the same reason: a
   // ghost follows the pointer, and a page that re-rendered to move it would be
   // paying a frame's work per pixel of a drag.
@@ -243,7 +246,11 @@ export default function PlayPage() {
     // turns out to be. See `../game/heldDirections`'s `bindCastKeys`.
     const unbindCast = bindCastKeys((index) => {
       const spell = spellsRef.current[index];
-      if (spell) session.cast(spell.square);
+      if (!spell) return;
+      // The same question the button asks, so `1` on the stone being cast
+      // stops it exactly as a tap on it does. @see `../game/casting`'s `spellPress`
+      if (spellPress(spell.castability) === "stop") session.cancelCast();
+      else session.cast(spell.square);
     });
 
     return () => {
@@ -365,6 +372,7 @@ export default function PlayPage() {
             onDropOnWorld={dropOnWorld}
             spells={spells}
             onCast={cast}
+            onStopCast={stopCast}
             tiles={tiles}
             tilesets={tilesets}
           />

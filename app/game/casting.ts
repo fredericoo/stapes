@@ -79,7 +79,15 @@ const _everyCastSquareIsWorn: readonly (keyof Equipment)[] = CAST_SQUARES;
 export type CastRefusal =
   /** Nothing in the square, or something that is not a stone. */
   | "empty"
-  /** This body is already part-way through a cast. @see CastContext.casting */
+  /**
+   * This square's stone is the one being cast right now. Pressing it again
+   * stops the cast. @see CastContext.casting
+   */
+  | "underway"
+  /**
+   * This body is already part-way through a cast, out of a different square.
+   * @see CastContext.casting
+   */
   | "casting"
   /** Still counting down. @see ArcaneStoneItem.cooldownMs */
   | "cooling"
@@ -154,6 +162,18 @@ export type CasterPoint = CastPoint & {
   tileId: string;
 };
 
+/**
+ * The clock of a cast in progress, and which square it came out of.
+ *
+ * {@link Progress} with one word added, and the word is what lets the button
+ * that started a cast be the one that stops it: every other square reads the
+ * clock alone and dims, this one reads its own name and offers to stop. The
+ * same object the session winds in place and the wire carries — see
+ * `./GameSession`'s `ActorSnapshot.casting` and `../net/protocol`'s
+ * `CastingPatch` — so there is one shape for a cast in progress everywhere.
+ */
+export type CastProgress = Progress & { square: CastSquare };
+
 /** Everything a cast is decided against, beside the stone itself. */
 export type CastContext = {
   map: MapFile;
@@ -172,17 +192,19 @@ export type CastContext = {
    * The cast this body is already part-way through, or null for a body with
    * both hands free.
    *
-   * **One cast at a time, and it refuses every square rather than its own.** A
-   * caster half way through a three-second flame has their hands full, and the
-   * stone they are not casting is no more pressable than the one they are — so
-   * the whole row dims and comes back together, which is a picture a player can
-   * read without knowing which button started it.
+   * **One cast at a time, and it refuses every square.** A caster half way
+   * through a three-second flame has their hands full, and the stone they are
+   * not casting is no more castable than the one they are — so the whole row
+   * dims and comes back together, which is a picture a player can read without
+   * knowing which button started it.
    *
-   * Only the clock, never which stone: what a *button* needs to know is that
-   * nothing can be pressed, and the square the cast came out of is the session's
-   * own business. @see `./progress`
+   * **Except that the square it came out of refuses differently.** That button
+   * is the one thing on the row a caster can still do something with: pressing
+   * it again stops the cast. So it carries which square as well as the clock —
+   * see {@link CastProgress} — and {@link castability} answers `underway` for
+   * that square and `casting` for the rest.
    */
-  casting: Progress | null;
+  casting: CastProgress | null;
   /**
    * Where the caster's target is standing, or null for a body pointing at
    * nobody.
@@ -211,8 +233,11 @@ export function castability(
 
   // Before the cooldown, because it is the fact that will still be true when
   // the cooldown has run out: a body mid-cast cannot start another whatever
-  // else is ready. @see CastContext.casting
-  if (context.casting) return refused("casting");
+  // else is ready. The square the cast came out of is told so in its own word,
+  // because it is the one button a caster can still press. @see CastContext.casting
+  if (context.casting) {
+    return refused(context.casting.square === square ? "underway" : "casting");
+  }
 
   const instance = context.equipment[square];
   // Read off the instance rather than off the def, because two identical stones
@@ -561,6 +586,7 @@ export function spellReading(buttons: readonly SpellButton[]): string {
  */
 export const CAST_REFUSAL_NOTES: Record<CastRefusal, string> = {
   empty: "nothing there",
+  underway: "casting, press again to stop",
   casting: "already casting",
   cooling: "still cooling",
   mastery: "not learnt yet",
@@ -568,6 +594,30 @@ export const CAST_REFUSAL_NOTES: Record<CastRefusal, string> = {
   outOfRange: "out of range",
   blocked: "nowhere for it to land",
 };
+
+/**
+ * What pressing this button asks the session for, or nothing.
+ *
+ * Wider than "would it fire", and deliberately: a stone refused for want of a
+ * target is sent, refused by the session, and answered with a sentence — see
+ * `./notices`' `castRefusalNotice`. And the stone being cast asks for something
+ * else entirely: pressing it again is how a cast is stopped. Every other refusal
+ * is stopped here, because there is nothing to say that the dimming has not
+ * already said.
+ *
+ * Here rather than in the component, because the number keys ask the same
+ * question — see `../routes`' cast key bindings — and two answers to "what does
+ * pressing this do" would be a button and a key that disagree.
+ */
+export type SpellPress = "cast" | "stop";
+
+/** @see SpellPress */
+export function spellPress(castability: Castability): SpellPress | null {
+  if (castability.ok) return "cast";
+  if (castability.reason === "noTarget") return "cast";
+  if (castability.reason === "underway") return "stop";
+  return null;
+}
 
 /**
  * Why a stone will not come out of its square, in a sentence.

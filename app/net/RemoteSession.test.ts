@@ -746,7 +746,9 @@ describe("RemoteSession casting", () => {
   /** What the broadcast says about this body's cast, starting or ending. */
   const casting = (progress: { remainingMs: number; durationMs: number } | null) => ({
     ...patch([]),
-    castings: [{ actorId: SELF, progress }],
+    castings: [
+      { actorId: SELF, progress: progress ? { ...progress, square: "charm" } : null },
+    ],
   });
 
   it("refuses to predict a step while this body is casting", () => {
@@ -785,6 +787,35 @@ describe("RemoteSession casting", () => {
     expect(session.getSnapshot().self.walk?.to).toEqual({ x: 1, y: 0, z: 0 });
   });
 
+  /**
+   * A stop is sent only while the broadcast shows this body casting, on the
+   * terms a cast is only sent for a stone this side would honour: a client whose
+   * messages mean something is one whose buttons can be trusted.
+   */
+  it("asks the server to stop while it shows this body casting", () => {
+    const { socket, session } = connected();
+    socket.deliver(casting({ remainingMs: CAST_MS, durationMs: CAST_MS }));
+
+    expect(session.cancelCast()).toBe(true);
+    expect(framesOfType(socket, "cancelCast")).toEqual([{ type: "cancelCast" }]);
+  });
+
+  it("sends no stop when it is not casting", () => {
+    const { socket, session } = connected();
+
+    expect(session.cancelCast()).toBe(false);
+    expect(framesOfType(socket, "cancelCast")).toEqual([]);
+  });
+
+  it("sends no stop once the server says the cast has ended", () => {
+    const { socket, session } = connected();
+    socket.deliver(casting({ remainingMs: CAST_MS, durationMs: CAST_MS }));
+    socket.deliver(casting(null));
+
+    expect(session.cancelCast()).toBe(false);
+    expect(framesOfType(socket, "cancelCast")).toEqual([]);
+  });
+
   /** Somebody else's cast says nothing about this body's footwork. */
   it("ignores a cast being made by anybody else", () => {
     const { socket, session } = connected();
@@ -793,7 +824,7 @@ describe("RemoteSession casting", () => {
       castings: [
         {
           actorId: "somebody-else",
-          progress: { remainingMs: CAST_MS, durationMs: CAST_MS },
+          progress: { remainingMs: CAST_MS, durationMs: CAST_MS, square: "charm" },
         },
       ],
     });

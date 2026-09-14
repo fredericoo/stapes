@@ -4769,16 +4769,45 @@ describe("a cast somebody else is making", () => {
     const progress = started?.progress as {
       remainingMs: number;
       durationMs: number;
+      square: string;
     };
     expect(progress.durationMs).toBeGreaterThan(0);
     expect(progress.remainingMs).toBeLessThanOrEqual(progress.durationMs);
-    // Which stone is nobody else's business, and nothing draws it.
-    expect(progress).not.toHaveProperty("square");
+    // Which square rides along, for the caster's own row: the button the cast
+    // came out of is the one that stops it.
+    expect(progress.square).toBe("charm");
 
     expect(await castWithin(bob.ws, "alice")).toEqual({
       actorId: "alice",
       progress: null,
     });
+  });
+
+  /**
+   * The stop is honoured the moment it arrives rather than queued behind steps,
+   * and it spends nothing: the same stone casts again straight away, where a
+   * cast that had landed instead would be cooling and refuse.
+   */
+  it("ends when the caster says stop, and the stone is still ready", async () => {
+    await harness.blobs.put(
+      "tiles.json",
+      JSON.stringify(tilesWithArcanist()),
+      JSON_TYPE,
+    );
+    const alice = await connect("alice");
+    const bob = await connect("bob");
+
+    const starting = castWithin(bob.ws, "alice");
+    send(alice.ws, { type: "cast", square: "charm" });
+    expect((await starting)?.progress).not.toBeNull();
+
+    const ending = castWithin(bob.ws, "alice");
+    send(alice.ws, { type: "cancelCast" });
+    expect(await ending).toEqual({ actorId: "alice", progress: null });
+
+    const again = castWithin(bob.ws, "alice");
+    send(alice.ws, { type: "cast", square: "charm" });
+    expect((await again)?.progress).not.toBeNull();
   });
 
   it("is handed to somebody who arrives part-way through it", async () => {
