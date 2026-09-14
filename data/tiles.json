@@ -24710,7 +24710,7 @@
         "cooldownMs": 45000,
         "castTimeMs": 3000,
         "requirements": {
-          "arcane": 5,
+          "arcane": 10,
           "fire": 1
         },
         "reach": {
@@ -24777,7 +24777,7 @@
         },
         "cooldownMs": 5600,
         "requirements": {
-          "arcane": 15,
+          "arcane": 20,
           "fire": 5
         },
         "reach": {
@@ -24844,7 +24844,7 @@
         },
         "cooldownMs": 7000,
         "requirements": {
-          "arcane": 15,
+          "arcane": 20,
           "water": 5
         },
         "reach": {
@@ -24911,7 +24911,7 @@
         },
         "cooldownMs": 8400,
         "requirements": {
-          "arcane": 15,
+          "arcane": 20,
           "nature": 5
         },
         "reach": {
@@ -24976,7 +24976,7 @@
         },
         "cooldownMs": 8000,
         "requirements": {
-          "arcane": 33,
+          "arcane": 38,
           "fire": 10
         },
         "reach": {
@@ -25041,7 +25041,7 @@
         },
         "cooldownMs": 10000,
         "requirements": {
-          "arcane": 33,
+          "arcane": 38,
           "water": 10
         },
         "reach": {
@@ -25106,7 +25106,7 @@
         },
         "cooldownMs": 12000,
         "requirements": {
-          "arcane": 33,
+          "arcane": 38,
           "nature": 10
         },
         "reach": {
@@ -25160,7 +25160,7 @@
         },
         "cooldownMs": 30000,
         "requirements": {
-          "arcane": 15,
+          "arcane": 20,
           "water": 8,
           "nature": 8
         }
@@ -25216,7 +25216,7 @@
         },
         "cooldownMs": 4000,
         "requirements": {
-          "arcane": 5,
+          "arcane": 10,
           "fire": 1
         },
         "reach": {
@@ -25275,7 +25275,7 @@
         },
         "cooldownMs": 5000,
         "requirements": {
-          "arcane": 5,
+          "arcane": 10,
           "water": 1
         },
         "reach": {
@@ -25334,11 +25334,185 @@
         },
         "cooldownMs": 6000,
         "requirements": {
-          "arcane": 5,
+          "arcane": 10,
           "nature": 1
         },
         "reach": {
           "cells": 3.5,
+          "height": 2
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "arcane-stone-of-spark",
+    "name": "Spark",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 5,
+      "y": 18
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "stone",
+        "effect": {
+          "kind": "bolt",
+          "on": "target",
+          "damage": 4,
+          "variance": 25,
+          "projectile": {
+            "tileId": "arcane-shard",
+            "cellsPerSecond": 8
+          }
+        },
+        "cooldownMs": 5000,
+        "requirements": {
+          "arcane": 5
+        },
+        "reach": {
+          "cells": 3.5,
+          "height": 2
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "arcane-stone-of-bolt",
+    "name": "Bolt",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 5,
+      "y": 18
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "stone",
+        "effect": {
+          "kind": "bolt",
+          "on": "target",
+          "damage": 8,
+          "variance": 25,
+          "projectile": {
+            "tileId": "arcane-shard",
+            "cellsPerSecond": 8
+          }
+        },
+        "cooldownMs": 7000,
+        "requirements": {
+          "arcane": 15
+        },
+        "reach": {
+          "cells": 4.5,
+          "height": 2
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "arcane-stone-of-lance",
+    "name": "Lance",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 5,
+      "y": 18
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "stone",
+        "effect": {
+          "kind": "bolt",
+          "on": "target",
+          "damage": 12,
+          "variance": 25,
+          "projectile": {
+            "tileId": "arcane-shard",
+            "cellsPerSecond": 8
+          }
+        },
+        "cooldownMs": 10000,
+        "requirements": {
+          "arcane": 33
+        },
+        "reach": {
+          "cells": 5.5,
           "height": 2
         }
       }
@@ -32092,6 +32266,219 @@
             "fromTileId": "arcane-stone",
             "toTileIds": [
               "arcane-stone-of-flame"
+            ]
+          }
+        ]
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 8,
+            "intensity": 1,
+            "color": "#04f7fb"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 2,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 8,
+            "intensity": 1,
+            "color": "#04f7fb"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "stone-forge-spark",
+    "name": "Stone Forge of Spark",
+    "height": 3,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 14,
+      "y": 2
+    },
+    "walkable": false,
+    "interactions": {
+      "transmute": {
+        "recipes": [
+          {
+            "verb": "Forge Spark",
+            "fromTileId": "arcane-stone",
+            "toTileIds": [
+              "arcane-stone-of-spark"
+            ]
+          }
+        ]
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 8,
+            "intensity": 1,
+            "color": "#04f7fb"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 2,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 8,
+            "intensity": 1,
+            "color": "#04f7fb"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "stone-forge-bolt",
+    "name": "Stone Forge of Bolt",
+    "height": 3,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 14,
+      "y": 2
+    },
+    "walkable": false,
+    "interactions": {
+      "transmute": {
+        "recipes": [
+          {
+            "verb": "Forge Bolt",
+            "fromTileId": "arcane-stone",
+            "toTileIds": [
+              "arcane-stone-of-bolt"
+            ]
+          }
+        ]
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 8,
+            "intensity": 1,
+            "color": "#04f7fb"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 2,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 8,
+            "intensity": 1,
+            "color": "#04f7fb"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "stone-forge-lance",
+    "name": "Stone Forge of Lance",
+    "height": 3,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 14,
+      "y": 2
+    },
+    "walkable": false,
+    "interactions": {
+      "transmute": {
+        "recipes": [
+          {
+            "verb": "Forge Lance",
+            "fromTileId": "arcane-stone",
+            "toTileIds": [
+              "arcane-stone-of-lance"
             ]
           }
         ]

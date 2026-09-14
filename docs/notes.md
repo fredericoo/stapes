@@ -3015,9 +3015,9 @@ authored at three seconds.
   time, 150% is half, and double is instant. One subtraction because a player has
   to be able to hold it in their head while looking at the requirements grid, and
   because the figure is on the button's tooltip where a level-up visibly moves it.
-- **That is what keeps a starter spell worth carrying.** Flame asks Arcane 5 and
+- **That is what keeps a starter spell worth carrying.** Flame asks Arcane 10 and
   Fire 1, so it is three seconds the day you can first hold one and instant by
-  Arcane 11. The spell does not get stronger, it gets quick. The stones at the
+  Arcane 21. The spell does not get stronger, it gets quick. The stones at the
   top of the ladder ask thirty-odd points and stay slow for a long time, which is
   the whole shape of the trade — and it is why the cap belongs off this number
   and on `requirementShare`, where a weapon reads it.
@@ -3282,8 +3282,8 @@ to is paid for having picked it.
 
 #### What is authored, so far
 
-**Stones are a ladder of three rungs, climbed once per element.** Nine attack
-stones. Each element climbs the same three rungs with a character of its own laid
+**Stones are a ladder of three rungs, climbed once per element.** Nine elemental
+attack stones, and three neutral ones beside them. Each element climbs the same three rungs with a character of its own laid
 over them, and the three characters come to the same rate — because an element is
 what you point magic at rather than how good the magic is, so no element may be
 the cheap one or the strong one. `casting.test.ts` asserts the ladder across the
@@ -3291,9 +3291,9 @@ elements as well as up each one.
 
 | rung | fire   | water | nature  | damage | leaves       | cooldown | reach | asks               |
 | ---- | ------ | ----- | ------- | ------ | ------------ | -------- | ----- | ------------------ |
-| 1    | Cinder | Sleet | Barbs   | 5      | —            | 5s       | 3.5   | Arcane 5, elem 1   |
-| 2    | Ember  | Frost | Thorns  | 10     | 30%, cut     | 7s       | 4.5   | Arcane 15, elem 5  |
-| 3    | Pyre   | Rime  | Bramble | 15     | 75%, in full | 10s      | 5.5   | Arcane 33, elem 10 |
+| 1    | Cinder | Sleet | Barbs   | 5      | —            | 5s       | 3.5   | Arcane 10, elem 1  |
+| 2    | Ember  | Frost | Thorns  | 10     | 30%, cut     | 7s       | 4.5   | Arcane 20, elem 5  |
+| 3    | Pyre   | Rime  | Bramble | 15     | 75%, in full | 10s      | 5.5   | Arcane 38, elem 10 |
 
 **The halves are the point of the reach numbers, not a rounding.** A reach is
 compared squared, so a whole 3 admits the cell three along (9) and refuses the
@@ -3304,11 +3304,37 @@ are not 3, 4 and 5.
 Those are **water's** numbers. Fire and nature are the same rung with a trait
 applied, and the traits are the section below.
 
-**Rung one asks exactly what the `player` tile is seeded with**, which is the
-whole of "everybody can cast on their first day": Arcane 5 and one point of each
-element are what a new body is authored to start at, and casting a stone is the
-*only* thing in the game that pays element experience. If either half moves
-without the other, an arcanist has no way to begin.
+**There is a fourth ladder with no element on it, and it is the one everybody
+climbs first.** Spark, Bolt and Lance ask Arcane and nothing else, so they throw
+plain damage, leave no status behind and turn on no wheel — a spell's elements
+are read off its requirements and nowhere else, so a block with no element in it
+is all three of those at once. Nothing was written to make them neutral.
+
+| rung | stone | damage | leaves | cooldown | reach | asks      |
+| ---- | ----- | ------ | ------ | -------- | ----- | --------- |
+| 1    | Spark | 4      | —      | 5s       | 3.5   | Arcane 5  |
+| 2    | Bolt  | 8      | —      | 7s       | 4.5   | Arcane 15 |
+| 3    | Lance | 12     | —      | 10s      | 5.5   | Arcane 33 |
+
+They run beside the elemental rungs at the same cooldown and the same reach for
+four fifths of the damage, and they ask five Arcane less. **That difference is
+what an element buys, stated in the one place it can be read**: more damage and
+a status, for a second mastery and five more Arcane to be let near the stone.
+Pressing one trains Arcane alone, because the flat per-cast fee goes to Arcane
+and to each element the spell is *made of* — and this one is made of nothing.
+
+**The neutral rung one asks exactly what the `player` tile is seeded with**,
+which is the whole of "everybody can cast on their first day": Arcane 5 is what a
+new body is authored to start at, and Spark asks that and nothing else. The
+elemental rung beside it asks five more, so the first thing a new player casts is
+always a neutral stone, and casting it is how the Arcane to reach fire is earned.
+
+The element half of an elemental rung is still exactly the seed — one point of
+Fire, Water and Nature — so what stands between a new player and their first fire
+spell is Arcane alone. That matters because casting a stone is the *only* thing
+in the game that pays element experience: an element gate above the seed would be
+a wait for something nothing pays. If the seed and the neutral rung move apart, an
+arcanist has no way to begin at all.
 
 ##### An element is a character, and the three come to the same rate
 

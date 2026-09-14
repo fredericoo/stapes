@@ -47,8 +47,9 @@ const MASTERY_FIELDS: Array<{ mastery: Mastery; label: string; hint?: string }> 
   { mastery: "arcane", label: "Arcane" },
   // The elements, which are what this body can *cast* and emphatically not what
   // it is made of — see the Elements control below, which is the other question.
-  // Here because the `player` tile's starting point in each of them is what puts
-  // the bottom rung of every element within a new player's reach, and a number
+  // Here because the `player` tile's starting point in each of them is the
+  // element half of what the bottom rung of every element asks — the other half
+  // is Arcane, and it is deliberately out of a new player's reach — and a number
   // nobody can see is a number nobody can tune.
   { mastery: "fire", label: "Fire", hint: "Casting only." },
   { mastery: "water", label: "Water", hint: "Casting only." },

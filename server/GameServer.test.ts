@@ -4554,6 +4554,14 @@ describe("tile transitions", () => {
     });
     await equipmentWithin(alice.ws);
 
+    // Flame is an elemental stone and no longer something a new player can
+    // press — the neutral ladder is what a seeded body starts on, and the
+    // elemental rungs ask five more Arcane than that. This test is about the
+    // conjure's announcement rather than about the gate, so it buys its way
+    // past the gate the way the console does.
+    send(alice.ws, { type: "command", text: "/mastery arcane 10" });
+    await nextMessageOfType(alice.ws, "masteries");
+
     send(alice.ws, { type: "cast", square: "offhand" });
     const formed = await eventWithin(alice.ws, "tileTransition", 2000);
 
@@ -4694,9 +4702,11 @@ describe("a cast somebody else is making", () => {
    * The cast time is written on here rather than read off the shipped stone, on
    * the terms every other tile override in this file is: what these two cases
    * are about is the two messages, and a case that would go quiet the day
-   * somebody retuned Flame would be asserting the content instead. The player's
-   * authored masteries are exactly what the stone asks, so the cast runs at its
-   * full length rather than at some scaled fraction nobody typed.
+   * somebody retuned Flame would be asserting the content instead. The player is
+   * given exactly the Arcane the stone asks — read off the stone rather than
+   * typed, because Flame is an elemental stone and a seeded body no longer meets
+   * it — so the cast runs at its full length rather than at some scaled fraction
+   * nobody typed, and it runs at all.
    * @see `../app/game/casting`'s `castDurationMs`
    */
   function tilesWithArcanist() {
@@ -4721,6 +4731,10 @@ describe("a cast somebody else is making", () => {
           ...interactions,
           battler: {
             ...battler,
+            masteries: {
+              ...(battler.masteries as Record<string, number>),
+              ...stoneAsks(),
+            },
             kit: [
               ...(battler.kit as unknown[]),
               { slot: "charm", tileId: STONE, chance: 100 },
@@ -4729,6 +4743,16 @@ describe("a cast somebody else is making", () => {
         },
       };
     });
+  }
+
+  /** What the shipped stone asks, so the arcanist is authored to meet it exactly. */
+  function stoneAsks(): Record<string, number> {
+    const def = (tilesJson as Array<Record<string, unknown>>).find(
+      (tile) => tile.id === STONE,
+    )!;
+    const interactions = def.interactions as Record<string, unknown>;
+    const item = interactions.item as Record<string, unknown>;
+    return item.requirements as Record<string, number>;
   }
 
   /** The next patch entry about this body's cast, or null if none comes. */
