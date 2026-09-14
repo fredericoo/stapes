@@ -2627,6 +2627,10 @@ export class GameRenderer {
       snap.extracting,
       snap.conversation,
       this.walkTo?.followingId ?? null,
+      // The list as last built, so a subject still in it keeps its place in
+      // its tier. This is the same array held for the hover below, read before
+      // it is replaced.
+      this.interactionsSent,
     );
     // Held whether or not it is handed on, because the *references* inside it go
     // stale even when the list reads the same: a walking deer keeps its row and

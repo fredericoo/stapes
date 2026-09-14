@@ -46,6 +46,7 @@ import {
 import { offeredTransmutations } from "./transmute";
 import type { ActorSnapshot, PlaySession } from "./GameSession";
 import type { Conversation } from "./dialogRuntime";
+import { hasLineOfSight } from "./sight";
 
 /**
  * Everything the player could do right now, as a list rather than as something
@@ -136,7 +137,17 @@ export type InteractionOption = {
   label: string;
   /** The placement to act on. `target` carries one too, for its sprite. */
   ref: ObjectRef;
-  /** Who to point at, for `target`; null for anything the board offers. */
+  /**
+   * Who is in the body this row is about — for `target`, `follow` and `talk`,
+   * and for a shove at somebody — or null for anything the board offers that
+   * nobody is standing in.
+   *
+   * On the shove row as well as the fight because it is what a subject is
+   * *identified* by across frames: a body walks, its placement changes every
+   * step, and a row keyed on the placement alone would be a new subject — a
+   * new box, remounted under the thumb — every stride. See {@link subjectKey}.
+   * Only `target` and `follow` act on it.
+   */
   actorId: string | null;
   /**
    * Which of the tile's recipes this row runs, for `transmute`; null for every
@@ -314,7 +325,7 @@ export function interactionText(option: InteractionOption): string {
 }
 
 /**
- * Which verb comes first where two entries are the same distance away.
+ * Which of a subject's verbs comes first.
  *
  * Stated rather than left to the id's alphabet. It used to be exactly that
  * accident — "attack" sorted before "push" — and renaming the verb to "target"
@@ -402,9 +413,9 @@ const ACTION_ORDER: Record<InteractionAction, number> = {
  * click. So a chest that reads "Open Chest" opens, and cannot quietly shove
  * instead — there is no second precedence anywhere to disagree with this one.
  *
- * "First" is {@link ACTION_ORDER}, which is the order the list itself sorts by
- * once distance has been settled — and distance is settled here by construction,
- * since every candidate is the same object.
+ * "First" is {@link ACTION_ORDER}, which is the order the list itself sorts a
+ * subject's own rows by — and every candidate here is one subject, so nothing
+ * the list ranks above that applies.
  */
 export function topInteractionAt(
   options: readonly InteractionOption[],
@@ -429,17 +440,77 @@ export function topInteractionAt(
 }
 
 /**
- * How much a floor counts for when sorting by nearness.
+ * Where a subject sits in the column, decided before anything about its
+ * neighbours is.
  *
- * Big enough that anything on your own floor comes before anything that is not.
- * A body one storey up is drawn a couple of cells away and is nowhere near you,
- * and a list that interleaved the two by screen distance would put a creature
- * through a ceiling between you and the crate at your feet.
+ * A tier rather than a distance. The list used to be sorted by squared plan
+ * distance on every rebuild, and a rebuild happens on every step anybody takes,
+ * so two rats pacing swapped rows continuously and walking past anything
+ * shuffled the whole column. On a phone the list is what you tap instead of
+ * aiming, and a row that slides under a thumb is a tap on the wrong thing.
+ *
+ * So distance decides only which of these a subject is in, and inside one the
+ * order is the order subjects arrived in — see {@link listInteractionOptions}.
+ * A subject moves when it changes tier and at no other time: you target it, it
+ * steps up to you, it walks behind a wall, it changes floor.
  */
-const LEVEL_DISTANCE_WEIGHT = 100;
+const TIER = {
+  /**
+   * What you are already doing: a target, a follow, a conversation, an open
+   * box, or the pull you are standing still for. The row is lit for it
+   * already; it is first as well, because it is what the list is about while
+   * it lasts.
+   */
+  engaged: 0,
+  /** On your floor, in a cell you can act on from where you stand. */
+  adjacent: 1,
+  /** On your floor, further off, and in sight. */
+  inSight: 2,
+  /**
+   * On your floor, further off, behind something. Still offered and still a
+   * target — see the wall case in `targetableActors` — just below what you can
+   * see.
+   */
+  outOfSight: 3,
+  /**
+   * Another floor. A body one storey up is drawn a couple of cells away and is
+   * nowhere near you, and a list that interleaved the two by screen distance
+   * would put a creature through a ceiling between you and the crate at your
+   * feet.
+   */
+  otherFloor: 4,
+} as const;
 
 /**
- * Everything the viewer can act on, nearest first.
+ * Squared plan distance within which a cell is one you can act on from where
+ * you stand: your own cell, the four neighbours, and the diagonals a pick-up
+ * reaches. Every object row is within it by construction, so in practice this
+ * tier is "objects, and bodies close enough to shove".
+ */
+const ADJACENT_DISTANCE_SQUARED = 2;
+
+/**
+ * The held position of a subject the previous list did not have. After every
+ * subject it did, so a newcomer joins the end of its tier rather than cutting
+ * in.
+ */
+const UNSEEN_SUBJECT_INDEX = Number.MAX_SAFE_INTEGER;
+
+/**
+ * Everything the viewer can act on, in tiers, with the order inside a tier
+ * held from the last list.
+ *
+ * The sort is {@link TIER} first, then the subject's position in `previous`,
+ * and only for subjects `previous` did not have — which is every subject when
+ * nothing is passed — squared plan distance, so a batch appearing together is
+ * still nearest first. Then {@link ACTION_ORDER} and the id, between a
+ * subject's own rows and, where two subjects are still level, between their
+ * leading rows — so a body that offers a fight and a shove stands as one run
+ * of rows beside a crate that only offers a shove, rather than the two shoves
+ * sorting together. Everything up to the verb belongs to the *subject* rather
+ * than the row: a body you have targeted is engaged on its shove row too,
+ * because the column draws the two as one box and a box cannot be in two
+ * places.
  *
  * Bounded by construction: four neighbouring cells across three floors for the
  * board's own affordances, plus whichever actors the caller has already decided
@@ -474,6 +545,10 @@ const LEVEL_DISTANCE_WEIGHT = 100;
  *   the only two combinations anybody asked for — chasing what you are fighting
  *   and keeping up with somebody you are not. The state lives in
  *   `../game/walkTo`, which is the thing doing the walking.
+ * @param previous the list as it was last handed over, so subjects still in it
+ *   keep their place inside their tier. Defaulted to none, which is the
+ *   deterministic order a caller with no history — a test, a first frame —
+ *   should get.
  */
 export function listInteractionOptions(
   map: MapFile,
@@ -488,10 +563,11 @@ export function listInteractionOptions(
   extracting: Extraction | null = NOTHING_EXTRACTING,
   conversation: Conversation | null = null,
   followId: string | null = null,
+  previous: readonly InteractionOption[] = [],
 ): InteractionOption[] {
   const bodies = bodiesByCell(self, visibleActors);
 
-  return [
+  const options = [
     ...battlerOptions(tilesById, bodies, targetId, followId, attacking),
     ...talkOptions(map, tilesById, self, bodies, conversation),
     ...objectOptions(
@@ -504,14 +580,115 @@ export function listInteractionOptions(
       tags,
       extracting,
     ),
-  ].sort(
-    (a, b) =>
-      distanceFrom(self, a.ref) - distanceFrom(self, b.ref) ||
-      ACTION_ORDER[a.action] - ACTION_ORDER[b.action] ||
-      // Whatever is left is settled by id, so two things equally far off never
-      // trade places between frames.
-      (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+  ];
+  const tiers = tiersBySubject(map, tilesById, self, options);
+  const held = subjectOrder(previous);
+  const leads = leadsBySubject(options);
+
+  return options
+    .map((option) => {
+      const subject = subjectKey(option);
+      return {
+        option,
+        subject,
+        tier: tiers.get(subject) ?? TIER.otherFloor,
+        held: held.get(subject) ?? UNSEEN_SUBJECT_INDEX,
+        distance: distanceFrom(self, option.ref),
+        lead: leads.get(subject) ?? option,
+      };
+    })
+    .sort(
+      (a, b) =>
+        a.tier - b.tier ||
+        a.held - b.held ||
+        a.distance - b.distance ||
+        (a.subject === b.subject
+          ? compareRows(a.option, b.option)
+          : compareRows(a.lead, b.lead)),
+    )
+    .map((ranked) => ranked.option);
+}
+
+/** {@link ACTION_ORDER}, then the id, so two rows never trade places on a whim. */
+function compareRows(a: InteractionOption, b: InteractionOption): number {
+  return (
+    ACTION_ORDER[a.action] - ACTION_ORDER[b.action] ||
+    (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
   );
+}
+
+/**
+ * Each subject's leading row — the one {@link compareRows} puts first — which
+ * is what two otherwise level subjects are compared by, so a subject's rows
+ * stay together in the flat list and not only once the column groups them.
+ */
+function leadsBySubject(
+  options: readonly InteractionOption[],
+): Map<string, InteractionOption> {
+  const leads = new Map<string, InteractionOption>();
+  for (const option of options) {
+    const subject = subjectKey(option);
+    const lead = leads.get(subject);
+    if (!lead || compareRows(option, lead) < 0) leads.set(subject, option);
+  }
+  return leads;
+}
+
+/**
+ * Each subject's {@link TIER}, the highest any of its rows reaches.
+ *
+ * Computed once per subject rather than in the comparator, because the sight
+ * half is a walk across the board and a comparator runs it n log n times. The
+ * engaged flag is the only thing that differs between a subject's rows — the
+ * placement, and so the reach and the sight, is the same for all of them —
+ * which is why the fold is a minimum and not anything cleverer.
+ */
+function tiersBySubject(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  self: ActorSnapshot,
+  options: readonly InteractionOption[],
+): Map<string, number> {
+  const tiers = new Map<string, number>();
+  for (const option of options) {
+    const subject = subjectKey(option);
+    const tier = tierOf(map, tilesById, self, option);
+    const best = tiers.get(subject);
+    if (best === undefined || tier < best) tiers.set(subject, tier);
+  }
+  return tiers;
+}
+
+function tierOf(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  self: ActorSnapshot,
+  option: InteractionOption,
+): number {
+  if (option.active || option.blocked?.kind === "working") return TIER.engaged;
+  if (option.ref.z !== self.z) return TIER.otherFloor;
+  if (distanceFrom(self, option.ref) <= ADJACENT_DISTANCE_SQUARED) {
+    return TIER.adjacent;
+  }
+  return hasLineOfSight(map, tilesById, self, option.ref)
+    ? TIER.inSight
+    : TIER.outOfSight;
+}
+
+/**
+ * Where each subject stood in a list, by the key the column groups on, so the
+ * thing being held in place is the box the player is looking at and not one
+ * row of it.
+ */
+function subjectOrder(
+  previous: readonly InteractionOption[],
+): Map<string, number> {
+  const order = new Map<string, number>();
+  for (const option of previous) {
+    const subject = subjectKey(option);
+    if (!order.has(subject)) order.set(subject, order.size);
+  }
+  return order;
 }
 
 /**
@@ -533,9 +710,10 @@ export function listInteractionOptions(
  *
  * Order is the list's own, twice over: groups run in the order their first
  * entry does and entries keep their order inside one. Nothing is re-sorted
- * here, so what {@link listInteractionOptions} settled about nearness and about
- * {@link ACTION_ORDER} survives, and the first entry of the first group is
- * still the nearest thing you could do.
+ * here, so what {@link listInteractionOptions} settled about tiers, about
+ * held positions and about {@link ACTION_ORDER} survives, and the first entry
+ * of the first group is still the thing you are engaged with, or failing that
+ * the first thing in reach.
  */
 export type InteractionGroup = {
   /** Identity across frames, on the same terms an option's id is. */
@@ -569,16 +747,20 @@ export function groupInteractionOptions(
 }
 
 /**
- * What a group is about: the placement, plus the thing being drawn for it.
+ * What a group is about: the body, or failing that the placement, plus the
+ * thing being drawn for it.
  *
- * The tile and the name are in the key rather than assumed to follow from the
- * placement, because for a transmute row they do not — see
- * {@link InteractionGroup}. The name earns its place beside the tile for a
- * body: two people share one tile and are different subjects, and it is the
- * handle that says so.
+ * A body is keyed by who is in it rather than by where it stands, because it
+ * moves: keyed on the placement, a walking deer was a fresh subject every
+ * step, which remounted its box under the pointer and made "the place it held
+ * last time" a place it never held. The placement is the key for everything
+ * else, which does not walk. The tile and the name are in the key rather than
+ * assumed to follow from either, because for a transmute row they do not — see
+ * {@link InteractionGroup}.
  */
 function subjectKey(option: InteractionOption): string {
-  return `${refKey(option.ref)}|${option.tileId}|${option.name}`;
+  const subject = option.actorId ?? refKey(option.ref);
+  return `${subject}|${option.tileId}|${option.name}`;
 }
 
 /**
@@ -777,12 +959,15 @@ function healthOf(actor: ActorSnapshot): { hp: number; maxHp: number } | null {
   return { hp: actor.hp, maxHp: actor.maxHp };
 }
 
-/** Squared plan distance, with a whole floor counting for far more than a cell. */
+/**
+ * Squared plan distance. Floors are not in it: which floor a thing is on is a
+ * {@link TIER}, so by the time two things are being compared by distance they
+ * are on the same one.
+ */
 function distanceFrom(self: ActorSnapshot, ref: ObjectRef): number {
   const dx = ref.x - self.x;
   const dy = ref.y - self.y;
-  const dz = (ref.z - self.z) * LEVEL_DISTANCE_WEIGHT;
-  return dx * dx + dy * dy + dz * dz;
+  return dx * dx + dy * dy;
 }
 
 /**
@@ -890,7 +1075,7 @@ function slotOptions(
       action,
       label,
       ref,
-      actorId: null,
+      actorId: body?.id ?? null,
       recipeIndex: null,
       blocked,
       tileId: placed.tileId,

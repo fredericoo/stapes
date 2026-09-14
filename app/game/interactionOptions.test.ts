@@ -12,6 +12,7 @@ import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
+import { extractKey } from "./extract";
 import type { ActorSnapshot, PlaySession } from "./GameSession";
 import {
   actionRows,
@@ -143,6 +144,21 @@ const tiles: TileDef[] = [
     height: 2,
     affectedByGravity: true,
     interactions: { push: DEFAULT_PUSH, switch: { targetTileId: "door_open" } },
+  }),
+  // Something to stand still and pull at, so a pull in progress has a row.
+  tile({
+    id: "bush",
+    name: "Bush",
+    height: 2,
+    interactions: {
+      extract: {
+        actionName: "Pick",
+        durability: 2,
+        tileId: "grass",
+        durationMs: 1_000,
+        slots: [{ tileId: "cherry", chance: 100 }],
+      },
+    },
   }),
   tile({
     id: "deer",
@@ -743,6 +759,267 @@ describe("listInteractionOptions — ordering", () => {
       "npc:up",
       "npc:up",
       "npc:up",
+    ]);
+  });
+});
+
+/**
+ * The list is read by tier, and inside a tier by the order things arrived in.
+ * Distance decides which tier a thing is in and nothing else, so a creature
+ * pacing across the room does not shuffle the column under a thumb.
+ */
+describe("listInteractionOptions — stability", () => {
+  function deerAt(id: string, x: number, y: number, map: MapFile) {
+    return actor(id, "deer", x, y, map, 10);
+  }
+
+  it("puts the body you are targeting above the crate at your feet", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "crate"]);
+    map = place(map, 4, 0, ["grass", "deer"]);
+    const me = playerAt(map);
+    const deer = deerAt("npc:deer", 4, 0, map);
+
+    const idle = listInteractionOptions(map, tilesById, me, [me, deer], null, KIT);
+    const engaged = listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me, deer],
+      "npc:deer",
+      KIT,
+    );
+
+    expect(idle.map((o) => o.name)).toEqual(["Crate", "Deer", "Deer", "Deer"]);
+    expect(engaged.map((o) => o.name)).toEqual(["Deer", "Deer", "Deer", "Crate"]);
+  });
+
+  it("puts the pull you are standing still for above what was held before it", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "crate"]);
+    map = place(map, -1, 0, ["grass", "bush"]);
+    const me = playerAt(map);
+    const bushKey = extractKey({ x: -1, y: 0, z: 0 }, "bush");
+    const before = listInteractionOptions(map, tilesById, me, [me], null, KIT);
+    // Held in the order the crate came first, whichever way the plain sort
+    // would have put them, so the pull has something to climb over.
+    const crateFirst = [...before].sort((a) => (a.name === "Crate" ? -1 : 1));
+
+    const pulling = listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me],
+      null,
+      KIT,
+      null,
+      [],
+      false,
+      { key: bushKey, remainingMs: 500, durationMs: 1_000 },
+      null,
+      null,
+      crateFirst,
+    );
+    const notPulling = listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me],
+      null,
+      KIT,
+      null,
+      [],
+      false,
+      null,
+      null,
+      null,
+      crateFirst,
+    );
+
+    expect(pulling[0]).toMatchObject({ name: "Bush", blocked: { kind: "working" } });
+    expect(notPulling[0].name).toBe("Crate");
+  });
+
+  it("puts a body in sight above one behind a wall at the same distance", () => {
+    let map = field();
+    map = place(map, 2, 0, ["grass", "door_shut"]);
+    map = place(map, 3, 0, ["grass", "deer"]);
+    map = place(map, 0, 3, ["grass", "deer"]);
+    const me = playerAt(map);
+    // Ids in the order the last tie-break would put them, so the wall is the
+    // only thing that can reverse the pair.
+    const walled = deerAt("npc:a", 3, 0, map);
+    const open = deerAt("npc:b", 0, 3, map);
+
+    const targets = listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me, walled, open],
+      null,
+      KIT,
+    );
+
+    expect(targets.map((o) => o.actorId)).toEqual([
+      "npc:b",
+      "npc:b",
+      "npc:b",
+      "npc:a",
+      "npc:a",
+      "npc:a",
+    ]);
+  });
+
+  it("keeps two bodies in their held order after they swap distances", () => {
+    const map = field();
+    const me = playerAt(map);
+    const first = listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me, deerAt("npc:a", 2, 0, map), deerAt("npc:b", 3, 0, map)],
+      null,
+      KIT,
+    );
+    const aFirst = ["npc:a", "npc:a", "npc:a", "npc:b", "npc:b", "npc:b"];
+    const bFirst = ["npc:b", "npc:b", "npc:b", "npc:a", "npc:a", "npc:a"];
+    expect(first.map((o) => o.actorId)).toEqual(aFirst);
+
+    const swapped = [me, deerAt("npc:a", 3, 0, map), deerAt("npc:b", 2, 0, map)];
+    const held = listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      swapped,
+      null,
+      KIT,
+      null,
+      [],
+      false,
+      null,
+      null,
+      null,
+      first,
+    );
+    const fresh = listInteractionOptions(map, tilesById, me, swapped, null, KIT);
+
+    expect(held.map((o) => o.actorId)).toEqual(aFirst);
+    expect(fresh.map((o) => o.actorId)).toEqual(bFirst);
+  });
+
+  it("puts a newcomer after everything held, however near it is", () => {
+    const map = field();
+    const me = playerAt(map);
+    const far = deerAt("npc:far", 3, 0, map);
+    const before = listInteractionOptions(map, tilesById, me, [me, far], null, KIT);
+
+    const arrived = listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me, far, deerAt("npc:new", 2, 0, map)],
+      null,
+      KIT,
+      null,
+      [],
+      false,
+      null,
+      null,
+      null,
+      before,
+    );
+
+    expect(arrived.map((o) => o.actorId)).toEqual([
+      "npc:far",
+      "npc:far",
+      "npc:far",
+      "npc:new",
+      "npc:new",
+      "npc:new",
+    ]);
+  });
+
+  it("moves a body up a tier when it steps into reach, verbs together and fight first", () => {
+    const farMap = place(field(), 3, 0, ["grass", "player"]);
+    const me = playerAt(farMap);
+    const before = listInteractionOptions(
+      farMap,
+      tilesById,
+      me,
+      [me, deerAt("npc:a", 2, 0, farMap), actor("npc:p", "player", 3, 0, farMap, 10)],
+      null,
+      KIT,
+    );
+    expect(before.map((o) => o.actorId)).toEqual([
+      "npc:a",
+      "npc:a",
+      "npc:a",
+      "npc:p",
+      "npc:p",
+      "npc:p",
+    ]);
+
+    const nearMap = place(field(), 1, 0, ["grass", "player"]);
+    const stepped = listInteractionOptions(
+      nearMap,
+      tilesById,
+      me,
+      [me, deerAt("npc:a", 2, 0, nearMap), actor("npc:p", "player", 1, 0, nearMap, 10)],
+      null,
+      KIT,
+      null,
+      [],
+      false,
+      null,
+      null,
+      null,
+      before,
+    );
+
+    expect(stepped.map((o) => `${o.action}:${o.actorId}`)).toEqual([
+      "target:npc:p",
+      "attack:npc:p",
+      "follow:npc:p",
+      "push:npc:p",
+      "target:npc:a",
+      "attack:npc:a",
+      "follow:npc:a",
+    ]);
+  });
+
+  it("holds a subject's place on its shove row as well as on the fight", () => {
+    let crateMap = place(field(), 1, 0, ["grass", "player"]);
+    crateMap = place(crateMap, -1, 0, ["grass", "crate"]);
+    const me = playerAt(crateMap);
+    const p = actor("npc:p", "player", 1, 0, crateMap, 10);
+    const before = listInteractionOptions(crateMap, tilesById, me, [me, p], null, KIT);
+    expect(before.map((o) => o.actorId)).toEqual(["npc:p", "npc:p", "npc:p", "npc:p", null]);
+
+    // Targeting the body engages every row about it, so the box moves as one.
+    const engaged = listInteractionOptions(
+      crateMap,
+      tilesById,
+      me,
+      [me, p],
+      "npc:p",
+      KIT,
+      null,
+      [],
+      false,
+      null,
+      null,
+      null,
+      before,
+    );
+    const grouped = groupInteractionOptions(engaged);
+
+    expect(grouped.map((g) => g.options.length)).toEqual([4, 1]);
+    expect(engaged.map((o) => o.action)).toEqual([
+      "target",
+      "attack",
+      "follow",
+      "push",
+      "push",
     ]);
   });
 });
