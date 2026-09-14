@@ -107,6 +107,31 @@
     }
   }
 
+  /**
+   * A scrolling surface that runs to the bottom of the screen, under the
+   * browser's toolbar, and can be scrolled out from under it.
+   *
+   * `AppShell` leaves the bottom safe-area inset to the game rather than taking
+   * it itself, so the reading column beside the arrows ends at the physical
+   * bottom edge instead of above the toolbar. That is the room this buys — on a
+   * phone with a home indicator it is the inset plus the gap the row used to
+   * keep, and it goes to the one thing on that half of the screen that can use
+   * more of it.
+   *
+   * The padding is what keeps the trade honest: the last rows would otherwise
+   * sit permanently behind the toolbar, and this makes that band scrollable
+   * space instead. **Padding rather than `scroll-padding`** — the latter moves
+   * where a programmatic scroll comes to rest and adds no room at all, so a row
+   * at the very bottom would stay under the toolbar however you asked to be
+   * taken to it. Room was the thing missing.
+   *
+   * Inert anywhere with no inset to speak of, which is every desktop and the
+   * column this same list is drawn in there.
+   */
+  .scrolls-past-toolbar {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
   .shadow-hard {
     box-shadow: 2px 2px 0 0 var(--color-border);
   }
