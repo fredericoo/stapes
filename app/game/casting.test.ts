@@ -8,6 +8,7 @@ import {
   resolveStone,
 } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
+import { spellElements } from "../lib/mastery";
 import { statusesById } from "../lib/status";
 import { resolveBattler } from "../lib/battler";
 import { type Masteries, MAX_MASTERY } from "../lib/mastery";
@@ -724,6 +725,30 @@ const LEAVES: Record<Element, string> = {
   nature: "poison",
 };
 
+/**
+ * The ladder with no element on it, which is the one everybody climbs first.
+ *
+ * **Three rungs of plain arcane force**, asking Arcane and nothing else, so
+ * pressing one trains Arcane and nothing else — see `./experience`'s
+ * `practiceEarnings`, which pays the elements a spell is *made of* and reads
+ * that off the requirements. A stone with no element in its block is made of
+ * nothing, so there is nothing else to pay.
+ *
+ * It sits one gate below the elemental ladder at every rung: Spark asks the
+ * Arcane a new player is seeded with, and each elemental rung asks five more
+ * than the neutral rung beside it. That gap is the whole of what "you learn
+ * magic before you learn to point it" means, and the tests below assert it
+ * rather than leaving it to two lists of numbers that happen to line up.
+ */
+const NEUTRAL_LADDER = [
+  "arcane-stone-of-spark",
+  "arcane-stone-of-bolt",
+  "arcane-stone-of-lance",
+] as const;
+
+/** How much more Arcane an elemental rung asks than the neutral rung beside it. */
+const ELEMENTAL_ARCANE_GAP = 5;
+
 /** Everything else a stone, which is to say everything off the ladder. */
 const BESIDE_THE_LADDER = [
   "arcane-stone-of-flame",
@@ -734,7 +759,11 @@ describe("the stones we ship", () => {
   const shipped = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]));
   const statusDefs = statusesById(statusesJson as unknown[]);
 
-  const SHIPPED = [...ELEMENTS.flatMap((e) => LADDER[e]), ...BESIDE_THE_LADDER];
+  const SHIPPED = [
+    ...ELEMENTS.flatMap((e) => LADDER[e]),
+    ...NEUTRAL_LADDER,
+    ...BESIDE_THE_LADDER,
+  ];
 
   /** One rung's stone, resolved, with a readable failure when it is missing. */
   function rung(element: Element, index: number) {
@@ -742,6 +771,21 @@ describe("the stones we ship", () => {
     const stone = resolveStone(shipped[id]!);
     if (!stone) throw new Error(`${id} is not a stone`);
     return stone;
+  }
+
+  /** One rung of the neutral ladder, resolved. @see NEUTRAL_LADDER */
+  function neutral(index: number) {
+    const id = NEUTRAL_LADDER[index]!;
+    const stone = resolveStone(shipped[id]!);
+    if (!stone) throw new Error(`${id} is not a stone`);
+    return stone;
+  }
+
+  /** What a neutral rung throws. */
+  function neutralBolt(index: number) {
+    const effect = neutral(index).effect;
+    if (effect.kind !== "bolt") throw new Error(`neutral ${index} is not a bolt`);
+    return effect;
   }
 
   /** What a rung throws, which every rung on the ladder does. */
@@ -813,7 +857,10 @@ describe("the stones we ship", () => {
     const asks = flame.requirements!;
 
     expect(castDurationMs(flame, asks)).toBe(3_000);
-    expect(castDurationMs(flame, { ...asks, arcane: 8 })).toBeLessThan(2_000);
+    // Six points past the eleven it asks for, which is half again — coverage is
+    // pooled across the whole block, so the figure that halves the cast is read
+    // off Arcane and Fire together. @see `../lib/mastery`'s requirementCoverage
+    expect(castDurationMs(flame, { ...asks, arcane: 16 })).toBeLessThan(2_000);
     expect(castDurationMs(flame, { arcane: MAX_MASTERY, fire: MAX_MASTERY })).toBe(
       0,
     );
@@ -943,6 +990,80 @@ describe("the stones we ship", () => {
   });
 
   /**
+   * **The neutral ladder is a ladder on the same terms the elemental ones are**,
+   * and it is tested separately rather than as a fourth element because the
+   * things that make an element an element — a status, a place on the wheel, a
+   * second mastery to train — are exactly what it does not have.
+   */
+  it("climbs the neutral ladder at every step too", () => {
+    for (let index = 1; index < NEUTRAL_LADDER.length; index++) {
+      const below = neutral(index - 1);
+      const above = neutral(index);
+      const where = `neutral ${index - 1} -> ${index}`;
+
+      expect(neutralBolt(index).damage, where).toBeGreaterThan(
+        neutralBolt(index - 1).damage!,
+      );
+      expect(above.cooldownMs, where).toBeGreaterThan(below.cooldownMs);
+      expect(above.reach!.cells, where).toBeGreaterThan(below.reach!.cells);
+      expect(above.requirements!.arcane, where).toBeGreaterThan(
+        below.requirements!.arcane!,
+      );
+    }
+  });
+
+  /**
+   * **Arcane and nothing else, which is what makes these the tutorial's stones.**
+   * A spell's elements are read off its requirements and nowhere else — see
+   * `../lib/mastery`'s `spellElements` — so an element written into one of these
+   * blocks would silently make it an elemental spell: it would turn on the
+   * wheel, be thrown at the mean of two masteries rather than at Arcane, and
+   * start paying an element that the player has no other way to spend.
+   *
+   * It would also quietly re-gate the first stone in the game behind a mastery,
+   * which is the one thing this ladder exists to avoid.
+   */
+  it("asks Arcane of the neutral rungs and never an element", () => {
+    for (let index = 0; index < NEUTRAL_LADDER.length; index++) {
+      const where = `neutral rung ${index}`;
+      const stone = neutral(index);
+
+      expect(spellElements(stone.requirements), where).toEqual([]);
+      expect(stone.requirements!.arcane, where).toBeGreaterThan(0);
+      // Nothing else at all, so a Toughness or a Fist creeping in is caught too:
+      // what these teach and what they ask are meant to be the same one number.
+      expect(Object.keys(stone.requirements!), where).toEqual(["arcane"]);
+      expect(neutralBolt(index).statuses, where).toBeUndefined();
+    }
+  });
+
+  /**
+   * **What an element buys you, stated as a difference.** The two ladders run
+   * side by side on the same cooldown and the same reach, so the only things an
+   * element adds are damage and the status — and the only thing it costs is a
+   * second mastery and five more Arcane to be let near the stone at all.
+   *
+   * Written against water for the same reason the element traits are: it is the
+   * rung as authored and carries no character of its own.
+   */
+  it("runs the neutral ladder one gate below the elemental one", () => {
+    for (let index = 0; index < NEUTRAL_LADDER.length; index++) {
+      const where = `rung ${index}`;
+      const plain = neutral(index);
+      const yardstick = rung("water", index);
+
+      expect(plain.reach, where).toEqual(yardstick.reach);
+      expect(plain.cooldownMs, where).toBe(yardstick.cooldownMs);
+      expect(neutralBolt(index).damage, where).toBeLessThan(
+        bolt("water", index).damage!,
+      );
+      expect(yardstick.requirements!.arcane, where).toBe(
+        plain.requirements!.arcane! + ELEMENTAL_ARCANE_GAP,
+      );
+    }
+  });
+
+  /**
    * **The bottom rung is damage and nothing else, and what the two above it add
    * is the element showing up on the target.** A first stone that already left
    * something burning would have nothing left to grow into; the chance climbing
@@ -974,21 +1095,43 @@ describe("the stones we ship", () => {
   /**
    * **The way onto the ladder, checked against the world as authored.** A player
    * is seeded from the `player` tile's own masteries — see `../lib/mastery`'s
-   * `xpFromMasteries` — so the bottom rung asking exactly what that tile grants
-   * is the whole of "everybody can cast on their first day". If the seed or the
-   * bottom rung moves without the other, an arcanist has no way to begin, and
-   * there is nothing else in the game that pays element experience.
+   * `xpFromMasteries` — so Spark asking exactly the Arcane that tile grants is
+   * the whole of "everybody can cast on their first day". If the seed or the
+   * bottom neutral rung moves without the other, an arcanist has no way to
+   * begin at all: the elemental rungs are out of reach on day one by design,
+   * and casting is the only thing in the game that pays Arcane experience
+   * without a weapon in your hand.
    */
-  it("lets a brand new player onto the bottom rung of every element", () => {
+  it("lets a brand new player onto the bottom neutral rung and no other", () => {
     const seeded = resolveBattler(shipped.player!)!.masteries;
+
+    expect(meetsRequirements(seeded, neutral(0).requirements)).toBe(true);
+    expect(meetsRequirements(seeded, neutral(1).requirements)).toBe(false);
 
     for (const element of ELEMENTS) {
       expect(meetsRequirements(seeded, rung(element, 0).requirements), element).toBe(
-        true,
-      );
-      expect(meetsRequirements(seeded, rung(element, 1).requirements), element).toBe(
         false,
       );
+    }
+  });
+
+  /**
+   * **The element is what a new player is short of, not the element.** The one
+   * point of Fire, Water and Nature the `player` tile grants is still exactly
+   * what the bottom elemental rung asks for — what stands between a new player
+   * and their first fire spell is Arcane alone, which Spark is how you earn.
+   *
+   * Asserted because the two halves are authored in different places and only
+   * this says they agree: an element requirement that drifted above the seed
+   * would make the wait for fire a wait for something nothing in the game pays.
+   */
+  it("keeps the elemental gate on Arcane rather than on the element", () => {
+    const seeded = resolveBattler(shipped.player!)!.masteries;
+
+    for (const element of ELEMENTS) {
+      const asks = rung(element, 0).requirements!;
+      expect(asks[element], element).toBe(seeded[element]);
+      expect(asks.arcane, element).toBeGreaterThan(seeded.arcane!);
     }
   });
 

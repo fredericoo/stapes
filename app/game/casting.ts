@@ -431,9 +431,9 @@ export function meetsRequirements(
  * they can hold in their head while looking at the requirements grid.
  *
  * **It is what makes a starter spell worth keeping.** A stone of Flame asks
- * Arcane 5 and Fire 1, so three seconds at the moment you can first hold one and
- * instant by Arcane 11 — the spell does not get stronger, it gets quick, and a
- * caster who has grown past it is throwing it as fast as they can press. The
+ * Arcane 10 and Fire 1, so three seconds at the moment you can first hold one
+ * and instant by Arcane 21 — the spell does not get stronger, it gets quick, and
+ * a caster who has grown past it is throwing it as fast as they can press. The
  * stones at the top of the ladder ask thirty-odd points and stay slow for a long
  * time, which is the whole shape of the trade.
  *
