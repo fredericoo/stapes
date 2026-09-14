@@ -42,10 +42,12 @@ import { TilePreview } from "./TilePreview";
  * - **Cooling.** Dimmed, with an arc around the rim counting down. It is the
  *   one refusal that ends by itself, and the only one worth drawing a picture
  *   of: the picture *is* how long is left.
- * - **Unavailable.** Dashed and faint — not learnt yet, out of range, nothing in
- *   the square. These stay collapsed into one appearance, because a player can
- *   do nothing about any of them from where they are standing, and the tooltip
- *   and the accessible name say which.
+ * - **Unavailable.** Dashed and faint — out of range, nowhere for a conjure to
+ *   land. These stay collapsed into one appearance, because a player can do
+ *   nothing about either of them without moving, and the tooltip and the
+ *   accessible name say which. A stone the caster has not earned is not among
+ *   them: it has no button at all, because levelling is not something you do
+ *   from where you are standing — see `../game/casting`'s `castableStones`.
  * - **Casting.** The stone whose cast is running, lit in the accent and pulsing,
  *   with a cross over the sprite. The rest of the row dims while a cast
  *   runs, and this is the one button that does not: pressing it again stops the

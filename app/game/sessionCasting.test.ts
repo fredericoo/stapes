@@ -1292,6 +1292,20 @@ describe("a stone above the caster's mastery", () => {
 
     expect(play.cast("charm")).toBe(true);
   });
+
+  /**
+   * And it has no button until then. A refusal a player can do nothing about
+   * from where they are standing is not worth a permanently dead disc — what the
+   * stone asks for is on its item card. @see `./casting`'s castableStones
+   */
+  it("is not in the row until then", () => {
+    const play = session({ charm: "adept-stone" });
+    expect(play.spells()).toEqual([]);
+
+    play.runCommand("/mastery arcane 10");
+    play.drainNotices();
+    expect(play.spells().map((spell) => spell.square)).toEqual(["charm"]);
+  });
 });
 
 describe("the row the session reports", () => {

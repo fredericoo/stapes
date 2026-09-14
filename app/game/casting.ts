@@ -555,6 +555,20 @@ export type SpellButton = {
  * stones. That is the whole of "a profession you do not play costs you none of
  * your screen".
  *
+ * **So is a stone whose requirements the caster has not met**, on the same
+ * grounds. Every other refusal is something the caster can do from where they
+ * are standing — wait out a cooldown, walk closer, point at somebody — so the
+ * button is worth keeping around to press when it changes. A shortfall in
+ * mastery changes only by going away and levelling, and until it does the stone
+ * is a permanently dead disc taking up one of three squares. What the stone asks
+ * for is on its item card, beside the levels the caster actually has, which is
+ * where somebody deciding whether to go and earn it is already looking — see
+ * `./itemCard`'s `requirementsFrom`.
+ *
+ * {@link castability} still answers `mastery`, because the session and the
+ * server ask it about a square rather than about a row, and a cast asked for by
+ * any other means has to be refused rather than hidden.
+ *
  * The name comes off the instance's description before the tile's, on the terms
  * everything else that names a carried thing does: a stone somebody has written
  * on is still the stone that says what it says.
@@ -567,6 +581,11 @@ export function castableStones(context: CastContext): SpellButton[] {
     const def = context.tilesById[instance.tileId];
     const stone = def ? resolveStone(def) : null;
     if (!stone) continue;
+    // Asked here rather than read off the verdict below, because the verdict
+    // reports the first refusal that is true and a body mid-cast reports that
+    // instead — which would blink an unearned stone into the row for as long as
+    // a cast runs. @see meetsRequirements
+    if (!meetsRequirements(context.masteries, stone.requirements)) continue;
 
     buttons.push({
       square,
