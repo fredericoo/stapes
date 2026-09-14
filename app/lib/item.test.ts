@@ -10,7 +10,7 @@ import {
   DEFAULT_WEAPON,
   MAX_ARMOR_DEF,
   MAX_CONSUMABLE_HP_SHIFT,
-  MAX_CONSUMABLE_SOUND_LENGTH,
+  MAX_SOUND_LENGTH,
   MAX_CONTAINER_SIZE,
   MAX_PERCENT_STAT,
   MAX_WEAPON_DAMAGE,
@@ -140,7 +140,7 @@ describe("resolveItem", () => {
       ["a consumable with no hp at all", { type: "consumable", label: "Eat" }],
       [
         "a noise longer than the cap",
-        { ...DEFAULT_CONSUMABLE, sound: "z".repeat(MAX_CONSUMABLE_SOUND_LENGTH + 1) },
+        { ...DEFAULT_CONSUMABLE, sound: "z".repeat(MAX_SOUND_LENGTH + 1) },
       ],
       ["a fractional hp", { ...DEFAULT_CONSUMABLE, hp: 2.5 }],
       ["an hp past the cap", { ...DEFAULT_CONSUMABLE, hp: MAX_CONSUMABLE_HP_SHIFT + 1 }],

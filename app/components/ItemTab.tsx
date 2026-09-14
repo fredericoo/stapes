@@ -25,7 +25,7 @@ import {
   DEFAULT_WEAPON,
   MAX_ARMOR_DEF,
   MAX_CONSUMABLE_HP_SHIFT,
-  MAX_CONSUMABLE_SOUND_LENGTH,
+  MAX_SOUND_LENGTH,
   MAX_CONTAINER_SIZE,
   MAX_PILE,
   MIN_PILE,
@@ -334,7 +334,7 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
                 <Input
                   type="text"
                   className="w-32"
-                  maxLength={MAX_CONSUMABLE_SOUND_LENGTH}
+                  maxLength={MAX_SOUND_LENGTH}
                   value={item.sound ?? ""}
                   placeholder="crunch"
                   onChange={(e) => patchConsumable({ sound: e.target.value })}

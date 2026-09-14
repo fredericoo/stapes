@@ -1238,14 +1238,15 @@ export const MAX_CONSUMABLE_HP_SHIFT = 999;
 export const CONSUME_FALLBACK_VERB = "Use";
 
 /**
- * Longest noise a consumable may make.
+ * Longest noise an item may make — a consumable's "crunch", or a stone's
+ * "whoosh".
  *
  * Short on purpose, and the shortness is the documentation: this field is for
  * "crunch", not for a line of dialogue. The drawn text is capped again by the
  * chat rules it is rendered through, which is the looser of the two — so this
  * is the bound that actually decides, and it decides in favour of a noise.
  */
-export const MAX_CONSUMABLE_SOUND_LENGTH = 32;
+export const MAX_SOUND_LENGTH = 32;
 
 /**
  * Both ends of an authored pile, in things.
@@ -1699,7 +1700,7 @@ const consumableSchema = v.object({
   label: v.optional(v.string()),
   // Bounded where the verb is not: a verb is a word by construction, and this
   // is free text that ends up drawn over somebody's head.
-  sound: v.optional(v.pipe(v.string(), v.maxLength(MAX_CONSUMABLE_SOUND_LENGTH))),
+  sound: v.optional(v.pipe(v.string(), v.maxLength(MAX_SOUND_LENGTH))),
   // Signed, unlike a battler's own numbers: harming is authored with the same
   // field healing is.
   hp: v.pipe(
