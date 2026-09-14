@@ -150,3 +150,32 @@ export function placementFromInstance(instance: ItemInstance): PlacedTile {
     ...(instance.count ? { count: instance.count } : {}),
   };
 }
+
+/**
+ * Two instances holding everything the same.
+ *
+ * **Every field, found by walking the object rather than named here**, which is
+ * the opposite direction to `./piles`' `PILE_FIELDS` and for the same reason it
+ * chose its direction. That one is an allow-list because a field it does not
+ * know about must stop two things fusing; this is a walk because a field it does
+ * not know about must make two things *unequal*. Both err towards doing the
+ * work: there, a pile that does not form; here, a write that was not needed.
+ *
+ * The alternative — comparing the fields somebody thought of — is what the
+ * module note above warns about, and it fails in a way nobody sees: two levers
+ * with the same tile and different channels compare equal, an author swaps one
+ * for the other, and the edit is dropped on the floor with the dialog closing
+ * cleanly over it.
+ *
+ * `contents` is compared by reference, which never comes up: a container may
+ * not hold a container, so no instance being compared here has one. If that
+ * ever changes, the answer is "not equal", which is the safe half.
+ */
+export function sameInstance(a: ItemInstance, b: ItemInstance): boolean {
+  if (a === b) return true;
+  const left = a as Record<string, unknown>;
+  const right = b as Record<string, unknown>;
+  const keys = Object.keys(left);
+  if (keys.length !== Object.keys(right).length) return false;
+  return keys.every((key) => left[key] === right[key]);
+}

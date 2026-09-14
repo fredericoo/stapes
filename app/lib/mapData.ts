@@ -1,5 +1,6 @@
 import { PLAYER_TILE_ID } from "../game/constants";
 import type { ItemInstance } from "./itemInstance";
+import { sameInstance } from "./itemInstance";
 import type {
   ChunkCells,
   Coord,
@@ -1109,10 +1110,13 @@ export function updatePlacedContents(
 /**
  * Two content lists, either of which may be absent, holding the same things.
  *
- * Entry identity is the fast path and covers the overwhelmingly common case —
- * a dialog closed without the list being touched, where every instance is the
- * object the map already held. The field compare behind it catches the author
- * who typed a count and then typed the old one back.
+ * Every field of every entry, through {@link sameInstance} — not the tile and
+ * the count, which is what this compared first and is a compare that loses
+ * edits. The whole dialog session arrives here as one list, so an author who
+ * takes a wired lever out of a crate and drops a plain one in has changed
+ * nothing this could see: same length, same tile, same absent count. The
+ * dialog closed, the row still said the crate held one thing, and the wired
+ * lever was still in it.
  */
 function sameContents(
   a: readonly ItemInstance[] | undefined,
@@ -1121,11 +1125,8 @@ function sameContents(
   if (a === b) return true;
   if (!a || !b || a.length !== b.length) return false;
   return a.every((item, i) => {
-    const other = b[i]!;
-    return (
-      item === other ||
-      (item.tileId === other.tileId && item.count === other.count)
-    );
+    const other = b[i];
+    return other != null && sameInstance(item, other);
   });
 }
 

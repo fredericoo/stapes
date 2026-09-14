@@ -226,6 +226,30 @@ describe("container contents", () => {
     ).toBe(map);
   });
 
+  it("notices a swap that kept the tile and the count", () => {
+    // Two clicks in the editor: take the wired lever out, drop a plain one in.
+    // Compared on tile and count alone this is no change at all, the dialog
+    // closes clean, and the wired lever is still in the crate.
+    const map = chestAt([{ id: "itm_a", tileId: "lever", channel: "gate-a" }]);
+    const written = updatePlacedContents(map, 1, 2, 0, 1, [
+      { id: "itm_b", tileId: "lever" },
+    ]);
+
+    expect(written).not.toBe(map);
+    expect(getStack(written, 1, 2, 0)[1]!.contents).toEqual([
+      { id: "itm_b", tileId: "lever" },
+    ]);
+  });
+
+  it("notices a field that changed on an entry that stayed", () => {
+    const map = chestAt([{ id: "itm_a", tileId: "sign", description: "old" }]);
+    const written = updatePlacedContents(map, 1, 2, 0, 1, [
+      { id: "itm_a", tileId: "sign", description: "new" },
+    ]);
+
+    expect(written).not.toBe(map);
+  });
+
   it("notices a count that changed", () => {
     const map = chestAt([{ id: "itm_a", tileId: "bread", count: 2 }]);
     const written = updatePlacedContents(map, 1, 2, 0, 1, [
