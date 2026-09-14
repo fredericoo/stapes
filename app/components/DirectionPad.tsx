@@ -37,14 +37,8 @@ const MIN_TOUCH_TARGET_PX = 44;
  * steering even when it slides off the edge, so the disc does not have to be big
  * enough to contain the gesture.
  *
- * It was fluid between 176 and 128, on the theory that the pad should be
- * generous where there was room. What that actually bought was a control taking
- * a fifth of a phone screen's width away from the list beside it, and a floor
- * the layout still could not honour on a short viewport. Fixed and small, the
- * arrows fit every phone, the column beside them gets the difference, and
- * nothing has to be measured to lay either of them out.
  */
-export const PAD_SIZE_PX = MIN_TOUCH_TARGET_PX * 2;
+export const PAD_SIZE_PX = MIN_TOUCH_TARGET_PX * 3;
 
 /**
  * How far out from the centre each arrow sits, as a share of the disc's radius.
