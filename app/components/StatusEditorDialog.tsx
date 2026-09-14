@@ -61,6 +61,8 @@ const SAMPLE_SCOPE: FormulaScope = {
   ELAPSED_SEC: 10,
   MAX_HP: 16,
   HP: 9,
+  // Under nothing, so `has_status('combat')` previews as out of a fight.
+  statuses: [],
 };
 
 /** What a formula is worth against {@link SAMPLE_SCOPE}, or why it is not one. */
@@ -352,7 +354,7 @@ export function StatusEditorDialog({
         </div>
 
         <div className="border-t-2 border-border pt-3">
-          <FieldLabel info="Every is milliseconds between periods, as a number or a formula over the same variables as the effect — so a cadence can depend on MAX_HP. Hit points are signed. Positive heals and clamps at max HP; negative goes through the same damage path as a blow — shows a number, wakes the brains, and can kill.">
+          <FieldLabel info="Every is milliseconds between periods, as a number or a formula over the same variables as the effect — so a cadence can depend on MAX_HP, or on has_status('combat'). Hit points are signed. Positive heals and clamps at max HP; negative goes through the same damage path as a blow — shows a number, wakes the brains, and can kill.">
             Per period
           </FieldLabel>
         </div>
@@ -377,8 +379,10 @@ export function StatusEditorDialog({
                 Added to the fighting stats every time they are read. Variables:{" "}
                 <code>DURATION_SEC</code>, <code>REMAINING_SEC</code>,{" "}
                 <code>ELAPSED_SEC</code>, <code>MAX_HP</code>, <code>HP</code>.
-                Functions: ceil, floor, round, abs, min, max. Previewed against
-                a 16-point body 20 seconds into a 30-second run.
+                Functions: ceil, floor, round, abs, min, max, and{" "}
+                <code>has_status('id')</code>, which is 1 while the body is under that
+                status. Previewed against a 16-point body 20 seconds into a
+                30-second run, under nothing else.
               </>
             }
           >

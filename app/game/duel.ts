@@ -242,7 +242,11 @@ export class Duel {
 
     // Read before anything is paid out, so a status that heals a share of the
     // maximum cannot compound against its own payout within one tick.
-    const bearer = { hp: fighter.hp, maxHp: this.baseOf(side).maxHp };
+    const bearer = {
+      hp: fighter.hp,
+      maxHp: this.baseOf(side).maxHp,
+      statuses: fighter.statuses,
+    };
     const next: StatusInstance[] = [];
     const changes: { defId: string; hp: number }[] = [];
 

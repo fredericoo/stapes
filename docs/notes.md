@@ -4895,6 +4895,37 @@ heal ten to thirty percent of a body; it now heals three to ten. That is the
 intended slowdown rather than a side effect — the item durations in `data/` were
 left alone, and rebalancing them is a content decision.
 
+## A formula can ask what else the body is under
+
+`has_status('id')` is 1 while the bearer holds the status with that id and 0
+otherwise, and it is the only thing in the formula language that is not a
+number: a status id is a name, and the whole reason it is quoted is that a name
+like `food-poisoning` would otherwise tokenise as a subtraction. Single quotes
+only, because every formula lives inside a JSON string.
+
+It reads the **bearer's whole list**, handed in through `StatusBearer.statuses`,
+rather than the list `advanceStatuses` happens to be walking — a duel advances
+one instance at a time, and the combat flag has to be visible from the one
+beside it. The list is the instances themselves rather than a set of ids so
+that building a scope allocates nothing; a scope is built once per bearer per
+tick and once per instance per stat read.
+
+The engine's combat flag is a status like any other, so the first use is Fed
+healing **twice as fast out of a fight**:
+
+```
+everyMs: ceil(MAX_HP / 100) * 300000 / MAX_HP / (2 - has_status('combat'))
+```
+
+The divisor is 1 in a fight and 2 out of one, so the three-hundred-second full
+heal is the fighting figure and a calm body is full in a hundred and fifty. The
+flag lasts a minute past the last blow, which is how long the slower cadence
+outlives the fight.
+
+The editor previews every formula against a body that is under nothing, so
+`has_status('combat')` reads 0 there, and the snapped cadence it reports is the calm
+one.
+
 ## A dead body's bag is destroyed and its contents spill
 
 Dropping the pack whole was the simpler rule and it made a killing a single

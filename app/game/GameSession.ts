@@ -4962,7 +4962,11 @@ export class GameSession implements PlaySession {
       const { statuses, hpChanges } = advanceStatuses(
         actor.statuses,
         tickMs,
-        { hp: this.hpOf(actor) ?? base.maxHp, maxHp: base.maxHp },
+        {
+          hp: this.hpOf(actor) ?? base.maxHp,
+          maxHp: base.maxHp,
+          statuses: actor.statuses,
+        },
         this.statusDefs,
       );
       actor.statuses = statuses;

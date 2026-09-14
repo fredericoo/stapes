@@ -29,7 +29,13 @@
  * start.
  */
 
-/** What a formula may read. Every field is a whole number. */
+/**
+ * What a formula may read.
+ *
+ * Every upper-case field is a whole number and a variable a formula can name.
+ * `statuses` is the exception: it is what `has_status('id')` looks in, and is not a
+ * variable — a list has no arithmetic to be in.
+ */
 export type FormulaScope = {
   /** The full rolled duration of this status instance, in whole seconds. */
   DURATION_SEC: number;
@@ -46,6 +52,16 @@ export type FormulaScope = {
   MAX_HP: number;
   /** The bearer's health as it stands. */
   HP: number;
+  /**
+   * What the bearer is under, for `has_status('id')`.
+   *
+   * The instances themselves rather than a set of ids, so that building a
+   * scope — once per bearer per tick, and once per instance per stat read —
+   * allocates nothing: a body carries a status list already and the scope
+   * points at it. The engine's own combat flag is in it like any other, which
+   * is what lets a cadence read `has_status('combat')`.
+   */
+  statuses: ReadonlyArray<{ defId: string }>;
 };
 
 export const FORMULA_VARIABLES = [
@@ -98,7 +114,25 @@ export function integerise(value: number): number {
 type Token =
   | { kind: "number"; value: number }
   | { kind: "name"; value: string }
+  | { kind: "string"; value: string }
   | { kind: "op"; value: string };
+
+/**
+ * The one function whose argument is a name rather than a number.
+ *
+ * `has_status('combat')` is 1 while the bearer is under the status with that id and
+ * 0 otherwise, so it can be multiplied into any arithmetic — `(2 - has_status('combat'))`
+ * halves a period out of combat. **Single-quoted, and only single-quoted**,
+ * because every formula lives inside a JSON string, where a double quote is an
+ * escape nobody should have to type. A status id can hold a hyphen
+ * (`food-poisoning`), which is why it cannot be a bare name: the tokeniser
+ * would read the hyphen as a minus.
+ *
+ * Not in {@link FUNCTIONS}, whose entries take numbers; it is parsed on its own
+ * in {@link Parser.call}. Named for what it asks rather than a bare `has`, so a
+ * later `has_item` or `has_tag` reads as its sibling rather than its overload.
+ */
+const HAS_STATUS = "has_status";
 
 const OPERATORS = new Set(["+", "-", "*", "/", "%", "(", ")", ","]);
 
@@ -118,6 +152,16 @@ function tokenise(source: string): Token[] | null {
     if (OPERATORS.has(char)) {
       tokens.push({ kind: "op", value: char });
       i += 1;
+      continue;
+    }
+
+    if (char === "'") {
+      const end = source.indexOf("'", i + 1);
+      // An unterminated quote is a refusal, not a string to the end: `has_status('x`
+      // is a typo, and reading it as `x` would hide the half the author meant.
+      if (end === -1) return null;
+      tokens.push({ kind: "string", value: source.slice(i + 1, end) });
+      i = end + 1;
       continue;
     }
 
@@ -241,6 +285,8 @@ class Parser {
       return inner;
     }
 
+    // A string is not a value: it is only ever the argument of `has_status`, and
+    // `'combat' + 1` has no arithmetic to be.
     if (token.kind !== "name") throw new ParseError("expected a value");
 
     const next = this.peek();
@@ -251,11 +297,13 @@ class Parser {
     if (!(FORMULA_VARIABLES as readonly string[]).includes(token.value)) {
       throw new ParseError(`unknown name "${token.value}"`);
     }
-    const name = token.value as keyof FormulaScope;
+    const name = token.value as (typeof FORMULA_VARIABLES)[number];
     return (scope) => scope[name];
   }
 
   private call(name: string): Node {
+    if (name === HAS_STATUS) return this.hasStatus();
+
     const fn = FUNCTIONS[name];
     if (!fn) throw new ParseError(`unknown function "${name}"`);
 
@@ -281,6 +329,19 @@ class Parser {
 
     const apply = fn.apply;
     return (scope) => apply(args.map((arg) => arg(scope)));
+  }
+
+  /** `has_status('id')`: one while the bearer is under that status, else zero. See {@link HAS_STATUS}. */
+  private hasStatus(): Node {
+    this.expectOp("(");
+    const token = this.take();
+    if (token.kind !== "string") {
+      throw new ParseError(`${HAS_STATUS} takes a quoted status id`);
+    }
+    this.expectOp(")");
+    const id = token.value;
+    return (scope) =>
+      scope.statuses.some((status) => status.defId === id) ? 1 : 0;
   }
 }
 
