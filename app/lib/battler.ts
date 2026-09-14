@@ -788,7 +788,7 @@ export const NO_RESISTANCES: WeaponResistances = {};
  * **Requirements are not consulted as a ratio here, unlike a weapon's**, and the
  * absence is deliberate rather than an oversight. `weaponReadiness` exists
  * because a weapon you have not earned still swings; a stone you have not earned
- * does not fire at all — `../game/casting`'s `meetsRequirements` refuses it — so
+ * does not fire at all — `./mastery`'s `meetsRequirements` refuses it — so
  * at every call site this has, the share is one by construction. Writing the
  * term anyway would be a factor that can never be anything but one, sitting in
  * the formula inviting somebody to believe it does something.

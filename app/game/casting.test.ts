@@ -11,7 +11,7 @@ import type { ItemInstance } from "../lib/itemInstance";
 import { spellElements } from "../lib/mastery";
 import { statusesById } from "../lib/status";
 import { resolveBattler } from "../lib/battler";
-import { type Masteries, MAX_MASTERY } from "../lib/mastery";
+import { type Masteries, MAX_MASTERY, meetsRequirements } from "../lib/mastery";
 import { type Element, ELEMENTS } from "../lib/element";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
@@ -26,7 +26,6 @@ import {
   type CasterPoint,
   type CastPoint,
   conjureLanding,
-  meetsRequirements,
   spellPress,
   spellReading,
 } from "./casting";
@@ -709,22 +708,6 @@ describe("what a row of buttons says", () => {
 
   it("is empty for a body with nothing to press", () => {
     expect(spellReading([])).toBe("");
-  });
-});
-
-describe("requirements", () => {
-  it("asks nothing of a stone with no block", () => {
-    expect(meetsRequirements({}, undefined)).toBe(true);
-  });
-
-  /**
-   * On the terms a weapon's are: what a stone asks of a mastery it does not
-   * train is a real gate and not a footnote.
-   */
-  it("holds every named mastery, trained or not", () => {
-    const asks = { arcane: 10, toughness: 5 };
-    expect(meetsRequirements({ arcane: 10 }, asks)).toBe(false);
-    expect(meetsRequirements({ arcane: 10, toughness: 5 }, asks)).toBe(true);
   });
 });
 
