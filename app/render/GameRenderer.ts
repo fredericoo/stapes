@@ -62,6 +62,7 @@ import {
 import { emitterCenter } from "../lib/lighting";
 import { DWELL_MS } from "../lib/useDwell";
 import { elevationAt, getStack, stackHeight } from "../lib/mapData";
+import { engravedName } from "../lib/engraving";
 import { pileTally } from "../lib/piles";
 import {
   type RoofCut,
@@ -2089,9 +2090,11 @@ export class GameRenderer {
     // berries on the floor and the same pile in your hand are one thing being
     // asked one question. See `../lib/piles`' `pileTally`.
     const tally = pileTally(placed);
-    const lines = [
-      { id: "name", text: tally ? `${def.name} ${tally}` : def.name },
-    ];
+    // The engraving filled in, so a skull on the ground is whose it is rather
+    // than what kind of thing it is. Free for everything else — a name with no
+    // hole in it comes straight back. See `../lib/engraving`.
+    const name = engravedName(def.name, placed.engraved);
+    const lines = [{ id: "name", text: tally ? `${name} ${tally}` : name }];
     if (placed.description) {
       lines.push({ id: "description", text: placed.description });
     }

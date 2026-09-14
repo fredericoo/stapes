@@ -5144,6 +5144,72 @@ one level of spilling is the whole of it.
 It applies to players exactly as it does to a deer, which is the point: there is
 one death, and a deer that had picked a bush leaves the berries it was carrying.
 
+## A person leaves a skull, and the skull says who and by what
+
+A death already put everything a body owned on the floor. What it did not leave
+was any trace of *whose* death it had been: walk past the cell an hour later and
+there is a sword and a loaf of bread, exactly as there would be if somebody had
+dropped their bag. So a person now leaves one more thing, and it is the only
+part of a death that is about the person rather than about the body.
+
+**Only a person.** Every other rule in `kill` applies to a deer exactly as it
+does to a player, and that symmetry is defended a section above. This one breaks
+it on purpose: a skull is a keepsake of somebody you knew, and a world where
+every rat leaves one is knee-deep in rats' skulls by the evening. `dropSkull`
+reads the *tile* rather than the id, on `app/game/displayName.ts`' argument —
+`npc:` prefixes are how residents are keyed, not what they are.
+
+**Beside the kit rather than part of it.** `dropOnFloor` is shared, so "a body
+that drowned leaves nothing in the water" is one rule; what a refusal *means* is
+not shared, because it differs. A kit the cell refuses is a kit the dead still
+own and come back carrying. A skull the cell refuses simply never existed.
+
+### A name with a hole in it
+
+The skull tile is named `%s's skull` and the placement fills the hole in —
+`PlacedTile.engraved`, read through `app/lib/engraving.ts`. A name on the def
+would make every skull in the world one anonymous kind of thing, and a
+*description* would put whose it is on the second line, under a first line that
+still said "Skull". The engraving is a name, so it goes where a name goes.
+
+It is an ordinary authored placement field, offered in the placement dialog
+whenever the tile's own name has the token in it. A skull nobody wrote on reads
+as `Someone's skull`: an anonymous skull is still somebody's, and cutting the
+token out would leave `'s skull`.
+
+Skulls do not pile — no `pile` on the artifact block, so `pileMax` is one. A
+pile is several of one thing that cannot be told apart afterwards, which is the
+one thing two people's skulls must never be.
+
+### What killed you, in words written at the time
+
+`Blame` is `{ source, by? }` — "Fangs by Wolf", "Burned by Hearth", "Burning by
+Green Fox's Arcane Flame" — and it rides into `applyDamage`, which hands it to
+the death it causes.
+
+**Names, not ids, and that is the whole reason it is a third field rather than a
+reading of `StatusInstance.causedBy`.** Two things separate them:
+
+- **A cause is spent on experience and is deliberately absent for a bite.** A
+  snake earns nothing arcane for its own venom — see `awardCausedDamage`. A
+  blame is a sentence nobody is paid for, so a bite may carry one where a cause
+  would be wrong.
+- **The thing that did it is usually gone by the time it finishes the job.** The
+  snake that poisoned you is often dead before the poison is. An id resolved
+  later answers "nobody"; a name written when the harm started answers what
+  anybody standing there watched happen.
+
+A natural weapon needed a name of its own for this — `WeaponItem.name`, read for
+a natural weapon and never for an item weapon, which is a tile and has one
+already. An unnamed one reads as "A blow", which is a noun phrase because of
+where it is read: "A blow by Snake" is a sentence and "Blow by Snake" is a stub.
+
+**A conjured flame names the caster's fire rather than the caster.** `possessive`
+joins them, so one `arcane-flame` def reads as "Green Fox's Arcane Flame" where
+a stone lit it and as plain "Hearth" where nobody did — which is the same tile,
+and exactly why the possessive is decided at the moment of granting rather than
+written into a tile's name.
+
 ## A drag onto a taken square trades the two things
 
 `applyItemMove` used to refuse a destination that was full. It swaps now, and

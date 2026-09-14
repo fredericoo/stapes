@@ -9,7 +9,7 @@ import { attackIntervalMs, dodgeChance } from "../game/combat";
 import type { Element } from "../lib/element";
 import { hasAnyInteraction, type TileInteractions } from "../lib/interactions";
 import type { WeaponItem } from "../lib/item";
-import { MAX_PERCENT_STAT } from "../lib/item";
+import { MAX_PERCENT_STAT, UNNAMED_WEAPON } from "../lib/item";
 import {
   MAX_MASTERY,
   type Mastery,
@@ -19,7 +19,7 @@ import {
 import type { Kit } from "../lib/kit";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
-import { FieldLabel, SectionTitle, Switch } from "../ui";
+import { FieldLabel, Input, SectionTitle, Switch } from "../ui";
 import { ElementFields } from "./ElementFields";
 import { KitEditor } from "./KitEditor";
 import { StatField } from "./StatField";
@@ -200,6 +200,16 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {} }: Props) {
           <FieldLabel info="Used with empty hands — a bite, a claw, fists. Anything held replaces it rather than adding to it.">
             Natural weapon
           </FieldLabel>
+          <label className="flex flex-col gap-1 text-xs">
+            <FieldLabel info="What this blow is called where something has to name it — a skull engraved with what killed you. Only a natural weapon needs one: a weapon you can pick up is a tile, and the tile already has a name.">
+              Name
+            </FieldLabel>
+            <Input
+              placeholder={UNNAMED_WEAPON}
+              value={battler.naturalWeapon.name ?? ""}
+              onChange={(e) => patchWeapon({ name: e.target.value })}
+            />
+          </label>
           <WeaponFields
             weapon={battler.naturalWeapon}
             onChange={patchWeapon}

@@ -2,6 +2,12 @@ import { useState } from "react";
 import type { Coord, PlacedTile, TileDef, TilesetDef } from "../lib/types";
 import type { ItemInstance } from "../lib/itemInstance";
 import { MAX_DESCRIPTION_LENGTH, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
+import {
+  MAX_ENGRAVING_LENGTH,
+  UNKNOWN_ENGRAVING,
+  engravedName,
+  isEngravable,
+} from "../lib/engraving";
 import { MAX_REWARD_ITEMS } from "../lib/interactions";
 import { useEditorStore } from "../editor/store";
 import {
@@ -134,6 +140,7 @@ export function PlacementSettingsDialog({
   // re-sync after an undo or a different cell being selected into the row.
   const [channel, setChannel] = useState(placed.channel ?? "");
   const [description, setDescription] = useState(placed.description ?? "");
+  const [engraved, setEngraved] = useState(placed.engraved ?? "");
   const [rewardTag, setRewardTag] = useState(placed.rewardTag ?? "");
   const [rewardTileIds, setRewardTileIds] = useState<string[]>(
     placed.rewardTileIds ?? [],
@@ -151,6 +158,11 @@ export function PlacementSettingsDialog({
     () => placed.contents ?? [],
   );
 
+  // Off the tile's own name rather than a flag on the def: a name with `%s` in
+  // it *is* the declaration that this kind of thing is somebody's. One fact,
+  // read where it is written. See `../lib/engraving`.
+  const engravable = isEngravable(def.name);
+
   const commitAndClose = () => {
     const store = useEditorStore.getState();
     if (wired) store.setStackChannel(stackIndex, channel);
@@ -160,6 +172,7 @@ export function PlacementSettingsDialog({
     }
     if (holds !== null) store.setStackContents(stackIndex, contents);
     store.setStackDescription(stackIndex, description);
+    if (engravable) store.setStackEngraving(stackIndex, engraved);
     onClose();
   };
 
@@ -171,7 +184,10 @@ export function PlacementSettingsDialog({
       onOpenChange={(open) => {
         if (!open) commitAndClose();
       }}
-      title={`${def.name} settings`}
+      // The engraving filled in, because this dialog is about *this* placement
+      // and not about the kind of thing it is: "Old Hermit's skull settings"
+      // over the field that says so beats "%s's skull settings".
+      title={`${engravedName(def.name, placed.engraved)} settings`}
       footer={
         <Button size="sm" onClick={commitAndClose}>
           Done
@@ -196,6 +212,20 @@ export function PlacementSettingsDialog({
             tile.
           </span>
         </label>
+
+        {engravable ? (
+          <label className="flex flex-col gap-1 text-xs">
+            <FieldLabel info="Goes where the tile's name says %s. Belongs to the cell, not the tile — one skull tile is every skull in the world.">
+              Engraved with
+            </FieldLabel>
+            <Input
+              maxLength={MAX_ENGRAVING_LENGTH}
+              placeholder={UNKNOWN_ENGRAVING}
+              value={engraved}
+              onChange={(e) => setEngraved(e.target.value)}
+            />
+          </label>
+        ) : null}
 
         {wired ? (
           <label className="flex flex-col gap-1 text-xs">

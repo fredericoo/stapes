@@ -32,6 +32,8 @@ import {
   type ProjectileDef,
   type StatusGrant,
   type StoneEffect,
+  UNNAMED_SPELL,
+  UNNAMED_WEAPON,
   type WeaponStatus,
   resolveConsumable,
   resolveCharm,
@@ -117,6 +119,7 @@ import {
 } from "./notices";
 import type { MinutesOfDay } from "../lib/clock";
 import { leaveResidue } from "./residue";
+import { type Blame, blameText, possessive } from "./blame";
 import {
   GOTO_COMMAND,
   HEALTH_COMMAND,
@@ -146,6 +149,7 @@ import {
   MAX_CLIMB_HEIGHT,
   PLAYER_TILE_ID,
   PUSH_STEP_MS,
+  SKULL_TILE_ID,
   STRIKE_DURATION_MS,
   TICK_MS,
   WALK_DURATION_MS,
@@ -1095,6 +1099,15 @@ type SlideState = {
  */
 /** A cell on the plan, with no level. */
 type PlanCoord = { x: number; y: number };
+
+/**
+ * A consumable that has just been swallowed, and what it was called.
+ *
+ * The name travels beside the block rather than being looked up afterwards,
+ * because by then there is nothing left to look it up on: the thing has been
+ * destroyed, and what it was is exactly what a death by it has to say.
+ */
+type Eaten = { consumable: ConsumableItem; name: string };
 
 /**
  * One pull being made, as the session has to hold it.
@@ -4232,13 +4245,25 @@ export class GameSession implements PlaySession {
       return true;
     }
 
-    this.applyDamage(target, outcome.damage);
+    // Read before the damage lands, because the damage can kill and a dead
+    // attacker is still the one who swung — but more simply because the blame
+    // is about this swing, and the swing has already happened.
+    const blame = this.blameForSwing(attacker, swung);
+    this.applyDamage(target, outcome.damage, blame);
     // After the damage, and only for a body still standing: a status is a
     // condition you are *in*, and a corpse is not in one. Putting venom on
     // something the same blow killed would queue an announcement about a body
     // that has already left the board.
     if (outcome.inflicted.length > 0 && (this.hpOf(target) ?? 0) > 0) {
-      for (const grant of outcome.inflicted) this.grantStatus(target, grant);
+      for (const grant of outcome.inflicted) {
+        // No cause, and the venom is still attributed: a bite earns the snake
+        // nothing arcane — see `awardCausedDamage` — but a skull may still say
+        // who bit you. That split is the whole reason `blame` is not `causedBy`.
+        this.grantStatus(target, grant, undefined, undefined, {
+          source: this.statusName(grant.id),
+          ...(blame.by ? { by: blame.by } : {}),
+        });
+      }
     }
     return true;
   }
@@ -4676,7 +4701,20 @@ export class GameSession implements PlaySession {
    * relying on the actor still being findable: by the time anything draws it,
    * the body it came off may be gone.
    */
-  private applyDamage(target: ActorRuntime, amount: number) {
+  private applyDamage(
+    target: ActorRuntime,
+    amount: number,
+    /**
+     * What to say about this if it is the blow that finishes them.
+     *
+     * Carried in rather than remembered on the runtime, because the only reader
+     * is the death two lines down: a body that survives has no use for it, and a
+     * field kept between blows would be a record of the last *scratch* rather
+     * than of what killed them. Absent for the harms nobody has to answer for —
+     * a typed `/hp`, and every caller written before a skull existed.
+     */
+    blame?: Blame,
+  ) {
     const before = this.hpOf(target);
     if (before === null) return;
 
@@ -4700,7 +4738,7 @@ export class GameSession implements PlaySession {
 
     const after = before - amount;
     target.hp = Math.max(0, after);
-    if (target.hp === 0) this.kill(target);
+    if (target.hp === 0) this.kill(target, blame);
   }
 
   /**
@@ -4759,7 +4797,7 @@ export class GameSession implements PlaySession {
    * Everyone aiming at them is released here rather than discovering it later,
    * so nothing is left swinging at a slot that can never be filled again.
    */
-  private kill(target: ActorRuntime) {
+  private kill(target: ActorRuntime, blame?: Blame) {
     // Before the body comes off the board, which is what makes it unfindable —
     // and before the reservation is looked for, since a vein still owes the
     // pull a corpse was half way through. No notice: there is nobody left to
@@ -4791,6 +4829,12 @@ export class GameSession implements PlaySession {
     const equipment = loc
       ? this.dropKit(target.equipment, loc)
       : target.equipment;
+
+    // Beside the kit and not part of it: a kit refused for want of room is a
+    // kit the dead still own and come back carrying, where a skull refused is a
+    // skull that never existed. Two drops rather than one list, so neither
+    // decides the other.
+    if (loc) this.dropSkull(target, loc, blame);
 
     this.pendingDeaths.push({
       id: target.id,
@@ -4828,13 +4872,26 @@ export class GameSession implements PlaySession {
     const carried = spilled(equipment, this.tilesById);
     if (carried.length === 0) return equipment;
 
-    const placements = carried.map(placementFromInstance);
+    const dropped = this.dropOnFloor(at, carried.map(placementFromInstance));
+    return dropped ? emptyEquipment() : equipment;
+  }
+
+  /**
+   * Put a list of things on the floor of one cell, all or nothing, and say
+   * whether they got there.
+   *
+   * The half of a death's leavings that is the same for the kit and for the
+   * skull, and it is shared so that "a body that drowned leaves nothing in the
+   * water" is one rule rather than two that could come to disagree. What it is
+   * *not* is the decision about what a refusal means — the kit stays owned, the
+   * skull simply never was — which is why that stays with each caller.
+   */
+  private dropOnFloor(at: Coord, placements: PlacedTile[]): boolean {
     const stack = getStack(this.map, at.x, at.y, at.z);
-    // The same rule a drop obeys: a kit is not left on something nothing can
+    // The same rule a drop obeys: nothing is left on something nothing can
     // stand on. A body that drowned keeps what it was carrying rather than
-    // spilling it into the water, which is the safe direction — the refusal
-    // below already means "keep the kit".
-    if (walkableElevInStack(stack, this.tilesById) == null) return equipment;
+    // spilling it into the water, which is the safe direction.
+    if (walkableElevInStack(stack, this.tilesById) == null) return false;
     const room = canReplaceStack(
       this.map,
       at.x,
@@ -4843,7 +4900,7 @@ export class GameSession implements PlaySession {
       [...stack, ...placements],
       this.tilesById,
     );
-    if (!room.ok) return equipment;
+    if (!room.ok) return false;
 
     for (const placed of placements) {
       // Pouring, like every other way an item reaches a cell: a body that dies
@@ -4852,7 +4909,43 @@ export class GameSession implements PlaySession {
       // asks for strictly more room than what actually happens needs.
       this.map = appendItem(this.map, at.x, at.y, at.z, placed, this.tilesById);
     }
-    return emptyEquipment();
+    return true;
+  }
+
+  /**
+   * Leave a skull where a person fell, engraved with who they were and with
+   * what killed them written under it.
+   *
+   * **People only, and that is the one place death is not one event.** The rest
+   * of a death applies to a deer exactly as it does to a player — see
+   * {@link dropKit} — because what a body was carrying is a fact about the body.
+   * A skull is not that: it is a keepsake of somebody you knew, and a world in
+   * which every rat leaves one is a world knee-deep in rats' skulls within an
+   * afternoon. Read off the *tile* rather than off the id, on `./displayName`'s
+   * own argument: `npc:` prefixes are how residents are keyed, not what they
+   * are.
+   *
+   * Silently nothing where the catalogue has no skull tile, on the terms a
+   * reward naming a missing tile is left alone: renamed content should read as
+   * an effect that did not happen.
+   */
+  private dropSkull(target: ActorRuntime, at: ActorLocation, blame?: Blame) {
+    if (at.placed.tileId !== PLAYER_TILE_ID) return;
+    if (!this.tilesById[SKULL_TILE_ID]) return;
+
+    this.dropOnFloor(at, [
+      {
+        tileId: SKULL_TILE_ID,
+        // Minted here like any other thing coming into the world, so one
+        // player's two skulls are two things and can be told apart.
+        itemId: mintItemId(),
+        engraved: bodyNameFor(
+          { actorId: target.id, tileId: at.placed.tileId },
+          this.tilesById,
+        ),
+        ...(blame ? { description: blameText(blame) } : {}),
+      },
+    ]);
   }
 
   /**
@@ -4952,6 +5045,42 @@ export class GameSession implements PlaySession {
   }
 
   /**
+   * What a status is called, or its id where the catalogue has lost it.
+   *
+   * The same fallback a renamed status already gets everywhere else: an id at
+   * the player is a poor word and a blank line is a worse one.
+   */
+  private statusName(id: string): string {
+    return this.statusDefs[id]?.name ?? id;
+  }
+
+  /**
+   * What to write on a skull this body's swing made.
+   *
+   * **Two sources for the weapon's name and they do not overlap.** A held weapon
+   * is a tile and a tile has a name, so asking the item for one would be asking
+   * the wrong half. A natural weapon has no tile at all, so its name is the only
+   * one there is — see `../lib/item`'s {@link WeaponItem.name}. Which of the two
+   * is in play is the same question {@link handOf} already answered: a null hand
+   * *is* the body swinging what it was born with.
+   */
+  private blameForSwing(attacker: ActorRuntime, hand: Hand | null): Blame {
+    const by = this.bodyName(attacker.id) ?? undefined;
+    const held = hand ? attacker.equipment[hand] : null;
+    if (held) {
+      return {
+        source: this.tilesById[held.tileId]?.name ?? held.tileId,
+        ...(by ? { by } : {}),
+      };
+    }
+    const natural = resolveBattler(this.defFor(attacker))?.naturalWeapon;
+    return {
+      source: natural?.name?.trim() || UNNAMED_WEAPON,
+      ...(by ? { by } : {}),
+    };
+  }
+
+  /**
    * Put a status on somebody, by id.
    *
    * An id the catalogue does not hold is skipped, in the same breath a reward
@@ -4979,6 +5108,15 @@ export class GameSession implements PlaySession {
      * `./statuses`'s {@link StatusInstance.elements}.
      */
     elements?: readonly Element[],
+    /**
+     * What to say about this if it kills them.
+     *
+     * Beside the cause and not folded into it, because the two answer to
+     * different rules: a bite is nobody's *doing* for the purposes of
+     * experience and is very much somebody's for the purposes of a skull. See
+     * `./statuses`'s {@link StatusInstance.blame}.
+     */
+    blame?: Blame,
   ) {
     const def = this.statusDefs[grant.id];
     if (!def) return;
@@ -5005,6 +5143,7 @@ export class GameSession implements PlaySession {
       range,
       causedBy,
       elements,
+      blame,
     );
     // Noted here as well as on the tick, because eating happens *between* ticks
     // and the world may be asleep when it does — the same reason the kit is
@@ -5065,7 +5204,7 @@ export class GameSession implements PlaySession {
             -change.amount,
             change.elements,
           );
-          this.applyDamage(actor, damage);
+          this.applyDamage(actor, damage, change.blame);
           // Paid before the death check below, on the same terms a killing blow
           // pays for itself: the arcanist who lit the fire earns from the last
           // point of damage it did, and a body that has already left the board
@@ -5561,11 +5700,23 @@ export class GameSession implements PlaySession {
       if (at && on) this.turnToward(actor, at, on);
     }
 
+    // The stone as it is called. Read off the square rather than off the block,
+    // because an {@link ArcaneStoneItem} has no name — a stone is a tile, and
+    // the tile is what a death by it has to say.
+    const held = actor.equipment[square];
+    const spell = held
+      ? (this.tilesById[held.tileId]?.name ?? held.tileId)
+      : UNNAMED_SPELL;
+    const caster = this.bodyName(actor.id);
+
     this.moveHealth(actor, subject, stone, effect, elements, {
       atSomebodyElse,
       stats,
       before,
       masteries: body.masteries,
+      // Exactly a swing's shape — the thing that did it, and who swung it —
+      // because that is what it is: a bolt is a blow thrown from a hand.
+      blame: { source: spell, ...(caster ? { by: caster } : {}) },
     });
 
     // **After the health and only onto a body still standing**, which is the
@@ -5576,7 +5727,13 @@ export class GameSession implements PlaySession {
     // recorded. @see awardCausedDamage
     if ((this.hpOf(subject) ?? 0) <= 0) return;
     for (const grant of this.boltInflicts(effect.statuses)) {
-      this.grantStatus(subject, grant, actor.id, elements);
+      // The spell rather than the caster, on the conjured flame's terms: what
+      // is burning you is somebody's fire, and naming only the person loses
+      // which of their stones it came out of.
+      this.grantStatus(subject, grant, actor.id, elements, {
+        source: this.statusName(grant.id),
+        by: possessive(caster, spell),
+      });
     }
   }
 
@@ -5605,6 +5762,8 @@ export class GameSession implements PlaySession {
       stats: FightingStats;
       before: number;
       masteries: Masteries;
+      /** What a skull this bolt makes says — see {@link castBolt}. */
+      blame: Blame;
     },
   ) {
     if (!effect.damage) return;
@@ -5643,7 +5802,7 @@ export class GameSession implements PlaySession {
       );
       const dealt = this.elementalDamage(subject, through, elements);
       if (dealt <= 0) return;
-      this.applyDamage(subject, dealt);
+      this.applyDamage(subject, dealt, context.blame);
       // Damage to yourself pays nothing, which is the rule `awardCausedDamage`
       // states and the reason training is not something you do in a corner. Paid
       // on what the wheel made of the blow rather than on what the formula said,
@@ -6903,11 +7062,12 @@ export class GameSession implements PlaySession {
     if (!actor) return false;
     if (this.hpOf(actor) === null) return false;
 
-    const consumable =
+    const eaten =
       from.kind === "floor"
         ? this.consumeFromFloor(actor, from.ref)
         : this.consumeFromSlot(actor, from.slot);
-    if (!consumable) return false;
+    if (!eaten) return false;
+    const { consumable } = eaten;
 
     // Before the hit points land, on exactly the terms `notePendingHurt` is
     // noted before its damage: a fatal drink still tells the room, because by
@@ -6926,15 +7086,21 @@ export class GameSession implements PlaySession {
     // discipline. @see ./combat's `inflictedBy`
     const grants = consumable.statuses ?? [];
     const rolls = grants.map(() => this.rng.next());
+    // The food is what a skull names, both for the illness it brought and for
+    // the number it took off directly, and neither is anybody's *doing* —
+    // nobody made you eat it, so there is no cause and nobody is paid.
     for (const grant of inflictedBy(grants, rolls)) {
-      this.grantStatus(actor, grant);
+      this.grantStatus(actor, grant, undefined, undefined, {
+        source: this.statusName(grant.id),
+        by: eaten.name,
+      });
     }
 
     if (consumable.hp < 0) {
       // Through the damage path rather than a bare subtraction, so a poison
       // apple shows its number, tells the brains, and can kill — a death by
       // poison and a death by blows must not be two codepaths to keep alive.
-      this.applyDamage(actor, -consumable.hp);
+      this.applyDamage(actor, -consumable.hp, { source: eaten.name });
     } else if (consumable.hp > 0) {
       // The mirror of the damage path above, and for the same reason: a bandage
       // shows its number where a poisoned apple shows its own.
@@ -6970,7 +7136,7 @@ export class GameSession implements PlaySession {
   private consumeFromFloor(
     actor: ActorRuntime,
     ref: ObjectRef,
-  ): ConsumableItem | null {
+  ): Eaten | null {
     if (!this.idle(actor)) return null;
     const loc = this.tryLocate(actor);
     if (!loc) return null;
@@ -6980,7 +7146,7 @@ export class GameSession implements PlaySession {
     const placed = stack[ref.stackIndex];
     const def = placed && this.tilesById[placed.tileId];
     const consumable = def ? resolveConsumable(def) : null;
-    if (!consumable || !placed) return null;
+    if (!consumable || !placed || !def) return null;
 
     // One berry out of the pile, not the pile. Eating is the one act that takes
     // an *amount* rather than a thing — see `../lib/piles`'s `peelOne` — and a
@@ -6999,7 +7165,7 @@ export class GameSession implements PlaySession {
     // reindex is a stack read, and a cheap one is worth more than a rule about
     // when it may be skipped.
     this.reindexCells([{ x: ref.x, y: ref.y, z: ref.z }]);
-    return consumable;
+    return { consumable, name: def.name };
   }
 
   /**
@@ -7077,7 +7243,7 @@ export class GameSession implements PlaySession {
   private consumeFromSlot(
     actor: ActorRuntime,
     slot: SlotRef,
-  ): ConsumableItem | null {
+  ): Eaten | null {
     const loc = this.tryLocate(actor);
     if (!loc) return null;
 
@@ -7090,7 +7256,7 @@ export class GameSession implements PlaySession {
     );
     const def = instance && this.tilesById[instance.tileId];
     const consumable = def ? resolveConsumable(def) : null;
-    if (!consumable) return null;
+    if (!consumable || !def) return null;
 
     // One off the pile, where `drop` takes the whole of it: the two verbs are
     // the two ways something leaves a slot, and `peelSlot` falls through to
@@ -7108,7 +7274,7 @@ export class GameSession implements PlaySession {
     if (landed.equipment !== actor.equipment) {
       this.setEquipment(actor, landed.equipment);
     }
-    return consumable;
+    return { consumable, name: def.name };
   }
 
   canMoveItem(
@@ -8513,6 +8679,16 @@ export class GameSession implements PlaySession {
         { id: addStatus.statusId },
         placed.castBy,
         placed.castElements,
+        {
+          source: this.statusName(addStatus.statusId),
+          // The tile, and whoever conjured it where anybody did — which is what
+          // makes one `arcane-flame` def read as "Green Fox's Arcane Flame"
+          // where a stone lit it and as plain "Arcane Flame" where a hearth did.
+          by: possessive(
+            placed.castBy ? this.bodyName(placed.castBy) : null,
+            def?.name ?? placed.tileId,
+          ),
+        },
       );
       return;
     }

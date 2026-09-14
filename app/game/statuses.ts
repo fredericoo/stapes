@@ -8,6 +8,7 @@ import {
   MODIFIER_KEYS,
   type StatusDef,
 } from "../lib/status";
+import type { Blame } from "./blame";
 import { TICK_MS } from "./constants";
 import type { Rng } from "./rng";
 
@@ -75,6 +76,23 @@ export type StatusInstance = {
    * multi-element spells are for. @see `../lib/mastery`'s `spellElements`
    */
   elements?: readonly Element[];
+  /**
+   * What started this, in the words a death is written in.
+   *
+   * **A third field beside {@link causedBy} rather than a second reading of it**,
+   * and the split is load-bearing: that one is an actor id spent on experience,
+   * and it is deliberately absent for a venomous bite — a snake earns nothing
+   * arcane for its own venom. This is a sentence nobody is paid for, so a bite
+   * may carry it where a cause would be wrong.
+   *
+   * Names rather than ids, because the thing that did it is usually gone by the
+   * time the status finishes the job — see `./blame`.
+   *
+   * Absent for a status nothing recorded, which is every one of them applied by
+   * a command or a charm. A blame-less status kills exactly as it always did and
+   * leaves a skull with nothing written under the name.
+   */
+  blame?: Blame;
 };
 
 /** What a formula needs to know about the body carrying it. */
@@ -249,6 +267,15 @@ export function applyStatus(
    * damage on a wheel that is no longer turning.
    */
   elements?: readonly Element[],
+  /**
+   * What to say about this if it kills them.
+   *
+   * Replaced with the cause on a re-application, on that field's own rule and
+   * for a sharper version of its reason: what a skull should say is what
+   * actually finished the body off, and a rat that walks out of one flame into
+   * another was killed by the second.
+   */
+  blame?: Blame,
 ): readonly StatusInstance[] {
   const rolled = rollDurationMs(range, rng);
   const existing = current.find((instance) => instance.defId === def.id);
@@ -266,6 +293,7 @@ export function applyStatus(
         // `undefined` is a key that survives as `null` in some of those.
         ...(causedBy ? { causedBy } : {}),
         ...(elements?.length ? { elements } : {}),
+        ...(blame ? { blame } : {}),
       },
     ];
   }
@@ -278,13 +306,19 @@ export function applyStatus(
     if (instance.defId !== def.id) return instance;
     // Rebuilt rather than spread over, so an absent cause genuinely removes the
     // one that was there: spreading would leave the old key untouched.
-    const { causedBy: _wasCausedBy, elements: _wereElements, ...rest } = instance;
+    const {
+      causedBy: _wasCausedBy,
+      elements: _wereElements,
+      blame: _wasBlame,
+      ...rest
+    } = instance;
     return {
       ...rest,
       remainingMs,
       durationMs: remainingMs,
       ...(causedBy ? { causedBy } : {}),
       ...(elements?.length ? { elements } : {}),
+      ...(blame ? { blame } : {}),
     };
   });
 }
@@ -340,6 +374,14 @@ export type StatusHpChange = {
    * @see StatusInstance.elements
    */
   elements?: readonly Element[];
+  /**
+   * What to say about this figure if it is the one that empties the bar.
+   *
+   * Rides here for the cause's own reason: a body under a burn and a poison at
+   * once is killed by exactly one of them, and a bare number cannot say which.
+   * @see StatusInstance.blame
+   */
+  blame?: Blame;
 };
 
 /** What one tick of statuses did, beside how far they advanced. */
@@ -434,6 +476,7 @@ export function advanceStatuses(
           ...(instance.elements?.length
             ? { elements: instance.elements }
             : {}),
+          ...(instance.blame ? { blame: instance.blame } : {}),
         });
       }
     }

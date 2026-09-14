@@ -21,6 +21,7 @@ import {
   type WeaponItem,
 } from "../lib/item";
 import type { Element } from "../lib/element";
+import { engravedName } from "../lib/engraving";
 import type { ItemInstance } from "../lib/itemInstance";
 import { countOf } from "../lib/piles";
 import {
@@ -872,7 +873,9 @@ export function itemCard(
   const count = instance ? countOf(instance) : 1;
 
   const card: ItemCard = {
-    name: def.name || def.id,
+    // The engraving filled in, which for a skull is the whole of what it is.
+    // Free for everything else — see `../lib/engraving`.
+    name: engravedName(def.name || def.id, instance?.engraved),
     // Null rather than 1, so the drawing has nothing to suppress: a single
     // apple is an apple, and "×1" is a badge that says what its absence says.
     count: count > 1 ? count : null,

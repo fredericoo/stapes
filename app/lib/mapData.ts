@@ -927,7 +927,7 @@ function updatePlacedText(
   y: number,
   z: number,
   stackIndex: number,
-  key: "channel" | "description" | "variant",
+  key: "channel" | "description" | "engraved" | "variant",
   value: string,
 ): MapFile {
   const current = getStack(map, x, y, z);
@@ -971,6 +971,21 @@ export function updatePlacedDescription(
   description: string,
 ): MapFile {
   return updatePlacedText(map, x, y, z, stackIndex, "description", description);
+}
+
+/**
+ * Set (or clear, with an empty string) whose this placement is.
+ * See {@link PlacedTile.engraved}.
+ */
+export function updatePlacedEngraving(
+  map: MapFile,
+  x: number,
+  y: number,
+  z: number,
+  stackIndex: number,
+  engraved: string,
+): MapFile {
+  return updatePlacedText(map, x, y, z, stackIndex, "engraved", engraved);
 }
 
 /**

@@ -1,6 +1,7 @@
 import { IconX } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { slotIn, type ContainerRef } from "../game/itemMoves";
+import { engravedName } from "../lib/engraving";
 import { resolveContainer } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { MasteryXp } from "../lib/mastery";
@@ -109,7 +110,8 @@ export function slotCaptionFor(
 ): string {
   if (!instance) return "";
   const def = tilesById[instance.tileId];
-  return def?.name || instance.description?.trim() || instance.tileId;
+  if (!def?.name) return instance.description?.trim() || instance.tileId;
+  return engravedName(def.name, instance.engraved);
 }
 
 /**

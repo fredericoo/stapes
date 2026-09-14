@@ -12749,6 +12749,7 @@
         },
         "naturalWeapon": {
           "type": "weapon",
+          "name": "Claws",
           "def": 0,
           "mastery": "sharp",
           "damage": 2,
@@ -12812,6 +12813,7 @@
         },
         "naturalWeapon": {
           "type": "weapon",
+          "name": "Bare hands",
           "damage": 2,
           "def": 0,
           "accuracy": 82,
@@ -22791,6 +22793,7 @@
         },
         "naturalWeapon": {
           "type": "weapon",
+          "name": "Hooves",
           "damage": 0,
           "def": 0,
           "accuracy": 50,
@@ -26085,6 +26088,7 @@
         },
         "naturalWeapon": {
           "type": "weapon",
+          "name": "Teeth",
           "damage": 1,
           "def": 0,
           "accuracy": 78,
@@ -26535,6 +26539,7 @@
         },
         "naturalWeapon": {
           "type": "weapon",
+          "name": "Bite",
           "damage": 4,
           "def": 0,
           "accuracy": 88,
@@ -27447,6 +27452,7 @@
         },
         "naturalWeapon": {
           "type": "weapon",
+          "name": "Fangs",
           "damage": 3,
           "def": 0,
           "accuracy": 86,
@@ -27946,6 +27952,7 @@
         },
         "naturalWeapon": {
           "type": "weapon",
+          "name": "Bite",
           "damage": 3,
           "def": 0,
           "accuracy": 84,
@@ -28522,6 +28529,7 @@
         },
         "naturalWeapon": {
           "type": "weapon",
+          "name": "Fists",
           "damage": 9,
           "def": 0,
           "accuracy": 80,
@@ -31730,6 +31738,44 @@
     }
   },
   {
+    "id": "skull-player",
+    "name": "%s's skull",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 11,
+      "y": 7
+    },
+    "lightPassing": true,
+    "interactions": {
+      "item": {
+        "type": "artifact"
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
     "id": "rabbit",
     "name": "Rabbit",
     "height": 2,
@@ -31899,6 +31945,7 @@
         },
         "naturalWeapon": {
           "type": "weapon",
+          "name": "Kick",
           "damage": 0,
           "def": 0,
           "accuracy": 50,

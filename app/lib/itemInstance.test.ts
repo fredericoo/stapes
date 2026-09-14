@@ -28,6 +28,7 @@ describe("the placement ↔ instance round trip", () => {
       direction: "e",
       channel: "gate",
       description: "Beware of the dog",
+      engraved: "Green Fox",
     };
     const instance = instanceFromPlacement(placed);
     expect(instance).toEqual({
@@ -36,6 +37,7 @@ describe("the placement ↔ instance round trip", () => {
       direction: "e",
       channel: "gate",
       description: "Beware of the dog",
+      engraved: "Green Fox",
     });
     expect(placementFromInstance(instance!)).toEqual(placed);
   });

@@ -19,6 +19,7 @@ import {
   updatePlacedChannel,
   updatePlacedContents,
   updatePlacedDescription,
+  updatePlacedEngraving,
   updatePlacedReward,
   updatePlacedTeleport,
   updatePlacedDirection,
@@ -208,6 +209,8 @@ export type EditorStore = {
   setStackFoot: (stackIndex: number, foot: number | null) => { ok: boolean; reason?: string };
   setStackChannel: (stackIndex: number, channel: string) => void;
   setStackDescription: (stackIndex: number, description: string) => void;
+  /** Whose one placement is, for a tile whose name has a hole in it. */
+  setStackEngraving: (stackIndex: number, engraved: string) => void;
   setStackReward: (
     stackIndex: number,
     tag: string,
@@ -673,6 +676,21 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         currentLevel,
         stackIndex,
         description,
+      ),
+    );
+  },
+
+  setStackEngraving: (stackIndex, engraved) => {
+    const { map, selected, currentLevel } = get();
+    if (!selected) return;
+    get().commitMap(
+      updatePlacedEngraving(
+        map,
+        selected.x,
+        selected.y,
+        currentLevel,
+        stackIndex,
+        engraved,
       ),
     );
   },

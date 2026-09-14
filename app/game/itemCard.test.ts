@@ -384,6 +384,44 @@ describe("itemCard", () => {
     });
   });
 
+  describe("an engraved thing", () => {
+    const skull = tileWith({ type: "artifact" }, { name: "%s's skull" });
+
+    it("is named after whoever it was", () => {
+      const card = itemCard(
+        skull,
+        { id: "itm_1", tileId: "thing", engraved: "Green Fox" },
+        NOTHING_LEARNT,
+      )!;
+      expect(card.name).toBe("Green Fox's skull");
+    });
+
+    /**
+     * The name and the note under it are two different lines, and a skull is the
+     * case that proves it: what killed them goes in the description, and reading
+     * it as the name would put "Fangs by Wolf" on the square.
+     */
+    it("keeps what killed them out of the name", () => {
+      const card = itemCard(
+        skull,
+        {
+          id: "itm_1",
+          tileId: "thing",
+          engraved: "Green Fox",
+          description: "Fangs by Wolf",
+        },
+        NOTHING_LEARNT,
+      )!;
+      expect(card.name).toBe("Green Fox's skull");
+      expect(card.description).toBe("Fangs by Wolf");
+    });
+
+    it("is somebody's even when nobody wrote on it", () => {
+      const card = itemCard(skull, null, NOTHING_LEARNT)!;
+      expect(card.name).toBe("Someone's skull");
+    });
+  });
+
   describe("the kinds that are not weapons or armour", () => {
     it("gives a shield the same defence row a weapon's def gets", () => {
       const card = itemCard(tileWith({ type: "shield", def: 4 }), null, NOTHING_LEARNT)!;

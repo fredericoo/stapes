@@ -827,6 +827,23 @@ export type PlacedTile = {
    */
   description?: string;
   /**
+   * Whose this one is, written into the tile's own name where it says `%s`.
+   *
+   * A placement field on exactly the terms {@link description} is, and it is
+   * worth saying why it is not simply that field: a description is the line
+   * *under* the name, and what a skull needs is for the name itself to differ.
+   * One `skull` tile named `%s's skull` is therefore every skull in the world,
+   * where a name on the def would make them one anonymous kind of thing.
+   *
+   * Read through `./engraving`'s {@link engravedName}, which is the one place
+   * the substitution happens and which answers for a placement carrying none —
+   * the name still has a hole in it, and an anonymous skull is somebody's.
+   *
+   * Absent on everything nobody has written on, which is every placement in the
+   * world but the skulls.
+   */
+  engraved?: string;
+  /**
    * What taking this placement's reward marks the player with, and what stops
    * them taking it twice. See `../lib/interactions`'s `RewardInteraction`.
    *

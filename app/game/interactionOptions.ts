@@ -33,6 +33,7 @@ import {
   type EquipSlot,
   type ObjectRef,
 } from "./affordances";
+import { engravedName } from "../lib/engraving";
 import { pileTally } from "../lib/piles";
 import { bodyNameFor } from "./displayName";
 import type { Equipment } from "./equipment";
@@ -1059,7 +1060,13 @@ function slotOptions(
   const tally = pileTally(placed);
   const name = body
     ? bodyNameFor({ actorId: body.id, tileId: body.tileId }, tilesById)
-    : [tilesById[placed.tileId]?.name ?? placed.tileId, tally]
+    : [
+        engravedName(
+          tilesById[placed.tileId]?.name ?? placed.tileId,
+          placed.engraved,
+        ),
+        tally,
+      ]
         .filter(Boolean)
         .join(" ");
 

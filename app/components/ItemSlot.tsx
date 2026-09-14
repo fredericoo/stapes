@@ -12,6 +12,7 @@ import { isBodySlot, slotKey, type SlotRef } from "../game/itemMoves";
 import { itemUseFor } from "../game/itemUse";
 import { consumeVerb, equipVerb, resolveConsumable } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
+import { engravedName } from "../lib/engraving";
 import { pileTally } from "../lib/piles";
 import { masteriesFromXp, type MasteryXp } from "../lib/mastery";
 import type { TileDef, TilesetDef } from "../lib/types";
@@ -275,6 +276,22 @@ const SLOT_APPEARANCE_CLASSES: Record<SlotAppearance, string> = {
   empty: "border-dashed border-paper/25 bg-transparent",
 };
 
+/**
+ * What to call the thing in this square.
+ *
+ * **An engraving outranks a description, and nothing else does.** The
+ * description has been the square's label since before any of this, because a
+ * shelf of identical silhouettes is sorted by what somebody wrote on them — and
+ * that stays true for a sign, a potion and a lever. A skull is the one case
+ * where the *name* already differs per thing, so falling through to the note
+ * under it would label "Green Fox's skull" with what killed them.
+ */
+function slotLabelFor(instance: ItemInstance, tile: TileDef | null): string {
+  const name = engravedName(tile?.name ?? instance.tileId, instance.engraved);
+  if (instance.engraved) return name;
+  return instance.description?.trim() || name;
+}
+
 export function ItemSlot({
   slot,
   instance,
@@ -380,9 +397,7 @@ export function ItemSlot({
   /** "×3" over a pile of three, or nothing at all over one of anything. */
   const tally = instance ? pileTally(instance) : null;
   const name = instance
-    ? [instance.description?.trim() || tile?.name || instance.tileId, tally]
-        .filter(Boolean)
-        .join(" ")
+    ? [slotLabelFor(instance, tile), tally].filter(Boolean).join(" ")
     : spilledTile
       ? `both hands on the ${spilledTile.name}`
       : "empty";
