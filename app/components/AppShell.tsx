@@ -193,7 +193,29 @@ export function AppShell({
 
   return (
     <AppMenuExtras.Provider value={menuExtras}>
-      <div className="flex h-full flex-col">
+      <div
+        className="flex h-full flex-col"
+        style={{
+          // **A page that has taken the header away has taken the whole screen
+          // with it, top and bottom.** `viewport-fit=cover` in `../root.tsx`
+          // hands us the pixels behind the status bar and the toolbar, and this
+          // is the half that decides who may sit in them. For a page of chrome
+          // the answer is nobody: a row of navigation under the notch is a row
+          // nobody can read. For the game it is the world — the top of the map
+          // passes under the clock and the dynamic island, which costs a strip
+          // of scenery and buys the whole height of the screen, and the
+          // controls below it hold themselves off the toolbar individually.
+          // See `GameViewport`.
+          paddingTop: headerHidden ? undefined : "env(safe-area-inset-top)",
+          paddingBottom: headerHidden ? undefined : "env(safe-area-inset-bottom)",
+          // Landscape, where the notch is on one side and the home indicator on
+          // the other, and kept even for the game: a d-pad or a list of verbs
+          // behind the notch is not scenery, it is a control you cannot reach.
+          // Zero in portrait, and zero everywhere that has neither.
+          paddingLeft: "env(safe-area-inset-left)",
+          paddingRight: "env(safe-area-inset-right)",
+        }}
+      >
         {headerHidden ? null : (
           <header className="flex flex-wrap items-center gap-3 border-b-2 border-border bg-ink px-3 py-2 text-paper">
             <div className="text-sm font-bold tracking-wide uppercase">

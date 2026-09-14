@@ -31,7 +31,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <html lang="en">
       <head>
         <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        {/* `viewport-fit=cover` because the page has to own the whole screen,
+            and without it iOS lays the page out inside the safe area and fills
+            the bands it kept back — the strip behind the status bar and the one
+            under the home indicator — with the page's own background. That was
+            the cream, so a game made entirely of dark chrome sat between two
+            bright bars whatever `theme-color` said.
+
+            It hands us the notch and the toolbar along with the pixels, which is
+            what `env(safe-area-inset-*)` is then for: see `AppShell`, which
+            insets the chrome, and `GameViewport`, which deliberately does not
+            inset the bottom and scrolls its list clear of the toolbar instead. */}
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, viewport-fit=cover"
+        />
         {/* The phone's own furniture — the status bar above the page and the
             browser's toolbar below it. Without this both take their colour from
             the page background, which is the cream paper, so a game that is

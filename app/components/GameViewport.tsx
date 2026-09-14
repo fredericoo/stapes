@@ -16,7 +16,7 @@ import { tilesByIdFromList } from "../lib/validation";
 import { AppMenuButton } from "./AppShell";
 import { ChatBar, ChatButton } from "./ChatBar";
 import { ContainerPanel } from "./ContainerPanel";
-import { DirectionPad, MAX_PAD_SIZE_PX } from "./DirectionPad";
+import { DirectionPad, PAD_SIZE_PX } from "./DirectionPad";
 import { EquipmentPanel } from "./EquipmentPanel";
 import { DragLayer } from "./DragLayer";
 import { ConversationPanel } from "./ConversationPanel";
@@ -75,17 +75,17 @@ const INTERACTION_PANEL_WIDTH_PX = 224;
  * Narrowest the reading column may get on a phone — the list of what is in
  * reach, or whichever panel is standing in for it.
  *
- * **The column wins ties with the pad, and that is the whole point of it being a
- * number here.** Both share one row, and only one of them is text: a d-pad that
- * loses twenty pixels is a smaller d-pad, where a list that loses twenty wraps
- * "Nothing in reach." onto two lines and then wraps every verb off its own row.
- * So the column states a floor and `DirectionPad` shrinks into whatever is left —
- * down to `MIN_PAD_SIZE_PX`, past which there is nothing left to give and both
- * are simply on a phone too narrow for either.
+ * **A floor that is no longer reached on any phone, and kept for the one that
+ * might be.** The two used to bid against each other for the row: the pad was
+ * fluid, it asked for 176px, and the column was left with whatever that did not
+ * take — which on a 375px screen was exactly this number and not a pixel more.
+ * The pad is one fixed square now (@see PAD_SIZE_PX), so the column simply gets
+ * the rest, and the rest is comfortably over this everywhere.
  *
- * The panels are the reason this floor is now load-bearing in a second way: they
- * used to take the whole screen, where now they live in this column beside the
- * arrows, and a slot is 44px. Below about this width a row of them holds two.
+ * It still states the width below which the column stops working, which is what
+ * a floor is for: the panels live in here beside the arrows and a slot is 44px,
+ * so below about this a row of them holds two, and "Nothing in reach." wraps
+ * onto two lines.
  */
 const INTERACTION_LIST_MIN_WIDTH_PX = 168;
 
@@ -443,7 +443,7 @@ export function GameViewport({
       masteryXp={masteryXp}
       statusDefs={statusDefs}
       onTalk={(action) => onTalk?.(action)}
-      className="min-h-0 w-full flex-1"
+      className="scrolls-past-toolbar min-h-0 w-full flex-1"
     />
   ) : null;
 
@@ -469,7 +469,10 @@ export function GameViewport({
       // never sends the matching leave, so the outline it lit would stay lit
       // over whatever the player did next.
       onHover={coarse ? undefined : onHoverInteraction}
-      className="min-h-0 w-full flex-1"
+      // The padding is inert in the desktop column — there is no inset to
+      // speak of on a machine with no toolbar over the page — so one list
+      // still serves both layouts. See `.scrolls-past-toolbar` in `../app.css`.
+      className="scrolls-past-toolbar min-h-0 w-full flex-1"
     />
   );
 
@@ -674,7 +677,12 @@ export function GameViewport({
           // to the side most thumbs are, and the list of what is in reach — the
           // thing you *read* before acting — sits on the other, out from under
           // the hand that is steering.
-          <div className="flex w-full min-h-0 flex-1 items-stretch gap-3 px-3 pb-3">
+          // No bottom padding on the row, because the reading column is meant to
+          // reach the physical bottom of the screen — see
+          // `.scrolls-past-toolbar` in `../app.css`. The arrows take their own
+          // gap back below, since they are the half that must not go under the
+          // toolbar.
+          <div className="flex w-full min-h-0 flex-1 items-stretch gap-3 px-3">
             <div
               className="flex min-h-0 flex-1 flex-col items-start gap-2"
               style={{ minWidth: INTERACTION_LIST_MIN_WIDTH_PX }}
@@ -685,7 +693,7 @@ export function GameViewport({
                   // thirty things in it must not be able to push the arrows off
                   // the bottom of the screen, which is the whole reason they are
                   // still here.
-                  <div className="flex w-full min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain">
+                  <div className="scrolls-past-toolbar flex w-full min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain">
                     {panels}
                   </div>
                 ) : (
@@ -701,13 +709,34 @@ export function GameViewport({
                 Shrinks rather than holding its size — see
                 {@link INTERACTION_LIST_MIN_WIDTH_PX}. */}
             <div
-              className="flex min-w-0 shrink flex-col items-center"
-              // A basis rather than letting it size to its contents: the pad is
-              // `w-full` of this box, so a shrink-to-fit parent would be asking
-              // the child how wide to be and getting `min-width` back — the pad
-              // sat pinned at its floor with free space beside it. Stating the
-              // ideal here is what gives flexbox something to shrink *from*.
-              style={{ flexBasis: MAX_PAD_SIZE_PX }}
+              className="flex min-w-0 shrink flex-col items-center pb-3"
+              style={{
+                // A basis rather than letting it size to its contents: the pad
+                // is `w-full` of this box, so a shrink-to-fit parent would be
+                // asking the child how wide to be and getting `min-width` back —
+                // the pad sat pinned at its floor with free space beside it.
+                // Stating the ideal here is what gives flexbox something to
+                // shrink *from*.
+                flexBasis: PAD_SIZE_PX,
+                // **Only this column comes up out of the toolbar's band.** The
+                // row runs to the bottom edge of the screen so the list beside
+                // this can use that height, and the arrows are the one thing
+                // there that cannot: a control half under the browser's toolbar
+                // is a control you cannot press, and there is no scrolling it
+                // clear. A margin rather than padding, so the column *ends*
+                // above the toolbar rather than merely holding its contents off
+                // it — the pad is `mt-auto`'d against that end.
+                //
+                // Two things to clear and only one of them at a time, so the
+                // larger wins. `100lvh - 100dvh` is however much of the screen
+                // the browser's toolbars are covering *right now* — it is zero
+                // once they retract, and it tracks them as they go — and the
+                // inset is the home indicator, which is what is left to avoid
+                // when they have. Taking the sum instead would push the arrows
+                // a toolbar's height up a screen that has no toolbar showing.
+                marginBottom:
+                  "max(env(safe-area-inset-bottom), calc(100lvh - 100dvh))",
+              }}
             >
               {/* Rendered whether or not anything is running: a lane that
                   appeared on the first berry would push the pad down out from
@@ -724,7 +753,11 @@ export function GameViewport({
                   of decorations an inch above it is a stray press waiting to
                   happen — see `interactive={false}`, which is the other half of
                   the same worry. */}
-              <div className="mt-auto flex w-full flex-col gap-2">
+              {/* Takes whatever the lane above leaves, so the arrows end up at
+                  the far end of the column — `flex-1` rather than `mt-auto`,
+                  because the box below has to be told how tall it is and an
+                  auto margin says nothing. */}
+              <div className="flex w-full min-h-0 flex-1 flex-col gap-2">
                 {/* Directly above the arrows and exactly their width, because
                     the two are one cluster: the hand steering is on this side of
                     the screen, and the hand that is free is the one that casts.
@@ -742,7 +775,13 @@ export function GameViewport({
                   // reads as a control that has come loose from it.
                   className="justify-center"
                 />
-                <DirectionPad onPress={press} onRelease={release} />
+                {/* Pushed to the far end of the column, which is as near the
+                    bottom of the screen as the arrows are allowed to get. One
+                    fixed square, so there is nothing here to measure or shrink —
+                    @see PAD_SIZE_PX. */}
+                <div className="mt-auto flex w-full justify-center">
+                  <DirectionPad onPress={press} onRelease={release} />
+                </div>
               </div>
               {/* The far corner, under the arrows, which is the one place on a
                   phone that is never on the way to anything: the thumb steering

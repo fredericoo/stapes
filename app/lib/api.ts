@@ -15,9 +15,14 @@ import type { TileDef, TilesetDef } from "./types";
  * Same-origin by construction. The server owns the origin and serves this
  * bundle, so there is no base URL to configure, no CORS, and the `HttpOnly`
  * actor cookie rides every request without `credentials` ceremony.
+ *
+ * `origin`, not `host`: Eden prefixes a bare host with `https://` unless it
+ * is loopback. A phone on `http://192.168.0.4:…` would then call HTTPS on a
+ * Vite server that is HTTP, which is the "Request failed" that leaves the
+ * CSS and JS loaded and the world blank.
  */
 const client = treaty<Api>(
-  typeof window === "undefined" ? "localhost" : window.location.host,
+  typeof window === "undefined" ? "localhost" : window.location.origin,
 );
 
 /**
