@@ -107,6 +107,29 @@ function isGiveable(def: TileDef): boolean {
 }
 
 /**
+ * How many squares this tile holds, or null when it is not a container.
+ *
+ * The size rather than a boolean, because the field that follows needs the
+ * number: a chest of four and a chest of twelve are the same question asked
+ * with different room in it.
+ */
+function holdsCount(def: TileDef): number | null {
+  return resolveContainer(def)?.size ?? null;
+}
+
+/**
+ * What may be authored into a container: an item, and never another container.
+ *
+ * The same shape as {@link isGiveable} and a different rule — nothing nests, so
+ * a bag inside a crate is a thing the game has no way to open. Two predicates
+ * rather than one shared by both, because the day either rule moves it must
+ * move alone.
+ */
+function isStowable(def: TileDef): boolean {
+  return resolveItem(def) != null && resolveContainer(def) == null;
+}
+
+/**
  * The elevations one placement may be lifted to, or null when there is no
  * choice to offer.
  *
@@ -141,6 +164,8 @@ function SortableStackItem({
   def,
   foot,
   giveable,
+  stowable,
+  tilesById,
   tilesets,
   listRef,
 }: {
@@ -153,6 +178,8 @@ function SortableStackItem({
   /** Where this placement may sit within the level; null when it has no say. */
   foot: ReturnType<typeof footChoice>;
   giveable: TileDef[];
+  stowable: TileDef[];
+  tilesById: Record<string, TileDef>;
   tilesets: TilesetDef[];
   listRef: RefObject<HTMLUListElement | null>;
 }) {
@@ -295,7 +322,10 @@ function SortableStackItem({
         {/* What the placement carries, rather than the fields themselves: the
             row says a wire and a description are set, and the dialog is where
             they are read and changed. */}
-        {placed.channel || placed.rewardTag || placed.description ? (
+        {placed.channel ||
+        placed.rewardTag ||
+        placed.contents?.length ||
+        placed.description ? (
           <div className="mt-1 flex items-center gap-2 text-[10px] text-muted">
             {/* The channel keeps its width and the description gives way: a
                 wire name truncated to "⌁…" tells you nothing, while a clipped
@@ -313,6 +343,13 @@ function SortableStackItem({
                   ? ` ×${placed.rewardTileIds.length}`
                   : ""}
               </span>
+            ) : null}
+            {/* A count and not the things themselves: the row is answering
+                "is there anything in this crate", and four names in a side
+                panel would push the stack off the bottom of it. What is in it
+                is the dialog's job. */}
+            {placed.contents?.length ? (
+              <span className="shrink-0">▤ {placed.contents.length}</span>
             ) : null}
             {placed.description ? (
               <span className="min-w-0 truncate" title={placed.description}>
@@ -357,7 +394,10 @@ function SortableStackItem({
           wired={isWired(def)}
           gives={isGiver(def)}
           teleports={needsDestination(def)}
+          holds={holdsCount(def)}
           giveable={giveable}
+          stowable={stowable}
+          tilesById={tilesById}
           tilesets={tilesets}
           channelListId={CHANNEL_LIST_ID}
           onClose={() => setSettingsOpen(false)}
@@ -378,6 +418,10 @@ export function SelectedStackList({ stack, tilesById, tilesets }: Props) {
   // per placement on every render.
   const giveable = useMemo(
     () => Object.values(tilesById).filter(isGiveable),
+    [tilesById],
+  );
+  const stowable = useMemo(
+    () => Object.values(tilesById).filter(isStowable),
     [tilesById],
   );
 
@@ -428,6 +472,8 @@ export function SelectedStackList({ stack, tilesById, tilesets }: Props) {
               def={def}
               foot={footChoice(stack, row.stackIndex, tilesById)}
               giveable={giveable}
+              stowable={stowable}
+              tilesById={tilesById}
               tilesets={tilesets}
               listRef={listRef}
             />

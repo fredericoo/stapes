@@ -1067,6 +1067,69 @@ export function updatePlacedReward(
 }
 
 /**
+ * Set what one container placement is holding, or clear it.
+ *
+ * An empty list clears the field rather than writing `[]`, because an empty
+ * chest and an unauthored one are the same chest — and a `"contents": []` in
+ * every crate in `data/map.json` is a line per crate saying nothing.
+ *
+ * The instances are written as they arrive. Nothing here asks whether the tile
+ * is a container, whether the list is longer than the container's `size`, or
+ * whether two entries should have been one pile: those are the authoring
+ * rules, they live where the field is edited, and a second copy here is a copy
+ * that would come to disagree.
+ *
+ * **Returns the same map when nothing changes**, on exactly the terms
+ * {@link updatePlacedReward} does, and for the same reason: this commits when a
+ * dialog closes, which happens whether or not anything was edited.
+ */
+export function updatePlacedContents(
+  map: MapFile,
+  x: number,
+  y: number,
+  z: number,
+  stackIndex: number,
+  contents: readonly ItemInstance[],
+): MapFile {
+  const current = getStack(map, x, y, z);
+  const placed = current[stackIndex];
+  if (!placed) return map;
+
+  const next = contents.length > 0 ? contents : undefined;
+  if (sameContents(placed.contents, next)) return map;
+
+  const stack = current.map((p, i) => {
+    if (i !== stackIndex) return { ...p };
+    const { contents: _contents, ...rest } = p;
+    return next ? { ...rest, contents: [...next] } : rest;
+  });
+  return setStack(map, x, y, z, stack);
+}
+
+/**
+ * Two content lists, either of which may be absent, holding the same things.
+ *
+ * Entry identity is the fast path and covers the overwhelmingly common case —
+ * a dialog closed without the list being touched, where every instance is the
+ * object the map already held. The field compare behind it catches the author
+ * who typed a count and then typed the old one back.
+ */
+function sameContents(
+  a: readonly ItemInstance[] | undefined,
+  b: readonly ItemInstance[] | undefined,
+): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  return a.every((item, i) => {
+    const other = b[i]!;
+    return (
+      item === other ||
+      (item.tileId === other.tileId && item.count === other.count)
+    );
+  });
+}
+
+/**
  * Set where one placement sends people, or clear it.
  *
  * `null` clears, and clearing is how a portal is un-authored: the tile stays a
