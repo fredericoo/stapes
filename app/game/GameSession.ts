@@ -1530,6 +1530,28 @@ type ActorRuntime = {
    * says something moved.
    */
   statuses: readonly StatusInstance[];
+  /**
+   * How long this body has been standing on the cell it is standing on, towards
+   * the next helping of whatever that cell grants.
+   *
+   * **The whole of "a fire keeps burning you while you stand in it".** Arriving
+   * on a tile grants its status and zeroes this, and every
+   * `STANDING_STATUS_EVERY_MS` of standing still grants it again — see
+   * {@link GameSession.tickStandingStatuses}. Per body rather than one clock for
+   * the whole world, because a shared one would come round whenever it came
+   * round: somebody who stepped into a flame a tick before it did would take two
+   * helpings in two ticks, and somebody who stepped in a tick after it would
+   * take their second a full second later than the next person.
+   *
+   * Counted for every body whatever it is standing on, because the alternative
+   * is asking the board what is underfoot thirty times a second per actor. What
+   * this buys is that the stack is walked once a second per body and only then.
+   *
+   * **Not durable**, like {@link hp} and {@link attackCooldownMs}: it records
+   * something that is happening rather than something that happened, and a body
+   * that comes back into a world waits a whole period for its next helping.
+   */
+  standingStatusMs: number;
   /** Milliseconds until this body may swing again. See `./combat`. */
   attackCooldownMs: number;
   /**
@@ -1608,6 +1630,31 @@ type ActorRuntime = {
  * the time.
  */
 const COOLDOWN_EPSILON_MS = 1e-6;
+
+/**
+ * How often standing on a status-granting tile hands the status over again.
+ *
+ * **A cadence rather than every tick, and the reason is the dice.** Every
+ * application draws a duration from the world's own generator — see
+ * `./statuses`'s `rollDurationMs` — so a per-tick grant would be thirty seeded
+ * draws a second per body standing in a flame, and what every fight in the
+ * world rolled after it would depend on how long somebody loitered. It would
+ * also walk the stack under every actor thirty times a second to find out
+ * whether there was anything to grant at all.
+ *
+ * A second, because that is the rhythm the thing it feeds already runs on:
+ * Burned spends hit points once a second, so a helping per second is one grant
+ * per payout and the two clocks do not beat against each other. It is exactly
+ * thirty ticks — `snapToTick(1000)` is a no-op on it — which is what lets the
+ * accumulator below be compared against it with nothing but the float slack.
+ *
+ * What it means for a stacking status is that standing still climbs to the
+ * authored ceiling and holds there: four seconds in a flame is four helpings of
+ * Burned, which is its `maxMs`. That is the intent — a fire you stand in should
+ * be worse than one you walk through — and it is a balance change as much as a
+ * mechanism one.
+ */
+const STANDING_STATUS_EVERY_MS = 1000;
 
 /**
  * What a mend is worth, before the learning rate.
@@ -2282,6 +2329,10 @@ export class GameSession implements PlaySession {
       // continuity and a key per creature would spend the storage ceiling on
       // remembering that a deer is uninjured.
       statuses: resident ? NO_STATUSES : (opts.statuses ?? NO_STATUSES),
+      // Zero rather than a full period, so a body placed straight into a fire
+      // waits the whole interval for its second helping — the first is the
+      // arrival's, which `arriveIn` grants.
+      standingStatusMs: 0,
       attackCooldownMs: 0,
       attackRecoveryMs: 0,
       extraction: null,
@@ -2876,6 +2927,11 @@ export class GameSession implements PlaySession {
       this.tickSlide(actor, tickMs);
       this.tickMotion(actor, tickMs);
     }
+    // After the bodies have moved, so a body that stepped off a flame on this
+    // tick is not handed one more helping of a cell it has left — and after the
+    // arrival that step already fired, which zeroed the clock, so the two can
+    // never land in the same tick. @see tickStandingStatuses
+    this.tickStandingStatuses(tickMs);
     // Before the settle, so a body that rots away this tick drops whatever was
     // resting on it and releases whatever plate it held on the same frame,
     // rather than one settle bleeding into the next.
@@ -8414,10 +8470,28 @@ export class GameSession implements PlaySession {
    * work**: it burns you where you landed and *then* takes you elsewhere. The
    * other way round the flame would be a tile the traveller was never on.
    *
+   * The clock is zeroed whether or not there was anything underfoot to take, so
+   * a body that walks out of a flame and back in waits a whole period before the
+   * standing helping rather than inheriting however far the last cell had got.
+   * @see ActorRuntime.standingStatusMs
+   */
+  private statusOnArrival(actor: ActorRuntime) {
+    actor.standingStatusMs = 0;
+    this.grantStandingStatus(actor);
+  }
+
+  /**
+   * Hand over whatever the cell under this actor grants, once.
+   *
+   * Shared by the arrival and by {@link tickStandingStatuses}, which is what
+   * makes standing in a fire the same event as walking into one rather than a
+   * second rule that could drift from it — the same cover rule, the same
+   * attribution, the same silence on a body with nothing to spend.
+   *
    * A body with no hit points is left alone, on {@link activateAddStatus}'s own
    * argument: nothing a status does is visible on something that cannot be hurt.
    */
-  private statusOnArrival(actor: ActorRuntime) {
+  private grantStandingStatus(actor: ActorRuntime) {
     if (this.hpOf(actor) === null) return;
 
     const loc = this.locate(actor);
@@ -8441,6 +8515,44 @@ export class GameSession implements PlaySession {
         placed.castElements,
       );
       return;
+    }
+  }
+
+  /**
+   * Keep granting, to everybody who has not moved off what they are standing on.
+   *
+   * **The answer to a fire that burned you once and then let you stand in it.**
+   * A `step` trigger used to fire on arrival alone, so the way to survive a
+   * flame was to stop walking: the burn ran its four seconds out and the tile
+   * underneath had no further say. Now every `STANDING_STATUS_EVERY_MS` of
+   * standing hands the status over again, through the same {@link grantStatus}
+   * an arrival goes through — so it stacks where the status stacks and refreshes
+   * where it does not, and neither is a rule this method knows about.
+   *
+   * **The accumulator runs for every body and the stack is only walked when it
+   * comes round.** The cheap half is a number per actor per tick; the expensive
+   * half — locating the body and reading the column under it — happens once a
+   * second per body, which is what keeps this off the per-tick budget entirely.
+   *
+   * A body in mid-air is passed over and its clock left where it is: it has not
+   * arrived anywhere, which is the same reason {@link tickMotion} refuses to
+   * call the arrival on one. Falling through a column of flame burns you where
+   * you land and nowhere else, exactly as it did.
+   */
+  private tickStandingStatuses(tickMs: number) {
+    for (const actor of this.actors.values()) {
+      if (actor.fall) continue;
+      actor.standingStatusMs += tickMs;
+      // Against the epsilon rather than the figure itself, for the reason
+      // `COOLDOWN_EPSILON_MS` gives: thirty ticks come to 1000.0000000000005 and
+      // an honest comparison would be a tick late about half the time.
+      const stoodMs = actor.standingStatusMs + COOLDOWN_EPSILON_MS;
+      if (stoodMs < STANDING_STATUS_EVERY_MS) continue;
+      // Drained rather than zeroed, so the period stays a period: a tick is not
+      // a whole number of milliseconds and zeroing would lose the remainder
+      // every second, drifting a standing body a tick further behind each time.
+      actor.standingStatusMs -= STANDING_STATUS_EVERY_MS;
+      this.grantStandingStatus(actor);
     }
   }
 

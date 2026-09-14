@@ -16,11 +16,18 @@ import { GameSession } from "./GameSession";
  *
  * The reach rules are the teleport's and are tested as such; what is its own
  * here is that a body takes the status, that a thing without hit points does
- * not, and that walking back in does it again.
+ * not, that walking back in does it again, and that standing still in it keeps
+ * doing it.
  */
 
 /** Ticks a started walk needs to reach its destination and commit. */
 const TICKS_PER_STEP = Math.ceil(WALK_DURATION_MS / TICK_MS) + 1;
+
+/**
+ * One standing period, which is the cadence a step tile re-grants on. Exactly
+ * thirty ticks, so a test can count helpings rather than allow for drift.
+ */
+const TICKS_PER_SECOND = Math.round(1_000 / TICK_MS);
 
 const frame = {
   sprite: {
@@ -325,12 +332,75 @@ describe("stepping into a fire", () => {
     expect(play.statusesOf("local")![0]!.remainingMs).toBeGreaterThan(first);
   });
 
-  it("does not fire again for standing still in it", () => {
+  it("does not fire again before the standing period is up", () => {
     const play = session(world("fire"));
     step(play, "e");
     const after = play.statusesOf("local")![0]!.remainingMs;
     run(play, 2);
     expect(play.statusesOf("local")![0]!.remainingMs).toBeLessThan(after);
+  });
+
+  it("keeps burning whoever stands in it", () => {
+    const play = session(world("fire"));
+    step(play, "e");
+    const arrival = play.statusesOf("local")![0]!.remainingMs;
+    // A second of standing is a second helping of Burned, which the fixture
+    // stacks — so the countdown goes *up* despite the second that ran off it.
+    run(play, TICKS_PER_SECOND);
+    expect(play.statusesOf("local")![0]!.remainingMs).toBeGreaterThan(arrival);
+  });
+
+  it("holds a standing body at the ceiling rather than letting it run out", () => {
+    const play = session(world("fire"));
+    step(play, "e");
+    // Past the four seconds one helping lasts, so a fire that fired on arrival
+    // alone would have let the burn expire — and past the three helpings the
+    // climb to `maxMs` takes, so what is asserted is the clamp holding.
+    run(play, TICKS_PER_SECOND * 4);
+    // Beside the combat flag the burn's own damage raised, which is why this
+    // reads the list rather than matching it.
+    expect(held(play)).toContain("burned");
+    const remainingMs = play.statusesOf("local")![0]!.remainingMs;
+    // Sitting on the ceiling, give or take however much of the current second
+    // has run off it — where the grant lands within the second depends on which
+    // tick the walk committed, and that is not what is under test.
+    expect(remainingMs).toBeLessThanOrEqual(BURN_MS * 3);
+    expect(remainingMs).toBeGreaterThan(BURN_MS * 3 - 1_000);
+  });
+
+  it("stops the moment you step out, and burns down from what you took", () => {
+    const play = session(world("fire"));
+    step(play, "e");
+    run(play, TICKS_PER_SECOND * 4);
+    step(play, "w");
+    const left = play.statusesOf("local")![0]!.remainingMs;
+    run(play, TICKS_PER_SECOND * 2);
+    expect(play.statusesOf("local")![0]!.remainingMs).toBeCloseTo(left - 2_000, 6);
+  });
+
+  it("keeps burning a creature standing in it too — a body is a body", () => {
+    const play = session(world("fire", "deer"), { actorIds: [] });
+    expect(play.requestStep("npc:0,0,0,1", "e")).toBe("started");
+    run(play, TICKS_PER_STEP);
+    const arrival = play.statusesOf("npc:0,0,0,1")![0]!.remainingMs;
+    run(play, TICKS_PER_SECOND);
+    expect(play.statusesOf("npc:0,0,0,1")![0]!.remainingMs).toBeGreaterThan(
+      arrival,
+    );
+  });
+
+  it("leaves a body with no hit points alone however long it stands there", () => {
+    const play = session(world("fire", "wisp"), { actorIds: [] });
+    expect(play.requestStep("npc:0,0,0,1", "e")).toBe("started");
+    run(play, TICKS_PER_STEP + TICKS_PER_SECOND * 3);
+    expect(held(play, "npc:0,0,0,1")).toEqual([]);
+  });
+
+  it("grants nothing to a body standing on plain ground", () => {
+    const play = session(world("grass"));
+    step(play, "e");
+    run(play, TICKS_PER_SECOND * 3);
+    expect(held(play)).toEqual([]);
   });
 
   it("burns even when the status names nothing anybody authored — and does nothing", () => {
