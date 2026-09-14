@@ -193,7 +193,29 @@ export function AppShell({
 
   return (
     <AppMenuExtras.Provider value={menuExtras}>
-      <div className="flex h-full flex-col">
+      <div
+        className="flex h-full flex-col"
+        style={{
+          // The phone's own furniture, kept off the page. `viewport-fit=cover`
+          // in `../root.tsx` hands us the pixels behind the status bar and the
+          // toolbar, and this is the half that decides what may sit in them:
+          // nothing, except the ink this shell is painted in.
+          paddingTop: "env(safe-area-inset-top)",
+          // Landscape, where the notch is on one side and the home indicator on
+          // the other. Zero in portrait, and zero everywhere that has neither.
+          paddingLeft: "env(safe-area-inset-left)",
+          paddingRight: "env(safe-area-inset-right)",
+          // **The bottom is the page's own to deal with when the page has taken
+          // the header away.** A shell that inset it would end the layout above
+          // the toolbar and leave a band of ink under the game that no control
+          // could use, which is the opposite of what a phone wants. So the game
+          // reaches the bottom edge of the screen and scrolls its list clear of
+          // the toolbar instead — see `GameViewport`. Every other page keeps the
+          // inset, because its content ends wherever it ends and a row of it
+          // under the toolbar is simply a row nobody can read.
+          paddingBottom: headerHidden ? undefined : "env(safe-area-inset-bottom)",
+        }}
+      >
         {headerHidden ? null : (
           <header className="flex flex-wrap items-center gap-3 border-b-2 border-border bg-ink px-3 py-2 text-paper">
             <div className="text-sm font-bold tracking-wide uppercase">
