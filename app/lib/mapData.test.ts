@@ -16,6 +16,7 @@ import {
   emptyMap,
   listChannels,
   updatePlacedChannel,
+  updatePlacedContents,
   updatePlacedDescription,
 } from "./mapData";
 import { fixtureTown } from "./fixtureTown";
@@ -175,6 +176,96 @@ describe("placement descriptions", () => {
       description: "Beware of the dog",
       channel: "a",
     });
+  });
+});
+
+describe("container contents", () => {
+  const chestAt = (contents?: PlacedTile["contents"]) =>
+    replaceStack(emptyMap(), 1, 2, 0, [
+      { tileId: "grass" },
+      { tileId: "chest", ...(contents ? { contents } : {}) },
+    ]);
+
+  it("writes what one placement is holding", () => {
+    const written = updatePlacedContents(chestAt(), 1, 2, 0, 1, [
+      { id: "itm_a", tileId: "bread", count: 3 },
+    ]);
+
+    expect(getStack(written, 1, 2, 0)[1]).toEqual({
+      tileId: "chest",
+      contents: [{ id: "itm_a", tileId: "bread", count: 3 }],
+    });
+  });
+
+  it("clears the field rather than writing an empty list", () => {
+    // Absent, not `[]`, on the description field's terms: an emptied chest must
+    // leave no line behind in a file people read diffs of.
+    const emptied = updatePlacedContents(
+      chestAt([{ id: "itm_a", tileId: "bread" }]),
+      1,
+      2,
+      0,
+      1,
+      [],
+    );
+
+    expect(getStack(emptied, 1, 2, 0)[1]).toEqual({ tileId: "chest" });
+  });
+
+  it("returns the same map when the contents are unchanged", () => {
+    // What closing the dialog on a chest nobody touched does, which is most
+    // closings: the instances handed back are the ones the map already held.
+    const map = chestAt([{ id: "itm_a", tileId: "bread", count: 2 }]);
+    const held = getStack(map, 1, 2, 0)[1]!.contents!;
+
+    expect(updatePlacedContents(map, 1, 2, 0, 1, held)).toBe(map);
+    expect(
+      updatePlacedContents(map, 1, 2, 0, 1, [
+        { id: "itm_a", tileId: "bread", count: 2 },
+      ]),
+    ).toBe(map);
+  });
+
+  it("notices a swap that kept the tile and the count", () => {
+    // Two clicks in the editor: take the wired lever out, drop a plain one in.
+    // Compared on tile and count alone this is no change at all, the dialog
+    // closes clean, and the wired lever is still in the crate.
+    const map = chestAt([{ id: "itm_a", tileId: "lever", channel: "gate-a" }]);
+    const written = updatePlacedContents(map, 1, 2, 0, 1, [
+      { id: "itm_b", tileId: "lever" },
+    ]);
+
+    expect(written).not.toBe(map);
+    expect(getStack(written, 1, 2, 0)[1]!.contents).toEqual([
+      { id: "itm_b", tileId: "lever" },
+    ]);
+  });
+
+  it("notices a field that changed on an entry that stayed", () => {
+    const map = chestAt([{ id: "itm_a", tileId: "sign", description: "old" }]);
+    const written = updatePlacedContents(map, 1, 2, 0, 1, [
+      { id: "itm_a", tileId: "sign", description: "new" },
+    ]);
+
+    expect(written).not.toBe(map);
+  });
+
+  it("notices a count that changed", () => {
+    const map = chestAt([{ id: "itm_a", tileId: "bread", count: 2 }]);
+    const written = updatePlacedContents(map, 1, 2, 0, 1, [
+      { id: "itm_a", tileId: "bread", count: 3 },
+    ]);
+
+    expect(written).not.toBe(map);
+    expect(getStack(written, 1, 2, 0)[1]!.contents![0]!.count).toBe(3);
+  });
+
+  it("leaves the rest of the stack alone", () => {
+    const written = updatePlacedContents(chestAt(), 1, 2, 0, 1, [
+      { id: "itm_a", tileId: "bread" },
+    ]);
+
+    expect(getStack(written, 1, 2, 0)[0]).toEqual({ tileId: "grass" });
   });
 });
 

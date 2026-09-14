@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
+import type { ItemInstance } from "../lib/itemInstance";
 import { isDirectional } from "../lib/types";
 import {
   DEFAULT_EDITOR_MINUTES,
@@ -16,6 +17,7 @@ import {
   serializeMap,
   setStacks,
   updatePlacedChannel,
+  updatePlacedContents,
   updatePlacedDescription,
   updatePlacedReward,
   updatePlacedTeleport,
@@ -213,6 +215,11 @@ export type EditorStore = {
   ) => void;
   /** Where one placement sends people; `null` clears it. */
   setStackTeleport: (stackIndex: number, to: Coord | null) => void;
+  /** What one container placement holds; an empty list clears it. */
+  setStackContents: (
+    stackIndex: number,
+    contents: readonly ItemInstance[],
+  ) => void;
 };
 
 /**
@@ -697,6 +704,21 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         currentLevel,
         stackIndex,
         to,
+      ),
+    );
+  },
+
+  setStackContents: (stackIndex, contents) => {
+    const { map, selected, currentLevel } = get();
+    if (!selected) return;
+    get().commitMap(
+      updatePlacedContents(
+        map,
+        selected.x,
+        selected.y,
+        currentLevel,
+        stackIndex,
+        contents,
       ),
     );
   },

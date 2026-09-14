@@ -1,0 +1,171 @@
+import { describe, expect, it } from "vitest";
+import {
+  addContent,
+  removeContent,
+  setContentCount,
+} from "./ContainerContentsField";
+import { DEFAULT_CONTAINER } from "../lib/item";
+import type { ItemInstance } from "../lib/itemInstance";
+import type { TileDef } from "../lib/types";
+import { normalizeTileDef } from "../lib/types";
+
+/**
+ * What the editor writes into a container placement.
+ *
+ * The rules being checked are `../lib/piles`' rather than this field's — the
+ * point of every case here is that authoring a chest and filling a bag in play
+ * arrive at the same list, because the field calls `stow` rather than keeping
+ * its own idea of what fits.
+ */
+
+const frame = {
+  sprite: {
+    tilesetId: "basic",
+    rect: { x: 0, y: 0, w: 1, h: 1 },
+    base: { x: 0, y: 0 },
+  },
+  durationMs: 200,
+};
+
+function tile(partial: Record<string, unknown>): TileDef {
+  return normalizeTileDef({
+    name: partial.id,
+    height: 0,
+    directional: false,
+    variants: { default: [frame] },
+    attributes: {},
+    kind: "prop",
+    ...partial,
+  });
+}
+
+function food(id: string, pile: number): TileDef {
+  return tile({
+    id,
+    kind: "item",
+    intangible: true,
+    interactions: { item: { type: "consumable", label: "Eat", hp: 1, pile } },
+  });
+}
+
+const bread = food("bread", 3);
+const sword = tile({
+  id: "sword",
+  kind: "item",
+  intangible: true,
+  interactions: {
+    item: {
+      type: "weapon",
+      damage: 1,
+      def: 0,
+      accuracy: 100,
+      variance: 0,
+      spd: 50,
+      mastery: "sharp",
+    },
+  },
+});
+const bag = tile({
+  id: "bag",
+  kind: "item",
+  intangible: true,
+  interactions: { item: { ...DEFAULT_CONTAINER, size: 2 } },
+});
+
+const tilesById: Record<string, TileDef> = Object.fromEntries(
+  [bread, sword, bag].map((def) => [def.id, def]),
+);
+
+/** What is in the chest, as a reader of `map.json` would see it. */
+function authored(contents: readonly ItemInstance[]) {
+  return contents.map(({ tileId, count }) => ({ tileId, count }));
+}
+
+describe("addContent", () => {
+  it("gives the first of something a square of its own", () => {
+    const next = addContent([], "sword", 4, tilesById);
+    expect(authored(next!)).toEqual([{ tileId: "sword", count: undefined }]);
+  });
+
+  it("mints an identity, so what it hands back is an instance", () => {
+    const next = addContent([], "sword", 4, tilesById)!;
+    expect(next[0]!.id).toMatch(/^itm_/);
+  });
+
+  it("pours a second of the same food into the pile already there", () => {
+    let contents = addContent([], "bread", 4, tilesById)!;
+    contents = addContent(contents, "bread", 4, tilesById)!;
+    expect(authored(contents)).toEqual([{ tileId: "bread", count: 2 }]);
+  });
+
+  it("takes a fresh square once the pile is at its tile's ceiling", () => {
+    // Bread piles to three, so the fourth is a second heap and not a fourth
+    // loaf on the first one.
+    let contents: ItemInstance[] = [];
+    for (let i = 0; i < 4; i++) {
+      contents = addContent(contents, "bread", 4, tilesById)!;
+    }
+    expect(authored(contents)).toEqual([
+      { tileId: "bread", count: 3 },
+      { tileId: "bread", count: undefined },
+    ]);
+  });
+
+  it("never pours one kind of thing into another", () => {
+    let contents = addContent([], "sword", 4, tilesById)!;
+    contents = addContent(contents, "sword", 4, tilesById)!;
+    expect(contents).toHaveLength(2);
+  });
+
+  it("refuses what the container has no square left for", () => {
+    let contents = addContent([], "sword", 1, tilesById)!;
+    expect(addContent(contents, "bread", 1, tilesById)).toBeNull();
+  });
+
+  it("takes a pour even when every square is taken", () => {
+    // The one thing a full container still accepts: more of a pile it is
+    // already holding, which needs no square of its own.
+    const contents = addContent([], "bread", 1, tilesById)!;
+    const next = addContent(contents, "bread", 1, tilesById);
+    expect(authored(next!)).toEqual([{ tileId: "bread", count: 2 }]);
+  });
+});
+
+describe("setContentCount", () => {
+  it("writes a count above one", () => {
+    const contents = addContent([], "bread", 4, tilesById)!;
+    expect(authored(setContentCount(contents, 0, 3))).toEqual([
+      { tileId: "bread", count: 3 },
+    ]);
+  });
+
+  it("writes a count of one as no count at all", () => {
+    // Otherwise `count: 1` spreads through `data/map.json` saying what an
+    // absent key already says. See `../lib/piles`' withCount.
+    const contents = setContentCount(
+      addContent([], "bread", 4, tilesById)!,
+      0,
+      3,
+    );
+    expect(authored(setContentCount(contents, 0, 1))).toEqual([
+      { tileId: "bread", count: undefined },
+    ]);
+  });
+
+  it("leaves every other square alone", () => {
+    let contents = addContent([], "sword", 4, tilesById)!;
+    contents = addContent(contents, "bread", 4, tilesById)!;
+    const next = setContentCount(contents, 1, 2);
+    expect(next[0]).toBe(contents[0]);
+  });
+});
+
+describe("removeContent", () => {
+  it("closes the squares up behind what it took", () => {
+    let contents = addContent([], "sword", 4, tilesById)!;
+    contents = addContent(contents, "bread", 4, tilesById)!;
+    expect(authored(removeContent(contents, 0))).toEqual([
+      { tileId: "bread", count: undefined },
+    ]);
+  });
+});

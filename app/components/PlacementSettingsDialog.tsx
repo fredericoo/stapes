@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Coord, PlacedTile, TileDef, TilesetDef } from "../lib/types";
+import type { ItemInstance } from "../lib/itemInstance";
 import { MAX_DESCRIPTION_LENGTH, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import { MAX_REWARD_ITEMS } from "../lib/interactions";
 import { useEditorStore } from "../editor/store";
@@ -11,6 +12,7 @@ import {
   OptionalNumberInput,
   Textarea,
 } from "../ui";
+import { ContainerContentsField } from "./ContainerContentsField";
 import { TileIdMultiSelect } from "./TileIdMultiSelect";
 
 /**
@@ -89,7 +91,10 @@ export function PlacementSettingsDialog({
   wired,
   gives,
   teleports,
+  holds,
   giveable,
+  stowable,
+  tilesById,
   tilesets,
   channelListId,
   onClose,
@@ -107,8 +112,19 @@ export function PlacementSettingsDialog({
    * there is nothing here for it to say.
    */
   teleports: boolean;
+  /**
+   * How many squares this container has, or null when the tile is not one; see
+   * `isContainer` in ./SelectedStackList. A size rather than a flag because the
+   * contents field needs the number anyway, and two sources for "is this a
+   * container" is one too many.
+   */
+  holds: number | null;
   /** What a reward may hand over — plain items, never a container. */
   giveable: TileDef[];
+  /** What may be authored into a container — plain items, because nothing nests. */
+  stowable: TileDef[];
+  /** For the contents field: pile ceilings and the name beside each square. */
+  tilesById: Record<string, TileDef>;
   tilesets: TilesetDef[];
   channelListId: string;
   onClose: () => void;
@@ -129,6 +145,11 @@ export function PlacementSettingsDialog({
   const [teleportTo, setTeleportTo] = useState<TeleportDraft>(() =>
     draftFromCoord(placed.teleportTo),
   );
+  // Held as a draft like everything else here, so a chest filled and emptied
+  // again while the dialog is open is one undo entry and not six.
+  const [contents, setContents] = useState<ItemInstance[]>(
+    () => placed.contents ?? [],
+  );
 
   const commitAndClose = () => {
     const store = useEditorStore.getState();
@@ -137,6 +158,7 @@ export function PlacementSettingsDialog({
     if (teleports) {
       store.setStackTeleport(stackIndex, readDestination(teleportTo));
     }
+    if (holds !== null) store.setStackContents(stackIndex, contents);
     store.setStackDescription(stackIndex, description);
     onClose();
   };
@@ -210,6 +232,19 @@ export function PlacementSettingsDialog({
               label="Items"
               info={`Up to ${MAX_REWARD_ITEMS}, never a container. The player needs room for all of them at once or is refused.`}
               emptyHint="None — nothing to give means no row is offered."
+            />
+          </div>
+        ) : null}
+
+        {holds !== null ? (
+          <div className="border-t-2 border-border pt-4">
+            <ContainerContentsField
+              contents={contents}
+              capacity={holds}
+              stowable={stowable}
+              tilesById={tilesById}
+              tilesets={tilesets}
+              onChange={setContents}
             />
           </div>
         ) : null}

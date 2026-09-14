@@ -1,5 +1,6 @@
 import { PLAYER_TILE_ID } from "../game/constants";
 import type { ItemInstance } from "./itemInstance";
+import { sameInstance } from "./itemInstance";
 import type {
   ChunkCells,
   Coord,
@@ -1064,6 +1065,69 @@ export function updatePlacedReward(
     return live ? { ...rest, rewardTag: nextTag, rewardTileIds: nextIds } : rest;
   });
   return setStack(map, x, y, z, stack);
+}
+
+/**
+ * Set what one container placement is holding, or clear it.
+ *
+ * An empty list clears the field rather than writing `[]`, because an empty
+ * chest and an unauthored one are the same chest — and a `"contents": []` in
+ * every crate in `data/map.json` is a line per crate saying nothing.
+ *
+ * The instances are written as they arrive. Nothing here asks whether the tile
+ * is a container, whether the list is longer than the container's `size`, or
+ * whether two entries should have been one pile: those are the authoring
+ * rules, they live where the field is edited, and a second copy here is a copy
+ * that would come to disagree.
+ *
+ * **Returns the same map when nothing changes**, on exactly the terms
+ * {@link updatePlacedReward} does, and for the same reason: this commits when a
+ * dialog closes, which happens whether or not anything was edited.
+ */
+export function updatePlacedContents(
+  map: MapFile,
+  x: number,
+  y: number,
+  z: number,
+  stackIndex: number,
+  contents: readonly ItemInstance[],
+): MapFile {
+  const current = getStack(map, x, y, z);
+  const placed = current[stackIndex];
+  if (!placed) return map;
+
+  const next = contents.length > 0 ? contents : undefined;
+  if (sameContents(placed.contents, next)) return map;
+
+  const stack = current.map((p, i) => {
+    if (i !== stackIndex) return { ...p };
+    const { contents: _contents, ...rest } = p;
+    return next ? { ...rest, contents: [...next] } : rest;
+  });
+  return setStack(map, x, y, z, stack);
+}
+
+/**
+ * Two content lists, either of which may be absent, holding the same things.
+ *
+ * Every field of every entry, through {@link sameInstance} — not the tile and
+ * the count, which is what this compared first and is a compare that loses
+ * edits. The whole dialog session arrives here as one list, so an author who
+ * takes a wired lever out of a crate and drops a plain one in has changed
+ * nothing this could see: same length, same tile, same absent count. The
+ * dialog closed, the row still said the crate held one thing, and the wired
+ * lever was still in it.
+ */
+function sameContents(
+  a: readonly ItemInstance[] | undefined,
+  b: readonly ItemInstance[] | undefined,
+): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  return a.every((item, i) => {
+    const other = b[i];
+    return other != null && sameInstance(item, other);
+  });
 }
 
 /**

@@ -3486,6 +3486,38 @@ The button is round, which is an exception to the house rectangle stated at the
 same weight the direction pad's is — see `spell-disc` in `app/app.css`. An arc
 wants a rim to run along.
 
+### A crate's contents are authored on the placement, and the editor asks `stow`
+
+`PlacedTile.contents` is a placement field, written to `data/map.json` and given
+fresh identities every load (`mintItemIds`). It could be read and written in
+play for a long time before anything in the editor could set it: the two chests
+in the map were typed into the JSON by hand, and a crate on the board said
+nothing about whether it opened onto anything. `ContainerContentsField` is the
+control, and it sits in the placement settings dialog beside the description —
+the tile says how big a crate is, this says what is in *that* crate, and two
+crates of one tile are a larder and an armoury.
+
+**Adding goes through `stow`.** The editor has no idea what fits and must not
+grow one: the same call that stashes a thing in a bag in play decides here, so
+four loaves into a two-square crate author one pile of three and a loose fourth,
+and the fifth is refused. A capacity rule written twice is a rule the editor
+would eventually be wrong about, in a direction nobody notices until a chest
+authored as full opens half empty.
+
+**An empty list clears the field.** `updatePlacedContents` writes no `contents`
+key rather than `[]`, on the description field's terms — an emptied chest must
+leave no line behind in a file people read diffs of.
+
+**Two contents lists are compared field by field**, through `sameInstance`, and
+the first version of that compare was tile-and-count and lost edits. The dialog
+holds the whole session as a draft and commits once, so taking a wired lever out
+of a crate and dropping a plain one in arrives here as a list of the same length
+holding the same tile with the same absent count. It compared equal, the write
+was skipped as a no-op, the dialog closed cleanly and the wired lever was still
+in the crate. The walk is the opposite direction to `piles.ts`'s `PILE_FIELDS`
+allow-list and deliberately so: there, a field nobody listed must stop two things
+fusing; here, a field nobody listed must make two things *unequal*.
+
 ### A content save reaches the world it describes
 
 `GameServer.load` reads the tile and status catalogues **once per world** — it

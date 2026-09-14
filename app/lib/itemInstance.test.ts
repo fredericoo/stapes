@@ -3,6 +3,7 @@ import {
   instanceFromPlacement,
   mintItemId,
   placementFromInstance,
+  sameInstance,
   type ItemInstance,
 } from "./itemInstance";
 import type { PlacedTile } from "./types";
@@ -79,5 +80,34 @@ describe("the placement ↔ instance round trip", () => {
     const instance = instanceFromPlacement(placed)!;
     expect(instance).not.toHaveProperty("owner");
     expect(placementFromInstance(instance)).not.toHaveProperty("owner");
+  });
+});
+
+describe("sameInstance", () => {
+  const lever: ItemInstance = { id: "itm_a", tileId: "lever" };
+
+  it("takes one thing for itself", () => {
+    expect(sameInstance(lever, lever)).toBe(true);
+  });
+
+  it("takes two copies of the same fields for the same thing", () => {
+    expect(sameInstance(lever, { id: "itm_a", tileId: "lever" })).toBe(true);
+  });
+
+  it("sees a field the tile and the count do not", () => {
+    // The whole reason this walks the object rather than naming fields: two
+    // levers of the same tile, one wired and one not, are not interchangeable.
+    expect(
+      sameInstance(lever, { id: "itm_a", tileId: "lever", channel: "gate" }),
+    ).toBe(false);
+  });
+
+  it("sees a different identity", () => {
+    expect(sameInstance(lever, { id: "itm_b", tileId: "lever" })).toBe(false);
+  });
+
+  it("sees a count", () => {
+    const bread: ItemInstance = { id: "itm_a", tileId: "bread", count: 2 };
+    expect(sameInstance(bread, { ...bread, count: 3 })).toBe(false);
   });
 });
