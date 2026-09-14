@@ -3739,13 +3739,17 @@ instance at full length directly rather than through `applyStatus`, which
 draws a die for the duration. One more draw per swing would change what every
 fight after it rolled, seeded tests included.
 
-**Players only.** `flagCombat` skips residents: a creature has no socket to
-close, and flagging every rat in a fight would broadcast status ids and keep
-the world awake for nothing.
+**Everybody, creatures included.** `flagCombat` used to skip residents — a
+creature has no socket to close, and flagging every rat in a fight broadcast
+status ids for nothing. Then formulas learned to read `has_status('combat')`,
+and a fed deer under attack had to heal at the fighting rate. The status-id
+patch per fighting creature is the accepted cost. The duel flags both sides on
+every swing for the same reason, when its catalogue is on at all.
 
-**The world stays awake while anybody is in combat** (`isAtRest`). The minute
+**The world stays awake while a player is in combat** (`isAtRest`). The minute
 is a clock only the tick winds, and a lingering body waits on it: asleep, it
-would stand there until somebody else moved.
+would stand there until somebody else moved. A creature's minute waits on
+nobody, so it freezes with the rest of the world.
 
 **On the server** (`GameServer.dropSocket`):
 
@@ -4923,6 +4927,37 @@ a number.
 heal ten to thirty percent of a body; it now heals three to ten. That is the
 intended slowdown rather than a side effect — the item durations in `data/` were
 left alone, and rebalancing them is a content decision.
+
+## A formula can ask what else the body is under
+
+`has_status('id')` is 1 while the bearer holds the status with that id and 0
+otherwise, and it is the only thing in the formula language that is not a
+number: a status id is a name, and the whole reason it is quoted is that a name
+like `food-poisoning` would otherwise tokenise as a subtraction. Single quotes
+only, because every formula lives inside a JSON string.
+
+It reads the **bearer's whole list**, handed in through `StatusBearer.statuses`,
+rather than the list `advanceStatuses` happens to be walking — a duel advances
+one instance at a time, and the combat flag has to be visible from the one
+beside it. The list is the instances themselves rather than a set of ids so
+that building a scope allocates nothing; a scope is built once per bearer per
+tick and once per instance per stat read.
+
+The engine's combat flag is a status like any other, so the first use is Fed
+healing **twice as fast out of a fight**:
+
+```
+everyMs: ceil(MAX_HP / 100) * 300000 / MAX_HP / (2 - has_status('combat'))
+```
+
+The divisor is 1 in a fight and 2 out of one, so the three-hundred-second full
+heal is the fighting figure and a calm body is full in a hundred and fifty. The
+flag lasts a minute past the last blow, which is how long the slower cadence
+outlives the fight.
+
+The editor previews every formula against a body that is under nothing, so
+`has_status('combat')` reads 0 there, and the snapped cadence it reports is the calm
+one.
 
 ## A dead body's bag is destroyed and its contents spill
 

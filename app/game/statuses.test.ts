@@ -35,7 +35,7 @@ function status(over: Record<string, unknown> = {}): StatusDef {
     toMs: 30_000,
     stacks: true,
     maxMs: 3_600_000,
-    everyMs: "ceil(MAX_HP / 100) * 300000 / MAX_HP",
+    everyMs: "ceil(MAX_HP / 100) * 300000 / MAX_HP / (2 - has_status('combat'))",
     effects: { hp: "ceil(MAX_HP / 100)" },
     ...over,
   });
@@ -47,7 +47,10 @@ function catalogue(...defs: StatusDef[]): Record<string, StatusDef> {
   return Object.fromEntries(defs.map((def) => [def.id, def]));
 }
 
-const BEARER = { hp: 8, maxHp: 16 };
+/** In a fight, which is Fed's slower cadence. */
+const IN_COMBAT = [{ defId: COMBAT_STATUS_ID }];
+
+const BEARER = { hp: 8, maxHp: 16, statuses: IN_COMBAT };
 
 /** Run whole seconds of ticks, threading the list through. */
 function runSeconds(
@@ -184,6 +187,7 @@ const ANY_SCOPE = {
   ELAPSED_SEC: 0,
   MAX_HP: 0,
   HP: 0,
+  statuses: [],
 };
 
 /**
@@ -199,7 +203,7 @@ describe("a cadence set by the body", () => {
 
   it("heals one every three seconds on a hundred-point body", () => {
     const held = applyStatus([], fed, new Rng(1));
-    const bearer = { hp: 10, maxHp: 100 };
+    const bearer = { hp: 10, maxHp: 100, statuses: IN_COMBAT };
     expect(runSeconds(held, 9, catalogue(fed), bearer).hpChanges).toEqual([
       1, 1, 1,
     ]);
@@ -207,7 +211,7 @@ describe("a cadence set by the body", () => {
 
   it("heals three every three seconds on a three-hundred-point body", () => {
     const held = applyStatus([], fed, new Rng(1));
-    const bearer = { hp: 10, maxHp: 300 };
+    const bearer = { hp: 10, maxHp: 300, statuses: IN_COMBAT };
     expect(runSeconds(held, 9, catalogue(fed), bearer).hpChanges).toEqual([
       3, 3, 3,
     ]);
@@ -215,7 +219,7 @@ describe("a cadence set by the body", () => {
 
   it("heals one every six seconds on a fifty-point body", () => {
     const held = applyStatus([], fed, new Rng(1));
-    const bearer = { hp: 10, maxHp: 50 };
+    const bearer = { hp: 10, maxHp: 50, statuses: IN_COMBAT };
     const after = runSeconds(held, 12, catalogue(fed), bearer);
     expect(after.hpChanges).toEqual([1, 1]);
     // And nothing between: the period is longer, not the point smaller.
@@ -224,7 +228,7 @@ describe("a cadence set by the body", () => {
 
   it("owes every period a catch-up tick skipped over, at the body's cadence", () => {
     const held = applyStatus([], fed, new Rng(1));
-    const bearer = { hp: 10, maxHp: 50 };
+    const bearer = { hp: 10, maxHp: 50, statuses: IN_COMBAT };
     // One fourteen-second tick: two six-second periods and change.
     const tick = advanceStatuses(held, 14_000, bearer, catalogue(fed));
     expect(tick.hpChanges.map((change) => change.amount)).toEqual([1, 1]);
@@ -239,7 +243,7 @@ describe("a cadence set by the body", () => {
    */
   it("heals any body in full in about three hundred seconds", () => {
     for (const maxHp of [7, 16, 50, 70, 100, 150, 185, 300]) {
-      const bearer = { hp: 0, maxHp };
+      const bearer = { hp: 0, maxHp, statuses: IN_COMBAT };
       const healedBy = (seconds: number) => {
         const held = applyStatus([], fed, new Rng(1));
         const paid = runSeconds(held, seconds, catalogue(fed), bearer);
@@ -251,6 +255,33 @@ describe("a cadence set by the body", () => {
       expect(healedBy(290)).toBeLessThan(maxHp);
       expect(healedBy(305)).toBe(maxHp);
     }
+  });
+
+  /** Out of a fight the same body is paid twice as often. */
+  it("halves the period out of combat", () => {
+    const held = applyStatus([], fed, new Rng(1));
+    const calm = { hp: 10, maxHp: 100, statuses: [] };
+    expect(runSeconds(held, 6, catalogue(fed), calm).hpChanges).toEqual([
+      1, 1, 1, 1,
+    ]);
+    const fighting = { hp: 10, maxHp: 100, statuses: IN_COMBAT };
+    expect(runSeconds(held, 6, catalogue(fed), fighting).hpChanges).toEqual([
+      1, 1,
+    ]);
+  });
+
+  /**
+   * The list a formula reads is the bearer's, not the one being advanced: a
+   * duel advances one instance at a time, and the flag is beside it.
+   */
+  it("reads the combat flag off the bearer, not the list being advanced", () => {
+    const [instance] = applyStatus([], fed, new Rng(1));
+    const bearer = { hp: 10, maxHp: 100, statuses: IN_COMBAT };
+    const tick = advanceStatuses([instance!], 3_000, bearer, catalogue(fed));
+    expect(tick.hpChanges.map((change) => change.amount)).toEqual([1]);
+    const calm = { hp: 10, maxHp: 100, statuses: [] };
+    const faster = advanceStatuses([instance!], 3_000, calm, catalogue(fed));
+    expect(faster.hpChanges.map((change) => change.amount)).toEqual([1, 1]);
   });
 
   it("reads a number as a constant cadence", () => {
@@ -267,7 +298,7 @@ describe("a cadence set by the body", () => {
       effects: { hp: "1" },
     });
     const held = applyStatus([], def, new Rng(1));
-    expect(runSeconds(held, 10, catalogue(def), { hp: 1, maxHp: 50 }).hpChanges).toEqual([]);
+    expect(runSeconds(held, 10, catalogue(def), { hp: 1, maxHp: 50, statuses: IN_COMBAT }).hpChanges).toEqual([]);
   });
 
   it("drops a status whose cadence is not a formula", () => {
@@ -305,6 +336,7 @@ describe("poison, as authored", () => {
       ELAPSED_SEC: Math.max(0, 600 - remainingSec),
       MAX_HP: 16,
       HP: 16,
+      statuses: [],
     });
   }
 
@@ -439,7 +471,7 @@ describe("the combat flag", () => {
     const out = advanceStatuses(
       enterCombat([]),
       COMBAT_DURATION_MS,
-      { hp: 10, maxHp: 10 },
+      { hp: 10, maxHp: 10, statuses: IN_COMBAT },
       statusesById([]),
     );
     expect(out.statuses).toEqual([]);

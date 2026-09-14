@@ -22679,16 +22679,31 @@
           {
             "from": "graze",
             "if": {
-              "cond": "in_los",
-              "of": {
-                "type": "thing",
-                "data": {
-                  "tileIds": [
-                    "bush"
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "thing",
+                    "data": {
+                      "tileIds": [
+                        "bush"
+                      ]
+                    }
+                  },
+                  "cells": 10
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "status",
+                      "id": "combat"
+                    }
                   ]
                 }
-              },
-              "cells": 10
+              ]
             },
             "bind": {
               "bush": {
@@ -22701,6 +22716,14 @@
               }
             },
             "to": "browsing"
+          },
+          {
+            "from": "browsing",
+            "if": {
+              "cond": "status",
+              "id": "combat"
+            },
+            "to": "graze"
           },
           {
             "from": "browsing",

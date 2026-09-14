@@ -4565,12 +4565,16 @@ export class GameSession implements PlaySession {
   /**
    * Start a body's combat minute again. See `../lib/status`'s `COMBAT_STATUS`.
    *
-   * Players only. What the flag is *for* is keeping a body in the world after
-   * its socket closes, and a creature has no socket; flagging every rat in a
-   * fight would broadcast status ids and keep the world awake for nothing.
+   * Everybody, creatures included. The flag began as the thing that keeps a
+   * player's body in the world after its socket closes, and it skipped
+   * residents because nothing read theirs. Now something does: a formula can
+   * ask `has_status('combat')`, and a fed deer under attack has to heal at the
+   * fighting rate, not the calm one. What that costs is a status-id patch per
+   * fighting creature when the flag appears and when it runs out; what only a
+   * player's flag still does is hold the world awake and a body in it — see
+   * `isAtRest` and `GameServer.dropSocket`.
    */
   private flagCombat(actor: ActorRuntime) {
-    if (actor.resident) return;
     actor.statuses = enterCombat(actor.statuses);
     this.noteStatusReading(actor);
   }
@@ -4988,7 +4992,11 @@ export class GameSession implements PlaySession {
       const { statuses, hpChanges } = advanceStatuses(
         actor.statuses,
         tickMs,
-        { hp: this.hpOf(actor) ?? base.maxHp, maxHp: base.maxHp },
+        {
+          hp: this.hpOf(actor) ?? base.maxHp,
+          maxHp: base.maxHp,
+          statuses: actor.statuses,
+        },
         this.statusDefs,
       );
       actor.statuses = statuses;
@@ -8810,7 +8818,9 @@ export class GameSession implements PlaySession {
       if (actor.attacking && actor.targetId !== null) return false;
       // The combat minute is a clock this loop is the only thing winding, and
       // the server waits on it to let a disconnected body leave: asleep, the
-      // body would stand there until somebody else happened to move.
+      // body would stand there until somebody else happened to move. A
+      // creature's minute waits on nobody, so its flag freezes with the rest
+      // of it and does not hold the world up.
       if (!actor.resident && inCombat(actor.statuses)) return false;
 
       if (!actor.resident) {

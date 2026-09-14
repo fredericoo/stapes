@@ -1,11 +1,12 @@
 import type { FightingStats } from "../lib/battler";
-import type { StatusDef } from "../lib/status";
+import { COMBAT_STATUS_ID, type StatusDef } from "../lib/status";
 import { type AttackOutcome, rollAttack, swingIntervalMs } from "./combat";
 import { TICK_MS } from "./constants";
 import type { Rng } from "./rng";
 import {
   advanceStatuses,
   applyStatus,
+  enterCombat,
   NO_STATUSES,
   type StatusInstance,
   withStatusModifiers,
@@ -242,7 +243,11 @@ export class Duel {
 
     // Read before anything is paid out, so a status that heals a share of the
     // maximum cannot compound against its own payout within one tick.
-    const bearer = { hp: fighter.hp, maxHp: this.baseOf(side).maxHp };
+    const bearer = {
+      hp: fighter.hp,
+      maxHp: this.baseOf(side).maxHp,
+      statuses: fighter.statuses,
+    };
     const next: StatusInstance[] = [];
     const changes: { defId: string; hp: number }[] = [];
 
@@ -309,6 +314,16 @@ export class Duel {
     // Spent whether or not the blow connects: the swing happened, and a dodge
     // that cost the attacker nothing would let a fast body flail for free.
     attacker.cooldownMs = swingIntervalMs(attackerStats);
+
+    // Both sides are in combat from the swing, as the session flags them —
+    // and a status that reads `has_status('combat')` has to see the same
+    // fight here that it would there. Only when statuses are on at all: with
+    // the catalogue off the flag would be dropped on the next tick as a
+    // status with no def, and would say nothing to nobody in between.
+    if (this.statusDefs[COMBAT_STATUS_ID]) {
+      attacker.statuses = enterCombat(attacker.statuses);
+      defender.statuses = enterCombat(defender.statuses);
+    }
 
     const outcome = rollAttack(attackerStats, defenderStats, this.rng);
     defender.hp = Math.max(0, defender.hp - outcome.damage);

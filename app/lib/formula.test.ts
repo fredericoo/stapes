@@ -12,6 +12,7 @@ const scope: FormulaScope = {
   ELAPSED_SEC: 18,
   MAX_HP: 16,
   HP: 9,
+  statuses: [{ defId: "combat" }, { defId: "food-poisoning" }],
 };
 
 /** Compile and run in one go; the tests are about answers, not about handles. */
@@ -19,6 +20,36 @@ function evaluate(source: string, over: Partial<FormulaScope> = {}): number | nu
   const formula = parseFormula(source);
   return formula ? formula.evaluate({ ...scope, ...over }) : null;
 }
+
+describe("has_status", () => {
+  it("is one under the status and zero otherwise", () => {
+    expect(evaluate("has_status('combat')")).toBe(1);
+    expect(evaluate("has_status('fed')")).toBe(0);
+    expect(evaluate("has_status('combat')", { statuses: [] })).toBe(0);
+  });
+
+  /** A hyphen is why the id is quoted rather than bare. */
+  it("reads an id with a hyphen in it", () => {
+    expect(evaluate("has_status('food-poisoning')")).toBe(1);
+  });
+
+  it("multiplies into arithmetic", () => {
+    expect(evaluate("6000 / (2 - has_status('combat'))")).toBe(6000);
+    expect(evaluate("6000 / (2 - has_status('combat'))", { statuses: [] })).toBe(3000);
+  });
+
+  it("refuses a bare name, a number, or an unterminated quote", () => {
+    expect(parseFormula("has_status(combat)")).toBeNull();
+    expect(parseFormula("has_status(1)")).toBeNull();
+    expect(parseFormula("has_status('combat")).toBeNull();
+    expect(parseFormula("has_status()")).toBeNull();
+  });
+
+  it("refuses a string anywhere but inside has_status", () => {
+    expect(parseFormula("'combat' + 1")).toBeNull();
+    expect(parseFormula("min('a', 1)")).toBeNull();
+  });
+});
 
 describe("constantFormula", () => {
   it("is the number, whatever the scope", () => {

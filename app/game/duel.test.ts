@@ -9,7 +9,7 @@ import {
 } from "../lib/battler";
 import { resolveWeapon, type WeaponItem } from "../lib/item";
 import { experienceMultiplier, type Mastery, rating } from "../lib/mastery";
-import { statusesById } from "../lib/status";
+import { COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import { normalizeTiles } from "../lib/types";
 import { attackIntervalMs, MIN_ATTACK_TICKS, rollAttack } from "./combat";
 import { TICK_MS } from "./constants";
@@ -602,7 +602,36 @@ describe("the duel loop", () => {
       { statusDefs },
     );
     for (let tick = 0; tick < 100; tick++) duel.tick();
-    expect(duel.b.statuses).toEqual([]);
+    // Only the combat flag every swing puts on both sides, and no venom.
+    expect(duel.b.statuses.map((status) => status.defId)).toEqual([
+      COMBAT_STATUS_ID,
+    ]);
+  });
+
+  /**
+   * A status that reads `has_status('combat')` has to see the same fight here
+   * that it would in the world, so the duel flags both sides on every swing —
+   * and never when statuses are off, where the flag would only be dropped.
+   */
+  it("puts both sides in combat on a swing, when statuses are on", () => {
+    const withStatuses = new Duel(
+      { swings: [dummy({ hitChance: 1 })] },
+      { swings: [dummy({ hitChance: 1, maxHp: 500 })] },
+      new Rng(1),
+      { statusDefs },
+    );
+    withStatuses.tick();
+    expect(withStatuses.a.statuses.map((s) => s.defId)).toEqual([COMBAT_STATUS_ID]);
+    expect(withStatuses.b.statuses.map((s) => s.defId)).toEqual([COMBAT_STATUS_ID]);
+
+    const without = new Duel(
+      { swings: [dummy({ hitChance: 1 })] },
+      { swings: [dummy({ hitChance: 1, maxHp: 500 })] },
+      new Rng(1),
+    );
+    without.tick();
+    expect(without.a.statuses).toEqual([]);
+    expect(without.b.statuses).toEqual([]);
   });
 
   /** A fight nobody can win is called rather than hung. */

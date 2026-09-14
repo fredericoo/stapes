@@ -82,6 +82,12 @@ export type StatusBearer = {
   hp: number;
   /** **Before** any status modifier — see `../lib/formula`'s `MAX_HP`. */
   maxHp: number;
+  /**
+   * Everything on the body, for `has_status('id')` — the whole list, whatever subset
+   * of it is being advanced. A duel advances one instance at a time and a
+   * formula on that one still has to see the combat flag beside it.
+   */
+  statuses: ReadonlyArray<{ defId: string }>;
 };
 
 /** Nobody is under anything, which is almost everybody almost always. */
@@ -467,6 +473,7 @@ function scopeFor(
     ELAPSED_SEC: Math.max(0, DURATION_SEC - REMAINING_SEC),
     MAX_HP: bearer.maxHp,
     HP: bearer.hp,
+    statuses: bearer.statuses,
   };
 }
 
@@ -508,6 +515,7 @@ export function withStatusModifiers(
     const scope = scopeFor(instance, instance.remainingMs, {
       hp,
       maxHp: stats.maxHp,
+      statuses,
     });
     for (const key of MODIFIER_KEYS) {
       const formula = def.modifiers[key];

@@ -988,9 +988,15 @@ describe("venom", () => {
   /** The venom's own range, so an override is visible as a different number. */
   const OWN_MS = 10_000;
 
+  /**
+   * What a fight left on a body, leaving out the combat flag: every side of a
+   * swing carries that, and these tests are about the venom.
+   */
   function statusesOn(session: GameSession, tileId: string) {
     const id = bodyOf(session, tileId)?.id;
-    return id ? (session.statusesOf(id) ?? []) : [];
+    return (id ? (session.statusesOf(id) ?? []) : []).filter(
+      (status) => status.defId !== COMBAT_STATUS_ID,
+    );
   }
 
   it("lands on whoever was bitten, for as long as the bite asked", () => {
@@ -1474,7 +1480,7 @@ describe("being in combat", () => {
     );
   }
 
-  it("starts on the first swing, for the player and not the body swung at", () => {
+  it("starts on the first swing, for the player and the body swung at", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
     const dummy = bodyOf(session, "dummy")!.id;
     fight(session, dummy);
@@ -1482,8 +1488,9 @@ describe("being in combat", () => {
     advanceUntil(session, () => session.inCombat("local"));
 
     expect(combatOn(session, "local")).toBe(true);
-    // A creature has no socket to close, so nothing would ever read its flag.
-    expect(combatOn(session, dummy)).toBe(false);
+    // The creature too: nothing closes its socket, but a status on it can
+    // read `has_status('combat')`, and a fed deer under attack heals slower.
+    expect(combatOn(session, dummy)).toBe(true);
   });
 
   it("runs out a minute after the last swing, and not before", () => {
