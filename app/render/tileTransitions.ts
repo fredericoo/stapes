@@ -216,6 +216,26 @@ export function pixelSnappedQuad(
   };
 }
 
+/**
+ * Whether a mesh a transition was playing on has to be handed back to its
+ * chunk's merged batch now the transition is over.
+ *
+ * **A still tile gets a mesh of its own only for as long as it forms.** It is
+ * absent from the batch for that half-second and nothing later would put it
+ * back: the batch's signature is computed with the forming tile routed away, so
+ * the next patch to its cell compares two signatures that both omit it, takes
+ * the cheap path, and drops the own-mesh copy without merging anything in its
+ * place. That is what left a conjured flame invisible while it went on burning
+ * whoever stepped in it, until a reload rebuilt the chunk from the map.
+ *
+ * A copy has nothing to rejoin — the map no longer holds the tile — and neither
+ * does a placement that moves, which keeps its own mesh for good and may be
+ * cells away from where it formed.
+ */
+export function rejoinsBatch(mesh: { copy: boolean; moves: boolean }): boolean {
+  return !mesh.copy && !mesh.moves;
+}
+
 export function isFinished(live: LiveTransition, clockMs: number): boolean {
   return clockMs - live.startMs >= live.transition.durationMs;
 }
