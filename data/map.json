@@ -150071,6 +150071,9 @@
       "5,15": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "obsidian"
         }
       ],
       "5,16": [
@@ -150081,6 +150084,9 @@
       "5,17": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "obsidian"
         }
       ],
       "5,18": [
@@ -152023,6 +152029,12 @@
         },
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "obsidian"
+        },
+        {
+          "tileId": "obsidian"
         }
       ],
       "6,15": [
@@ -152031,16 +152043,28 @@
         },
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "obsidian"
         }
       ],
       "6,16": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "obsidian"
+        },
+        {
+          "tileId": "obsidian"
         }
       ],
       "6,17": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "obsidian"
         }
       ],
       "6,18": [
@@ -154052,6 +154076,9 @@
         },
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "obsidian"
         }
       ],
       "7,16": [
@@ -154060,11 +154087,17 @@
         },
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "obsidian"
         }
       ],
       "7,17": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "obsidian"
         }
       ],
       "7,18": [

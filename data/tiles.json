@@ -33481,18 +33481,37 @@
     "lightPassing": true,
     "affectedByGravity": true,
     "walkable": false,
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 8,
+              "y": 18,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    },
     "transitions": {
       "appear": {
         "durationMs": 700,
         "dissolve": {
           "pattern": "sweep",
-          "clumpPx": 3,
-          "edgeColor": "#9e4539",
-          "edgeWidth": 0.15,
           "from": {
             "x": 0.5,
             "y": 1
-          }
+          },
+          "clumpPx": 3,
+          "edgeColor": "#9e4539",
+          "edgeWidth": 0.15
         },
         "particles": {
           "ratePerSecond": 8,
@@ -33504,10 +33523,10 @@
           "riseFrom": 0,
           "riseTo": 3,
           "driftCellsPerSecond": 0.25,
+          "lit": true,
           "gravity": -1.6,
           "windX": 0,
           "windY": 0,
-          "lit": true,
           "radiusFromPx": 3,
           "radiusToPx": 4,
           "alphaFrom": 0.2,
@@ -33524,14 +33543,120 @@
           ]
         }
       }
+    }
+  },
+  {
+    "id": "window-2",
+    "name": "Window",
+    "height": 4,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "walls",
+      "x": 8,
+      "y": 0
+    },
+    "lightPassing": true,
+    "walkable": false,
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 0,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "obsidian",
+    "name": "Obsidian",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 0,
+      "y": 6
     },
     "sprite": {
       "frames": [
         {
           "sprite": {
             "rect": {
-              "x": 8,
-              "y": 18,
+              "x": 0,
+              "y": 12,
               "w": 2,
               "h": 2
             },
