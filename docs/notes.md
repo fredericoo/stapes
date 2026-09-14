@@ -781,19 +781,35 @@ push, the row names the one `interact` would actually run — the precedence is
 read from the same place rather than restated beside it.
 
 Two shaping rules, both about reading it rather than about correctness. It is
-**one entry per action, ordered by nearness**: the verb is what is being scanned
-for, so a body you can both shove and fight is two rows with one name between
-them rather than a heading to look inside, and every row is the same size. The
-sort is squared plan distance with a floor weighted far above a cell
-(`LEVEL_DISTANCE_WEIGHT`) so nothing through a ceiling comes between you and
-what is at your feet, then by `ACTION_ORDER` — which puts "target" above "push"
-on the body that offers both — and only then by the entry id. That middle rank
-is written down rather than left to the alphabet, which is what it used to be:
-"attack" happened to sort before "push", and renaming the verb to "target"
-silently reversed the list. Both entries for such a
-body are named through `bodyNameFor` (`bodiesByCell`), because reading the push
-row's name off the *placement* would announce a tile called "Player" beside a
-fight with somebody who has a name. And a switch is
+**one entry per action, in tiers, held in place inside a tier**: the verb is
+what is being scanned for, so a body you can both shove and fight is two rows
+with one name between them rather than a heading to look inside, and every row
+is the same size. The sort is `TIER` first — engaged (a target, a follow, a
+conversation, an open box, your own pull in progress), then adjacent on your
+floor, then in sight on your floor, then out of sight on your floor, then any
+other floor — and inside a tier the position the *subject* held in the list as
+it was last built, which the renderer hands back in as `previous`. Distance is
+consulted only for subjects the previous list did not have, so a batch arriving
+together is nearest first and a newcomer joins the end of its tier. Then
+`ACTION_ORDER` and the entry id, between a subject's own rows — "target" above
+"push" on the body that offers both — and, where two subjects are still level,
+between their leading rows, so a subject's rows stay together in the flat list
+and not only once the column groups them. It used to be squared plan
+distance with a floor weighted far above a cell, re-sorted on every rebuild,
+and a rebuild happens on every step anybody takes: two rats pacing swapped rows
+continuously and walking past anything shuffled the column. On a phone the
+list is what you tap instead of aiming, so a row that slides under a thumb is a
+tap on the wrong thing. The verb rank is written down rather than left to the
+alphabet, which is what it used to be: "attack" happened to sort before "push",
+and renaming the verb to "target" silently reversed the list. The tier and the
+held place belong to the subject rather than the row, because the column draws
+a subject's rows as one box and a box cannot be in two places. What still
+moves a row is a change of tier, and the residue that is still jumpy is exactly
+that: line of sight flicking as a creature crosses a pillar, and a removal
+shifting what is below it. Both want a clock the pure function does not have.
+Both entries for such a body are named through `bodyNameFor` (`bodiesByCell`),
+because reading the push row's name off the *placement* would announce a tile
+called "Player" beside a fight with somebody who has a name. And a switch is
 **named by its author** (`SwitchInteraction.actionName`): "Push" and "Target"
 belong to the interaction and are the same everywhere, but nothing derivable
 from two tiles pointing at each other says which half opens and which shuts. The

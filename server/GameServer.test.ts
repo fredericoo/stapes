@@ -396,8 +396,12 @@ describe("joining and leaving", () => {
     const departure = nextMessage(alice.ws);
     bob.ws.close();
 
+    // Among the rest of the patch rather than alone in it: the player tile has
+    // a disappear transition, so bob's body's way out travels beside his leaving.
     expect(await departure).toMatchObject({
-      events: [{ kind: "left", actorId: "bob", playerCount: 1 }],
+      events: expect.arrayContaining([
+        { kind: "left", actorId: "bob", playerCount: 1 },
+      ]),
     });
   });
 
@@ -1631,11 +1635,18 @@ function record(ws: TestSocket) {
   };
 }
 
-/** Wait for a patch carrying an event of this kind, and hand back that event. */
+/**
+ * Wait for a patch carrying an event of this kind, and hand back that event.
+ *
+ * `matches` narrows it further, for a kind more than one thing raises at once:
+ * a body with a transition authored on it announces its own way in, and a test
+ * about the flame it conjured has to say which of the two it is waiting for.
+ */
 function eventWithin(
   ws: TestSocket,
   kind: string,
   ms: number,
+  matches: (event: Record<string, unknown>) => boolean = () => true,
 ): Promise<Record<string, unknown> | null> {
   return new Promise((resolve) => {
     const done = (value: Record<string, unknown> | null) => {
@@ -1647,7 +1658,7 @@ function eventWithin(
       const message = JSON.parse(event.data) as Record<string, unknown>;
       if (message.type !== "patch") return;
       const events = message.events as Record<string, unknown>[];
-      const found = events.find((e) => e.kind === kind);
+      const found = events.find((e) => e.kind === kind && matches(e));
       if (found) done(found);
     };
     const timer = setTimeout(() => done(null), ms);
@@ -4563,7 +4574,13 @@ describe("tile transitions", () => {
     await nextMessageOfType(alice.ws, "masteries");
 
     send(alice.ws, { type: "cast", square: "offhand" });
-    const formed = await eventWithin(alice.ws, "tileTransition", 2000);
+    // The flame's, not the caster's own: the real player tile has a way in too.
+    const formed = await eventWithin(
+      alice.ws,
+      "tileTransition",
+      2000,
+      (event) => event.tileId === "arcane-flame",
+    );
 
     expect(formed).toMatchObject({
       kind: "tileTransition",

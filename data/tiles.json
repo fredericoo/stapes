@@ -13187,6 +13187,26 @@
           }
         ]
       }
+    },
+    "transitions": {
+      "appear": {
+        "durationMs": 700,
+        "dissolve": {
+          "pattern": "dither",
+          "clumpPx": 5,
+          "edgeColor": "#ffffff",
+          "edgeWidth": 0.15
+        }
+      },
+      "disappear": {
+        "durationMs": 700,
+        "dissolve": {
+          "pattern": "dither",
+          "clumpPx": 3,
+          "edgeColor": "#ffffff",
+          "edgeWidth": 0.15
+        }
+      }
     }
   },
   {
@@ -29517,30 +29537,6 @@
     },
     "lightPassing": true,
     "intangible": true,
-    "transitions": {
-      "appear": {
-        "durationMs": 500,
-        "dissolve": {
-          "pattern": "sweep",
-          "clumpPx": 3,
-          "edgeColor": "#8ce6ff",
-          "edgeWidth": 0.15,
-          "from": {
-            "x": 1,
-            "y": 1
-          }
-        }
-      },
-      "disappear": {
-        "durationMs": 500,
-        "dissolve": {
-          "pattern": "noise",
-          "clumpPx": 3,
-          "edgeColor": "#ff9e40",
-          "edgeWidth": 0.15
-        }
-      }
-    },
     "particles": {
       "ratePerSecond": 14,
       "ttlFromMs": 900,
@@ -29643,6 +29639,30 @@
           }
         }
       ]
+    },
+    "transitions": {
+      "appear": {
+        "durationMs": 500,
+        "dissolve": {
+          "pattern": "sweep",
+          "from": {
+            "x": 1,
+            "y": 1
+          },
+          "clumpPx": 3,
+          "edgeColor": "#8ce6ff",
+          "edgeWidth": 0.15
+        }
+      },
+      "disappear": {
+        "durationMs": 500,
+        "dissolve": {
+          "pattern": "noise",
+          "clumpPx": 3,
+          "edgeColor": "#ff9e40",
+          "edgeWidth": 0.15
+        }
+      }
     }
   },
   {
@@ -33444,6 +33464,85 @@
           }
         ]
       }
+    }
+  },
+  {
+    "id": "rock-pillar",
+    "name": "Rock Pillar",
+    "height": 3,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "transitions": {
+      "appear": {
+        "durationMs": 700,
+        "dissolve": {
+          "pattern": "sweep",
+          "clumpPx": 3,
+          "edgeColor": "#9e4539",
+          "edgeWidth": 0.15,
+          "from": {
+            "x": 0.5,
+            "y": 1
+          }
+        },
+        "particles": {
+          "ratePerSecond": 8,
+          "ttlFromMs": 200,
+          "ttlToMs": 400,
+          "spawnRadiusCells": 0.75,
+          "spawnElevFrom": 0,
+          "spawnElevTo": 0,
+          "riseFrom": 0,
+          "riseTo": 3,
+          "driftCellsPerSecond": 0.25,
+          "gravity": -1.6,
+          "windX": 0,
+          "windY": 0,
+          "lit": true,
+          "radiusFromPx": 3,
+          "radiusToPx": 4,
+          "alphaFrom": 0.2,
+          "alphaTo": 0,
+          "ramp": [
+            {
+              "at": 0,
+              "color": "#ffefcc"
+            },
+            {
+              "at": 0.5,
+              "color": "#da9c16"
+            }
+          ]
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 8,
+              "y": 18,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
     }
   }
 ]
