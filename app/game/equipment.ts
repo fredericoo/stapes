@@ -25,7 +25,11 @@ import {
 } from "../lib/item";
 import { type Element, ELEMENTS } from "../lib/element";
 import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
-import { WEAPON_MASTERIES } from "../lib/mastery";
+import {
+  type Masteries,
+  meetsRequirements,
+  WEAPON_MASTERIES,
+} from "../lib/mastery";
 import { resolveLight } from "../lib/tileResolve";
 import type { TileDef } from "../lib/types";
 
@@ -1080,4 +1084,77 @@ export function stoneLocked(
   if (!instance?.cooldownMs) return false;
   const def = tilesById[instance.tileId];
   return def != null && resolveStone(def) != null;
+}
+
+
+/**
+ * Whether the thing in this square is doing anything while it sits there.
+ *
+ * **A square takes anything, and the game reads almost none of it.** A hand
+ * holds a breastplate, a loaf, a spare helmet — see {@link handAccepts}, which
+ * refuses nothing you could carry, and deliberately: what you would rather hold
+ * is your business. The cost of that generosity is that a full square looks
+ * exactly like a working one. A player with a helm in one fist is wearing no
+ * more armour than a player with an empty fist, and nothing on the panel said
+ * so.
+ *
+ * The same trap with a second lock on it is the stone whose requirements the
+ * caster has not met. It is a stone, it is in a square stones go in, and it does
+ * nothing at all until the levels arrive — and since the row of spell buttons
+ * leaves it out entirely, the kit panel is the only place it appears.
+ *
+ * **What counts is what some rule elsewhere actually reads**, and each arm below
+ * names the one that does:
+ *
+ * - Elements and light are read off every worn square alike — see
+ *   {@link bodyElements} and {@link carriedLightTileIds} — so a robe of nature
+ *   in your fist is doing something even though it is not armouring you.
+ * - A stone casts from any square at the same range, and only once its
+ *   requirements are met. @see `./casting`'s `castability`
+ * - A hand contributes a swing or a guard: {@link weaponSwungBy},
+ *   {@link heldDefence}. A held pack contributes the things in it, which is why
+ *   a hand takes one — see `./itemUse`.
+ * - A worn square contributes armour authored for *that* square
+ *   ({@link armorForSlot}), and the charm additionally takes a {@link CharmItem},
+ *   which ticks on its wearer.
+ *
+ * Everything else is inert where it is: food, a key, a coin, a helmet in a fist.
+ * None of it is wasted — it is carried, and carrying is what a bag is for — so
+ * what this supports is a square drawn quietly rather than one drawn as wrong.
+ *
+ * False for an empty square, on the terms every other question here answers it,
+ * and for a tile the catalogue has lost — a thing the game can no longer read is
+ * a thing doing nothing.
+ */
+export function takesEffect(
+  slot: EquipSlot,
+  instance: ItemInstance | null,
+  tilesById: Record<string, TileDef>,
+  masteries: Masteries,
+): boolean {
+  if (!instance) return false;
+  const def = tilesById[instance.tileId];
+  if (!def) return false;
+
+  // Before the kind of the thing, because these two are read off the square
+  // regardless of what is in it: an elemental trinket and a lantern work in a
+  // fist exactly as they work round a neck.
+  if (itemElements(def).length > 0) return true;
+  if (resolveLight(def, { direction: instance.direction })) return true;
+
+  const stone = resolveStone(def);
+  if (stone) return meetsRequirements(masteries, stone.requirements);
+
+  if (slot === "weapon" || slot === "offhand") {
+    return (
+      resolveWeapon(def) != null ||
+      resolveShield(def) != null ||
+      resolveContainer(def) != null
+    );
+  }
+
+  if (slot === "bag") return resolveContainer(def) != null;
+
+  if (armorForSlot(slot, def)) return true;
+  return slot === "charm" && resolveCharm(def) != null;
 }

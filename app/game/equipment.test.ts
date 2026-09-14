@@ -47,6 +47,7 @@ import {
   restoredEquipment,
   otherHand,
   spilled,
+  takesEffect,
   weaponInHand,
   weaponSwungBy,
   wornDefence,
@@ -1488,5 +1489,105 @@ describe("spilled", () => {
     expect(spilled({ ...emptyEquipment(), bag: unknown }, tiles)).toEqual([
       unknown,
     ]);
+  });
+});
+
+
+/**
+ * Whether what is in a square is doing anything there.
+ *
+ * The two traps it exists for are a hand — which takes anything you can carry,
+ * and reads almost none of it — and a stone the caster has not earned, which is
+ * a stone in a square stones go in and is inert until the levels arrive.
+ *
+ * Every arm is asserted against what actually reads the square, and the cases
+ * that look like duplicates are not: a helmet is armour in one square and
+ * luggage in another, and that is the whole claim.
+ */
+describe("takesEffect", () => {
+  const ROBE = { type: "armor", slot: "armor", def: 1, elements: ["nature"] };
+  const HELM = { type: "armor", slot: "head", def: 2 };
+  const BREAD = { type: "consumable", hp: 2 };
+  const COIN = { type: "artifact" };
+  const TRINKET = { type: "charm", everyMs: 10_000, hp: 1 };
+  const SPARK = { type: "stone", cooldownMs: 4_000, requirements: { arcane: 5 },
+    effect: { kind: "bolt", on: "target", damage: 3 } };
+
+  const tiles = tilesByIdFromList([
+    itemTile("sword", DEFAULT_WEAPON),
+    itemTile("shield", { type: "shield", def: 3 }),
+    itemTile("bag", DEFAULT_CONTAINER),
+    itemTile("torch", COIN, LIT),
+    itemTile("robe", ROBE),
+    itemTile("helm", HELM),
+    itemTile("bread", BREAD),
+    itemTile("coin", COIN),
+    itemTile("trinket", TRINKET),
+    itemTile("spark", SPARK),
+  ]);
+
+  const held = (tileId: string) => ({ id: `itm_${tileId}`, tileId });
+  const ADEPT = { arcane: 5 };
+  const NOVICE = { arcane: 4 };
+
+  it("says nothing of an empty square", () => {
+    expect(takesEffect("weapon", null, tiles, ADEPT)).toBe(false);
+  });
+
+  it("says nothing of a tile the catalogue has lost", () => {
+    expect(takesEffect("weapon", held("gone"), tiles, ADEPT)).toBe(false);
+  });
+
+  it("counts a weapon and a shield in a hand", () => {
+    expect(takesEffect("weapon", held("sword"), tiles, ADEPT)).toBe(true);
+    expect(takesEffect("offhand", held("shield"), tiles, ADEPT)).toBe(true);
+  });
+
+  /** A hand takes a pack precisely so it can be opened. @see `./itemUse` */
+  it("counts a pack, in a hand as well as on a back", () => {
+    expect(takesEffect("offhand", held("bag"), tiles, ADEPT)).toBe(true);
+    expect(takesEffect("bag", held("bag"), tiles, ADEPT)).toBe(true);
+  });
+
+  it("counts armour in the square it was authored for", () => {
+    expect(takesEffect("head", held("helm"), tiles, ADEPT)).toBe(true);
+  });
+
+  /**
+   * The case the whole thing is for: you can hold a helmet, and holding it
+   * protects nothing. @see `armorDefence`, which walks the worn squares only.
+   */
+  it("does not count armour carried in a fist", () => {
+    expect(takesEffect("weapon", held("helm"), tiles, ADEPT)).toBe(false);
+  });
+
+  it("does not count food or a trinket with nothing to say", () => {
+    expect(takesEffect("weapon", held("bread"), tiles, ADEPT)).toBe(false);
+    expect(takesEffect("offhand", held("coin"), tiles, ADEPT)).toBe(false);
+  });
+
+  /**
+   * Both are read off every worn square alike, so a square that armours nothing
+   * can still be doing something. @see `bodyElements`, `carriedLightTileIds`
+   */
+  it("counts a light and an element wherever they are held", () => {
+    expect(takesEffect("weapon", held("torch"), tiles, ADEPT)).toBe(true);
+    expect(takesEffect("offhand", held("robe"), tiles, ADEPT)).toBe(true);
+  });
+
+  it("counts a charm round the neck and nowhere else", () => {
+    expect(takesEffect("charm", held("trinket"), tiles, ADEPT)).toBe(true);
+    expect(takesEffect("armor", held("trinket"), tiles, ADEPT)).toBe(false);
+  });
+
+  /** The second trap: a stone is only a spell once the levels are in. */
+  it("counts a stone the caster has earned, in any square that takes one", () => {
+    expect(takesEffect("weapon", held("spark"), tiles, ADEPT)).toBe(true);
+    expect(takesEffect("charm", held("spark"), tiles, ADEPT)).toBe(true);
+  });
+
+  it("does not count one they have not", () => {
+    expect(takesEffect("weapon", held("spark"), tiles, NOVICE)).toBe(false);
+    expect(takesEffect("charm", held("spark"), tiles, NOVICE)).toBe(false);
   });
 });
