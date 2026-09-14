@@ -208,6 +208,7 @@ import {
   type CastContext,
   type CasterPoint,
   type CastPoint,
+  type CastProgress,
   type CastSquare,
   conjureLanding,
   coolingNotice,
@@ -528,8 +529,8 @@ export type ActorSnapshot = {
    * deliberate: they are two different facts that happen to be drawn with one
    * picture. A bar over a head says "this body is part-way through something and
    * you have until it fills"; what the something *is* — a bush being picked, a
-   * flame being called — is said by the board around them and by the word they
-   * shouted. @see `../render/GameRenderer`, which draws whichever is running.
+   * flame being called — is said by the board around them.
+   * @see `../render/GameRenderer`, which draws whichever is running.
    *
    * Never both at once: starting either takes the other off you, because both
    * are what a body's hands are doing. @see GameSession.cast
@@ -537,8 +538,12 @@ export type ActorSnapshot = {
    * By reference to the object the runtime winds in place, so its identity
    * changes only when a cast starts or ends. That identity is what the server
    * diffs the broadcast on. @see ./progress
+   *
+   * Carries which square as well as the clock, because the caster's own row
+   * needs it: the button the cast came out of is the one that stops it. @see
+   * `./casting`'s `CastProgress`
    */
-  casting: Progress | null;
+  casting: CastProgress | null;
 };
 
 /**
@@ -956,6 +961,23 @@ export interface PlaySession {
    * that cannot be honoured is a race or a client making things up.
    */
   cast(square: CastSquare): boolean;
+  /**
+   * Stop the cast this body is making, or do nothing if it is making none.
+   *
+   * **A verb of its own rather than a second press of {@link cast}**, and the
+   * reason is the queue the server keeps: a cast is honoured behind the steps
+   * sent before it, so a press that meant "start" and a press that meant "stop"
+   * would be told apart only by what the server happened to be doing when each
+   * came off the queue. Two taps on a stone while walking would start a cast
+   * and stop it in the same tick. This says what it means, and it is honoured
+   * the moment it arrives, because stopping does not depend on where anybody is
+   * standing.
+   *
+   * No square, because a body makes one cast at a time. Nothing is spent by it
+   * and nothing is handed back: a cast costs nothing until it lands, so a cast
+   * stopped is a cast that cost the seconds. True if there was one to stop.
+   */
+  cancelCast(): boolean;
   canInteract(ref: ObjectRef): boolean;
   interact(ref: ObjectRef): boolean;
   /**
@@ -1113,10 +1135,14 @@ type ExtractionRun = {
  * thing that can change out from under the cast, and the point is to notice.
  */
 type CastingRun = {
-  /** The half that goes out on the snapshot and the wire, wound in place. */
-  progress: Progress;
-  /** Which square the stone is being cast from. */
-  square: CastSquare;
+  /**
+   * The half that goes out on the snapshot and the wire, wound in place.
+   *
+   * Which square the stone is being cast from travels inside it rather than
+   * beside it, because the caster's own buttons need to know — see `./casting`'s
+   * `CastProgress` — and one object is what the broadcast is diffed on.
+   */
+  progress: CastProgress;
   /**
    * Which particular stone, so a caster who swaps hands mid-cast finishes
    * nothing.
@@ -5161,8 +5187,10 @@ export class GameSession implements PlaySession {
    * appeared is a press the player cannot tell from a dropped key — carried
    * forward to the one case where a player can plainly see why.
    *
-   * **The name is shouted at the start either way**, which is what tells a room
-   * what is coming while there is still time to do something about it.
+   * **Nothing is said at the start.** A cast used to shout the stone's name as
+   * it began; what a room hears now is the noise the stone is authored to make,
+   * and it hears it when the spell lands — see {@link recordCastSound}. A bar
+   * over the caster's head is what says something is coming.
    *
    * Nothing here is predicted by a client. A browser sends "cast the stone in
    * this square" and finds out what came of it from the equipment message and
@@ -5189,8 +5217,6 @@ export class GameSession implements PlaySession {
       return false;
     }
 
-    this.shoutSpell(actor, held);
-
     // What the caster brings against what the stone asks, which is the whole of
     // how long this takes. @see `./casting`'s `castDurationMs`
     const durationMs = castDurationMs(stone, context.masteries);
@@ -5203,37 +5229,26 @@ export class GameSession implements PlaySession {
     // @see extract
     this.cancelExtraction(actor);
     actor.casting = {
-      square,
       itemId: held.id,
       uninterruptible: stone.uninterruptible === true,
-      progress: { remainingMs: durationMs, durationMs },
+      progress: { remainingMs: durationMs, durationMs, square },
     };
     return true;
   }
 
   /**
-   * Say the name of the spell, out loud, where it was cast.
+   * Stop the cast this body is making. @see PlaySession.cancelCast
    *
-   * **The one thing about a cast that everybody nearby learns for free.** A bar
-   * over a head says somebody is doing something; the word says which spell it
-   * is, which is what makes standing out of the way — or walking up and hitting
-   * them — a decision rather than a guess. It is also what a cast with no bar at
-   * all leaves behind, so an instant spell is not silent.
-   *
-   * The stone's own name, so a stone somebody has written on says what they
-   * wrote: the same name the button carries, read the same way.
-   * @see `./casting`'s `castableStones`
-   *
-   * Through `recordSpeech` rather than a channel of its own, because it *is*
-   * speech — it hangs where it was said, it is sanitised like everything else a
-   * body can put on somebody's screen, and it goes out on the wire as chat.
+   * Quietly: no notice, unlike a cast a blow breaks. That one is said because a
+   * bar vanishing is exactly what a finished cast looks like and the caster did
+   * not choose it; this one the caster asked for, and the stone coming back lit
+   * with no cooldown on it is the whole of what there is to tell them.
    */
-  private shoutSpell(actor: ActorRuntime, stone: ItemInstance) {
-    const loc = this.tryLocate(actor);
-    if (!loc) return;
-    const def = this.tilesById[stone.tileId];
-    const name = stone.description?.trim() || def?.name || stone.tileId;
-    this.recordSpeech(actor, loc, `${name}!`);
+  cancelCast(id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actors.get(id);
+    if (!actor?.casting) return false;
+    this.cancelCasting(actor);
+    return true;
   }
 
   /**
@@ -5296,19 +5311,20 @@ export class GameSession implements PlaySession {
   private finishCasting(actor: ActorRuntime, run: CastingRun) {
     actor.casting = null;
 
-    const held = actor.equipment[run.square];
+    const square = run.progress.square;
+    const held = actor.equipment[square];
     // The same stone, not merely a stone: two identical stones in two hands are
     // two stones, and the one that pays is the one that was pressed.
     if (!held || held.id !== run.itemId) return;
 
-    const stone = stoneIn(actor.equipment, this.tilesById, run.square);
+    const stone = stoneIn(actor.equipment, this.tilesById, square);
     if (!stone) return;
 
     const context = this.castContextFor(actor);
     if (!context) return;
-    if (!castability(context, run.square).ok) return;
+    if (!castability(context, square).ok) return;
 
-    this.resolveCast(actor, run.square, stone, context);
+    this.resolveCast(actor, square, stone, context);
   }
 
   /**
@@ -5344,6 +5360,32 @@ export class GameSession implements PlaySession {
     if (stone.effect.kind === "bolt") {
       this.castBolt(actor, square, stone, stone.effect, elements);
     } else this.castConjure(actor, context, stone.effect.tileId, elements);
+
+    // After the effect rather than before it, so the noise is the sound of
+    // something that has happened. Here rather than in `cast`, because this is
+    // the one place both shapes of cast come through — and a cast that never
+    // gets here made nothing, so it makes no sound.
+    this.recordCastSound(actor, stone);
+  }
+
+  /**
+   * Make the noise a stone makes, where the caster stands as the spell lands.
+   *
+   * {@link recordConsumeSound}'s twin, on every one of its terms: a noise and
+   * not speech, so it arrives unattributed — "whoosh" is what the room heard,
+   * not something the caster said — and through {@link recordNoise}, so a
+   * creature in earshot listening for one gets to notice. That last part is a
+   * change from the shout this replaced: a spell's name was chat, and creatures
+   * do not hear chat; a whoosh is a sound, and they do.
+   *
+   * Located now rather than when the cast began: a caster may walk while a bar
+   * runs, and the noise belongs where the spell came out.
+   */
+  private recordCastSound(actor: ActorRuntime, stone: ArcaneStoneItem) {
+    if (!stone.sound?.trim()) return;
+    const loc = this.tryLocate(actor);
+    if (!loc) return;
+    this.recordNoise(actor.id, loc, stone.sound);
   }
 
   /**

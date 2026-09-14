@@ -1,19 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { CastRefusal } from "../game/casting";
-import {
-  castTimeNote,
-  cooldownShare,
-  spellAppearance,
-  spellPressable,
-} from "./SpellBar";
+import { castTimeNote, cooldownShare, spellAppearance } from "./SpellBar";
 
 /**
- * Which of the three appearances a stone wears, and whether pressing it sends
- * anything.
+ * Which of the four appearances a stone wears.
  *
- * The claim worth pinning down is the odd one: a stone refused for want of a
- * target reads as *ready* and presses, and everything else that is refused does
- * not. Everything above it in the component is React; this is the decision.
+ * The claims worth pinning down are the odd ones: a stone refused for want of a
+ * target reads as *ready*, and the stone whose cast is running reads as
+ * *casting* rather than dimming with the rest of the row. Everything above it in
+ * the component is React; this is the decision. What a press asks for is
+ * `../game/casting`'s `spellPress`, pinned beside the rules it reads.
  */
 describe("spellAppearance", () => {
   it("draws a castable stone ready", () => {
@@ -26,6 +22,10 @@ describe("spellAppearance", () => {
 
   it("draws a stone with nobody targeted ready, because the stone is fine", () => {
     expect(spellAppearance({ ok: false, reason: "noTarget" })).toBe("ready");
+  });
+
+  it("draws the stone being cast as casting, since pressing it stops the cast", () => {
+    expect(spellAppearance({ ok: false, reason: "underway" })).toBe("casting");
   });
 
   it.each<CastRefusal>(["empty", "casting", "mastery", "outOfRange", "blocked"])(
@@ -60,24 +60,6 @@ describe("cooldownShare", () => {
   it("draws nothing for a stone with no cooldown to divide by", () => {
     expect(cooldownShare(1000, 0)).toBe(0);
   });
-});
-
-describe("spellPressable", () => {
-  it("sends a cast that would land", () => {
-    expect(spellPressable({ ok: true })).toBe(true);
-  });
-
-  /** The press is what produces the sentence. @see `../game/notices` */
-  it("sends one with nobody targeted, so the session can say why not", () => {
-    expect(spellPressable({ ok: false, reason: "noTarget" })).toBe(true);
-  });
-
-  it.each<CastRefusal>(["empty", "cooling", "mastery", "outOfRange", "blocked"])(
-    "stops a press refused for %s, which the button already draws",
-    (reason) => {
-      expect(spellPressable({ ok: false, reason })).toBe(false);
-    },
-  );
 });
 
 /**

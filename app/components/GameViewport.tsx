@@ -116,6 +116,7 @@ export function GameViewport({
   onDropOnWorld,
   spells = NO_SPELLS,
   onCast,
+  onStopCast,
   tiles = [],
   tilesets = [],
 }: {
@@ -242,6 +243,8 @@ export function GameViewport({
   spells?: SpellButton[];
   /** Cast the stone in this square. Absent on a route with no session to ask. */
   onCast?: (square: CastSquare) => void;
+  /** Stop the cast being made, by pressing its stone again. @see `./SpellBar` */
+  onStopCast?: () => void;
   /** Catalogue behind the list's sprites. */
   tiles?: TileDef[];
   tilesets?: TilesetDef[];
@@ -268,6 +271,7 @@ export function GameViewport({
     (square: CastSquare) => onCast?.(square),
     [onCast],
   );
+  const stopCast = useCallback(() => onStopCast?.(), [onStopCast]);
   const world = useMemo(
     () => ({
       over: (
@@ -730,6 +734,7 @@ export function GameViewport({
                 <SpellBar
                   spells={spells}
                   onCast={cast}
+                  onStopCast={stopCast}
                   tilesById={tilesById}
                   tilesets={tilesets}
                   // Centred on the pad below it, because the two are one
@@ -802,6 +807,7 @@ export function GameViewport({
               <SpellBar
                 spells={spells}
                 onCast={cast}
+                onStopCast={stopCast}
                 tilesById={tilesById}
                 tilesets={tilesets}
                 className="max-w-40"

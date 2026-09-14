@@ -243,6 +243,13 @@ describe("command", () => {
   });
 });
 
+describe("cancelCast", () => {
+  /** A body makes one cast at a time, and the server knows which. */
+  it("carries nothing but its name", () => {
+    expect(parsed({ type: "cancelCast" })).toEqual({ type: "cancelCast" });
+  });
+});
+
 describe("the frame itself", () => {
   it("drops something that is not JSON at all", () => {
     expect(parseClientMessage("{not json")).toBeNull();

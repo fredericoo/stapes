@@ -13,6 +13,7 @@ import {
   MAX_PROJECTILE_SPEED,
   MAX_REACH_CELLS,
   MAX_REACH_HEIGHT,
+  MAX_SOUND_LENGTH,
   MAX_SPELL_DAMAGE,
   MAX_STONE_COOLDOWN_MS,
   MELEE_REACH,
@@ -38,7 +39,7 @@ import {
 } from "../lib/element";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
-import { FieldLabel, Segmented, Select, SwitchField } from "../ui";
+import { FieldLabel, Input, Segmented, Select, SwitchField } from "../ui";
 import { StatusGrants } from "./StatusGrants";
 import { StatField } from "./StatField";
 import {
@@ -381,6 +382,19 @@ export function StoneFields({
           onChange={(height) => patchReach({ height })}
           readout={describeReachHeight(reach.height)}
         />
+        <label className="flex flex-col gap-1 text-xs">
+          <FieldLabel info="Comic-book noise shown over the caster as the spell lands. Not made for a cast that was broken or found nowhere to land. Blank is silent.">
+            Sound
+          </FieldLabel>
+          <Input
+            type="text"
+            className="w-32"
+            maxLength={MAX_SOUND_LENGTH}
+            value={stone.sound ?? ""}
+            placeholder="whoosh"
+            onChange={(e) => onChange({ sound: e.target.value })}
+          />
+        </label>
       </div>
 
       {/* Only for a stone that takes time, because it is an answer to a

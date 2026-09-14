@@ -53,6 +53,7 @@ import {
   type CastContext,
   type CasterPoint,
   type CastPoint,
+  type CastProgress,
   type CastSquare,
   type SpellButton,
 } from "../game/casting";
@@ -287,7 +288,7 @@ export class RemoteSession implements PlaySession {
    * What the viewer's own entry is for is the row of spell buttons, which dims
    * while anything is being cast. @see `../game/casting`'s `CastContext.casting`
    */
-  private readonly castingsById = new Map<string, Progress>();
+  private readonly castingsById = new Map<string, CastProgress>();
   /**
    * What this viewer is carrying, as the server last said.
    *
@@ -2032,6 +2033,21 @@ export class RemoteSession implements PlaySession {
     }
 
     this.send({ type: "cast", square });
+    return true;
+  }
+
+  /**
+   * Stop the cast this body is making. @see PlaySession.cancelCast
+   *
+   * Sent only while the broadcast shows this body casting, on the terms `cast`
+   * is only sent for a stone this side would honour: a client whose messages
+   * mean something is one whose buttons can be trusted. Nothing changes here —
+   * the bar and the root lift when the server's next patch says the cast has
+   * ended, the same round trip late that every other cast fact arrives.
+   */
+  cancelCast(): boolean {
+    if (!this.castingsById.get(this.selfId)) return false;
+    this.send({ type: "cancelCast" });
     return true;
   }
 

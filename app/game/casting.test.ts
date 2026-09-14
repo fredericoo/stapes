@@ -26,6 +26,7 @@ import {
   type CastPoint,
   conjureLanding,
   meetsRequirements,
+  spellPress,
   spellReading,
 } from "./casting";
 import { damageFraction } from "./combat";
@@ -258,17 +259,19 @@ describe("why a stone cannot be cast", () => {
   /**
    * A body mid-cast has its hands full, and the refusal is about the *body*
    * rather than the square — so the stone in the other hand is refused too, and
-   * the whole row dims and comes back together.
+   * the whole row dims and comes back together. The square the cast came out of
+   * is refused in its own word, because it is the one button a caster can still
+   * do something with: pressing it again stops the cast.
    */
-  it("refuses every square while a cast is running", () => {
+  it("refuses every square while a cast is running, naming the one it came from", () => {
     const casting = context(
       { weapon: instance("mend-stone"), offhand: instance("ward-stone") },
-      { casting: { remainingMs: 1_500, durationMs: 3_000 } },
+      { casting: { remainingMs: 1_500, durationMs: 3_000, square: "weapon" } },
     );
 
     expect(castability(casting, "weapon")).toEqual({
       ok: false,
-      reason: "casting",
+      reason: "underway",
     });
     expect(castability(casting, "offhand")).toEqual({
       ok: false,
@@ -1127,5 +1130,35 @@ describe("how long a cast takes", () => {
     expect(castDurationMs(stone(AUTHORED_MS, {}), { arcane: 100 })).toBe(
       AUTHORED_MS,
     );
+  });
+});
+
+/**
+ * What pressing a button asks for, which is the one question a tap and a number
+ * key both ask — so it is answered here and not in the component.
+ */
+describe("spellPress", () => {
+  it("asks for a cast from a stone that would land", () => {
+    expect(spellPress({ ok: true })).toBe("cast");
+  });
+
+  /** The press is what produces the sentence. @see `./notices` */
+  it("asks for one with nobody targeted, so the session can say why not", () => {
+    expect(spellPress({ ok: false, reason: "noTarget" })).toBe("cast");
+  });
+
+  it("asks to stop from the stone whose cast is running", () => {
+    expect(spellPress({ ok: false, reason: "underway" })).toBe("stop");
+  });
+
+  it.each([
+    "empty",
+    "casting",
+    "cooling",
+    "mastery",
+    "outOfRange",
+    "blocked",
+  ] as const)("asks nothing of a stone refused for %s, which the button already draws", (reason) => {
+    expect(spellPress({ ok: false, reason })).toBeNull();
   });
 });

@@ -7,10 +7,11 @@ import {
   DEFAULT_CONTAINER,
   DEFAULT_PILE,
   DEFAULT_SHIELD,
+  DEFAULT_STONE,
   DEFAULT_WEAPON,
   MAX_ARMOR_DEF,
   MAX_CONSUMABLE_HP_SHIFT,
-  MAX_CONSUMABLE_SOUND_LENGTH,
+  MAX_SOUND_LENGTH,
   MAX_CONTAINER_SIZE,
   MAX_PERCENT_STAT,
   MAX_WEAPON_DAMAGE,
@@ -140,7 +141,11 @@ describe("resolveItem", () => {
       ["a consumable with no hp at all", { type: "consumable", label: "Eat" }],
       [
         "a noise longer than the cap",
-        { ...DEFAULT_CONSUMABLE, sound: "z".repeat(MAX_CONSUMABLE_SOUND_LENGTH + 1) },
+        { ...DEFAULT_CONSUMABLE, sound: "z".repeat(MAX_SOUND_LENGTH + 1) },
+      ],
+      [
+        "a stone whose noise is longer than the cap",
+        { ...DEFAULT_STONE, sound: "z".repeat(MAX_SOUND_LENGTH + 1) },
       ],
       ["a fractional hp", { ...DEFAULT_CONSUMABLE, hp: 2.5 }],
       ["an hp past the cap", { ...DEFAULT_CONSUMABLE, hp: MAX_CONSUMABLE_HP_SHIFT + 1 }],
@@ -639,6 +644,29 @@ describe("itemForSave", () => {
     const saved = itemForSave(draft);
     expect(saved).toEqual(draft);
     expect(resolveItem(tile("item", { item: saved }))).toEqual(draft);
+  });
+
+  it("round-trips the noise a stone makes", () => {
+    const draft: ItemDef = {
+      type: "stone",
+      effect: { kind: "conjure", tileId: "flame" },
+      cooldownMs: 45_000,
+      sound: "whoosh",
+    };
+    const saved = itemForSave(draft);
+    expect(saved).toEqual(draft);
+    expect(resolveItem(tile("item", { item: saved }))).toEqual(draft);
+  });
+
+  /** Blank is silent, and silent is what an absent key already says. */
+  it("drops a stone's blank noise", () => {
+    const saved = itemForSave({
+      type: "stone",
+      effect: { kind: "bolt", damage: -5, on: "caster" },
+      cooldownMs: 10_000,
+      sound: "  ",
+    });
+    expect(saved).not.toHaveProperty("sound");
   });
 
   /**
