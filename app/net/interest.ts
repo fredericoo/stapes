@@ -1,10 +1,13 @@
 /**
  * What of the map a client is told about.
  *
- * The world is one board and every client is sent all of it: the whole map on
- * join, and every cell that changed anywhere on every tick. That was right
- * while the map was a town — 2.4MB to join — and it is the one cost left that
- * still grows with the world rather than with who is playing.
+ * The world is one board, and a client is sent the part of it near its own
+ * body: the chunks in reach on join, the chunks that come into reach as it
+ * walks, and — by the same subscription, in `./scope` — the cells that change
+ * inside it. Before that it was sent all of the map and then told about every
+ * cell that changed anywhere, which on the den map was 4.9MB to join and a tick
+ * stream that grew with everybody else's neighbourhood rather than with the
+ * player's own.
  *
  * **The unit is the chunk**, because that is what the map is stored in and what
  * copy-on-write gives identity to: a subscription changes when you cross a
@@ -27,6 +30,7 @@ import {
   LIGHT_CHUNK_SIZE,
   LIGHT_WINDOW_MARGIN,
 } from "../lib/lightingChunks";
+import { MAX_LIGHT_LEVEL } from "../lib/types";
 import {
   CHUNK_SIZE,
   MAX_LEVEL,
@@ -35,7 +39,7 @@ import {
 } from "../lib/types";
 import { MAP_FILE_VERSION } from "../lib/types";
 import type { FlatMapFile, MapFile, PlacedTile } from "../lib/types";
-import { VIEW_CELLS } from "../lib/view";
+import { MESH_WINDOW_MARGIN, VIEW_CELLS } from "../lib/view";
 
 /**
  * How far past their own cell a client's *lighting* reads the map, in cells.
@@ -73,6 +77,72 @@ export const INTEREST_REACH_CELLS =
 
 /** The same reach, rounded out to whole map chunks. */
 export const INTEREST_REACH_CHUNKS = Math.ceil(INTEREST_REACH_CELLS / CHUNK_SIZE);
+
+/**
+ * How far away a *body* is worth telling a client about, in cells.
+ *
+ * **A body is not terrain, and it does not need the reach terrain does.** The
+ * number above is the light bake's — 47 of its 79 cells are `LIGHT_CHUNK_SIZE`
+ * plus `LIGHT_APRON`, the map a cached bake reads beyond the window it fills.
+ * Nothing about a creature feeds that bake: every body tile is `lightPassing`,
+ * so it casts no shadow, and `terrainHeight` skips a person outright. Scoping
+ * bodies at the terrain reach therefore bought nothing and cost everything —
+ * the subscription is a square 176 cells across, `data/map.json` is 168 wide,
+ * and the brain budget keeps two dozen creatures walking somewhere on it every
+ * round. A player anywhere in the world was told about all of them.
+ *
+ * Every term is again somebody else's constant:
+ *
+ * - half the view, because a body outside it is not drawn;
+ * - the level span, because the projection shifts level `z` by `z` cells, so a
+ *   body that many storeys up is drawn that far off its own column. Only the
+ *   worst case is a constant: {@link withinBodyReach} charges the storeys
+ *   actually between the two, and on the den — where a player stands in the
+ *   middle of a stack of cave floors — asking for the real difference rather
+ *   than the whole span is the difference between 128 bodies in reach and 89;
+ * - `MESH_WINDOW_MARGIN`, the slack the renderer builds geometry with — a body
+ *   is a sprite drawn from its cell upward, and a tall one a few rows below the
+ *   bottom edge still paints inside the view;
+ * - `MAX_LIGHT_LEVEL`, because a body can be *carrying* a lantern, and a client
+ *   that has not been told there is a body has no emitter to overlay for it.
+ *   This is the term that makes the reach bigger than anything that is drawn.
+ *
+ * **It must stay inside the terrain reach**, or a body would be announced
+ * standing on ground its client has not been sent. `INTEREST_REACH_CHUNKS`
+ * chunks is the *least* the subscription covers in any direction — a body at
+ * the start of its own chunk holds exactly that far west — so that is what this
+ * is measured against, and `interest.test.ts` pins it.
+ */
+/** The same reach between two bodies on one storey, before the skew below. */
+export const BODY_REACH_ON_LEVEL =
+  Math.ceil(VIEW_CELLS / 2) + MESH_WINDOW_MARGIN + MAX_LIGHT_LEVEL;
+
+export const BODY_REACH_CELLS = BODY_REACH_ON_LEVEL + (MAX_LEVEL - MIN_LEVEL);
+
+/**
+ * Is a body at `(x, y)` close enough to a client at `at` to be worth telling
+ * them about?
+ *
+ * A square in cells rather than the chunk square the map is scoped by, and the
+ * difference is the point: rounding this out to chunks would round 49 cells up
+ * to four chunk columns, which reaches 79 — the number this exists to get away
+ * from. Cells are also cheaper to ask about, since there is no key to build.
+ *
+ * Every level, on the terms the map is — a body one storey down a hole is a
+ * body you can see — but not every level equally: see below.
+ */
+export function withinBodyReach(
+  at: { x: number; y: number; z: number },
+  x: number,
+  y: number,
+  z: number,
+): boolean {
+  // The projection's own arithmetic: a level is drawn shifted by its own
+  // number, so what stands between these two is the storeys between them and
+  // not the whole span the world has. @see `../render/meshWindow`
+  const reach = BODY_REACH_ON_LEVEL + Math.abs(z - at.z);
+  return Math.abs(x - at.x) <= reach && Math.abs(y - at.y) <= reach;
+}
 
 /**
  * Chunks a client standing at `(x, y)` is owed, on every level.
@@ -143,15 +213,50 @@ export function chunksEntered(
 }
 
 /**
+ * The placements of a stack that a client holding `held` is allowed to see.
+ *
+ * **A client is never sent a body it has not been told about.** Without this
+ * the cheaper arrangement — stop sending a distant creature's steps, leave the
+ * cells alone — puts a tile of it in the client's board for ever: the cell it
+ * was standing in is never rewritten, so the body sits there unowned by any
+ * actor entry. It is too far away to draw, and the board is not only drawn.
+ * `fitsTile` counts a creature as solid, so the client would refuse its own
+ * player a step into a cell a deer left an hour ago, and a route planned across
+ * it would walk round something that is not there.
+ *
+ * Returns the stack itself when there is nothing to take out, which is the
+ * ordinary case — a cell with no body in it at all.
+ */
+export function visibleStack(
+  stack: PlacedTile[],
+  held: ReadonlySet<string>,
+): PlacedTile[] {
+  let out: PlacedTile[] | null = null;
+  for (let i = 0; i < stack.length; i++) {
+    const placed = stack[i]!;
+    if (!placed.owner || held.has(placed.owner)) {
+      out?.push(placed);
+      continue;
+    }
+    out ??= stack.slice(0, i);
+  }
+  return out ?? stack;
+}
+
+/**
  * The cells of some chunks, as the patch that hands them over.
  *
  * Their current contents rather than a diff, because there is nothing on the
  * far end to diff against: these cells have been changing, unwatched, for as
- * long as this client has been connected.
+ * long as they have been out of reach. That is also what makes it safe to stop
+ * sending a client the changes in a chunk it has walked away from — the chunk
+ * is dropped from what it holds on the way out, so coming back into reach hands
+ * it over whole rather than patching a board nobody kept current. @see `./scope`
  */
 export function cellsOfChunks(
   map: MapFile,
   chunks: Iterable<string>,
+  held: ReadonlySet<string>,
 ): Array<{ x: number; y: number; z: number; stack: PlacedTile[] }> {
   const out: Array<{ x: number; y: number; z: number; stack: PlacedTile[] }> = [];
   for (const chunk of chunks) {
@@ -164,7 +269,11 @@ export function cellsOfChunks(
           x: Number(key.slice(0, comma)),
           y: Number(key.slice(comma + 1)),
           z,
-          stack: cells[key]!,
+          // Ground that has come into reach arrives with whoever is standing on
+          // it taken out, unless this client already holds them. A chunk three
+          // storeys down can be handed over with a rat in it, and a rat this
+          // client is not being told about is a rat it would hold for ever.
+          stack: visibleStack(cells[key]!, held),
         });
       }
     }
@@ -182,6 +291,7 @@ export function cellsOfChunks(
 export function mapOfInterest(
   map: MapFile,
   chunks: ReadonlySet<string>,
+  held: ReadonlySet<string>,
 ): FlatMapFile {
   const levels: FlatMapFile["levels"] = {};
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
@@ -195,7 +305,11 @@ export function mapOfInterest(
       const cells = getChunk(map, z, chunk);
       if (!cells) continue;
       for (const key in cells) {
-        (levels[levelKey(z)] ??= {})[key] = cells[key]!;
+        // Without whoever is standing on it, on {@link cellsOfChunks}' terms:
+        // the bodies a joiner is told about are the ones near it, and a body in
+        // its board that is in neither its actor list nor anything it will hear
+        // about again is a tile nothing can ever take back off.
+        (levels[levelKey(z)] ??= {})[key] = visibleStack(cells[key]!, held);
       }
     }
   }
