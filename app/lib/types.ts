@@ -814,16 +814,39 @@ export type PlacedTile = {
    */
   channel?: string;
   /**
-   * What this placement says when somebody looks at it.
+   * What is *written on* this placement — a sign, a label, a gravestone.
    *
    * A placement field for the same reason {@link channel} is: what a thing says
    * belongs to the slot, not to the tile filling it. Two signs share one `sign`
    * tile def and read differently, and the text has to outlive every swap of the
-   * tile in the slot — a described door that opens is still the same door.
+   * tile in the slot — an inscribed door that opens is still the same door.
    *
-   * The tile's own {@link TileDef.name} is what a look reports without one;
-   * this is the line underneath. Absent on all but the few placements anybody
-   * has written on.
+   * **Read out to anybody who walks up to it**, without being asked — see
+   * `../render/nearbyInscriptions`. That is what an inscription *is*: a sign
+   * whose words you had to discover a modifier to see would simply be walked
+   * past. It is also the line under the name on a look.
+   *
+   * Was `description`, and the rename is the whole of the split: everything
+   * written on a placement used to be read out by proximity, so the only way to
+   * give an object a line of prose was to make every passer-by recite it.
+   * {@link description} is the other half.
+   *
+   * Absent on all but the few placements anybody has written on.
+   */
+  inscription?: string;
+  /**
+   * What examining this placement closely tells you.
+   *
+   * **The quiet half of {@link inscription}, and the difference is who asks.**
+   * An inscription is words on a surface and is read by anybody standing near
+   * it; this is what you learn by turning a thing over, so it reaches the
+   * screen only where somebody asked about this particular object — the item
+   * card, and a look they aimed. A skull carries how its owner died here, and a
+   * cell holding nine of them is nine skulls rather than nine sentences hanging
+   * in the air.
+   *
+   * Authored, and also written by the world: see `../game/blame`, which is
+   * what fills it in on a body's remains.
    */
   description?: string;
   /**
@@ -1021,14 +1044,19 @@ export type PlacedTile = {
 };
 
 /**
- * Cap on {@link PlacedTile.description}, in characters.
+ * Cap on {@link PlacedTile.inscription} and {@link PlacedTile.description}, in
+ * characters.
  *
  * A layout bound rather than a safety one — the text is authored in the editor,
  * not typed by a stranger, and it reaches the screen as `textContent`. What it
  * protects is the view: a look label wraps at 60% of the square, so a paragraph
  * would be a wall across the world it is describing.
+ *
+ * One bound for both, because both end up in the same places: the card draws
+ * them one under the other, and two limits would be two ways for one panel to
+ * grow.
  */
-export const MAX_DESCRIPTION_LENGTH = 240;
+export const MAX_INSCRIPTION_LENGTH = 240;
 
 /**
  * Cells of one chunk, keyed by {@link coordKey}.
@@ -1050,14 +1078,27 @@ export type ChunkCells = Record<string, PlacedTile[]>;
  */
 export type LevelChunks = Record<string, ChunkCells>;
 
+/**
+ * What the map format looks like today.
+ *
+ * On the in-memory shape as well as the file, so there is one answer rather
+ * than a file version and a runtime one that could drift. A map is read at one
+ * version and is *current* from then on — see `./mapData`'s {@link parseMap},
+ * which is the only place an older one exists at all.
+ *
+ * 1 → 2: a placement's `description` became {@link PlacedTile.inscription},
+ * and `description` was reused for the half nobody standing nearby recites.
+ */
+export const MAP_FILE_VERSION = 2;
+
 export type MapFile = {
-  version: 1;
+  version: typeof MAP_FILE_VERSION;
   levels: Record<string, LevelChunks>;
 };
 
 /** The on-disk shape: cells flat per level, no chunk grouping. */
 export type FlatMapFile = {
-  version: 1;
+  version: typeof MAP_FILE_VERSION;
   levels: Record<string, Record<string, PlacedTile[]>>;
 };
 

@@ -33,6 +33,7 @@ import {
   MIN_LEVEL,
   levelKey,
 } from "../lib/types";
+import { MAP_FILE_VERSION } from "../lib/types";
 import type { FlatMapFile, MapFile, PlacedTile } from "../lib/types";
 import { VIEW_CELLS } from "../lib/view";
 
@@ -198,5 +199,5 @@ export function mapOfInterest(
       }
     }
   }
-  return { version: 1, levels };
+  return { version: MAP_FILE_VERSION, levels };
 }

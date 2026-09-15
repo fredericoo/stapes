@@ -284,6 +284,22 @@ describe("a player who dies", () => {
     expect(skullAt(session, 0, 0)?.description).toBe("Burned by Hearth");
   });
 
+  /**
+   * The quiet half, and it has to be: a skull is not a sign. A cause written
+   * where a sign's words go is recited to everybody who walks past the cell,
+   * which for a spot people keep dying on is a wall of text over the ground.
+   * @see `../render/nearbyInscriptions`
+   */
+  it("writes the cause where nobody walking past recites it", () => {
+    const session = new GameSession(field([{ tileId: "hearth" }]), tiles, {
+      statuses: catalogue,
+    });
+
+    advanceUntilDead(session);
+
+    expect(skullAt(session, 0, 0)?.inscription).toBeUndefined();
+  });
+
   it("says which blow it was and who swung it", () => {
     const session = new GameSession(withBody(field(), 1, 0, "wolf"), tiles);
     const wolf = session.actorSnapshots().find((a) => a.tileId === "wolf")!;

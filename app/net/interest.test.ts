@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MAP_FILE_VERSION } from "../lib/types";
 import {
   INTEREST_REACH_CELLS,
   INTEREST_REACH_CHUNKS,
@@ -162,7 +163,7 @@ describe("handing the cells over", () => {
 
     const flat = mapOfInterest(map, interestChunks(1, 1));
 
-    expect(flat.version).toBe(1);
+    expect(flat.version).toBe(MAP_FILE_VERSION);
     expect(flat.levels[levelKey(0)]?.[coordKey(1, 1)]).toEqual([
       { tileId: "grass" },
     ]);

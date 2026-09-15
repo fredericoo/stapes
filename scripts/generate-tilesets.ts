@@ -2,6 +2,7 @@
  * Generates placeholder tilesets and seed data for the Stapes editor.
  * Run: pnpm generate
  */
+import { MAP_FILE_VERSION } from "../app/lib/types";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { PNG } from "pngjs";
@@ -276,7 +277,7 @@ async function main() {
   ] as unknown[]);
 
   // Built flat, then grouped — same shape the file on disk uses.
-  const map: FlatMapFile = { version: 1, levels: {} };
+  const map: FlatMapFile = { version: MAP_FILE_VERSION, levels: {} };
 
   const put = (
     z: number,

@@ -5144,6 +5144,52 @@ one level of spilling is the whole of it.
 It applies to players exactly as it does to a deer, which is the point: there is
 one death, and a deer that had picked a bush leaves the berries it was carrying.
 
+## A sign is read to you; everything else waits to be asked
+
+A placement had one text on it, `description`, and two things read it: a look,
+and **anybody standing next to it**. The second is what a sign is for — a sign
+whose words you had to discover a modifier to see would simply be walked past —
+but it was the only text a placement had, so it was also the only place to put a
+line of prose on an object. The bill came in with the skulls: a cell people keep
+dying on collects them, and eleven skulls was eleven sentences hanging in the
+air over the ground.
+
+So the field is two fields.
+
+- **`PlacedTile.inscription`** is what is *written on* a thing. Recited to
+  whoever walks up to it (`app/render/nearbyInscriptions.ts`), shown under the
+  name on a look, and shown on the card. This is the old `description`, renamed,
+  and every sign in the world is one.
+- **`PlacedTile.description`** is what examining the thing tells you. It reaches
+  the screen only where somebody asked about *that object* — the item card, and
+  a look they aimed. A skull's cause of death lives here.
+
+The line between them is **who is asking**. Walking past a shelf is not a
+question; pointing at one thing is. That is also why a look shows both: you
+cannot be spammed by a label you aimed at.
+
+Two knock-on rules follow from the rename, and both are about the *slot's own
+name*. A sign in your bag is called what it says rather than "Sign", and that
+was always the inscription doing the work — so `slotLabelFor`, the container
+caption and the stone the cast bar names all read `inscription`. An engraving
+still outranks both, because that is the *name* differing per thing rather than
+a note beside it.
+
+### The map file has a version now, and it is 2
+
+`MAP_FILE_VERSION` is on the in-memory shape as well as the file, so there is
+one answer rather than two that could drift. `parseMap` is the only place an
+older one exists at all: a version-1 file has every `description` lifted into
+`inscription` on the way in, unconditionally, because that is all the field
+could have meant. It has to be unconditional — a version-2 file may carry both,
+and a migration that guessed per placement would put a skull's cause of death
+into every passer-by's mouth.
+
+Every route the map takes goes through `parseMap`: `data/map.json`, the
+checkpoint blob, an editor save, `/api/seed`. So the live world's signs survive
+the rename without anything else knowing about it, which is the whole reason the
+version lives on the file rather than in a one-off sweep at load.
+
 ## A body leaves what its tile says it leaves, and it says who and by what
 
 A death already put everything a body owned on the floor. What it did not leave
@@ -5161,8 +5207,10 @@ that is a decision for whoever authors the boss rather than for `kill`. It lives
 on the battler block because only a battler can die.
 
 **The tile is chosen and nothing else is.** What lands is engraved with whoever
-the body was and described by what killed it, so an author picks the art and the
-world fills in the rest. `dropRemains` reads whose it is off the *tile* rather
+the body was and described by what killed it — in `description` and never in
+`inscription`, so a cell holding nine of them is nine skulls rather than nine
+sentences hanging in the air. An author picks the art and the world fills in the
+rest. `dropRemains` reads whose it is off the *tile* rather
 than the id, on `app/game/displayName.ts`' argument — `npc:` prefixes are how
 residents are keyed, not what they are — which is also what makes a creature's
 skull read "Troll" and a player's read their own name. A tile whose name has no

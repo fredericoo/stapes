@@ -1,3 +1,4 @@
+import { MAP_FILE_VERSION } from "../lib/types";
 import { describe, expect, it } from "vitest";
 import { GameSession } from "./GameSession";
 import { TICK_MS, WALK_DURATION_MS } from "./constants";
@@ -73,7 +74,7 @@ function walledMap(): MapFile {
   const cells = strip();
   cells["1,0"] = [grass, { tileId: "player", direction: "s" } as PlacedTile];
   return chunkifyMap({
-    version: 1,
+    version: MAP_FILE_VERSION,
     levels: { "0": cells },
   } as unknown as FlatMapFile);
 }
@@ -156,7 +157,7 @@ function actorX(session: GameSession, id: string): number {
  */
 function sessionOnStrip(): GameSession {
   const map = chunkifyMap({
-    version: 1,
+    version: MAP_FILE_VERSION,
     levels: { "0": strip() },
   } as unknown as FlatMapFile);
   return new GameSession(map, tiles, { actorIds: ["a"], spawnAt: {
@@ -227,7 +228,7 @@ describe("GameSession.requestStep", () => {
     // Spawned a level up with nothing under them: gravity takes over on the
     // first tick, and a fall is motion the client never predicted.
     const map = chunkifyMap({
-      version: 1,
+      version: MAP_FILE_VERSION,
       levels: { "0": { "0,0": [grass], "1,0": [grass] }, "1": {} },
     } as unknown as FlatMapFile);
     const session = new GameSession(map, tiles, { actorIds: ["a"], spawnAt: {

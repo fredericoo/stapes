@@ -14,6 +14,7 @@ import type {
 import {
   CHUNK_SIZE,
   HEIGHT_PER_LEVEL,
+  MAP_FILE_VERSION,
   MAX_LEVEL,
   MIN_LEVEL,
   coordKey,
@@ -26,7 +27,7 @@ import {
 } from "./types";
 
 export function emptyMap(): MapFile {
-  return { version: 1, levels: {} };
+  return { version: MAP_FILE_VERSION, levels: {} };
 }
 
 export function getStack(
@@ -192,7 +193,7 @@ export function mapFromChunks(chunks: Iterable<ChangedChunk>): MapFile {
     if (isEmptyRecord(cells)) continue;
     (levels[zk] ??= {})[chk] = cells;
   }
-  return { version: 1, levels };
+  return { version: MAP_FILE_VERSION, levels };
 }
 
 /** Cells of one chunk, or an empty record. */
@@ -733,7 +734,7 @@ export function setStacks(map: MapFile, edits: readonly StackEdit[]): MapFile {
 
   // Only a delete can empty anything, and emptiness checks are not free.
   if (deleted) pruneEmpty(levels, copied);
-  return { version: 1, levels };
+  return { version: MAP_FILE_VERSION, levels };
 }
 
 /** Drop chunks and levels an edit emptied, so identity means "has content". */
@@ -927,7 +928,7 @@ function updatePlacedText(
   y: number,
   z: number,
   stackIndex: number,
-  key: "channel" | "description" | "engraved" | "variant",
+  key: "channel" | "description" | "engraved" | "inscription" | "variant",
   value: string,
 ): MapFile {
   const current = getStack(map, x, y, z);
@@ -959,7 +960,22 @@ export function updatePlacedChannel(
 }
 
 /**
- * Set (or clear, with an empty string) what this placement says when looked at.
+ * Set (or clear, with an empty string) what is written on one placement.
+ * See {@link PlacedTile.inscription}.
+ */
+export function updatePlacedInscription(
+  map: MapFile,
+  x: number,
+  y: number,
+  z: number,
+  stackIndex: number,
+  inscription: string,
+): MapFile {
+  return updatePlacedText(map, x, y, z, stackIndex, "inscription", inscription);
+}
+
+/**
+ * Set (or clear, with an empty string) what examining one placement says.
  * See {@link PlacedTile.description}.
  */
 export function updatePlacedDescription(
@@ -1243,7 +1259,7 @@ export function chunkifyMap(flat: FlatMapFile): MapFile {
     }
     if (!isEmptyRecord(level)) levels[zk] = level;
   }
-  return { version: 1, levels };
+  return { version: MAP_FILE_VERSION, levels };
 }
 
 /**
@@ -1270,7 +1286,7 @@ export function flattenMap(map: MapFile): FlatMapFile {
     for (const [x, y, stack] of entries) cells[coordKey(x, y)] = stack;
     levels[zk] = cells;
   }
-  return { version: 1, levels };
+  return { version: MAP_FILE_VERSION, levels };
 }
 
 /**
@@ -1328,9 +1344,58 @@ export function serializeMap(map: MapFile): string {
   return `${JSON.stringify({ ...flat, levels }, null, 2)}\n`;
 }
 
+/**
+ * The version whose `description` meant what {@link PlacedTile.inscription}
+ * means now.
+ */
+const INSCRIPTIONS_WERE_DESCRIPTIONS = 1;
+
+/**
+ * A file written before the split, read as one written after it.
+ *
+ * **Every `description` in a version-1 file is an inscription**, because that
+ * is all the field could be: there was one text on a placement and everybody
+ * standing nearby recited it. So the lift is unconditional, and it has to be —
+ * a version-2 file may legitimately carry both, and a migration that guessed
+ * per placement would turn a skull's cause of death into something the whole
+ * street reads out.
+ *
+ * Recursive into `contents` on {@link authoredPlacement}'s terms: a sign in a
+ * crate said what it said.
+ */
+function liftInscriptions(flat: FlatMapFile): FlatMapFile {
+  const levels: FlatMapFile["levels"] = {};
+  for (const [zk, cells] of Object.entries(flat.levels)) {
+    const out: Record<string, PlacedTile[]> = {};
+    for (const [ck, stack] of Object.entries(cells)) {
+      out[ck] = stack.map((placed) => ({
+        ...lifted(placed),
+        ...(placed.contents
+          ? { contents: placed.contents.map(lifted) }
+          : {}),
+      }));
+    }
+    levels[zk] = out;
+  }
+  return { version: MAP_FILE_VERSION, levels };
+}
+
+/** One placement or one carried thing, with its text moved across. */
+function lifted<T extends { description?: string; inscription?: string }>(
+  thing: T,
+): T {
+  if (!thing.description) return thing;
+  const next = { ...thing, inscription: thing.description };
+  delete next.description;
+  return next;
+}
+
 export function parseMap(json: string): MapFile {
   const data = JSON.parse(json) as FlatMapFile;
-  if (data.version !== 1) {
+  if ((data.version as number) === INSCRIPTIONS_WERE_DESCRIPTIONS) {
+    return chunkifyMap(liftInscriptions(data));
+  }
+  if (data.version !== MAP_FILE_VERSION) {
     throw new Error(`Unsupported map version: ${String(data.version)}`);
   }
   return chunkifyMap(data);

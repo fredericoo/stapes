@@ -1,3 +1,4 @@
+import { MAP_FILE_VERSION } from "../lib/types";
 import { describe, expect, it } from "vitest";
 import { getStack, setStacks } from "../lib/mapData";
 import { DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
@@ -30,7 +31,7 @@ const tiles = [
 const tilesById = tilesByIdFromList(tiles);
 
 function mapWith(stacks: Array<{ x: number; y: number; stack: PlacedTile[] }>): MapFile {
-  return setStacks({ version: 1, levels: {} }, stacks.map((s) => ({ ...s, z: 0 })));
+  return setStacks({ version: MAP_FILE_VERSION, levels: {} }, stacks.map((s) => ({ ...s, z: 0 })));
 }
 
 describe("mintItemIds", () => {

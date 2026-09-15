@@ -36,7 +36,7 @@ import {
 } from "../game/interactionOptions";
 import type { Extraction } from "../game/extract";
 import { progressFraction } from "../game/progress";
-import { describedNearby } from "./nearbyDescriptions";
+import { inscribedNearby } from "./nearbyInscriptions";
 import { WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
@@ -1988,7 +1988,7 @@ export class GameRenderer {
     this.pushNoiseLabels(snap, labels);
     this.forgetStaleAnchors(snap);
     this.pushPointerLabel(snap, labels);
-    this.pushNearbyDescriptionLabels(snap, labels);
+    this.pushNearbyInscriptionLabels(snap, labels);
     return labels;
   }
 
@@ -1997,14 +1997,14 @@ export class GameRenderer {
    *
    * Same colour and same anchor as a look on purpose — it is the same fact about
    * the same placement, arrived at without being asked. What it drops is the
-   * name line: see `./nearbyDescriptions`, which owns the rule for who speaks.
+   * name line: see `./nearbyInscriptions`, which owns the rule for who speaks.
    *
    * A placement being looked at is skipped, because the look label is already
    * saying its words: drawn as well, the layout pass would sit one description
    * above an identical one and read as a stutter.
    */
-  private pushNearbyDescriptionLabels(snap: GameSnapshot, into: WorldLabel[]) {
-    for (const near of describedNearby(snap.map, this.tilesById, snap.self)) {
+  private pushNearbyInscriptionLabels(snap: GameSnapshot, into: WorldLabel[]) {
+    for (const near of inscribedNearby(snap.map, this.tilesById, snap.self)) {
       if (this.lookMode && sameRef(near.ref, this.lookedAt)) continue;
 
       const { x, y, z, stackIndex } = near.ref;
@@ -2073,8 +2073,9 @@ export class GameRenderer {
   }
 
   /**
-   * What look mode says: the tile's name, what the placement reads, and — for a
-   * weapon — what it asks of you and what you are getting out of it.
+   * What look mode says: the tile's name, what is written on the placement,
+   * what examining it would tell you, and — for a weapon — what it asks of you
+   * and what you are getting out of it.
    *
    * The demand goes last because it is the only part that is not a fact about
    * the object: the name and the writing on it are the same for everybody who
@@ -2095,6 +2096,13 @@ export class GameRenderer {
     // hole in it comes straight back. See `../lib/engraving`.
     const name = engravedName(def.name, placed.engraved);
     const lines = [{ id: "name", text: tally ? `${name} ${tally}` : name }];
+    if (placed.inscription) {
+      lines.push({ id: "inscription", text: placed.inscription });
+    }
+    // The quiet half, and a look is where it is allowed out into the world:
+    // pointing at one thing is the gesture that asks about that thing, where
+    // walking past a shelf of them is not. @see `../lib/types`'
+    // {@link PlacedTile.description}
     if (placed.description) {
       lines.push({ id: "description", text: placed.description });
     }

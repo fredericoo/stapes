@@ -27,7 +27,8 @@ describe("the placement ↔ instance round trip", () => {
       itemId: "itm_1",
       direction: "e",
       channel: "gate",
-      description: "Beware of the dog",
+      inscription: "Beware of the dog",
+      description: "Scratched, and very old",
       engraved: "Green Fox",
     };
     const instance = instanceFromPlacement(placed);
@@ -36,7 +37,8 @@ describe("the placement ↔ instance round trip", () => {
       tileId: "sign",
       direction: "e",
       channel: "gate",
-      description: "Beware of the dog",
+      inscription: "Beware of the dog",
+      description: "Scratched, and very old",
       engraved: "Green Fox",
     });
     expect(placementFromInstance(instance!)).toEqual(placed);

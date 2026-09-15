@@ -41,6 +41,7 @@
  * Everything is a pure function of {@link SYSTEM}'s seeds, so a re-run
  * reproduces the same caves rather than reshuffling the map.
  */
+import { MAP_FILE_VERSION } from "../app/lib/types";
 import {
   chunkifyMap,
   getStack as getMapStack,
@@ -276,7 +277,10 @@ const MAP_PATH = "data/map.json";
 const TILES_PATH = "data/tiles.json";
 const verifyOnly = process.argv.includes("--verify");
 
-type Flat = { version: 1; levels: Record<string, Record<string, Placed[]>> };
+type Flat = {
+  version: typeof MAP_FILE_VERSION;
+  levels: Record<string, Record<string, Placed[]>>;
+};
 const map: Flat = JSON.parse(await Bun.file(MAP_PATH).text());
 const tiles: TileDef[] = (
   JSON.parse(await Bun.file(TILES_PATH).text()) as unknown[]

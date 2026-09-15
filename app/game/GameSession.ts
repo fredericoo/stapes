@@ -7398,7 +7398,7 @@ export class GameSession implements PlaySession {
     this.say(
       actor.id,
       coolingNotice(
-        instance.description?.trim() || def?.name || instance.tileId,
+        instance.inscription?.trim() || def?.name || instance.tileId,
       ),
     );
     return true;

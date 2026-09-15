@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
-import { describedNearby } from "./nearbyDescriptions";
+import { inscribedNearby } from "./nearbyInscriptions";
 
 /**
  * Who speaks when you walk past, and who stays quiet.
@@ -67,13 +67,13 @@ function withStack(
   return replaceStack(map, x, y, z, [{ tileId: "grass" }, ...on]);
 }
 
-const DANGER: PlacedTile = { tileId: "sign", description: "DANGER" };
+const DANGER: PlacedTile = { tileId: "sign", inscription: "DANGER" };
 
 function textsNear(map: MapFile, at = READER): string[] {
-  return describedNearby(map, tilesById, at).map((found) => found.text);
+  return inscribedNearby(map, tilesById, at).map((found) => found.text);
 }
 
-describe("describedNearby", () => {
+describe("inscribedNearby", () => {
   it("reads an orthogonally adjacent sign", () => {
     const map = withStack(ground(), 1, 0, 0, DANGER);
     expect(textsNear(map)).toEqual(["DANGER"]);
@@ -86,6 +86,28 @@ describe("describedNearby", () => {
 
   it("reads a sign in the cell you are standing in", () => {
     const map = withStack(ground(), 0, 0, 0, DANGER);
+    expect(textsNear(map)).toEqual(["DANGER"]);
+  });
+
+  /**
+   * The whole reason the two fields are two. Everything written on a placement
+   * used to be recited to whoever walked past, so a cell holding nine skulls
+   * was nine sentences hanging in the air over it — and the only way to give an
+   * object a line of prose was to make the whole street read it out.
+   */
+  it("stays quiet about a description, however close", () => {
+    const map = withStack(ground(), 0, 0, 0, {
+      tileId: "sign",
+      description: "Bite by Snake",
+    });
+    expect(textsNear(map)).toEqual([]);
+  });
+
+  it("reads the inscription and not the description beside it", () => {
+    const map = withStack(ground(), 1, 0, 0, {
+      ...DANGER,
+      description: "Bite by Snake",
+    });
     expect(textsNear(map)).toEqual(["DANGER"]);
   });
 
@@ -124,14 +146,14 @@ describe("describedNearby", () => {
   });
 
   it("reads every sign in reach at once", () => {
-    let map = withStack(ground(), 1, 0, 0, { ...DANGER, description: "left" });
-    map = withStack(map, 0, 1, 0, { ...DANGER, description: "right" });
+    let map = withStack(ground(), 1, 0, 0, { ...DANGER, inscription: "left" });
+    map = withStack(map, 0, 1, 0, { ...DANGER, inscription: "right" });
     expect(textsNear(map).sort()).toEqual(["left", "right"]);
   });
 
   it("hands back the slot and the tile height, for hanging the words", () => {
     const map = withStack(ground(), 1, 0, 0, DANGER);
-    expect(describedNearby(map, tilesById, READER)).toEqual([
+    expect(inscribedNearby(map, tilesById, READER)).toEqual([
       {
         ref: { x: 1, y: 0, z: 0, stackIndex: 1 },
         text: "DANGER",

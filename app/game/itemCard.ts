@@ -176,7 +176,7 @@ export type ItemCardResist = {
 };
 
 export type ItemCard = {
-  /** The tile's name, never the instance's. See {@link ItemCard.description}. */
+  /** The tile's name, never the instance's. See {@link ItemCard.inscription}. */
   name: string;
   /**
    * How many of it this square holds, or null for a single thing.
@@ -211,6 +211,14 @@ export type ItemCard = {
    * `lookLines` keeps them separate: "Left here by someone" answers a different
    * question from "Rusty Sword", and a card that showed one in place of the
    * other would leave a player unable to find out what they picked up.
+   */
+  inscription: string | null;
+  /**
+   * What examining *this* one tells you — how its owner died, on a skull.
+   *
+   * **The card is the only place this is guaranteed to appear**, which is the
+   * whole of the split: an inscription is recited to anybody who walks past and
+   * this is not. See `../lib/types`' {@link PlacedTile.description}.
    */
   description: string | null;
   stats: ItemCardStat[];
@@ -881,6 +889,7 @@ export function itemCard(
     count: count > 1 ? count : null,
     elements: elementsOf(item),
     kind: kindOf(item),
+    inscription: instance?.inscription?.trim() || null,
     description: instance?.description?.trim() || null,
     stats: statsFor(item, instance, masteries),
     requirements: requirementsFrom(demandsOf(item), masteries),
@@ -928,6 +937,7 @@ function speak(card: ItemCard): string {
   if (card.elements.length > 0) {
     lines.push(`Attuned to ${card.elements.join(" and ")}`);
   }
+  if (card.inscription) lines.push(card.inscription);
   if (card.description) lines.push(card.description);
   for (const stat of card.stats) {
     // The word rather than the abbreviation on the card: "def" is a column

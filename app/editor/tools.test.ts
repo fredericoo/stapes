@@ -1,3 +1,4 @@
+import { MAP_FILE_VERSION } from "../lib/types";
 import { describe, expect, it } from "vitest";
 import { replaceStack } from "../lib/mapData";
 import type { MapFile } from "../lib/types";
@@ -6,7 +7,7 @@ import { floodCoords, stacksEqual } from "./tools";
 function mapWith(
   cells: Array<{ x: number; y: number; tiles: Array<{ tileId: string; direction?: "n" | "e" | "s" | "w" }> }>,
 ): MapFile {
-  let map: MapFile = { version: 1, levels: {} };
+  let map: MapFile = { version: MAP_FILE_VERSION, levels: {} };
   for (const c of cells) {
     map = replaceStack(map, c.x, c.y, 0, c.tiles);
   }

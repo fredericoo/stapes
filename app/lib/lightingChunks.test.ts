@@ -1,3 +1,4 @@
+import { MAP_FILE_VERSION } from "./types";
 import { describe, expect, it } from "vitest";
 import { chunkifyMap, getStack, listCoords, replaceStack } from "./mapData";
 import { fixtureTown } from "./fixtureTown";
@@ -268,7 +269,7 @@ describe("chunked lighting", () => {
         { tileId: lamp.id },
       ];
       const lit = chunkifyMap({
-        version: 1,
+        version: MAP_FILE_VERSION,
         levels: { [levelKey(0)]: cells },
       } as unknown as FlatMapFile);
 
@@ -951,7 +952,7 @@ describe("a flicker's reach", () => {
       },
     };
     const baked = bakeRegion(
-      chunkifyMap({ version: 1, levels }),
+      chunkifyMap({ version: MAP_FILE_VERSION, levels }),
       byId,
       undefined,
       { x0: 0, y0: 0, x1: CHUNK_LAST_ROW, y1: CHUNK_LAST_ROW },

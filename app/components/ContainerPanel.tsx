@@ -101,7 +101,7 @@ const MAX_SLOT_SIZE_PX = 72;
  * "which of these is which" — a shelf of identical silhouettes labelled with
  * three different people's notes is a shelf you still have to open.
  *
- * The description is the fallback rather than nothing, for an instance whose
+ * The inscription is the fallback rather than nothing, for an instance whose
  * tile has gone from the catalogue: a wrong-but-present word beats a blank.
  */
 export function slotCaptionFor(
@@ -110,7 +110,7 @@ export function slotCaptionFor(
 ): string {
   if (!instance) return "";
   const def = tilesById[instance.tileId];
-  if (!def?.name) return instance.description?.trim() || instance.tileId;
+  if (!def?.name) return instance.inscription?.trim() || instance.tileId;
   return engravedName(def.name, instance.engraved);
 }
 

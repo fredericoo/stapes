@@ -414,6 +414,30 @@ describe("itemCard", () => {
       )!;
       expect(card.name).toBe("Green Fox's skull");
       expect(card.description).toBe("Fangs by Wolf");
+      // Nothing is written on it, so nobody walking past says anything.
+      expect(card.inscription).toBeNull();
+    });
+
+    /**
+     * The card is the one surface that shows both, because it is the one place
+     * somebody has asked about this particular object.
+     */
+    it("shows what is written on it beside what examining it says", () => {
+      const card = itemCard(
+        skull,
+        {
+          id: "itm_1",
+          tileId: "thing",
+          engraved: "Green Fox",
+          inscription: "Rest well",
+          description: "Fangs by Wolf",
+        },
+        NOTHING_LEARNT,
+      )!;
+      expect(card.inscription).toBe("Rest well");
+      expect(card.description).toBe("Fangs by Wolf");
+      expect(card.speech).toContain("Rest well");
+      expect(card.speech).toContain("Fangs by Wolf");
     });
 
     it("is somebody's even when nobody wrote on it", () => {

@@ -565,7 +565,7 @@ export function castableStones(context: CastContext): SpellButton[] {
       square,
       itemId: instance.id,
       tileId: instance.tileId,
-      name: instance.description?.trim() || def?.name || instance.tileId,
+      name: instance.inscription?.trim() || def?.name || instance.tileId,
       cooldownMs: instance.cooldownMs ?? 0,
       cooldownTotalMs: stone.cooldownMs,
       castTimeMs: castDurationMs(stone, context.masteries),

@@ -15,13 +15,21 @@ import {
   chunkKeyFor,
   emptyMap,
   listChannels,
+  parseMap,
   updatePlacedChannel,
   updatePlacedContents,
   updatePlacedDescription,
+  updatePlacedInscription,
 } from "./mapData";
 import { fixtureTown } from "./fixtureTown";
 import type { MapFile, PlacedTile, TileDef } from "./types";
-import { coordKey, levelKey, normalizeTileDef, physicalHeight } from "./types";
+import {
+  MAP_FILE_VERSION,
+  coordKey,
+  levelKey,
+  normalizeTileDef,
+  physicalHeight,
+} from "./types";
 import { fitsAtElevation, fitsTile, tilesByIdFromList } from "./validation";
 
 const fixtureMap: MapFile = fixtureTown();
@@ -126,6 +134,101 @@ describe("signal channels", () => {
     map = replaceStack(map, 3, 0, 0, [{ tileId: "grass" }]);
 
     expect(listChannels(map)).toEqual(["gate-a", "gate-b", "hatch"]);
+  });
+});
+
+describe("placement inscriptions", () => {
+  it("sets, trims and clears an inscription on one placement", () => {
+    const map = replaceStack(emptyMap(), 1, 2, 0, [
+      { tileId: "grass" },
+      { tileId: "sign" },
+    ]);
+
+    const written = updatePlacedInscription(map, 1, 2, 0, 1, "  To the mill  ");
+    expect(getStack(written, 1, 2, 0)).toEqual([
+      { tileId: "grass" },
+      { tileId: "sign", inscription: "To the mill" },
+    ]);
+
+    const cleared = updatePlacedInscription(written, 1, 2, 0, 1, "");
+    expect(getStack(cleared, 1, 2, 0)).toEqual([
+      { tileId: "grass" },
+      { tileId: "sign" },
+    ]);
+  });
+
+  /**
+   * The two are one slot's worth of text each and must not reach for each
+   * other's key: an inscription is recited to anybody walking past and a
+   * description is not, so a writer that clobbered the wrong one would put a
+   * skull's cause of death in every passer-by's mouth.
+   */
+  it("writes the two halves independently", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "sign" }]);
+    map = updatePlacedInscription(map, 0, 0, 0, 0, "Here lies nobody");
+    map = updatePlacedDescription(map, 0, 0, 0, 0, "Scratched, and very old");
+
+    expect(getStack(map, 0, 0, 0)).toEqual([
+      {
+        tileId: "sign",
+        inscription: "Here lies nobody",
+        description: "Scratched, and very old",
+      },
+    ]);
+
+    const quiet = updatePlacedInscription(map, 0, 0, 0, 0, "");
+    expect(getStack(quiet, 0, 0, 0)).toEqual([
+      { tileId: "sign", description: "Scratched, and very old" },
+    ]);
+  });
+});
+
+describe("reading a map written before the split", () => {
+  /**
+   * Every `description` in a version-1 file is an inscription, because that is
+   * all the field could be: there was one text on a placement and everybody
+   * standing near it recited the thing. The live world is restored through this
+   * path, so a migration that did not run would blank every sign in the city.
+   */
+  it("lifts a version-1 description into an inscription", () => {
+    const file = JSON.stringify({
+      version: 1,
+      levels: {
+        "0": {
+          "1,2": [
+            { tileId: "sign", description: "The Orchard" },
+            {
+              tileId: "chest",
+              contents: [{ id: "itm_1", tileId: "sign", description: "Inside" }],
+            },
+          ],
+        },
+      },
+    });
+
+    expect(getStack(parseMap(file), 1, 2, 0)).toEqual([
+      { tileId: "sign", inscription: "The Orchard" },
+      {
+        tileId: "chest",
+        contents: [{ id: "itm_1", tileId: "sign", inscription: "Inside" }],
+      },
+    ]);
+  });
+
+  /** A file already at the current version says what it means. */
+  it("leaves a version-2 description where it is", () => {
+    const file = JSON.stringify({
+      version: MAP_FILE_VERSION,
+      levels: { "0": { "0,0": [{ tileId: "skull", description: "Bite by Snake" }] } },
+    });
+
+    expect(getStack(parseMap(file), 0, 0, 0)).toEqual([
+      { tileId: "skull", description: "Bite by Snake" },
+    ]);
+  });
+
+  it("refuses a version it has never heard of", () => {
+    expect(() => parseMap(JSON.stringify({ version: 99, levels: {} }))).toThrow();
   });
 });
 
@@ -345,7 +448,7 @@ describe("intangible physical height", () => {
     ).toEqual({ tileId: "grass" });
 
     const map = replaceStack(
-      { version: 1, levels: {} },
+      { version: MAP_FILE_VERSION, levels: {} },
       0,
       0,
       0,
@@ -358,7 +461,7 @@ describe("intangible physical height", () => {
 
   it("lets a full-height body stand through an intangible door", () => {
     const map = replaceStack(
-      { version: 1, levels: {} },
+      { version: MAP_FILE_VERSION, levels: {} },
       1,
       0,
       0,
@@ -376,7 +479,7 @@ describe("intangible physical height", () => {
 
   it("places an intangible full-height tile like a height-0 plate", () => {
     const map = replaceStack(
-      { version: 1, levels: {} },
+      { version: MAP_FILE_VERSION, levels: {} },
       0,
       0,
       0,

@@ -1,3 +1,4 @@
+import { MAP_FILE_VERSION } from "./types";
 import { describe, expect, it } from "vitest";
 import { chunkifyMap } from "./mapData";
 import type { FlatMapFile } from "./types";
@@ -54,7 +55,7 @@ function mapAt(
     if (!levels[lk]) levels[lk] = {};
     levels[lk]![coordKey(c.x, c.y)] = c.tiles.map((tileId) => ({ tileId }));
   }
-  return chunkifyMap({ version: 1, levels });
+  return chunkifyMap({ version: MAP_FILE_VERSION, levels });
 }
 
 const floor = tile({ id: "floor", height: 0 });

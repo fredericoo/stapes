@@ -1,3 +1,4 @@
+import { MAP_FILE_VERSION } from "../lib/types";
 import { beforeEach, describe, expect, it } from "vitest";
 import { chunkifyMap } from "../lib/mapData";
 import { getStack } from "../lib/mapData";
@@ -73,7 +74,7 @@ const hole: TileDef = normalizeTileDef({
 });
 
 const seedMap: MapFile = chunkifyMap({
-  version: 1,
+  version: MAP_FILE_VERSION,
   levels: {
     "0": {
       "1,2": [{ tileId: "grass" }, { tileId: "rock" }],

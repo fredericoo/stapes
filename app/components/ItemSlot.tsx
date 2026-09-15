@@ -279,17 +279,19 @@ const SLOT_APPEARANCE_CLASSES: Record<SlotAppearance, string> = {
 /**
  * What to call the thing in this square.
  *
- * **An engraving outranks a description, and nothing else does.** The
- * description has been the square's label since before any of this, because a
- * shelf of identical silhouettes is sorted by what somebody wrote on them — and
- * that stays true for a sign, a potion and a lever. A skull is the one case
- * where the *name* already differs per thing, so falling through to the note
- * under it would label "Green Fox's skull" with what killed them.
+ * **The inscription, then the tile's name.** A shelf of identical silhouettes
+ * is sorted by what somebody wrote on them, so a sign in your bag is called
+ * what it says rather than "Sign". What examining a thing tells you is
+ * deliberately not in here: that is the card's business, and a square labelled
+ * "Fangs by Wolf" would be naming a skull after how its owner died.
+ *
+ * An engraving outranks both, because it is the *name* differing per thing
+ * rather than a note beside it.
  */
 function slotLabelFor(instance: ItemInstance, tile: TileDef | null): string {
   const name = engravedName(tile?.name ?? instance.tileId, instance.engraved);
   if (instance.engraved) return name;
-  return instance.description?.trim() || name;
+  return instance.inscription?.trim() || name;
 }
 
 export function ItemSlot({

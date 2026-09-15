@@ -325,7 +325,7 @@ function SortableStackItem({
         {placed.channel ||
         placed.rewardTag ||
         placed.contents?.length ||
-        placed.description ? (
+        placed.inscription ? (
           <div className="mt-1 flex items-center gap-2 text-[10px] text-muted">
             {/* The channel keeps its width and the description gives way: a
                 wire name truncated to "⌁…" tells you nothing, while a clipped
@@ -355,9 +355,9 @@ function SortableStackItem({
                 {placed.contents.length}
               </span>
             ) : null}
-            {placed.description ? (
-              <span className="min-w-0 truncate" title={placed.description}>
-                ❝ {placed.description}
+            {placed.inscription ? (
+              <span className="min-w-0 truncate" title={placed.inscription}>
+                ❝ {placed.inscription}
               </span>
             ) : null}
           </div>

@@ -118,12 +118,16 @@ export function ItemCard({
         </span>
       </header>
 
-      {/* What is written on this one, set apart from the profile because it is
-          the one part of the card that is not a fact about every copy. */}
-      {card.description ? (
-        <p className="border-l-2 border-ink/20 pl-1.5 text-[11px] leading-snug text-ink/70 italic">
-          {card.description}
-        </p>
+      {/* What is written on this one and what examining it says, set apart
+          from the profile because they are the parts of the card that are not
+          facts about every copy. One block, because a reader wants both at
+          once and the difference between them is about who else gets to see
+          them rather than about how they read. */}
+      {card.inscription || card.description ? (
+        <div className="flex flex-col gap-0.5 border-l-2 border-ink/20 pl-1.5 text-[11px] leading-snug text-ink/70 italic">
+          {card.inscription ? <p>{card.inscription}</p> : null}
+          {card.description ? <p>{card.description}</p> : null}
+        </div>
       ) : null}
 
       {card.stats.length > 0 ? (
