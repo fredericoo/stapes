@@ -1680,31 +1680,226 @@ rebake rather than a wrong picture. The alternative — a small subscription plu
 telling the bake to read absence as *solid* — trades the leak for the opposite
 error, an outdoor cell shadowed by a wall that is not there.
 
-**Three things are deliberately not scoped**, and each is a bug that a previous
-attempt at this shipped:
-
-- **The per-tick patch is still one broadcast to everybody.** What changes on a
-  tick is where creatures are walking, which is bounded by the brain budget
-  rather than by the map, so scoping it would spend the one serialization the
-  protocol has and buy nothing.
-- **Nothing about an actor is scoped** — hit points, statuses, carried lights,
-  motion. They are small, they are about bodies rather than about ground, and a
-  client that stopped hearing them would have a creature walk back into view
-  with no health bar and nothing able to hit it.
-- **Because of those two, no body can ever go missing.** Every client hears
-  every cell that changes, so a creature outside somebody's subscription is
-  still on their board — its surrounding terrain is what they lack, not the
-  creature. That is what keeps `locateActor` off the whole-board sweep that
-  turned a 116ms frame into 108ms of searching last time.
-
-**What it is worth today is almost nothing, and that is expected.** The reach
-is 79 cells, five chunks, a square 176 cells across; `data/map.json` is 118 by
-142. Measured over the map, a client holds 84% of it on average and 49% at
-best. The value is the shape rather than the number: the subscription is a
+**What it is worth on the join is almost nothing, and that is expected.** The
+reach is 79 cells, five chunks, a square 176 cells across; `data/map.json` is
+118 by 142. Measured over the map, a client holds 84% of it on average and 49%
+at best. The value is the shape rather than the number: the subscription is a
 function of where the body is, so at ten times the map it is still about 37,000
 cells while the world is 440,000. If it ever needs to be *smaller* than this,
 the lever is the light cache — `LIGHT_CHUNK_SIZE` and `LIGHT_APRON` are 47 of
 the 79 — and not the subscription, which is only as wide as what it must cover.
+
+## The tick stream is scoped, and terrain and bodies are scoped differently
+
+The join scaled with the player and the tick stream did not: every client was
+told about every cell that changed anywhere, so twenty people in twenty corners
+of the world each heard the other nineteen neighbourhoods walk about, none of
+which they could see. `app/net/scope.ts` is the rule that fixed it, and it is
+**two** reaches rather than one:
+
+- **Terrain** is scoped by the chunk subscription above — 79 cells, because
+  that is what a client's light bake reads.
+- **A body** is scoped by `BODY_REACH_CELLS` — 33 cells on your own storey,
+  plus one per storey between you, because the projection shifts a level by its
+  own number.
+
+**Scoping bodies at the terrain reach is what the first version of this did,
+and it saved almost nothing.** The subscription is a square 176 cells across.
+`data/map.json` is 168 wide and every creature in it stands between x -74 and
+57, y -69 and 87 — so from anywhere a player would actually be, the whole
+inhabited world is inside the square, and the brain budget walks two dozen
+creatures somewhere in it every round. Measured over 20s on the den, one player
+at the spawn:
+
+| | cells/tick | KB/s |
+| --- | --- | --- |
+| every socket, as it was | 15.0 | 39.5 |
+| scoped by the chunk subscription | 14.5 | 38.1 |
+| bodies scoped by what you could see | 9.5 | 25.0 |
+
+The terrain reach is doing its job — a player 60 cells past the last creature
+goes from 7.7 cells/tick to 0.2 — but "60 cells past the last creature" is the
+empty south of the map, not anywhere with a reason to stand. **A body reach is
+what makes the boundary the one a player would guess.**
+
+The terms are all somebody else's constants again — half the view, the mesh
+margin, `MAX_LIGHT_LEVEL` — and the last of those is the one that keeps it
+bigger than what is drawn: a body can be *carrying* a lantern, and a client
+that has not been told there is a body has no emitter to overlay for it.
+
+**It must stay inside the terrain reach.** A body announced on ground its client
+has not been sent is one it can only find by sweeping its whole board;
+`interest.test.ts` pins `BODY_REACH_CELLS` against the least the subscription
+covers.
+
+### Two sets, one tick apart, and both of them decide
+
+`held` is the bodies this client is near *now*; `known` is the ones it was
+told about last tick. They are the same set almost always, and the tick they
+differ is the tick that matters:
+
+- **A body that died** is off the board before the patch is cut, so it is in
+  `known` and not in `held`.
+- **A body that walked out of reach** is in exactly the same position.
+
+Both of those are the tick carrying the one patch that takes its tile off the
+client's board, and the first version of this asked only about `held` — so it
+dropped that patch, and nothing rewrites that cell again. A corpse stayed
+where it fell. A creature that wandered off left a tile behind in ground the
+client never stops being subscribed to, and `fitsTile` calls a creature solid,
+so the player was refused a step into a cell a deer left an hour ago. It
+shipped, and it came back in a day.
+
+**And the crossing itself has to carry a cell**, which is the half that does
+not fall out of the diff at all. A body crosses the boundary because *it*
+moved or because the client did, and in the second case nothing about its cell
+changed on that tick — there is no patch to scope, so nothing is sent:
+
+- Coming in, the client is left holding wherever the body was when it left,
+  facing whichever way it faced. Nothing re-hands that ground, because the
+  chunk never left the subscription.
+- Going out, it is left holding a tile nothing will ever rewrite.
+
+`cellsOfChangedReach` sends the cell of every body that crossed either way,
+as it stands, stripped like any other. A body that has gone off the board
+entirely needs none — its death *is* a change to the cell it was standing in,
+so it is in the diff, and the `known` rule above keeps it.
+
+### A client is never sent a body it has not been told about
+
+Cells go out with the bodies outside the body reach taken out of them
+(`visibleStack`), and so do the `hello` map and every chunk handover. The
+cheaper arrangement — stop sending a distant creature's steps, leave the cells
+alone — puts a tile of that creature in the client's board for ever: the cell it
+was standing in is never rewritten, so it sits there owned by no actor entry. It
+is too far away to draw, and the board is not only drawn. `fitsTile` counts a
+creature as solid, so the client would refuse its own player a step into a cell
+a deer left an hour ago, and a route planned across it would walk round
+something that is not there.
+
+That is also what makes the saving possible at all: a cell whose change is only
+bodies moving (`onlyBodiesMoved`, compared by placement identity the way the
+map's own diff compares stacks) is, with those bodies taken out, the cell the
+client already has — so it is not sent. A creature's step is two such cells, and
+that is the traffic.
+
+**What a client holds is exact inside its subscription — bodies aside — and
+frozen outside it.**
+A chunk that falls out of reach keeps whatever cells it last had; it is dropped
+from the record of what that client holds on the way out, so coming back into
+reach hands it over whole rather than patching a board nobody kept current. So
+a stale cell is only ever one the client cannot see — the reach is 79 cells and
+the view is a fraction of that — and the thing that makes it current again is
+the same handover a chunk it has never held gets.
+
+**The shared serialization is kept where the patch survives the cut whole.**
+One `JSON.stringify` per tick regardless of player count was the standing
+argument against doing this at all. `scopedPatchFor` returns the patch object
+itself when a client takes all of it, and `broadcastPatch` sends one string to
+every client that does — so a world whose players are in one room pays exactly
+what it paid before. A client the patch had to be cut for costs a string of its
+own, and that string is smaller than the one it replaces.
+
+### Bodies are scoped too, and that is the half with the teeth
+
+Scoping cells and leaving everything keyed on an actor alone reads as the
+cautious version. It is the broken one, and the failure is quiet: a creature
+walking out of a client's subscription has its tile patched out of the last cell
+that client holds, which on the far side is indistinguishable from dying, so
+`forgetDeparted` drops it — and when it walks back in, nothing would ever
+mention it again. Its tile is drawn and nothing else is: no name, no health bar,
+no Talk row. That is the shopkeeper below, arrived at from the other end.
+
+So the server keeps one `announcedActors` set **per client**, and:
+
+- A body coming into reach is announced with the whole of its state — hit
+  points, carried lights, statuses, a pull or a cast in progress. That is a
+  `hello` for one body, and it closes the same hole a `hello` does: there is
+  nothing on the far end to patch against.
+- A body going out of reach is announced too, as `despawned`. Not a death — the
+  world still has it — and the entry has to go all the same. `RemoteSession`
+  reads a body's position off its own board, and for a body it has no cell for
+  that lookup is `findActorAnywhere`: a sweep of the whole board, every frame,
+  for as long as the entry sits there. That is the 116ms frame with 108ms of
+  searching in it, and this is the arrangement that keeps it away.
+- `spawned` carries the body's cell for the same reason. Without it the first
+  lookup has no last-known cell to confirm and falls through to that same sweep
+  — once per body entering a subscription, which with a moving subscription is
+  every creature a player walks past.
+- Their own body is never taken back from a client. The subscription is centred
+  on it, so the only way out of it is to have no body at all, and a player's own
+  death is told rather than inferred.
+
+**Two events that stay unscoped**, and the reason is the same for both:
+`joined` and `left` carry the headcount, which is a fact about the world rather
+than about anywhere in it, and a client that missed one would draw a wrong
+number for the rest of the session with nothing to correct it.
+
+### A noise and a bubble go to whoever could see the cell
+
+They do not ride the patch — `sendToNearby` fans them out on their own — and
+they were scoped by storey alone, which on one floor of a den is every crunch,
+gulp, hiss and howl in the world. Both are drawn *at a cell*, hanging over the
+body that made them, so a client too far away to see that cell draws nothing
+whatever it is told. Measured on the den with four people in it and the watcher
+60 cells past the last creature: five of the six noises made in 30 seconds
+reached it, and none of them was one it could see.
+
+The reach is the body reach, because it is the same question — a noise is made
+by a body, and if you are too far away to be told the body is there you are too
+far away to be told what it did.
+
+**The storey test stays** on top of the distance. A client takes one of these as
+already its to draw, and a bubble from the floor below would be drawn through
+it.
+
+**Where noises come from is worth knowing before scoping them**, because the
+brains are only one of three: a `noise` effect on a state (and a `say` on a
+creature, which `runOnEnter` turns into one), a stone's `sound` when a spell
+lands, and `consume.sound` — which is a deer eating a berry, and is the one
+that is not a reaction to anybody. Every authored *brain* noise fires on
+noticing a player, so reading the brains alone says "nothing sounds in an empty
+part of the map", and the deer say otherwise.
+
+**An event that names no body is scoped by the cell it happened in.** An arrow
+in flight and a floating damage number both deliberately carry no actor id —
+whoever they were measured against may be off the board by the time they are
+drawn — so the place is what decides who hears them.
+
+## A test that reads the wire is not a test that plays the game
+
+`server/roundTrip.test.ts` drives a real `RemoteSession` over the same socket
+pair the rest of the server suite uses, with both clocks in the test's hand,
+and asserts on `getSnapshot()` — the thing the renderer draws.
+
+**It exists because three regressions shipped that every other test was happy
+with.** The rest of the suite asserts on the frames the server sends, which is
+the right test for what the server decided and says nothing about what a
+browser is left holding after a run of frames. A corpse that stays on the
+board is not a wrong frame; it is a right frame that never came.
+
+The probe that does the work is `divergence`: every cell where the client's
+board and the world's disagree, inside what the client is subscribed to, with
+the world's bodies stripped to the ones the client is near enough to be told
+about. That is the whole invariant of the scoping in one function, and it is
+what caught both bugs above.
+
+Two things it cost to get right, and both are traps for the next one:
+
+- **The socket pair needs a `readyState`.** `RemoteSession.sendRaw` drops
+  anything it is asked to send on a socket that is not open, so a pair without
+  one is a client that never speaks — which reads as a world refusing every
+  step rather than a harness swallowing them.
+- **One clock, not two.** The world's own interval has to be stopped and the
+  ticks driven by hand against an accumulator; a frame is 16ms and a tick is
+  33, so ticking once per frame runs the world at twice the speed of the tab
+  watching it, and every step the client predicts lands in a world that has
+  already moved on.
+
+And a scenario is not a test until the control is green. The first run of this
+file failed on both trees — a rat had been killing the player, who came back
+at the spawn point, which reads exactly like the step being thrown back that
+the file was written to look for.
 
 ## The wire is patches plus motion events
 
@@ -1712,9 +1907,12 @@ Two kinds of thing travel, and keeping them apart is what makes it cheap.
 
 **Cell patches are the truth.** After each tick the server diffs the map against
 the last broadcast with `changedCellsOnLevel` — chunk identity first — so a step
-falls out as exactly the two cells it touched on a floor of thousands. Every
-socket is at the same map version, so it is one diff and one `JSON.stringify`
-per tick regardless of player count.
+falls out as exactly the two cells it touched on a floor of thousands. There is
+one diff per tick regardless of player count: `broadcastMap` is the shared
+baseline and advances every tick whatever any one socket was sent, which is what
+the scoping above rests on — a cell left out of one client's patch must not be
+re-offered to everybody on the next, and what that client holds instead is its
+subscription.
 
 **Motion events are animation hints** for what the map cannot express yet. A
 walk commits only when it lands, so the server announces `walkStarted` at the
@@ -1790,33 +1988,43 @@ client only if that body moved:
   on the actor was missing: no name over its head, no health bar, no Talk row.
   A shopkeeper you could see and could not speak to until you reloaded the tab.
 
-`spawned` closes it, and it carries nothing but the id: where the body is comes
-from the cell patches in the same frame, and its bar and its lantern from the
-diffs beside them. The event says only that there is somebody to hang them on.
+`spawned` closes it. It carries the id and the body's cell, and nothing else:
+its bar and its lantern come from the diffs beside it in the same frame. The
+cell is there to keep the receiver off the board sweep — see the scoping section
+above, which is also why the set is now one per client rather than one for the
+world.
 
 **It is a separate event from `joined` because a joiner is a person.** `joined`
 carries the headcount the players bar reads, and a rat is not one of the people
 in the world.
 
-**Nothing announces a body leaving, and nothing needs to.** Its tile goes off
-the board in the same frame's cell patches, and `actorSnapshot` finds nobody to
-answer for a stale entry — so a client holding one draws nothing and the next
-snapshot is clean. `left` exists for the other half of `joined`'s headcount, not
-for the set.
+**A body leaving the *board* still announces nothing, and needs to.** Its tile
+goes off the board in the same frame's cell patches, and `actorSnapshot` finds
+nobody to answer for a stale entry — so a client holding one draws nothing and
+the next snapshot is clean. `left` exists for the other half of `joined`'s
+headcount, not for the set. What does announce itself is a body leaving one
+client's *reach*, which is `despawned` and a different fact: the world still has
+it, and this client has stopped being kept current about it.
 
-**The server's copy of the set (`announcedActors`) is filled where a `hello`
+**The server's copy of the set (`announcedActors`) is seeded where a `hello`
 goes out, not on the first tick.** Seeding it on the first tick looks equivalent
 and is not: a world can be loaded, somebody can summon something, and the tick
 that would have announced it is the same tick that would have seeded the set —
 so the body is silently absorbed and never announced at all. It cost a red test
 to find, which is the shortest description of why the seeding point matters.
 
-A hibernation wake is the one case the set is wrong about, and it is wrong in
-the safe direction: the instance is rebuilt empty while its inherited sockets
-were helloed by an instance that no longer exists, so the next tick announces
-the whole world once. Every one of those is a body the client already holds, and
-`spawned` is written to ignore an id it already has — which it has to be anyway,
-because a socket that connects just after a spawn is told about it twice.
+Nothing takes a body out of these sets when it dies or disconnects, and nothing
+needs to: a body off the board stands in nobody's reach, so the next tick takes
+it out of every set that had it, by the same rule that would have taken it out
+for walking away.
+
+A hibernation wake is the one case the sets are wrong about, and it is wrong in
+the safe direction: the instance is rebuilt with none of them while its
+inherited sockets were helloed by an instance that no longer exists, so the next
+few ticks re-hand the ground in reach and announce every body on it once. Each
+of those is a body the client already holds, and `spawned` is written to ignore
+an id it already has — which it has to be anyway, because a socket that connects
+just after a spawn is told about it twice.
 
 **The world ticks only while there is work** (`isAtRest`). `setInterval` blocks
 hibernation, so an idle world stops ticking and its object can be evicted with
