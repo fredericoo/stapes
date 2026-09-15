@@ -2328,7 +2328,7 @@ export class GameServer {
     for (const bubble of said) this.broadcastChat(actors, bubble);
     for (const noise of made) {
       const { id, text, x, y, z, stackIndex } = noise;
-      this.sendToLevel(z, actors, {
+      this.sendToNearby({ x, y, z }, actors, {
         type: "noise",
         id,
         text,
@@ -2812,7 +2812,7 @@ export class GameServer {
   private broadcastNoise(session: GameSession, actors: ActorSnapshot[]) {
     for (const noise of session.drainNoise()) {
       const { id, text, x, y, z, stackIndex } = noise;
-      this.sendToLevel(z, actors, {
+      this.sendToNearby({ x, y, z }, actors, {
         type: "noise",
         id,
         text,
@@ -2844,28 +2844,44 @@ export class GameServer {
     },
   ) {
     const message: ServerMessage = { type: "chat", ...at };
-    this.sendToLevel(at.z, actors, message);
+    this.sendToNearby(at, actors, message);
     this.logChat(Date.now(), at.actorId, at, at.text);
   }
 
   /**
-   * Send to everyone standing on one level.
+   * Send to everyone who could see the cell it happened in.
    *
-   * Serialized once for the level, not once per socket: the payload is the same
-   * for all of them, and the only thing being decided per socket is whether it
-   * is theirs to receive.
+   * **The level *and* the distance, and the second half was missing.** A bubble
+   * and a noise are both drawn at a cell — they hang over the body that made
+   * them — so a client that cannot see that cell draws nothing whatever it is
+   * told. Scoping by storey alone meant every crunch, gulp, hiss and howl in
+   * the world reached every client standing on that storey: measured on the den
+   * with people in it, five of every six noises a client was sent were made
+   * somewhere it could not see, and the other one was the only one it drew.
+   *
+   * The reach is the body reach, because that is the same question — a noise is
+   * made by a body, and if you are too far away to be told the body is there
+   * you are too far away to be told what it did. @see `../app/net/interest`
+   *
+   * Serialized once, not once per socket: the payload is the same for all of
+   * them, and the only thing being decided per socket is whether it is theirs.
    */
-  private sendToLevel(
-    z: number,
+  private sendToNearby(
+    at: { x: number; y: number; z: number },
     actors: ActorSnapshot[],
     message: ServerMessage,
   ) {
-    const levelById = new Map(actors.map((actor) => [actor.id, actor.z]));
+    const whereById = new Map(actors.map((actor) => [actor.id, actor]));
     const payload = JSON.stringify(message);
     for (const ws of this.ctx.getWebSockets()) {
       const attachment = ws.deserializeAttachment() as Attachment | null;
       if (!attachment) continue;
-      if (levelById.get(attachment.actorId) !== z) continue;
+      const viewer = whereById.get(attachment.actorId);
+      // The storey test stays as it was: a client takes one of these as already
+      // theirs to draw, and a bubble from the floor below would be drawn
+      // through it. The reach is what is new.
+      if (!viewer || viewer.z !== at.z) continue;
+      if (!withinBodyReach(viewer, at.x, at.y, at.z)) continue;
       try {
         ws.send(payload);
       } catch {

@@ -1802,6 +1802,32 @@ So the server keeps one `announcedActors` set **per client**, and:
 than about anywhere in it, and a client that missed one would draw a wrong
 number for the rest of the session with nothing to correct it.
 
+### A noise and a bubble go to whoever could see the cell
+
+They do not ride the patch — `sendToNearby` fans them out on their own — and
+they were scoped by storey alone, which on one floor of a den is every crunch,
+gulp, hiss and howl in the world. Both are drawn *at a cell*, hanging over the
+body that made them, so a client too far away to see that cell draws nothing
+whatever it is told. Measured on the den with four people in it and the watcher
+60 cells past the last creature: five of the six noises made in 30 seconds
+reached it, and none of them was one it could see.
+
+The reach is the body reach, because it is the same question — a noise is made
+by a body, and if you are too far away to be told the body is there you are too
+far away to be told what it did.
+
+**The storey test stays** on top of the distance. A client takes one of these as
+already its to draw, and a bubble from the floor below would be drawn through
+it.
+
+**Where noises come from is worth knowing before scoping them**, because the
+brains are only one of three: a `noise` effect on a state (and a `say` on a
+creature, which `runOnEnter` turns into one), a stone's `sound` when a spell
+lands, and `consume.sound` — which is a deer eating a berry, and is the one
+that is not a reaction to anybody. Every authored *brain* noise fires on
+noticing a player, so reading the brains alone says "nothing sounds in an empty
+part of the map", and the deer say otherwise.
+
 **An event that names no body is scoped by the cell it happened in.** An arrow
 in flight and a floating damage number both deliberately carry no actor id —
 whoever they were measured against may be off the board by the time they are

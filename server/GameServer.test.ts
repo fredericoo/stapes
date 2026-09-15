@@ -4922,9 +4922,11 @@ describe("patches scoped to a subscription", () => {
   const BODY_OUT = ALICE_CELL + BODY_REACH_ON_LEVEL + 1;
   const BODY_IN = BODY_OUT - 1;
 
-  /** On the floor in bob's cell, and its slot in that stack. */
+  /** On the floor in bob's cell, and their slots in that stack. */
   const DROPPED_SWORD = "rusty-sword";
   const DROPPED_STACK_INDEX = 2;
+  const BERRY = "berry";
+  const BERRY_STACK_INDEX = 3;
 
   /**
    * A world already run, with alice at the spawn cell and bob out past her
@@ -4945,9 +4947,10 @@ describe("patches scoped to a subscription", () => {
     cells[`${bobAt},0`] = [
       { tileId: "grass" },
       { tileId: PLAYER_TILE_ID, direction: "s", owner: "bob" },
-      // On the floor over bob's head, so a case about ground rather than bodies
-      // has something to change that is not somebody walking.
+      // On the floor over bob's head: something to change that is not somebody
+      // walking, and something to eat, which is a thing that makes a noise.
       { tileId: DROPPED_SWORD },
+      { tileId: BERRY },
     ];
     return {
       map: { version: MAP_FILE_VERSION, levels: { "0": cells } } as FlatMapFile,
@@ -5064,7 +5067,71 @@ describe("patches scoped to a subscription", () => {
     expect(stack?.map((placed) => placed.tileId)).toEqual([
       "grass",
       DROPPED_SWORD,
+      BERRY,
     ]);
+  });
+
+  /**
+   * A noise and a bubble are both drawn at the cell they were made in, over the
+   * body that made them — so a client too far away to see that cell draws
+   * nothing whatever it is told. They went out by storey until this, which on
+   * one floor of a den is every crunch, gulp and howl in the world.
+   */
+  it("does not pass on a noise made where this client cannot see", async () => {
+    const { alice, bob } = await bothConnected();
+    await settled(alice.ws);
+
+    send(bob.ws, {
+      type: "consume",
+      from: {
+        kind: "floor",
+        ref: { x: BODY_OUT, y: 0, z: 0, stackIndex: BERRY_STACK_INDEX },
+      },
+    });
+    // It was made: bob hears his own.
+    expect(await noiseWithin(bob.ws, 1000)).toMatchObject({ text: "crunch" });
+
+    expect(await noiseWithin(alice.ws, QUIET_MS)).toBeNull();
+  });
+
+  it("passes one on from a body it can see", async () => {
+    const { alice, bob } = await bothConnected(BODY_IN);
+    await settled(alice.ws);
+
+    send(bob.ws, {
+      type: "consume",
+      from: {
+        kind: "floor",
+        ref: { x: BODY_IN, y: 0, z: 0, stackIndex: BERRY_STACK_INDEX },
+      },
+    });
+
+    expect(await noiseWithin(alice.ws, 1000)).toMatchObject({
+      text: "crunch",
+      x: BODY_IN,
+    });
+  });
+
+  /** Speech is a bubble over a cell on the same terms, so it goes the same way. */
+  it("does not pass on speech from out of sight", async () => {
+    const { alice, bob } = await bothConnected();
+    await settled(alice.ws);
+
+    send(bob.ws, { type: "say", text: "hello" });
+
+    expect(await chatWithin(alice.ws, QUIET_MS)).toBeNull();
+  });
+
+  it("passes speech on from somebody in sight", async () => {
+    const { alice, bob } = await bothConnected(BODY_IN);
+    await settled(alice.ws);
+
+    send(bob.ws, { type: "say", text: "hello" });
+
+    expect(await chatWithin(alice.ws, 1000)).toMatchObject({
+      text: "hello",
+      actorId: "bob",
+    });
   });
 
   it("announces a body that walks into reach, with its hit points", async () => {
@@ -5121,6 +5188,7 @@ describe("patches scoped to a subscription", () => {
     expect(cellOf(alice.hello, IN_REACH)?.map((p) => p.tileId)).toEqual([
       "grass",
       DROPPED_SWORD,
+      BERRY,
     ]);
 
     step(alice.ws, 1, "w");
@@ -5155,7 +5223,10 @@ describe("patches scoped to a subscription", () => {
     // kept current: the sword is gone, and so is bob, who she is not being told
     // about at this distance.
     const handed = cells.filter((cell) => cell.x === IN_REACH).at(-1);
-    expect(handed?.stack.map((placed) => placed.tileId)).toEqual(["grass"]);
+    expect(handed?.stack.map((placed) => placed.tileId)).toEqual([
+      "grass",
+      BERRY,
+    ]);
   });
 
   /**
