@@ -1680,22 +1680,52 @@ rebake rather than a wrong picture. The alternative — a small subscription plu
 telling the bake to read absence as *solid* — trades the leak for the opposite
 error, an outdoor cell shadowed by a wall that is not there.
 
-**Three things are deliberately not scoped**, and each is a bug that a previous
-attempt at this shipped:
+### The per-tick patch is cut to the same subscription
 
-- **The per-tick patch is still one broadcast to everybody.** What changes on a
-  tick is where creatures are walking, which is bounded by the brain budget
-  rather than by the map, so scoping it would spend the one serialization the
-  protocol has and buy nothing.
-- **Nothing about an actor is scoped** — hit points, statuses, carried lights,
-  motion. They are small, they are about bodies rather than about ground, and a
-  client that stopped hearing them would have a creature walk back into view
-  with no health bar and nothing able to hit it.
-- **Because of those two, no body can ever go missing.** Every client hears
-  every cell that changes, so a creature outside somebody's subscription is
-  still on their board — its surrounding terrain is what they lack, not the
-  creature. That is what keeps `locateActor` off the whole-board sweep that
-  turned a 116ms frame into 108ms of searching last time.
+The tick's cells used to be one broadcast to everybody, on the grounds that
+what changes on a tick is bounded by the brain budget rather than by the map,
+so scoping it would spend the protocol's one serialization and buy nothing.
+That was a bandwidth argument and it was correct. It was also the wrong
+question: **a body is a tile in a stack**, so an unscoped cell patch told every
+client in the world where every body was standing, whatever their subscription
+said — and that made the subscription a bandwidth knob with no bearing at all
+on what a player can find out. A wolf eight levels down on the far side of the
+map was on your board.
+
+`GameServer.broadcastPatch` now cuts each client's cells to the chunks it
+holds. One lever moves both, which is the point: anything that narrows the
+subscription later — by level, by what a hole actually shows — narrows the wire
+in the same edit, with nothing else to remember.
+
+**It still does not cost a serialization per player.** Clients that hold the
+same *changed* chunks are owed identical bytes and share one
+`JSON.stringify` — `patchScope` keys them by which of the tick's chunk buckets
+they take — so the number of payloads is bounded by what moved rather than by
+the population. Three chunks moving is at most eight payloads whether four
+people are in the world or four hundred.
+
+Two consequences, and the second is the one that needed work:
+
+- **A body can now go missing from a client's board**, which is what the
+  unscoped patch was quietly preventing. A creature that wanders out of reach
+  is dropped by `RemoteSession.forgetDeparted` — correctly; it has left that
+  client's world.
+- **So ground carries its bodies.** `streamEnteredChunks` sends `spawned` plus
+  the current bars, statuses, lanterns, pulls and casts for whoever is standing
+  in the chunks it hands over (`bodiesArrivingWith`). Without it a creature
+  wandering back in is redrawn by the cell patch with nothing hung off its id:
+  no health bar, no Talk row. It is the same event a body called into the world
+  gets, because from that client's point of view that is what happened, and the
+  far end has always taken it idempotently.
+
+**Still not scoped: everything keyed on an actor** — hit points, statuses,
+carried lights, motion events. They name a body and carry no cell, so they say
+"somebody took a step", not "there is a wolf at (x, y, z)". Scoping them is a
+separate change and a larger one: it needs a per-client answer to "can you see
+this body at all", which is the question server-side lighting would make
+answerable. The test
+`"still tells everybody that a body moved, without saying where"` pins the line
+where it is, so moving it is a deliberate act rather than a surprise.
 
 **What it is worth today is almost nothing, and that is expected.** The reach
 is 79 cells, five chunks, a square 176 cells across; `data/map.json` is 118 by
@@ -7296,5 +7326,14 @@ Not yet fixed, and worth knowing before you profile something else:
   transition, which every shipped brain has; the structural one would be
   remembering the failure for a few ticks, which is the only piece of route
   state worth keeping and has not been needed yet.
+- **A creature crossing a client's subscription boundary costs that client a
+  board sweep.** `RemoteSession.forgetDeparted` calls `locateActor` with no
+  `lastSeen`, so it goes straight to `findActorAnywhere` — and with the patch
+  scoped, a body that steps from the last cell of a boundary chunk to the first
+  cell outside it looks exactly like a body that died. It is a one-cell band
+  around a square 176 cells across and only dozing creatures are out there
+  walking, so it is rare rather than per-tick; the structural fix is for the
+  server to say "this body has left your world" instead of leaving the client to
+  infer it from an absence.
 - **The editor is a second, unchunked lighting path** and will hit the same wall
   the play renderer already climbed.

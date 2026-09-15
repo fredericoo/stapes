@@ -987,6 +987,11 @@ export class RemoteSession implements PlaySession {
    */
   private forgetDeparted(leaving: readonly string[]) {
     for (const id of leaving) {
+      // Nothing being tracked is nothing to release, and skipping it here skips
+      // a board sweep: `locateActor` with no `lastSeen` walks every level. A
+      // `departed` in the same frame has already forgotten this body, and under
+      // a sight subscription that is the common case rather than the rare one.
+      if (!this.motions.has(id)) continue;
       if (locateActor(this.serverMap, id)) continue;
       this.forgetActor(id);
     }
@@ -1015,6 +1020,15 @@ export class RemoteSession implements PlaySession {
     if (event.kind === "left") {
       this.forgetActor(event.actorId);
       this.setPlayers(event.playerCount);
+      return;
+    }
+
+    // PROTOTYPE — a body this client can no longer see. Not a death and not a
+    // disconnection: the world still holds it, and this end simply stops
+    // tracking it until the ground it is standing on comes back into sight and
+    // brings a `spawned` with it. @see `app/net/visibleSet.ts`
+    if (event.kind === "departed") {
+      this.forgetActor(event.actorId);
       return;
     }
 

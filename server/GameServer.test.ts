@@ -18,6 +18,7 @@ import { CHUNK_SIZE, levelKey } from "../app/lib/types";
 import type { FlatMapFile, MapFile, TileDef } from "../app/lib/types";
 import { tilesByIdFromList } from "../app/lib/validation";
 import { CHAT_MIN_INTERVAL_MS } from "../app/net/chat";
+import { OCCLUSION_SUBSCRIPTIONS } from "../app/net/visibleSet";
 import { CLOSE_REPLACED } from "../app/net/protocol";
 import { COMBAT_STATUS_ID } from "../app/lib/status";
 import {
@@ -393,15 +394,19 @@ describe("joining and leaving", () => {
     // The `joined` that bob's arrival broadcast, out of the way.
     await nextMessage(alice.ws);
 
-    const departure = nextMessage(alice.ws);
+    // Waited for by *kind* rather than by taking the next message and hoping.
+    // A patch carries whatever the tick had, and a world that has anything else
+    // to say — a body coming into sight, a tile settling — says it in a message
+    // of its own alongside this one.
+    const departure = eventWithin(alice.ws, "left", MESSAGE_TIMEOUT_MS);
     bob.ws.close();
 
     // Among the rest of the patch rather than alone in it: the player tile has
     // a disappear transition, so bob's body's way out travels beside his leaving.
     expect(await departure).toMatchObject({
-      events: expect.arrayContaining([
-        { kind: "left", actorId: "bob", playerCount: 1 },
-      ]),
+      kind: "left",
+      actorId: "bob",
+      playerCount: 1,
     });
   });
 
@@ -4866,5 +4871,284 @@ describe("a cast somebody else is making", () => {
     expect(bob.hello.castings).toEqual([
       expect.objectContaining({ actorId: "alice" }),
     ]);
+  });
+});
+
+/**
+ * What a client is told about ground it does not hold.
+ *
+ * Nothing, now. The per-tick patch used to be one broadcast of every cell that
+ * changed anywhere, which meant a body's position reached every client in the
+ * world whatever their subscription said — so narrowing the subscription bought
+ * bytes and bought nothing at all for what a player can find out. It is cut to
+ * the chunks each client holds, which makes the subscription the single lever:
+ * anything that narrows it narrows the wire in the same edit.
+ */
+describe("the tick patch is cut to what a client holds", () => {
+  /**
+   * Chunk columns between the two bodies — comfortably more than
+   * `INTEREST_REACH_CHUNKS`, so neither is in the other's subscription and no
+   * arithmetic here has to agree with the reach to stay true.
+   */
+  const COLUMNS_APART = 12;
+  const FAR_CELL = CHUNK_SIZE * COLUMNS_APART;
+
+  /** Ground by the spawn, and an island of it far enough to be out of reach. */
+  function mapWithFarIsland(): FlatMapFile {
+    const cells: Record<string, unknown[]> = {};
+    for (const x of [0, 1, 2, 3, FAR_CELL, FAR_CELL + 1]) {
+      cells[`${x},0`] = [{ tileId: "grass" }];
+    }
+    cells["0,0"] = [{ tileId: "grass" }, { tileId: "player", direction: "s" }];
+    return { version: 1, levels: { "0": cells } } as FlatMapFile;
+  }
+
+  /**
+   * Two players, one of them walked off to the island.
+   *
+   * `/goto` rather than a checkpoint holding both bodies: a resumed world reads
+   * its spawn marker out of the map, and two authored `player` tiles is a
+   * different thing being tested by accident.
+   */
+  async function twoFarApart() {
+    await harness.blobs.put("map.json", JSON.stringify(mapWithFarIsland()), JSON_TYPE);
+    const alice = await connect("alice");
+    const bob = await connect("bob");
+    command(bob.ws, `/goto ${FAR_CELL} 0`);
+    await waitForActorAt("bob", FAR_CELL);
+    // One more tick, so the walk off to the island is not still in flight in
+    // the patches the assertions read.
+    await wait(TICK_MS * 2);
+    return { alice, bob };
+  }
+
+  /** Wait until an actor's body is standing in a given column. */
+  async function waitForActorAt(actorId: string, x: number) {
+    const deadline = Date.now() + MESSAGE_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      if ((await actorX(actorId)) === x) return;
+      await wait(TICK_MS);
+    }
+    throw new Error(`${actorId} never reached ${x}`);
+  }
+
+  /** Every cell any patch on this socket carried, as `x,y` keys. */
+  function patchedCells(seen: ReturnType<typeof record>): string[] {
+    return seen
+      .of("patch")
+      .flatMap((message) => message.cells as { x: number; y: number }[])
+      .map((cell) => `${cell.x},${cell.y}`);
+  }
+
+  it("does not tell a distant client where a body went", async () => {
+    const { alice, bob } = await twoFarApart();
+    const bobSees = record(bob.ws);
+
+    step(alice.ws, 1, "e");
+    await walkWithin(alice.ws, MESSAGE_TIMEOUT_MS);
+    await wait(WALK_DURATION_MS * 2);
+
+    expect(patchedCells(bobSees)).toEqual([]);
+  });
+
+  it("still tells the client standing on it", async () => {
+    const { alice } = await twoFarApart();
+    const aliceSees = record(alice.ws);
+
+    step(alice.ws, 1, "e");
+    await walkWithin(alice.ws, MESSAGE_TIMEOUT_MS);
+    await wait(WALK_DURATION_MS * 2);
+
+    expect(patchedCells(aliceSees)).toContain("1,0");
+  });
+
+  /**
+   * **Where the line sits, and it moves with the prototype.**
+   *
+   * A motion event names an actor and carries no cell, so under chunk
+   * subscriptions it is about a body rather than about ground and goes to
+   * everybody: bob learns alice took a step, without learning where she is.
+   * `OCCLUSION_SUBSCRIPTIONS` is the experiment that moves exactly that line —
+   * it cuts everything keyed on an actor by whether you can *see* the actor —
+   * so both readings are asserted here rather than one of them being deleted.
+   * See `app/net/visibleSet.ts`.
+   */
+  it("tells everybody a body moved, unless it scopes by sight", async () => {
+    const { alice, bob } = await twoFarApart();
+    const bobSees = record(bob.ws);
+
+    step(alice.ws, 1, "e");
+    await walkWithin(alice.ws, MESSAGE_TIMEOUT_MS);
+    await wait(WALK_DURATION_MS * 2);
+
+    const kinds = bobSees
+      .of("patch")
+      .flatMap((message) => message.events as Record<string, unknown>[])
+      .map((event) => event.kind);
+    if (OCCLUSION_SUBSCRIPTIONS) {
+      expect(kinds).not.toContain("walkStarted");
+    } else {
+      expect(kinds).toContain("walkStarted");
+    }
+  });
+
+  /**
+   * The other half of scoping, and the one that is only needed *because* of it.
+   * A client that stopped hearing about a body has forgotten it; the ground
+   * coming back into reach has to bring it back whole, or the sprite is redrawn
+   * with no bar, no statuses and nothing to hang them on.
+   */
+  it("re-announces the bodies standing in ground it hands over", async () => {
+    const { alice, bob } = await twoFarApart();
+    const bobSees = record(bob.ws);
+
+    // Back towards the spawn, so alice's chunk column enters bob's reach and is
+    // streamed to him with her standing in it. Beside her rather than on her:
+    // two bodies do not share a cell, and a refused `/goto` is a test that
+    // waits for a move that never happens.
+    command(bob.ws, "/goto 2 0");
+    await waitForActorAt("bob", 2);
+    await wait(TICK_MS * 8);
+
+    const spawned = bobSees
+      .of("patch")
+      .flatMap((message) => message.events as Record<string, unknown>[])
+      .filter((event) => event.kind === "spawned")
+      .map((event) => event.actorId);
+    expect(spawned).toContain("alice");
+
+    const hps = bobSees
+      .of("patch")
+      .flatMap((message) => message.hps as { actorId: string }[])
+      .map((hp) => hp.actorId);
+    expect(hps).toContain("alice");
+    void alice;
+  });
+});
+
+/**
+ * PROTOTYPE — what a client is told to stop tracking.
+ *
+ * A client finds each body it knows about with `locateActor`, which sweeps the
+ * whole board when the body is not where it was. Under a sight subscription a
+ * body simply stops being sent, so without an explicit word the client keeps the
+ * id for ever and pays a sweep for it every frame — 110ms of a frame, measured
+ * by `scripts/bench-client-snapshot.ts`. These are the two halves that stop it:
+ * a joiner is told only about the bodies it can see, and it is told when one
+ * goes.
+ */
+describe("bodies a client can no longer see", () => {
+  const FAR = CHUNK_SIZE * 12;
+
+  function mapWithFarIsland(): FlatMapFile {
+    const cells: Record<string, unknown[]> = {};
+    for (const x of [0, 1, 2, 3, FAR, FAR + 1]) {
+      cells[`${x},0`] = [{ tileId: "grass" }];
+    }
+    cells["0,0"] = [{ tileId: "grass" }, { tileId: "player", direction: "s" }];
+    return { version: 1, levels: { "0": cells } } as FlatMapFile;
+  }
+
+  async function waitForActorAt(actorId: string, x: number) {
+    const deadline = Date.now() + MESSAGE_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      if ((await actorX(actorId)) === x) return;
+      await wait(TICK_MS);
+    }
+    throw new Error(`${actorId} never reached ${x}`);
+  }
+
+  it("names only the bodies a joiner can see", async () => {
+    if (!OCCLUSION_SUBSCRIPTIONS) return;
+    await harness.blobs.put("map.json", JSON.stringify(mapWithFarIsland()), JSON_TYPE);
+    const alice = await connect("alice");
+    command(alice.ws, `/goto ${FAR} 0`);
+    await waitForActorAt("alice", FAR);
+
+    const bob = await connect("bob");
+    // Alice is two hundred cells away on her own island; bob has no business
+    // knowing she exists, and every id he cannot place costs him a board sweep.
+    expect(bob.hello.actorIds).toEqual(["bob"]);
+  });
+
+  it("says when one goes out of sight", async () => {
+    if (!OCCLUSION_SUBSCRIPTIONS) return;
+    await harness.blobs.put("map.json", JSON.stringify(mapWithFarIsland()), JSON_TYPE);
+    const alice = await connect("alice");
+    const bob = await connect("bob");
+    expect(bob.hello.actorIds).toContain("alice");
+
+    const bobSees = record(bob.ws);
+    command(alice.ws, `/goto ${FAR} 0`);
+    await waitForActorAt("alice", FAR);
+    await wait(TICK_MS * 4);
+
+    const departed = bobSees
+      .of("patch")
+      .flatMap((message) => message.events as Record<string, unknown>[])
+      .filter((event) => event.kind === "departed")
+      .map((event) => event.actorId);
+    expect(departed).toContain("alice");
+  });
+});
+
+/**
+ * PROTOTYPE — ground is handed over once.
+ *
+ * The first cut pruned the sent record to what was *currently* in sight, so
+ * that returning somewhere re-sent it. Every step changes what you can see, so
+ * that meant hundreds of cells leaving the record and hundreds arriving, for
+ * ever: a walking client got a four-hundred-cell patch on every tick, and each
+ * one was a `setStacks`, a new chunk identity, a geometry rebuild, a light
+ * invalidation, and the step predictions in flight thrown out with them.
+ *
+ * The invariant that replaced it is the one worth pinning, because it is crisp
+ * and the failure was not: **no cell is ever sent to the same client twice.**
+ */
+describe("streaming ground under sight subscriptions", () => {
+  /** A field wide enough that walking across it keeps revealing new ground. */
+  function openField(): FlatMapFile {
+    const cells: Record<string, unknown[]> = {};
+    for (let x = -30; x <= 30; x++) {
+      for (let y = -30; y <= 30; y++) {
+        cells[`${x},${y}`] = [{ tileId: "grass" }];
+      }
+    }
+    cells["0,0"] = [{ tileId: "grass" }, { tileId: "player", direction: "s" }];
+    return { version: 1, levels: { "0": cells } } as FlatMapFile;
+  }
+
+  it("never sends the same cell twice", async () => {
+    if (!OCCLUSION_SUBSCRIPTIONS) return;
+    await harness.blobs.put("map.json", JSON.stringify(openField()), JSON_TYPE);
+    const alice = await connect("alice");
+
+    const seen = record(alice.ws);
+    // Long enough for the first fill to finish and for a walk across several
+    // chunk-crossings' worth of ground.
+    for (let seq = 1; seq <= 8; seq++) {
+      step(alice.ws, seq, "e");
+      await wait(WALK_DURATION_MS);
+    }
+    await wait(TICK_MS * 4);
+
+    const arrivals = new Map<string, number>();
+    for (const message of seen.of("patch")) {
+      for (const cell of message.cells as { x: number; y: number; z: number }[]) {
+        const key = `${cell.x},${cell.y},${cell.z}`;
+        arrivals.set(key, (arrivals.get(key) ?? 0) + 1);
+      }
+    }
+
+    // A cell the world *changed* legitimately arrives again — the player's own
+    // body moving rewrites the cell behind and the cell ahead on every step. So
+    // the bound is per cell rather than zero, and it is the ground either side
+    // of a walk of eight rather than a subscription churning.
+    // Guards the guard: a run that received almost nothing would satisfy the
+    // line below while proving nothing at all.
+    expect(arrivals.size).toBeGreaterThan(200);
+
+    const repeated = [...arrivals.entries()].filter(([, n]) => n > 3);
+    expect(repeated).toEqual([]);
   });
 });
