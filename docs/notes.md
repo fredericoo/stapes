@@ -7255,6 +7255,71 @@ Two rules learned the hard way, which still hold:
   them away from the spawn cell so the two outcomes differ; that is what caught
   the accept-before-load bug.
 
+## `?debug=1` draws the windows the renderer is keeping
+
+**Undocumented in the game and on purpose.** There is no toggle, no menu entry
+and nothing in the UI that mentions it. Add `?debug=1` to `/play` or `/online`
+and the camera pulls back off the play square; `[` and `]` take it from ×1 to
+×8. A player who never types it gets exactly the frame they got before this
+existed.
+
+What it is for is the class of question that is otherwise invisible. Everything
+the renderer decides is a *window* around a view nobody can see out of: which
+chunks exist as geometry, how far the light bake reads, which cells the server
+has even sent. Asking "is the mesh window too wide" or "did that chunk arrive
+before I needed it" used to mean adding a `console.log` and reading numbers with
+no picture attached to them.
+
+**Pulling the camera back is not enough on its own, and that is the one thing to
+understand before changing any of this.** Every window in `WorldRenderer` is
+derived from `cameraWindow`, which was the drawn frame — so a zoomed-out camera
+grew every window with it and showed nothing but a bigger ordinary frame.
+`WorldView.playSquare` is what fixes it: when it is set, `cameraWindow` answers
+from the play square instead of from the canvas, and the extra world on screen
+is a picture of what the renderer was already paying for. It is absent in every
+shipped frame and in the editor, where the camera *is* the view.
+
+The gameplay reading of "on screen" does not move with the camera either.
+`GameRenderer.isWithinView` measures the play square, not the drawn frame, so
+zooming out does not let you hold a target you could not hold or read a name you
+could not read. If you add another rule that means "visible", put it on the same
+side of that line.
+
+What is drawn, and what each colour means (`app/render/debugColors.ts`):
+
+| colour | what it outlines |
+| --- | --- |
+| white | the play square — `VIEW_CELLS` across, the only thing a player sees |
+| green | chunk columns that exist as geometry right now (`meshWindow`) |
+| amber | how far the light bake reads (`lightWindow`) |
+| blue | chunk columns this client holds at all — its subscription |
+
+The grids are chunk *columns*, level 0, deduplicated across storeys: a level is
+drawn one cell up-left of the one below, so seventeen rectangles per column
+would be a hatch rather than a reading.
+
+The panel beside them (`app/render/debugPanel.ts`) is the legend — each row is
+written in the colour its rectangle is drawn in, so there is no separate key to
+keep in step. Every `+Nc` is cells past the edge of the play square on whichever
+side reaches furthest, which is the number worth watching: it is how much world
+is being paid for that nobody can see.
+
+**Reading it.** On the shipped map at ×3 you should see the green block sit one
+chunk column past the white square on each side, the amber window within a cell
+or two of it, and black beyond both — that is the mesh window doing its job. The
+blue grid only shows a boundary at ×8 or so, because the subscription is a
+square 176 cells across against a 23-cell view. Online, `sent` grows as you
+walk and never shrinks: chunks are added to the client's map and never pruned,
+which is a real property of `app/net/interest.ts` rather than a fault in the
+panel.
+
+**It costs what it reports.** The outlines are draw calls like any others —
+a couple of hundred of them — and the `draws` row counts them. A frame time
+read in this mode is not a frame time for the shipped game; the outlines are
+culled to the drawn frame (`columnTouches`) so it is bounded, not free.
+`renderer.info.autoReset` is turned off while it is on, because a frame here is
+three render passes and the live counter reports whichever went last.
+
 ## Verifying performance work
 
 **Prove the test can fail.** A parity test that passes at every setting is

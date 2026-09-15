@@ -49,6 +49,7 @@ import { sceneryStack } from "../game/movement";
 import {
   bindAttackKey,
   bindLookKey,
+  isTypingTarget,
   type HeldDirections,
 } from "../game/heldDirections";
 import { WalkTo, type WalkView } from "../game/walkTo";
@@ -108,6 +109,13 @@ import { DamageNumberLayer, type DamageNumberView } from "./damageNumbers";
 import { NoticeQueue, NotificationLayer } from "./notifications";
 import { healthBarColor, healthFraction } from "./healthBar";
 import { fitViewport, VIEW_PX, type ViewportFit } from "./viewport";
+import {
+  clampZoomOut,
+  debugSpanPx,
+  DEBUG_ZOOM_OUT,
+  playSquareOrigin,
+} from "./debugView";
+import { DebugPanel } from "./debugPanel";
 
 /** Do two references point at the same slot in the same cell? */
 function sameRef(a: ObjectRef | null, b: ObjectRef | null): boolean {
@@ -124,10 +132,10 @@ function sameRef(a: ObjectRef | null, b: ObjectRef | null): boolean {
  * the window, the on-screen controls appearing, and a phone rotating, and a
  * stale scale puts the pointer somewhere the player is not looking.
  */
-function currentFit(canvas: HTMLCanvasElement): ViewportFit {
+function currentFit(canvas: HTMLCanvasElement, spanPx: number): ViewportFit {
   // Square by layout, so either side answers; the smaller one keeps a
   // mis-sized pane showing the whole view rather than cropping it.
-  return fitViewport(Math.min(canvas.clientWidth, canvas.clientHeight));
+  return fitViewport(Math.min(canvas.clientWidth, canvas.clientHeight), spanPx);
 }
 
 /**
@@ -564,6 +572,13 @@ export class GameRenderer {
   /** @see setLightingEnabled */
   private lightingEnabled = true;
   private labelLayer: WorldLabelLayer | null = null;
+  /**
+   * How many play squares across the camera draws, or null for the shipped
+   * view. The one piece of state the debug view has — everything else about it
+   * is derived from this and from what the renderer already knows.
+   */
+  private debugZoomOut: number | null = null;
+  private debugPanel: DebugPanel | null = null;
   /**
    * World-pixel anchor per live message, read once and held.
    *
@@ -1094,6 +1109,8 @@ export class GameRenderer {
     this.damageLayer = null;
     this.notificationLayer?.dispose();
     this.notificationLayer = null;
+    this.debugPanel?.dispose();
+    this.debugPanel = null;
     this.world.dispose();
   }
 
@@ -1134,6 +1151,12 @@ export class GameRenderer {
   }
 
   private onKeyDown = (e: KeyboardEvent) => {
+    // Only ever does anything while the debug view is on, and never while
+    // somebody is typing — a bracket belongs in the chat field it was aimed at.
+    if ((e.key === "[" || e.key === "]") && !isTypingTarget(e.target)) {
+      this.stepDebugZoom(e.key === "]" ? 1 : -1);
+      return;
+    }
     if (e.key !== "Escape") return;
     // Nothing to call off, so nothing to swallow: a chat field or a dialog
     // listening for the same key must still get it.
@@ -1260,7 +1283,7 @@ export class GameRenderer {
         camera: this.cameraFor(snap),
         // CSS scale, not the render scale: the pointer arrives in the
         // element's own coordinates, and the buffer is stretched over it.
-        zoom: currentFit(this.canvas).cssScale,
+        zoom: currentFit(this.canvas, this.spanPx()).cssScale,
       },
       point.x,
       point.y,
@@ -1521,7 +1544,7 @@ export class GameRenderer {
         map: snap.map,
         tilesById: this.tilesById,
         camera: this.cameraFor(snap),
-        zoom: currentFit(this.canvas).cssScale,
+        zoom: currentFit(this.canvas, this.spanPx()).cssScale,
       },
       point.x,
       point.y,
@@ -1635,7 +1658,7 @@ export class GameRenderer {
         map: snap.map,
         tilesById: this.tilesById,
         camera: this.cameraFor(snap),
-        zoom: currentFit(this.canvas).cssScale,
+        zoom: currentFit(this.canvas, this.spanPx()).cssScale,
       },
       point.x,
       point.y,
@@ -1936,11 +1959,13 @@ export class GameRenderer {
     camera: { x: number; y: number },
   ): boolean {
     const visual = this.actorVisualWorld(map, actor);
+    // The play square, not the drawn frame. @see playSquareFor
+    const square = this.playSquareFor(camera);
     return (
-      visual.x >= camera.x &&
-      visual.y >= camera.y &&
-      visual.x <= camera.x + VIEW_PX &&
-      visual.y <= camera.y + VIEW_PX
+      visual.x >= square.x &&
+      visual.y >= square.y &&
+      visual.x <= square.x + VIEW_PX &&
+      visual.y <= square.y + VIEW_PX
     );
   }
 
@@ -1951,6 +1976,53 @@ export class GameRenderer {
     this.lookPickKey = key;
     this.lookPickMap = snap.map;
     this.lookedAt = this.lookAt(this.lastPointer, snap);
+  }
+
+  /**
+   * Pull the camera back off the play square and draw the renderer's windows.
+   *
+   * Off in every shipped frame; `?debug=1` is the only thing that turns it on,
+   * and `docs/notes.md` is where it is written down. See `./debugView` for what
+   * the picture is of.
+   *
+   * The gameplay reading of "on screen" does **not** move with the camera —
+   * {@link isWithinView} still measures the play square — so a target does not
+   * become holdable, and a name does not become readable, because somebody
+   * zoomed out.
+   */
+  setDebugView(on: boolean) {
+    const zoomOut = on ? DEBUG_ZOOM_OUT : null;
+    if (zoomOut === this.debugZoomOut) return;
+    this.debugZoomOut = zoomOut;
+    this.world.setDebugView(on);
+    if (on) {
+      this.debugPanel ??= new DebugPanel(this.canvas);
+    } else {
+      this.debugPanel?.dispose();
+      this.debugPanel = null;
+    }
+  }
+
+  /**
+   * Side of the square of world the camera draws, in world pixels.
+   *
+   * {@link VIEW_PX} for everybody playing. Under the debug view it is a whole
+   * multiple of it, which is what keeps the render scale a whole number — see
+   * `./viewport`.
+   */
+  private spanPx(): number {
+    return this.debugZoomOut === null ? VIEW_PX : debugSpanPx(this.debugZoomOut);
+  }
+
+  /**
+   * Widen or narrow the debug camera. Ignored when the view is off, which is
+   * what keeps `[` and `]` free for anything a real player might want them for.
+   */
+  private stepDebugZoom(by: number) {
+    if (this.debugZoomOut === null) return;
+    const next = clampZoomOut(this.debugZoomOut + by);
+    if (next === this.debugZoomOut) return;
+    this.debugZoomOut = next;
   }
 
   /**
@@ -2467,13 +2539,31 @@ export class GameRenderer {
    */
   private cameraFor(snap: GameSnapshot): { x: number; y: number } {
     const visual = this.actorVisualWorld(snap.map, snap.self);
-    const half = VIEW_PX / 2;
+    const half = this.spanPx() / 2;
     return { x: visual.x - half, y: visual.y - half };
+  }
+
+  /**
+   * Top-left of the square the player can actually see.
+   *
+   * The camera itself, in every shipped frame — the two are the same square.
+   * They come apart only under the debug view, where the camera has been pulled
+   * back and the play square sits concentric inside it. Everything that asks
+   * "is this on screen" in the sense the *game* means — a target you may keep,
+   * a name you may read — measures against this, so zooming out shows you more
+   * world without giving you more of it.
+   */
+  private playSquareFor(camera: { x: number; y: number }): {
+    x: number;
+    y: number;
+  } {
+    if (this.debugZoomOut === null) return camera;
+    return playSquareOrigin(camera, this.debugZoomOut);
   }
 
   private pushView(nowMs: number, dtMs: number) {
     const snap = this.session.getSnapshot();
-    const fit = currentFit(this.canvas);
+    const fit = currentFit(this.canvas, this.spanPx());
     // The buffer is a whole multiple of the view, so the world lands on a clean
     // pixel grid and the element's stretch does the fitting.
     this.world.setBufferSize(fit.bufferPx);
@@ -2518,6 +2608,13 @@ export class GameRenderer {
       particleEmitters: vfx.emitters,
       roofCut: cut,
       transitions: transitions.length > 0 ? transitions : undefined,
+      // Absent unless the camera has been pulled off the play square, which is
+      // what stops every window in the renderer growing with the zoom-out and
+      // leaving nothing to look at. @see ./debugView
+      playSquare:
+        this.debugZoomOut === null
+          ? undefined
+          : { ...this.playSquareFor(camera), sizePx: VIEW_PX },
     });
 
     this.world.setOverlays(this.overlaysFor(snap));
@@ -2541,6 +2638,9 @@ export class GameRenderer {
     // Driven by the frame, not the pointer: walking away from an object
     // revokes the affordance without the pointer having moved at all.
     this.applyCursor();
+    // Last, and only when somebody asked for it: the panel reports on the frame
+    // that has just been decided, and throttles itself. @see ./debugPanel
+    this.debugPanel?.update(nowMs, this.debugZoomOut ?? 1, this.world.debugReading());
   }
 
   /**
