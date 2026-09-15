@@ -1003,6 +1003,12 @@ export class RemoteSession implements PlaySession {
     this.hps.delete(id);
     this.carriedLights.delete(id);
     this.statusesById.delete(id);
+    // Beside the statuses, and they were missing here: nothing draws a bar for
+    // a body that is not in {@link motions}, so a left-behind row sat inert
+    // until the same id came back — which a respawned resident does, under the
+    // name it died with. @see applyExtractions
+    this.extractionsById.delete(id);
+    this.castingsById.delete(id);
     if (this.targetId === id) this.targetId = null;
   }
 
