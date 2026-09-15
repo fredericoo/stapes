@@ -281,7 +281,9 @@ describe("a player who dies", () => {
 
     advanceUntilDead(session);
 
-    expect(skullAt(session, 0, 0)?.description).toBe("Burned by Hearth");
+    expect(skullAt(session, 0, 0)?.description).toBe(
+      "Cause of death: Burned by Hearth",
+    );
   });
 
   /**
@@ -309,7 +311,9 @@ describe("a player who dies", () => {
 
     // Named after its tile rather than out of the name generator, which is what
     // `./displayName` already decides for everything a creature is called.
-    expect(skullAt(session, 0, 0)?.description).toBe("Fangs by Wolf");
+    expect(skullAt(session, 0, 0)?.description).toBe(
+      "Cause of death: Fangs by Wolf",
+    );
   });
 
   /**
@@ -328,7 +332,9 @@ describe("a player who dies", () => {
 
     advanceUntilDead(session);
 
-    expect(skullAt(session, 0, 0)?.description).toBe("A blow by Wolf");
+    expect(skullAt(session, 0, 0)?.description).toBe(
+      "Cause of death: A blow by Wolf",
+    );
   });
 
   /**
@@ -394,6 +400,6 @@ describe("a creature that dies", () => {
     // Its tile's name, which is what `./displayName` calls every creature —
     // so an author picks the art and the world writes on it.
     expect(skull?.engraved).toBe("Troll");
-    expect(skull?.description).toBe("Burned by Hearth");
+    expect(skull?.description).toBe("Cause of death: Burned by Hearth");
   });
 });

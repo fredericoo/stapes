@@ -5245,7 +5245,10 @@ about `engraved`, so two of them differ and never fuse.
 
 `Blame` is `{ source, by? }` — "Fangs by Wolf", "Burned by Hearth", "Burning by
 Green Fox's Arcane Flame" — and it rides into `applyDamage`, which hands it to
-the death it causes.
+the death it causes. `causeOfDeath` is what writes it down, labelled: **"Cause
+of death: Fangs by Wolf"**. The label is in the text rather than added where the
+line is drawn, because there is nowhere to add it — what carries it is an
+ordinary `description`, and no renderer knows a skull from a crate.
 
 **Names, not ids, and that is the whole reason it is a third field rather than a
 reading of `StatusInstance.causedBy`.** Two things separate them:

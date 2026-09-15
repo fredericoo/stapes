@@ -119,7 +119,7 @@ import {
 } from "./notices";
 import type { MinutesOfDay } from "../lib/clock";
 import { leaveResidue } from "./residue";
-import { type Blame, blameText, possessive } from "./blame";
+import { type Blame, causeOfDeath, possessive } from "./blame";
 import {
   GOTO_COMMAND,
   HEALTH_COMMAND,
@@ -4949,7 +4949,7 @@ export class GameSession implements PlaySession {
           { actorId: target.id, tileId: at.placed.tileId },
           this.tilesById,
         ),
-        ...(blame ? { description: blameText(blame) } : {}),
+        ...(blame ? { description: causeOfDeath(blame) } : {}),
       },
     ]);
   }

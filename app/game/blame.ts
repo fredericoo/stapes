@@ -27,9 +27,22 @@ export type Blame = {
   by?: string;
 };
 
-/** The whole record as one line. */
-export function blameText(blame: Blame): string {
-  return blame.by ? `${blame.source} by ${blame.by}` : blame.source;
+/**
+ * What labels the line, so a bare phrase reads as the record it is.
+ *
+ * "Fangs by Wolf" on its own is a fragment, and on a skull it is a fragment in
+ * the one place a reader is owed a sentence: they are looking at what is left
+ * of somebody. The label is written into the text rather than added where it is
+ * drawn, because there is nowhere to add it — what carries it is
+ * `../lib/types`' {@link PlacedTile.description}, an ordinary authored field
+ * with no renderer that knows a skull from a crate.
+ */
+const CAUSE_LABEL = "Cause of death:";
+
+/** The whole record as one line, as it is written on what a body leaves. */
+export function causeOfDeath(blame: Blame): string {
+  const cause = blame.by ? `${blame.source} by ${blame.by}` : blame.source;
+  return `${CAUSE_LABEL} ${cause}`;
 }
 
 /**
