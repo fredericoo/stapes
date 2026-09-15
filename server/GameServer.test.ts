@@ -5021,3 +5021,69 @@ describe("the tick patch is cut to what a client holds", () => {
     void alice;
   });
 });
+
+/**
+ * PROTOTYPE — what a client is told to stop tracking.
+ *
+ * A client finds each body it knows about with `locateActor`, which sweeps the
+ * whole board when the body is not where it was. Under a sight subscription a
+ * body simply stops being sent, so without an explicit word the client keeps the
+ * id for ever and pays a sweep for it every frame — 110ms of a frame, measured
+ * by `scripts/bench-client-snapshot.ts`. These are the two halves that stop it:
+ * a joiner is told only about the bodies it can see, and it is told when one
+ * goes.
+ */
+describe("bodies a client can no longer see", () => {
+  const FAR = CHUNK_SIZE * 12;
+
+  function mapWithFarIsland(): FlatMapFile {
+    const cells: Record<string, unknown[]> = {};
+    for (const x of [0, 1, 2, 3, FAR, FAR + 1]) {
+      cells[`${x},0`] = [{ tileId: "grass" }];
+    }
+    cells["0,0"] = [{ tileId: "grass" }, { tileId: "player", direction: "s" }];
+    return { version: 1, levels: { "0": cells } } as FlatMapFile;
+  }
+
+  async function waitForActorAt(actorId: string, x: number) {
+    const deadline = Date.now() + MESSAGE_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      if ((await actorX(actorId)) === x) return;
+      await wait(TICK_MS);
+    }
+    throw new Error(`${actorId} never reached ${x}`);
+  }
+
+  it("names only the bodies a joiner can see", async () => {
+    if (!OCCLUSION_SUBSCRIPTIONS) return;
+    await harness.blobs.put("map.json", JSON.stringify(mapWithFarIsland()), JSON_TYPE);
+    const alice = await connect("alice");
+    command(alice.ws, `/goto ${FAR} 0`);
+    await waitForActorAt("alice", FAR);
+
+    const bob = await connect("bob");
+    // Alice is two hundred cells away on her own island; bob has no business
+    // knowing she exists, and every id he cannot place costs him a board sweep.
+    expect(bob.hello.actorIds).toEqual(["bob"]);
+  });
+
+  it("says when one goes out of sight", async () => {
+    if (!OCCLUSION_SUBSCRIPTIONS) return;
+    await harness.blobs.put("map.json", JSON.stringify(mapWithFarIsland()), JSON_TYPE);
+    const alice = await connect("alice");
+    const bob = await connect("bob");
+    expect(bob.hello.actorIds).toContain("alice");
+
+    const bobSees = record(bob.ws);
+    command(alice.ws, `/goto ${FAR} 0`);
+    await waitForActorAt("alice", FAR);
+    await wait(TICK_MS * 4);
+
+    const departed = bobSees
+      .of("patch")
+      .flatMap((message) => message.events as Record<string, unknown>[])
+      .filter((event) => event.kind === "departed")
+      .map((event) => event.actorId);
+    expect(departed).toContain("alice");
+  });
+});

@@ -880,6 +880,8 @@ export class GameServer {
   private readonly sentCells = new Map<string, Set<string>>();
   /** PROTOTYPE — the cell {@link sentCells} was last pruned against. */
   private readonly streamedFrom = new Map<string, string>();
+  /** PROTOTYPE — which bodies each client could see last tick. */
+  private readonly seenActors = new Map<string, Set<string>>();
   /**
    * Players whose last socket closed while they were in combat, and whose body
    * is therefore still standing in the world.
@@ -2022,20 +2024,40 @@ export class GameServer {
     // PROTOTYPE — what the joiner can see, rather than the square it is in.
     const sight = OCCLUSION_SUBSCRIPTIONS ? this.sightFor(actorId) : null;
     if (sight) this.sentCells.set(actorId, new Set(sight.ground));
+    /**
+     * PROTOTYPE — and **the actor list has to be scoped with it.**
+     *
+     * A client tracks a body by id and finds it each frame with `locateActor`,
+     * which sweeps the whole board when the body is not where it was. `hello`
+     * names every actor in the world — 215 on the shipped map — and under a
+     * chunk subscription that was harmless, because the client held most of the
+     * board and could find nearly all of them. Under a sight subscription it
+     * holds three thousand cells, so 214 of those ids are unfindable and cost a
+     * sweep each, every frame: 91ms of a 118ms frame, measured.
+     *
+     * So a joiner is told about the bodies it can see, and `spawned` and
+     * `departed` keep the list in step from there.
+     */
+    const visibleActors = sight
+      ? actors.filter((actor) => actor.id === actorId || this.canSee(actorId, actor))
+      : actors;
+    if (sight) {
+      this.seenActors.set(actorId, new Set(visibleActors.map((a) => a.id)));
+    }
     const message: ServerMessage = {
       type: "hello",
       selfId: actorId,
       map: sight
         ? mapOfCells(session.getMap(), sight.ground)
         : mapOfInterest(session.getMap(), chunks),
-      actorIds: session.actorIds(),
-      hps: currentHps(actors),
-      carriedLights: currentCarriedLights(actors),
-      statusIds: currentStatusIds(actors),
-      extractions: currentExtractions(actors),
+      actorIds: visibleActors.map((actor) => actor.id),
+      hps: currentHps(visibleActors),
+      carriedLights: currentCarriedLights(visibleActors),
+      statusIds: currentStatusIds(visibleActors),
+      extractions: currentExtractions(visibleActors),
       // Beside the pulls and for their reason: somebody half way through a
       // flame when this client arrived has to have a bar on the first frame.
-      castings: currentCastings(actors),
+      castings: currentCastings(visibleActors),
       // Theirs alone, and sent in full here for the same reason the map and the
       // hit points are: a joiner has nothing to patch against.
       equipment: session.equipmentOf(actorId) ?? emptyEquipment(),
@@ -2900,6 +2922,7 @@ export class GameServer {
     this.sight.delete(actorId);
     this.sentCells.delete(actorId);
     this.streamedFrom.delete(actorId);
+    this.seenActors.delete(actorId);
     // A step nobody is holding the key for any more.
     this.queuedIntents.delete(actorId);
     this.lastSaidAt.delete(actorId);
@@ -4420,7 +4443,9 @@ export class GameServer {
   ) {
     const sight = this.sight.get(actorId);
     const ground = sight
-      ? cells.filter((c) => nearVisible(sight.visible, c.x, c.y, c.z))
+      ? cells
+          .filter((c) => nearVisible(sight.visible, c.x, c.y, c.z))
+          .map((c) => this.hideUnseenBodies(c, actorId, sight.visible))
       : cells;
 
     const seen = new Map<string, boolean>();
@@ -4448,6 +4473,21 @@ export class GameServer {
     const extractions = mine(rest.extractions);
     const castings = mine(rest.castings);
 
+    // Bodies that have left this client's sight since the last tick. Without
+    // this the client keeps their ids for ever and pays a board sweep per id
+    // per frame looking for them — 91ms of a 118ms frame, measured. @see the
+    // `departed` note in `app/net/protocol.ts`
+    const held = this.seenActors.get(actorId) ?? new Set<string>();
+    const now = new Set<string>();
+    for (const actor of this.session?.actorSnapshots() ?? []) {
+      if (actor.id !== actorId && !this.canSee(actorId, actor)) continue;
+      now.add(actor.id);
+    }
+    for (const id of held) {
+      if (!now.has(id)) events.push({ kind: "departed", actorId: id });
+    }
+    this.seenActors.set(actorId, now);
+
     const empty =
       ground.length === 0 &&
       events.length === 0 &&
@@ -4474,6 +4514,36 @@ export class GameServer {
     } catch {
       // Dropped by the runtime; webSocketClose cleans the actor up.
     }
+  }
+
+  /**
+   * PROTOTYPE — a cell with the bodies this client cannot see taken out of it.
+   *
+   * Ground reaches further than sight by {@link GROUND_MARGIN}, because the
+   * renderer and the light bake both read past the camera. Bodies must not ride
+   * along in that margin: a creature standing six cells past what you can see
+   * would be *drawn*, with no name and no bar, because everything keyed on its
+   * id was correctly withheld. So what is drawn and what is known agree here
+   * rather than disagreeing in the client's favour.
+   *
+   * The viewer's own body is never taken out. It is the one thing they are
+   * always entitled to, and it is what the camera is centred on.
+   */
+  private hideUnseenBodies(
+    cell: CellPatch,
+    actorId: string,
+    visible: ReadonlySet<string>,
+  ): CellPatch {
+    if (visible.has(cellKey3(cell.x, cell.y, cell.z))) return cell;
+    if (!cell.stack.some((placed) => placed.owner && placed.owner !== actorId)) {
+      return cell;
+    }
+    return {
+      ...cell,
+      stack: cell.stack.filter(
+        (placed) => !placed.owner || placed.owner === actorId,
+      ),
+    };
   }
 
   private broadcast(message: ServerMessage) {

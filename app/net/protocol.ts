@@ -527,6 +527,23 @@ export type MotionEvent =
    */
   | { kind: "spawned"; actorId: string }
   /**
+   * PROTOTYPE — a body this client can no longer see, under
+   * `OCCLUSION_SUBSCRIPTIONS`.
+   *
+   * The mirror of `spawned`, and it is not a convenience. A client tracks a
+   * body by id and finds it each frame with `locateActor`, which falls back to
+   * sweeping the whole board when the body is not where it was. Under a sight
+   * subscription a body simply *stops being sent*, so nothing tells the client
+   * to stop looking — and a growing set of ids nobody can find costs a board
+   * sweep each, every frame. Measured at 91ms of a 118ms frame before this
+   * existed, which is the same signature as the 116ms frame the notes record
+   * from the last time somebody let `locateActor` sweep.
+   *
+   * Addressed rather than broadcast: it is a fact about one client's view, not
+   * about the world. Nothing about the body has changed.
+   */
+  | { kind: "departed"; actorId: string }
+  /**
    * A blow landed, worth this much.
    *
    * An event rather than state, unlike {@link HpPatch}, and the pair is the same
@@ -1492,6 +1509,10 @@ const serverMessageSchema = v.variant("type", [
         }),
         v.object({
           kind: v.literal("spawned"),
+          actorId: v.string(),
+        }),
+        v.object({
+          kind: v.literal("departed"),
           actorId: v.string(),
         }),
         v.object({

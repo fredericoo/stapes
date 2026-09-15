@@ -39,6 +39,10 @@ a world in the way.
   compute time, cells at join, patch bytes, and how many of the world's bodies
   a player can actually see. `--reach <n>` sweeps the sight radius,
   `--scenario <name>` for one. See `app/net/visibleSet.ts`
+- `bun scripts/bench-client-snapshot.ts` — PROTOTYPE. What one client frame
+  costs, headless: `RemoteSession.getSnapshot` locates every body it is
+  tracking, and every id it cannot place is a sweep of the whole board. Prints
+  the three cases side by side
 - `bun scripts/check-occlusion.ts` — PROTOTYPE. Twelve assertions on hand-built
   maps that say the visible set is neither empty nor everything: a wall hides
   what is behind it, a sealed room sees nothing outside, a hole shows the cave
