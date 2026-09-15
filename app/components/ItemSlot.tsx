@@ -6,14 +6,14 @@ import {
   useState,
   type ComponentType,
 } from "react";
-import { stoneLocked } from "../game/equipment";
+import { stoneLocked, takesEffect } from "../game/equipment";
 import { itemCard } from "../game/itemCard";
-import { slotKey, type SlotRef } from "../game/itemMoves";
+import { isBodySlot, slotKey, type SlotRef } from "../game/itemMoves";
 import { itemUseFor } from "../game/itemUse";
 import { consumeVerb, equipVerb, resolveConsumable } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { pileTally } from "../lib/piles";
-import type { MasteryXp } from "../lib/mastery";
+import { masteriesFromXp, type MasteryXp } from "../lib/mastery";
 import type { TileDef, TilesetDef } from "../lib/types";
 import type { StatusDef } from "../lib/status";
 import { DWELL_MS } from "../lib/useDwell";
@@ -35,6 +35,22 @@ import { TilePreview } from "./TilePreview";
  * holding one thing indistinguishable from a one-slot bag that is full. It is
  * also what makes an empty slot a place to *drop* something, which a missing
  * square could not be.
+ *
+ * ## A full square is not the same as a working one
+ *
+ * **A hand takes anything you can carry**, on purpose — see `../game/equipment`'s
+ * `handAccepts` — and the game reads almost none of it. A helmet in a fist
+ * armours nothing, a loaf does nothing at all, and a stone sits in any square
+ * and casts from none of them until its requirements are met. All three used to
+ * look exactly like a sword in the same square, and a player reasonably
+ * concluded the helmet was protecting them and the stone was a spell they had.
+ *
+ * So a square whose contents nothing reads is drawn with a fainter frame and no
+ * fill, and says so to a screen reader. It is a quiet difference deliberately:
+ * carrying a thing in your hand is a perfectly good reason to be holding it,
+ * and the square is reporting that the game is not reading it rather than that
+ * the player has made a mistake. What counts, square by square, is
+ * `takesEffect` — and why, for this particular thing, is on the card below.
  *
  * ## A square describes itself when a pointer rests on it
  *
@@ -118,6 +134,21 @@ const EMPTY_ICON_STROKE = 1.5;
 const LOCKED_NOTE = "Still cooling; it cannot be moved yet";
 
 /**
+ * What a square whose contents are doing nothing says out loud.
+ *
+ * Beside the press hint rather than in place of it, unlike {@link LOCKED_NOTE}:
+ * the hint is still true of a helmet in a fist — you can wear it from there,
+ * which is exactly what a reader who has just been told it is doing nothing
+ * wants offered next.
+ *
+ * It says that nothing is happening and not why, because the why differs by
+ * thing and the card behind the gesture already gives it: a stone's
+ * requirements are listed against the levels the reader has, and a loaf's card
+ * says it is food. @see `../game/equipment`'s `takesEffect`
+ */
+const IDLE_NOTE = "Doing nothing there";
+
+/**
  * What a press on this would do, in a sentence.
  *
  * Read off the same function the press itself runs through, so a slot cannot
@@ -150,6 +181,99 @@ function pressHintFor(
   const def = tilesById[instance.tileId];
   return def ? `Press to ${equipVerb(def).toLocaleLowerCase()} it.` : null;
 }
+
+/**
+ * Which of the appearances a square wears. @see slotAppearance
+ *
+ * Exported because the order it is decided in is the whole of the decision, and
+ * it is worth asserting without a browser — the same arrangement
+ * `./SpellBar`'s `spellAppearance` is under.
+ */
+export type SlotAppearance =
+  /** Under the pointer and legal. */
+  | "landing"
+  /** Somewhere the thing in hand could go. */
+  | "candidate"
+  /** Where the thing in hand came from. */
+  | "source"
+  /** A container the player is looking into. */
+  | "open"
+  /** Holding a stone that is still cooling, and so cannot be moved. */
+  | "locked"
+  /** Holding something the game is reading none of. @see idle */
+  | "idle"
+  /** Holding something. */
+  | "filled"
+  /** Holding nothing. */
+  | "empty";
+
+/**
+ * What this square looks like right now.
+ *
+ * **The order is the argument.** A drag in progress is the loudest thing on the
+ * screen, because it is the one answering "will it land here"; being open is
+ * louder than merely being full, since it is a thing the player has just done;
+ * and a cooling stone comes last of the states with a thing in them, because it
+ * is a fact about the item rather than about the gesture.
+ *
+ * A table and a name rather than the chain of ternaries this was, which had
+ * grown seven deep inside a `className` — each new state pushed the previous
+ * ones further right and the reasons for the order were spread down the whole of
+ * it. An appearance added to the union is now a missing key rather than a branch
+ * somebody forgot.
+ */
+export function slotAppearance({
+  isOver,
+  wouldTake,
+  isSource,
+  isOpen,
+  locked,
+  idle,
+  filled,
+}: {
+  isOver: boolean;
+  wouldTake: boolean;
+  isSource: boolean;
+  isOpen: boolean;
+  locked: boolean;
+  idle: boolean;
+  filled: boolean;
+}): SlotAppearance {
+  if (isOver) return "landing";
+  if (wouldTake) return "candidate";
+  if (isSource) return "source";
+  if (isOpen) return "open";
+  if (locked) return "locked";
+  if (idle) return "idle";
+  return filled ? "filled" : "empty";
+}
+
+/** How each appearance is drawn. @see SlotAppearance */
+const SLOT_APPEARANCE_CLASSES: Record<SlotAppearance, string> = {
+  // The strongest state on screen, because it is the one answering "will it
+  // land here".
+  landing: "border-accent bg-accent/30",
+  candidate: "border-accent/60 bg-accent/10",
+  // Where it came from, dimmed rather than emptied: the thing is still yours
+  // until you let go of it somewhere.
+  source: "border-dashed border-paper/60 bg-paper/5 opacity-50",
+  // The one colour the game uses for a thing you have acted on.
+  open: "border-interact bg-interact/20",
+  // Cooling, and so nailed down. Dimmed rather than dashed: dashed is what an
+  // *empty* square wears, and this one is conspicuously not empty — what it is
+  // saying is that the thing you can see is not currently yours to move.
+  locked: "border-paper/25 bg-paper/5 opacity-60",
+  // Here, and doing nothing: a fainter frame and no fill behind the sprite,
+  // which is a difference a reader can see across seven squares at a glance
+  // without having to name it. The sprite itself keeps full strength — what is
+  // in the square is not in doubt, only whether it counts — so this stays
+  // distinct from `locked`, which dims the lot.
+  idle: "border-paper/20 bg-transparent hover:border-paper/50",
+  filled: "border-paper/60 bg-paper/10 hover:border-paper",
+  // A dashed empty slot reads as a place something goes, where a solid one
+  // reads as a thing that is simply blank.
+  empty: "border-dashed border-paper/25 bg-transparent",
+};
 
 export function ItemSlot({
   slot,
@@ -365,6 +489,14 @@ export function ItemSlot({
    * Hover on a mouse, a held finger on a thumb. The device question is asked
    * once, here, so everything below reads one answer.
    */
+  /**
+   * The levels behind the experience, which is the unit a requirement is
+   * authored in — see `../lib/mastery`. Memoised because a panel redraws with
+   * the board, and every square would otherwise re-derive twelve of them a
+   * frame.
+   */
+  const masteries = useMemo(() => masteriesFromXp(masteryXp), [masteryXp]);
+
   const asking = dwelling || (!coarse && pointedAt);
   const inspected = useMemo(() => {
     if (!asking || !tile) return null;
@@ -397,6 +529,17 @@ export function ItemSlot({
    * @see `../game/equipment`'s `stoneLocked` for what the lock is protecting.
    */
   const locked = stoneLocked(instance, tilesById);
+  /**
+   * There is something here and the game is reading none of it. @see ItemSlot
+   *
+   * The squares inside a container are never asked, because nothing in a bag is
+   * in effect: a panel drawn faintly throughout would be saying something true
+   * of every square in it, which is the same as saying nothing.
+   */
+  const idle =
+    instance != null &&
+    isBodySlot(slot) &&
+    !takesEffect(slot.kind, instance, tilesById, masteries);
   // An empty square is not open and is not a toggle, whatever the panel beside
   // it is doing: the state belongs to the *thing* in the slot, and a slot whose
   // thing has been dropped has no state left to be in.
@@ -447,34 +590,17 @@ export function ItemSlot({
       className={[
         "relative flex shrink-0 items-center justify-center border-2 transition-colors",
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-        isOver
-          ? // Under the pointer and legal: the strongest state on screen, because
-            // it is the one answering "will it land here".
-            "border-accent bg-accent/30"
-          : wouldTake
-            ? "border-accent/60 bg-accent/10"
-            : isSource
-              ? // Where it came from, dimmed rather than emptied: the thing is
-                // still yours until you let go of it somewhere.
-                "border-dashed border-paper/60 bg-paper/5 opacity-50"
-              : isOpen
-                ? // Open, in the one colour the game uses for a thing you have
-                  // acted on. Above `instance` in this chain because a thing
-                  // being open is a louder fact than its merely being there.
-                  "border-interact bg-interact/20"
-                : locked
-                  ? // Cooling, and so nailed down. Dimmed rather than dashed:
-                    // dashed is what an *empty* square wears, and this one is
-                    // conspicuously not empty — what it is saying is that the
-                    // thing you can see is not currently yours to move. Below
-                    // every drag state above it, because what a drag in progress
-                    // is doing is the louder fact.
-                    "border-paper/25 bg-paper/5 opacity-60"
-                  : instance
-                    ? "border-paper/60 bg-paper/10 hover:border-paper"
-                    : // A dashed empty slot reads as a place something goes, where
-                      // a solid one reads as a thing that is simply blank.
-                      "border-dashed border-paper/25 bg-transparent",
+        SLOT_APPEARANCE_CLASSES[
+          slotAppearance({
+            isOver,
+            wouldTake,
+            isSource,
+            isOpen: isOpen === true,
+            locked,
+            idle,
+            filled: instance != null,
+          })
+        ],
       ].join(" ")}
       style={{
         width: sizePx,
@@ -498,7 +624,17 @@ export function ItemSlot({
       aria-label={
         inspected
           ? `${label}: ${inspected.card.speech}`
-          : [`${label}: ${name}`, locked ? LOCKED_NOTE : pressHint]
+          : [
+              `${label}: ${name}`,
+              // Before the hint rather than after it: a reader tabbing across
+              // the kit is asking what is working, and "doing nothing there"
+              // answers that where "press to wear it" answers what to do about
+              // it. A cooling stone says its own thing instead — what is
+              // refused there is moving it, and both notes at once would be one
+              // square talking over itself.
+              idle && !locked ? IDLE_NOTE : null,
+              locked ? LOCKED_NOTE : pressHint,
+            ]
               .filter(Boolean)
               .join(". ")
       }

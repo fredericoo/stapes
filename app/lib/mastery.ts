@@ -188,6 +188,31 @@ export function spellElements(requirements: Masteries | undefined): Element[] {
 export const REQUIREMENTS_MET = 1;
 
 /**
+ * Whether every mastery this stone asks for has been earned.
+ *
+ * **All of them, and met exactly rather than scaled**, which is the one place a
+ * stone and a weapon part company. A weapon half-understood still swings — see
+ * {@link learningRate} and {@link requirementShare}, which turn a
+ * shortfall into a share of the weapon — because swinging is a body doing what
+ * bodies do. A stone either answers you or it does not, and a spell that fired
+ * at a third strength would be a thing a player has to measure to learn about.
+ *
+ * Requirements on masteries the stone does not train are honoured on exactly the
+ * terms a weapon's are: what a Stone of Flame *teaches* is Arcane, and what it
+ * takes to hold one steady may be something you go and get elsewhere.
+ */
+export function meetsRequirements(
+  masteries: Masteries,
+  requirements: Masteries | undefined,
+): boolean {
+  if (!requirements) return true;
+  return MASTERIES.every(
+    (mastery) =>
+      masteryLevel(masteries, mastery) >= (requirements[mastery] ?? 0),
+  );
+}
+
+/**
  * How much of what a weapon asks this body actually brings, as a fraction of 1.
  *
  * **Pooled across every requirement, and capped at each one.** A maul asking

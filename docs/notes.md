@@ -3499,6 +3499,37 @@ The button is round, which is an exception to the house rectangle stated at the
 same weight the direction pad's is — see `spell-disc` in `app/app.css`. An arc
 wants a rim to run along.
 
+### A full square is not a working one
+
+A hand takes anything you can carry — `handAccepts` refuses nothing, on purpose
+— and almost none of it is read. A helmet in a fist armours nobody, a loaf does
+nothing at all, and a stone casts from no square until its requirements are met.
+All three looked exactly like a sword in the same square, so a player could
+reasonably believe the helmet was protecting them and the stone was a spell they
+had. The spell row makes the stone worse rather than better: it leaves an
+unearned stone out entirely, so the kit panel is the only place it appears.
+
+`takesEffect` in `app/game/equipment.ts` answers it per square, each arm named
+after the rule that actually reads the square: elements and light off any worn
+square (`bodyElements`, `carriedLightTileIds`), a stone against
+`meetsRequirements`, a hand against a swing, a guard or a pack it can open, and
+a worn square against armour authored for *that* square plus the charm's own
+kind. Everything else is inert where it is.
+
+A square whose contents nothing reads is drawn with a fainter frame and no fill,
+and says "Doing nothing there" to a screen reader. **Deliberately quiet**:
+carrying something in your hand is a perfectly good reason to be holding it, so
+the square reports that the game is not reading it rather than that the player
+has made a mistake. The sprite keeps full strength — what is in the square is
+never in doubt, only whether it counts — which is also what keeps it distinct
+from a cooling stone, where the whole square dims because it cannot be *moved*.
+Why this particular thing is idle is on its card, which lists a stone's
+requirements against the levels you have.
+
+The squares inside a bag are never asked. Nothing in a bag is in effect, and a
+panel drawn faintly throughout would be saying something true of every square in
+it.
+
 ### A crate's contents are authored on the placement, and the editor asks `stow`
 
 `PlacedTile.contents` is a placement field, written to `data/map.json` and given

@@ -8,6 +8,7 @@ import {
   MAX_XP_MULTIPLIER,
   MIN_RATING,
   masteriesFromXp,
+  meetsRequirements,
   requirementCoverage,
   requirementShare,
   NOTHING_BELOW_RATIO,
@@ -68,6 +69,26 @@ describe("requirementCoverage", () => {
       REQUIREMENTS_MET,
     );
     expect(requirementCoverage({ arcane: 100 }, {})).toBe(REQUIREMENTS_MET);
+  });
+});
+
+/**
+ * The gate a stone is behind, which is the one place a requirement is read as
+ * all-or-nothing rather than as a share. @see `../game/casting`'s `castability`
+ */
+describe("meetsRequirements", () => {
+  it("asks nothing of a stone with no block", () => {
+    expect(meetsRequirements({}, undefined)).toBe(true);
+  });
+
+  /**
+   * On the terms a weapon's are: what a stone asks of a mastery it does not
+   * train is a real gate and not a footnote.
+   */
+  it("holds every named mastery, trained or not", () => {
+    const asks = { arcane: 10, toughness: 5 };
+    expect(meetsRequirements({ arcane: 10 }, asks)).toBe(false);
+    expect(meetsRequirements({ arcane: 10, toughness: 5 }, asks)).toBe(true);
   });
 });
 
