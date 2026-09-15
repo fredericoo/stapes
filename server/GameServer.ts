@@ -706,8 +706,27 @@ export class GameServer {
    */
   private clockOffsetMinutes = 0;
   private tiles: TileDef[] = [];
-  /** PROTOTYPE — the catalogue as a map, resolved once per load for sight. */
-  private tilesByIdCache: Record<string, TileDef> = {};
+  /**
+   * PROTOTYPE — the catalogue as a map, for the sight computation.
+   *
+   * **Memoised on the identity of {@link tiles} rather than filled beside it**,
+   * because `this.tiles` is assigned in two places and the second one is easy
+   * to miss: a world replacement swaps the catalogue wholesale. Filled on load
+   * alone, this went stale there — and on a fresh container it was worse than
+   * stale, it was *empty*, because the volume starts with nothing and the world
+   * is seeded through the replacement path afterwards.
+   *
+   * An empty catalogue is not a small error here. `stackBlockHeight` and
+   * `stackOcclusion` both answer by looking a tile up, so an unknown tile is a
+   * tile of no height that seals nothing: **nothing blocks sight and no floor
+   * is a floor.** The flood then fills its whole box, through the ground, and
+   * every creature within reach on every storey is "visible". That is what the
+   * preview was doing.
+   */
+  private tilesByIdMemo: {
+    from: TileDef[];
+    byId: Record<string, TileDef>;
+  } | null = null;
   /**
    * The status catalogue, compiled. Empty until {@link load} runs, which is the
    * same state the tiles are in and means the same thing: a world nothing has
@@ -971,7 +990,6 @@ export class GameServer {
   private async load() {
     const store = this.store();
     this.tiles = await store.readTiles();
-    this.tilesByIdCache = tilesByIdFromList(this.tiles);
     // Beside the tiles because it is the same kind of thing: authored content
     // the world reads and never writes. Resolved once per load — `statusesById`
     // compiles every formula in it, which is exactly the work that must not
@@ -4105,6 +4123,14 @@ export class GameServer {
    * costs one `subscriptionFor` — a couple of milliseconds on the shipped map,
    * see `scripts/bench-occlusion.ts`.
    */
+  /** The catalogue as a map, rebuilt only when the catalogue itself changes. */
+  private get tilesById(): Record<string, TileDef> {
+    if (this.tilesByIdMemo?.from !== this.tiles) {
+      this.tilesByIdMemo = { from: this.tiles, byId: tilesByIdFromList(this.tiles) };
+    }
+    return this.tilesByIdMemo.byId;
+  }
+
   private sightFor(actorId: string): SightRecord | null {
     const session = this.session;
     const at = session?.actorPosition(actorId);
@@ -4115,7 +4141,7 @@ export class GameServer {
 
     const from = cellKey3(at.x, at.y, at.z);
     if (held && held.from === from) return held;
-    const next = sightSubscriptionFor(session.getMap(), this.tilesByIdCache, at);
+    const next = sightSubscriptionFor(session.getMap(), this.tilesById, at);
     // The columns are for `projectileFired`, whose ends carry a cell and an
     // absolute height rather than a level. Built once with the set rather than
     // per event, since an arrow is rare and a recompute is not.

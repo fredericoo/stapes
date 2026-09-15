@@ -89,5 +89,22 @@ const here = { x: 0, y: 0, z: 0 };
   check("the cave under solid ground is not", visible.has(cellKey3(6, 6, -1)), false);
 }
 
+// 5. An empty catalogue must not read as "nothing blocks anything".
+//
+// `stackBlockHeight` and `stackOcclusion` both answer by looking a tile up, so
+// an unknown tile is a tile of no height that seals nothing — which makes the
+// flood fill its whole box, through the ground, and calls every creature on
+// every storey visible. That is not a hypothetical: the preview served it,
+// because a fresh container loads before its world is seeded and the catalogue
+// was filled on load alone. The guard is the count, since the failure looks
+// like success from every other angle.
+{
+  const map = floor(20, [[3, 0, "wall"]]);
+  const withTiles = visibleFrom(map, tilesById, here, 8).visible.size;
+  const without = visibleFrom(map, {}, here, 8).visible.size;
+  check("a catalogue bounds what can be seen", withTiles < without, true);
+  check("...and the wall stops the flood with one", withTiles < 17 * 17, true);
+}
+
 console.log(failures === 0 ? "\nall good\n" : `\n${failures} failed\n`);
 if (failures > 0) process.exit(1);
