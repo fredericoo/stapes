@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_BASE_HP, fightingStats, weaponReadiness } from "../lib/battler";
+import { DEFAULT_BASE_HP, fightingStats, weaponHandling } from "../lib/battler";
 import { MELEE_REACH, type ItemDef, type WeaponItem } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import {
@@ -20,7 +20,7 @@ import { itemCard, type ItemCardStat } from "./itemCard";
  *
  * The figures are asserted **against the engine that produces them** rather than
  * against hard-coded numbers wherever one exists — `fightingStats`,
- * `swingIntervalMs` and `weaponReadiness` are re-run here and the card is
+ * `swingIntervalMs` and `weaponHandling` are re-run here and the card is
  * checked to agree with them.
  * Pinning literals instead would turn every balance change into a failing card
  * test, and worse, would let the card go on being confidently wrong the day
@@ -109,25 +109,29 @@ describe("itemCard", () => {
 
   /**
    * **The whole point of the card.** Every figure is what the reader would get,
-   * not what is stamped on the weapon — so a novice holding a sword they cannot
-   * swing is told what they would actually do with it, and the weapon's own
-   * number rides alongside as the thing to aim at.
+   * not what is stamped on the weapon — so a novice holding a sword they are a
+   * long way short of is told what they would actually do with it, and the
+   * weapon's own number rides alongside as the thing to aim at.
+   *
+   * The two rows lean opposite ways here, which is the shortfall rule made
+   * visible: their aim is worse than the blade's own accuracy because handling
+   * drags it down, and their damage is already a shade *better* than the number
+   * stamped on the blade because five points of Sharp is five points of Sharp
+   * and nothing about being short of the weapon takes that back.
    */
   it("gives the figures the reader would actually get, with the weapon's own beside them", () => {
     const novice = { sharp: xpForLevel(5) };
     const card = itemCard(tileWith(SWORD), null, novice);
-    const yours = fightingStats(
-      bodyWith(novice),
-      SWORD,
-    );
-
-    expect(statAt(card!.stats, "damage").value).toBe(`${yours.damage}`);
-    expect(statAt(card!.stats, "damage").base).toBe(`${SWORD.damage}`);
-    expect(statAt(card!.stats, "damage").tone).toBe("bad");
-    expect(yours.damage).toBeLessThan(SWORD.damage);
+    const yours = fightingStats(bodyWith(novice), SWORD);
 
     expect(statAt(card!.stats, "hit").value).toBe(`${Math.round(yours.hitChance * 100)}%`);
     expect(statAt(card!.stats, "hit").base).toBe(`${SWORD.accuracy}%`);
+    expect(statAt(card!.stats, "hit").tone).toBe("bad");
+    expect(yours.hitChance * 100).toBeLessThan(SWORD.accuracy);
+
+    expect(statAt(card!.stats, "damage").value).toBe(`${yours.damage}`);
+    expect(statAt(card!.stats, "damage").base).toBe(`${SWORD.damage}`);
+    expect(yours.damage).toBeGreaterThanOrEqual(SWORD.damage);
   });
 
   /**
@@ -135,7 +139,7 @@ describe("itemCard", () => {
    * a better weapon, so the tone has to be inverted where the figure is not.
    *
    * **Both directions come from different places now.** Falling short of what a
-   * weapon asks drags `spd` down through `weaponReadiness`; going *faster* than
+   * weapon asks drags `spd` down through `weaponHandling`; going *faster* than
    * the weapon's own rate is Agility's doing and nothing else's — see
    * `../lib/battler`'s `haste`, which `spd` has no room to carry. So the slow
    * case is a novice and the fast case is a quick body that has met the gate.
@@ -156,7 +160,7 @@ describe("itemCard", () => {
   });
 
   it("leaves the item's own figure off a row that matches it", () => {
-    // A weapon that asks nothing, in hands that have learnt nothing: readiness
+    // A weapon that asks nothing, in hands that have learnt nothing: handling
     // is full, the skill bonus is zero, and what comes out is the weapon as
     // written. A card printing "12 (12)" would invite a reader to look for a
     // difference that is not there.
@@ -189,9 +193,9 @@ describe("itemCard", () => {
       base: `${SWORD.damage}`,
       tone: "good",
     });
-    // And the share still reads a flat hundred, because the gate is open and
+    // And handling still reads a flat hundred, because the gate is open and
     // there is nothing further to open.
-    expect(card.effectiveness).toBe(100);
+    expect(card.handling).toBe(100);
   });
 
   it("names an arm's length rather than measuring it, and says when something is fired", () => {
@@ -257,29 +261,34 @@ describe("itemCard", () => {
       NOTHING_LEARNT,
     )!;
     expect(card.requirements).toEqual([]);
-    expect(card.effectiveness).toBe(100);
+    expect(card.handling).toBe(100);
   });
 
   /**
    * The number the requirements alone cannot tell you, and the reason it is
-   * worth printing: the share is pooled and the falloff is cubed, so nobody is
-   * arriving at it by arithmetic in their head. Half way to what the sword asks
-   * is an eighth of the sword.
+   * worth printing: the share is pooled, the falloff is cubed and only half of
+   * it is charged, so nobody is arriving at it by arithmetic in their head.
+   *
+   * **It floors at half rather than at nothing**, which is the fact worth
+   * pinning here: half way to what the sword asks still swings at 56% accuracy
+   * and 56% of the rate, and for the sword's full damage.
    */
-  it("puts how much of the weapon you get in the unit the player asked for", () => {
-    const share = (level: number) =>
-      itemCard(tileWith(SWORD), null, { sharp: xpForLevel(level) })!.effectiveness;
+  it("puts how well you handle the weapon in the unit the player asked for", () => {
+    const handling = (level: number) =>
+      itemCard(tileWith(SWORD), null, { sharp: xpForLevel(level) })!.handling;
 
-    expect(share(10)).toBe(percentOf(weaponReadiness(0.5)));
-    expect(share(10)).toBe(13);
-    expect(share(16)).toBe(percentOf(weaponReadiness(0.8)));
+    expect(handling(10)).toBe(percentOf(weaponHandling(0.5)));
+    expect(handling(10)).toBe(56);
+    expect(handling(16)).toBe(percentOf(weaponHandling(0.8)));
+    // Nothing brought at all still handles at half, never at none.
+    expect(handling(0)).toBe(50);
 
-    // **A gate, not a scaling term.** Meeting every requirement is worth all of
-    // the weapon, and exceeding them is worth nothing more here — being good
-    // with a blade goes on paying through the figures above instead. See
+    // **A gate, not a scaling term.** Meeting every requirement is worth full
+    // handling, and exceeding them is worth nothing more here — being good with
+    // a blade goes on paying through the figures above instead. See
     // `../lib/mastery`'s `REQUIREMENTS_MET`.
-    expect(share(20)).toBe(100);
-    expect(share(99)).toBe(100);
+    expect(handling(20)).toBe(100);
+    expect(handling(99)).toBe(100);
   });
 
   it("has no such question about anything that is not a weapon", () => {
@@ -288,7 +297,7 @@ describe("itemCard", () => {
       null,
       NOTHING_LEARNT,
     )!;
-    expect(card.effectiveness).toBeNull();
+    expect(card.handling).toBeNull();
     expect(card.kind).toBe("Eat");
     expect(statAt(card.stats, "hp")).toMatchObject({
       label: "hp",
@@ -334,7 +343,7 @@ describe("itemCard", () => {
         sharp: xpForLevel(60),
       })!;
       expect(card.requirements).toEqual([]);
-      expect(card.effectiveness).toBeNull();
+      expect(card.handling).toBeNull();
     });
 
     it("gives a resistance as the total, best first", () => {
@@ -452,7 +461,7 @@ describe("itemCard", () => {
       expect(card.kind).toBe("Either hand");
       expect(statAt(card.stats, "def")).toMatchObject({ label: "def", value: "4" });
       // No share and no requirements: a shield asks nothing and is not swung.
-      expect(card.effectiveness).toBeNull();
+      expect(card.handling).toBeNull();
       expect(card.requirements).toEqual([]);
     });
 
@@ -476,7 +485,7 @@ describe("itemCard", () => {
       // Nothing is asked of a body wearing one, and there is no share of it to
       // get: a charm acts on its own.
       expect(card.requirements).toEqual([]);
-      expect(card.effectiveness).toBeNull();
+      expect(card.handling).toBeNull();
     });
 
     it("leaves the health row off a charm that only grants statuses", () => {
@@ -519,7 +528,7 @@ describe("itemCard", () => {
       const card = itemCard(tileWith({ type: "artifact" }), null, NOTHING_LEARNT)!;
       expect(card.kind).toBe("Carried");
       expect(card.stats).toEqual([]);
-      expect(card.effectiveness).toBeNull();
+      expect(card.handling).toBeNull();
     });
 
     it("says what a stone does, to whom, and when it is ready again", () => {
@@ -543,7 +552,7 @@ describe("itemCard", () => {
       expect(card.requirements).toEqual([
         { mastery: "arcane", required: 12, have: 4, met: false },
       ]);
-      expect(card.effectiveness).toBeNull();
+      expect(card.handling).toBeNull();
     });
 
     it("reads a mending stone as mending rather than as negative damage", () => {
@@ -770,7 +779,9 @@ describe("itemCard", () => {
     const card = itemCard(tileWith(SWORD), null, learnt)!;
     const lines = weaponDemandFor(tileWith(SWORD), learnt);
 
-    expect(lines).toContain(`You get ${card.effectiveness}% out of it`);
+    expect(lines).toContain(
+      `${card.handling}% accuracy and swing rate; full damage`,
+    );
     for (const row of card.requirements) {
       expect(lines).toContain(
         row.met
@@ -790,7 +801,9 @@ describe("itemCard", () => {
     expect(card.speech).toContain("Thing");
     expect(card.speech).toContain("One hand — Sharp");
     expect(card.speech).toContain("Requires Sharp 20, you have 5");
-    expect(card.speech).toContain(`You get ${card.effectiveness}% out of it`);
+    expect(card.speech).toContain(
+      `${card.handling}% accuracy and swing rate; full damage`,
+    );
     // The word, not the column heading the card is drawn with: "dmg" and
     // "every" are captions read against the figure beside them, and neither
     // survives being read out on its own.

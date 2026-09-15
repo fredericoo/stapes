@@ -4397,7 +4397,6 @@ export class GameSession implements PlaySession {
           attackerEarnings(
             outcome,
             weaponInHand(body, attacker.equipment, this.tilesById, swung),
-            body.masteries,
             experienceMultiplier(targetRating, attackerRating),
           ),
         );
@@ -4469,7 +4468,6 @@ export class GameSession implements PlaySession {
     this.grantCasting(
       caster,
       damage,
-      undefined,
       elements,
       experienceMultiplier(victimRating, casterRating),
     );
@@ -4481,33 +4479,22 @@ export class GameSession implements PlaySession {
    *
    * One door for all three ways a spell can be worth something — damage it dealt
    * on the spot, health it actually restored, and damage something it conjured
-   * dealt later — so the scale and the learning rate cannot come to differ
-   * between them. @see `./experience`'s `casterEarnings`
+   * dealt later — so the scale cannot come to differ between them.
+   * @see `./experience`'s `casterEarnings`
    *
-   * The stone is optional because the indirect case has none to offer; a spell
-   * with no requirement to read teaches at the full rate, which is what
-   * `learningRate` means by a requirement of zero. The elements travel
-   * separately for that same reason — they survive the stone.
+   * The elements travel on their own rather than being read off a stone, because
+   * the indirect case has no stone left to read: a conjured flame outlives the
+   * thing that lit it.
    */
   private grantCasting(
     caster: ActorRuntime,
     amount: number,
-    stone: ArcaneStoneItem | undefined,
     elements: readonly Element[],
     multiplier: number,
   ) {
     const body = this.bodyOf(caster);
     if (!body) return;
-    this.grantExperience(
-      caster,
-      casterEarnings(
-        amount,
-        stone?.requirements,
-        elements,
-        body.masteries,
-        multiplier,
-      ),
-    );
+    this.grantExperience(caster, casterEarnings(amount, elements, multiplier));
   }
 
   /**
@@ -5814,7 +5801,7 @@ export class GameSession implements PlaySession {
       // on what the wheel made of the blow rather than on what the formula said,
       // so picking the right element is worth picking.
       if (context.atSomebodyElse) {
-        this.awardCastDamage(actor, subject, stone, dealt, elements);
+        this.awardCastDamage(actor, subject, dealt, elements);
       }
       return;
     }
@@ -5831,7 +5818,7 @@ export class GameSession implements PlaySession {
     // same reason: what `experienceMultiplier` weighs is how far above or below
     // you the other body is, and mending is not an exchange with anybody. A
     // caster who has mended a troll has mended somebody, not beaten them.
-    this.grantCasting(actor, restored, stone, elements, SELF_SPELL_MULTIPLIER);
+    this.grantCasting(actor, restored, elements, SELF_SPELL_MULTIPLIER);
   }
 
   /**
@@ -5861,10 +5848,9 @@ export class GameSession implements PlaySession {
    * Pay an arcanist for damage one of their own casts just did.
    *
    * The direct twin of {@link awardCausedDamage}, which pays for damage done
-   * *later* by something they conjured, and it differs in exactly one thing: the
-   * stone is still in their hand, so the learning rate has a requirement to read
-   * and a caster who has outgrown their stone is paid less for it. Nobody can
-   * say that about a flame burning somebody two minutes after it was lit.
+   * *later* by something they conjured. The two now differ in nothing but when
+   * they are called: a cast is paid for what it did, and the stone that did it
+   * scales nothing — see `./experience`'s {@link casterEarnings}.
    *
    * Silent for a creature, which is where every payout in this game stops: only
    * a player has experience to be given.
@@ -5872,7 +5858,6 @@ export class GameSession implements PlaySession {
   private awardCastDamage(
     caster: ActorRuntime,
     victim: ActorRuntime,
-    stone: ArcaneStoneItem,
     damage: number,
     elements: readonly Element[],
   ) {
@@ -5884,7 +5869,6 @@ export class GameSession implements PlaySession {
     this.grantCasting(
       caster,
       damage,
-      stone,
       elements,
       experienceMultiplier(victimRating, casterRating),
     );

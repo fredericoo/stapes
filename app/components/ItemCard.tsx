@@ -18,8 +18,8 @@ import { SpritePreview, TilePreview } from "./TilePreview";
  * The order is the one RPG item tooltips have used for decades, and it works
  * for the same reason: a player comparing two swords reads top-down and stops
  * once they have their answer. Picture and name, kind, what is written on this
- * copy, the profile, what it resists, what it asks, the share of it you get,
- * and what a blow leaves behind. The order never varies with the item.
+ * copy, the profile, what it resists, what it asks, how well you handle it, and
+ * what a blow leaves behind. The order never varies with the item.
  *
  * Sections with nothing to say are omitted, and the ones that remain keep their
  * positions. A weapon shows a profile and requirements; a breastplate shows a
@@ -50,7 +50,7 @@ const EFFECT_ICON_SIZE_PX = 14;
  * Where meeting everything a weapon asks falls on the bar, and also its top.
  *
  * The same figure twice. Requirements gate rather than scale, so meeting them
- * is worth the whole weapon and there is nothing past that to draw. The bar ran
+ * is worth full handling and there is nothing past that to draw. The bar ran
  * to 125 with a mark at 100 while exceeding a requirement still paid something
  * extra; see `../lib/mastery`'s `REQUIREMENTS_MET`.
  */
@@ -158,9 +158,7 @@ export function ItemCard({
         </Section>
       ) : null}
 
-      {card.effectiveness !== null ? (
-        <Effectiveness percent={card.effectiveness} />
-      ) : null}
+      {card.handling !== null ? <Handling percent={card.handling} /> : null}
 
       {card.effects.length > 0 ? (
         <Section title={card.effectsTitle}>
@@ -285,12 +283,18 @@ function ResistRow({ row }: { row: ItemCardResist }) {
 }
 
 /**
- * How much of the weapon the reader actually gets.
+ * How well the reader handles the weapon — what its accuracy and swing rate come
+ * to, and never its damage.
  *
  * **The headline of the card**, which is why it is the one row set in a size
- * anybody can read across a table: every figure above has already been scaled
- * through this number, so a reader who takes nothing else off the card takes the
- * one thing that explains all of it.
+ * anybody can read across a table: it is the single number the "hit" and "every"
+ * rows above have both been scaled through.
+ *
+ * **It stops at half rather than at nothing**, which is the fact the bar exists
+ * to make visible. A weapon you are a long way short of is clumsy and slow and
+ * still hits for everything it is written to hit for, so reaching for the next
+ * rung early is a real choice rather than a mistake. See `../lib/battler`'s
+ * `SHORTFALL_BITE`.
  *
  * A full bar means every requirement met and nothing left to earn *on this
  * weapon* — which is not the same as nothing left to earn. Being good with a
@@ -298,14 +302,14 @@ function ResistRow({ row }: { row: ItemCardResist }) {
  * here: a master's damage can run past the number stamped on the blade while
  * this reads a flat hundred. See `../lib/battler`'s `MASTERY_DAMAGE_BONUS`.
  */
-function Effectiveness({ percent }: { percent: number }) {
+function Handling({ percent }: { percent: number }) {
   const met = percent >= BAR_MET_PERCENT;
 
   return (
     <section className="flex flex-col gap-1 border-t-2 border-ink/15 pt-1">
       <div className="flex items-baseline gap-2">
         <h4 className="text-[9px] font-bold uppercase tracking-widest text-ink/60">
-          In your hands
+          Accuracy &amp; swing rate
         </h4>
         <span
           className={`ml-auto text-sm font-bold tabular-nums ${met ? "text-accent" : "text-danger"}`}

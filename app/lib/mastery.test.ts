@@ -3,7 +3,6 @@ import {
   BENEATH_YOU_EXPONENT,
   spellElements,
   experienceMultiplier,
-  learningRate,
   MAX_MASTERY,
   MAX_XP_MULTIPLIER,
   MIN_RATING,
@@ -13,7 +12,6 @@ import {
   requirementShare,
   NOTHING_BELOW_RATIO,
   rating,
-  OUTGROWN_FALLOFF,
   REQUIREMENTS_MET,
   levelForXp,
   progressToNextLevel,
@@ -160,64 +158,6 @@ describe("requirementShare", () => {
 
   it("never goes below zero", () => {
     expect(requirementShare({}, { sharp: 30 })).toBe(0);
-  });
-});
-
-/**
- * A weapon you have outgrown keeps teaching you, badly.
- *
- * This replaced a hard wall, and the reason is worth keeping in front of
- * whoever changes it next: the wall deadlocked in the other direction. A weapon
- * asking anything of a mastery you had none of could never teach that mastery,
- * because you could never land a blow with it — so there was no route from Sharp
- * 0 to Sharp 1 anywhere in the game.
- */
-describe("learningRate", () => {
-  it("pays in full anywhere at or below what the weapon asks", () => {
-    expect(learningRate(0, 40)).toBe(1);
-    expect(learningRate(20, 40)).toBe(1);
-    expect(learningRate(40, 40)).toBe(1);
-  });
-
-  /**
-   * **The cap is the important half.** Below the requirement the ratio is
-   * greater than one, and paying a bonus for swinging something you cannot use
-   * would be exactly backwards — you are already earning less there, because
-   * experience is counted in damage and an unready weapon barely does any.
-   */
-  it("never pays more than full, however far beneath the weapon the wielder is", () => {
-    expect(learningRate(1, 90)).toBe(1);
-    expect(learningRate(0, 90)).toBe(1);
-  });
-
-  /**
-   * The whole point of the exponent: standing still with one weapon stops being
-   * worth it, so climbing means picking up the next one rather than swinging
-   * this one for longer.
-   *
-   * **Stated against the ladder rather than against the exponent**, so it says
-   * what the design promises rather than restating the constant. Requirements
-   * step by half again each rung — 5, 10, 15, 22, 33 — so the two figures below
-   * are "one rung past this weapon" and "two rungs past it", and both have to
-   * be a plainly bad deal or the ladder is decoration.
-   */
-  it("falls away steeply the moment the requirement is passed", () => {
-    expect(learningRate(48, 40)).toBeCloseTo((40 / 48) ** OUTGROWN_FALLOFF, 10);
-    // One rung past: under a third.
-    expect(learningRate(60, 40)).toBeLessThan(1 / 3);
-    // Two rungs past: under a tenth.
-    expect(learningRate(90, 40)).toBeLessThan(0.1);
-  });
-
-  it("keeps falling rather than stopping", () => {
-    // Never a wall: a wall here is what deadlocked the design once already.
-    expect(learningRate(100, 1)).toBeGreaterThan(0);
-    expect(learningRate(100, 40)).toBeGreaterThan(0);
-  });
-
-  it("teaches forever at full rate when the weapon asks nothing", () => {
-    expect(learningRate(0, 0)).toBe(1);
-    expect(learningRate(100, 0)).toBe(1);
   });
 });
 

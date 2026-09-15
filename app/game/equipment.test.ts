@@ -189,7 +189,7 @@ describe("effectiveBattler", () => {
   it("takes damage, defence, accuracy and speed from the weapon", () => {
     const out = effectiveBattler(base, null, lightTiles, firstHand(null, lightTiles));
     // **The weapon's numbers plus what being good with it adds.** A weapon that
-    // asks nothing is at full readiness for anybody, so what separates this from
+    // asks nothing is at full handling for anybody, so what separates this from
     // the authored figure is Fist alone — see `../lib/battler`'s two axes.
     const skill = base.masteries.fist! / MAX_MASTERY;
     expect(out.damage).toBe(

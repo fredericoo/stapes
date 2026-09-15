@@ -1,12 +1,6 @@
 import type { Element } from "../lib/element";
 import type { WeaponItem } from "../lib/item";
-import {
-  type Masteries,
-  type Mastery,
-  type MasteryXp,
-  learningRate,
-  masteryLevel,
-} from "../lib/mastery";
+import type { MasteryXp } from "../lib/mastery";
 import type { AttackOutcome } from "./combat";
 
 /**
@@ -104,15 +98,19 @@ export function defensiveDecay(payouts: number): number {
  * them, and a miss is the swinger being out of their depth with what they are
  * holding and pays nobody.
  *
- * Scaled by {@link learningRate}, so a weapon you have outgrown keeps teaching
- * you and keeps teaching you less. **The other direction is deliberately not
- * scaled** — a weapon far above you already pays less by landing far fewer
- * blows, and discounting it twice is what deadlocked the old training wall.
+ * **What you are holding scales nothing.** A landed blow pays what the blow was
+ * worth, whether it came off a weapon you outgrew twenty levels ago or one you
+ * are barely allowed to lift. There used to be a `learningRate` here cubing the
+ * ratio of the requirement to your level, and it charged a player twice for one
+ * choice: the outgrown weapon is the weaker weapon, experience is counted in
+ * damage dealt, so it was already paying less. What stops a mastery being ground
+ * for ever is `../lib/mastery`'s `experienceMultiplier`, which pays nothing for a
+ * fight beneath your Rating — a brake on what you fight rather than on what you
+ * grip.
  */
 export function attackerEarnings(
   outcome: AttackOutcome,
   weapon: WeaponItem,
-  masteries: Masteries,
   multiplier: number,
 ): MasteryXp {
   if (outcome.missed || outcome.dodged || outcome.damage <= 0) return {};
@@ -120,12 +118,10 @@ export function attackerEarnings(
   const earned = XP_PER_DAMAGE * outcome.damage * multiplier;
   if (earned <= 0) return {};
 
-  const requirement = weapon.requirements?.[weapon.mastery] ?? 0;
-  const rate = learningRate(masteryLevel(masteries, weapon.mastery), requirement);
-
-  const earnings: MasteryXp = { agility: earned * AGILITY_SHARE_OF_OFFENCE };
-  earnings[weapon.mastery] = earned * rate;
-  return earnings;
+  return {
+    agility: earned * AGILITY_SHARE_OF_OFFENCE,
+    [weapon.mastery]: earned,
+  };
 }
 
 /**
@@ -141,25 +137,27 @@ export function attackerEarnings(
  * to 51, and a rat almost never — which is the ladder the world is already
  * authored on, stated in the one number that produces it.
  *
- * **This is the defensive half of a rule the offensive half already had.** A
- * weapon you have outgrown keeps teaching you and keeps teaching you less — see
- * `../lib/mastery`'s {@link learningRate} — and until now nothing said the same
- * about a foe you had outgrown. Toughness had no requirement to outgrow, so it
- * earned at full rate for ever while the weapon in your hand earned at a
- * sixtieth, and the gap was not small: on a wolf, in the middle of that grind,
- * Toughness took twenty-eight times what Sharp did from the same exchanges.
+ * **This is about the foe, not about the gear, and that is the whole of why it
+ * survived the fairness pass.** Nothing scales a payout by what you are holding
+ * any more — see {@link attackerEarnings} — because an outgrown weapon was
+ * already paying less by hitting softer, and charging twice for that read as a
+ * punishment for the choice. A blow you cannot feel is the opposite case:
+ * nothing else in the arithmetic notices it. `experienceMultiplier` weighs
+ * Ratings, and a body that has outgrown a creature outright is still paid in
+ * full for standing in front of it while its health bar does not move. Measured
+ * before this existed: a player on the wolves took 0.00 damage a blow and was
+ * paid as though it had done 9.29.
  */
 export const SIGNIFICANT_THREAT_SHARE = 1 / 5;
 
 /**
  * How sharply a blow beneath you stops teaching you to take it.
  *
- * Four, and deliberately a taper rather than a wall: `../lib/mastery`'s
- * {@link OUTGROWN_FALLOFF} can be steep because a player who has outgrown a
- * weapon can put it down and pick up the next one, and there is no equivalent
- * move here — you cannot take off your Toughness. A cliff would read as a
- * creature that abruptly stopped counting; this reads as one you are steadily
- * getting too big for.
+ * Four, and deliberately a taper rather than a wall: a cliff would read as a
+ * creature that abruptly stopped counting, where this reads as one you are
+ * steadily getting too big for. There is no putting Toughness down and picking
+ * up the next one, so the falloff has to be something a player walks up rather
+ * than something they hit.
  *
  * Measured on the wolves, which is the fight that produced the complaint: at
  * four, Toughness 40 takes 36 of them instead of 26, and a hundred and twenty
@@ -342,11 +340,11 @@ export function practiceEarnings(
  *   names. Pressing a heal at full health restored nothing and teaches nothing,
  *   which is measured by the caller as the health the caster was missing.
  *
- * Scaled by {@link learningRate} exactly as a swing is, off the stone's own
- * requirement: a stone you have outgrown keeps teaching you and keeps teaching
- * you less. Nothing goes to Agility, unlike a landed blow — closing on something
- * and staying on it is footwork, and casting is the one thing in this game you
- * do standing still.
+ * Unscaled by the stone, exactly as a swing is unscaled by the weapon — see
+ * {@link attackerEarnings} for why a stone you have outgrown still teaches at
+ * the plain rate. Nothing goes to Agility, unlike a landed blow — closing on
+ * something and staying on it is footwork, and casting is the one thing in this
+ * game you do standing still.
  */
 export function casterEarnings(
   /**
@@ -364,27 +362,15 @@ export function casterEarnings(
    */
   amount: number,
   /**
-   * What the stone that did it asks, or nothing when there is no stone left to
-   * ask.
-   *
-   * Undefined is the honest answer for damage dealt by something a caster
-   * conjured: by the time a flame burns somebody the stone may have been put
-   * down, swapped or lost with its owner's corpse, and what is being paid for is
-   * the damage rather than the object. It reads as a requirement of zero, which
-   * `learningRate` already means by "asks nothing" — so the indirect case pays
-   * at the plain rate rather than through a stone somebody had to invent.
-   */
-  requirements: Masteries | undefined,
-  /**
    * What the spell was made of.
    *
-   * Passed rather than derived from the requirements, because the indirect case
-   * has no requirements to derive it from: by the time a conjured flame burns
-   * somebody the stone may be gone, and what is left is the element the
-   * placement remembered. @see `./statuses`'s {@link StatusInstance.elements}
+   * Passed rather than derived from the stone's requirements, because the
+   * indirect case has no stone to derive it from: by the time a conjured flame
+   * burns somebody the stone may have been put down, swapped or lost with its
+   * owner's corpse, and what is left is the element the placement remembered.
+   * @see `./statuses`'s {@link StatusInstance.elements}
    */
   elements: readonly Element[],
-  masteries: Masteries,
   multiplier: number,
 ): MasteryXp {
   if (amount <= 0) return {};
@@ -392,14 +378,11 @@ export function casterEarnings(
   const earned = XP_PER_DAMAGE * amount * multiplier;
   if (earned <= 0) return {};
 
-  // On exactly the terms a weapon's is read: what a stone asks of the mastery it
-  // *trains* is what decides how much it still has to teach. Each element is
-  // read against its own requirement rather than against Arcane's, so a caster
-  // who has outgrown a stone's Fire keeps learning from its Water.
-  const rateFor = (mastery: Mastery) =>
-    learningRate(masteryLevel(masteries, mastery), requirements?.[mastery] ?? 0);
-
-  const earnings: MasteryXp = { arcane: earned * rateFor("arcane") };
-  for (const element of elements) earnings[element] = earned * rateFor(element);
+  // Arcane for having cast anything, and each element the spell was made of on
+  // top rather than out of the same pot — the split `practiceEarnings` already
+  // makes, for the same reason: a fire specialist must not be slower at magic
+  // than somebody pressing a light.
+  const earnings: MasteryXp = { arcane: earned };
+  for (const element of elements) earnings[element] = earned;
   return earnings;
 }

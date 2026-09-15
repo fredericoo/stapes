@@ -116,7 +116,7 @@ const tiles: TileDef[] = [
         baseHp: 8,
         // Toughness alone, since nothing here is ever dodged at or measured for
         // speed as a defender. No Fist either: a weapon that asks nothing is at
-        // full readiness for anybody, so the mastery would buy only the flat
+        // full handling for anybody, so the mastery would buy only the flat
         // skill bonus — and these tests assert exact damage numbers, which is
         // the one thing that bonus makes unreadable.
         masteries: { toughness: PLAYER_TOUGHNESS },

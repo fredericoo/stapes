@@ -1,4 +1,4 @@
-import { weaponReadiness } from "./battler";
+import { weaponHandling } from "./battler";
 import { resolveWeapon } from "./item";
 import {
   type Masteries,
@@ -19,11 +19,11 @@ import type { TileDef } from "./types";
  * There used to be a `weaponFeel` here, turning the same facts into second-person
  * prose: "You can hardly wield it", "You can wield it like a toy". It read
  * beautifully and it withheld the one thing a player actually needs. Somebody
- * holding a sword that does nothing wants to know **which mastery is short and
- * by how much**, and no amount of atmosphere answers that — it leaves them to
- * infer a rule from a mood, and the rule is not guessable: requirements are
- * pooled, and what you get out of a weapon is the *cube* of what you brought, so
- * being four fifths of the way there is barely half the weapon.
+ * holding a sword they are clumsy with wants to know **which mastery is short
+ * and by how much**, and no amount of atmosphere answers that — it leaves them
+ * to infer a rule from a mood, and the rule is not guessable: requirements are
+ * pooled, the shortfall is cubed and then halved, and it touches accuracy and
+ * swing rate while leaving damage alone.
  *
  * Roleplay is a fine reason to be vague about a story and a bad reason to be
  * vague about a gate. So this says the gate: every requirement, your level
@@ -64,11 +64,18 @@ export function weaponDemand(
       : `${MASTERY_LABELS[mastery]} ${required} — you have ${have}`;
   });
 
-  // The number the requirements alone cannot tell you. The falloff is cubed and
-  // the requirements are pooled, so nobody is arriving at this by arithmetic in
-  // their head — which is precisely why it is worth printing.
-  const share = weaponReadiness(requirementShare(masteries, requirements));
-  lines.push(`You get ${Math.round(share * 100)}% out of it`);
+  // The number the requirements alone cannot tell you. The falloff is cubed,
+  // the requirements are pooled and only half the curve is charged, so nobody is
+  // arriving at this by arithmetic in their head — which is precisely why it is
+  // worth printing. **Damage is named because it is the surprising half**: a
+  // weapon you are short of hits as hard as it is written to, and a player who
+  // was not told that will put it back down.
+  const handling = weaponHandling(requirementShare(masteries, requirements));
+  lines.push(
+    handling >= 1
+      ? "Full accuracy and swing rate"
+      : `${Math.round(handling * 100)}% accuracy and swing rate; full damage`,
+  );
   return lines;
 }
 
