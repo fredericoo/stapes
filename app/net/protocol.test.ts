@@ -590,12 +590,7 @@ describe("nothing is quietly dropped in transit", () => {
       swung: { kind: "swung", actorId: "rat" },
       joined: { kind: "joined", actorId: "rat", playerCount: 2 },
       left: { kind: "left", actorId: "rat", playerCount: 1 },
-      spawned: {
-        kind: "spawned",
-        actorId: "rat",
-        at: { x: 1, y: 0, z: 0, stackIndex: 1 },
-      },
-      despawned: { kind: "despawned", actorId: "rat" },
+      spawned: { kind: "spawned", actorId: "rat" },
       projectileFired: {
         kind: "projectileFired",
         id: "shot-1",
