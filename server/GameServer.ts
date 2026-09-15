@@ -4495,6 +4495,7 @@ export class GameServer {
       ? cells
           .filter((c) => nearVisible(sight.visible, c.x, c.y, c.z))
           .map((c) => this.hideUnseenBodies(c, actorId, sight.visible))
+          .filter((c) => this.movedForViewer(c, actorId, sight.visible))
       : cells;
 
     const seen = new Map<string, boolean>();
@@ -4700,6 +4701,42 @@ export class GameServer {
         (placed) => !placed.owner || placed.owner === actorId,
       ),
     };
+  }
+
+  /**
+   * PROTOTYPE — did this cell change in a way *this* viewer can see?
+   *
+   * Ground reaches a margin past sight, and a creature walking about in that
+   * margin rewrites two cells on every step. The viewer cannot see the
+   * creature, so {@link hideUnseenBodies} takes it out — and what is left is the
+   * stack the client already holds. Sent anyway it is a patch that says nothing:
+   * a `setStacks`, a new chunk identity, and on the client's side a rebuild and
+   * a light invalidation for a picture that did not move.
+   *
+   * So the change is asked about *after* the hiding, against the board this
+   * client was last shown. {@link broadcastMap} is still the previous map at
+   * this point in the tick — it is advanced after the patch goes out, which is
+   * what makes this comparison the right one.
+   */
+  private movedForViewer(
+    cell: CellPatch,
+    actorId: string,
+    visible: ReadonlySet<string>,
+  ): boolean {
+    // A cell the viewer can see is sent whatever moved in it: that is the
+    // creature they are watching, and nothing here should second-guess it.
+    if (visible.has(cellKey3(cell.x, cell.y, cell.z))) return true;
+    const before = this.broadcastMap;
+    if (!before) return true;
+
+    const was = getStack(before, cell.x, cell.y, cell.z).filter(
+      (placed) => !placed.owner || placed.owner === actorId,
+    );
+    if (was.length !== cell.stack.length) return true;
+    for (let i = 0; i < was.length; i++) {
+      if (was[i] !== cell.stack[i]) return true;
+    }
+    return false;
   }
 
   private broadcast(message: ServerMessage) {
