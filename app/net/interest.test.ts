@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   INTEREST_REACH_CELLS,
   INTEREST_REACH_CHUNKS,
+  bucketCellsByChunk,
   cellsOfChunks,
   chunksEntered,
   covers,
   interestChunks,
   mapOfInterest,
+  ownersIn,
+  patchScope,
   sameChunks,
 } from "./interest";
 import {
@@ -193,5 +196,72 @@ describe("handing the cells over", () => {
     const flat = mapOfInterest(map, interestChunks(1, 1));
 
     expect(Object.keys(flat.levels).length).toBe(MAX_LEVEL - MIN_LEVEL + 1);
+  });
+});
+
+/**
+ * Cutting the tick's patch to what each client holds.
+ *
+ * The property being defended is not bandwidth. It is that a client cannot
+ * learn where a body is standing on ground it has never been sent — so the
+ * subscription is the only lever, and anything that narrows it narrows the wire
+ * in the same edit.
+ */
+describe("scoping the tick patch", () => {
+  const cell = (x: number, y: number) => ({ x, y, z: 0, stack: [] });
+
+  it("groups a tick's cells by the chunk they sit in", () => {
+    const buckets = bucketCellsByChunk([
+      cell(0, 0),
+      cell(CHUNK_SIZE, 0),
+      cell(1, 1),
+    ]);
+    expect(buckets.map((b) => b.chunk)).toEqual(["0,0", "1,0"]);
+    expect(buckets[0]!.cells).toEqual([cell(0, 0), cell(1, 1)]);
+    expect(buckets[1]!.cells).toEqual([cell(CHUNK_SIZE, 0)]);
+  });
+
+  it("gives a client only the chunks it holds", () => {
+    const buckets = bucketCellsByChunk([cell(0, 0), cell(CHUNK_SIZE, 0)]);
+    const scope = patchScope(buckets, new Set(["1,0"]));
+    expect(scope.cells).toEqual([cell(CHUNK_SIZE, 0)]);
+  });
+
+  /**
+   * The whole reason the key exists: two clients owed the same chunks are owed
+   * the same bytes, so the tick pays one `JSON.stringify` for both. What bounds
+   * the number of payloads is what moved, never how many people are playing.
+   */
+  it("gives clients owed the same chunks the same key", () => {
+    const buckets = bucketCellsByChunk([cell(0, 0), cell(CHUNK_SIZE, 0)]);
+    const here = patchScope(buckets, new Set(["0,0", "9,9"]));
+    const alsoHere = patchScope(buckets, new Set(["0,0", "4,4"]));
+    const elsewhere = patchScope(buckets, new Set(["1,0"]));
+    expect(here.key).toBe(alsoHere.key);
+    expect(here.key).not.toBe(elsewhere.key);
+  });
+
+  it("gives a client that holds none of them nothing at all", () => {
+    const buckets = bucketCellsByChunk([cell(0, 0)]);
+    expect(patchScope(buckets, new Set(["7,7"])).cells).toEqual([]);
+  });
+
+  /**
+   * Before a `hello` is answered there is no subscription on record, and the
+   * safe reading is the one that predates scoping. A client shown ground it did
+   * not ask for draws a correct world; one denied ground it holds draws a hole.
+   */
+  it("sends everything to a client with no subscription yet", () => {
+    const buckets = bucketCellsByChunk([cell(0, 0), cell(CHUNK_SIZE, 0)]);
+    expect(patchScope(buckets, undefined).cells).toHaveLength(2);
+  });
+
+  it("names the bodies standing in some cells", () => {
+    const cells = [
+      { x: 0, y: 0, z: 0, stack: [{ tileId: "grass" }, { tileId: "rat", owner: "rat:1" }] },
+      { x: 1, y: 0, z: 0, stack: [{ tileId: "grass" }] },
+      { x: 2, y: 0, z: 0, stack: [{ tileId: "player", owner: "alice" }] },
+    ];
+    expect(ownersIn(cells)).toEqual(new Set(["rat:1", "alice"]));
   });
 });

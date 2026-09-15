@@ -4868,3 +4868,148 @@ describe("a cast somebody else is making", () => {
     ]);
   });
 });
+
+/**
+ * What a client is told about ground it does not hold.
+ *
+ * Nothing, now. The per-tick patch used to be one broadcast of every cell that
+ * changed anywhere, which meant a body's position reached every client in the
+ * world whatever their subscription said — so narrowing the subscription bought
+ * bytes and bought nothing at all for what a player can find out. It is cut to
+ * the chunks each client holds, which makes the subscription the single lever:
+ * anything that narrows it narrows the wire in the same edit.
+ */
+describe("the tick patch is cut to what a client holds", () => {
+  /**
+   * Chunk columns between the two bodies — comfortably more than
+   * `INTEREST_REACH_CHUNKS`, so neither is in the other's subscription and no
+   * arithmetic here has to agree with the reach to stay true.
+   */
+  const COLUMNS_APART = 12;
+  const FAR_CELL = CHUNK_SIZE * COLUMNS_APART;
+
+  /** Ground by the spawn, and an island of it far enough to be out of reach. */
+  function mapWithFarIsland(): FlatMapFile {
+    const cells: Record<string, unknown[]> = {};
+    for (const x of [0, 1, 2, 3, FAR_CELL, FAR_CELL + 1]) {
+      cells[`${x},0`] = [{ tileId: "grass" }];
+    }
+    cells["0,0"] = [{ tileId: "grass" }, { tileId: "player", direction: "s" }];
+    return { version: 1, levels: { "0": cells } } as FlatMapFile;
+  }
+
+  /**
+   * Two players, one of them walked off to the island.
+   *
+   * `/goto` rather than a checkpoint holding both bodies: a resumed world reads
+   * its spawn marker out of the map, and two authored `player` tiles is a
+   * different thing being tested by accident.
+   */
+  async function twoFarApart() {
+    await harness.blobs.put("map.json", JSON.stringify(mapWithFarIsland()), JSON_TYPE);
+    const alice = await connect("alice");
+    const bob = await connect("bob");
+    command(bob.ws, `/goto ${FAR_CELL} 0`);
+    await waitForActorAt("bob", FAR_CELL);
+    // One more tick, so the walk off to the island is not still in flight in
+    // the patches the assertions read.
+    await wait(TICK_MS * 2);
+    return { alice, bob };
+  }
+
+  /** Wait until an actor's body is standing in a given column. */
+  async function waitForActorAt(actorId: string, x: number) {
+    const deadline = Date.now() + MESSAGE_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      if ((await actorX(actorId)) === x) return;
+      await wait(TICK_MS);
+    }
+    throw new Error(`${actorId} never reached ${x}`);
+  }
+
+  /** Every cell any patch on this socket carried, as `x,y` keys. */
+  function patchedCells(seen: ReturnType<typeof record>): string[] {
+    return seen
+      .of("patch")
+      .flatMap((message) => message.cells as { x: number; y: number }[])
+      .map((cell) => `${cell.x},${cell.y}`);
+  }
+
+  it("does not tell a distant client where a body went", async () => {
+    const { alice, bob } = await twoFarApart();
+    const bobSees = record(bob.ws);
+
+    step(alice.ws, 1, "e");
+    await walkWithin(alice.ws, MESSAGE_TIMEOUT_MS);
+    await wait(WALK_DURATION_MS * 2);
+
+    expect(patchedCells(bobSees)).toEqual([]);
+  });
+
+  it("still tells the client standing on it", async () => {
+    const { alice } = await twoFarApart();
+    const aliceSees = record(alice.ws);
+
+    step(alice.ws, 1, "e");
+    await walkWithin(alice.ws, MESSAGE_TIMEOUT_MS);
+    await wait(WALK_DURATION_MS * 2);
+
+    expect(patchedCells(aliceSees)).toContain("1,0");
+  });
+
+  /**
+   * **The boundary of this change, pinned rather than approved of.** A motion
+   * event names an actor and carries no cell, so it is about a body rather than
+   * about ground, and it still goes to everybody. Bob learns that alice took a
+   * step; he no longer learns where she is, which is what the cells carried.
+   * Scoping the actor-keyed half is a separate change with its own invariant to
+   * keep — see `app/net/interest.ts`.
+   */
+  it("still tells everybody that a body moved, without saying where", async () => {
+    const { alice, bob } = await twoFarApart();
+    const bobSees = record(bob.ws);
+
+    step(alice.ws, 1, "e");
+    await walkWithin(alice.ws, MESSAGE_TIMEOUT_MS);
+    await wait(WALK_DURATION_MS * 2);
+
+    const kinds = bobSees
+      .of("patch")
+      .flatMap((message) => message.events as Record<string, unknown>[])
+      .map((event) => event.kind);
+    expect(kinds).toContain("walkStarted");
+  });
+
+  /**
+   * The other half of scoping, and the one that is only needed *because* of it.
+   * A client that stopped hearing about a body has forgotten it; the ground
+   * coming back into reach has to bring it back whole, or the sprite is redrawn
+   * with no bar, no statuses and nothing to hang them on.
+   */
+  it("re-announces the bodies standing in ground it hands over", async () => {
+    const { alice, bob } = await twoFarApart();
+    const bobSees = record(bob.ws);
+
+    // Back towards the spawn, so alice's chunk column enters bob's reach and is
+    // streamed to him with her standing in it. Beside her rather than on her:
+    // two bodies do not share a cell, and a refused `/goto` is a test that
+    // waits for a move that never happens.
+    command(bob.ws, "/goto 2 0");
+    await waitForActorAt("bob", 2);
+    await wait(TICK_MS * 8);
+
+    const spawned = bobSees
+      .of("patch")
+      .flatMap((message) => message.events as Record<string, unknown>[])
+      .filter((event) => event.kind === "spawned")
+      .map((event) => event.actorId);
+    expect(spawned).toContain("alice");
+
+    const hps = bobSees
+      .of("patch")
+      .flatMap((message) => message.hps as { actorId: string }[])
+      .map((hp) => hp.actorId);
+    expect(hps).toContain("alice");
+    void alice;
+  });
+});

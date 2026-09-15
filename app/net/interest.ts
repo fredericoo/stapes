@@ -1,10 +1,22 @@
 /**
  * What of the map a client is told about.
  *
- * The world is one board and every client is sent all of it: the whole map on
- * join, and every cell that changed anywhere on every tick. That was right
- * while the map was a town — 2.4MB to join — and it is the one cost left that
- * still grows with the world rather than with who is playing.
+ * A client is sent the chunks within {@link INTEREST_REACH_CELLS} of its body,
+ * and **that subscription decides the whole of what it hears**: the map it
+ * joins with, the chunks handed over as it walks, and every cell patch after
+ * that. The world used to send all of it — the whole board on join, and every
+ * cell that changed anywhere on every tick — which was right while the map was
+ * a town.
+ *
+ * The per-tick patch was the last piece to come inside the line, and it was not
+ * bandwidth that moved it. What changes on a tick is where creatures are
+ * walking, which is bounded by the brain budget rather than by the map, so
+ * broadcasting it cost little. What it cost was the *rule*: a client heard
+ * where every body in the world was standing whatever its subscription said, so
+ * narrowing the subscription bought nothing at all for what a player can find
+ * out. Now one lever moves both, and anything that narrows the subscription —
+ * by level, by what a hole actually shows — narrows the wire in the same edit.
+ * @see `GameServer.broadcastPatch`
  *
  * **The unit is the chunk**, because that is what the map is stored in and what
  * copy-on-write gives identity to: a subscription changes when you cross a
@@ -139,6 +151,91 @@ export function chunksEntered(
     return Math.max(Math.abs(kx - cx), Math.abs(ky - cy));
   };
   return out.sort((a, b) => distance(a) - distance(b));
+}
+
+/**
+ * The tick's changed cells, grouped by the chunk column each one sits in.
+ *
+ * The first half of scoping the patch. A client hears about a cell if and only
+ * if it holds the ground that cell is on, and "which chunk is this in" is asked
+ * once per cell here rather than once per cell per client.
+ *
+ * The order of the buckets is the order the cells arrived in, and it is stable
+ * for the life of one tick — which is what lets {@link patchScope} name a
+ * selection of them by index instead of by chunk key.
+ */
+export function bucketCellsByChunk<T extends { x: number; y: number }>(
+  cells: readonly T[],
+): Array<{ chunk: string; cells: T[] }> {
+  const byChunk = new Map<string, T[]>();
+  const order: string[] = [];
+  for (const cell of cells) {
+    const chunk = chunkKeyFor(cell.x, cell.y);
+    let bucket = byChunk.get(chunk);
+    if (!bucket) {
+      bucket = [];
+      byChunk.set(chunk, bucket);
+      order.push(chunk);
+    }
+    bucket.push(cell);
+  }
+  return order.map((chunk) => ({ chunk, cells: byChunk.get(chunk)! }));
+}
+
+/**
+ * Which of a tick's buckets one subscription takes, and a key that says so.
+ *
+ * The second half, and the reason the scoped patch does not cost a
+ * serialization per player. Two clients that take the same buckets are owed
+ * byte-identical cells, so they can share one `JSON.stringify` — and the number
+ * of distinct answers is bounded by *what changed on the tick*, never by how
+ * many people are playing. A world where three chunks moved has at most eight
+ * distinct payloads whether four people are in it or four hundred.
+ *
+ * The key is the taken indices joined, rather than a bitmask, because a large
+ * edit — somebody painting in the editor, a world being replaced — touches more
+ * chunks than a machine word has bits, and a cap there would be a correctness
+ * cliff hidden inside an optimisation.
+ */
+export function patchScope<T>(
+  buckets: ReadonlyArray<{ chunk: string; cells: T[] }>,
+  chunks: ReadonlySet<string> | undefined,
+): { key: string; cells: T[] } {
+  // No subscription on record is not the same as an empty one. It happens
+  // only before a client's first `hello` has been answered, and the safe
+  // reading is the one that predates scoping: send the lot. A client shown
+  // ground it did not ask for draws a correct world; one denied ground it
+  // holds draws a hole.
+  if (!chunks) return { key: "all", cells: buckets.flatMap((b) => b.cells) };
+
+  const taken: number[] = [];
+  for (let i = 0; i < buckets.length; i++) {
+    if (chunks.has(buckets[i]!.chunk)) taken.push(i);
+  }
+  return {
+    key: taken.join(","),
+    cells: taken.flatMap((i) => buckets[i]!.cells),
+  };
+}
+
+/**
+ * The bodies standing in some cells, by the owner each one belongs to.
+ *
+ * What a client has to be re-told about when ground is handed over: a body is a
+ * tile in a stack, so ground arriving brings bodies with it, and everything
+ * else the client keys on an actor — its bar, its statuses, its lantern — has
+ * to arrive with them. @see `GameServer.streamEnteredChunks`
+ */
+export function ownersIn(
+  cells: ReadonlyArray<{ stack: PlacedTile[] }>,
+): Set<string> {
+  const owners = new Set<string>();
+  for (const cell of cells) {
+    for (const placed of cell.stack) {
+      if (placed.owner) owners.add(placed.owner);
+    }
+  }
+  return owners;
 }
 
 /**

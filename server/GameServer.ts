@@ -8,10 +8,13 @@ import {
 } from "../app/game/GameSession";
 import { TICK_MS, WALK_DURATION_MS } from "../app/game/constants";
 import {
+  bucketCellsByChunk,
   cellsOfChunks,
   chunksEntered,
   interestChunks,
   mapOfInterest,
+  ownersIn,
+  patchScope,
   sameChunks,
 } from "../app/net/interest";
 import { cellKey } from "../app/game/pressurePlates";
@@ -3459,9 +3462,7 @@ export class GameServer {
       extractions.length > 0 ||
       castings.length > 0
     ) {
-      this.broadcast({
-        type: "patch",
-        cells,
+      this.broadcastPatch(cells, {
         events: this.events,
         hps,
         carriedLights,
@@ -4075,14 +4076,65 @@ export class GameServer {
       this.sendToEverySocketOf(actorId, {
         type: "patch",
         cells,
+        ...this.bodiesArrivingWith(cells),
+      });
+    }
+  }
+
+  /**
+   * Everything a client keys on the bodies standing in ground it is being
+   * handed.
+   *
+   * **A body is a tile in a stack, so ground arriving brings bodies with it**,
+   * and until the patch was scoped that was all this had to say: a client heard
+   * every cell in the world, so it had never stopped hearing about the creature
+   * walking back towards it. Now it has. A rat that wanders out of somebody's
+   * reach is dropped by `RemoteSession.forgetDeparted` — correctly, it has left
+   * their world — and when it wanders back the cell patch redraws its sprite
+   * while everything hung off its id is missing: no bar, no statuses, no
+   * lantern, and nothing to put them on.
+   *
+   * So the ground carries them. `spawned` is the same event a body called into
+   * the world gets, and it says the same thing here — there is somebody to hang
+   * this on — because from this client's point of view that is exactly what has
+   * happened. It is idempotent on the far end: a client that never forgot the
+   * body keeps the motion it is midway through rather than being handed a fresh
+   * one.
+   *
+   * Filtered to the owners actually standing in these cells, not the world's:
+   * the cost of handing over a chunk column has to stay a function of that
+   * column.
+   */
+  private bodiesArrivingWith(cells: CellPatch[]): {
+    events: MotionEvent[];
+    hps: HpPatch[];
+    carriedLights: CarriedLightsPatch[];
+    statusIds: StatusIdsPatch[];
+    extractions: ExtractionPatch[];
+    castings: CastingPatch[];
+  } {
+    const owners = ownersIn(cells);
+    if (owners.size === 0) {
+      return {
         events: [],
         hps: [],
         carriedLights: [],
         statusIds: [],
         extractions: [],
         castings: [],
-      });
+      };
     }
+    const actors = (this.session?.actorSnapshots() ?? []).filter((actor) =>
+      owners.has(actor.id),
+    );
+    return {
+      events: actors.map((actor) => ({ kind: "spawned", actorId: actor.id })),
+      hps: currentHps(actors),
+      carriedLights: currentCarriedLights(actors),
+      statusIds: currentStatusIds(actors),
+      extractions: currentExtractions(actors),
+      castings: currentCastings(actors),
+    };
   }
 
   /**
@@ -4108,9 +4160,78 @@ export class GameServer {
     }
   }
 
+  /**
+   * The tick's patch, with each client's cells cut to the ground it holds.
+   *
+   * **A client hears about a cell if and only if it has been sent the chunk
+   * that cell is on.** Everything else in the patch — events, bars, statuses —
+   * is about *bodies* rather than about ground and still goes to everybody; see
+   * the note in `app/net/interest.ts` for where that line is and what is still
+   * on the wrong side of it.
+   *
+   * This used to be one `broadcast`, and the property that was worth keeping
+   * was that the tick cost one serialization however many people were playing.
+   * It still does not cost one per player: clients that hold the same
+   * *changed* chunks are owed identical bytes and share a payload, so the
+   * number of serializations is bounded by what moved on the tick rather than
+   * by the population. A tick in which three chunks changed has at most eight
+   * distinct payloads whether four people are in the world or four hundred.
+   * @see patchScope
+   */
+  private broadcastPatch(
+    cells: CellPatch[],
+    rest: {
+      events: MotionEvent[];
+      hps: HpPatch[];
+      carriedLights: CarriedLightsPatch[];
+      statusIds: StatusIdsPatch[];
+      extractions: ExtractionPatch[];
+      castings: CastingPatch[];
+    },
+  ) {
+    const buckets = bucketCellsByChunk(cells);
+    // Nothing but ground moved this tick, so a client holding none of the
+    // chunks that moved has nothing to be told. Computed once rather than per
+    // socket, since it is the same question for all of them.
+    const groundOnly =
+      rest.events.length === 0 &&
+      rest.hps.length === 0 &&
+      rest.carriedLights.length === 0 &&
+      rest.statusIds.length === 0 &&
+      rest.extractions.length === 0 &&
+      rest.castings.length === 0;
+
+    const anySilenced = this.silenced.size > 0;
+    const payloads = new Map<string, string>();
+    for (const ws of this.ctx.getWebSockets()) {
+      if (anySilenced && this.isSilenced(ws)) continue;
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (!attachment) continue;
+      const scope = patchScope(buckets, this.subscribed.get(attachment.actorId));
+      if (groundOnly && scope.cells.length === 0) continue;
+      let payload = payloads.get(scope.key);
+      if (payload === undefined) {
+        payload = JSON.stringify({
+          type: "patch",
+          cells: scope.cells,
+          ...rest,
+        } satisfies ServerMessage);
+        payloads.set(scope.key, payload);
+      }
+      try {
+        ws.send(payload);
+      } catch {
+        // A socket that died between the tick and this send is dropped by the
+        // runtime; webSocketClose will clean the actor up.
+      }
+    }
+  }
+
   private broadcast(message: ServerMessage) {
-    // One serialization for everyone: every socket is at the same map version,
-    // which is what makes the per-tick cost independent of player count.
+    // One serialization for everyone, which is right for everything that comes
+    // through here: a clock, a headcount, a world being replaced. What each
+    // client is told is the same sentence. The tick's cells are the one message
+    // that is not — see {@link broadcastPatch}.
     const payload = JSON.stringify(message);
     // Read once rather than per socket, and skipped entirely while nobody is
     // dead — which is the normal state of a world. An attachment read is a
