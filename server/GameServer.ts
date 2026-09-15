@@ -10,10 +10,16 @@ import { TICK_MS, WALK_DURATION_MS } from "../app/game/constants";
 import {
   cellsOfChunks,
   chunksEntered,
+  covers,
   interestChunks,
   mapOfInterest,
   sameChunks,
 } from "../app/net/interest";
+import {
+  cellsInScope,
+  eventsInScope,
+  patchesInScope,
+} from "../app/net/scope";
 import { cellKey } from "../app/game/pressurePlates";
 import {
   findSpawnPoints,
@@ -41,6 +47,7 @@ import { masteryXpBlockSchema, type MasteryXp } from "../app/lib/mastery";
 import {
   changedCellsOnLevel,
   changedChunks,
+  chunkKeyFor,
   chunkifyMap,
   flattenMap,
   getStack,
@@ -71,6 +78,34 @@ import {
   type MotionEvent,
   type ServerMessage,
 } from "../app/net/protocol";
+
+/**
+ * Everything in a tick's patch except the word "patch".
+ *
+ * Read off the message rather than written out again, so a field added to the
+ * wire cannot be silently dropped by the scoping in between.
+ */
+type TickPatch = Omit<Extract<ServerMessage, { type: "patch" }>, "type">;
+
+/** Is there anything in this for the client it was cut for? */
+function isEmptyPatch(patch: TickPatch): boolean {
+  return (
+    patch.cells.length === 0 &&
+    patch.events.length === 0 &&
+    patch.hps.length === 0 &&
+    patch.carriedLights.length === 0 &&
+    patch.statusIds.length === 0 &&
+    patch.extractions.length === 0 &&
+    patch.castings.length === 0
+  );
+}
+
+/** A body with the chunk key it is standing in, worked out once per tick. */
+type StandingActor = { actor: ActorSnapshot; chunk: string };
+
+/** A client that has been handed no ground, and one that knows no bodies. */
+const NO_CHUNKS: ReadonlySet<string> = new Set();
+const NO_ACTORS: ReadonlySet<string> = new Set();
 
 /** Key under which the running world is checkpointed when it goes idle. */
 const CHECKPOINT_KEY = "world";
@@ -228,6 +263,25 @@ function currentExtractions(actors: ActorSnapshot[]): ExtractionPatch[] {
     out.push({ actorId: actor.id, progress: progressOf(actor.extracting) });
   }
   return out;
+}
+
+/**
+ * The bodies standing on ground this subscription covers, and the viewer's own.
+ *
+ * Their own unconditionally, and not as a special case worth avoiding: the
+ * subscription is centred on that body, so the only way for it to be outside is
+ * for it to be off the board — dead, or between a despawn and the respawn. A
+ * client that was told its own body had gone out of reach would drop the entry
+ * its camera, its kit panel and its own footwork all hang on.
+ */
+function actorsInReach(
+  actors: ActorSnapshot[],
+  chunks: ReadonlySet<string>,
+  self: string,
+): ActorSnapshot[] {
+  return actors.filter(
+    (actor) => actor.id === self || covers(chunks, actor.x, actor.y),
+  );
 }
 
 /** Everybody's casts in progress. @see currentCarriedLights for the omission rule. */
@@ -680,7 +734,7 @@ export class GameServer {
   private broadcastMap: MapFile | null = null;
   private sentMotion = new Map<string, SentMotion>();
   /**
-   * Every actor this world's clients have been told about.
+   * The bodies each client has been told about, by the actor id of the client.
    *
    * **A client's actor set is its `hello` plus what it is told afterwards**, and
    * what it was told afterwards used to be sockets opening and closing only.
@@ -692,19 +746,28 @@ export class GameServer {
    * missing — no name over its head, no health bar, no Talk row. That is a
    * shopkeeper who cannot be spoken to until somebody reloads.
    *
-   * Filled where a `hello` goes out, because that message is the other way a
-   * client learns a body exists, and diffed in {@link collectMotionEvents}.
-   * Seeding it there rather than on the first tick is what closes the window
-   * where a world loads, somebody summons something, and the tick that would
-   * have announced it is also the tick that would have seeded the set.
+   * **One set per client rather than one for the world**, because the answer is
+   * now a different one for each of them: a client is told about the bodies
+   * standing in the chunks it holds, and about no others. @see `../app/net/scope`
+   *
+   * Seeded where a `hello` goes out, because that message is the other way a
+   * client learns a body exists, and diffed once per tick in
+   * {@link scopedPatchFor}. Seeding it there rather than on the first tick is
+   * what closes the window where a world loads, somebody summons something, and
+   * the tick that would have announced it is also the tick that would have
+   * seeded the set.
    *
    * A wake is the one case it is wrong about, and wrong in the safe direction:
    * the instance is rebuilt with this empty while the sockets it inherited were
-   * helloed by an instance that is gone, so the next tick announces the whole
-   * world once. Every one of those is a body the client already knows, and it
+   * helloed by an instance that is gone, so the next tick announces every body
+   * in reach once. Each of those is one the client already holds, and it
    * ignores an id it is already holding.
+   *
+   * Nothing here needs clearing when a body dies or leaves: a body off the board
+   * is in nobody's reach, so the next tick takes it out of every set that had
+   * it, by the same rule that would have taken it out for walking away.
    */
-  private announcedActors = new Set<string>();
+  private readonly announcedActors = new Map<string, Set<string>>();
   /**
    * The hit points each client has been told about, so an unchanged bar costs
    * nothing on the wire. Same discipline as {@link broadcastMap}: everyone is at
@@ -1974,18 +2037,21 @@ export class GameServer {
 
   private sendHello(ws: GameSocket, actorId: string) {
     const session = this.session!;
-    const actors = session.actorSnapshots();
-    // Everything named below is a body this socket now knows about, so none of
-    // it is news to announce. @see announcedActors
-    for (const id of session.actorIds()) this.announcedActors.add(id);
     // Recorded as this socket is told, so the stream below hands over what
     // comes into reach *after* this rather than replaying what is in it.
     const chunks = this.subscriptionFor(actorId);
+    // The bodies standing on the ground this message carries, and no others:
+    // a client told about a body it holds no cell for cannot draw it, and pays
+    // a sweep of its whole board every frame looking for it. @see `../app/net/scope`
+    const actors = actorsInReach(session.actorSnapshots(), chunks, actorId);
+    // Everything named below is a body this socket now knows about, so none of
+    // it is news to announce. @see announcedActors
+    this.announcedActors.set(actorId, new Set(actors.map((a) => a.id)));
     const message: ServerMessage = {
       type: "hello",
       selfId: actorId,
       map: mapOfInterest(session.getMap(), chunks),
-      actorIds: session.actorIds(),
+      actorIds: actors.map((actor) => actor.id),
       hps: currentHps(actors),
       carriedLights: currentCarriedLights(actors),
       statusIds: currentStatusIds(actors),
@@ -2854,6 +2920,10 @@ export class GameServer {
     // returning tab is a fresh `hello` and a fresh subscription, so keeping it
     // would be a row per visitor the world has ever had.
     this.subscribed.delete(actorId);
+    // And which bodies they had been told about, for the same reason and on the
+    // same terms: it describes what one connection holds, and the `hello` that
+    // opens the next one seeds it again.
+    this.announcedActors.delete(actorId);
     // A step nobody is holding the key for any more.
     this.queuedIntents.delete(actorId);
     this.lastSaidAt.delete(actorId);
@@ -2889,7 +2959,9 @@ export class GameServer {
     if (this.session) this.collectTransitionEvents(this.session);
     this.writtenActors.delete(actorId);
     this.sentMotion.delete(actorId);
-    this.announcedActors.delete(actorId);
+    // Nothing to take out of {@link announcedActors}: the body is off the board
+    // on the next tick's snapshot, so every client holding it is told once, by
+    // the same rule that tells them about a body walking out of reach.
     // Sent when the body goes rather than when the socket did: a client drops
     // everything it knows about an actor on `left`, and a lingering body that
     // lost its name and health bar a minute early would be a body nobody could
@@ -3450,28 +3522,26 @@ export class GameServer {
     const statusIds = this.diffStatusIds(actors);
     const extractions = this.diffExtractions(actors);
     const castings = this.diffCastings(actors);
-    if (
-      cells.length > 0 ||
-      this.events.length > 0 ||
-      hps.length > 0 ||
-      carriedLights.length > 0 ||
-      statusIds.length > 0 ||
-      extractions.length > 0 ||
-      castings.length > 0
-    ) {
-      this.broadcast({
-        type: "patch",
-        cells,
-        events: this.events,
-        hps,
-        carriedLights,
-        statusIds,
-        extractions,
-        castings,
-      });
-      this.broadcastMap = session.getMap();
-      this.events = [];
-    }
+    // Sent even when the shared diff is empty, because a client whose
+    // subscription moved this tick has bodies to be told about and the diff
+    // above says nothing about them. {@link broadcastPatch} is what decides
+    // whether any given socket has something to hear.
+    this.broadcastPatch(actors, {
+      cells,
+      events: this.events,
+      hps,
+      carriedLights,
+      statusIds,
+      extractions,
+      castings,
+    });
+    // Advanced whatever any one socket was sent, and that is the rule the
+    // scoping rests on: this is the *shared* baseline, so a cell left out of
+    // one client's patch must not be re-offered to everybody on the next. What
+    // that client holds instead is its subscription, and a chunk coming back
+    // into reach is handed over whole. @see `../app/net/scope`
+    this.broadcastMap = session.getMap();
+    this.events = [];
 
     // After the shared patch, and that ordering is the point: a chunk coming
     // into reach is handed over as it stands *now*, so it must not be followed
@@ -3513,16 +3583,12 @@ export class GameServer {
    * twice.
    */
   private collectMotionEvents(actors: ActorSnapshot[]) {
-    const announced = this.announcedActors;
     const live = new Set<string>();
     for (const actor of actors) {
       live.add(actor.id);
-      // A body nobody has been told about, which is a body that arrived after
-      // every current `hello`. @see announcedActors
-      if (!announced.has(actor.id)) {
-        announced.add(actor.id);
-        this.events.push({ kind: "spawned", actorId: actor.id });
-      }
+      // A body nobody has been told about is announced in {@link scopedPatchFor}
+      // rather than here: whether it is news is a question with one answer per
+      // client now, and this list is the one every client shares.
       const sent = this.sentMotion.get(actor.id);
 
       if (actor.walk && actor.walk !== sent?.walk) {
@@ -3572,11 +3638,6 @@ export class GameServer {
     for (const id of this.sentMotion.keys()) {
       if (!live.has(id)) this.sentMotion.delete(id);
     }
-    // A body that has gone needs no announcement of its own: its tile left the
-    // board in this frame's cell patches, and a client holding a stale entry
-    // simply finds nobody to hang it on. Forgetting it here is what makes the
-    // *next* one under that id an arrival again.
-    for (const id of announced) if (!live.has(id)) announced.delete(id);
   }
 
   /**
@@ -3605,7 +3666,6 @@ export class GameServer {
       const actorId = death.id;
       this.dead.add(actorId);
       this.sentMotion.delete(actorId);
-      this.announcedActors.delete(actorId);
       this.sentHp.delete(actorId);
       this.queuedIntents.delete(actorId);
       // Or the map grows a row per body the world has ever killed, and a world
@@ -4023,12 +4083,10 @@ export class GameServer {
    * Hand each connected client the ground that has come into reach.
    *
    * **Only what comes into reach, and never the tick's own changes** — those
-   * are the shared `patch` every socket already gets, serialized once for
-   * everybody. Scoping *those* per client is the tempting next step and buys
-   * nothing: what changes on a tick is where creatures are walking, which is
-   * bounded by the brain budget rather than by the size of the map, and paying
-   * a serialization per client for it would trade the one property the
-   * broadcast has.
+   * go out with the tick's patch, cut to each client's subscription by
+   * {@link broadcastPatch}. The two halves must not overlap: a chunk is handed
+   * over as it stands *now*, so a diff computed against a board this client had
+   * not been shown must not follow it.
    *
    * A budget per tick, nearest chunk first, because a chunk column of dense
    * cave is a few hundred cells and arriving all at once is the lump that made
@@ -4106,6 +4164,183 @@ export class GameServer {
         // Dropped by the runtime; webSocketClose cleans the actor up.
       }
     }
+  }
+
+  /**
+   * The tick's patch, cut down to what each client is subscribed to, and sent.
+   *
+   * **A client hears about a chunk exactly while it is subscribed to it.** The
+   * subscription already decided what map it was handed on join and what ground
+   * it is handed as it walks (`../app/net/interest`); this is the other half of
+   * the same rule, and until it existed the two disagreed — a join scaled with
+   * the player and the tick stream scaled with everybody else. Twenty people in
+   * twenty corners of the world each heard the other nineteen neighbourhoods
+   * walk about, none of which they could see.
+   *
+   * **Serialization is shared wherever the patch survives the cut whole.**
+   * That was the standing objection to doing this at all: one `JSON.stringify`
+   * per tick regardless of player count is a real property, and spending it to
+   * save bytes nobody was reading would be a poor trade. It is not spent in the
+   * case it was written about — a world whose players are in one place all hold
+   * the chunks the tick touched, {@link scopedPatchFor} hands each of them the
+   * same object back, and one string goes to all of them. What costs a string
+   * of its own is a client the patch had to be cut for, and that string is
+   * smaller than the one it replaces.
+   *
+   * Still one pass per *actor* rather than per socket: two tabs on one body are
+   * owed the same message, and the set of bodies each client holds is advanced
+   * here, so computing it twice would announce the same arrival twice.
+   */
+  private broadcastPatch(actors: ActorSnapshot[], patch: TickPatch) {
+    // Once per tick rather than once per body per client: `covers` builds a
+    // chunk key to ask with, and the same body is asked about by everybody.
+    // @see the notes on string-keyed lookups in hot loops
+    const standing: StandingActor[] = actors.map((actor) => ({
+      actor,
+      chunk: chunkKeyFor(actor.x, actor.y),
+    }));
+    let shared: string | null = null;
+    const payloads = new Map<string, string | null>();
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (!attachment) continue;
+      const { actorId } = attachment;
+      // The dead hear nothing more until they come back. @see silenced
+      if (this.silenced.has(actorId)) continue;
+
+      let payload = payloads.get(actorId);
+      if (payload === undefined) {
+        const mine = this.scopedPatchFor(actorId, standing, patch);
+        payload = isEmptyPatch(mine)
+          ? null
+          : mine === patch
+            ? (shared ??= JSON.stringify({ type: "patch", ...patch }))
+            : JSON.stringify({ type: "patch", ...mine });
+        payloads.set(actorId, payload);
+      }
+      // Nothing this client is subscribed to changed, which is the ordinary
+      // state of a world bigger than one room.
+      if (payload === null) continue;
+      try {
+        ws.send(payload);
+      } catch {
+        // A socket that died between the tick and this send is dropped by the
+        // runtime; webSocketClose will clean the actor up.
+      }
+    }
+  }
+
+  /**
+   * One client's share of the tick, and the record of what it now holds.
+   *
+   * Returns `patch` itself when this client takes the whole of it, which is how
+   * {@link broadcastPatch} tells that it may reuse the shared serialization.
+   *
+   * **The bodies are scoped as well as the cells, and that is the half with the
+   * teeth.** Scoping cells alone reads as the cautious version and is the
+   * broken one: a creature walking out of a client's subscription has its tile
+   * patched out of the last cell that client holds, which on the far side is
+   * indistinguishable from dying, so the client drops it — and when it walks
+   * back in, nothing would ever mention it again. Its tile would be drawn and
+   * nothing else: no name, no health bar, no Talk row.
+   *
+   * So a body coming into reach is announced with the whole of its state, which
+   * is a `hello` for one body and closes the same hole a `hello` does. A body
+   * going out of reach is announced too — the client cannot be left holding an
+   * entry for a body it has no ground for, because locating one costs a sweep
+   * of its whole board, every frame, for as long as the entry is there.
+   */
+  private scopedPatchFor(
+    actorId: string,
+    standing: StandingActor[],
+    patch: TickPatch,
+  ): TickPatch {
+    // No record means this instance has never handed this socket any ground:
+    // an inherited socket after a wake, whose `hello` was sent by an instance
+    // that no longer exists. An empty subscription is the honest reading —
+    // {@link streamEnteredChunks} hands the ground back over the next few ticks
+    // and every body on it is announced as it arrives, which is what the old
+    // instance's client is already holding.
+    const chunks = this.subscribed.get(actorId) ?? NO_CHUNKS;
+    const known = this.announcedActors.get(actorId) ?? NO_ACTORS;
+
+    const held = new Set<string>();
+    let entered: ActorSnapshot[] | null = null;
+    for (const { actor, chunk } of standing) {
+      if (actor.id !== actorId && !chunks.has(chunk)) continue;
+      held.add(actor.id);
+      if (!known.has(actor.id)) (entered ??= []).push(actor);
+    }
+    // Whether or not the board has one for them: their own body is never
+    // something this client is told it has stopped holding. @see actorsInReach
+    held.add(actorId);
+
+    let departed: string[] | null = null;
+    for (const id of known) {
+      if (held.has(id)) continue;
+      (departed ??= []).push(id);
+    }
+    this.announcedActors.set(actorId, held);
+
+    const cells = cellsInScope(patch.cells, chunks);
+    const events = eventsInScope(patch.events, chunks, held);
+    const hps = patchesInScope(patch.hps, held);
+    const carriedLights = patchesInScope(patch.carriedLights, held);
+    const statusIds = patchesInScope(patch.statusIds, held);
+    const extractions = patchesInScope(patch.extractions, held);
+    const castings = patchesInScope(patch.castings, held);
+    if (
+      entered === null &&
+      departed === null &&
+      cells === patch.cells &&
+      events === patch.events &&
+      hps === patch.hps &&
+      carriedLights === patch.carriedLights &&
+      statusIds === patch.statusIds &&
+      extractions === patch.extractions &&
+      castings === patch.castings
+    ) {
+      return patch;
+    }
+
+    const arrivals = entered ?? [];
+    return {
+      cells,
+      // Arrivals first and departures last, and both orderings are load-bearing.
+      // A `spawned` after the `walkStarted` of the body it announces is ignored
+      // — the client already made the entry to write the walk into — and the
+      // cell it carries is lost with it, which is the sweep this is all trying
+      // to avoid. A `despawned` before an event about the same body would be
+      // undone by it.
+      events: [
+        ...arrivals.map(
+          (actor): MotionEvent => ({
+            kind: "spawned",
+            actorId: actor.id,
+            at: {
+              x: actor.x,
+              y: actor.y,
+              z: actor.z,
+              stackIndex: actor.stackIndex,
+            },
+          }),
+        ),
+        ...events,
+        ...(departed ?? []).map(
+          (id): MotionEvent => ({ kind: "despawned", actorId: id }),
+        ),
+      ],
+      // The arrival's state in full, ahead of the diffs: this client has nothing
+      // to patch against for a body it has just been told about, exactly as a
+      // joiner has nothing to patch a `hello` against. Where the same body is
+      // also in the diff below, both readings are taken off this tick's snapshot
+      // and say the same thing.
+      hps: [...currentHps(arrivals), ...hps],
+      carriedLights: [...currentCarriedLights(arrivals), ...carriedLights],
+      statusIds: [...currentStatusIds(arrivals), ...statusIds],
+      extractions: [...currentExtractions(arrivals), ...extractions],
+      castings: [...currentCastings(arrivals), ...castings],
+    };
   }
 
   private broadcast(message: ServerMessage) {

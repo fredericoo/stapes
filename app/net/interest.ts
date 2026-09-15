@@ -1,10 +1,13 @@
 /**
  * What of the map a client is told about.
  *
- * The world is one board and every client is sent all of it: the whole map on
- * join, and every cell that changed anywhere on every tick. That was right
- * while the map was a town — 2.4MB to join — and it is the one cost left that
- * still grows with the world rather than with who is playing.
+ * The world is one board, and a client is sent the part of it near its own
+ * body: the chunks in reach on join, the chunks that come into reach as it
+ * walks, and — by the same subscription, in `./scope` — the cells that change
+ * inside it. Before that it was sent all of the map and then told about every
+ * cell that changed anywhere, which on the den map was 4.9MB to join and a tick
+ * stream that grew with everybody else's neighbourhood rather than with the
+ * player's own.
  *
  * **The unit is the chunk**, because that is what the map is stored in and what
  * copy-on-write gives identity to: a subscription changes when you cross a
@@ -147,7 +150,10 @@ export function chunksEntered(
  *
  * Their current contents rather than a diff, because there is nothing on the
  * far end to diff against: these cells have been changing, unwatched, for as
- * long as this client has been connected.
+ * long as they have been out of reach. That is also what makes it safe to stop
+ * sending a client the changes in a chunk it has walked away from — the chunk
+ * is dropped from what it holds on the way out, so coming back into reach hands
+ * it over whole rather than patching a board nobody kept current. @see `./scope`
  */
 export function cellsOfChunks(
   map: MapFile,

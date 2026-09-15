@@ -127,8 +127,16 @@ type RemoteMotion = {
     elapsedMs: number;
   } | null;
   strike: StrikeState | null;
-  /** Last place this actor was found, so relocating them stays a cell lookup. */
-  lastSeen: ActorLocation | null;
+  /**
+   * Last place this actor was found, so relocating them stays a cell lookup.
+   *
+   * The cell alone rather than the whole {@link ActorLocation}: this is a hint
+   * handed to `locateActor`, which re-reads the stack to confirm it, and the
+   * placement it was found in is never read back off here. Narrowed because it
+   * is also set from a `spawned` event, where the body's cell is known and the
+   * placement in it may not have arrived yet.
+   */
+  lastSeen: (Coord & { stackIndex: number }) | null;
 };
 
 /**
@@ -987,6 +995,11 @@ export class RemoteSession implements PlaySession {
    */
   private forgetDeparted(leaving: readonly string[]) {
     for (const id of leaving) {
+      // Already gone from this client's set, which this frame's `despawned`
+      // does for a body that walked out of what it is subscribed to. Asking
+      // where it is would be the whole-board search below, run to decide
+      // whether to forget something already forgotten. @see `./scope`
+      if (!this.motions.has(id)) continue;
       if (locateActor(this.serverMap, id)) continue;
       this.forgetActor(id);
     }
@@ -1024,18 +1037,40 @@ export class RemoteSession implements PlaySession {
       return;
     }
 
-    // A body the world took on after this client's `hello`. Added only if it is
-    // new, because the same id can arrive twice — a socket that connected just
-    // after the spawn was already told about it by name — and `emptyMotion()`
-    // over a body mid-stride would drop the lerp it is halfway through.
+    // A body the world took on after this client's `hello`, or one that has come
+    // back into what this client is subscribed to. Added only if it is new,
+    // because the same id can arrive twice — a socket that connected just after
+    // the spawn was already told about it by name — and `emptyMotion()` over a
+    // body mid-stride would drop the lerp it is halfway through.
     //
-    // The id is the whole of the message: where the body is comes from the cell
-    // patches in this frame, and its bar and its lantern from the diffs beside
-    // them. This only says there is somebody to hang them on.
+    // Its bar and its lantern come from the diffs beside this in the same
+    // frame. What this carries is that there is somebody to hang them on, and
+    // the cell to start looking in.
     if (event.kind === "spawned") {
       if (!this.motions.has(event.actorId)) {
-        this.motions.set(event.actorId, emptyMotion());
+        const motion = emptyMotion();
+        // The cell the server says its tile is in, taken as the last place this
+        // client saw it. Without it the first {@link locate} has nothing to
+        // confirm and falls through to a search of the whole board — once per
+        // body coming into reach, which with a moving subscription is every
+        // creature a player walks past. It is confirmed like any other last
+        // known cell, so a patch that has already moved the body on costs the
+        // neighbourhood search and not a wrong answer.
+        motion.lastSeen = event.at;
+        this.motions.set(event.actorId, motion);
       }
+      return;
+    }
+
+    // A body this client is no longer being kept current about, because it is
+    // no longer standing on ground this client holds. Not a death: the world
+    // still has it, and walking back into reach announces it again.
+    //
+    // What must not be left behind is the entry itself — {@link locate} reads a
+    // body's position off this client's own board, and for a body it has no
+    // cell for that is a search of the whole board, every frame. @see `./scope`
+    if (event.kind === "despawned") {
+      this.forgetActor(event.actorId);
       return;
     }
 
@@ -1442,11 +1477,7 @@ export class RemoteSession implements PlaySession {
     // Recorded rather than searched for: the hint is what keeps locating an
     // actor a cell read, and it is exactly known here.
     const stack = getStack(this.map, step.to.x, step.to.y, step.to.z);
-    motion.lastSeen = {
-      ...step.to,
-      stackIndex: stack.length - 1,
-      placed: stack[stack.length - 1]!,
-    };
+    motion.lastSeen = { ...step.to, stackIndex: stack.length - 1 };
     return carryMs;
   }
 

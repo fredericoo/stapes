@@ -14,6 +14,7 @@ import {
 import { MINUTES_PER_DAY, minutesOfDayAt } from "../app/lib/clock";
 import { resolvePush } from "../app/lib/interactions";
 import { chunkKeyFor, getStack, listCoords } from "../app/lib/mapData";
+import { INTEREST_REACH_CHUNKS } from "../app/net/interest";
 import { xpForLevel } from "../app/lib/mastery";
 import { CHUNK_SIZE, levelKey } from "../app/lib/types";
 import type { FlatMapFile, MapFile, TileDef } from "../app/lib/types";
@@ -4867,5 +4868,244 @@ describe("a cast somebody else is making", () => {
     expect(bob.hello.castings).toEqual([
       expect.objectContaining({ actorId: "alice" }),
     ]);
+  });
+});
+
+/**
+ * What one client is told about.
+ *
+ * A client is sent the chunks its view can reach, and until this it was then
+ * told about every cell that changed anywhere — so the join scaled with the
+ * player and the tick stream scaled with everybody else. Twenty people in
+ * twenty corners of the world each heard the other nineteen neighbourhoods
+ * walk about, none of which they could see.
+ *
+ * The rule is now one rule: a client hears about a chunk exactly while it is
+ * subscribed to it, bodies included. The cases below are the seam that makes
+ * bodies safe — a body coming into reach arrives with the state a `hello`
+ * would have given it, and one going out of reach is taken back, because a
+ * client left holding an entry for a body it has no ground for searches its
+ * whole board for it on every frame.
+ */
+describe("patches scoped to a subscription", () => {
+  /**
+   * The first cell of the first chunk column past what a subscription covers,
+   * and the last cell inside it.
+   *
+   * Derived rather than picked, on the terms `INTEREST_REACH_CELLS` is: the
+   * two are one step apart and on opposite sides of the boundary, so a single
+   * step carries a body across it and nothing here has to know how wide the
+   * reach happens to be today.
+   */
+  const OUT_OF_REACH = CHUNK_SIZE * (INTEREST_REACH_CHUNKS + 2);
+  const IN_REACH = OUT_OF_REACH - 1;
+
+  /**
+   * Where alice stands: one chunk in from the end of the strip, so she has
+   * ground to step onto in either direction and a step west moves her
+   * subscription off the far end of itself.
+   */
+  const ALICE_CELL = CHUNK_SIZE;
+
+  /**
+   * A world already run, with alice at the spawn cell and bob out past her
+   * reach — the arrangement two players in one town do not have and two players
+   * in one world do.
+   */
+  function farApart(
+    bobAt: number = OUT_OF_REACH,
+  ): { map: FlatMapFile; spawn: Record<string, number> } {
+    const cells: Record<string, unknown[]> = {};
+    for (let x = 0; x <= OUT_OF_REACH + 1; x++) {
+      cells[`${x},0`] = [{ tileId: "grass" }];
+    }
+    cells[`${ALICE_CELL},0`] = [
+      { tileId: "grass" },
+      { tileId: PLAYER_TILE_ID, direction: "s", owner: "alice" },
+    ];
+    cells[`${bobAt},0`] = [
+      { tileId: "grass" },
+      { tileId: PLAYER_TILE_ID, direction: "s", owner: "bob" },
+    ];
+    return {
+      map: { version: MAP_FILE_VERSION, levels: { "0": cells } } as FlatMapFile,
+      spawn: { x: ALICE_CELL, y: 0, z: 0, stackIndex: 1 },
+    };
+  }
+
+  /** Both of them connected, standing where the checkpoint put them. */
+  async function bothConnected(bobAt: number = OUT_OF_REACH) {
+    await putCheckpoint(farApart(bobAt));
+    // Bob first, and that ordering is the test's own bookkeeping rather than
+    // anything about scoping: the world loads on the first join and reaps every
+    // body in it that nobody is connected to, so the far body has to be the
+    // joiner's. Alice is then seated at the spawn point, which is where the
+    // checkpoint drew her anyway.
+    const bob = await connect("bob");
+    const alice = await connect("alice");
+    expect(await actorX("alice")).toBe(ALICE_CELL);
+    expect(await actorX("bob")).toBe(bobAt);
+    // Their own arrivals are still on the way — a `hello` is answered before
+    // the tick that puts the body on the board — and every case below is about
+    // what happens next.
+    await settled(alice.ws);
+    await settled(bob.ws);
+    return { alice, bob };
+  }
+
+  /** Wait until a socket has gone quiet, so what follows is only what is next. */
+  async function settled(ws: TestSocket) {
+    while ((await messageWithin(ws, "patch", TICK_MS * 3)) !== null);
+  }
+
+  /**
+   * Run the world on, without waiting for it.
+   *
+   * The ground that comes back into reach is handed over a couple of chunks a
+   * tick, and a world with nobody moving in it stops ticking — so a test that
+   * waited in real time would be waiting on a world that had gone to sleep
+   * rather than on the handover.
+   */
+  async function tickTimes(times: number) {
+    await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as { tick(): void };
+      for (let i = 0; i < times; i++) internals.tick();
+    });
+  }
+
+  /** Wait for a step to land, which is where a subscription is read from. */
+  async function arrivedAt(actorId: string, x: number) {
+    for (let i = 0; i < 100; i++) {
+      if ((await actorX(actorId)) === x) return;
+      await wait(TICK_MS);
+    }
+    throw new Error(`${actorId} never reached ${x}`);
+  }
+
+  it("leaves a body out of the hello of somebody who cannot reach it", async () => {
+    const { alice, bob } = await bothConnected();
+
+    expect(alice.hello.actorIds).toEqual(["alice"]);
+    expect(bob.hello.actorIds).toEqual(["bob"]);
+    // Not a world with one person in it: the headcount is the whole world's,
+    // because it is about who is playing rather than about what is nearby.
+    expect(alice.hello.playerCount).toBe(2);
+  });
+
+  it("does not tell a client about a step taken out of its reach", async () => {
+    const { alice, bob } = await bothConnected();
+    const heard = record(alice.ws);
+
+    step(bob.ws, 1, "e");
+    // Bob's own step reaches Bob, which is what makes the silence a rule about
+    // what alice holds rather than a world that stopped ticking.
+    expect(await walkWithin(bob.ws, 1000)).not.toBeNull();
+    await messageWithin(bob.ws, "patch", MESSAGE_TIMEOUT_MS);
+
+    expect(heard.types()).toEqual([]);
+  });
+
+  it("announces a body that walks into reach, with its hit points", async () => {
+    const { alice, bob } = await bothConnected();
+    const heard = record(alice.ws);
+
+    step(bob.ws, 1, "w");
+    const spawned = await eventWithin(alice.ws, "spawned", 2000);
+
+    expect(spawned).toMatchObject({
+      actorId: "bob",
+      // The cell it is standing in, so the first lookup on the far side
+      // confirms a cell rather than searching the whole board for it.
+      at: { x: IN_REACH, y: 0, z: 0 },
+    });
+    // The whole of its state, because this client has nothing to patch against
+    // for a body it has just been told about.
+    const hps = heard
+      .of("patch")
+      .flatMap((message) => message.hps as { actorId: string }[]);
+    expect(hps.map((entry) => entry.actorId)).toContain("bob");
+    // The step itself was not news to alice while it was being taken: bob was
+    // nobody she had been told about until it landed.
+    const walks = heard
+      .of("patch")
+      .flatMap((message) => message.events as { kind: string }[])
+      .filter((event) => event.kind === "walkStarted");
+    expect(walks).toEqual([]);
+  });
+
+  it("takes a body back when it walks out of reach", async () => {
+    const { alice, bob } = await bothConnected();
+    step(bob.ws, 1, "w");
+    expect(await eventWithin(alice.ws, "spawned", 2000)).not.toBeNull();
+
+    step(bob.ws, 2, "e");
+    const gone = await eventWithin(alice.ws, "despawned", 2000);
+
+    expect(gone).toMatchObject({ actorId: "bob" });
+  });
+
+  /**
+   * The whole round trip, which is the invariant the scoping rests on: what a
+   * client holds is exact inside its subscription and frozen outside it, and a
+   * chunk coming back into reach is handed over as it stands rather than
+   * patched against a board nobody kept current.
+   */
+  it("hands a chunk back as it stands after walking away from it", async () => {
+    // Bob in the last cell alice's subscription covers, so one step of hers
+    // takes his chunk out of it and one step back brings it in.
+    const { alice, bob } = await bothConnected(IN_REACH);
+    expect(alice.hello.actorIds).toEqual(["bob", "alice"]);
+
+    step(alice.ws, 1, "w");
+    await arrivedAt("alice", ALICE_CELL - 1);
+    // One tick past the landing: a subscription is read off where the body *is*,
+    // so the chunk bob is standing in leaves it on the tick after the one that
+    // commits the step — and a world with nobody moving in it stops ticking,
+    // which is the one state in which nothing can be missed.
+    const gone = eventWithin(alice.ws, "despawned", 2000);
+    await tickTimes(2);
+    expect(await gone).toMatchObject({ actorId: "bob" });
+
+    // Bob moves while alice is holding a picture of ground she is no longer
+    // subscribed to. Nothing about it reaches her.
+    const heard = record(alice.ws);
+    step(bob.ws, 1, "w");
+    await arrivedAt("bob", IN_REACH - 1);
+    await settled(bob.ws);
+    expect(heard.types()).toEqual([]);
+
+    step(alice.ws, 2, "e");
+    await arrivedAt("alice", ALICE_CELL);
+    const back = eventWithin(alice.ws, "spawned", 2000);
+    // The handover is a couple of chunks a tick, and the world would otherwise
+    // go to sleep before the one bob is standing in came round.
+    await tickTimes(30);
+    expect(await back).toMatchObject({ actorId: "bob", at: { x: IN_REACH - 1 } });
+    const cells = heard
+      .of("patch")
+      .flatMap((message) => message.cells as { x: number; stack: unknown[] }[]);
+    // The cell bob left is in the same chunk and comes back with it, emptied —
+    // so alice is not left holding a body in two places at once.
+    const vacated = cells.filter((cell) => cell.x === IN_REACH).at(-1);
+    expect(vacated?.stack).toHaveLength(1);
+  });
+
+  /**
+   * Their own body is the one thing a client is never told it has stopped
+   * holding: the subscription is centred on it, so the only way out of it is to
+   * have no body at all — and a death is told rather than inferred.
+   */
+  it("never takes back the body a client is looking through", async () => {
+    const { alice } = await bothConnected();
+    const heard = record(alice.ws);
+
+    step(alice.ws, 1, "e");
+    await messageWithin(alice.ws, "patch", MESSAGE_TIMEOUT_MS);
+
+    const kinds = heard
+      .of("patch")
+      .flatMap((message) => message.events as { kind: string }[])
+      .map((event) => event.kind);
+    expect(kinds).not.toContain("despawned");
   });
 });
