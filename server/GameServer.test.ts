@@ -394,15 +394,19 @@ describe("joining and leaving", () => {
     // The `joined` that bob's arrival broadcast, out of the way.
     await nextMessage(alice.ws);
 
-    const departure = nextMessage(alice.ws);
+    // Waited for by *kind* rather than by taking the next message and hoping.
+    // A patch carries whatever the tick had, and a world that has anything else
+    // to say — a body coming into sight, a tile settling — says it in a message
+    // of its own alongside this one.
+    const departure = eventWithin(alice.ws, "left", MESSAGE_TIMEOUT_MS);
     bob.ws.close();
 
     // Among the rest of the patch rather than alone in it: the player tile has
     // a disappear transition, so bob's body's way out travels beside his leaving.
     expect(await departure).toMatchObject({
-      events: expect.arrayContaining([
-        { kind: "left", actorId: "bob", playerCount: 1 },
-      ]),
+      kind: "left",
+      actorId: "bob",
+      playerCount: 1,
     });
   });
 
@@ -5085,5 +5089,66 @@ describe("bodies a client can no longer see", () => {
       .filter((event) => event.kind === "departed")
       .map((event) => event.actorId);
     expect(departed).toContain("alice");
+  });
+});
+
+/**
+ * PROTOTYPE — ground is handed over once.
+ *
+ * The first cut pruned the sent record to what was *currently* in sight, so
+ * that returning somewhere re-sent it. Every step changes what you can see, so
+ * that meant hundreds of cells leaving the record and hundreds arriving, for
+ * ever: a walking client got a four-hundred-cell patch on every tick, and each
+ * one was a `setStacks`, a new chunk identity, a geometry rebuild, a light
+ * invalidation, and the step predictions in flight thrown out with them.
+ *
+ * The invariant that replaced it is the one worth pinning, because it is crisp
+ * and the failure was not: **no cell is ever sent to the same client twice.**
+ */
+describe("streaming ground under sight subscriptions", () => {
+  /** A field wide enough that walking across it keeps revealing new ground. */
+  function openField(): FlatMapFile {
+    const cells: Record<string, unknown[]> = {};
+    for (let x = -30; x <= 30; x++) {
+      for (let y = -30; y <= 30; y++) {
+        cells[`${x},${y}`] = [{ tileId: "grass" }];
+      }
+    }
+    cells["0,0"] = [{ tileId: "grass" }, { tileId: "player", direction: "s" }];
+    return { version: 1, levels: { "0": cells } } as FlatMapFile;
+  }
+
+  it("never sends the same cell twice", async () => {
+    if (!OCCLUSION_SUBSCRIPTIONS) return;
+    await harness.blobs.put("map.json", JSON.stringify(openField()), JSON_TYPE);
+    const alice = await connect("alice");
+
+    const seen = record(alice.ws);
+    // Long enough for the first fill to finish and for a walk across several
+    // chunk-crossings' worth of ground.
+    for (let seq = 1; seq <= 8; seq++) {
+      step(alice.ws, seq, "e");
+      await wait(WALK_DURATION_MS);
+    }
+    await wait(TICK_MS * 4);
+
+    const arrivals = new Map<string, number>();
+    for (const message of seen.of("patch")) {
+      for (const cell of message.cells as { x: number; y: number; z: number }[]) {
+        const key = `${cell.x},${cell.y},${cell.z}`;
+        arrivals.set(key, (arrivals.get(key) ?? 0) + 1);
+      }
+    }
+
+    // A cell the world *changed* legitimately arrives again — the player's own
+    // body moving rewrites the cell behind and the cell ahead on every step. So
+    // the bound is per cell rather than zero, and it is the ground either side
+    // of a walk of eight rather than a subscription churning.
+    // Guards the guard: a run that received almost nothing would satisfy the
+    // line below while proving nothing at all.
+    expect(arrivals.size).toBeGreaterThan(200);
+
+    const repeated = [...arrivals.entries()].filter(([, n]) => n > 3);
+    expect(repeated).toEqual([]);
   });
 });

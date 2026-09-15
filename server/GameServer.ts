@@ -133,6 +133,20 @@ const CHUNKS_STREAMED_PER_TICK = 2;
  */
 const CELLS_STREAMED_PER_TICK = 400;
 
+/**
+ * PROTOTYPE — one client's view, as the server holds it.
+ *
+ * `from` is the cell it was computed for, which is what makes standing still
+ * free: the set is a function of where the body is standing.
+ */
+type SightRecord = {
+  visible: Set<string>;
+  ground: Set<string>;
+  /** The (x, y) of every visible cell, for events that carry no level. */
+  columns: Set<string>;
+  from: string;
+};
+
 function boardKey(levelKey: string, chunkKey: string): string {
   return `${CHUNK_KEY_PREFIX}${levelKey}:${chunkKey}`;
 }
@@ -872,14 +886,9 @@ export class GameServer {
    * when { OCCLUSION_SUBSCRIPTIONS} is on. The occlusion-shaped
    * replacement for {@link subscribed}. @see `app/net/visibleSet.ts`
    */
-  private readonly sight = new Map<
-    string,
-    { visible: Set<string>; ground: Set<string>; from: string }
-  >();
+  private readonly sight = new Map<string, SightRecord>();
   /** PROTOTYPE — cells already handed over, so ground is sent once. */
   private readonly sentCells = new Map<string, Set<string>>();
-  /** PROTOTYPE — the cell {@link sentCells} was last pruned against. */
-  private readonly streamedFrom = new Map<string, string>();
   /** PROTOTYPE — which bodies each client could see last tick. */
   private readonly seenActors = new Map<string, Set<string>>();
   /**
@@ -2921,7 +2930,6 @@ export class GameServer {
     this.subscribed.delete(actorId);
     this.sight.delete(actorId);
     this.sentCells.delete(actorId);
-    this.streamedFrom.delete(actorId);
     this.seenActors.delete(actorId);
     // A step nobody is holding the key for any more.
     this.queuedIntents.delete(actorId);
@@ -3544,6 +3552,8 @@ export class GameServer {
     // into reach is handed over as it stands *now*, so it must not be followed
     // by a diff computed against a board this client had not been shown.
     this.streamEnteredChunks();
+    // PROTOTYPE — after the ground, so the sight it reads is this tick's.
+    if (OCCLUSION_SUBSCRIPTIONS) this.announceSightChanges();
 
     // After the patch, which is the whole of the ordering: that patch is the
     // last thing these sockets will hear, and this is what tells them so.
@@ -4095,9 +4105,7 @@ export class GameServer {
    * costs one `subscriptionFor` — a couple of milliseconds on the shipped map,
    * see `scripts/bench-occlusion.ts`.
    */
-  private sightFor(
-    actorId: string,
-  ): { visible: Set<string>; ground: Set<string> } | null {
+  private sightFor(actorId: string): SightRecord | null {
     const session = this.session;
     const at = session?.actorPosition(actorId);
     const held = this.sight.get(actorId);
@@ -4108,7 +4116,15 @@ export class GameServer {
     const from = cellKey3(at.x, at.y, at.z);
     if (held && held.from === from) return held;
     const next = sightSubscriptionFor(session.getMap(), this.tilesByIdCache, at);
-    const record = { visible: next.visible, ground: next.ground, from };
+    // The columns are for `projectileFired`, whose ends carry a cell and an
+    // absolute height rather than a level. Built once with the set rather than
+    // per event, since an arrow is rare and a recompute is not.
+    const columns = new Set<string>();
+    for (const key of next.visible) {
+      const cell = parseCellKey3(key);
+      columns.add(`${cell.x},${cell.y}`);
+    }
+    const record = { visible: next.visible, ground: next.ground, columns, from };
     this.sight.set(actorId, record);
     return record;
   }
@@ -4221,18 +4237,20 @@ export class GameServer {
         this.sentCells.set(actorId, sent);
       }
 
-      // What has fallen out of sight is forgotten *here* and never taken back
-      // off the client — the same policy the chunk version has, and it is doing
-      // two jobs. It bounds the record, which otherwise grows for as long as
-      // somebody explores. And it is what makes walking back somewhere re-send
-      // it: ground returning is how a body that was dropped by `forgetDeparted`
-      // comes back with its bar and its statuses. @see bodiesArrivingWith
-      const record = this.sight.get(actorId);
-      if (record && record.from !== this.streamedFrom.get(actorId)) {
-        this.streamedFrom.set(actorId, record.from);
-        for (const key of sent) if (!sight.ground.has(key)) sent.delete(key);
-      }
-
+      // **Ground is sent once and never un-sent**, which is the whole of what
+      // keeps this quiet. The first cut pruned the record to what was currently
+      // in sight, so that walking back somewhere re-sent it — and every step
+      // changes what you can see, which meant a few hundred cells leaving the
+      // record and a few hundred arriving, for ever. A client walking got a
+      // four-hundred-cell patch on every tick: every one of them a `setStacks`,
+      // a new chunk identity, a geometry rebuild and a light invalidation, and
+      // the predictions in flight thrown out with them.
+      //
+      // Bodies were the reason for the pruning, and they no longer need it:
+      // {@link sendSightPatch} says `spawned` and `departed` off the visible
+      // *set* rather than off the ground. Terrain does not need re-sending — a
+      // cell the client already holds is correct, which is the same thing the
+      // chunk version says about ground it has walked away from.
       const take: Array<{ x: number; y: number; z: number; stack: PlacedTile[] }> = [];
       for (const key of sight.ground) {
         if (sent.has(key)) continue;
@@ -4248,7 +4266,12 @@ export class GameServer {
       this.sendToEverySocketOf(actorId, {
         type: "patch",
         cells: take,
-        ...this.bodiesArrivingWith(take),
+        events: [],
+        hps: [],
+        carriedLights: [],
+        statusIds: [],
+        extractions: [],
+        castings: [],
       });
     }
   }
@@ -4458,12 +4481,9 @@ export class GameServer {
       return answer;
     };
 
-    const events = rest.events.filter((event) => {
-      if (event.kind === "joined" || event.kind === "left") return true;
-      const named = event as { actorId?: unknown };
-      if (typeof named.actorId !== "string") return true;
-      return named.actorId === actorId || visible(named.actorId);
-    });
+    const events = rest.events.filter((event) =>
+      this.eventInSight(event, actorId, sight, visible),
+    );
     const mine = <T extends { actorId: string }>(list: T[]): T[] =>
       list.filter((row) => row.actorId === actorId || visible(row.actorId));
 
@@ -4472,21 +4492,6 @@ export class GameServer {
     const statusIds = mine(rest.statusIds);
     const extractions = mine(rest.extractions);
     const castings = mine(rest.castings);
-
-    // Bodies that have left this client's sight since the last tick. Without
-    // this the client keeps their ids for ever and pays a board sweep per id
-    // per frame looking for them — 91ms of a 118ms frame, measured. @see the
-    // `departed` note in `app/net/protocol.ts`
-    const held = this.seenActors.get(actorId) ?? new Set<string>();
-    const now = new Set<string>();
-    for (const actor of this.session?.actorSnapshots() ?? []) {
-      if (actor.id !== actorId && !this.canSee(actorId, actor)) continue;
-      now.add(actor.id);
-    }
-    for (const id of held) {
-      if (!now.has(id)) events.push({ kind: "departed", actorId: id });
-    }
-    this.seenActors.set(actorId, now);
 
     const empty =
       ground.length === 0 &&
@@ -4514,6 +4519,131 @@ export class GameServer {
     } catch {
       // Dropped by the runtime; webSocketClose cleans the actor up.
     }
+  }
+
+  /**
+   * PROTOTYPE — tell each client which bodies came into sight and which left.
+   *
+   * **Its own pass, every tick, and that is the whole reason it is not folded
+   * into {@link sendSightPatch}.** That one is called only when *something*
+   * changed in the world, which is almost always true and is exactly false in
+   * the case this has to catch: a body comes into your sight because **you**
+   * moved, your step has already committed, and the world is otherwise still.
+   * Folded in, a creature you walked up to stayed invisible until something
+   * else happened to move.
+   *
+   * A body arriving is `spawned` plus everything hung off its id, because the
+   * client has nothing to patch against for somebody it has just been told
+   * exists. A body going is `departed`, without which the client keeps the id
+   * for ever and pays a board sweep per id per frame looking for it — 91ms of a
+   * 118ms frame, measured.
+   *
+   * Runs after {@link streamEnteredCells}, so the sight it reads is this tick's
+   * rather than the last one's.
+   */
+  private announceSightChanges() {
+    const session = this.session;
+    if (!session) return;
+    const actors = session.actorSnapshots();
+    const done = new Set<string>();
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (!attachment) continue;
+      const { actorId } = attachment;
+      if (done.has(actorId)) continue;
+      done.add(actorId);
+      if (!this.sight.has(actorId)) continue;
+
+      const held = this.seenActors.get(actorId) ?? new Set<string>();
+      const now = new Set<string>();
+      const arrived: ActorSnapshot[] = [];
+      for (const actor of actors) {
+        if (actor.id !== actorId && !this.canSee(actorId, actor)) continue;
+        now.add(actor.id);
+        if (!held.has(actor.id)) arrived.push(actor);
+      }
+      const events: MotionEvent[] = [];
+      for (const id of held) {
+        if (!now.has(id)) events.push({ kind: "departed", actorId: id });
+      }
+      for (const actor of arrived) {
+        events.push({ kind: "spawned", actorId: actor.id });
+      }
+      this.seenActors.set(actorId, now);
+      if (events.length === 0) continue;
+
+      this.sendToEverySocketOf(actorId, {
+        type: "patch",
+        cells: [],
+        events,
+        hps: currentHps(arrived),
+        carriedLights: currentCarriedLights(arrived),
+        statusIds: currentStatusIds(arrived),
+        extractions: currentExtractions(arrived),
+        castings: currentCastings(arrived),
+      });
+    }
+  }
+
+  /**
+   * PROTOTYPE — is this event about something the viewer can see?
+   *
+   * **Not every event names an actor**, and the first cut let the ones that do
+   * not through on the grounds that they carried no `actorId` to check. That is
+   * most of what a world does: `damage` names a hit by `id` and `targetId`,
+   * `projectileFired` names a flight by its ends, `tileTransition` names a
+   * cell. All of them carry a *position*, which is the better question anyway —
+   * a damage number floats over a cell, not over an id.
+   *
+   * So: an event about a body is asked about the body, an event about a place
+   * is asked about the place, and `joined`/`left` are exempt because they carry
+   * the headcount the players bar reads. A count that only moved when you could
+   * see the door would be wrong rather than private.
+   */
+  private eventInSight(
+    event: MotionEvent,
+    actorId: string,
+    sight: { visible: Set<string>; columns: Set<string> } | undefined,
+    visible: (id: string) => boolean,
+  ): boolean {
+    if (event.kind === "joined" || event.kind === "left") return true;
+    if (!sight) return true;
+
+    if (event.kind === "projectileFired") {
+      // No level on either end, only a cell and an absolute height, so the
+      // column is what can be asked. An arrow crossing ground you can see is an
+      // arrow you should watch land.
+      return (
+        sight.columns.has(`${event.from.x},${event.from.y}`) ||
+        sight.columns.has(`${event.to.x},${event.to.y}`)
+      );
+    }
+
+    const at = event as { x?: unknown; y?: unknown; z?: unknown };
+    if (
+      typeof at.x === "number" &&
+      typeof at.y === "number" &&
+      typeof at.z === "number"
+    ) {
+      // A cell's slack rather than the set itself, and the reason is that the
+      // visible set holds *occupied* cells: it is built by asking the map what
+      // is there. A tile conjured into empty air is at a cell nothing was ever
+      // visible at, and asked exactly it would be withheld from the person who
+      // cast it. One cell of slack is "next to something I can see", which is
+      // the honest reading for a place that has only just become a place.
+      return nearVisible(sight.visible, at.x, at.y, at.z, 1);
+    }
+
+    const named = event as { actorId?: unknown; targetId?: unknown };
+    if (typeof named.actorId === "string") {
+      return named.actorId === actorId || visible(named.actorId);
+    }
+    if (typeof named.targetId === "string") {
+      return named.targetId === actorId || visible(named.targetId);
+    }
+    // Nothing to place it by. Kept, so a new event kind is loud rather than
+    // silently withheld from everybody.
+    return true;
   }
 
   /**
