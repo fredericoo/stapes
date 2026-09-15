@@ -162,6 +162,22 @@ export type ProjectileDef = {
 export type WeaponItem = {
   type: "weapon";
   /**
+   * What this weapon is called, for the weapons nothing else can name.
+   *
+   * **A natural weapon's field, and only a natural weapon's.** An item weapon is
+   * a tile and a tile has a `name`: writing a second one here would be two
+   * answers to "what is this" with nothing deciding between them. What a bite
+   * has is no tile at all — it is a block on a creature's `battler`, so the only
+   * place "Bite" can be written down is here. See `./battler`'s
+   * {@link BattlerDef.naturalWeapon}.
+   *
+   * Read where a blow has to be named after the fact: what a skull is engraved
+   * with. Absent falls back to {@link UNNAMED_WEAPON}, so every creature
+   * authored before this existed still kills with something that has a word for
+   * it.
+   */
+  name?: string;
+  /**
    * The most one blow with this can do, before the defender's {@link def}.
    *
    * A ceiling rather than an average, on the terms `../game/combat` sets out —
@@ -1360,6 +1376,27 @@ export function equipVerb(def: TileDef): string {
 export const EQUIP_FALLBACK_VERB = "Equip";
 
 /**
+ * What an unnamed natural weapon is called where a blow has to be named.
+ *
+ * A noun phrase rather than a word, because of where it is read: "A blow by
+ * Snake" is a sentence and "Blow by Snake" is a stub. Not written onto
+ * {@link DEFAULT_WEAPON}, deliberately — that is also what a freshly authored
+ * weapon *tile* starts as, and a name there would put "A blow" into the file
+ * beside every sword somebody made.
+ */
+export const UNNAMED_WEAPON = "A blow";
+
+/**
+ * What a cast is called when the stone that threw it cannot be found.
+ *
+ * {@link UNNAMED_WEAPON}'s twin, and unreachable in practice — a cast is
+ * resolved out of the square the stone is in, so there is always a tile to name.
+ * It exists because "unreachable" is a thing this module cannot prove, and a
+ * skull reading `undefined's bolt` would be a worse way to find out.
+ */
+export const UNNAMED_SPELL = "A spell";
+
+/**
  * What a tile gets the moment somebody makes it a weapon.
  *
  * Middling and complete, where it used to be a list of small deltas: every field
@@ -1670,6 +1707,10 @@ const elementsSchema = v.array(v.picklist(ELEMENTS));
 
 export const weaponSchema = v.object({
   type: v.literal("weapon"),
+  // Absent for every weapon authored before a blow had to be named after the
+  // fact, and absent forever on every weapon that is a tile — see
+  // {@link WeaponItem.name}.
+  name: v.optional(v.string()),
   damage: v.pipe(
     v.number(),
     v.integer(),
@@ -2200,8 +2241,14 @@ export function weaponForSave(weapon: WeaponItem): WeaponItem {
 
   const statuses = statusGrantsForSave(weapon.statuses);
 
+  const name = weapon.name?.trim();
+
   return {
     type: "weapon",
+    // Written only when somebody typed one, on the terms every other optional
+    // here is: a blank name is not a name, and `name: ""` on every sword in the
+    // file is a key that says what its absence says.
+    ...(name ? { name } : {}),
     damage: weapon.damage,
     def: weapon.def,
     accuracy: weapon.accuracy,

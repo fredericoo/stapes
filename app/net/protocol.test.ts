@@ -1,3 +1,4 @@
+import { MAP_FILE_VERSION } from "../lib/types";
 import { describe, expect, it } from "vitest";
 import {
   parseClientMessage,
@@ -355,7 +356,7 @@ describe("a kit that will not parse", () => {
     return JSON.stringify({
       type: "hello",
       selfId: "a",
-      map: { version: 1, levels: {} },
+      map: { version: MAP_FILE_VERSION, levels: {} },
       actorIds: ["a"],
       playerCount: 1,
       minutesOfDay: 480,

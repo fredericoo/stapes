@@ -373,6 +373,46 @@ describe("interactionsForSave", () => {
   });
 
   /**
+   * The same standing cost, and this one had already been paid: `immuneTo` was
+   * missing here, so opening the wolf's tile dialog and pressing save made it
+   * catchable by carrion again — silently, with the toggles on screen showing
+   * the immunity it was about to drop.
+   */
+  it("carries immunities through a save", () => {
+    expect(
+      interactionsForSave({
+        battler: { ...DEFAULT_BATTLER, immuneTo: [" food-poisoning ", ""] },
+      })?.battler?.immuneTo,
+    ).toEqual(["food-poisoning"]);
+  });
+
+  it("omits immunities nobody authored", () => {
+    expect(
+      interactionsForSave({ battler: { ...DEFAULT_BATTLER } })?.battler,
+    ).not.toHaveProperty("immuneTo");
+  });
+
+  /** Same standing cost as the kit: forgotten here, dropped on the next save. */
+  it("carries what a body leaves behind through a save", () => {
+    expect(
+      interactionsForSave({
+        battler: { ...DEFAULT_BATTLER, remains: " skull-player " },
+      })?.battler?.remains,
+    ).toBe("skull-player");
+  });
+
+  /** A field somebody opened and cleared is a body that leaves nothing. */
+  it("omits remains nobody authored", () => {
+    expect(
+      interactionsForSave({ battler: { ...DEFAULT_BATTLER, remains: "  " } })
+        ?.battler,
+    ).not.toHaveProperty("remains");
+    expect(
+      interactionsForSave({ battler: { ...DEFAULT_BATTLER } })?.battler,
+    ).not.toHaveProperty("remains");
+  });
+
+  /**
    * A mastery nobody has trained reads the same as one nobody wrote, so writing
    * it would grow every creature's block by five lines saying nothing — and it
    * would claim the author considered a question they did not.

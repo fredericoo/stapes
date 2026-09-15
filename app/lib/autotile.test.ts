@@ -1,3 +1,4 @@
+import { MAP_FILE_VERSION } from "./types";
 import { describe, expect, it } from "vitest";
 import tilesJson from "../../data/tiles.json";
 import { chunkifyMap } from "./mapData";
@@ -63,7 +64,7 @@ function mapWith(
     if (!levels[lk][ck]) levels[lk][ck] = [];
     levels[lk][ck].push({ tileId: c.tileId });
   }
-  return chunkifyMap({ version: 1, levels });
+  return chunkifyMap({ version: MAP_FILE_VERSION, levels });
 }
 
 describe("neighbor matching", () => {

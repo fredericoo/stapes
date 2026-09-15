@@ -175,7 +175,23 @@ const itemInstanceSchema = v.object({
   tileId: v.string(),
   direction: v.optional(directionSchema),
   channel: v.optional(v.string()),
+  /**
+   * What is written on it, and what turning it over tells you — two different
+   * questions, and named separately here for {@link count}'s reason: a
+   * validated object drops what it does not name, so a missing one is a sign
+   * that arrives blank or a skull that forgets what killed its owner.
+   */
+  inscription: v.optional(v.string()),
   description: v.optional(v.string()),
+  /**
+   * Whose this one is, for a thing whose name has a hole in it.
+   *
+   * Named here for the reason {@link count} is: a validated object drops what it
+   * does not name, so an engraving missing from this schema is a skull that
+   * arrives in the bag belonging to nobody. On the `contents` shape too — a
+   * skull in a chest is the ordinary place to keep one. See `../lib/engraving`.
+   */
+  engraved: v.optional(v.string()),
   /**
    * How long an arcane stone has left before it can be cast again.
    *
@@ -207,7 +223,9 @@ const itemInstanceSchema = v.object({
         tileId: v.string(),
         direction: v.optional(directionSchema),
         channel: v.optional(v.string()),
+        inscription: v.optional(v.string()),
         description: v.optional(v.string()),
+        engraved: v.optional(v.string()),
         count: v.optional(v.number()),
       }),
     ),
@@ -1636,7 +1654,7 @@ export const GAME_SOCKET_PATH = "/online/ws";
  * This is deliberately not the build id. A client deploy that changes no
  * messages should not disconnect anybody, and most client deploys are that.
  */
-export const PROTOCOL_VERSION = 10;
+export const PROTOCOL_VERSION = 12;
 
 /**
  * How often the world says nothing, to keep a proxy from hanging up.

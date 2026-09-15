@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "levels": {
     "0": {
       "-84,-2": [
@@ -86061,7 +86061,7 @@
         {
           "tileId": "sign",
           "direction": "e",
-          "description": "The Orchard"
+          "inscription": "The Orchard"
         }
       ],
       "-28,-24": [
@@ -93643,7 +93643,7 @@
         {
           "tileId": "sign",
           "direction": "s",
-          "description": "Blacksmith"
+          "inscription": "Blacksmith"
         }
       ],
       "-24,0": [
@@ -99392,7 +99392,7 @@
         {
           "tileId": "sign",
           "direction": "s",
-          "description": "The Granary"
+          "inscription": "The Granary"
         }
       ],
       "-21,3": [
@@ -120547,7 +120547,7 @@
         {
           "tileId": "sign",
           "direction": "e",
-          "description": "Moot Hall of the Commons"
+          "inscription": "Moot Hall of the Commons"
         }
       ],
       "-10,-17": [
@@ -124711,7 +124711,7 @@
         {
           "tileId": "sign",
           "direction": "s",
-          "description": "The Gilded Barrel\nAle and a warm bed."
+          "inscription": "The Gilded Barrel\nAle and a warm bed."
         }
       ],
       "-8,-1": [
@@ -143999,7 +143999,7 @@
         {
           "tileId": "sign",
           "direction": "e",
-          "description": "Alderman's Hall"
+          "inscription": "Alderman's Hall"
         }
       ],
       "2,-23": [
@@ -150001,8 +150001,8 @@
         },
         {
           "tileId": "door-closed",
-          "description": "City Watch",
-          "direction": "e"
+          "direction": "e",
+          "inscription": "City Watch"
         }
       ],
       "5,9": [
@@ -159800,7 +159800,7 @@
         {
           "tileId": "sign",
           "direction": "e",
-          "description": "The Commons Green"
+          "inscription": "The Commons Green"
         }
       ],
       "10,-8": [
@@ -229899,7 +229899,7 @@
         {
           "tileId": "sign",
           "direction": "e",
-          "description": "DANGER\nDo not enter"
+          "inscription": "DANGER\nDo not enter"
         }
       ],
       "45,-6": [
@@ -321563,7 +321563,7 @@
         {
           "tileId": "sign",
           "direction": "s",
-          "description": "Careful!\nUnstable ground."
+          "inscription": "Careful!\nUnstable ground."
         }
       ],
       "-9,44": [

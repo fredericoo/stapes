@@ -6,9 +6,16 @@
  * something across the room, and the wrong shape for a sign: a sign is a thing
  * whose whole job is to be read by whoever walks up to it, and a player who has
  * to discover a modifier before the world will speak to them will simply walk
- * past it. So standing next to a described placement reads it out.
+ * past it. So standing next to an inscribed placement reads it out.
  *
- * **The description alone, never the name.** A look answers "what is that?" and
+ * **Inscriptions only, which is the whole reason that field is its own.** This
+ * used to read a placement's `description`, which meant the only way to put a
+ * line of prose on an object was to make every passer-by recite it — and a cell
+ * holding nine skulls was nine sentences hanging in the air. What a thing has
+ * *written on it* is public; what you learn by turning it over is not. See
+ * `../lib/types`' {@link PlacedTile.description} for the quiet half.
+ *
+ * **The inscription alone, never the name.** A look answers "what is that?" and
  * needs the name to answer it; standing beside a sign is not a question, and
  * "Sign / DANGER" reads as a label on a museum exhibit where "DANGER" reads as
  * the world talking. The name is already available to anybody who wants it, one
@@ -39,9 +46,9 @@ const REACH_CELLS_SQUARED = REACH_CELLS * REACH_CELLS;
 const REACH_SPAN = Math.floor(REACH_CELLS);
 
 /** A placement close enough to be read, and what it reads. */
-export type NearbyDescription = {
+export type NearbyInscription = {
   ref: ObjectRef;
-  /** The placement's own text. Never empty — that is what got it in here. */
+  /** The placement's own words. Never empty — that is what got it in here. */
   text: string;
   /** The tile's height, for hanging the words over its head. */
   height: number;
@@ -51,16 +58,16 @@ export type NearbyDescription = {
  * Everything within arm's length of `at` that has something written on it.
  *
  * Cheap enough to ask every frame: nine stacks, and the overwhelming majority
- * of placements fail on the missing `description` before anything else is
+ * of placements fail on the missing `inscription` before anything else is
  * looked up. There is no index to keep in step with the map, which is the same
  * trade the look pick makes.
  */
-export function describedNearby(
+export function inscribedNearby(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   at: Coord,
-): NearbyDescription[] {
-  const found: NearbyDescription[] = [];
+): NearbyInscription[] {
+  const found: NearbyInscription[] = [];
 
   for (let dy = -REACH_SPAN; dy <= REACH_SPAN; dy++) {
     for (let dx = -REACH_SPAN; dx <= REACH_SPAN; dx++) {
@@ -72,14 +79,14 @@ export function describedNearby(
 
       for (let stackIndex = 0; stackIndex < stack.length; stackIndex++) {
         const placed = stack[stackIndex];
-        if (!placed?.description) continue;
+        if (!placed?.inscription) continue;
         if (coveredBySomething(stack, stackIndex, tilesById)) continue;
         const def = tilesById[placed.tileId];
         if (!def) continue;
 
         found.push({
           ref: { x, y, z: at.z, stackIndex },
-          text: placed.description,
+          text: placed.inscription,
           height: def.height,
         });
       }

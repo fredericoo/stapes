@@ -366,7 +366,7 @@ function isLid(
  * swords in one cell therefore cover neither: they are both reachable, and the
  * list of things to do offers both.
  *
- * Exported for `../render/nearbyDescriptions`, which asks the same question of
+ * Exported for `../render/nearbyInscriptions`, which asks the same question of
  * the same radius: a sign under a crate has nothing to say, and a sign you are
  * standing on still does.
  */

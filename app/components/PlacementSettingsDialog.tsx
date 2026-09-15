@@ -1,7 +1,13 @@
 import { useState } from "react";
 import type { Coord, PlacedTile, TileDef, TilesetDef } from "../lib/types";
 import type { ItemInstance } from "../lib/itemInstance";
-import { MAX_DESCRIPTION_LENGTH, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
+import { MAX_INSCRIPTION_LENGTH, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
+import {
+  MAX_ENGRAVING_LENGTH,
+  UNKNOWN_ENGRAVING,
+  engravedName,
+  isEngravable,
+} from "../lib/engraving";
 import { MAX_REWARD_ITEMS } from "../lib/interactions";
 import { useEditorStore } from "../editor/store";
 import {
@@ -133,7 +139,9 @@ export function PlacementSettingsDialog({
   // open therefore starts from what the map holds now, with no effect needed to
   // re-sync after an undo or a different cell being selected into the row.
   const [channel, setChannel] = useState(placed.channel ?? "");
+  const [inscription, setInscription] = useState(placed.inscription ?? "");
   const [description, setDescription] = useState(placed.description ?? "");
+  const [engraved, setEngraved] = useState(placed.engraved ?? "");
   const [rewardTag, setRewardTag] = useState(placed.rewardTag ?? "");
   const [rewardTileIds, setRewardTileIds] = useState<string[]>(
     placed.rewardTileIds ?? [],
@@ -151,6 +159,11 @@ export function PlacementSettingsDialog({
     () => placed.contents ?? [],
   );
 
+  // Off the tile's own name rather than a flag on the def: a name with `%s` in
+  // it *is* the declaration that this kind of thing is somebody's. One fact,
+  // read where it is written. See `../lib/engraving`.
+  const engravable = isEngravable(def.name);
+
   const commitAndClose = () => {
     const store = useEditorStore.getState();
     if (wired) store.setStackChannel(stackIndex, channel);
@@ -159,7 +172,9 @@ export function PlacementSettingsDialog({
       store.setStackTeleport(stackIndex, readDestination(teleportTo));
     }
     if (holds !== null) store.setStackContents(stackIndex, contents);
+    store.setStackInscription(stackIndex, inscription);
     store.setStackDescription(stackIndex, description);
+    if (engravable) store.setStackEngraving(stackIndex, engraved);
     onClose();
   };
 
@@ -171,7 +186,10 @@ export function PlacementSettingsDialog({
       onOpenChange={(open) => {
         if (!open) commitAndClose();
       }}
-      title={`${def.name} settings`}
+      // The engraving filled in, because this dialog is about *this* placement
+      // and not about the kind of thing it is: "Old Hermit's skull settings"
+      // over the field that says so beats "%s's skull settings".
+      title={`${engravedName(def.name, placed.engraved)} settings`}
       footer={
         <Button size="sm" onClick={commitAndClose}>
           Done
@@ -180,22 +198,51 @@ export function PlacementSettingsDialog({
     >
       <div className="flex flex-col gap-4">
         <label className="flex flex-col gap-1 text-xs">
-          <span className="font-bold uppercase text-muted">Description</span>
+          <span className="font-bold uppercase text-muted">Inscription</span>
           <Textarea
             rows={3}
-            maxLength={MAX_DESCRIPTION_LENGTH}
-            placeholder="What this says when somebody looks at it"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            // Autofocused because reading and writing descriptions is what this
-            // dialog is mostly for; the channel is the rarer visit.
+            maxLength={MAX_INSCRIPTION_LENGTH}
+            placeholder="What this says to anybody who walks up to it"
+            value={inscription}
+            onChange={(e) => setInscription(e.target.value)}
+            // Autofocused because writing signs is what this dialog is mostly
+            // for; the channel is the rarer visit.
             autoFocus
           />
           <span className="text-[11px] leading-snug text-muted">
-            Shown under the name on shift-look. Belongs to the cell, not the
-            tile.
+            Read out to anybody standing next to it, like a sign. Belongs to the
+            cell, not the tile.
           </span>
         </label>
+
+        <label className="flex flex-col gap-1 text-xs">
+          <span className="font-bold uppercase text-muted">Description</span>
+          <Textarea
+            rows={3}
+            maxLength={MAX_INSCRIPTION_LENGTH}
+            placeholder="What examining this would tell you"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+          <span className="text-[11px] leading-snug text-muted">
+            Only on the item card and on shift-look — never recited to
+            passers-by. Belongs to the cell, not the tile.
+          </span>
+        </label>
+
+        {engravable ? (
+          <label className="flex flex-col gap-1 text-xs">
+            <FieldLabel info="Goes where the tile's name says %s. Belongs to the cell, not the tile — one skull tile is every skull in the world.">
+              Engraved with
+            </FieldLabel>
+            <Input
+              maxLength={MAX_ENGRAVING_LENGTH}
+              placeholder={UNKNOWN_ENGRAVING}
+              value={engraved}
+              onChange={(e) => setEngraved(e.target.value)}
+            />
+          </label>
+        ) : null}
 
         {wired ? (
           <label className="flex flex-col gap-1 text-xs">

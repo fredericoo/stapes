@@ -1,3 +1,4 @@
+import { MAP_FILE_VERSION } from "../app/lib/types";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { Harness, Pair, type TestSocket } from "./testHarness";
 import type { WorldStore } from "./WorldStore";
@@ -56,7 +57,7 @@ function authoredMap(): FlatMapFile {
     levels["0"]![`${x},0`] = [{ tileId: "grass" }];
   }
   levels["0"]!["0,0"] = [{ tileId: "grass" }, { tileId: "player", direction: "s" }];
-  return { version: 1, levels } as FlatMapFile;
+  return { version: MAP_FILE_VERSION, levels } as FlatMapFile;
 }
 
 /**
@@ -97,7 +98,7 @@ function checkpointWith(owners: string[]): {
     ...owners.map((owner) => ({ tileId: "player", direction: "s", owner })),
   ];
   return {
-    map: { version: 1, levels } as FlatMapFile,
+    map: { version: MAP_FILE_VERSION, levels } as FlatMapFile,
     spawn: { x: 0, y: 0, z: 0, stackIndex: 1 },
   };
 }
@@ -1229,7 +1230,7 @@ function checkpointOnTwoLevels(): {
   ground["0,0"] = [{ tileId: "grass" }, { tileId: "player", direction: "s", owner: "alice" }];
   upstairs["2,0"] = [{ tileId: "grass" }, { tileId: "player", direction: "s", owner: "bob" }];
   return {
-    map: { version: 1, levels: { "0": ground, "1": upstairs } } as FlatMapFile,
+    map: { version: MAP_FILE_VERSION, levels: { "0": ground, "1": upstairs } } as FlatMapFile,
     spawn: { x: 0, y: 0, z: 0, stackIndex: 0 },
   };
 }
@@ -1476,7 +1477,7 @@ describe("calling a creature", () => {
     ];
     ground["3,0"] = [{ tileId: "grass" }, { tileId: "cat" }];
     return {
-      map: { version: 1, levels: { "0": ground } } as FlatMapFile,
+      map: { version: MAP_FILE_VERSION, levels: { "0": ground } } as FlatMapFile,
       spawn: { x: 0, y: 0, z: 0, stackIndex: 0 },
     };
   }
@@ -1955,7 +1956,7 @@ function stripSpawningAtTheFarEnd(): FlatMapFile {
     { tileId: "grass" },
     { tileId: "player", direction: "s" },
   ];
-  return { version: 1, levels } as FlatMapFile;
+  return { version: MAP_FILE_VERSION, levels } as FlatMapFile;
 }
 
 describe("player permanence", () => {
@@ -2437,7 +2438,7 @@ function stripWithABox(): {
   }
   levels["0"]![`${BOX_AT},0`] = [{ tileId: ground }, { tileId: BOX_TILE_ID }];
   return {
-    map: { version: 1, levels } as FlatMapFile,
+    map: { version: MAP_FILE_VERSION, levels } as FlatMapFile,
     spawn: { x: BOX_SPAWN, y: 0, z: 0, stackIndex: 1 },
   };
 }
@@ -2554,7 +2555,7 @@ function markerlessMap(): FlatMapFile {
   for (let x = 0; x < 4; x++) {
     levels["0"]![`${x},0`] = [{ tileId: "grass" }];
   }
-  return { version: 1, levels } as FlatMapFile;
+  return { version: MAP_FILE_VERSION, levels } as FlatMapFile;
 }
 
 /** The authored map as it currently sits in the bucket. */
@@ -4538,7 +4539,7 @@ describe("tile transitions", () => {
       { tileId: "player", direction: "s", owner: "alice" },
     ];
     return {
-      map: { version: 1, levels: { "0": ground } } as FlatMapFile,
+      map: { version: MAP_FILE_VERSION, levels: { "0": ground } } as FlatMapFile,
       spawn: { x: 1, y: 0, z: 0, stackIndex: 1 },
     };
   }

@@ -1,3 +1,4 @@
+import { MAP_FILE_VERSION } from "../lib/types";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   fetchMapText,
@@ -53,7 +54,7 @@ export async function clientAction({ request }: Route.ClientActionArgs) {
   const raw = String(form.get("map") ?? "");
   try {
     const map = JSON.parse(raw) as MapFile;
-    if (map.version !== 1) {
+    if (map.version !== MAP_FILE_VERSION) {
       return { ok: false, error: "Unsupported map version" };
     }
     // Sent as text, because `serializeMap` round-trips byte for byte: saving an

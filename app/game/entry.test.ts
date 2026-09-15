@@ -1,3 +1,4 @@
+import { MAP_FILE_VERSION } from "../lib/types";
 import { describe, expect, it } from "vitest";
 import { ENTRY_SEARCH_RADIUS, findEntryCell } from "./entry";
 import { chunkifyMap } from "../lib/mapData";
@@ -70,7 +71,7 @@ function floorWith(
     for (let x = -10; x <= 22; x++) ground[`${x},${y}`] = [grass];
   }
   return chunkifyMap({
-    version: 1,
+    version: MAP_FILE_VERSION,
     levels: { "0": { ...ground, ...built }, "1": upstairs },
   } as unknown as FlatMapFile);
 }

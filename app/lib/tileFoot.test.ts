@@ -1,3 +1,4 @@
+import { MAP_FILE_VERSION } from "./types";
 import { describe, expect, it } from "vitest";
 import {
   absoluteWalkableElevation,
@@ -73,7 +74,7 @@ function mapAt(
     const lk = levelKey(cell.z ?? 0);
     (levels[lk] ??= {})[coordKey(cell.x, cell.y)] = cell.stack;
   }
-  return chunkifyMap({ version: 1, levels });
+  return chunkifyMap({ version: MAP_FILE_VERSION, levels });
 }
 
 describe("footElevation", () => {

@@ -1,3 +1,4 @@
+import { MAP_FILE_VERSION } from "../lib/types";
 import { create } from "zustand";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import type { ItemInstance } from "../lib/itemInstance";
@@ -19,6 +20,8 @@ import {
   updatePlacedChannel,
   updatePlacedContents,
   updatePlacedDescription,
+  updatePlacedInscription,
+  updatePlacedEngraving,
   updatePlacedReward,
   updatePlacedTeleport,
   updatePlacedDirection,
@@ -87,7 +90,7 @@ type HistoryEntry = {
 };
 
 const HISTORY_LIMIT = 100;
-const EMPTY_MAP: MapFile = { version: 1, levels: {} };
+const EMPTY_MAP: MapFile = { version: MAP_FILE_VERSION, levels: {} };
 
 export type EditorStore = {
   map: MapFile;
@@ -207,7 +210,12 @@ export type EditorStore = {
    */
   setStackFoot: (stackIndex: number, foot: number | null) => { ok: boolean; reason?: string };
   setStackChannel: (stackIndex: number, channel: string) => void;
+  /** What is written on one placement, for anybody who walks up to it. */
+  setStackInscription: (stackIndex: number, inscription: string) => void;
+  /** What examining one placement says, for whoever picks it up. */
   setStackDescription: (stackIndex: number, description: string) => void;
+  /** Whose one placement is, for a tile whose name has a hole in it. */
+  setStackEngraving: (stackIndex: number, engraved: string) => void;
   setStackReward: (
     stackIndex: number,
     tag: string,
@@ -662,6 +670,21 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     );
   },
 
+  setStackInscription: (stackIndex, inscription) => {
+    const { map, selected, currentLevel } = get();
+    if (!selected) return;
+    get().commitMap(
+      updatePlacedInscription(
+        map,
+        selected.x,
+        selected.y,
+        currentLevel,
+        stackIndex,
+        inscription,
+      ),
+    );
+  },
+
   setStackDescription: (stackIndex, description) => {
     const { map, selected, currentLevel } = get();
     if (!selected) return;
@@ -673,6 +696,21 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         currentLevel,
         stackIndex,
         description,
+      ),
+    );
+  },
+
+  setStackEngraving: (stackIndex, engraved) => {
+    const { map, selected, currentLevel } = get();
+    if (!selected) return;
+    get().commitMap(
+      updatePlacedEngraving(
+        map,
+        selected.x,
+        selected.y,
+        currentLevel,
+        stackIndex,
+        engraved,
       ),
     );
   },

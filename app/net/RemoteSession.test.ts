@@ -1,3 +1,4 @@
+import { MAP_FILE_VERSION } from "../lib/types";
 import { describe, expect, it } from "vitest";
 import {
   FALL_MS_PER_HEIGHT,
@@ -97,7 +98,7 @@ function flatMap(): FlatMapFile {
   const cells: Record<string, PlacedTile[]> = {};
   for (let x = 0; x < 4; x++) cells[`${x},0`] = [grass];
   cells["0,0"] = [grass, player];
-  return { version: 1, levels: { "0": cells } } as unknown as FlatMapFile;
+  return { version: MAP_FILE_VERSION, levels: { "0": cells } } as unknown as FlatMapFile;
 }
 
 /**
@@ -264,7 +265,7 @@ function aloftMap(): FlatMapFile {
   const cells: Record<string, PlacedTile[]> = {};
   for (let x = 0; x < 4; x++) cells[`${x},0`] = [grass];
   return {
-    version: 1,
+    version: MAP_FILE_VERSION,
     levels: { "0": cells, "1": { "0,0": [player] } },
   } as unknown as FlatMapFile;
 }
@@ -1047,7 +1048,7 @@ describe("RemoteSession prediction at the lip of a hole", () => {
     above["0,0"] = [grass, player];
     above["1,0"] = [grass];
     return {
-      version: 1,
+      version: MAP_FILE_VERSION,
       levels: { "0": above, "-1": below },
     } as unknown as FlatMapFile;
   }
@@ -1401,7 +1402,7 @@ describe("RemoteSession teleports", () => {
       type: "hello",
       selfId: SELF,
       map: {
-        version: 1,
+        version: MAP_FILE_VERSION,
         levels: {
           "0": { "0,0": [grass, ladder, player] },
           "1": { "0,0": above },

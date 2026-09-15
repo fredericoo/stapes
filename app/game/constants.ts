@@ -42,6 +42,7 @@ export const PUSH_STEP_MS = WALK_DURATION_MS;
  */
 export const PLAYER_TILE_ID = "player";
 
+
 /**
  * How often a brain decides. Six simulation ticks — one decision per walk.
  *

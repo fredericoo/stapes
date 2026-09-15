@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { IconTrash } from "@tabler/icons-react";
+import { engravedName } from "../lib/engraving";
 import { pileMax } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { mintItemId } from "../lib/itemInstance";
@@ -58,7 +59,8 @@ function nameOf(
   instance: ItemInstance,
   tilesById: Record<string, TileDef>,
 ): string {
-  return tilesById[instance.tileId]?.name || instance.tileId;
+  const name = tilesById[instance.tileId]?.name;
+  return name ? engravedName(name, instance.engraved) : instance.tileId;
 }
 
 /**

@@ -20,7 +20,7 @@
  * scale stands still while `data/map.json` grows.
  */
 import { chunkifyMap } from "./mapData";
-import { coordKey, levelKey } from "./types";
+import { MAP_FILE_VERSION, coordKey, levelKey } from "./types";
 import type { FlatMapFile, MapFile, PlacedTile } from "./types";
 
 /**
@@ -355,7 +355,7 @@ function build(): FlatMapFile {
   for (const [z, cells] of levels) {
     out[levelKey(z)] = Object.fromEntries(cells);
   }
-  return { version: 1, levels: out };
+  return { version: MAP_FILE_VERSION, levels: out };
 }
 
 let cached: FlatMapFile | null = null;

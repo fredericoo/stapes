@@ -21,6 +21,7 @@ import {
   type WeaponItem,
 } from "../lib/item";
 import type { Element } from "../lib/element";
+import { engravedName } from "../lib/engraving";
 import type { ItemInstance } from "../lib/itemInstance";
 import { countOf } from "../lib/piles";
 import {
@@ -175,7 +176,7 @@ export type ItemCardResist = {
 };
 
 export type ItemCard = {
-  /** The tile's name, never the instance's. See {@link ItemCard.description}. */
+  /** The tile's name, never the instance's. See {@link ItemCard.inscription}. */
   name: string;
   /**
    * How many of it this square holds, or null for a single thing.
@@ -210,6 +211,14 @@ export type ItemCard = {
    * `lookLines` keeps them separate: "Left here by someone" answers a different
    * question from "Rusty Sword", and a card that showed one in place of the
    * other would leave a player unable to find out what they picked up.
+   */
+  inscription: string | null;
+  /**
+   * What examining *this* one tells you — how its owner died, on a skull.
+   *
+   * **The card is the only place this is guaranteed to appear**, which is the
+   * whole of the split: an inscription is recited to anybody who walks past and
+   * this is not. See `../lib/types`' {@link PlacedTile.description}.
    */
   description: string | null;
   stats: ItemCardStat[];
@@ -872,12 +881,15 @@ export function itemCard(
   const count = instance ? countOf(instance) : 1;
 
   const card: ItemCard = {
-    name: def.name || def.id,
+    // The engraving filled in, which for a skull is the whole of what it is.
+    // Free for everything else — see `../lib/engraving`.
+    name: engravedName(def.name || def.id, instance?.engraved),
     // Null rather than 1, so the drawing has nothing to suppress: a single
     // apple is an apple, and "×1" is a badge that says what its absence says.
     count: count > 1 ? count : null,
     elements: elementsOf(item),
     kind: kindOf(item),
+    inscription: instance?.inscription?.trim() || null,
     description: instance?.description?.trim() || null,
     stats: statsFor(item, instance, masteries),
     requirements: requirementsFrom(demandsOf(item), masteries),
@@ -925,6 +937,7 @@ function speak(card: ItemCard): string {
   if (card.elements.length > 0) {
     lines.push(`Attuned to ${card.elements.join(" and ")}`);
   }
+  if (card.inscription) lines.push(card.inscription);
   if (card.description) lines.push(card.description);
   for (const stat of card.stats) {
     // The word rather than the abbreviation on the card: "def" is a column

@@ -36,7 +36,16 @@ export type ItemInstance = {
   tileId: string;
   direction?: Direction;
   channel?: string;
+  /** What is written on it. See `./types`' {@link PlacedTile.inscription}. */
+  inscription?: string;
+  /** What turning it over tells you. See `./types`' {@link PlacedTile.description}. */
   description?: string;
+  /**
+   * Whose this one is, filling the hole in its tile's name. See `./types`'
+   * {@link PlacedTile.engraved}, which this is the carried half of — a skull
+   * picked up is still the skull it was engraved as.
+   */
+  engraved?: string;
   /** Containers only. Flat, and never holds another container. */
   contents?: ItemInstance[];
   /**
@@ -123,7 +132,9 @@ export function instanceFromPlacement(placed: PlacedTile): ItemInstance | null {
     tileId: placed.tileId,
     ...(placed.direction ? { direction: placed.direction } : {}),
     ...(placed.channel ? { channel: placed.channel } : {}),
+    ...(placed.inscription ? { inscription: placed.inscription } : {}),
     ...(placed.description ? { description: placed.description } : {}),
+    ...(placed.engraved ? { engraved: placed.engraved } : {}),
     ...(placed.contents ? { contents: placed.contents } : {}),
     ...(placed.count ? { count: placed.count } : {}),
   };
@@ -145,7 +156,9 @@ export function placementFromInstance(instance: ItemInstance): PlacedTile {
     itemId: instance.id,
     ...(instance.direction ? { direction: instance.direction } : {}),
     ...(instance.channel ? { channel: instance.channel } : {}),
+    ...(instance.inscription ? { inscription: instance.inscription } : {}),
     ...(instance.description ? { description: instance.description } : {}),
+    ...(instance.engraved ? { engraved: instance.engraved } : {}),
     ...(instance.contents ? { contents: instance.contents } : {}),
     ...(instance.count ? { count: instance.count } : {}),
   };

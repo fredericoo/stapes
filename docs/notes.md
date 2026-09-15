@@ -5144,6 +5144,135 @@ one level of spilling is the whole of it.
 It applies to players exactly as it does to a deer, which is the point: there is
 one death, and a deer that had picked a bush leaves the berries it was carrying.
 
+## A sign is read to you; everything else waits to be asked
+
+A placement had one text on it, `description`, and two things read it: a look,
+and **anybody standing next to it**. The second is what a sign is for — a sign
+whose words you had to discover a modifier to see would simply be walked past —
+but it was the only text a placement had, so it was also the only place to put a
+line of prose on an object. The bill came in with the skulls: a cell people keep
+dying on collects them, and eleven skulls was eleven sentences hanging in the
+air over the ground.
+
+So the field is two fields.
+
+- **`PlacedTile.inscription`** is what is *written on* a thing. Recited to
+  whoever walks up to it (`app/render/nearbyInscriptions.ts`), shown under the
+  name on a look, and shown on the card. This is the old `description`, renamed,
+  and every sign in the world is one.
+- **`PlacedTile.description`** is what examining the thing tells you. It reaches
+  the screen only where somebody asked about *that object* — the item card, and
+  a look they aimed. A skull's cause of death lives here.
+
+The line between them is **who is asking**. Walking past a shelf is not a
+question; pointing at one thing is. That is also why a look shows both: you
+cannot be spammed by a label you aimed at.
+
+Two knock-on rules follow from the rename, and both are about the *slot's own
+name*. A sign in your bag is called what it says rather than "Sign", and that
+was always the inscription doing the work — so `slotLabelFor`, the container
+caption and the stone the cast bar names all read `inscription`. An engraving
+still outranks both, because that is the *name* differing per thing rather than
+a note beside it.
+
+### The map file has a version now, and it is 2
+
+`MAP_FILE_VERSION` is on the in-memory shape as well as the file, so there is
+one answer rather than two that could drift. `parseMap` is the only place an
+older one exists at all: a version-1 file has every `description` lifted into
+`inscription` on the way in, unconditionally, because that is all the field
+could have meant. It has to be unconditional — a version-2 file may carry both,
+and a migration that guessed per placement would put a skull's cause of death
+into every passer-by's mouth.
+
+Every route the map takes goes through `parseMap`: `data/map.json`, the
+checkpoint blob, an editor save, `/api/seed`. So the live world's signs survive
+the rename without anything else knowing about it, which is the whole reason the
+version lives on the file rather than in a one-off sweep at load.
+
+## A body leaves what its tile says it leaves, and it says who and by what
+
+A death already put everything a body owned on the floor. What it did not leave
+was any trace of *whose* death it had been: walk past the cell an hour later and
+there is a sword and a loaf of bread, exactly as there would be if somebody had
+dropped their bag. So a body may now leave one more thing.
+
+**Authored, on the battler block.** `BattlerDef.remains` names a tile, and a
+body with none leaves none — which is every body in the world but the player and
+the cave troll. This started as a rule about players with one tile id compiled
+into the engine, and the *default* that encoded is still right: a world where
+every rat leaves a keepsake is knee-deep in rats' skulls by the evening. But a
+boss worth killing once is exactly the case that wants to say otherwise, and
+that is a decision for whoever authors the boss rather than for `kill`. It lives
+on the battler block because only a battler can die.
+
+**The tile is chosen and nothing else is.** What lands is engraved with whoever
+the body was and described by what killed it — in `description` and never in
+`inscription`, so a cell holding nine of them is nine skulls rather than nine
+sentences hanging in the air. An author picks the art and the world fills in the
+rest. `dropRemains` reads whose it is off the *tile* rather
+than the id, on `app/game/displayName.ts`' argument — `npc:` prefixes are how
+residents are keyed, not what they are — which is also what makes a creature's
+skull read "Troll" and a player's read their own name. A tile whose name has no
+`%s` in it simply ignores the engraving, which is what lets the plain
+`Troll skull` be a perfectly good thing for a troll to leave.
+
+**Beside the kit rather than part of it.** `dropOnFloor` is shared, so "a body
+that drowned leaves nothing in the water" is one rule; what a refusal *means* is
+not shared, because it differs. A kit the cell refuses is a kit the dead still
+own and come back carrying. A skull the cell refuses simply never existed.
+
+### A name with a hole in it
+
+The player's skull tile is named `%s's skull` and the placement fills the hole in —
+`PlacedTile.engraved`, read through `app/lib/engraving.ts`. A name on the def
+would make every skull in the world one anonymous kind of thing, and a
+*description* would put whose it is on the second line, under a first line that
+still said "Skull". The engraving is a name, so it goes where a name goes.
+
+It is an ordinary authored placement field, offered in the placement dialog
+whenever the tile's own name has the token in it. A skull nobody wrote on reads
+as `Someone's skull`: an anonymous skull is still somebody's, and cutting the
+token out would leave `'s skull`.
+
+`skull-player` does not pile — no `pile` on its artifact block, so `pileMax` is
+one. A pile is several of one thing that cannot be told apart afterwards, which
+is the one thing two people's skulls must never be. An authored `remains` that
+*does* pile is not a trap: `PILE_FIELDS` is an allow-list and knows nothing
+about `engraved`, so two of them differ and never fuse.
+
+### What killed you, in words written at the time
+
+`Blame` is `{ source, by? }` — "Fangs by Wolf", "Burned by Hearth", "Burning by
+Green Fox's Arcane Flame" — and it rides into `applyDamage`, which hands it to
+the death it causes. `causeOfDeath` is what writes it down, labelled: **"Cause
+of death: Fangs by Wolf"**. The label is in the text rather than added where the
+line is drawn, because there is nowhere to add it — what carries it is an
+ordinary `description`, and no renderer knows a skull from a crate.
+
+**Names, not ids, and that is the whole reason it is a third field rather than a
+reading of `StatusInstance.causedBy`.** Two things separate them:
+
+- **A cause is spent on experience and is deliberately absent for a bite.** A
+  snake earns nothing arcane for its own venom — see `awardCausedDamage`. A
+  blame is a sentence nobody is paid for, so a bite may carry one where a cause
+  would be wrong.
+- **The thing that did it is usually gone by the time it finishes the job.** The
+  snake that poisoned you is often dead before the poison is. An id resolved
+  later answers "nobody"; a name written when the harm started answers what
+  anybody standing there watched happen.
+
+A natural weapon needed a name of its own for this — `WeaponItem.name`, read for
+a natural weapon and never for an item weapon, which is a tile and has one
+already. An unnamed one reads as "A blow", which is a noun phrase because of
+where it is read: "A blow by Snake" is a sentence and "Blow by Snake" is a stub.
+
+**A conjured flame names the caster's fire rather than the caster.** `possessive`
+joins them, so one `arcane-flame` def reads as "Green Fox's Arcane Flame" where
+a stone lit it and as plain "Hearth" where nobody did — which is the same tile,
+and exactly why the possessive is decided at the moment of granting rather than
+written into a tile's name.
+
 ## A drag onto a taken square trades the two things
 
 `applyItemMove` used to refuse a destination that was full. It swaps now, and
