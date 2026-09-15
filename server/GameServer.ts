@@ -17,6 +17,14 @@ import {
   patchScope,
   sameChunks,
 } from "../app/net/interest";
+import {
+  OCCLUSION_SUBSCRIPTIONS,
+  cellKey3,
+  mapOfCells,
+  parseCellKey3,
+  nearVisible,
+  subscriptionFor as sightSubscriptionFor,
+} from "../app/net/visibleSet";
 import { cellKey } from "../app/game/pressurePlates";
 import {
   findSpawnPoints,
@@ -58,6 +66,7 @@ import type {
   Direction,
   FlatMapFile,
   MapFile,
+  PlacedTile,
   TileDef,
 } from "../app/lib/types";
 import { MAX_LEVEL, MIN_LEVEL, parseCoordKey } from "../app/lib/types";
@@ -113,6 +122,16 @@ const CHUNK_KEY_PREFIX = "chunk:";
  * need — this exists to spread the cost, not to ration it.
  */
 const CHUNKS_STREAMED_PER_TICK = 2;
+
+/**
+ * PROTOTYPE — cells handed to one client per tick under occlusion streaming.
+ *
+ * The chunk version spends its budget in chunks, which on the den is a few
+ * hundred cells each; this is the same order in the unit this streams in. At
+ * five ticks a second it fills a fresh room in well under a second, which is
+ * what rounding a corner has to feel like.
+ */
+const CELLS_STREAMED_PER_TICK = 400;
 
 function boardKey(levelKey: string, chunkKey: string): string {
   return `${CHUNK_KEY_PREFIX}${levelKey}:${chunkKey}`;
@@ -673,6 +692,8 @@ export class GameServer {
    */
   private clockOffsetMinutes = 0;
   private tiles: TileDef[] = [];
+  /** PROTOTYPE — the catalogue as a map, resolved once per load for sight. */
+  private tilesByIdCache: Record<string, TileDef> = {};
   /**
    * The status catalogue, compiled. Empty until {@link load} runs, which is the
    * same state the tiles are in and means the same thing: a world nothing has
@@ -847,6 +868,19 @@ export class GameServer {
    */
   private readonly subscribed = new Map<string, Set<string>>();
   /**
+   * PROTOTYPE — what each client can see, and the ground it has been sent,
+   * when { OCCLUSION_SUBSCRIPTIONS} is on. The occlusion-shaped
+   * replacement for {@link subscribed}. @see `app/net/visibleSet.ts`
+   */
+  private readonly sight = new Map<
+    string,
+    { visible: Set<string>; ground: Set<string>; from: string }
+  >();
+  /** PROTOTYPE — cells already handed over, so ground is sent once. */
+  private readonly sentCells = new Map<string, Set<string>>();
+  /** PROTOTYPE — the cell {@link sentCells} was last pruned against. */
+  private readonly streamedFrom = new Map<string, string>();
+  /**
    * Players whose last socket closed while they were in combat, and whose body
    * is therefore still standing in the world.
    *
@@ -926,6 +960,7 @@ export class GameServer {
   private async load() {
     const store = this.store();
     this.tiles = await store.readTiles();
+    this.tilesByIdCache = tilesByIdFromList(this.tiles);
     // Beside the tiles because it is the same kind of thing: authored content
     // the world reads and never writes. Resolved once per load — `statusesById`
     // compiles every formula in it, which is exactly the work that must not
@@ -1984,10 +2019,15 @@ export class GameServer {
     // Recorded as this socket is told, so the stream below hands over what
     // comes into reach *after* this rather than replaying what is in it.
     const chunks = this.subscriptionFor(actorId);
+    // PROTOTYPE — what the joiner can see, rather than the square it is in.
+    const sight = OCCLUSION_SUBSCRIPTIONS ? this.sightFor(actorId) : null;
+    if (sight) this.sentCells.set(actorId, new Set(sight.ground));
     const message: ServerMessage = {
       type: "hello",
       selfId: actorId,
-      map: mapOfInterest(session.getMap(), chunks),
+      map: sight
+        ? mapOfCells(session.getMap(), sight.ground)
+        : mapOfInterest(session.getMap(), chunks),
       actorIds: session.actorIds(),
       hps: currentHps(actors),
       carriedLights: currentCarriedLights(actors),
@@ -2857,6 +2897,9 @@ export class GameServer {
     // returning tab is a fresh `hello` and a fresh subscription, so keeping it
     // would be a row per visitor the world has ever had.
     this.subscribed.delete(actorId);
+    this.sight.delete(actorId);
+    this.sentCells.delete(actorId);
+    this.streamedFrom.delete(actorId);
     // A step nobody is holding the key for any more.
     this.queuedIntents.delete(actorId);
     this.lastSaidAt.delete(actorId);
@@ -4021,6 +4064,42 @@ export class GameServer {
   }
 
   /**
+   * PROTOTYPE — what this actor can see, recomputed when it has moved cell.
+   *
+   * The occlusion-shaped counterpart to {@link subscriptionFor}, and it keys on
+   * the cell rather than recomputing every tick: the set is a function of where
+   * the body is standing, so standing still costs a string compare. Walking
+   * costs one `subscriptionFor` — a couple of milliseconds on the shipped map,
+   * see `scripts/bench-occlusion.ts`.
+   */
+  private sightFor(
+    actorId: string,
+  ): { visible: Set<string>; ground: Set<string> } | null {
+    const session = this.session;
+    const at = session?.actorPosition(actorId);
+    const held = this.sight.get(actorId);
+    // A body that is not on the board — dead, or between a despawn and a
+    // respawn — keeps what it had, for the reason the chunk version does.
+    if (!session || !at) return held ?? null;
+
+    const from = cellKey3(at.x, at.y, at.z);
+    if (held && held.from === from) return held;
+    const next = sightSubscriptionFor(session.getMap(), this.tilesByIdCache, at);
+    const record = { visible: next.visible, ground: next.ground, from };
+    this.sight.set(actorId, record);
+    return record;
+  }
+
+  /** PROTOTYPE — can this client see the body standing at this cell? */
+  private canSee(actorId: string, at: { x: number; y: number; z: number }): boolean {
+    const sight = this.sight.get(actorId);
+    // Before the first computation, say yes. The alternative is a client that
+    // joins to a world with nobody in it until it takes a step.
+    if (!sight) return true;
+    return sight.visible.has(cellKey3(at.x, at.y, at.z));
+  }
+
+  /**
    * Hand each connected client the ground that has come into reach.
    *
    * **Only what comes into reach, and never the tick's own changes** — those
@@ -4038,6 +4117,10 @@ export class GameServer {
    * ahead is on screen, so a handful a tick is far ahead of need.
    */
   private streamEnteredChunks() {
+    if (OCCLUSION_SUBSCRIPTIONS) {
+      this.streamEnteredCells();
+      return;
+    }
     const session = this.session;
     if (!session) return;
     const map = session.getMap();
@@ -4077,6 +4160,72 @@ export class GameServer {
         type: "patch",
         cells,
         ...this.bodiesArrivingWith(cells),
+      });
+    }
+  }
+
+  /**
+   * PROTOTYPE — hand each client the ground that has come into *sight*.
+   *
+   * The occlusion counterpart to {@link streamEnteredChunks}, and the unit is
+   * the cell rather than the chunk, which is the whole shape of the idea: the
+   * server streams what you can see and the client chunks it up itself when it
+   * stores it (`RemoteSession` calls `setStacks`, which is chunked).
+   *
+   * A budget per tick for the same reason the chunk version has one — rounding
+   * a corner into a lit hall is a few thousand cells arriving at once, and the
+   * lump is what made a previous attempt at scoping measure worse than sending
+   * the world. Nothing is ever *un*sent: a cell the client already holds is
+   * correct, and taking it back would put a hole where it has just walked from.
+   */
+  private streamEnteredCells() {
+    const session = this.session;
+    if (!session) return;
+    const map = session.getMap();
+    const done = new Set<string>();
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (!attachment) continue;
+      const { actorId } = attachment;
+      if (done.has(actorId)) continue;
+      done.add(actorId);
+
+      const sight = this.sightFor(actorId);
+      if (!sight) continue;
+      let sent = this.sentCells.get(actorId);
+      if (!sent) {
+        sent = new Set<string>();
+        this.sentCells.set(actorId, sent);
+      }
+
+      // What has fallen out of sight is forgotten *here* and never taken back
+      // off the client — the same policy the chunk version has, and it is doing
+      // two jobs. It bounds the record, which otherwise grows for as long as
+      // somebody explores. And it is what makes walking back somewhere re-send
+      // it: ground returning is how a body that was dropped by `forgetDeparted`
+      // comes back with its bar and its statuses. @see bodiesArrivingWith
+      const record = this.sight.get(actorId);
+      if (record && record.from !== this.streamedFrom.get(actorId)) {
+        this.streamedFrom.set(actorId, record.from);
+        for (const key of sent) if (!sight.ground.has(key)) sent.delete(key);
+      }
+
+      const take: Array<{ x: number; y: number; z: number; stack: PlacedTile[] }> = [];
+      for (const key of sight.ground) {
+        if (sent.has(key)) continue;
+        sent.add(key);
+        const at = parseCellKey3(key);
+        const stack = getStack(map, at.x, at.y, at.z);
+        if (stack.length === 0) continue;
+        take.push({ x: at.x, y: at.y, z: at.z, stack });
+        if (take.length >= CELLS_STREAMED_PER_TICK) break;
+      }
+      if (take.length === 0) continue;
+
+      this.sendToEverySocketOf(actorId, {
+        type: "patch",
+        cells: take,
+        ...this.bodiesArrivingWith(take),
       });
     }
   }
@@ -4207,6 +4356,10 @@ export class GameServer {
       if (anySilenced && this.isSilenced(ws)) continue;
       const attachment = ws.deserializeAttachment() as Attachment | null;
       if (!attachment) continue;
+      if (OCCLUSION_SUBSCRIPTIONS) {
+        this.sendSightPatch(ws, attachment.actorId, cells, rest, groundOnly);
+        continue;
+      }
       const scope = patchScope(buckets, this.subscribed.get(attachment.actorId));
       if (groundOnly && scope.cells.length === 0) continue;
       let payload = payloads.get(scope.key);
@@ -4224,6 +4377,102 @@ export class GameServer {
         // A socket that died between the tick and this send is dropped by the
         // runtime; webSocketClose will clean the actor up.
       }
+    }
+  }
+
+  /**
+   * PROTOTYPE — one client's share of the tick, cut to what it can see.
+   *
+   * Two different cuts, because the patch carries two different kinds of thing.
+   *
+   * **Ground** is cut by {@link nearVisible} — what you can see plus the margin
+   * the renderer and the light bake need. A cell whose stack has just appeared
+   * is handled by the same predicate, which is why this is asked of the
+   * position rather than of the subscription set.
+   *
+   * **Bodies** are cut by exact line of sight. Everything keyed on an actor —
+   * its bar, its statuses, its lantern, the events that say it moved — reaches
+   * you only while you can see it. That is the half the chunk subscription
+   * could never do, and on the shipped map it is 99% of what a client hears:
+   * a player in town can see one of the world's two hundred bodies.
+   *
+   * `joined` and `left` are exempt: they carry the headcount the players bar
+   * reads, and a count that only moved when you could see the door would be
+   * wrong rather than private.
+   *
+   * Serialized per socket rather than grouped the way {@link patchScope} groups.
+   * A prototype shortcut, and the thing to fix first if this graduates: the
+   * grouping key would be the pair of cuts, which is exactly as poolable.
+   */
+  private sendSightPatch(
+    ws: GameSocket,
+    actorId: string,
+    cells: CellPatch[],
+    rest: {
+      events: MotionEvent[];
+      hps: HpPatch[];
+      carriedLights: CarriedLightsPatch[];
+      statusIds: StatusIdsPatch[];
+      extractions: ExtractionPatch[];
+      castings: CastingPatch[];
+    },
+    groundOnly: boolean,
+  ) {
+    const sight = this.sight.get(actorId);
+    const ground = sight
+      ? cells.filter((c) => nearVisible(sight.visible, c.x, c.y, c.z))
+      : cells;
+
+    const seen = new Map<string, boolean>();
+    const visible = (id: string): boolean => {
+      const held = seen.get(id);
+      if (held !== undefined) return held;
+      const at = this.session?.actorPosition(id);
+      const answer = at ? this.canSee(actorId, at) : false;
+      seen.set(id, answer);
+      return answer;
+    };
+
+    const events = rest.events.filter((event) => {
+      if (event.kind === "joined" || event.kind === "left") return true;
+      const named = event as { actorId?: unknown };
+      if (typeof named.actorId !== "string") return true;
+      return named.actorId === actorId || visible(named.actorId);
+    });
+    const mine = <T extends { actorId: string }>(list: T[]): T[] =>
+      list.filter((row) => row.actorId === actorId || visible(row.actorId));
+
+    const hps = mine(rest.hps);
+    const carriedLights = mine(rest.carriedLights);
+    const statusIds = mine(rest.statusIds);
+    const extractions = mine(rest.extractions);
+    const castings = mine(rest.castings);
+
+    const empty =
+      ground.length === 0 &&
+      events.length === 0 &&
+      hps.length === 0 &&
+      carriedLights.length === 0 &&
+      statusIds.length === 0 &&
+      extractions.length === 0 &&
+      castings.length === 0;
+    if (empty || (groundOnly && ground.length === 0)) return;
+
+    try {
+      ws.send(
+        JSON.stringify({
+          type: "patch",
+          cells: ground,
+          events,
+          hps,
+          carriedLights,
+          statusIds,
+          extractions,
+          castings,
+        } satisfies ServerMessage),
+      );
+    } catch {
+      // Dropped by the runtime; webSocketClose cleans the actor up.
     }
   }
 

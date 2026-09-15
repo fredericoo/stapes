@@ -34,6 +34,15 @@ a world in the way.
   with players standing in a few scenarios, and print what a tick costs and
   how many bytes it puts on the wire. `--scenario <name>` for one,
   `--seconds <n>` for a shorter run
+- `bun scripts/bench-occlusion.ts` — PROTOTYPE. What an occlusion-shaped
+  subscription would cost and save, against the chunk square it would replace:
+  compute time, cells at join, patch bytes, and how many of the world's bodies
+  a player can actually see. `--reach <n>` sweeps the sight radius,
+  `--scenario <name>` for one. See `app/net/visibleSet.ts`
+- `bun scripts/check-occlusion.ts` — PROTOTYPE. Twelve assertions on hand-built
+  maps that say the visible set is neither empty nor everything: a wall hides
+  what is behind it, a sealed room sees nothing outside, a hole shows the cave
+  under it
 - `bun scripts/anchor-tiles.ts` — a one-shot, already run: rewrote
   `data/tiles.json` into the anchored sprite encoding, where a tile names its
   sheet once and every rect is measured from `TileDef.anchor`. `--check` says

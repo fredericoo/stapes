@@ -18,6 +18,7 @@ import { CHUNK_SIZE, levelKey } from "../app/lib/types";
 import type { FlatMapFile, MapFile, TileDef } from "../app/lib/types";
 import { tilesByIdFromList } from "../app/lib/validation";
 import { CHAT_MIN_INTERVAL_MS } from "../app/net/chat";
+import { OCCLUSION_SUBSCRIPTIONS } from "../app/net/visibleSet";
 import { CLOSE_REPLACED } from "../app/net/protocol";
 import { COMBAT_STATUS_ID } from "../app/lib/status";
 import {
@@ -4958,14 +4959,17 @@ describe("the tick patch is cut to what a client holds", () => {
   });
 
   /**
-   * **The boundary of this change, pinned rather than approved of.** A motion
-   * event names an actor and carries no cell, so it is about a body rather than
-   * about ground, and it still goes to everybody. Bob learns that alice took a
-   * step; he no longer learns where she is, which is what the cells carried.
-   * Scoping the actor-keyed half is a separate change with its own invariant to
-   * keep — see `app/net/interest.ts`.
+   * **Where the line sits, and it moves with the prototype.**
+   *
+   * A motion event names an actor and carries no cell, so under chunk
+   * subscriptions it is about a body rather than about ground and goes to
+   * everybody: bob learns alice took a step, without learning where she is.
+   * `OCCLUSION_SUBSCRIPTIONS` is the experiment that moves exactly that line —
+   * it cuts everything keyed on an actor by whether you can *see* the actor —
+   * so both readings are asserted here rather than one of them being deleted.
+   * See `app/net/visibleSet.ts`.
    */
-  it("still tells everybody that a body moved, without saying where", async () => {
+  it("tells everybody a body moved, unless it scopes by sight", async () => {
     const { alice, bob } = await twoFarApart();
     const bobSees = record(bob.ws);
 
@@ -4977,7 +4981,11 @@ describe("the tick patch is cut to what a client holds", () => {
       .of("patch")
       .flatMap((message) => message.events as Record<string, unknown>[])
       .map((event) => event.kind);
-    expect(kinds).toContain("walkStarted");
+    if (OCCLUSION_SUBSCRIPTIONS) {
+      expect(kinds).not.toContain("walkStarted");
+    } else {
+      expect(kinds).toContain("walkStarted");
+    }
   });
 
   /**
