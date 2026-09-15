@@ -1472,7 +1472,13 @@ describe("RemoteSession bodies that arrive after hello", () => {
     socket.deliver(
       patch(
         [{ x: 2, y: 0, z: 0, stack: [grass, smithBody] }],
-        [{ kind: "spawned", actorId: SMITH }],
+        [
+          {
+            kind: "spawned",
+            actorId: SMITH,
+            at: { x: 2, y: 0, z: 0, stackIndex: 1 },
+          },
+        ],
       ),
     );
 
@@ -1489,9 +1495,72 @@ describe("RemoteSession bodies that arrive after hello", () => {
     // The same id twice is ordinary: a socket that connected just after the
     // spawn was told about it by name as well. Taking the announcement as news
     // would drop the lerp this body is halfway through.
-    socket.deliver(patch([], [{ kind: "spawned", actorId: SELF }]));
+    socket.deliver(
+      patch([], [
+        { kind: "spawned", actorId: SELF, at: { x: 0, y: 0, z: 0, stackIndex: 1 } },
+      ]),
+    );
     expect(session.getSnapshot().actors.find((a) => a.id === SELF)?.walk)
       .toBe(walking?.walk);
+  });
+
+  /**
+   * A body that has walked out of the chunks this client is subscribed to, or
+   * that stood still while this client walked away from it. Not a death — the
+   * world still has it — and the entry has to go all the same: a body this
+   * client is no longer being told about is one it can find only by searching
+   * its whole board, every frame, for as long as it holds an entry for it.
+   */
+  it("lets go of a body it is told it is no longer being sent", () => {
+    const { socket, session } = connected();
+    socket.deliver(
+      patch(
+        [{ x: 2, y: 0, z: 0, stack: [grass, smithBody] }],
+        [
+          {
+            kind: "spawned",
+            actorId: SMITH,
+            at: { x: 2, y: 0, z: 0, stackIndex: 1 },
+          },
+        ],
+        [{ actorId: SMITH, hp: 3, maxHp: 4, rating: 1 }],
+      ),
+    );
+    expect(session.getSnapshot().actors.map((a) => a.id)).toContain(SMITH);
+
+    // The tile stays where it is, which is the case worth covering: the cells
+    // of a chunk that has gone out of reach are not taken back, so what decides
+    // whether this body is drawn is the entry rather than the board.
+    socket.deliver(patch([], [{ kind: "despawned", actorId: SMITH }]));
+
+    expect(session.getSnapshot().actors.map((a) => a.id)).toEqual([SELF]);
+  });
+
+  /**
+   * And it comes back whole. The announcement carries the body's state because
+   * this client has nothing to patch against for a body it has just been told
+   * about — the same reason a `hello` carries everybody's.
+   */
+  it("takes a body back with the state announced beside it", () => {
+    const { socket, session } = connected();
+    const arrival = patch(
+      [{ x: 2, y: 0, z: 0, stack: [grass, smithBody] }],
+      [
+        {
+          kind: "spawned",
+          actorId: SMITH,
+          at: { x: 2, y: 0, z: 0, stackIndex: 1 },
+        },
+      ],
+      [{ actorId: SMITH, hp: 3, maxHp: 4, rating: 1 }],
+    );
+    socket.deliver(arrival);
+    socket.deliver(patch([], [{ kind: "despawned", actorId: SMITH }]));
+
+    socket.deliver(arrival);
+
+    const smith = session.getSnapshot().actors.find((a) => a.id === SMITH);
+    expect(smith).toMatchObject({ x: 2, y: 0, z: 0, hp: 3, maxHp: 4 });
   });
 });
 
