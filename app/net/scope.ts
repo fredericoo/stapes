@@ -9,10 +9,27 @@
  * the world meant each of them hearing nineteen other neighbourhoods walk
  * about, none of which they could see.
  *
- * **A client hears about a chunk exactly while it is subscribed to it.** That
- * is one rule covering both halves: cells are scoped by the chunk they are in,
- * and a body is scoped by the chunk it is standing in, because a body that a
- * client holds no ground for is a body it cannot draw.
+ * **Terrain is scoped by the chunk it is in, and a body by how far away it is.**
+ * Two reaches rather than one, because the two are bounded by different things.
+ * A client's copy of the *map* has to cover what its light bake reads, which is
+ * `INTEREST_REACH_CELLS` — 79 cells, most of it the cached bake's own apron. A
+ * *body* feeds none of that: every body tile is `lightPassing` and
+ * `terrainHeight` skips a person, so what bounds a body is what the client
+ * could draw or be lit by, which is `BODY_REACH_CELLS` — 49 cells.
+ *
+ * **Scoping bodies at the terrain reach is what the first version of this did,
+ * and it saved nothing.** The subscription is a square 176 cells across;
+ * `data/map.json` is 168 wide. So every client held the whole width of the
+ * world, and the brain budget walks two dozen creatures somewhere on it every
+ * round — which is exactly the deer, in exactly the town, that the player far
+ * out in the hills could not see and was told about anyway.
+ *
+ * **A client is never sent a body it has not been told about**, which is what
+ * keeps the two reaches from disagreeing: cells go out with the bodies outside
+ * the body reach taken out of them (`visibleStack`), so a client's board holds
+ * a creature only while it holds the creature. Leaving them in is the version
+ * that looks cheaper and leaves a deer tile standing in a cell for ever — see
+ * `visibleStack` for what that costs.
  *
  * **What a client holds is therefore exact inside its subscription and frozen
  * outside it.** Outside is the weaker half and it is deliberate: a chunk that
@@ -41,7 +58,7 @@
  * no cell for pays `findActorAnywhere` — a sweep of its whole board — on every
  * frame, for ever.
  */
-import { covers } from "./interest";
+import { covers, visibleStack } from "./interest";
 import type { CellPatch, MotionEvent } from "./protocol";
 
 /**
@@ -114,28 +131,73 @@ export function reaches(
 }
 
 /**
- * The cells of this patch that a client subscribed to `chunks` is owed.
+ * A changed cell, with what is needed to decide who it is news to.
  *
- * Returns the array itself when nothing is dropped, so the caller can tell by
- * identity that this client takes the patch whole — which is what lets the
- * common case share one serialization.
+ * Both fields are worked out once per tick, off the two boards the diff was
+ * taken between, because they are the same answer for every client — only the
+ * `held` set they are asked against differs.
+ */
+export type ScopedCell = {
+  cell: CellPatch;
+  /**
+   * Whether anything other than a body changed here.
+   *
+   * A cell that only moved bodies is news to a client that holds one of them
+   * and to nobody else: with the bodies taken out it is the cell that client
+   * already has. That is the whole of the saving — a creature's step is two
+   * such cells, and the world walks two dozen creatures a round.
+   */
+  terrain: boolean;
+  /** Whose bodies were in this cell before or after; empty for almost all. */
+  bodies: readonly string[];
+};
+
+/**
+ * The cells of this patch that a client is owed, each carrying only the bodies
+ * that client holds.
+ *
+ * Returns null when every cell survives untouched, which is how the caller
+ * tells that this client takes the patch whole — and what lets all of them
+ * share one serialization. A same-length answer would not do: a cell can come
+ * back with a body taken out of it and the count unchanged.
  */
 export function cellsInScope(
-  cells: CellPatch[],
+  cells: readonly ScopedCell[],
   chunks: ReadonlySet<string>,
-): CellPatch[] {
+  held: ReadonlySet<string>,
+): CellPatch[] | null {
   let out: CellPatch[] | null = null;
   for (let i = 0; i < cells.length; i++) {
-    const cell = cells[i]!;
-    if (covers(chunks, cell.x, cell.y)) {
-      out?.push(cell);
+    const scoped = cells[i]!;
+    const mine = cellInScope(scoped, chunks, held);
+    if (mine === scoped.cell) {
+      out?.push(mine);
       continue;
     }
-    // The first one dropped is where the copy starts: everything before it was
-    // in scope, and everything after is decided one at a time.
-    out ??= cells.slice(0, i);
+    // The first one dropped or rewritten is where the copy starts: everything
+    // before it was this client's as it stood, and everything after is decided
+    // one at a time.
+    out ??= cells.slice(0, i).map((each) => each.cell);
+    if (mine) out.push(mine);
   }
-  return out ?? cells;
+  return out;
+}
+
+/** One cell as this client should have it, or null when it is not news. */
+function cellInScope(
+  scoped: ScopedCell,
+  chunks: ReadonlySet<string>,
+  held: ReadonlySet<string>,
+): CellPatch | null {
+  const { cell, terrain, bodies } = scoped;
+  // Ground this client has not been handed. What it holds instead is the
+  // subscription, and the chunk is handed over whole when it comes into reach.
+  if (!covers(chunks, cell.x, cell.y)) return null;
+  // Only bodies moved, and none of them is one this client has been told about
+  // — so with them taken out this is the cell it already has.
+  if (!terrain && !bodies.some((owner) => held.has(owner))) return null;
+  const stack = visibleStack(cell.stack, held);
+  return stack === cell.stack ? cell : { ...cell, stack };
 }
 
 /** The events of this patch that such a client is owed. @see cellsInScope */

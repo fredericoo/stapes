@@ -1689,15 +1689,69 @@ cells while the world is 440,000. If it ever needs to be *smaller* than this,
 the lever is the light cache — `LIGHT_CHUNK_SIZE` and `LIGHT_APRON` are 47 of
 the 79 — and not the subscription, which is only as wide as what it must cover.
 
-## The tick stream is scoped by the same subscription
+## The tick stream is scoped, and terrain and bodies are scoped differently
 
 The join scaled with the player and the tick stream did not: every client was
 told about every cell that changed anywhere, so twenty people in twenty corners
 of the world each heard the other nineteen neighbourhoods walk about, none of
-which they could see. It is now one rule — **a client hears about a chunk
-exactly while it is subscribed to it** — and `app/net/scope.ts` is that rule.
+which they could see. `app/net/scope.ts` is the rule that fixed it, and it is
+**two** reaches rather than one:
 
-**What a client holds is exact inside its subscription and frozen outside it.**
+- **Terrain** is scoped by the chunk subscription above — 79 cells, because
+  that is what a client's light bake reads.
+- **A body** is scoped by `BODY_REACH_CELLS` — 33 cells on your own storey,
+  plus one per storey between you, because the projection shifts a level by its
+  own number.
+
+**Scoping bodies at the terrain reach is what the first version of this did,
+and it saved almost nothing.** The subscription is a square 176 cells across.
+`data/map.json` is 168 wide and every creature in it stands between x -74 and
+57, y -69 and 87 — so from anywhere a player would actually be, the whole
+inhabited world is inside the square, and the brain budget walks two dozen
+creatures somewhere in it every round. Measured over 20s on the den, one player
+at the spawn:
+
+| | cells/tick | KB/s |
+| --- | --- | --- |
+| every socket, as it was | 15.0 | 39.5 |
+| scoped by the chunk subscription | 14.5 | 38.1 |
+| bodies scoped by what you could see | 9.5 | 25.0 |
+
+The terrain reach is doing its job — a player 60 cells past the last creature
+goes from 7.7 cells/tick to 0.2 — but "60 cells past the last creature" is the
+empty south of the map, not anywhere with a reason to stand. **A body reach is
+what makes the boundary the one a player would guess.**
+
+The terms are all somebody else's constants again — half the view, the mesh
+margin, `MAX_LIGHT_LEVEL` — and the last of those is the one that keeps it
+bigger than what is drawn: a body can be *carrying* a lantern, and a client
+that has not been told there is a body has no emitter to overlay for it.
+
+**It must stay inside the terrain reach.** A body announced on ground its client
+has not been sent is one it can only find by sweeping its whole board;
+`interest.test.ts` pins `BODY_REACH_CELLS` against the least the subscription
+covers.
+
+### A client is never sent a body it has not been told about
+
+Cells go out with the bodies outside the body reach taken out of them
+(`visibleStack`), and so do the `hello` map and every chunk handover. The
+cheaper arrangement — stop sending a distant creature's steps, leave the cells
+alone — puts a tile of that creature in the client's board for ever: the cell it
+was standing in is never rewritten, so it sits there owned by no actor entry. It
+is too far away to draw, and the board is not only drawn. `fitsTile` counts a
+creature as solid, so the client would refuse its own player a step into a cell
+a deer left an hour ago, and a route planned across it would walk round
+something that is not there.
+
+That is also what makes the saving possible at all: a cell whose change is only
+bodies moving (`onlyBodiesMoved`, compared by placement identity the way the
+map's own diff compares stacks) is, with those bodies taken out, the cell the
+client already has — so it is not sent. A creature's step is two such cells, and
+that is the traffic.
+
+**What a client holds is exact inside its subscription — bodies aside — and
+frozen outside it.**
 A chunk that falls out of reach keeps whatever cells it last had; it is dropped
 from the record of what that client holds on the way out, so coming back into
 reach hands it over whole rather than patching a board nobody kept current. So

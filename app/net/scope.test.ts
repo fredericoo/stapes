@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { chunkKeyFor } from "../lib/mapData";
 import { CHUNK_SIZE } from "../lib/types";
-import type { CellPatch, MotionEvent } from "./protocol";
+import type { MotionEvent } from "./protocol";
+import type { PlacedTile } from "../lib/types";
 import {
   audienceOf,
   cellsInScope,
   eventsInScope,
   patchesInScope,
   reaches,
+  type ScopedCell,
 } from "./scope";
 
 /**
@@ -23,32 +25,80 @@ function holding(...cells: Array<[number, number]>): Set<string> {
   return new Set(cells.map(([x, y]) => chunkKeyFor(x, y)));
 }
 
+const NOBODY: ReadonlySet<string> = new Set();
+
 const HERE: [number, number] = [0, 0];
 const AWAY: [number, number] = [CHUNK_SIZE * 4, 0];
 
-function cell(x: number, y: number): CellPatch {
-  return { x, y, z: 0, stack: [{ tileId: "grass" }] };
+const grass = { tileId: "grass" } as PlacedTile;
+const deer = { tileId: "deer", owner: "npc:9,9,0,1" } as PlacedTile;
+
+/** A cell whose change is terrain: a tile appeared, nobody moved. */
+function terrain(x: number, y: number, stack: PlacedTile[] = [grass]): ScopedCell {
+  return { cell: { x, y, z: 0, stack }, terrain: true, bodies: [] };
+}
+
+/** A cell that changed only because a body walked into or out of it. */
+function stepped(x: number, y: number, stack: PlacedTile[]): ScopedCell {
+  return {
+    cell: { x, y, z: 0, stack },
+    terrain: false,
+    bodies: [deer.owner!],
+  };
 }
 
 describe("cells of a patch", () => {
   it("keeps the ones in chunks this client holds", () => {
-    const cells = [cell(1, 0), cell(AWAY[0], 0), cell(2, 0)];
+    const cells = [terrain(1, 0), terrain(AWAY[0], 0), terrain(2, 0)];
 
-    expect(cellsInScope(cells, holding(HERE))).toEqual([cell(1, 0), cell(2, 0)]);
+    expect(cellsInScope(cells, holding(HERE), NOBODY)).toEqual([
+      cells[0]!.cell,
+      cells[2]!.cell,
+    ]);
   });
 
   /**
-   * By identity, and it is not a detail: the caller sends one serialization to
-   * every client that takes the patch whole, and this is how it tells.
+   * Null, and it is not a detail: the caller sends one serialization to every
+   * client that takes the patch whole, and this is how it tells. A same-length
+   * answer would not do — a cell can come back with a body taken out of it.
    */
-  it("hands back the same array when none is dropped", () => {
-    const cells = [cell(1, 0), cell(2, 0)];
-
-    expect(cellsInScope(cells, holding(HERE))).toBe(cells);
+  it("says so when none is dropped or rewritten", () => {
+    expect(cellsInScope([terrain(1, 0), terrain(2, 0)], holding(HERE), NOBODY))
+      .toBeNull();
   });
 
-  it("drops every one when the client holds nothing", () => {
-    expect(cellsInScope([cell(1, 0)], new Set())).toEqual([]);
+  it("drops every one when the client holds no ground", () => {
+    expect(cellsInScope([terrain(1, 0)], new Set(), NOBODY)).toEqual([]);
+  });
+
+  /**
+   * The saving this exists for. A creature's step is two cells that changed for
+   * no other reason, and the world walks two dozen creatures a round — none of
+   * which a client 60 cells away can see.
+   */
+  it("drops a step by a body this client is not being told about", () => {
+    const cells = [stepped(1, 0, [grass]), stepped(2, 0, [grass, deer])];
+
+    expect(cellsInScope(cells, holding(HERE), NOBODY)).toEqual([]);
+  });
+
+  it("sends that same step to a client that holds the body", () => {
+    const cells = [stepped(1, 0, [grass]), stepped(2, 0, [grass, deer])];
+
+    expect(cellsInScope(cells, holding(HERE), new Set([deer.owner!]))).toBeNull();
+  });
+
+  /**
+   * A cell that changed for a reason of its own still goes out — with the body
+   * standing in it taken back out, because a client is never sent a body it has
+   * not been told about.
+   */
+  it("strips a body out of a cell that changed under it", () => {
+    const cells = [terrain(1, 0, [grass, deer])];
+
+    expect(cellsInScope(cells, holding(HERE), NOBODY)).toEqual([
+      { x: 1, y: 0, z: 0, stack: [grass] },
+    ]);
   });
 });
 

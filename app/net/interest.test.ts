@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MAP_FILE_VERSION } from "../lib/types";
 import {
+  BODY_REACH_CELLS,
   INTEREST_REACH_CELLS,
   INTEREST_REACH_CHUNKS,
   cellsOfChunks,
@@ -9,6 +10,8 @@ import {
   interestChunks,
   mapOfInterest,
   sameChunks,
+  visibleStack,
+  withinBodyReach,
 } from "./interest";
 import {
   LIGHT_APRON,
@@ -16,9 +19,16 @@ import {
   LIGHT_WINDOW_MARGIN,
 } from "../lib/lightingChunks";
 import { emptyMap, replaceStack } from "../lib/mapData";
-import { CHUNK_SIZE, MAX_LEVEL, MIN_LEVEL, coordKey, levelKey } from "../lib/types";
-import type { MapFile } from "../lib/types";
-import { VIEW_CELLS } from "../lib/view";
+import {
+  CHUNK_SIZE,
+  MAX_LEVEL,
+  MAX_LIGHT_LEVEL,
+  MIN_LEVEL,
+  coordKey,
+  levelKey,
+} from "../lib/types";
+import type { MapFile, PlacedTile } from "../lib/types";
+import { MESH_WINDOW_MARGIN, VIEW_CELLS } from "../lib/view";
 
 /**
  * What a client is owed.
@@ -29,6 +39,9 @@ import { VIEW_CELLS } from "../lib/view";
  * subscription being a function of where the body is rather than of how big
  * the world is.
  */
+
+/** A client that has been told about nobody, which is most of the map to most of them. */
+const NOBODY: ReadonlySet<string> = new Set();
 
 function mapAt(...cells: Array<{ x: number; y: number; z: number }>): MapFile {
   let map = emptyMap();
@@ -141,6 +154,115 @@ describe("what comes into reach", () => {
   });
 });
 
+/**
+ * How far a *body* is worth mentioning, which is a different question from how
+ * much map a client needs. Scoping bodies at the map's reach is what the first
+ * version of this did, and on a map narrower than the subscription it saved
+ * nothing at all.
+ */
+describe("the body reach", () => {
+  /**
+   * The one relationship that has to hold. A body announced on ground its
+   * client has not been sent is one it can only find by searching its whole
+   * board — and `INTEREST_REACH_CHUNKS` chunks is the *least* a subscription
+   * covers in any direction, since a body at the start of its own chunk holds
+   * exactly that far west.
+   */
+  it("stays inside the least the map reach covers", () => {
+    expect(BODY_REACH_CELLS).toBeLessThanOrEqual(
+      INTEREST_REACH_CHUNKS * CHUNK_SIZE,
+    );
+  });
+
+  it("is what the client could draw or be lit by, and not the light bake's apron", () => {
+    expect(BODY_REACH_CELLS).toBe(
+      Math.ceil(VIEW_CELLS / 2) +
+        (MAX_LEVEL - MIN_LEVEL) +
+        MESH_WINDOW_MARGIN +
+        MAX_LIGHT_LEVEL,
+    );
+    // The point of the exercise: well under the map's, which is mostly the
+    // cached light bake's own apron.
+    expect(BODY_REACH_CELLS).toBeLessThan(INTEREST_REACH_CELLS);
+  });
+
+  it("is a square in cells around the viewer", () => {
+    const at = { x: 100, y: 100, z: 0 };
+    const onLevel = BODY_REACH_CELLS - (MAX_LEVEL - MIN_LEVEL);
+
+    expect(withinBodyReach(at, 100 + onLevel, 100, 0)).toBe(true);
+    expect(withinBodyReach(at, 100, 100 - onLevel, 0)).toBe(true);
+    expect(withinBodyReach(at, 100 + onLevel + 1, 100, 0)).toBe(false);
+    expect(withinBodyReach(at, 100, 100 + onLevel + 1, 0)).toBe(false);
+  });
+
+  /**
+   * The projection shifts a level by its own number, so a body some storeys off
+   * is drawn that far from its own column — and only that far. Charging the
+   * whole level span for a body on the floor you are standing on is what made
+   * a den of cave floors read as one enormous room.
+   */
+  it("widens by the storeys between the two, and no further", () => {
+    const at = { x: 100, y: 100, z: 0 };
+    const onLevel = BODY_REACH_CELLS - (MAX_LEVEL - MIN_LEVEL);
+
+    expect(withinBodyReach(at, 100 + onLevel + 3, 100, 3)).toBe(true);
+    expect(withinBodyReach(at, 100 + onLevel + 3, 100, -3)).toBe(true);
+    expect(withinBodyReach(at, 100 + onLevel + 4, 100, 3)).toBe(false);
+    // Never past the worst case, which is what the subscription is pinned to.
+    expect(withinBodyReach(at, 100 + BODY_REACH_CELLS + 1, 100, MAX_LEVEL)).toBe(
+      false,
+    );
+  });
+});
+
+/**
+ * What a client is not told about, it is not sent — including the tile of it.
+ *
+ * The cheaper arrangement is to stop sending a distant creature's steps and
+ * leave the cells alone, and it leaves that creature's tile in the client's
+ * board for ever: too far to draw, and `fitsTile` counts it as solid, so the
+ * player is refused a step into a cell a deer left an hour ago.
+ */
+describe("bodies in a stack", () => {
+  const grass = { tileId: "grass" } as PlacedTile;
+  const deer = { tileId: "deer", owner: "npc:1,1,0,1" } as PlacedTile;
+  const mine = { tileId: "player", owner: "me" } as PlacedTile;
+
+  it("keeps the ones this client has been told about", () => {
+    expect(visibleStack([grass, deer, mine], new Set(["me"]))).toEqual([
+      grass,
+      mine,
+    ]);
+  });
+
+  it("hands back the stack itself when there is nothing to take out", () => {
+    const stack = [grass];
+
+    expect(visibleStack(stack, NOBODY)).toBe(stack);
+    const withMine = [grass, mine];
+    expect(visibleStack(withMine, new Set(["me"]))).toBe(withMine);
+  });
+
+  it("takes bodies out of the map a joiner is sent", () => {
+    let map = emptyMap();
+    map = replaceStack(map, 1, 1, 0, [grass, deer]);
+
+    const flat = mapOfInterest(map, interestChunks(1, 1), NOBODY);
+    const held = mapOfInterest(map, interestChunks(1, 1), new Set([deer.owner!]));
+
+    expect(flat.levels[levelKey(0)]?.[coordKey(1, 1)]).toEqual([grass]);
+    expect(held.levels[levelKey(0)]?.[coordKey(1, 1)]).toEqual([grass, deer]);
+  });
+
+  it("takes bodies out of a chunk coming into reach", () => {
+    let map = emptyMap();
+    map = replaceStack(map, 1, 1, 0, [grass, deer]);
+
+    expect(cellsOfChunks(map, ["0,0"], NOBODY)[0]?.stack).toEqual([grass]);
+  });
+});
+
 describe("handing the cells over", () => {
   it("sends a chunk's cells on every level it has any", () => {
     const map = mapAt(
@@ -149,19 +271,19 @@ describe("handing the cells over", () => {
       { x: 3, y: 3, z: 4 },
     );
 
-    const cells = cellsOfChunks(map, ["0,0"]);
+    const cells = cellsOfChunks(map, ["0,0"], NOBODY);
 
     expect(cells.map((c) => c.z).sort((a, b) => a - b)).toEqual([-3, 0, 4]);
   });
 
   it("says nothing about a chunk the map does not have", () => {
-    expect(cellsOfChunks(mapAt({ x: 1, y: 1, z: 0 }), ["9,9"])).toEqual([]);
+    expect(cellsOfChunks(mapAt({ x: 1, y: 1, z: 0 }), ["9,9"], NOBODY)).toEqual([]);
   });
 
   it("gives a joiner the flat shape it already parses", () => {
     const map = mapAt({ x: 1, y: 1, z: 0 });
 
-    const flat = mapOfInterest(map, interestChunks(1, 1));
+    const flat = mapOfInterest(map, interestChunks(1, 1), NOBODY);
 
     expect(flat.version).toBe(MAP_FILE_VERSION);
     expect(flat.levels[levelKey(0)]?.[coordKey(1, 1)]).toEqual([
@@ -173,7 +295,7 @@ describe("handing the cells over", () => {
     const far = (INTEREST_REACH_CHUNKS + 3) * CHUNK_SIZE;
     const map = mapAt({ x: 1, y: 1, z: 0 }, { x: far, y: far, z: 0 });
 
-    const flat = mapOfInterest(map, interestChunks(1, 1));
+    const flat = mapOfInterest(map, interestChunks(1, 1), NOBODY);
 
     expect(flat.levels[levelKey(0)]?.[coordKey(1, 1)]).toBeDefined();
     expect(flat.levels[levelKey(0)]?.[coordKey(far, far)]).toBeUndefined();
@@ -191,7 +313,7 @@ describe("handing the cells over", () => {
       map = replaceStack(map, 1, 1, z, [{ tileId: "grass" }]);
     }
 
-    const flat = mapOfInterest(map, interestChunks(1, 1));
+    const flat = mapOfInterest(map, interestChunks(1, 1), NOBODY);
 
     expect(Object.keys(flat.levels).length).toBe(MAX_LEVEL - MIN_LEVEL + 1);
   });

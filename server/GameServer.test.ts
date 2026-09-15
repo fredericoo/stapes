@@ -14,7 +14,10 @@ import {
 import { MINUTES_PER_DAY, minutesOfDayAt } from "../app/lib/clock";
 import { resolvePush } from "../app/lib/interactions";
 import { chunkKeyFor, getStack, listCoords } from "../app/lib/mapData";
-import { INTEREST_REACH_CHUNKS } from "../app/net/interest";
+import {
+  BODY_REACH_ON_LEVEL,
+  INTEREST_REACH_CHUNKS,
+} from "../app/net/interest";
 import { xpForLevel } from "../app/lib/mastery";
 import { CHUNK_SIZE, levelKey } from "../app/lib/types";
 import type { FlatMapFile, MapFile, TileDef } from "../app/lib/types";
@@ -4908,12 +4911,28 @@ describe("patches scoped to a subscription", () => {
   const ALICE_CELL = CHUNK_SIZE;
 
   /**
+   * The first cell past what alice could see a *body* in, and the last one
+   * inside it — one step apart, on opposite sides of that boundary. The
+   * same-storey reach, because that is the storey they are both on.
+   *
+   * Well inside the ground she holds, which is the point of every case that
+   * uses them: a creature walking there is on her board and is still none of
+   * her business.
+   */
+  const BODY_OUT = ALICE_CELL + BODY_REACH_ON_LEVEL + 1;
+  const BODY_IN = BODY_OUT - 1;
+
+  /** On the floor in bob's cell, and its slot in that stack. */
+  const DROPPED_SWORD = "rusty-sword";
+  const DROPPED_STACK_INDEX = 2;
+
+  /**
    * A world already run, with alice at the spawn cell and bob out past her
    * reach — the arrangement two players in one town do not have and two players
    * in one world do.
    */
   function farApart(
-    bobAt: number = OUT_OF_REACH,
+    bobAt: number = BODY_OUT,
   ): { map: FlatMapFile; spawn: Record<string, number> } {
     const cells: Record<string, unknown[]> = {};
     for (let x = 0; x <= OUT_OF_REACH + 1; x++) {
@@ -4926,6 +4945,9 @@ describe("patches scoped to a subscription", () => {
     cells[`${bobAt},0`] = [
       { tileId: "grass" },
       { tileId: PLAYER_TILE_ID, direction: "s", owner: "bob" },
+      // On the floor over bob's head, so a case about ground rather than bodies
+      // has something to change that is not somebody walking.
+      { tileId: DROPPED_SWORD },
     ];
     return {
       map: { version: MAP_FILE_VERSION, levels: { "0": cells } } as FlatMapFile,
@@ -4934,7 +4956,7 @@ describe("patches scoped to a subscription", () => {
   }
 
   /** Both of them connected, standing where the checkpoint put them. */
-  async function bothConnected(bobAt: number = OUT_OF_REACH) {
+  async function bothConnected(bobAt: number = BODY_OUT) {
     await putCheckpoint(farApart(bobAt));
     // Bob first, and that ordering is the test's own bookkeeping rather than
     // anything about scoping: the world loads on the first join and reaps every
@@ -4973,6 +4995,22 @@ describe("patches scoped to a subscription", () => {
     });
   }
 
+  /** One cell of the map a joiner was sent. */
+  function cellOf(
+    hello: Record<string, unknown>,
+    x: number,
+  ): { tileId: string }[] | undefined {
+    const map = hello.map as {
+      levels: Record<string, Record<string, { tileId: string }[]>>;
+    };
+    return map.levels[levelKey(0)]?.[`${x},0`];
+  }
+
+  /** Was this ground part of what the joiner was handed at all? */
+  function aliceHolds(hello: Record<string, unknown>, x: number): boolean {
+    return cellOf(hello, x) !== undefined;
+  }
+
   /** Wait for a step to land, which is where a subscription is read from. */
   async function arrivedAt(actorId: string, x: number) {
     for (let i = 0; i < 100; i++) {
@@ -4992,17 +5030,41 @@ describe("patches scoped to a subscription", () => {
     expect(alice.hello.playerCount).toBe(2);
   });
 
-  it("does not tell a client about a step taken out of its reach", async () => {
+  /**
+   * The case this exists for, and the one scoping by the map's reach alone got
+   * wrong: alice holds this ground — her subscription is five chunks and bob is
+   * standing three away — and a body walking on it is still not her business.
+   */
+  it("does not tell a client about a step it could not have seen", async () => {
     const { alice, bob } = await bothConnected();
+    // The premise. Without it this passes for the wrong reason, as a test about
+    // ground alice was never sent.
+    expect(aliceHolds(alice.hello, BODY_OUT)).toBe(true);
     const heard = record(alice.ws);
 
     step(bob.ws, 1, "e");
     // Bob's own step reaches Bob, which is what makes the silence a rule about
-    // what alice holds rather than a world that stopped ticking.
+    // what alice can see rather than a world that stopped ticking.
     expect(await walkWithin(bob.ws, 1000)).not.toBeNull();
     await messageWithin(bob.ws, "patch", MESSAGE_TIMEOUT_MS);
 
     expect(heard.types()).toEqual([]);
+  });
+
+  /**
+   * And the ground under him is hers, without him on it. A client is never sent
+   * a body it has not been told about: left in, that tile would stand in its
+   * board for ever, too far to draw and solid to `fitsTile` — an invisible wall
+   * where a creature stood an hour ago.
+   */
+  it("hands over the ground under a body it does not mention, without the body", async () => {
+    const { alice } = await bothConnected();
+
+    const stack = cellOf(alice.hello, BODY_OUT);
+    expect(stack?.map((placed) => placed.tileId)).toEqual([
+      "grass",
+      DROPPED_SWORD,
+    ]);
   });
 
   it("announces a body that walks into reach, with its hit points", async () => {
@@ -5016,7 +5078,7 @@ describe("patches scoped to a subscription", () => {
       actorId: "bob",
       // The cell it is standing in, so the first lookup on the far side
       // confirms a cell rather than searching the whole board for it.
-      at: { x: IN_REACH, y: 0, z: 0 },
+      at: { x: BODY_IN, y: 0, z: 0 },
     });
     // The whole of its state, because this client has nothing to patch against
     // for a body it has just been told about.
@@ -5051,43 +5113,49 @@ describe("patches scoped to a subscription", () => {
    * patched against a board nobody kept current.
    */
   it("hands a chunk back as it stands after walking away from it", async () => {
-    // Bob in the last cell alice's subscription covers, so one step of hers
-    // takes his chunk out of it and one step back brings it in.
+    // Bob in the last chunk alice's subscription covers, so one step of hers
+    // takes that chunk out of it and one step back brings it in. Bodies are not
+    // what this is about — he is far outside what she could see one in. He is
+    // here to change the ground from three chunks away.
     const { alice, bob } = await bothConnected(IN_REACH);
-    expect(alice.hello.actorIds).toEqual(["bob", "alice"]);
+    expect(cellOf(alice.hello, IN_REACH)?.map((p) => p.tileId)).toEqual([
+      "grass",
+      DROPPED_SWORD,
+    ]);
 
     step(alice.ws, 1, "w");
     await arrivedAt("alice", ALICE_CELL - 1);
     // One tick past the landing: a subscription is read off where the body *is*,
-    // so the chunk bob is standing in leaves it on the tick after the one that
-    // commits the step — and a world with nobody moving in it stops ticking,
-    // which is the one state in which nothing can be missed.
-    const gone = eventWithin(alice.ws, "despawned", 2000);
+    // so the chunk leaves it on the tick after the one that commits the step.
     await tickTimes(2);
-    expect(await gone).toMatchObject({ actorId: "bob" });
 
-    // Bob moves while alice is holding a picture of ground she is no longer
-    // subscribed to. Nothing about it reaches her.
+    // The ground changes while alice is holding a picture of a chunk she is no
+    // longer subscribed to. Nothing about it reaches her.
     const heard = record(alice.ws);
-    step(bob.ws, 1, "w");
-    await arrivedAt("bob", IN_REACH - 1);
+    send(bob.ws, {
+      type: "pickUp",
+      ref: { x: IN_REACH, y: 0, z: 0, stackIndex: DROPPED_STACK_INDEX },
+    });
+    await nextMessageOfType(bob.ws, "equipment");
     await settled(bob.ws);
     expect(heard.types()).toEqual([]);
 
     step(alice.ws, 2, "e");
     await arrivedAt("alice", ALICE_CELL);
-    const back = eventWithin(alice.ws, "spawned", 2000);
     // The handover is a couple of chunks a tick, and the world would otherwise
-    // go to sleep before the one bob is standing in came round.
+    // go to sleep before the one that changed came round.
     await tickTimes(30);
-    expect(await back).toMatchObject({ actorId: "bob", at: { x: IN_REACH - 1 } });
+
     const cells = heard
       .of("patch")
-      .flatMap((message) => message.cells as { x: number; stack: unknown[] }[]);
-    // The cell bob left is in the same chunk and comes back with it, emptied —
-    // so alice is not left holding a body in two places at once.
-    const vacated = cells.filter((cell) => cell.x === IN_REACH).at(-1);
-    expect(vacated?.stack).toHaveLength(1);
+      .flatMap(
+        (message) => message.cells as { x: number; stack: { tileId: string }[] }[],
+      );
+    // Handed over as it stands now rather than patched against a board nobody
+    // kept current: the sword is gone, and so is bob, who she is not being told
+    // about at this distance.
+    const handed = cells.filter((cell) => cell.x === IN_REACH).at(-1);
+    expect(handed?.stack.map((placed) => placed.tileId)).toEqual(["grass"]);
   });
 
   /**
