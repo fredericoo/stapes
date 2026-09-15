@@ -192,10 +192,10 @@ export const REQUIREMENTS_MET = 1;
  *
  * **All of them, and met exactly rather than scaled**, which is the one place a
  * stone and a weapon part company. A weapon half-understood still swings — see
- * {@link learningRate} and {@link requirementShare}, which turn a
- * shortfall into a share of the weapon — because swinging is a body doing what
- * bodies do. A stone either answers you or it does not, and a spell that fired
- * at a third strength would be a thing a player has to measure to learn about.
+ * {@link requirementShare}, which turns a shortfall into clumsiness rather than
+ * into a refusal — because swinging is a body doing what bodies do. A stone
+ * either answers you or it does not, and a spell that fired at a third strength
+ * would be a thing a player has to measure to learn about.
  *
  * Requirements on masteries the stone does not train are honoured on exactly the
  * terms a weapon's are: what a Stone of Flame *teaches* is Arcane, and what it
@@ -298,65 +298,24 @@ export function requirementCoverage(
   return brought / asked;
 }
 
-/**
- * How sharply a weapon stops teaching you once you have passed what it asks.
+/*
+ * Nothing here scales experience by what you are holding, and a `learningRate`
+ * used to: `(requirement / your level)` cubed, so a weapon carried past twice
+ * its requirement paid an eighth of the usual rate. It charged a player twice
+ * for one choice. A weapon low enough to have been outgrown is already the
+ * weaker weapon, and experience is counted in damage dealt, so the weaker
+ * weapon was already paying less — the falloff took a second bite out of the
+ * same fact and left putting the thing down as the only way to keep earning.
  *
- * **Three, and it was six.** The intent has not changed — you cannot grind one
- * mastery on one weapon; the thing that makes you better is picking up the next
- * one — and at three, twice the requirement still pays only an eighth, which is
- * a bad enough deal to keep anybody moving.
+ * The brake that remains is the one that was always doing the real work:
+ * `experienceMultiplier` pays nothing for a fight beneath your Rating, whatever
+ * you are holding. It is keyed to what you are fighting rather than to what you
+ * are gripping, so a player who wants Sharp 33 on a rusty sword may have it and
+ * has to keep finding harder things to swing at to get there.
  *
- * What changed is that the requirements now form a ladder with real gaps in it,
- * and this is a function of the *ratio* rather than the difference. At six, the
- * cost of climbing one rung was wildly uneven: the first rung, `5 -> 10`,
- * needed 6364 raw experience against 2025 for `15 -> 20` — three times the work,
- * on the rung a brand new player is standing on, which is precisely backwards.
- * Three is the value at which every rung costs about the same:
- *
- * ```
- *   f      5->10   10->15   15->20   20->25   25->30   spread
- *   6       6364     2460     2025     1987     2065     3.2x
- *   3       1239     1054     1158     1315     1490     1.4x
- * ```
- *
- * It replaced a five-point bridge followed by a gentle `ceiling / level` fade,
- * which was far too generous to stand still on — a starter sword taken to
- * mastery 100 was slow but perfectly viable, and "viable" is all a grind needs
- * to be.
+ * See `../game/experience`'s `attackerEarnings` and `casterEarnings`, which pay
+ * the plain rate.
  */
-export const OUTGROWN_FALLOFF = 3;
-
-/**
- * How much of the usual experience a weapon is still worth to you, as a fraction
- * of 1.
- *
- * `(requirement / your level)` raised to {@link OUTGROWN_FALLOFF}, and **held at
- * full rate anywhere at or below the requirement**. The cap is the important
- * half: below what a weapon asks the ratio is greater than one, and paying a
- * *bonus* for swinging something you cannot use would be exactly backwards.
- *
- * **The other direction is deliberately not discounted.** A weapon far above you
- * already teaches you less, because experience comes from landing blows and you
- * land far fewer of them — see `./battler`'s `weaponReadiness`, which now drags
- * damage down too, and damage is what experience is counted in. Discounting it a
- * second time here would be charging twice for the same difficulty, and it is
- * what deadlocked the old training wall.
- *
- * A weapon asking nothing teaches at full rate forever, which is what makes a
- * requirement-free weapon — bare hands — the thing that gets a mastery off zero.
- *
- * **Only the weapon's own mastery is ever consulted**, by the one caller there
- * is: see `../game/experience`'s `attackerEarnings`, which looks up
- * `requirements[weapon.mastery]` and credits that mastery alone. An axe asking
- * Sharp 15 and Toughness 10 is a Sharp weapon that is also heavy; leaving
- * Toughness untrained must not turn it into a Sharp trainer that never stops
- * paying.
- */
-export function learningRate(masteryLevel: number, requirement: number): number {
-  if (requirement <= 0) return 1;
-  if (masteryLevel <= requirement) return 1;
-  return (requirement / masteryLevel) ** OUTGROWN_FALLOFF;
-}
 
 /**
  * What a body has earned towards each mastery, in raw experience.

@@ -17,7 +17,7 @@ import {
   type BattlerDef,
   DAMAGE_AT_MAX_MASTERY,
   type FightingStats,
-  weaponReadiness,
+  weaponHandling,
 } from "../lib/battler";
 import type { WeaponItem } from "../lib/item";
 import { EQUIP_SLOTS, type EquipSlot, SLOT_LABELS } from "../lib/kit";
@@ -378,7 +378,7 @@ function MasteryDemand({
     (mastery) => (weapon.requirements?.[mastery] ?? 0) > 0,
   );
   const share = requirementShare(fighter.masteries, weapon.requirements);
-  const readiness = weaponReadiness(share);
+  const handling = weaponHandling(share);
   const skill = fighter.masteries[weapon.mastery] ?? 0;
 
   return (
@@ -391,7 +391,7 @@ function MasteryDemand({
         />
       ))}
       <Figure label="requirements met" value={`${Math.round(share * 100)}%`} />
-      <Figure label="weapon at" value={`${Math.round(readiness * 100)}%`} />
+      <Figure label="acc & spd at" value={`${Math.round(handling * 100)}%`} />
       <Figure
         label={`${weapon.mastery} adds dmg`}
         value={`+${((skill / MAX_MASTERY) * DAMAGE_AT_MAX_MASTERY).toFixed(1)}`}

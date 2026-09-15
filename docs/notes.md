@@ -515,9 +515,10 @@ authored ceilings decide it.
 
 The weapons are ordinary `item` blocks — see `app/lib/item.ts` — and the
 ladder is a requirement ladder rather than a damage one: roughly 6, 20 and 34
-in the family's mastery, which is what `OUTGROWN_FALLOFF` wants, since
-standing still on one rung stops teaching you long before the next one is out
-of reach.
+in the family's mastery. That shape predates the fairness pass, which took the
+experience falloff off weapons entirely; what now moves a player up the rungs
+is that the fights worth having get harder, not that the weapon in their hand
+stops paying.
 
 **Armour is racked by slot rather than by rung, and that follows from armour
 not being a ladder.** Defence is a flat subtraction and a resistance answers
@@ -2398,17 +2399,25 @@ thing in the world to walk into.
 the Arena is a duel — one attacker, `guardShare` of exactly one, the same numbers
 they always reported.
 
-### A foe you have outgrown teaches you as little as a weapon you have outgrown
+### A blow you cannot feel teaches you nothing about taking blows
 
 Toughness ran away from every other mastery, and the measurement is worth keeping
 because the cause is not where anybody looks first. Fighting a wolf, the offensive
 and defensive payouts go through the *same* expression —
 `experienceMultiplier(wolfRating, playerRating)` at both call sites in
 `awardExperience`. The only thing that separated them was `learningRate`, which
-throws away everything past a weapon's requirement and has no defensive twin. A
+threw away everything past a weapon's requirement and had no defensive twin. A
 player on the wolves in the middle of that grind earned **+274 Toughness and +8
 Sharp from the same exchanges** — twenty-eight to one — and reached Toughness 40
 in about thirty fights.
+
+`learningRate` is gone now — see *Nothing is taken off a weapon for being one you
+have outgrown* below — which closes that gap from the other end and leaves
+`threatRate` standing on its own argument. It is a better one: this was never
+really about symmetry with a weapon. A blow that cannot dent you is a fact
+nothing else in the arithmetic can see, because `experienceMultiplier` weighs
+Ratings and a body can outgrow a creature outright while its Rating says the
+fight is close.
 
 Two things compounded it:
 
@@ -2885,7 +2894,7 @@ expensive: a stone asking Fire and Water is thrown at the average of three
 numbers, so training one half of it buys you a third of the spell.
 
 **Requirements are not read as a ratio here, unlike a weapon's**, and the absence
-is the design rather than an oversight. `weaponReadiness` exists because a weapon
+is the design rather than an oversight. `weaponHandling` exists because a weapon
 you have not earned still swings; a stone you have not earned does not fire at
 all, so the share is one at every call site this has. Writing the term anyway
 would be a factor that can never be anything but one, sitting in the formula
@@ -3288,9 +3297,10 @@ body nobody has given an element to.
 Both the flat per-cast fee and the outcome payout go to Arcane *and* to each
 element the spell is made of, at full rate on both. Splitting one pot between
 them would make a fire specialist slower at magic than somebody pressing a light,
-which is backwards for a global level. Each element is scaled by its own
-requirement through `learningRate`, so a caster who has outgrown a stone's Fire
-keeps learning from its Water.
+which is backwards for a global level. Neither is scaled by what the stone asks:
+a stone you have outgrown pays exactly what it did the day you could first hold
+one, on the same terms a weapon does — see *Nothing is taken off a weapon for
+being one you have outgrown* below.
 
 The outcome payout is measured on what the wheel *made* of the damage rather than
 on what the formula said, so a caster who picked the element the target is weak
@@ -3925,33 +3935,114 @@ greatsword ask Toughness, and daggers will ask Agility when they exist.
 `requirementShare` pools those, so the axe path and the sword path arrive at
 different moments even where the pooled totals match.
 
-**A constant ratio is the point, because `learningRate` is a function of the
-ratio.** A constant *difference* — 5, 10, 15, 20 — shrinks in relative terms as
-you climb, so the outgrown falloff bites hardest on the first rung and barely at
-all on the last. On a half-again ladder the weapon below is worth a near-constant
-~40% at the moment the next one becomes worth holding, at every level:
+**A constant ratio was originally the point because `learningRate` was a function
+of the ratio.** A constant *difference* — 5, 10, 15, 20 — shrinks in relative
+terms as you climb, so the outgrown falloff bit hardest on the first rung and
+barely at all on the last, and a half-again ladder left the weapon below worth a
+near-constant ~40% at the moment the next one became worth holding.
+
+`learningRate` is gone, so that argument is gone with it — see *Nothing is taken
+off a weapon for being one you have outgrown* below. The rungs are staying where
+they are: half again each step still reads as a progression, and the reason to
+move up is now that the fights worth having get harder rather than that the
+weapon stops paying.
+
+**The crossover is where the ladder is weakest, and this is the finding to pick
+up next.** Scanning it — where the next sword actually out-damages the one below
+against a fixed foe, at the same Sharp — the first three rungs have not moved:
 
 ```
-              5->10  10->15  15->22  22->33  33->50
-  ratio        2.00    1.50    1.47    1.50    1.52
-  left at 90%   17%     41%     43%     41%     39%
+                              asks   before   after
+  iron-sword                    10      10      10    (100% of what it asks)
+  knights-sword                 15      16      16    (107%)
+  greatsword                    22   never   never
+  tempered-longsword            33      30      25    ( 76%)
 ```
 
-`OUTGROWN_FALLOFF` moved from 6 to 3 to go with it — see the table in
-`app/lib/mastery.ts`. At six, `5 -> 10` cost 6364 raw experience against 2025 for
-`15 -> 20`: three times the work on the rung a brand new player is standing on.
+It is not the shortfall holding them there. Even at a tenth of the bite the iron
+sword does not overtake the rusty one before Sharp 10, because at full handling
+it is only ~4% better: 7 damage against 6, `spd` 50 against 52, accuracy 88
+against 86. There is nothing to reach early *for*. The greatsword never overtakes
+the knight's sword at any Sharp at all — 16 damage cannot pay for `spd` 34 and
+accuracy 74.
 
-**You adopt the next weapon at about 90% of what it asks, and that falls out
-rather than being arranged.** Scanning the crossover — where the next sword
-actually out-damages the one below against a fixed foe — puts it at 90–95% of the
-new requirement, and it stays there whatever `REQUIREMENT_FALLOFF` is set to,
-because on a ladder this tight you are never more than a few points short and the
-cube barely bites. That is why the cube was left alone: the behaviour people
-wanted from it comes from the ladder.
+So "reach for the next rung early" is a rule the code now permits and the content
+does not yet reward. The lever is the authored numbers — bigger damage steps
+between rungs — rather than the falloff, and it is content work rather than a
+rebalance of this arithmetic.
 
-Measured on the wolves, a player upgrading as each sword becomes worth holding
-picks up the iron sword at fight 12 and the knight's sword at 18, and reaches
-Sharp 27 by fight 120 where the old requirements left them at 12.
+### Nothing is taken off a weapon for being one you have outgrown
+
+Two separate penalties used to land on the same choice, and between them they
+made the answer to "which weapon should I carry" the same answer every time:
+whichever one you had most recently earned, and nothing else, ever.
+
+- `learningRate` cubed the ratio of a weapon's requirement to your level and
+  scaled every payout by it, so a weapon carried to twice its requirement
+  taught at an eighth of the rate.
+- `weaponReadiness` cubed the pooled requirement share and scaled *damage,
+  accuracy and speed* by it, so a weapon you were a fifth short of was worth
+  about half of itself and one you were half short of was worth an eighth.
+
+The first is a second charge for a fact the arithmetic already knew. An outgrown
+weapon is the weaker weapon — that is what "outgrown" means — and experience is
+counted in damage dealt, so it was already paying less. Cutting the rate on top
+of that did not discourage standing still; it made standing still the only thing
+that a player who liked their sword could do, and then charged them for it.
+
+The second is the same mistake pointed the other way. The weapon you are short of
+is the harder-hitting weapon — that is why you reached for it — and taking its
+damage away made it strictly worse than the rung below. A requirement stopped
+being something to reach for and became something to wait behind.
+
+**So: experience is never scaled by what you are holding, and falling short costs
+accuracy and swing rate at half the old bite.** Three changes, one rule.
+
+- `learningRate` and `OUTGROWN_FALLOFF` are gone. `attackerEarnings` and
+  `casterEarnings` pay what the blow or the cast did, full stop — which also let
+  both shed the `masteries` and `requirements` arguments they only needed for the
+  falloff.
+- `weaponReadiness` is `weaponHandling`, and `SHORTFALL_BITE` (a half) says how
+  much of the cube is charged. It runs from 1 down to 0.5 rather than to zero:
+  a weapon nobody can use at all is a weapon nobody can learn on.
+- **`fightingStats` applies it to `haste` rather than to `spd`, and this is the
+  part worth reading twice.** `spd` is a position on a curve running 100:1 from
+  end to end, so docking it by a half is not half the rate — it is a third of
+  it:
+
+  ```
+    handling      spd       a blow every      x the wait
+       100%        50             2.00s            1.00
+        76%        38             3.47s            1.73   (a true 76% is 1.32)
+        50%        25             6.33s            3.17   (a true 50% is 2.00)
+  ```
+
+  Handling is quoted to the player as a share of their swing rate, so it has to
+  be applied where a share of the rate is what it means. `haste` was already a
+  multiplier on the rate — Agility's — and now carries both; `attackIntervalMs`
+  divides by a haste below one instead of clamping it away, with
+  `SLOWEST_ATTACK_TICKS` capping the slow end.
+
+What still stops a player grinding one mastery on one weapon for ever is
+`experienceMultiplier`, which pays nothing for a fight beneath their Rating. That
+is the honest brake and always was: it is keyed to what you are fighting rather
+than to what you are gripping, so Sharp 33 on a rusty sword is allowed and is
+paid for in finding harder things to swing at.
+
+Measured at Sharp 8, two short of the iron sword's ten, against the rusty sword
+they have already earned:
+
+```
+                      dmg     hit     every        dps
+  rusty (asks 5)        8     88%      1.67s       4.23     unchanged
+  iron  (asks 10)
+    before              4     46%      5.57s       0.33
+    after               9     68%      2.43s       2.52     7.6x
+```
+
+The iron sword goes from unusable to a real if clumsy option. It is still the
+worse of the two at that moment — see the crossover table above, which is a
+finding about the authored ladder rather than about this rule.
 
 ### The sentence, and why it was wrong
 
@@ -4034,10 +4125,11 @@ Four rules keep it from becoming the requirements panel that was deleted:
   the fighting has to offer.
 - **Every figure is the reader's, with the item's own struck through beside it.**
   The card runs the item through the same `fightingStats` a swing uses, so a
-  greataxe you cannot lift reports 4 damage rather than 17. Printing the authored
-  numbers would make it a catalogue entry; printing yours makes it about you.
+  greataxe you are short of reports a blow every 3.2s rather than every 2.4s.
+  Printing the authored numbers would make it a catalogue entry; printing yours
+  makes it about you.
 - **It computes nothing.** `itemCard` calls `fightingStats`, `swingIntervalMs`,
-  `requirementShare` and `weaponReadiness` rather than restating them. A second
+  `requirementShare` and `weaponHandling` rather than restating them. A second
   definition of what a weapon is worth would diverge the next time somebody
   changed the falloff. The mastery rebalance replaced every formula underneath
   and the card needed no arithmetic changed.

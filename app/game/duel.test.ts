@@ -144,20 +144,20 @@ describe("learning a weapon", () => {
   });
 
   /**
-   * The progression, as a curve rather than as two points. Every step of Sharp
-   * is worth something until the requirement is met — a plateau in the middle
-   * would mean levels the player earns and cannot feel.
-   */
-  /**
-   * **The climb never reverses, and it is deliberately not smooth.** Readiness
-   * is the cube of what you brought, so the bottom of a requirement is nearly
-   * flat — a couple of points into a five-point sword is still a sword you
-   * cannot use, and the figures round to nothing. What matters is that no point
-   * ever costs you anything and that the last one before the gate is worth a
-   * great deal, which is what makes meeting it a moment rather than a gradient.
+   * **The climb never reverses, and it steepens all the way to the gate.** The
+   * shortfall is cubed, so the bottom of a requirement is nearly flat — a couple
+   * of points into a five-point sword barely moves it — and the point that opens
+   * the gate is the biggest single step on the way there.
+   *
+   * **It is a ramp topping out rather than a cliff, and that is the change.**
+   * Under the full cube the last point was worth several times every point
+   * before it put together; at half the bite it is merely the largest. The
+   * requirement is still worth reaching and no longer worth *waiting* for, which
+   * is the whole of what this pass was for — see `../lib/battler`'s
+   * `SHORTFALL_BITE`.
    */
   it("never goes backwards on the way to the requirement", () => {
-    const curve = [];
+    const curve: number[] = [];
     for (let sharp = 0; sharp <= required; sharp++) {
       curve.push(damagePerSecond(armed(playerAt("sharp", sharp), SWORD)));
     }
@@ -165,9 +165,27 @@ describe("learning a weapon", () => {
     for (let i = 1; i < curve.length; i++) {
       expect(curve[i]!).toBeGreaterThanOrEqual(curve[i - 1]!);
     }
-    // And the gate itself is a cliff rather than a step: the last point before
-    // it is worth several times every point before that put together.
-    expect(curve[required]!).toBeGreaterThan(curve[required - 1]! * 5);
+    // The point that opens the gate is the biggest single step on the way there.
+    const steps = curve.slice(1).map((dps, i) => dps - curve[i]!);
+    const last = steps.at(-1)!;
+    for (const step of steps.slice(0, -1)) expect(last).toBeGreaterThan(step);
+  });
+
+  /**
+   * **An unearned weapon is a handicap, not a brick.** It is still worse than
+   * your own hands — that is what makes the requirement mean something — but the
+   * gap is aim and pace rather than force, and it is half what it used to be.
+   * The blade does what it says on it from the first swing.
+   */
+  it("leaves an unlearnt sword hitting for everything it is authored to hit for", () => {
+    const blade = weaponOf(SWORD);
+    const novice = armed(playerAt("sharp", 0), SWORD);
+    const trained = armed(playerAt("sharp", required), SWORD);
+
+    expect(novice.damage).toBe(blade.damage);
+    // What the novice is short of is aim and pace, and nothing else.
+    expect(novice.hitChance).toBeLessThan(trained.hitChance);
+    expect(novice.haste).toBeLessThan(trained.haste);
   });
 
   /**
@@ -190,17 +208,17 @@ describe("learning a weapon", () => {
   });
 
   /**
-   * Past the requirement the weapon keeps improving, but far less — the ratio is
-   * capped at 1.25, and the point of the cap is that the next weapon is where
-   * the growth is, not this one.
-   */
-  /**
    * **Past the requirement the weapon stops improving and the wielder does not.**
-   * The two axes, in one comparison: readiness caps the moment the requirement
-   * is met, so speed never moves again — but skill keeps paying damage and
-   * accuracy for the whole rest of the scale, which is what makes a
-   * hundred-Sharp hero with a starter sword something other than a novice with
-   * a starter sword.
+   * The two axes, in one comparison: handling caps the moment the requirement is
+   * met, so the rate never moves again for the weapon's sake — but skill keeps
+   * paying damage and accuracy for the whole rest of the scale, which is what
+   * makes a hundred-Sharp hero with a starter sword something other than a
+   * novice with a starter sword.
+   *
+   * **And this is where the grind now lives.** Nothing takes experience away
+   * from a weapon you have outgrown, so a player may take Sharp anywhere they
+   * like on a rusty sword; what makes that slow is `experienceMultiplier`, which
+   * pays nothing for fights beneath their Rating.
    */
   it("keeps paying the wielder past the requirement, but not the weapon", () => {
     const met = armed(playerAt("sharp", required), SWORD);
@@ -211,8 +229,8 @@ describe("learning a weapon", () => {
     expect(damagePerSecond(tenfold)).toBeGreaterThan(damagePerSecond(double));
 
     // The weapon itself is done the moment its requirement is met.
-    expect(double.spd).toBe(met.spd);
-    expect(tenfold.spd).toBe(met.spd);
+    expect(double.haste).toBe(met.haste);
+    expect(tenfold.haste).toBe(met.haste);
   });
 });
 

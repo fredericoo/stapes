@@ -3,7 +3,6 @@ import { defFrom, maxHpFrom } from "../lib/battler";
 import type { ItemInstance } from "../lib/itemInstance";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import {
-  learningRate,
   masteriesFromXp,
   masteryLevel,
   xpForLevel,
@@ -1014,33 +1013,29 @@ describe("what pressing a stone teaches you for its own sake", () => {
 
 describe("casterEarnings", () => {
   it("pays nothing for nothing", () => {
-    expect(casterEarnings(0, undefined, [], {}, 1)).toEqual({});
-    expect(casterEarnings(-4, undefined, [], {}, 1)).toEqual({});
+    expect(casterEarnings(0, [], 1)).toEqual({});
+    expect(casterEarnings(-4, [], 1)).toEqual({});
   });
 
-  it("pays arcane and nothing else", () => {
-    expect(Object.keys(casterEarnings(5, undefined, [], {}, 1))).toEqual([
-      "arcane",
-    ]);
+  it("pays arcane and nothing else for an elementless spell", () => {
+    expect(Object.keys(casterEarnings(5, [], 1))).toEqual(["arcane"]);
+  });
+
+  it("pays each element the spell is made of on top of arcane", () => {
+    expect(casterEarnings(5, ["fire"], 1)).toEqual({
+      arcane: XP_PER_DAMAGE * 5,
+      fire: XP_PER_DAMAGE * 5,
+    });
   });
 
   /**
-   * The same falloff a weapon's is under: a stone you have outgrown keeps paying
-   * and keeps paying less.
+   * The casting half of the fairness rule. A stone you have outgrown pays what
+   * the spell did, exactly as a weapon you have outgrown does — see
+   * `./experience`'s `attackerEarnings` for why the falloff that used to sit
+   * here charged a player twice for one choice.
    */
-  it("scales by the stone's own requirement, exactly as a weapon does", () => {
-    const masteries = { arcane: 40 };
-    const earned = casterEarnings(5, { arcane: 10 }, [], masteries, 1).arcane!;
-    const expected =
-      XP_PER_DAMAGE * 5 * learningRate(masteryLevel(masteries, "arcane"), 10);
-    expect(earned).toBeCloseTo(expected, 6);
-  });
-
-  it("pays at full rate for a stone that asks nothing", () => {
-    expect(casterEarnings(5, undefined, [], { arcane: 40 }, 1).arcane).toBeCloseTo(
-      XP_PER_DAMAGE * 5,
-      6,
-    );
+  it("pays the plain rate whatever the stone asked", () => {
+    expect(casterEarnings(5, [], 1).arcane).toBeCloseTo(XP_PER_DAMAGE * 5, 6);
   });
 });
 

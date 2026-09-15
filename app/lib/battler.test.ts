@@ -13,7 +13,8 @@ import {
   MIN_CHANCE,
   MASTERY_ACCURACY_BONUS,
   MASTERY_DAMAGE_BONUS,
-  REQUIREMENT_FALLOFF,
+  SHORTFALL_BITE,
+  weaponHandling,
   spellPower,
 } from "./battler";
 import { MELEE_REACH, type WeaponItem } from "./item";
@@ -106,9 +107,10 @@ describe("hitChanceFrom", () => {
  *
  * Two axes, and keeping them apart is the whole design:
  *
- * - **Readiness** — how much of what the weapon asks you brought, cubed. It
- *   scales damage, accuracy *and* speed, and it caps at fully met. A requirement
- *   is a gate.
+ * - **Handling** — how much of what the weapon asks you brought, cubed and then
+ *   half charged. It scales accuracy and the swing rate and never damage, and it
+ *   caps at fully met. A requirement is a gate on how well you swing the thing,
+ *   not on how hard it lands.
  * - **Skill** — the absolute level of the mastery the weapon answers to. It adds
  *   damage and accuracy and never speed, and it goes on paying long after the
  *   requirement stopped mattering.
@@ -123,33 +125,45 @@ describe("what a weapon is worth in the hand", () => {
   });
 
   /**
-   * **A weapon you have not earned is bad at everything, not merely clumsy.**
-   * This is the change the cubed falloff exists to make: speed and damage used
-   * to only sag, which made an oversized axe a perfectly reasonable thing to
-   * carry around while you grew into it. Now it is close to inert, and the
-   * moment it unlocks is a moment.
+   * **A weapon you have not earned is clumsy and slow, and never weak.** This is
+   * the fairness rule the whole shortfall is now built around: the weapon you
+   * are short of is the harder-hitting weapon — that is why you reached for it —
+   * so taking its damage away made the rung below strictly better and left the
+   * requirement a wall to wait behind rather than a thing to reach for.
    *
-   * The floor on landing is untouched, and is what lets it still teach you.
+   * Handling floors at `1 - SHORTFALL_BITE` rather than at zero, so even a
+   * wielder who brings nothing at all swings at half rate and half accuracy.
+   *
+   * **The rate is `haste` and never `spd`.** `spd` is a position on a curve
+   * running 100:1 from end to end, so docking it by a half is not half the rate
+   * but a third of it — and handling is quoted to the player as a share of their
+   * swing rate. The weapon keeps its authored `spd`; the share goes where a
+   * share of the rate is what it means.
    */
-  it("leaves a weapon far beyond its wielder worth almost nothing", () => {
-    const stats = fightingStats(
-      body({ blunt: 0 }),
-      weapon({ requirements: { blunt: 40 } }),
-    );
-    expect(stats.hitChance).toBe(MIN_CHANCE);
-    expect(stats.damage).toBe(0);
-    expect(stats.spd).toBe(0);
+  it("leaves a weapon far beyond its wielder clumsy and slow, not weak", () => {
+    const asked = weapon({ requirements: { blunt: 40 } });
+    const stats = fightingStats(body({ blunt: 0 }), asked);
+    const unasked = fightingStats(body({ blunt: 0 }), weapon());
+
+    expect(stats.damage).toBe(unasked.damage);
+    expect(stats.spd).toBe(asked.spd);
+    expect(stats.accuracy).toBe(Math.round(100 * (1 - SHORTFALL_BITE)));
+    expect(stats.haste).toBeCloseTo(unasked.haste * (1 - SHORTFALL_BITE), 10);
+    expect(stats.hitChance).toBeLessThan(unasked.hitChance);
   });
 
-  /** Cubed, so falling short costs far more than proportionally. */
+  /** Cubed, so falling short costs more than proportionally — and then halved. */
   it("falls away faster than the shortfall itself", () => {
-    const half = fightingStats(
-      body({ blunt: 20 }),
-      weapon({ requirements: { blunt: 40 } }),
-    );
-    // Half the requirement is an eighth of the weapon, not half of it.
-    expect(half.spd).toBe(Math.round(100 * 0.5 ** REQUIREMENT_FALLOFF));
-    expect(half.spd).toBeLessThan(50);
+    const short = body({ blunt: 20 });
+    const half = fightingStats(short, weapon({ requirements: { blunt: 40 } }));
+    const whole = fightingStats(short, weapon());
+
+    // An eighth of the curve is charged at half, so 56% rather than 13%.
+    expect(half.accuracy).toBe(Math.round(whole.accuracy * weaponHandling(0.5)));
+    expect(half.haste).toBeCloseTo(whole.haste * weaponHandling(0.5), 10);
+    expect(weaponHandling(0.5)).toBeLessThan(1 - SHORTFALL_BITE / 2);
+    // And the damage is untouched by any of it.
+    expect(half.damage).toBe(whole.damage);
   });
 
   /**
@@ -166,8 +180,9 @@ describe("what a weapon is worth in the hand", () => {
       weapon({ requirements: { blunt: 40 } }),
     );
     expect(barely.spd).toBe(100);
-    // Speed is readiness only, so meeting the requirement is all it can be.
-    expect(far.spd).toBe(barely.spd);
+    // The rate is handling and Agility only — no skill term — so meeting the
+    // requirement is all the weapon can give.
+    expect(far.haste).toBe(barely.haste);
   });
 
   /**
@@ -199,28 +214,32 @@ describe("what a weapon is worth in the hand", () => {
 
   /**
    * **A hole in the gate, closed.** The skill bonus has a flat term that does not
-   * depend on the weapon, and while it sat outside readiness a Sharp 100 hero
+   * depend on the weapon, and while it sat outside handling a Blunt 100 hero
    * could pick up something whose *other* requirement they came nowhere near and
-   * still swing it for the whole flat amount. That is a gate with a hole cut in
-   * it exactly where the strongest players stand, so readiness now multiplies
-   * the skill bonus as well: what mastery buys is more out of *this* weapon, and
-   * a weapon you cannot lift has nothing more to give.
+   * still aim it as well as anything else. Handling multiplies the accuracy side
+   * of the skill bonus as well, so being good with maces cannot cancel out being
+   * short of this one.
+   *
+   * Damage is exempt on purpose — see the shortfall rule above — so what a
+   * master loses on a weapon they cannot lift is aim and pace, not force.
    */
-  it("gives a master nothing extra from a weapon they cannot lift", () => {
+  it("gives a master no extra aim from a weapon they cannot lift", () => {
+    const requirements = { blunt: 5, toughness: 100 };
+    // Blunt mastered outright, and not one point of the Toughness the weapon
+    // also asks for.
     const stats = fightingStats(
-      // Blunt mastered outright, and not one point of the Toughness the weapon
-      // also asks for.
       body({ blunt: 100, toughness: 0 }),
-      weapon({ requirements: { blunt: 5, toughness: 100 } }),
+      weapon({ requirements }),
     );
-    expect(stats.damage).toBe(0);
-    expect(stats.hitChance).toBe(MIN_CHANCE);
-
     // And the same body with the Toughness for it gets everything.
     const able = fightingStats(
       body({ blunt: 100, toughness: 100 }),
-      weapon({ requirements: { blunt: 5, toughness: 100 } }),
+      weapon({ requirements }),
     );
+
+    expect(stats.accuracy).toBe(Math.round(able.accuracy * weaponHandling(5 / 105)));
+    expect(stats.hitChance).toBeLessThan(able.hitChance);
+    expect(stats.damage).toBe(able.damage);
     expect(able.damage).toBeGreaterThan(100);
   });
 
@@ -261,7 +280,7 @@ describe("what a weapon is worth in the hand", () => {
    * against, so a master is harder to dodge as well as harder to escape — and a
    * body swinging something it cannot lift is easy to read.
    */
-  it("moves accuracy with both readiness and skill", () => {
+  it("moves accuracy with both handling and skill", () => {
     const outclassed = fightingStats(
       body({ blunt: 10 }),
       weapon({ accuracy: 80, requirements: { blunt: 40 } }),
@@ -320,9 +339,12 @@ describe("what a weapon is worth in the hand", () => {
       body({ blunt: 35, toughness: 10 }),
       weapon({ requirements: { blunt: 35, toughness: 20 } }),
     );
-    // 45 of the 55 points asked for, cubed.
-    const readiness = (45 / 55) ** REQUIREMENT_FALLOFF;
-    expect(stats.spd).toBe(Math.round(100 * readiness));
+    // 45 of the 55 points asked for, cubed and then half charged.
+    // Asserted on `haste`, which is the one of the two that is not rounded on
+    // the way out: 45 of the 55 points asked for, cubed and then half charged.
+    const whole = fightingStats(body({ blunt: 35, toughness: 10 }), weapon());
+    expect(stats.haste).toBeCloseTo(whole.haste * weaponHandling(45 / 55), 10);
+    expect(stats.accuracy).toBeLessThan(whole.accuracy);
     expect(stats.hitChance).toBeLessThan(MAX_CHANCE);
   });
 });

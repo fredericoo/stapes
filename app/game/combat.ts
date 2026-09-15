@@ -40,8 +40,19 @@ import { hasLineOfSight } from "./sight";
  */
 export const MIN_ATTACK_TICKS = 6;
 
-/** Ticks between blows at {@link FightingStats.spd} 0 — as slow as it gets. */
+/** Ticks between blows at {@link FightingStats.spd} 0, before haste either way. */
 export const MAX_ATTACK_TICKS = 600;
+
+/**
+ * The slowest anything ever swings, however short of its weapon it is.
+ *
+ * Twice the slow end of the curve, so a body that brings nothing at all to a
+ * weapon authored at `spd` 0 still swings — see `../lib/battler`'s
+ * {@link weaponHandling}, whose floor is a half. A cap rather than an accident
+ * of the arithmetic: the shortfall is a handicap, and a handicap that could
+ * stop a weapon working outright would be the wall this design replaced.
+ */
+export const SLOWEST_ATTACK_TICKS = MAX_ATTACK_TICKS * 2;
 
 /**
  * How many of its own steps a blow costs the body that threw it.
@@ -84,6 +95,15 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 /**
+ * The lowest haste the interval will divide by.
+ *
+ * A guard on the arithmetic rather than a rule anybody plays against: nothing
+ * produces a haste this low — `weaponHandling` floors at a half and Agility only
+ * adds — and a zero here would be a body that never swings again.
+ */
+const MIN_HASTE = 0.1;
+
+/**
  * Milliseconds between one entity's blows.
  *
  * Geometric between the two bounds rather than linear, because linear makes the
@@ -98,13 +118,22 @@ function clamp(value: number, min: number, max: number): number {
 export function attackIntervalMs(spd: number, haste = 1): number {
   const t = clamp(spd, 0, 100) / 100;
   const ticks = MAX_ATTACK_TICKS * (MIN_ATTACK_TICKS / MAX_ATTACK_TICKS) ** t;
+  // **Haste runs both ways now**, which is what lets a weapon you are short of
+  // be slow without `spd` having to carry it: `spd` is a position on a curve
+  // running 100:1 end to end, so docking it by a quarter takes closer to three
+  // quarters off the rate. See `../lib/battler`'s {@link FightingStats.haste}.
+  //
   // **Floored at the same whole-tick minimum an unhastened body has**, which is
   // not a grudging clamp but the thing the rest of the loop is built on:
   // `STRIKE_DURATION_MS` is chosen to fit inside this gap, so a body that swung
   // faster than it would start its next lean before the last one came home and
   // simply live half a tile from where it stands. A speed limit is a speed
   // limit however you arrive at it.
-  const hastened = Math.max(MIN_ATTACK_TICKS, ticks / Math.max(1, haste));
+  const hastened = clamp(
+    ticks / Math.max(MIN_HASTE, haste),
+    MIN_ATTACK_TICKS,
+    SLOWEST_ATTACK_TICKS,
+  );
   return Math.round(hastened) * TICK_MS;
 }
 
