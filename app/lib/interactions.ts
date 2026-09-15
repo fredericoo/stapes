@@ -1871,6 +1871,9 @@ export function interactionsForSave(
   // question they did not, and it would grow every creature's block by five
   // lines saying nothing.
   const savedKit = kitForSave(battler?.kit);
+  const savedImmunities = (battler?.immuneTo ?? [])
+    .map((id) => id.trim())
+    .filter(Boolean);
   const savedBattler = battler
     ? {
         // Written unconditionally, and never dropped when it matches the
@@ -1906,6 +1909,11 @@ export function interactionsForSave(
               ),
             }
           : {}),
+        // Trimmed entry by entry, and the block dropped when none survive.
+        // It was missing here, which meant opening the wolf's tile dialog and
+        // pressing save made it catchable by carrion again — with the toggles
+        // on screen still showing the immunity about to be dropped.
+        ...(savedImmunities.length ? { immuneTo: savedImmunities } : {}),
         // Trimmed and dropped when it survives to nothing, on the terms every
         // authored string here is written: a field somebody opened and cleared
         // is a body that leaves nothing, which is what its absence says.

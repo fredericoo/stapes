@@ -372,6 +372,26 @@ describe("interactionsForSave", () => {
     ).not.toHaveProperty("kit");
   });
 
+  /**
+   * The same standing cost, and this one had already been paid: `immuneTo` was
+   * missing here, so opening the wolf's tile dialog and pressing save made it
+   * catchable by carrion again — silently, with the toggles on screen showing
+   * the immunity it was about to drop.
+   */
+  it("carries immunities through a save", () => {
+    expect(
+      interactionsForSave({
+        battler: { ...DEFAULT_BATTLER, immuneTo: [" food-poisoning ", ""] },
+      })?.battler?.immuneTo,
+    ).toEqual(["food-poisoning"]);
+  });
+
+  it("omits immunities nobody authored", () => {
+    expect(
+      interactionsForSave({ battler: { ...DEFAULT_BATTLER } })?.battler,
+    ).not.toHaveProperty("immuneTo");
+  });
+
   /** Same standing cost as the kit: forgotten here, dropped on the next save. */
   it("carries what a body leaves behind through a save", () => {
     expect(
