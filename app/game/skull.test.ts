@@ -6,7 +6,7 @@ import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import { statusesById } from "../lib/status";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
-import { SKULL_TILE_ID, TICK_MS } from "./constants";
+import { TICK_MS } from "./constants";
 import { displayNameFor } from "./displayName";
 import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
 
@@ -18,6 +18,9 @@ import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
  * three directions harm comes from — a blow, a condition, and something eaten —
  * plus the one body that leaves none.
  */
+
+/** What the bodies below are authored to leave. */
+const SKULL = "bone-skull";
 
 const frame = {
   sprite: {
@@ -115,6 +118,7 @@ const tiles: TileDef[] = [
           mastery: "fist",
           ...CERTAIN,
         },
+        remains: SKULL,
       },
     },
   }),
@@ -167,13 +171,38 @@ const tiles: TileDef[] = [
       brain: brawlerBrain,
     },
   }),
+  // The case the field exists for: a creature worth remembering, which is not
+  // most of them. Otherwise the wolf above, which leaves nothing.
+  tile({
+    id: "boss",
+    name: "Troll",
+    height: 2,
+    kind: "battler",
+    actor: true,
+    walkable: false,
+    interactions: {
+      battler: {
+        baseHp: BASE_HP,
+        masteries: { toughness: FRAIL },
+        naturalWeapon: {
+          type: "weapon",
+          name: "Fists",
+          damage: FRAIL_MAX_HP,
+          def: 0,
+          mastery: "blunt",
+          ...CERTAIN,
+        },
+        remains: SKULL,
+      },
+    },
+  }),
   tile({
     id: "hearth",
     name: "Hearth",
     interactions: { addStatus: { trigger: "step", statusId: "burned" } },
   }),
   tile({
-    id: SKULL_TILE_ID,
+    id: SKULL,
     name: "%s's skull",
     kind: "item",
     interactions: { item: { type: "artifact" } },
@@ -181,7 +210,7 @@ const tiles: TileDef[] = [
 ];
 
 /** Everything but the skull, for the world whose catalogue never had one. */
-const boneless = tiles.filter((def) => def.id !== SKULL_TILE_ID);
+const boneless = tiles.filter((def) => def.id !== SKULL);
 
 function field(stack: PlacedTile[] = [{ tileId: "grass" }]): MapFile {
   let map = emptyMap();
@@ -221,7 +250,7 @@ function advanceUntilDead(session: GameSession, id = LOCAL_ACTOR_ID) {
 /** The skull lying in one cell, or null where none is. */
 function skullAt(session: GameSession, x: number, y: number) {
   const stack = getStack(session.getMap(), x, y, 0);
-  return stack.find((placed) => placed.tileId === SKULL_TILE_ID) ?? null;
+  return stack.find((placed) => placed.tileId === SKULL) ?? null;
 }
 
 /** Swing at whatever is standing beside the player until somebody falls. */
@@ -312,15 +341,16 @@ describe("a player who dies", () => {
 });
 
 /**
- * The one place a death is not one event. Everything else a death does applies
- * to a wolf exactly as it does to a person; a world where every rat leaves a
+ * Not a rule about people any more, but still the default: what a body leaves
+ * is authored, and almost nothing authors it. A world where every rat leaves a
  * keepsake is knee-deep in rats' skulls by the evening.
+ *
+ * Both of these die burned where they stand rather than being killed, because
+ * a creature the player can beat is a creature that cannot kill the player in
+ * the tests above.
  */
 describe("a creature that dies", () => {
-  it("leaves no skull", () => {
-    // Burned to death where it stands, rather than killed: what has to die here
-    // is the wolf, and a wolf the player can beat is a wolf that cannot kill
-    // the player in the test above.
+  it("leaves nothing when its tile says nothing", () => {
     const session = new GameSession(
       withBody(field(), 1, 0, "wolf", [{ tileId: "hearth" }]),
       tiles,
@@ -331,5 +361,23 @@ describe("a creature that dies", () => {
     advanceUntilDead(session, wolf.id);
 
     expect(skullAt(session, 1, 0)).toBeNull();
+  });
+
+  /** The case the field exists for. */
+  it("leaves what its tile says, named after the creature", () => {
+    const session = new GameSession(
+      withBody(field(), 1, 0, "boss", [{ tileId: "hearth" }]),
+      tiles,
+      { statuses: catalogue },
+    );
+    const boss = session.actorSnapshots().find((a) => a.tileId === "boss")!;
+
+    advanceUntilDead(session, boss.id);
+
+    const skull = skullAt(session, 1, 0);
+    // Its tile's name, which is what `./displayName` calls every creature —
+    // so an author picks the art and the world writes on it.
+    expect(skull?.engraved).toBe("Troll");
+    expect(skull?.description).toBe("Burned by Hearth");
   });
 });

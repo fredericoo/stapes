@@ -372,6 +372,26 @@ describe("interactionsForSave", () => {
     ).not.toHaveProperty("kit");
   });
 
+  /** Same standing cost as the kit: forgotten here, dropped on the next save. */
+  it("carries what a body leaves behind through a save", () => {
+    expect(
+      interactionsForSave({
+        battler: { ...DEFAULT_BATTLER, remains: " skull-player " },
+      })?.battler?.remains,
+    ).toBe("skull-player");
+  });
+
+  /** A field somebody opened and cleared is a body that leaves nothing. */
+  it("omits remains nobody authored", () => {
+    expect(
+      interactionsForSave({ battler: { ...DEFAULT_BATTLER, remains: "  " } })
+        ?.battler,
+    ).not.toHaveProperty("remains");
+    expect(
+      interactionsForSave({ battler: { ...DEFAULT_BATTLER } })?.battler,
+    ).not.toHaveProperty("remains");
+  });
+
   /**
    * A mastery nobody has trained reads the same as one nobody wrote, so writing
    * it would grow every creature's block by five lines saying nothing — and it

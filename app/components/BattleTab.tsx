@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import type { BattlerDef } from "../lib/battler";
 import {
   DEFAULT_BATTLER,
@@ -9,7 +10,7 @@ import { attackIntervalMs, dodgeChance } from "../game/combat";
 import type { Element } from "../lib/element";
 import { hasAnyInteraction, type TileInteractions } from "../lib/interactions";
 import type { WeaponItem } from "../lib/item";
-import { MAX_PERCENT_STAT, UNNAMED_WEAPON } from "../lib/item";
+import { MAX_PERCENT_STAT, UNNAMED_WEAPON, resolveItem } from "../lib/item";
 import {
   MAX_MASTERY,
   type Mastery,
@@ -19,7 +20,7 @@ import {
 import type { Kit } from "../lib/kit";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
-import { FieldLabel, Input, SectionTitle, Switch } from "../ui";
+import { FieldLabel, Input, SectionTitle, Select, Switch } from "../ui";
 import { ElementFields } from "./ElementFields";
 import { KitEditor } from "./KitEditor";
 import { StatField } from "./StatField";
@@ -91,6 +92,18 @@ function describeDodge(flee: number): string {
  * numbers nobody types — a readout that could disagree with the formula would be
  * worse than none.
  */
+/**
+ * The option standing for "leaves nothing".
+ *
+ * The empty string rather than a word, because a tile id is never empty — every
+ * schema that takes one demands a character — so this can never collide with
+ * something an author could name. The placeholder is set to the same label, so
+ * a select holding it reads as the answer it is rather than as a question
+ * nobody got to yet: leaving nothing behind is what every body in the world
+ * does.
+ */
+const NOTHING_LEFT = "";
+
 export function BattleTab({ draft, onChange, tiles, statusDefs = {} }: Props) {
   const battler = draft.interactions?.battler ?? DEFAULT_BATTLER;
   // A draft loaded from a file authored before `baseHp` existed carries none,
@@ -135,6 +148,24 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {} }: Props) {
       naturalWeapon: { ...battler.naturalWeapon, ...fields },
     });
   };
+
+  // The carryable half of the library, once for the panel: what a body leaves
+  // behind is a thing somebody picks up, on `./KitEditor`'s own terms.
+  const remainsOptions = useMemo(
+    () => [
+      { value: NOTHING_LEFT, label: "Nothing" },
+      ...tiles
+        .filter((tile) => resolveItem(tile) != null)
+        .map((tile) => ({ value: tile.id, label: tile.name })),
+    ],
+    [tiles],
+  );
+
+  const setRemains = (tileId: string | null) =>
+    setBattler({
+      ...battler,
+      remains: tileId && tileId !== NOTHING_LEFT ? tileId : undefined,
+    });
 
   const stats = fightingStats(battler, battler.naturalWeapon);
 
@@ -224,6 +255,19 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {} }: Props) {
             Starting kit
           </FieldLabel>
           <KitEditor kit={battler.kit ?? []} tiles={tiles} onChange={setKit} />
+        </div>
+
+        <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
+          <FieldLabel info="Dropped where this body falls, beside whatever it was carrying. Engraved with who it was and described by what killed it — a tile whose name says %s reads as “Green Fox's skull”, one without simply ignores it. Leave it at Nothing for anything you do not want a keepsake of: a world where every rat drops one fills up fast.">
+            Remains
+          </FieldLabel>
+          <Select
+            value={battler.remains || NOTHING_LEFT}
+            onValueChange={setRemains}
+            options={remainsOptions}
+            placeholder="Nothing"
+            ariaLabel="What this body leaves where it falls"
+          />
         </div>
 
         <div className="flex flex-col gap-1 border-t-2 border-border pt-3">

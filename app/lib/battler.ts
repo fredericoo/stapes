@@ -167,6 +167,32 @@ export type BattlerDef = {
    * naming a deleted tile is: content moved on, and nothing breaks.
    */
   immuneTo?: string[];
+  /**
+   * The tile this body leaves where it falls, or absent for one that leaves
+   * nothing.
+   *
+   * **What makes a skull authored rather than a rule about players.** It was a
+   * rule: the engine knew one tile id and one body tile, and every other death
+   * in the world left only what the body had been carrying. That is the right
+   * default — a world where every rat leaves a keepsake is knee-deep in rats'
+   * skulls by the evening — but it is a *default*, and a boss worth killing
+   * once is exactly the case that wants to say otherwise.
+   *
+   * On the battler block because only a battler can die. A tile with no hit
+   * points never reaches the death that would read this.
+   *
+   * **The tile is chosen; what it says is not.** What lands is engraved with
+   * whoever this body was and described by what killed them — see
+   * `../game/blame` and `./engraving` — so an author picks the art and the
+   * world fills in the rest. A tile whose name has no `%s` in it simply ignores
+   * the engraving, which is what lets `Troll skull` be a perfectly good thing
+   * for a troll to leave.
+   *
+   * A tile id rather than a tile, on a kit's terms: this module resolves no
+   * tiles. One the catalogue no longer holds leaves nothing, which is how a
+   * renamed piece of content should read.
+   */
+  remains?: string;
 };
 
 /**
@@ -880,6 +906,9 @@ const battlerSchema = v.object({
   // this module has never seen — the same reason a kit names a tile id. One the
   // catalogue no longer holds is an immunity to nothing, which costs nothing.
   immuneTo: v.optional(v.array(v.pipe(v.string(), v.minLength(1)))),
+  // A tile id this module never resolves, on `immuneTo`'s own terms. Absent is
+  // every body in the world but the handful worth remembering.
+  remains: v.optional(v.pipe(v.string(), v.minLength(1))),
 });
 
 const battlerCache = new WeakMap<TileDef, BattlerDef | null>();

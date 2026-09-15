@@ -149,7 +149,6 @@ import {
   MAX_CLIMB_HEIGHT,
   PLAYER_TILE_ID,
   PUSH_STEP_MS,
-  SKULL_TILE_ID,
   STRIKE_DURATION_MS,
   TICK_MS,
   WALK_DURATION_MS,
@@ -4834,7 +4833,7 @@ export class GameSession implements PlaySession {
     // kit the dead still own and come back carrying, where a skull refused is a
     // skull that never existed. Two drops rather than one list, so neither
     // decides the other.
-    if (loc) this.dropSkull(target, loc, blame);
+    if (loc) this.dropRemains(target, loc, blame);
 
     this.pendingDeaths.push({
       id: target.id,
@@ -4913,29 +4912,36 @@ export class GameSession implements PlaySession {
   }
 
   /**
-   * Leave a skull where a person fell, engraved with who they were and with
-   * what killed them written under it.
+   * Leave behind whatever this body's tile says it leaves, engraved with who it
+   * was and with what killed it written under it.
    *
-   * **People only, and that is the one place death is not one event.** The rest
-   * of a death applies to a deer exactly as it does to a player — see
-   * {@link dropKit} — because what a body was carrying is a fact about the body.
-   * A skull is not that: it is a keepsake of somebody you knew, and a world in
-   * which every rat leaves one is a world knee-deep in rats' skulls within an
-   * afternoon. Read off the *tile* rather than off the id, on `./displayName`'s
-   * own argument: `npc:` prefixes are how residents are keyed, not what they
-   * are.
+   * **Authored, and absent on almost every body.** This was a rule about
+   * players — one tile id in the engine, one body tile it applied to — and the
+   * default it encoded is still the right one: a world where every rat leaves a
+   * keepsake is knee-deep in rats' skulls by the evening. But a boss worth
+   * killing once is exactly the case that wants to say otherwise, so it is a
+   * field an author fills in. See `../lib/battler`'s
+   * {@link BattlerDef.remains}.
    *
-   * Silently nothing where the catalogue has no skull tile, on the terms a
-   * reward naming a missing tile is left alone: renamed content should read as
-   * an effect that did not happen.
+   * **The tile is authored; what it says is not.** Whose it is comes from the
+   * body — off the *tile* rather than the id, on `./displayName`'s own argument
+   * that `npc:` prefixes are how residents are keyed rather than what they are
+   * — and what killed them comes from the blow. A tile whose name has no hole
+   * in it ignores the engraving, which is what lets a plain `Troll skull` be a
+   * perfectly good thing for a troll to leave.
+   *
+   * Silently nothing where the catalogue no longer holds the tile, on the terms
+   * a reward naming a missing tile is left alone: renamed content should read
+   * as an effect that did not happen.
    */
-  private dropSkull(target: ActorRuntime, at: ActorLocation, blame?: Blame) {
-    if (at.placed.tileId !== PLAYER_TILE_ID) return;
-    if (!this.tilesById[SKULL_TILE_ID]) return;
+  private dropRemains(target: ActorRuntime, at: ActorLocation, blame?: Blame) {
+    const def = this.tilesById[at.placed.tileId];
+    const remains = def ? resolveBattler(def)?.remains : undefined;
+    if (!remains || !this.tilesById[remains]) return;
 
     this.dropOnFloor(at, [
       {
-        tileId: SKULL_TILE_ID,
+        tileId: remains,
         // Minted here like any other thing coming into the world, so one
         // player's two skulls are two things and can be told apart.
         itemId: mintItemId(),

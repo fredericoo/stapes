@@ -12843,7 +12843,8 @@
             "tileId": "basic-bag",
             "chance": 100
           }
-        ]
+        ],
+        "remains": "skull-player"
       },
       "push": {
         "climb": "none",
@@ -28578,7 +28579,8 @@
         ],
         "elements": [
           "fire"
-        ]
+        ],
+        "remains": "skull-troll"
       },
       "respawn": {
         "fromMs": 180000,

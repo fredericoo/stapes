@@ -42,19 +42,6 @@ export const PUSH_STEP_MS = WALK_DURATION_MS;
  */
 export const PLAYER_TILE_ID = "player";
 
-/**
- * The tile a person leaves behind, engraved with who they were.
- *
- * Named here beside the body it comes off rather than looked up by kind,
- * because there is nothing on a tile that says "this is what a corpse leaves" —
- * it is an ordinary artifact item, and what makes it a skull is that this line
- * names it. A world whose catalogue has no such tile simply leaves no skull,
- * on the terms a reward naming a missing tile is left alone.
- *
- * The name authored on it has a hole in it — `%s's skull` — which the drop
- * fills in. See `../lib/engraving`.
- */
-export const SKULL_TILE_ID = "skull-player";
 
 /**
  * How often a brain decides. Six simulation ticks — one decision per walk.

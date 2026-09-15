@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import tilesJson from "../../data/tiles.json";
 import { normalizeTiles } from "./types";
+import { resolveBattler } from "./battler";
 import { pileMax } from "./item";
 import {
   ENGRAVING_TOKEN,
@@ -59,6 +60,21 @@ describe("the shipped skull", () => {
 
   it("is named with a hole for whoever it was", () => {
     expect(isEngravable(skull.name)).toBe(true);
+  });
+
+  /**
+   * What a body leaves is authored now — see `./battler`'s
+   * {@link BattlerDef.remains} — so the whole feature is one field in
+   * `data/tiles.json`, and nothing in the engine would notice it going. A tile
+   * id naming nothing leaves nothing, silently and by design.
+   */
+  it("is what the player is authored to leave, and it exists", () => {
+    const byId = new Map(tiles.map((def) => [def.id, def]));
+    for (const id of ["player", "cave-troll"]) {
+      const remains = resolveBattler(byId.get(id)!)?.remains;
+      expect(remains).toBeTruthy();
+      expect(byId.get(remains!)).toBeDefined();
+    }
   });
 
   /**

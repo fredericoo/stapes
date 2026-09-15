@@ -5144,20 +5144,30 @@ one level of spilling is the whole of it.
 It applies to players exactly as it does to a deer, which is the point: there is
 one death, and a deer that had picked a bush leaves the berries it was carrying.
 
-## A person leaves a skull, and the skull says who and by what
+## A body leaves what its tile says it leaves, and it says who and by what
 
 A death already put everything a body owned on the floor. What it did not leave
 was any trace of *whose* death it had been: walk past the cell an hour later and
 there is a sword and a loaf of bread, exactly as there would be if somebody had
-dropped their bag. So a person now leaves one more thing, and it is the only
-part of a death that is about the person rather than about the body.
+dropped their bag. So a body may now leave one more thing.
 
-**Only a person.** Every other rule in `kill` applies to a deer exactly as it
-does to a player, and that symmetry is defended a section above. This one breaks
-it on purpose: a skull is a keepsake of somebody you knew, and a world where
-every rat leaves one is knee-deep in rats' skulls by the evening. `dropSkull`
-reads the *tile* rather than the id, on `app/game/displayName.ts`' argument —
-`npc:` prefixes are how residents are keyed, not what they are.
+**Authored, on the battler block.** `BattlerDef.remains` names a tile, and a
+body with none leaves none — which is every body in the world but the player and
+the cave troll. This started as a rule about players with one tile id compiled
+into the engine, and the *default* that encoded is still right: a world where
+every rat leaves a keepsake is knee-deep in rats' skulls by the evening. But a
+boss worth killing once is exactly the case that wants to say otherwise, and
+that is a decision for whoever authors the boss rather than for `kill`. It lives
+on the battler block because only a battler can die.
+
+**The tile is chosen and nothing else is.** What lands is engraved with whoever
+the body was and described by what killed it, so an author picks the art and the
+world fills in the rest. `dropRemains` reads whose it is off the *tile* rather
+than the id, on `app/game/displayName.ts`' argument — `npc:` prefixes are how
+residents are keyed, not what they are — which is also what makes a creature's
+skull read "Troll" and a player's read their own name. A tile whose name has no
+`%s` in it simply ignores the engraving, which is what lets the plain
+`Troll skull` be a perfectly good thing for a troll to leave.
 
 **Beside the kit rather than part of it.** `dropOnFloor` is shared, so "a body
 that drowned leaves nothing in the water" is one rule; what a refusal *means* is
@@ -5166,7 +5176,7 @@ own and come back carrying. A skull the cell refuses simply never existed.
 
 ### A name with a hole in it
 
-The skull tile is named `%s's skull` and the placement fills the hole in —
+The player's skull tile is named `%s's skull` and the placement fills the hole in —
 `PlacedTile.engraved`, read through `app/lib/engraving.ts`. A name on the def
 would make every skull in the world one anonymous kind of thing, and a
 *description* would put whose it is on the second line, under a first line that
@@ -5177,9 +5187,11 @@ whenever the tile's own name has the token in it. A skull nobody wrote on reads
 as `Someone's skull`: an anonymous skull is still somebody's, and cutting the
 token out would leave `'s skull`.
 
-Skulls do not pile — no `pile` on the artifact block, so `pileMax` is one. A
-pile is several of one thing that cannot be told apart afterwards, which is the
-one thing two people's skulls must never be.
+`skull-player` does not pile — no `pile` on its artifact block, so `pileMax` is
+one. A pile is several of one thing that cannot be told apart afterwards, which
+is the one thing two people's skulls must never be. An authored `remains` that
+*does* pile is not a trap: `PILE_FIELDS` is an allow-list and knows nothing
+about `engraved`, so two of them differ and never fuse.
 
 ### What killed you, in words written at the time
 

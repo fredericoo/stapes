@@ -1906,6 +1906,10 @@ export function interactionsForSave(
               ),
             }
           : {}),
+        // Trimmed and dropped when it survives to nothing, on the terms every
+        // authored string here is written: a field somebody opened and cleared
+        // is a body that leaves nothing, which is what its absence says.
+        ...(battler.remains?.trim() ? { remains: battler.remains.trim() } : {}),
       }
     : undefined;
   // Rebuilt field by field too, by the module that owns the union's arms —
