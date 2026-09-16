@@ -1,5 +1,5 @@
 import type { BattlerDef } from "../lib/battler";
-import { DEFAULT_BASE_HP, fightingStats, weaponReadiness } from "../lib/battler";
+import { DEFAULT_BASE_HP, fightingStats, weaponHandling } from "../lib/battler";
 import {
   armorSlotOf,
   consumeVerb,
@@ -33,6 +33,7 @@ import {
   type Mastery,
   type MasteryXp,
   requirementShare,
+  requirementShortfall,
   WEAPON_MASTERIES,
   type WeaponMastery,
 } from "../lib/mastery";
@@ -61,14 +62,15 @@ import { swingIntervalMs } from "./combat";
  * ## The figures are the reader's, not the shelf's
  *
  * Every figure is what the item is worth to the body asking, computed by the
- * same `fightingStats` a swing is resolved with. A greataxe you cannot lift
- * reports 4 damage rather than 17, because 4 is what you would do with it.
- * {@link ItemCardStat.base} carries the item's own number alongside, so the gap
- * is visible rather than something the reader has to already know about.
+ * same `fightingStats` a swing is resolved with. A greataxe you are short of
+ * reports its full damage and a blow every 3.2s rather than every 2.4s, because
+ * slow is what being short of it costs you. {@link ItemCardStat.base} carries
+ * the item's own number alongside, so the gap is visible rather than something
+ * the reader has to already know about.
  *
  * That is also why this module computes nothing itself. Restating the combat
  * arithmetic here would be a second definition of what a weapon is worth, and
- * the two would diverge the next time somebody changed the falloff.
+ * the two would diverge the next time somebody changed the handling rule.
  *
  * ## Data, not JSX
  *
@@ -224,21 +226,23 @@ export type ItemCard = {
   stats: ItemCardStat[];
   requirements: ItemCardRequirement[];
   /**
-   * How much of this item the reader actually gets, as a percentage.
+   * How well the reader handles this weapon, as a percentage — its accuracy and
+   * its swing rate, and never its damage.
    *
-   * `weaponReadiness` of the pooled `requirementShare`, in the unit a player can
-   * read — and the same number `../lib/weaponDemand` prints over the canvas, so
+   * `weaponHandling` of the pooled `requirementShortfall`, in the unit a player
+   * can read — and the same number `../lib/weaponDemand` prints over the canvas, so
    * the sword on the floor and the sword in your bag cannot disagree about it.
    *
-   * Never above a hundred. Requirements gate rather than scale: meeting them is
-   * worth the whole weapon and exceeding them is worth nothing more. Skill with
-   * the weapon is paid separately and shows up in the figures above — see
-   * `../lib/battler`'s `MASTERY_DAMAGE_BONUS`, which is why a master's damage
-   * can exceed the number on the blade while this still reads 100%.
+   * Runs from a hundred down to `MIN_HANDLING` and never above a hundred.
+   * Requirements gate rather than scale: meeting them is worth full handling and
+   * exceeding them is worth nothing more. Skill with the weapon is paid
+   * separately and shows up in the figures above — see `../lib/battler`'s
+   * `MASTERY_DAMAGE_BONUS`, which is why a master's damage can exceed the number
+   * on the blade while this reads 100%.
    *
    * Null for anything that is not a weapon, which has no such question.
    */
-  effectiveness: number | null;
+  handling: number | null;
   effects: ItemCardEffect[];
   /**
    * What to head the effects list with.
@@ -414,7 +418,7 @@ function weaponStats(
   // two different definitions of what a weapon is worth.
   const yours = fightingStats(bodyWith(masteries, weapon), weapon);
   // The weapon as authored: a body that has learnt nothing, holding a copy with
-  // its requirements removed. Readiness comes out at one, the skill terms at
+  // its requirements removed. Handling comes out at one, the skill terms at
   // zero and haste at one, which is the profile the editor's fields describe —
   // see `../components/WeaponFields`. It has to be computed rather than read off
   // the block, because `damage` and `accuracy` stop being the authored figures
@@ -893,8 +897,8 @@ export function itemCard(
     description: instance?.description?.trim() || null,
     stats: statsFor(item, instance, masteries),
     requirements: requirementsFrom(demandsOf(item), masteries),
-    effectiveness: weapon
-      ? percent(weaponReadiness(requirementShare(masteries, weapon.requirements)))
+    handling: weapon
+      ? percent(weaponHandling(requirementShortfall(masteries, weapon.requirements)))
       : null,
     effects: effectsFrom(grantsOn(item), statusDefs),
     resists: item.type === "armor" ? resistsFrom(item) : [],
@@ -963,8 +967,12 @@ function speak(card: ItemCard): string {
       `Requires ${MASTERY_LABELS[row.mastery]} ${row.required}, you have ${row.have}`,
     );
   }
-  if (card.effectiveness !== null && card.requirements.length > 0) {
-    lines.push(`You get ${card.effectiveness}% out of it`);
+  if (card.handling !== null && card.requirements.length > 0) {
+    lines.push(
+      card.handling >= 100
+        ? "Full accuracy and swing rate"
+        : `${card.handling}% accuracy and swing rate; full damage`,
+    );
   }
   for (const effect of card.effects) {
     lines.push(

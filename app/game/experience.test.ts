@@ -81,9 +81,12 @@ const sword = {
   requirements: { sharp: 5 },
 };
 
+/** Every mastery weighed the same, so the arithmetic below reads as itself. */
+const FLAT = () => 1;
+
 describe("what a landed blow teaches the swinger", () => {
   it("pays the mastery the weapon answers to", () => {
-    const earned = attackerEarnings(landed, sword, { sharp: 5 }, 1);
+    const earned = attackerEarnings(landed, sword, FLAT);
     expect(earned.sharp).toBeGreaterThan(0);
   });
 
@@ -92,49 +95,57 @@ describe("what a landed blow teaches the swinger", () => {
    * would be the one mastery they cannot practise.
    */
   it("pays agility a small share on top, rather than out of the same pot", () => {
-    const earned = attackerEarnings(landed, sword, { sharp: 5 }, 1);
+    const earned = attackerEarnings(landed, sword, FLAT);
     expect(earned.agility).toBeCloseTo(earned.sharp! * AGILITY_SHARE_OF_OFFENCE, 10);
   });
 
   it("scales with the damage actually dealt", () => {
-    const small = attackerEarnings({ ...landed, damage: 1 }, sword, { sharp: 5 }, 1);
-    const large = attackerEarnings({ ...landed, damage: 9 }, sword, { sharp: 5 }, 1);
+    const small = attackerEarnings({ ...landed, damage: 1 }, sword, FLAT);
+    const large = attackerEarnings({ ...landed, damage: 9 }, sword, FLAT);
     expect(large.sharp).toBeCloseTo(small.sharp! * 9, 10);
   });
 
   it("pays nothing for a swing that went nowhere, or one that was avoided", () => {
-    expect(attackerEarnings(missed, sword, { sharp: 5 }, 1)).toEqual({});
-    expect(attackerEarnings(dodged, sword, { sharp: 5 }, 1)).toEqual({});
+    expect(attackerEarnings(missed, sword, FLAT)).toEqual({});
+    expect(attackerEarnings(dodged, sword, FLAT)).toEqual({});
   });
 
   /**
-   * The falloff, from the swinging end. A weapon you have outgrown keeps
-   * teaching you and keeps teaching you less — see `learningRate`, and the
-   * deadlock the old wall produced.
+   * **The fairness rule, stated from the swinging end.** A landed blow is worth
+   * what it did, whatever the wielder happens to be holding — the weapon's
+   * requirements do not enter the arithmetic in either direction.
+   *
+   * There used to be a `learningRate` cubing the ratio of the requirement to the
+   * wielder's level, so an outgrown weapon paid a fraction of the rate. It
+   * charged a player twice for one choice: the outgrown weapon is the weaker
+   * weapon, this is counted in damage dealt, so it was already paying less.
+   * `experienceMultiplier` is the brake that survives, and it is keyed to what
+   * you are fighting rather than to what you are gripping.
    */
-  it("fades once the wielder has outgrown the weapon", () => {
-    const met = attackerEarnings(landed, sword, { sharp: 5 }, 1);
-    const outgrown = attackerEarnings(landed, sword, { sharp: 50 }, 1);
-    expect(outgrown.sharp).toBeLessThan(met.sharp!);
-    expect(outgrown.sharp).toBeGreaterThan(0);
-  });
-
-  /**
-   * The other direction is not discounted here and must not be: a weapon far
-   * above you already pays less by landing fewer blows, and charging twice for
-   * the same difficulty is what deadlocked the wall.
-   */
-  it("does not also discount a weapon that outclasses the wielder", () => {
-    const novice = attackerEarnings(landed, sword, { sharp: 0 }, 1);
-    const met = attackerEarnings(landed, sword, { sharp: 5 }, 1);
-    expect(novice.sharp).toBe(met.sharp);
-  });
-
-  /** Agility's share is footwork, not weapon handling, so the falloff misses it. */
-  it("leaves agility's share alone however outgrown the weapon is", () => {
-    const met = attackerEarnings(landed, sword, { sharp: 5 }, 1);
-    const outgrown = attackerEarnings(landed, sword, { sharp: 50 }, 1);
+  it("pays the same rate whatever the weapon asks of its wielder", () => {
+    const outgrown = attackerEarnings(landed, { ...sword, requirements: { sharp: 1 } }, FLAT);
+    const met = attackerEarnings(landed, sword, FLAT);
+    expect(outgrown.sharp).toBe(met.sharp);
     expect(outgrown.agility).toBe(met.agility);
+  });
+
+  /**
+   * The other direction is not discounted either: a weapon far above you already
+   * pays less by landing fewer blows, and charging twice for the same difficulty
+   * is what deadlocked the training wall this replaced.
+   */
+  it("does not discount a weapon that outclasses the wielder", () => {
+    const requirementless = attackerEarnings(
+      landed,
+      { ...sword, requirements: undefined },
+      FLAT,
+    );
+    const demanding = attackerEarnings(
+      landed,
+      { ...sword, requirements: { sharp: 90 } },
+      FLAT,
+    );
+    expect(demanding.sharp).toBe(requirementless.sharp);
   });
 });
 
@@ -201,7 +212,7 @@ describe("what a blow teaches the body it was aimed at", () => {
   /**
    * **Never a bonus.** Below the threshold the ratio exceeds one, and paying
    * extra for being small would make the frailest body in the world the fastest
-   * trainer — the same cap `learningRate` puts on the offensive side.
+   * trainer.
    */
   it("never pays more than the plain rate, however frail the body", () => {
     expect(threatRate(10, 1)).toBe(1);

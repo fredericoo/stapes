@@ -192,10 +192,10 @@ export const REQUIREMENTS_MET = 1;
  *
  * **All of them, and met exactly rather than scaled**, which is the one place a
  * stone and a weapon part company. A weapon half-understood still swings — see
- * {@link learningRate} and {@link requirementShare}, which turn a
- * shortfall into a share of the weapon — because swinging is a body doing what
- * bodies do. A stone either answers you or it does not, and a spell that fired
- * at a third strength would be a thing a player has to measure to learn about.
+ * {@link requirementShare}, which turns a shortfall into clumsiness rather than
+ * into a refusal — because swinging is a body doing what bodies do. A stone
+ * either answers you or it does not, and a spell that fired at a third strength
+ * would be a thing a player has to measure to learn about.
  *
  * Requirements on masteries the stone does not train are honoured on exactly the
  * terms a weapon's are: what a Stone of Flame *teaches* is Arcane, and what it
@@ -255,6 +255,44 @@ export function requirementShare(
 }
 
 /**
+ * How many points of requirement this body is missing, pooled across every
+ * mastery a weapon asks for.
+ *
+ * **Points, not a proportion, and the difference is the whole reason this
+ * exists beside {@link requirementShare}.** A share answers "how far along am
+ * I", which is the right question for a progress bar and the wrong one for a
+ * handicap: two points short of Sharp 10 is a share of 0.80 and two points
+ * short of Sharp 33 is 0.94, so a curve steep enough to make the first hurt is
+ * far too steep for a weapon seven points out of reach. Counting the points
+ * makes "two short" mean the same thing wherever a player is standing, which is
+ * what a ladder needs — see `./battler`'s {@link weaponHandling}, the one caller.
+ *
+ * Pooled and capped on exactly the terms the share is: a maul asking Blunt 33
+ * and Toughness 15 wanted from a wielder with Blunt 33 and Toughness 8 is seven
+ * points short, and a surplus of Blunt cannot pay for the missing Toughness
+ * because each requirement is counted on its own.
+ *
+ * Zero for a weapon that asks nothing, which is bare hands and every natural
+ * weapon: nothing to be short of.
+ */
+export function requirementShortfall(
+  masteries: Masteries,
+  requirements: Masteries | undefined,
+): number {
+  if (!requirements) return 0;
+
+  let missing = 0;
+  for (const mastery of MASTERIES) {
+    const required = requirements[mastery] ?? 0;
+    if (required <= 0) continue;
+    // Per requirement, so a surplus in one cannot cover a shortfall in another —
+    // the same reason `requirementShare` caps what each one contributes.
+    missing += Math.max(0, required - masteryLevel(masteries, mastery));
+  }
+  return missing;
+}
+
+/**
  * How much of what a stone asks this body brings, as a fraction of 1, **with the
  * surplus counted**.
  *
@@ -298,65 +336,25 @@ export function requirementCoverage(
   return brought / asked;
 }
 
-/**
- * How sharply a weapon stops teaching you once you have passed what it asks.
+/*
+ * Nothing here scales experience by what you are holding, and a `learningRate`
+ * used to: `(requirement / your level)` cubed, so a weapon carried past twice
+ * its requirement paid an eighth of the usual rate. It charged a player twice
+ * for one choice. A weapon low enough to have been outgrown is already the
+ * weaker weapon, and experience is counted in damage dealt, so the weaker
+ * weapon was already paying less — the falloff took a second bite out of the
+ * same fact and left putting the thing down as the only way to keep earning.
  *
- * **Three, and it was six.** The intent has not changed — you cannot grind one
- * mastery on one weapon; the thing that makes you better is picking up the next
- * one — and at three, twice the requirement still pays only an eighth, which is
- * a bad enough deal to keep anybody moving.
+ * The brake that remains is the one that was always doing the real work:
+ * {@link experienceMultiplier} pays nothing for a fight beneath the mastery
+ * being trained — see {@link standingIn} for what "beneath" is measured against.
+ * It is keyed to what you are fighting rather than to what you are gripping, so
+ * a player who wants Sharp 33 on a rusty sword may have it and has to keep
+ * finding harder things to swing at to get there.
  *
- * What changed is that the requirements now form a ladder with real gaps in it,
- * and this is a function of the *ratio* rather than the difference. At six, the
- * cost of climbing one rung was wildly uneven: the first rung, `5 -> 10`,
- * needed 6364 raw experience against 2025 for `15 -> 20` — three times the work,
- * on the rung a brand new player is standing on, which is precisely backwards.
- * Three is the value at which every rung costs about the same:
- *
- * ```
- *   f      5->10   10->15   15->20   20->25   25->30   spread
- *   6       6364     2460     2025     1987     2065     3.2x
- *   3       1239     1054     1158     1315     1490     1.4x
- * ```
- *
- * It replaced a five-point bridge followed by a gentle `ceiling / level` fade,
- * which was far too generous to stand still on — a starter sword taken to
- * mastery 100 was slow but perfectly viable, and "viable" is all a grind needs
- * to be.
+ * See `../game/experience`'s `attackerEarnings` and `casterEarnings`, which pay
+ * the plain rate.
  */
-export const OUTGROWN_FALLOFF = 3;
-
-/**
- * How much of the usual experience a weapon is still worth to you, as a fraction
- * of 1.
- *
- * `(requirement / your level)` raised to {@link OUTGROWN_FALLOFF}, and **held at
- * full rate anywhere at or below the requirement**. The cap is the important
- * half: below what a weapon asks the ratio is greater than one, and paying a
- * *bonus* for swinging something you cannot use would be exactly backwards.
- *
- * **The other direction is deliberately not discounted.** A weapon far above you
- * already teaches you less, because experience comes from landing blows and you
- * land far fewer of them — see `./battler`'s `weaponReadiness`, which now drags
- * damage down too, and damage is what experience is counted in. Discounting it a
- * second time here would be charging twice for the same difficulty, and it is
- * what deadlocked the old training wall.
- *
- * A weapon asking nothing teaches at full rate forever, which is what makes a
- * requirement-free weapon — bare hands — the thing that gets a mastery off zero.
- *
- * **Only the weapon's own mastery is ever consulted**, by the one caller there
- * is: see `../game/experience`'s `attackerEarnings`, which looks up
- * `requirements[weapon.mastery]` and credits that mastery alone. An axe asking
- * Sharp 15 and Toughness 10 is a Sharp weapon that is also heavy; leaving
- * Toughness untrained must not turn it into a Sharp trainer that never stops
- * paying.
- */
-export function learningRate(masteryLevel: number, requirement: number): number {
-  if (requirement <= 0) return 1;
-  if (masteryLevel <= requirement) return 1;
-  return (requirement / masteryLevel) ** OUTGROWN_FALLOFF;
-}
 
 /**
  * What a body has earned towards each mastery, in raw experience.
@@ -615,6 +613,63 @@ export function experienceMultiplier(
   if (r < NOTHING_BELOW_RATIO) return 0;
   if (r <= 1) return r ** BENEATH_YOU_EXPONENT;
   return Math.min(MAX_XP_MULTIPLIER, r * r);
+}
+
+/**
+ * What a fight is weighed against, for one mastery.
+ *
+ * **A mastery you practise with something in your hand is weighed against
+ * itself; the two that are just your body are weighed against your Rating.**
+ * That split is the whole rule, and it is the difference between a skill and a
+ * physique.
+ *
+ * A Blunt 80 veteran who has never held a blade is a novice swordsman. A rat is
+ * a fair opponent for that — not for them, for their Sharp — and under a single
+ * body Rating it paid them nothing, so there was no way into a second weapon
+ * except to take a fresh mastery into fights already pitched at everything else
+ * they had. Weighing Sharp 7 against a rat's ⭐8 says the true thing: this is a
+ * fight at the level of the skill being practised.
+ *
+ * **Toughness and Agility get the Rating, because you cannot be a novice at
+ * having a body.** A rat's bite teaches a tough body nothing however little
+ * Toughness it has trained, and the reason is not its Rating — it is that the
+ * bite does not hurt. Half of Rating is those two between them, so weighing them
+ * against it is very nearly weighing them against themselves, and
+ * `../game/experience`'s `threatRate` already asks the sharper question of
+ * whether the blow could dent you at all.
+ *
+ * **A mastery left untrained is farmable now, and that is the feature rather
+ * than the price.** A single body Rating prevented it on purpose — the argument
+ * was that sandbagging must never pay — and the argument was too broad. What it
+ * was protecting against is a maxed player farming rats for real progress, and
+ * that is not what this opens: the farming only works at the bottom of the
+ * mastery being trained and stops dead well before it is worth anything. A rat
+ * pays nothing once the mastery passes about ⭐24 — see
+ * {@link NOTHING_BELOW_RATIO} — and `../game/combat`'s `cappedToHealth` means
+ * one rat is worth one rat's health however large the weapon. Nobody sandbags
+ * their way to a good sword arm; they sandbag their way to being allowed to
+ * start, and finding harder things is still the only way up.
+ */
+export function standingIn(masteries: Masteries, mastery: Mastery): number {
+  return BODY_MASTERIES.includes(mastery as BodyMastery)
+    ? rating(masteries)
+    : masteryLevel(masteries, mastery);
+}
+
+/**
+ * What one fight is worth to one mastery, as a multiple of the plain rate.
+ *
+ * {@link experienceMultiplier} against {@link standingIn} — the pair of them is
+ * "how far above or below *this skill* is the thing I am fighting". Every earning
+ * path goes through it, so the answer cannot come to differ between a swing and
+ * a cast.
+ */
+export function masteryMultiplier(
+  theirRating: number,
+  masteries: Masteries,
+  mastery: Mastery,
+): number {
+  return experienceMultiplier(theirRating, standingIn(masteries, mastery));
 }
 
 const masteryLevelSchema = v.pipe(

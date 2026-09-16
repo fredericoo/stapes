@@ -3,7 +3,8 @@ import {
   BENEATH_YOU_EXPONENT,
   spellElements,
   experienceMultiplier,
-  learningRate,
+  masteryMultiplier,
+  standingIn,
   MAX_MASTERY,
   MAX_XP_MULTIPLIER,
   MIN_RATING,
@@ -13,7 +14,6 @@ import {
   requirementShare,
   NOTHING_BELOW_RATIO,
   rating,
-  OUTGROWN_FALLOFF,
   REQUIREMENTS_MET,
   levelForXp,
   progressToNextLevel,
@@ -164,60 +164,58 @@ describe("requirementShare", () => {
 });
 
 /**
- * A weapon you have outgrown keeps teaching you, badly.
+ * What a fight is weighed against depends on which part of you is asking.
  *
- * This replaced a hard wall, and the reason is worth keeping in front of
- * whoever changes it next: the wall deadlocked in the other direction. A weapon
- * asking anything of a mastery you had none of could never teach that mastery,
- * because you could never land a blow with it — so there was no route from Sharp
- * 0 to Sharp 1 anywhere in the game.
+ * This is the rule that lets a veteran learn a second weapon at all. Under one
+ * body Rating, a Blunt 80 swordsmanship novice was paid for a rat exactly as a
+ * Blunt 80 mace veteran was — which is to say nothing — and there was no way
+ * into a fresh mastery except to take it straight into fights pitched at
+ * everything else they had.
  */
-describe("learningRate", () => {
-  it("pays in full anywhere at or below what the weapon asks", () => {
-    expect(learningRate(0, 40)).toBe(1);
-    expect(learningRate(20, 40)).toBe(1);
-    expect(learningRate(40, 40)).toBe(1);
+describe("what a mastery is weighed against", () => {
+  /** Somebody who has mastered one weapon and never picked up another. */
+  const veteran = { blunt: 80, sharp: 5, toughness: 40, agility: 40 };
+
+  it("weighs a weapon mastery against itself", () => {
+    expect(standingIn(veteran, "sharp")).toBe(5);
+    expect(standingIn(veteran, "blunt")).toBe(80);
+  });
+
+  it("weighs an element against itself, on the same terms", () => {
+    expect(standingIn({ ...veteran, fire: 3 }, "fire")).toBe(3);
   });
 
   /**
-   * **The cap is the important half.** Below the requirement the ratio is
-   * greater than one, and paying a bonus for swinging something you cannot use
-   * would be exactly backwards — you are already earning less there, because
-   * experience is counted in damage and an unready weapon barely does any.
+   * **You cannot be a novice at having a body.** A rat's bite teaches a tough
+   * body nothing however little Toughness it has trained, and the reason is not
+   * its Rating — it is that the bite does not hurt, which
+   * `../game/experience`'s `threatRate` asks directly.
    */
-  it("never pays more than full, however far beneath the weapon the wielder is", () => {
-    expect(learningRate(1, 90)).toBe(1);
-    expect(learningRate(0, 90)).toBe(1);
+  it("weighs the two body masteries against the whole body", () => {
+    expect(standingIn(veteran, "toughness")).toBe(rating(veteran));
+    expect(standingIn(veteran, "agility")).toBe(rating(veteran));
   });
 
   /**
-   * The whole point of the exponent: standing still with one weapon stops being
-   * worth it, so climbing means picking up the next one rather than swinging
-   * this one for longer.
-   *
-   * **Stated against the ladder rather than against the exponent**, so it says
-   * what the design promises rather than restating the constant. Requirements
-   * step by half again each rung — 5, 10, 15, 22, 33 — so the two figures below
-   * are "one rung past this weapon" and "two rungs past it", and both have to
-   * be a plainly bad deal or the ladder is decoration.
+   * The payoff, in one comparison: a rat is worth everything to the sword the
+   * veteran has just picked up and nothing at all to the mace they mastered
+   * years ago, from the same blow.
    */
-  it("falls away steeply the moment the requirement is passed", () => {
-    expect(learningRate(48, 40)).toBeCloseTo((40 / 48) ** OUTGROWN_FALLOFF, 10);
-    // One rung past: under a third.
-    expect(learningRate(60, 40)).toBeLessThan(1 / 3);
-    // Two rungs past: under a tenth.
-    expect(learningRate(90, 40)).toBeLessThan(0.1);
+  it("makes a rat worth fighting for the mastery that is a novice's", () => {
+    const rat = 8;
+    expect(masteryMultiplier(rat, veteran, "sharp")).toBeGreaterThan(1);
+    expect(masteryMultiplier(rat, veteran, "blunt")).toBe(0);
+    expect(masteryMultiplier(rat, veteran, "agility")).toBe(0);
   });
 
-  it("keeps falling rather than stopping", () => {
-    // Never a wall: a wall here is what deadlocked the design once already.
-    expect(learningRate(100, 1)).toBeGreaterThan(0);
-    expect(learningRate(100, 40)).toBeGreaterThan(0);
-  });
-
-  it("teaches forever at full rate when the weapon asks nothing", () => {
-    expect(learningRate(0, 0)).toBe(1);
-    expect(learningRate(100, 0)).toBe(1);
+  /**
+   * And it runs out, which is what keeps it a way *in* rather than a way up. A
+   * rat stops paying once the mastery it is teaching has passed three times its
+   * own Rating — see {@link NOTHING_BELOW_RATIO}.
+   */
+  it("stops paying once the mastery has outgrown the creature", () => {
+    expect(masteryMultiplier(8, { ...veteran, sharp: 20 }, "sharp")).toBeGreaterThan(0);
+    expect(masteryMultiplier(8, { ...veteran, sharp: 25 }, "sharp")).toBe(0);
   });
 });
 

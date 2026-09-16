@@ -162,6 +162,7 @@ import {
 } from "../lib/battler";
 import {
   experienceMultiplier,
+  masteryMultiplier,
   hasExperience,
   levelForXp,
   MASTERIES,
@@ -183,6 +184,7 @@ import {
   damageAfterDefence,
   damageFraction,
   inflictedBy,
+  cappedToHealth,
   rollAttack,
   strikeRecoveryMs,
   underPressure,
@@ -4220,10 +4222,12 @@ export class GameSession implements PlaySession {
     // assailant of one and `underPressure` hands the stats straight back. Its own
     // interval is what buys it a place in the count — see `ASSAILANT_GRACE_MS`.
     const assailants = this.noteAssailant(target, attacker.id, interval);
-    const outcome = rollAttack(
-      attackerStats,
-      underPressure(targetStats, assailants),
-      this.rng,
+    // Trimmed to what the target is standing up with before anybody is told
+    // about it, so the experience, the floating receipt and the health all read
+    // one figure — see `./combat`'s {@link cappedToHealth}.
+    const outcome = cappedToHealth(
+      rollAttack(attackerStats, underPressure(targetStats, assailants), this.rng),
+      this.hpOf(target) ?? 0,
     );
     // Noted even on a dodge: what a creature reacts to is being swung at, and a
     // cat that only fought back when a blow landed would stand there being
@@ -4346,11 +4350,16 @@ export class GameSession implements PlaySession {
   /**
    * Pay both sides of one swing whatever it taught them.
    *
-   * **Scaled by how the two bodies compare, and each side sees its own ratio.**
-   * The rat learns nothing from a player it could never beat and the player
-   * learns nearly nothing from the rat, from one and the same blow — which is
-   * the whole of what makes the world a ladder rather than a place to grind the
-   * first thing you meet.
+   * **Scaled by how far above the learner the other body is, and each side sees
+   * its own ratio.** The rat learns nothing from a player it could never beat,
+   * from the same blow the player learns from — which is the whole of what makes
+   * the world a ladder rather than a place to grind the first thing you meet.
+   *
+   * **The offensive side asks that question once per mastery**, because the
+   * answer differs: a rat is a fair opponent for a veteran's first sword and no
+   * opponent at all for their footwork. See `../lib/mastery`'s `standingIn`. The
+   * defensive side asks it once, against the Rating, because both masteries it
+   * pays are the body itself.
    *
    * Silent for a creature on either side. Only a player has experience to be
    * given, and asking that question here rather than inside the arithmetic keeps
@@ -4397,8 +4406,7 @@ export class GameSession implements PlaySession {
           attackerEarnings(
             outcome,
             weaponInHand(body, attacker.equipment, this.tilesById, swung),
-            body.masteries,
-            experienceMultiplier(targetRating, attackerRating),
+            (mastery) => masteryMultiplier(targetRating, body.masteries, mastery),
           ),
         );
       }
@@ -4466,14 +4474,9 @@ export class GameSession implements PlaySession {
     const victimRating = this.ratingOf(victim);
     if (casterRating === null || victimRating === null) return;
 
-    this.grantCasting(
-      caster,
-      damage,
-      undefined,
-      elements,
-      experienceMultiplier(victimRating, casterRating),
+    this.grantCasting(caster, damage, elements, (mastery) =>
+      masteryMultiplier(victimRating, this.bodyOf(caster)?.masteries ?? {}, mastery),
     );
-
   }
 
   /**
@@ -4481,33 +4484,31 @@ export class GameSession implements PlaySession {
    *
    * One door for all three ways a spell can be worth something — damage it dealt
    * on the spot, health it actually restored, and damage something it conjured
-   * dealt later — so the scale and the learning rate cannot come to differ
-   * between them. @see `./experience`'s `casterEarnings`
+   * dealt later — so the scale cannot come to differ between them.
+   * @see `./experience`'s `casterEarnings`
    *
-   * The stone is optional because the indirect case has none to offer; a spell
-   * with no requirement to read teaches at the full rate, which is what
-   * `learningRate` means by a requirement of zero. The elements travel
-   * separately for that same reason — they survive the stone.
+   * The elements travel on their own rather than being read off a stone, because
+   * the indirect case has no stone left to read: a conjured flame outlives the
+   * thing that lit it.
    */
   private grantCasting(
     caster: ActorRuntime,
     amount: number,
-    stone: ArcaneStoneItem | undefined,
     elements: readonly Element[],
-    multiplier: number,
+    /**
+     * What this cast is worth to a given mastery, as a multiple of the plain
+     * rate.
+     *
+     * A function rather than a number because Arcane and each element are
+     * weighed against their own levels — see `../lib/mastery`'s `standingIn` —
+     * and because a mend has nobody to be weighed against at all and hands over
+     * a flat figure instead.
+     */
+    multiplierFor: (mastery: Mastery) => number,
   ) {
     const body = this.bodyOf(caster);
     if (!body) return;
-    this.grantExperience(
-      caster,
-      casterEarnings(
-        amount,
-        stone?.requirements,
-        elements,
-        body.masteries,
-        multiplier,
-      ),
-    );
+    this.grantExperience(caster, casterEarnings(amount, elements, multiplierFor));
   }
 
   /**
@@ -5814,7 +5815,7 @@ export class GameSession implements PlaySession {
       // on what the wheel made of the blow rather than on what the formula said,
       // so picking the right element is worth picking.
       if (context.atSomebodyElse) {
-        this.awardCastDamage(actor, subject, stone, dealt, elements);
+        this.awardCastDamage(actor, subject, dealt, elements);
       }
       return;
     }
@@ -5831,7 +5832,9 @@ export class GameSession implements PlaySession {
     // same reason: what `experienceMultiplier` weighs is how far above or below
     // you the other body is, and mending is not an exchange with anybody. A
     // caster who has mended a troll has mended somebody, not beaten them.
-    this.grantCasting(actor, restored, stone, elements, SELF_SPELL_MULTIPLIER);
+    // Flat, because a mend is not an exchange with anybody: there is no second
+    // body whose Rating could say how far above or below this was.
+    this.grantCasting(actor, restored, elements, () => SELF_SPELL_MULTIPLIER);
   }
 
   /**
@@ -5861,10 +5864,9 @@ export class GameSession implements PlaySession {
    * Pay an arcanist for damage one of their own casts just did.
    *
    * The direct twin of {@link awardCausedDamage}, which pays for damage done
-   * *later* by something they conjured, and it differs in exactly one thing: the
-   * stone is still in their hand, so the learning rate has a requirement to read
-   * and a caster who has outgrown their stone is paid less for it. Nobody can
-   * say that about a flame burning somebody two minutes after it was lit.
+   * *later* by something they conjured. The two now differ in nothing but when
+   * they are called: a cast is paid for what it did, and the stone that did it
+   * scales nothing — see `./experience`'s {@link casterEarnings}.
    *
    * Silent for a creature, which is where every payout in this game stops: only
    * a player has experience to be given.
@@ -5872,21 +5874,16 @@ export class GameSession implements PlaySession {
   private awardCastDamage(
     caster: ActorRuntime,
     victim: ActorRuntime,
-    stone: ArcaneStoneItem,
     damage: number,
     elements: readonly Element[],
   ) {
     if (caster.resident) return;
-    const casterRating = this.ratingOf(caster);
+    const body = this.bodyOf(caster);
     const victimRating = this.ratingOf(victim);
-    if (casterRating === null || victimRating === null) return;
+    if (!body || victimRating === null) return;
 
-    this.grantCasting(
-      caster,
-      damage,
-      stone,
-      elements,
-      experienceMultiplier(victimRating, casterRating),
+    this.grantCasting(caster, damage, elements, (mastery) =>
+      masteryMultiplier(victimRating, body.masteries, mastery),
     );
   }
 

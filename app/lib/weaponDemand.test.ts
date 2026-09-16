@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { weaponDemand, weaponDemandFor } from "./weaponDemand";
-import { REQUIREMENT_FALLOFF } from "./battler";
+import { MIN_HANDLING, weaponHandling } from "./battler";
 import { xpForLevel } from "./mastery";
 import { normalizeTileDef } from "./types";
 
@@ -8,10 +8,10 @@ import { normalizeTileDef } from "./types";
  * What a player is told about a weapon they cannot use.
  *
  * This replaced a sentence — "You can hardly wield it" — and the whole point of
- * the replacement is that the numbers are not guessable: requirements pool, and
- * the falloff is cubed. So the assertions here are about *the facts being
- * present*, not about phrasing: which mastery, how short, and what share of the
- * weapon that comes to.
+ * the replacement is that the numbers are not guessable: the points missing are
+ * pooled across every mastery a weapon asks for. So the assertions here are
+ * about *the facts being present*, not about phrasing: which mastery, how short,
+ * what that costs, and what it does not.
  */
 
 const sword = (requirements: Record<string, number> | undefined) =>
@@ -54,21 +54,24 @@ describe("weaponDemand", () => {
   });
 
   /**
-   * The share is the load-bearing line. Pooled requirements and a cubed falloff
-   * mean nobody arrives at it in their head — being most of the way there is
-   * emphatically not most of the weapon.
+   * The handling line is the load-bearing one, and it names damage because
+   * damage is the surprising half: the points missing are pooled across every
+   * mastery a weapon asks for, so nobody arrives at the percentage in their
+   * head, and a player who is not told the weapon still hits for everything it
+   * is written to hit for will put it back down.
    */
-  it("states the share of the weapon you are actually getting", () => {
+  it("states what falling short actually costs, and what it does not", () => {
+    // Ten points short of Sharp 20, at a twentieth apiece.
     const lines = weaponDemand({ sharp: 10 }, { sharp: 20 });
-    const share = Math.round(0.5 ** REQUIREMENT_FALLOFF * 100);
-    expect(lines).toContain(`You get ${share}% out of it`);
-    // And that it is well under the half a linear reading would suggest.
-    expect(share).toBeLessThan(50);
+    const handling = Math.round(weaponHandling(10) * 100);
+    expect(lines).toContain(`${handling}% accuracy and swing rate; full damage`);
+    expect(handling).toBe(50);
+    expect(handling).toBeGreaterThan(Math.round(MIN_HANDLING * 100));
   });
 
-  it("reads a hundred percent once everything is met", () => {
+  it("says so plainly once everything is met", () => {
     expect(weaponDemand({ sharp: 20, toughness: 10 }, { sharp: 20, toughness: 10 })).toContain(
-      "You get 100% out of it",
+      "Full accuracy and swing rate",
     );
   });
 
@@ -76,7 +79,7 @@ describe("weaponDemand", () => {
   it("does not let a mastered sharp stand in for missing toughness", () => {
     const lines = weaponDemand({ sharp: 100, toughness: 0 }, { sharp: 20, toughness: 20 });
     expect(lines).toContain("Toughness 20 — you have 0");
-    expect(lines).not.toContain("You get 100% out of it");
+    expect(lines).not.toContain("Full accuracy and swing rate");
   });
 });
 

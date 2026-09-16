@@ -7,11 +7,11 @@ import {
   fightingStats,
   resolveBattler,
 } from "../lib/battler";
-import { resolveWeapon, type WeaponItem } from "../lib/item";
+import { isRanged, resolveWeapon, type WeaponItem } from "../lib/item";
 import { experienceMultiplier, type Mastery, rating } from "../lib/mastery";
 import { COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import { normalizeTiles } from "../lib/types";
-import { attackIntervalMs, MIN_ATTACK_TICKS, rollAttack } from "./combat";
+import { attackIntervalMs, MIN_ATTACK_TICKS, rollAttack, swingIntervalMs } from "./combat";
 import { TICK_MS } from "./constants";
 import { Duel, type DuelResult, MAX_DUEL_TICKS, runDuel } from "./duel";
 import { Rng } from "./rng";
@@ -103,6 +103,14 @@ function winRate(a: FightingStats, b: FightingStats, fights = 200): number {
  * Damage per second against a defenceless target, which is the cleanest measure
  * of what a weapon is worth: it folds landing, the damage band and the swing
  * rate into one number without a defender's luck in it.
+ *
+ * **Through `swingIntervalMs` rather than `attackIntervalMs(spd)`**, which is
+ * the whole of what "the swing rate" means now. This used to read `spd` alone
+ * and was right to, back when falling short of a weapon's requirements was taken
+ * out of `spd` — but the shortfall is a share of the *rate* and now rides on
+ * `haste`, along with Agility. Reading `spd` alone measured a weapon nobody is
+ * holding: it charged an unearned weapon for its accuracy and let it swing at
+ * full speed.
  */
 function damagePerSecond(attacker: FightingStats, fights = 400): number {
   const dummy: FightingStats = {
@@ -122,7 +130,7 @@ function damagePerSecond(attacker: FightingStats, fights = 400): number {
     for (let tick = 0; tick < ticks; tick++) {
       cooldown -= TICK_MS;
       if (cooldown > 0) continue;
-      cooldown = attackIntervalMs(attacker.spd);
+      cooldown = swingIntervalMs(attacker);
       total += rollAttack(attacker, dummy, rng).damage;
     }
   }
@@ -144,20 +152,23 @@ describe("learning a weapon", () => {
   });
 
   /**
-   * The progression, as a curve rather than as two points. Every step of Sharp
-   * is worth something until the requirement is met — a plateau in the middle
-   * would mean levels the player earns and cannot feel.
-   */
-  /**
-   * **The climb never reverses, and it is deliberately not smooth.** Readiness
-   * is the cube of what you brought, so the bottom of a requirement is nearly
-   * flat — a couple of points into a five-point sword is still a sword you
-   * cannot use, and the figures round to nothing. What matters is that no point
-   * ever costs you anything and that the last one before the gate is worth a
-   * great deal, which is what makes meeting it a moment rather than a gradient.
+   * **The climb never reverses, and no single point of it is a cliff.**
+   *
+   * Handling costs a flat slice per point short, so the way to a requirement is
+   * a ramp: every point a player puts in buys back the same share of the
+   * weapon's accuracy and swing rate. What comes out the far end is not perfectly
+   * even — the hit chance and the swing interval are both curves — but nothing
+   * on it is a step you have to reach the top of before the weapon starts
+   * working.
+   *
+   * **That is the change, and it is the whole of what this pass was for.** Under
+   * the old cubed share the last point before the gate was worth several times
+   * every point before it put together, which made a requirement something to
+   * wait behind rather than something to reach for. See `../lib/battler`'s
+   * {@link HANDLING_PER_POINT_SHORT}.
    */
   it("never goes backwards on the way to the requirement", () => {
-    const curve = [];
+    const curve: number[] = [];
     for (let sharp = 0; sharp <= required; sharp++) {
       curve.push(damagePerSecond(armed(playerAt("sharp", sharp), SWORD)));
     }
@@ -165,9 +176,28 @@ describe("learning a weapon", () => {
     for (let i = 1; i < curve.length; i++) {
       expect(curve[i]!).toBeGreaterThanOrEqual(curve[i - 1]!);
     }
-    // And the gate itself is a cliff rather than a step: the last point before
-    // it is worth several times every point before that put together.
-    expect(curve[required]!).toBeGreaterThan(curve[required - 1]! * 5);
+
+    // No cliff: no one point is worth more than half of the whole climb.
+    const climb = curve.at(-1)! - curve[0]!;
+    const steps = curve.slice(1).map((dps, i) => dps - curve[i]!);
+    for (const step of steps) expect(step).toBeLessThan(climb / 2);
+  });
+
+  /**
+   * **An unearned weapon is a handicap, not a brick.** It is still worse than
+   * your own hands — that is what makes the requirement mean something — but the
+   * gap is aim and pace rather than force, and it is half what it used to be.
+   * The blade does what it says on it from the first swing.
+   */
+  it("leaves an unlearnt sword hitting for everything it is authored to hit for", () => {
+    const blade = weaponOf(SWORD);
+    const novice = armed(playerAt("sharp", 0), SWORD);
+    const trained = armed(playerAt("sharp", required), SWORD);
+
+    expect(novice.damage).toBe(blade.damage);
+    // What the novice is short of is aim and pace, and nothing else.
+    expect(novice.hitChance).toBeLessThan(trained.hitChance);
+    expect(novice.haste).toBeLessThan(trained.haste);
   });
 
   /**
@@ -190,17 +220,17 @@ describe("learning a weapon", () => {
   });
 
   /**
-   * Past the requirement the weapon keeps improving, but far less — the ratio is
-   * capped at 1.25, and the point of the cap is that the next weapon is where
-   * the growth is, not this one.
-   */
-  /**
    * **Past the requirement the weapon stops improving and the wielder does not.**
-   * The two axes, in one comparison: readiness caps the moment the requirement
-   * is met, so speed never moves again — but skill keeps paying damage and
-   * accuracy for the whole rest of the scale, which is what makes a
-   * hundred-Sharp hero with a starter sword something other than a novice with
-   * a starter sword.
+   * The two axes, in one comparison: handling caps the moment the requirement is
+   * met, so the rate never moves again for the weapon's sake — but skill keeps
+   * paying damage and accuracy for the whole rest of the scale, which is what
+   * makes a hundred-Sharp hero with a starter sword something other than a
+   * novice with a starter sword.
+   *
+   * **And this is where the grind now lives.** Nothing takes experience away
+   * from a weapon you have outgrown, so a player may take Sharp anywhere they
+   * like on a rusty sword; what makes that slow is `experienceMultiplier`, which
+   * pays nothing for fights beneath their Rating.
    */
   it("keeps paying the wielder past the requirement, but not the weapon", () => {
     const met = armed(playerAt("sharp", required), SWORD);
@@ -211,10 +241,180 @@ describe("learning a weapon", () => {
     expect(damagePerSecond(tenfold)).toBeGreaterThan(damagePerSecond(double));
 
     // The weapon itself is done the moment its requirement is met.
-    expect(double.spd).toBe(met.spd);
-    expect(tenfold.spd).toBe(met.spd);
+    expect(double.haste).toBe(met.haste);
+    expect(tenfold.haste).toBe(met.haste);
   });
 });
+
+/**
+ * Reaching one rung early is a choice; reaching two is a mistake.
+ *
+ * ## The two promises, and why they are one test
+ *
+ * A weapon ladder is only a ladder if both of these hold at once:
+ *
+ * - **Two points short of the next rung, that rung is already worth carrying.**
+ *   A requirement you have to stand and wait behind is a wall, and the whole
+ *   point of the shortfall being a handicap rather than a refusal is that
+ *   reaching is allowed.
+ * - **Two rungs up is still a mistake.** Otherwise there is no ladder: a fresh
+ *   player walks to the best weapon in the world and swings it.
+ *
+ * They pull against each other, and neither the handling curve nor the authored
+ * damage can deliver them alone — see `../lib/battler`'s {@link MIN_HANDLING},
+ * where the arithmetic of the window between them is written down. That is
+ * exactly why it is asserted here, against `data/tiles.json`, rather than as two
+ * separate unit tests that both pass while the world is unplayable.
+ *
+ * ## Toughness is handed over rather than earned
+ *
+ * Heavy weapons ask for Toughness alongside their own mastery, and Toughness is
+ * the one mastery nobody trains on purpose — it arrives from being hit. Leaving
+ * it at the authored 5 would measure "has not been in many fights" rather than
+ * "is short of this axe", so the body under test is given whatever Toughness the
+ * family asks for and only the weapon mastery is moved.
+ */
+describe("the weapon ladder", () => {
+  /**
+   * Every family, bottom rung first, and only the rungs.
+   *
+   * The greatsword is deliberately absent: it asks Sharp 22 in a ladder that
+   * steps 15 to 33, which makes it a heavy alternative to the knight's sword
+   * rather than a tier of its own. Nothing here promises anything about it.
+   */
+  const LADDERS: { mastery: Mastery; rungs: string[] }[] = [
+    { mastery: "sharp", rungs: ["rusty-sword", "iron-sword", "knights-sword", "tempered-longsword"] },
+    { mastery: "sharp", rungs: ["simple-axe", "broad-axe", "battleaxe"] },
+    { mastery: "blunt", rungs: ["simple-hammer", "iron-mace", "war-maul"] },
+    { mastery: "ranged", rungs: ["simple-bow", "hunting-bow", "war-bow"] },
+  ];
+
+  /** What a weapon asks of the mastery it trains. */
+  const asks = (id: string) => weaponOf(id).requirements?.[weaponOf(id).mastery] ?? 0;
+
+  /** A body at this level in the family's mastery, with its Toughness earned. */
+  function climbing(mastery: Mastery, level: number, rungs: string[]): BattlerDef {
+    const toughness = Math.max(
+      bodyOf("player").masteries.toughness ?? 0,
+      ...rungs.map((id) => weaponOf(id).requirements?.toughness ?? 0),
+    );
+    const at = playerAt(mastery, level);
+    return { ...at, masteries: { ...at.masteries, toughness } };
+  }
+
+  const dpsWith = (id: string, mastery: Mastery, level: number, rungs: string[]) =>
+    damagePerSecond(fightingStats(climbing(mastery, level, rungs), weaponOf(id)));
+
+  for (const { mastery, rungs } of LADDERS) {
+    describe(`${rungs[0]} to ${rungs.at(-1)}`, () => {
+      for (let i = 1; i < rungs.length; i++) {
+        const rung = rungs[i]!;
+        const below = rungs[i - 1]!;
+        const short = asks(rung) - 2;
+
+        it(`is worth picking up ${rung} at ${mastery} ${short}, two short of it`, () => {
+          expect(dpsWith(rung, mastery, short, rungs)).toBeGreaterThan(
+            dpsWith(below, mastery, short, rungs),
+          );
+        });
+
+        it(`makes ${rung} a real step up once it is earned`, () => {
+          expect(dpsWith(rung, mastery, asks(rung), rungs)).toBeGreaterThan(
+            dpsWith(below, mastery, asks(rung), rungs) * 1.2,
+          );
+        });
+
+        if (i + 1 < rungs.length) {
+          const twoUp = rungs[i + 1]!;
+          it(`still leaves ${twoUp} a mistake at ${mastery} ${short}`, () => {
+            expect(dpsWith(twoUp, mastery, short, rungs)).toBeLessThan(
+              dpsWith(below, mastery, short, rungs),
+            );
+          });
+        }
+      }
+
+      /**
+       * The promise as it was actually made: at mastery 8 — on the bottom rung
+       * of every family — the weapon two rungs up is not worth grabbing.
+       */
+      if (rungs.length >= 3) {
+        it(`leaves ${rungs[2]} a mistake at ${mastery} 8`, () => {
+          expect(dpsWith(rungs[2]!, mastery, 8, rungs)).toBeLessThan(
+            dpsWith(rungs[0]!, mastery, 8, rungs),
+          );
+        });
+      }
+    });
+  }
+});
+
+/**
+ * Two weapons on the same rung are a choice, not a tier.
+ *
+ * **The heavy families were never a choice, because speed is not a linear cost.**
+ * `attackIntervalMs` runs a curve 100:1 from end to end, so a battleaxe at `spd`
+ * 30 waits 4.5s between blows where a longsword at 40 waits 2.9s — half again as
+ * long for a quarter less speed. Measured before this was fixed, every slow
+ * weapon in the world sat at 47–78% of the sword standing on its rung, which
+ * makes "axe or sword" a question with one answer at every level of the game.
+ *
+ * The compensation is damage, because damage is the thing a heavy weapon is
+ * supposed to have. Nothing else about any of them moved: they are still slower,
+ * still less accurate, still ask for Toughness the sword does not.
+ *
+ * **Bows are held to 85% rather than parity, deliberately.** A bow has six cells
+ * of reach against a sword's one and a half, so anything closing on an archer
+ * eats a shot or two on the way in — worth roughly a fifth of an engagement, and
+ * invisible to a duel that starts both bodies in contact. Paying them parity
+ * *and* the reach would make a bow the only sane thing to carry.
+ */
+describe("two weapons on one rung", () => {
+  /** What each rung offers, sword first — the sword is the yardstick. */
+  const ROWS: [number, string[]][] = [
+    [5, ["rusty-sword", "simple-hammer", "simple-bow"]],
+    [10, ["iron-sword", "simple-axe"]],
+    [15, ["knights-sword", "broad-axe", "iron-mace", "hunting-bow"]],
+    [33, ["tempered-longsword", "battleaxe", "war-maul", "war-bow"]],
+  ];
+
+  /** A player standing on a rung: every weapon mastery there, Toughness earned. */
+  function onRung(level: number, id: string): BattlerDef {
+    const player = bodyOf("player");
+    return {
+      ...player,
+      masteries: {
+        ...player.masteries,
+        fist: level,
+        sharp: level,
+        blunt: level,
+        ranged: level,
+        toughness: Math.max(
+          player.masteries.toughness ?? 0,
+          weaponOf(id).requirements?.toughness ?? 0,
+        ),
+      },
+    };
+  }
+
+  /** Something that shoots is paid in reach for the damage it gives up. */
+  const floorFor = (id: string) => (isRanged(weaponOf(id)) ? 0.75 : 0.9);
+
+  for (const [rung, ids] of ROWS) {
+    const sword = ids[0]!;
+    for (const id of ids.slice(1)) {
+      it(`makes ${id} worth carrying beside ${sword} at ${rung}`, () => {
+        const theirs = damagePerSecond(armed(onRung(rung, id), id));
+        const swords = damagePerSecond(armed(onRung(rung, sword), sword));
+
+        expect(theirs / swords).toBeGreaterThan(floorFor(id));
+        // And never so far past it that the sword stops being a choice either.
+        expect(theirs / swords).toBeLessThan(1.15);
+      });
+    }
+  }
+});
+
 
 describe("the authored ladder", () => {
   const player = bodyOf("player");
@@ -385,6 +585,14 @@ describe("the wolf", () => {
    * Held from both ends, because either one alone is a worse game: a wolf a
    * fresh player can beat is not a rung, and one a properly-equipped player
    * cannot is a wall.
+   *
+   * **"Earned" is Sharp 15, which is what the sword asks, and it used to be read
+   * here as Sharp 20.** Twenty was five levels past the gate, and it was the
+   * honest number back when the rungs were flat enough that out-levelling a wolf
+   * was the only way past it. Now that each rung is a real step up, the sword is
+   * the answer at the moment you can hold it — which is what this test has
+   * always claimed to be about. The wolf still rates ⭐28 against this body's
+   * ⭐15, so it is emphatically not a fight anybody has outgrown.
    */
   it("is out of reach until the right sword is earned, and then a real fight", () => {
     const fresh = winRate(fists(bodyOf("player")), fists(wolf));
@@ -392,7 +600,7 @@ describe("the wolf", () => {
 
     const earned = {
       ...bodyOf("player"),
-      masteries: { ...bodyOf("player").masteries, sharp: 20, toughness: 20, agility: 20 },
+      masteries: { ...bodyOf("player").masteries, sharp: 15, toughness: 15, agility: 15 },
     };
     const properly = winRate(armed(earned, "knights-sword"), fists(wolf));
 

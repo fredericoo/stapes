@@ -40,8 +40,19 @@ import { hasLineOfSight } from "./sight";
  */
 export const MIN_ATTACK_TICKS = 6;
 
-/** Ticks between blows at {@link FightingStats.spd} 0 — as slow as it gets. */
+/** Ticks between blows at {@link FightingStats.spd} 0, before haste either way. */
 export const MAX_ATTACK_TICKS = 600;
+
+/**
+ * The slowest anything ever swings, however short of its weapon it is.
+ *
+ * Twice the slow end of the curve, so a body that brings nothing at all to a
+ * weapon authored at `spd` 0 still swings — see `../lib/battler`'s
+ * {@link weaponHandling}, whose floor is a half. A cap rather than an accident
+ * of the arithmetic: the shortfall is a handicap, and a handicap that could
+ * stop a weapon working outright would be the wall this design replaced.
+ */
+export const SLOWEST_ATTACK_TICKS = MAX_ATTACK_TICKS * 2;
 
 /**
  * How many of its own steps a blow costs the body that threw it.
@@ -84,6 +95,15 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 /**
+ * The lowest haste the interval will divide by.
+ *
+ * A guard on the arithmetic rather than a rule anybody plays against: nothing
+ * produces a haste this low — `weaponHandling` floors at a half and Agility only
+ * adds — and a zero here would be a body that never swings again.
+ */
+const MIN_HASTE = 0.1;
+
+/**
  * Milliseconds between one entity's blows.
  *
  * Geometric between the two bounds rather than linear, because linear makes the
@@ -98,13 +118,22 @@ function clamp(value: number, min: number, max: number): number {
 export function attackIntervalMs(spd: number, haste = 1): number {
   const t = clamp(spd, 0, 100) / 100;
   const ticks = MAX_ATTACK_TICKS * (MIN_ATTACK_TICKS / MAX_ATTACK_TICKS) ** t;
+  // **Haste runs both ways now**, which is what lets a weapon you are short of
+  // be slow without `spd` having to carry it: `spd` is a position on a curve
+  // running 100:1 end to end, so docking it by a quarter takes closer to three
+  // quarters off the rate. See `../lib/battler`'s {@link FightingStats.haste}.
+  //
   // **Floored at the same whole-tick minimum an unhastened body has**, which is
   // not a grudging clamp but the thing the rest of the loop is built on:
   // `STRIKE_DURATION_MS` is chosen to fit inside this gap, so a body that swung
   // faster than it would start its next lean before the last one came home and
   // simply live half a tile from where it stands. A speed limit is a speed
   // limit however you arrive at it.
-  const hastened = Math.max(MIN_ATTACK_TICKS, ticks / Math.max(1, haste));
+  const hastened = clamp(
+    ticks / Math.max(MIN_HASTE, haste),
+    MIN_ATTACK_TICKS,
+    SLOWEST_ATTACK_TICKS,
+  );
   return Math.round(hastened) * TICK_MS;
 }
 
@@ -468,7 +497,15 @@ export type AttackOutcome = {
   missed: boolean;
   /** The defender got out of the way; nothing else here happened. */
   dodged: boolean;
-  /** Hit points actually taken off, after {@link FightingStats.def}. */
+  /**
+   * Hit points actually taken off, after {@link FightingStats.def} and after
+   * {@link cappedToHealth} has trimmed whatever the body did not have left.
+   *
+   * **Never more than the defender was standing up with.** A blow for sixty on
+   * something with nine hit points left did nine, because nine is what there was
+   * to do — see {@link cappedToHealth} for why that is a rule about the world
+   * rather than a rule about bookkeeping.
+   */
   damage: number;
   /**
    * What the blow would have been worth had it landed, before defence.
@@ -493,6 +530,47 @@ export type AttackOutcome = {
    */
   inflicted: readonly WeaponStatus[];
 };
+
+/**
+ * The same blow, with whatever the defender did not have left taken off it.
+ *
+ * **The most damage a body can take is the health it is standing up with**, and
+ * this is where that becomes true. A greatsword swung for sixty at a rat with
+ * nine hit points did nine: the other fifty-one went into the air, and nothing
+ * downstream should be told otherwise.
+ *
+ * It matters in three places, and only one of them is arithmetic:
+ *
+ * - **What a blow teaches you is what it did.** Experience is counted in damage
+ *   dealt, so an uncapped overkill let one rat pay as much as the weapon was
+ *   theoretically worth rather than as much as the rat was — which is precisely
+ *   the grind that `experienceMultiplier` exists to close, arriving by a
+ *   different door.
+ * - **What floats over a body is a receipt.** `GameSession`'s `applyDamage`
+ *   shows this figure, and "60" over something that had nine left is a receipt
+ *   for an event that did not happen. `applyHealing` has always made the same
+ *   argument on the other side: what actually went in, never what was offered.
+ * - **`rollAttack` cannot do it itself**, because it is given two
+ *   {@link FightingStats} and neither carries a body's current health — `maxHp`
+ *   is what a body is when it is whole. So the trim is a separate step, applied
+ *   by each of the two callers that own a body's health: the session's
+ *   `tryAttack` and `./duel`'s loop. One function rather than two subtractions,
+ *   for the reason `strikeRecoveryMs` is one function: two readings of a rule is
+ *   one of them being changed alone.
+ *
+ * {@link AttackOutcome.potentialDamage} is deliberately left whole. It is what
+ * the blow *threatened* rather than what it took, which is the question the
+ * defensive payout asks — see `./experience`'s `threatRate`, which weighs it
+ * against the body's full health and would read a trimmed figure as a blow that
+ * got gentler as its target got closer to death.
+ */
+export function cappedToHealth(
+  outcome: AttackOutcome,
+  healthLeft: number,
+): AttackOutcome {
+  const landed = Math.max(0, Math.min(outcome.damage, healthLeft));
+  return landed === outcome.damage ? outcome : { ...outcome, damage: landed };
+}
 
 /** No status was inflicted, which is the answer for nearly every blow struck. */
 const NOTHING_INFLICTED: readonly never[] = [];

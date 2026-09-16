@@ -2,7 +2,8 @@ import { attackIntervalMs, damageFraction, dodgeChance } from "../game/combat";
 import {
   ACCURACY_AT_MAX_MASTERY,
   DAMAGE_AT_MAX_MASTERY,
-  REQUIREMENT_FALLOFF,
+  MIN_HANDLING,
+  weaponHandling,
 } from "../lib/battler";
 import { TICK_MS } from "../game/constants";
 import type { ProjectileDef, Reach, WeaponItem } from "../lib/item";
@@ -25,7 +26,6 @@ import {
   MASTERY_LABELS,
   MAX_MASTERY,
   MIN_MASTERY,
-  OUTGROWN_FALLOFF,
   WEAPON_MASTERIES,
   type WeaponMastery,
 } from "../lib/mastery";
@@ -140,7 +140,7 @@ const STARTER_PROJECTILE: ProjectileDef = {
 };
 
 /** The one paragraph of arithmetic behind the requirements grid, as a tooltip. */
-const REQUIREMENTS_INFO = `Zero asks nothing. Requirements are pooled and the lowest ratio gates the weapon: below it, damage, accuracy and speed fall on the cube of what was brought (90% brought is ${Math.round(0.9 ** REQUIREMENT_FALLOFF * 100)}% of the weapon, half is ${Math.round(0.5 ** REQUIREMENT_FALLOFF * 100)}%); above it nothing more is owed. Training runs at full rate up to the requirement and falls away on the sixth power past it.`;
+const REQUIREMENTS_INFO = `Zero asks nothing. Requirements are pooled, and falling short costs accuracy and swing rate only — damage is never scaled by them. Handling runs straight from ${Math.round(MIN_HANDLING * 100)}% at nothing brought to 100% at everything brought, so 90% brought handles at ${Math.round(weaponHandling(0.9) * 100)}% and half brought at ${Math.round(weaponHandling(0.5) * 100)}%. Meeting a requirement is worth full handling and exceeding it is worth nothing more. Nothing here scales the experience the weapon earns.`;
 
 export function WeaponFields({
   weapon,
@@ -332,11 +332,6 @@ export function WeaponFields({
                   onChange({
                     requirements: { ...weapon.requirements, [mastery]: level },
                   })
-                }
-                readout={
-                  mastery === weapon.mastery && required > 0
-                    ? `Full rate to ${required}; a fifth past pays ${Math.round((1 / 1.2) ** OUTGROWN_FALLOFF * 100)}%, twice pays ${Math.round(0.5 ** OUTGROWN_FALLOFF * 100)}%.`
-                    : undefined
                 }
               />
             );

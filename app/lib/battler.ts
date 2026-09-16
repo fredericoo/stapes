@@ -17,7 +17,7 @@ import {
   masteriesSchema,
   masteryLevel,
   MAX_MASTERY,
-  requirementShare,
+  requirementShortfall,
   spellElements,
   type WeaponMastery,
 } from "./mastery";
@@ -261,16 +261,26 @@ export type FightingStats = {
    */
   mastery: WeaponMastery;
   /**
-   * How much faster than {@link spd} alone this body swings — Agility's doing.
+   * How much faster or slower than {@link spd} alone this body swings.
    *
-   * A multiplier on the rate rather than a term in {@link spd}, and that is
-   * load-bearing: `spd` is a position on a geometric curve that tops out at 100,
-   * so a body three times as fast as a maxed weapon has no `spd` to say so with.
-   * It is applied where the interval is worked out — `../game/combat`'s
+   * Two things multiply into it, and they pull opposite ways: **Agility speeds
+   * you up, and falling short of what the weapon asks slows you down** — see
+   * {@link hasteFrom} and {@link weaponHandling}. Both are facts about this body
+   * swinging this weapon, which is exactly the pair `fightingStats` is given.
+   *
+   * **A multiplier on the rate rather than a term in {@link spd}, and that is
+   * load-bearing in both directions.** `spd` is a position on a geometric curve
+   * running 100:1 from end to end, so a body three times as fast as a maxed
+   * weapon has no `spd` to say so with — and, the other way, docking `spd` by a
+   * quarter is not a quarter off the rate but close to three quarters off it.
+   * Handling is quoted to the player as a share of their accuracy and swing
+   * rate, so it has to be applied where a share of the rate is what it means.
+   *
+   * Applied where the interval is worked out — `../game/combat`'s
    * `swingIntervalMs` — so the result is still a whole number of ticks.
    *
-   * One for a body with no Agility, which is every authored creature that has
-   * not been given any.
+   * One for a body with no Agility holding something it has earned, which is
+   * every authored creature that has not been given any.
    */
   haste: number;
   /**
@@ -566,24 +576,79 @@ export function fleeFrom(agility: number): number {
 }
 
 /**
- * How steeply a weapon falls off below what it asks.
+ * What each point of requirement you are short costs you, as a share of your
+ * accuracy and your swing rate.
  *
- * **A weapon’s authored numbers are what it is worth with its requirements
- * *exactly* met** — not a ceiling to be approached, and not a floor to be
- * exceeded. Everything below that is this curve, and cubing it means falling
- * short hurts far more than proportionally: nine tenths of the way there is
- * barely three quarters of the weapon, and half way there is an eighth of it.
+ * **A twentieth per point, counted in points rather than in proportion**, so
+ * "two points short" means the same handicap wherever on the ladder a player is
+ * standing: ten percent off both, whether the weapon asks five or fifty.
  *
- * That shape is the point. A gate that degraded linearly is not a gate — it is
- * a discount, and a player who can have 90% of an endgame weapon for 90% of the
- * work will take it every time. Cubed, an unearned weapon is genuinely bad, so
- * the moment it unlocks is a moment.
+ * ## It was a share of what you brought, and a share cannot keep both promises
+ *
+ * Two things are asked of the gate, and they pull against each other:
+ *
+ * - **Two points short of the next rung, that rung is already worth carrying.**
+ *   Reaching is the whole point of a ladder; a requirement you have to stand and
+ *   wait behind is a wall.
+ * - **Two rungs up is still a mistake.** Otherwise there is no ladder at all — a
+ *   new player walks to the best weapon in the world and swings it.
+ *
+ * Write `h` for handling and `r` for how much better each rung is than the one
+ * below. Both promises are about one body at one moment, so the weapons' own
+ * numbers cancel and what is left is `r·h(two short)² > 1 > r²·h(two rungs up)²`
+ * — a window for `r` at all only when `h(two rungs up) < h(two short)²`.
+ *
+ * Read off the *share* of what a weapon asks, those two are much closer together
+ * than they look, because the ladder's rungs get further apart as it climbs: two
+ * points short of Sharp 10 is a share of 0.80, and the whole seven points from
+ * Sharp 8 to Sharp 15 is still 0.53. A curve steep enough to make 0.80 hurt is
+ * far too steep at 0.53. Cubing the share and charging half of it gave
+ * `h = 0.76` and `0.58`, and `0.58 > 0.57`: **the window was empty, whatever any
+ * weapon was authored at.** No damage number could buy both promises.
+ *
+ * Counting the points decouples them. At a twentieth apiece, two short is 0.90
+ * and seven short is 0.65, so `r` may be anything from 1.24 to 1.54 — and the
+ * authored ladder needs only a modest lift to sit inside that, where a share
+ * would have demanded the weapons outrun every creature in the world.
+ *
+ * ## Softer where it was asked to be, harder where it had to be
+ *
+ * Against the cube at half bite, on the sword ladder:
+ *
+ * ```
+ *   short of it   2 of 10   2 of 15   2 of 33   7 of 15   10 of 15
+ *   cube, half      0.76      0.83      0.92      0.58       0.51
+ *   this            0.90      0.90      0.90      0.65       0.50
+ * ```
+ *
+ * Every "a couple of points short" case is gentler, which is what was asked for.
+ * Everything a long way out of reach is as hard as it was or harder, which is
+ * what pays for it.
  */
-export const REQUIREMENT_FALLOFF = 3;
+export const HANDLING_PER_POINT_SHORT = 0.05;
 
-/** What a weapon is worth right now, as a fraction of its authored numbers. */
-export function weaponReadiness(share: number): number {
-  return Math.max(0, Math.min(1, share)) ** REQUIREMENT_FALLOFF;
+/**
+ * The least a weapon can handle at, however little its wielder brings.
+ *
+ * **Not zero, for the reason it never was.** A weapon nobody can use at all is a
+ * weapon nobody can learn on, and getting better with a thing by swinging it is
+ * how every mastery in this game moves. At 0.15 a body seventeen points out of
+ * its depth still swings — slowly, wildly, and for the blade's full damage.
+ */
+export const MIN_HANDLING = 0.15;
+
+/**
+ * How well this body handles a weapon, as a fraction of 1 — its accuracy and its
+ * swing rate, and never its damage.
+ *
+ * One when every requirement is met, and {@link HANDLING_PER_POINT_SHORT} off
+ * for each point missing, down to {@link MIN_HANDLING}.
+ *
+ * @param shortfall pooled points of requirement missing, from `./mastery`'s
+ *   {@link requirementShortfall}.
+ */
+export function weaponHandling(shortfall: number): number {
+  return Math.max(MIN_HANDLING, 1 - HANDLING_PER_POINT_SHORT * Math.max(0, shortfall));
 }
 
 /**
@@ -591,7 +656,7 @@ export function weaponReadiness(share: number): number {
  *
  * **The half of mastery that requirements deliberately do not cover.** A Sharp
  * 100 hero holding a requirement-1 dagger has met that requirement a hundred
- * times over and gets nothing for it from {@link weaponReadiness}, which caps at
+ * times over and gets nothing for it from {@link weaponHandling}, which caps at
  * fully-met. This is what pays them instead, and it is keyed to the *absolute*
  * level of the mastery the weapon answers to rather than to any ratio — so it
  * scales with how good you are, not with how demanding the thing in your hand
@@ -619,7 +684,7 @@ export const ACCURACY_AT_MAX_MASTERY = 5;
  * Now simply the wielder’s accuracy read as a probability, because the two
  * failures it used to multiply have collapsed into one place. Falling short of a
  * weapon’s requirements already drags {@link FightingStats.accuracy} down
- * through {@link weaponReadiness}, and being good with it already pushes that
+ * through {@link weaponHandling}, and being good with it already pushes that
  * accuracy up — so charging for either a second time here would be charging
  * twice for the same fact.
  *
@@ -680,11 +745,12 @@ export function bodyDefence(battler: BattlerDef): number {
  * knowing that is `../game/equipment`'s job. This function knows only how a
  * profile plus a set of masteries becomes a fight.
  *
- * The mastery ratio is applied here and nowhere else, which is what keeps "how
- * good are you with this" a single question with a single answer. Three of the
- * weapon's four numbers move with it; `acc` deliberately does not, because it is
- * the damage band rather than the hit chance and the penalty already has a term
- * of its own.
+ * Both halves of "how good are you with this" are applied here and nowhere else,
+ * which is what keeps it a single question with a single answer. They pull on
+ * different numbers: skill with the mastery raises `damage` and `accuracy`, and
+ * falling short of the requirements lowers `accuracy` and `haste`. `variance` is
+ * moved by neither, because it is the width of the damage band rather than a
+ * measure of the wielder.
  *
  * Hit points and flee are untouched by the weapon, which is the other half of
  * the split: what a body *is* cannot be picked up or put down.
@@ -693,11 +759,11 @@ export function fightingStats(
   battler: BattlerDef,
   weapon: WeaponItem,
 ): FightingStats {
-  // How much of what the weapon asks this body brings, and what the weapon is
-  // therefore worth right now. One number, applied to all three of the things a
-  // weapon is: falling short makes it weaker, clumsier *and* slower.
-  const readiness = weaponReadiness(
-    requirementShare(battler.masteries, weapon.requirements),
+  // How much of what the weapon asks this body brings, and how well it therefore
+  // handles right now. Falling short makes a weapon clumsier and slower and
+  // leaves its damage alone — see {@link MIN_HANDLING}.
+  const handling = weaponHandling(
+    requirementShortfall(battler.masteries, weapon.requirements),
   );
 
   // The mastery the weapon itself answers to, read at its absolute level. This
@@ -705,14 +771,13 @@ export function fightingStats(
   // ratio against the requirement — see {@link MASTERY_DAMAGE_BONUS}.
   const skill = masteryLevel(battler.masteries, weapon.mastery) / MAX_MASTERY;
 
-  // **Readiness gates the skill bonus too, flat part included.** It is the
-  // outermost factor rather than something applied to the weapon's own numbers
-  // and then added to, and that placement is the whole rule: what mastery buys
-  // you is *more out of this weapon*, so a weapon you cannot lift has nothing
-  // more to give. Left ungated, the flat term did not depend on the weapon at
-  // all — a Sharp 100 hero picking up something whose Toughness requirement they
-  // could not meet still swung it for twenty, which is a gate with a hole cut in
-  // it exactly where the strongest players stand.
+  // **Damage is not touched by handling, which is the whole of the fairness
+  // rule.** A weapon you are short of is the harder-hitting weapon — that is why
+  // you picked it up — and scaling this by the shortfall made it hit softer than
+  // the one you had already outgrown, so there was never a moment worth reaching
+  // for the next rung. What being short of it costs you is `accuracy` and
+  // `haste` below.
+  //
   // **A weapon authored at no damage does none, however skilled its wielder.**
   // The flat term is what skill adds *to a weapon*, and a shield is not one —
   // it is a `def` with a handle, and `../game/equipment` puts it in the main
@@ -722,11 +787,17 @@ export function fightingStats(
   const damage =
     weapon.damage <= 0
       ? 0
-      : readiness *
-        (weapon.damage * (1 + skill * MASTERY_DAMAGE_BONUS) +
-          skill * DAMAGE_AT_MAX_MASTERY);
+      : weapon.damage * (1 + skill * MASTERY_DAMAGE_BONUS) +
+        skill * DAMAGE_AT_MAX_MASTERY;
+  // **Handling gates the skill bonus too, flat part included.** It is the
+  // outermost factor rather than something applied to the weapon's own accuracy
+  // and then added to, and that placement is the whole rule: what mastery buys
+  // you is *more out of this weapon*, so being good with blades cannot cancel
+  // out being short of this one. Left ungated, the flat term did not depend on
+  // the weapon at all, and the gate had a hole cut in it exactly where the
+  // strongest players stand.
   const accuracy =
-    readiness *
+    handling *
     (weapon.accuracy * (1 + skill * MASTERY_ACCURACY_BONUS) +
       skill * ACCURACY_AT_MAX_MASTERY);
 
@@ -754,15 +825,19 @@ export function fightingStats(
     accuracy: Math.round(accuracy),
     hitChance: hitChanceFrom(accuracy),
     variance: weapon.variance,
-    // Off the body, not the weapon: how quick you are is yours, and a heavy axe
-    // in quick hands is a hastened heavy axe rather than a dagger.
-    haste: hasteFrom(masteryLevel(battler.masteries, "agility")),
-    // Scaled by readiness like the other two and by nothing else: mastery's
-    // reward for speed is Agility's to give, and paying it twice would make a
-    // trained blade both harder-hitting and faster for the same points.
-    spd: Math.max(0, Math.round(weapon.spd * readiness)),
+    // Agility's gift and the shortfall's cost, in the one field that is a
+    // multiplier on the rate. How quick you are is yours — a heavy axe in quick
+    // hands is a hastened heavy axe rather than a dagger — and how short of the
+    // axe you are is yours too. Mastery's reward for speed is Agility's alone to
+    // give: paying it twice would make a trained blade both harder-hitting and
+    // faster for the same points.
+    haste: hasteFrom(masteryLevel(battler.masteries, "agility")) * handling,
+    // The weapon's own, untouched. What being short of it costs you is a share
+    // of the *rate*, and that is `haste` above — docking `spd` instead would
+    // charge a geometric curve for a proportional shortfall.
+    spd: weapon.spd,
     // Both off the weapon, not the body — the one place a bow differs from a
-    // fist in kind rather than in degree. Untouched by readiness above: a novice
+    // fist in kind rather than in degree. Untouched by handling above: a novice
     // archer is worse at hitting what they aim at, and the arrow still flies as
     // far as the bow throws it.
     reach: weapon.reach,
@@ -812,7 +887,7 @@ export const NO_RESISTANCES: WeaponResistances = {};
  * thrown as well as you throw magic.
  *
  * **Requirements are not consulted as a ratio here, unlike a weapon's**, and the
- * absence is deliberate rather than an oversight. `weaponReadiness` exists
+ * absence is deliberate rather than an oversight. `weaponHandling` exists
  * because a weapon you have not earned still swings; a stone you have not earned
  * does not fire at all — `./mastery`'s `meetsRequirements` refuses it — so
  * at every call site this has, the share is one by construction. Writing the
