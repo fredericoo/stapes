@@ -18,6 +18,15 @@
 # up healthy and serves a 404. This builds one and posts it, the same three
 # steps `deploy.yml` uses for production.
 #
+# **A pull request based on anything but the default branch gets no preview**,
+# and the failure is the quiet kind: this workflow builds the client, waits its
+# fifteen minutes on a deployment Coolify never queued, and says the deployment
+# is absent. The client build in the log above it is green, which reads as the
+# preview being broken rather than never asked for. Stacking one branch on
+# another is the ordinary way to arrive here — the base is a branch until the
+# first of the two merges, and by then the event that would have created the
+# preview has been and gone.
+#
 # Not owning the deploy does mean having to watch one. Both halves of a push
 # start from the same webhook, so this workflow can get to the hostname while
 # the previous commit's container is still serving it, and Coolify's deployment
@@ -161,7 +170,7 @@ jobs:
                 ;;
             esac
             if [ "$i" = 90 ]; then
-              echo "::error::Coolify has not finished a deployment of ${SHA} for pull request ${PR} in fifteen minutes — the last it said was ${STATUS}. An absent one was never queued: look at the preview application's watch paths, and at whether the title or the head commit carries a skip marker."
+              echo "::error::Coolify has not finished a deployment of ${SHA} for pull request ${PR} in fifteen minutes — the last it said was ${STATUS}. An absent one was never queued: check that the pull request is based on the default branch, then the preview application's watch paths, and whether the title or the head commit carries a skip marker."
               exit 1
             fi
             sleep 10
