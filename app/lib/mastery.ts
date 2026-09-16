@@ -638,12 +638,17 @@ export function experienceMultiplier(
  * `../game/experience`'s `threatRate` already asks the sharper question of
  * whether the blow could dent you at all.
  *
- * **What this gives up is that a mastery left untrained is now farmable**, which
- * a single body Rating deliberately prevented. It is bounded rather than
- * unbounded: a rat pays nothing once the mastery passes about ⭐24, and
- * `../game/combat`'s `cappedToHealth` means one rat is worth one rat's health
- * however large the weapon. Going and finding harder things is still the fast
- * way up; this is a way *in*.
+ * **A mastery left untrained is farmable now, and that is the feature rather
+ * than the price.** A single body Rating prevented it on purpose — the argument
+ * was that sandbagging must never pay — and the argument was too broad. What it
+ * was protecting against is a maxed player farming rats for real progress, and
+ * that is not what this opens: the farming only works at the bottom of the
+ * mastery being trained and stops dead well before it is worth anything. A rat
+ * pays nothing once the mastery passes about ⭐24 — see
+ * {@link NOTHING_BELOW_RATIO} — and `../game/combat`'s `cappedToHealth` means
+ * one rat is worth one rat's health however large the weapon. Nobody sandbags
+ * their way to a good sword arm; they sandbag their way to being allowed to
+ * start, and finding harder things is still the only way up.
  */
 export function standingIn(masteries: Masteries, mastery: Mastery): number {
   return BODY_MASTERIES.includes(mastery as BodyMastery)

@@ -1984,6 +1984,13 @@ as a motion event beside it. The split is the protocol's own: **a health bar is
 state, a damage number is an event.** Three hits in one tick leave one new total
 and owe three numbers, so neither can be derived from the other.
 
+**A damage event is trimmed to the health the body was standing up with** —
+`combat.ts`'s `cappedToHealth` — so the number that floats is what actually came
+off rather than what the weapon was theoretically worth. It is the same argument
+`applyHealing` has always made on the other side: what went in, never what was
+offered. See *A mastery is weighed against itself* for the other reason it
+matters, which is that experience is counted in damage dealt.
+
 Hit points are absent from the checkpoint, on the same terms brain memory is: a
 world nobody is looking at owes no continuity, and a saved number would have to
 survive somebody editing the tile's maximum. What *is* checkpointed is the set of
@@ -2418,6 +2425,11 @@ really about symmetry with a weapon. A blow that cannot dent you is a fact
 nothing else in the arithmetic can see, because `experienceMultiplier` weighs
 Ratings and a body can outgrow a creature outright while its Rating says the
 fight is close.
+
+**The defensive side is the one that still weighs against the Rating**, and that
+is deliberate rather than an oversight now that the offensive side no longer
+does: Toughness and Agility are the body itself, and you cannot be a novice at
+having one. See *A mastery is weighed against itself* below.
 
 Two things compounded it:
 
@@ -3154,6 +3166,13 @@ amount rather than an attack outcome: damage dealt to somebody who is not the
 caster, and health **actually restored** — so a mend at full health teaches
 nothing from the mend. Damage to yourself pays nothing, or training would be
 something you do to yourself in a corner.
+
+**Arcane and each element are weighed against their own levels**, on exactly the
+terms a weapon mastery is — see *A mastery is weighed against itself* below. So a
+veteran arcanist throwing their first fire learns Fire from something their
+Arcane finds beneath it, and the same bolt teaches them no Arcane at all. A mend
+is the one cast with nobody to be weighed against, and takes a flat multiplier
+instead: it is not an exchange with anybody.
 
 **And every cast pays a small flat fee on top, whatever it was.** Outcomes alone
 work for a swordsman, because every swing is aimed at somebody, and do not work
@@ -4141,12 +4160,22 @@ a body**. A rat's bite teaches a tough body nothing however little Toughness it
 has trained, and the reason is not its Rating — it is that the bite does not
 hurt, which `threatRate` asks directly and better.
 
-**What this gives up is that an untrained mastery is now farmable**, which one
-body Rating deliberately prevented. Two things bound it, and the second is the
-other half of this change:
+**An untrained mastery is farmable now, and that is the feature rather than the
+price.** One body Rating prevented it on purpose — the argument was that
+sandbagging must never pay — and the argument was too broad. What it was really
+protecting against is a maxed player farming rats for real progress, and that is
+not what this opens: **the farming only works at the bottom of the mastery being
+trained, and stops dead well before the mastery is worth anything.** A rat pays
+nothing once Sharp passes about three times the rat's own Rating, which is around
+24 on a scale of 100. Nobody sandbags their way to a good sword arm; they
+sandbag their way to being allowed to start.
 
-- A rat stops paying once the mastery passes about three times the rat's own
-  Rating, so the ceiling on rats is around Sharp 24.
+Two things hold that ceiling down, and the second is the other half of this
+change:
+
+- `NOTHING_BELOW_RATIO` — a creature stops paying a mastery once that mastery is
+  three times its Rating, so each creature has a level it is useless past, and
+  the world's easiest creature has the lowest one.
 - **`cappedToHealth` trims a blow to the health the body was standing up with**,
   so one rat is worth one rat however large the thing that killed it. Before it,
   a 66-damage battleaxe blow on an 11-hit-point rat paid as though it had done
@@ -4264,8 +4293,14 @@ canvas, in the pixel font. Inspecting a slot gets the same facts plus the rest o
 the profile, as a card: `app/game/itemCard.ts` computes it and
 `app/components/ItemCard.tsx` draws it. Damage, the wait between blows, the
 chance of landing one, the spread, the reach, every requirement against what you
-have, the share of the weapon that comes to, what a blow leaves behind, and for
-worn things the kinds of blow they turn aside.
+have, how well you handle it, what a blow leaves behind, and for worn things the
+kinds of blow they turn aside.
+
+**"How well you handle it" is the accuracy and the swing rate, and the card says
+so** — headed *Accuracy & swing rate* rather than the *In your hands* it used to
+be. It stopped being a share of the whole weapon when the shortfall stopped
+touching damage, and a bar that still read as one would be telling a player their
+greatsword hits softer than it does.
 
 The card exists because the gate is not the only question. Somebody holding two
 swords wants to know the difference between them — not which is better, which is

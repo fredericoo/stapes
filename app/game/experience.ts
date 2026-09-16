@@ -22,7 +22,8 @@ import type { AttackOutcome } from "./combat";
  * whole body.** A Blunt 80 veteran holding their first sword is a novice
  * swordsman, and a rat is a fair opponent for that — see `../lib/mastery`'s
  * {@link standingIn}, which is where the split between a skill and a physique is
- * written down.
+ * written down, and why farming an untrained mastery on easy things is allowed
+ * as far as it goes and stops well short of anywhere useful.
  */
 
 /**
