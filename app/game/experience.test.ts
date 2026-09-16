@@ -81,9 +81,12 @@ const sword = {
   requirements: { sharp: 5 },
 };
 
+/** Every mastery weighed the same, so the arithmetic below reads as itself. */
+const FLAT = () => 1;
+
 describe("what a landed blow teaches the swinger", () => {
   it("pays the mastery the weapon answers to", () => {
-    const earned = attackerEarnings(landed, sword, 1);
+    const earned = attackerEarnings(landed, sword, FLAT);
     expect(earned.sharp).toBeGreaterThan(0);
   });
 
@@ -92,19 +95,19 @@ describe("what a landed blow teaches the swinger", () => {
    * would be the one mastery they cannot practise.
    */
   it("pays agility a small share on top, rather than out of the same pot", () => {
-    const earned = attackerEarnings(landed, sword, 1);
+    const earned = attackerEarnings(landed, sword, FLAT);
     expect(earned.agility).toBeCloseTo(earned.sharp! * AGILITY_SHARE_OF_OFFENCE, 10);
   });
 
   it("scales with the damage actually dealt", () => {
-    const small = attackerEarnings({ ...landed, damage: 1 }, sword, 1);
-    const large = attackerEarnings({ ...landed, damage: 9 }, sword, 1);
+    const small = attackerEarnings({ ...landed, damage: 1 }, sword, FLAT);
+    const large = attackerEarnings({ ...landed, damage: 9 }, sword, FLAT);
     expect(large.sharp).toBeCloseTo(small.sharp! * 9, 10);
   });
 
   it("pays nothing for a swing that went nowhere, or one that was avoided", () => {
-    expect(attackerEarnings(missed, sword, 1)).toEqual({});
-    expect(attackerEarnings(dodged, sword, 1)).toEqual({});
+    expect(attackerEarnings(missed, sword, FLAT)).toEqual({});
+    expect(attackerEarnings(dodged, sword, FLAT)).toEqual({});
   });
 
   /**
@@ -120,8 +123,8 @@ describe("what a landed blow teaches the swinger", () => {
    * you are fighting rather than to what you are gripping.
    */
   it("pays the same rate whatever the weapon asks of its wielder", () => {
-    const outgrown = attackerEarnings(landed, { ...sword, requirements: { sharp: 1 } }, 1);
-    const met = attackerEarnings(landed, sword, 1);
+    const outgrown = attackerEarnings(landed, { ...sword, requirements: { sharp: 1 } }, FLAT);
+    const met = attackerEarnings(landed, sword, FLAT);
     expect(outgrown.sharp).toBe(met.sharp);
     expect(outgrown.agility).toBe(met.agility);
   });
@@ -135,12 +138,12 @@ describe("what a landed blow teaches the swinger", () => {
     const requirementless = attackerEarnings(
       landed,
       { ...sword, requirements: undefined },
-      1,
+      FLAT,
     );
     const demanding = attackerEarnings(
       landed,
       { ...sword, requirements: { sharp: 90 } },
-      1,
+      FLAT,
     );
     expect(demanding.sharp).toBe(requirementless.sharp);
   });

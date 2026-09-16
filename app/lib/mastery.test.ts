@@ -3,6 +3,8 @@ import {
   BENEATH_YOU_EXPONENT,
   spellElements,
   experienceMultiplier,
+  masteryMultiplier,
+  standingIn,
   MAX_MASTERY,
   MAX_XP_MULTIPLIER,
   MIN_RATING,
@@ -158,6 +160,62 @@ describe("requirementShare", () => {
 
   it("never goes below zero", () => {
     expect(requirementShare({}, { sharp: 30 })).toBe(0);
+  });
+});
+
+/**
+ * What a fight is weighed against depends on which part of you is asking.
+ *
+ * This is the rule that lets a veteran learn a second weapon at all. Under one
+ * body Rating, a Blunt 80 swordsmanship novice was paid for a rat exactly as a
+ * Blunt 80 mace veteran was — which is to say nothing — and there was no way
+ * into a fresh mastery except to take it straight into fights pitched at
+ * everything else they had.
+ */
+describe("what a mastery is weighed against", () => {
+  /** Somebody who has mastered one weapon and never picked up another. */
+  const veteran = { blunt: 80, sharp: 5, toughness: 40, agility: 40 };
+
+  it("weighs a weapon mastery against itself", () => {
+    expect(standingIn(veteran, "sharp")).toBe(5);
+    expect(standingIn(veteran, "blunt")).toBe(80);
+  });
+
+  it("weighs an element against itself, on the same terms", () => {
+    expect(standingIn({ ...veteran, fire: 3 }, "fire")).toBe(3);
+  });
+
+  /**
+   * **You cannot be a novice at having a body.** A rat's bite teaches a tough
+   * body nothing however little Toughness it has trained, and the reason is not
+   * its Rating — it is that the bite does not hurt, which
+   * `../game/experience`'s `threatRate` asks directly.
+   */
+  it("weighs the two body masteries against the whole body", () => {
+    expect(standingIn(veteran, "toughness")).toBe(rating(veteran));
+    expect(standingIn(veteran, "agility")).toBe(rating(veteran));
+  });
+
+  /**
+   * The payoff, in one comparison: a rat is worth everything to the sword the
+   * veteran has just picked up and nothing at all to the mace they mastered
+   * years ago, from the same blow.
+   */
+  it("makes a rat worth fighting for the mastery that is a novice's", () => {
+    const rat = 8;
+    expect(masteryMultiplier(rat, veteran, "sharp")).toBeGreaterThan(1);
+    expect(masteryMultiplier(rat, veteran, "blunt")).toBe(0);
+    expect(masteryMultiplier(rat, veteran, "agility")).toBe(0);
+  });
+
+  /**
+   * And it runs out, which is what keeps it a way *in* rather than a way up. A
+   * rat stops paying once the mastery it is teaching has passed three times its
+   * own Rating — see {@link NOTHING_BELOW_RATIO}.
+   */
+  it("stops paying once the mastery has outgrown the creature", () => {
+    expect(masteryMultiplier(8, { ...veteran, sharp: 20 }, "sharp")).toBeGreaterThan(0);
+    expect(masteryMultiplier(8, { ...veteran, sharp: 25 }, "sharp")).toBe(0);
   });
 });
 

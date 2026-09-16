@@ -1,6 +1,6 @@
 import type { FightingStats } from "../lib/battler";
 import { COMBAT_STATUS_ID, type StatusDef } from "../lib/status";
-import { type AttackOutcome, rollAttack, swingIntervalMs } from "./combat";
+import { type AttackOutcome, cappedToHealth, rollAttack, swingIntervalMs } from "./combat";
 import { TICK_MS } from "./constants";
 import type { Rng } from "./rng";
 import {
@@ -325,8 +325,13 @@ export class Duel {
       defender.statuses = enterCombat(defender.statuses);
     }
 
-    const outcome = rollAttack(attackerStats, defenderStats, this.rng);
-    defender.hp = Math.max(0, defender.hp - outcome.damage);
+    // Trimmed to what the defender was standing up with, so a blow for sixty at
+    // something with nine left did nine — see `./combat`'s {@link cappedToHealth}.
+    const outcome = cappedToHealth(
+      rollAttack(attackerStats, defenderStats, this.rng),
+      defender.hp,
+    );
+    defender.hp -= outcome.damage;
     events.push({ kind: "swing", by: side, outcome, hpLeft: defender.hp });
 
     if (defender.hp === 0) {

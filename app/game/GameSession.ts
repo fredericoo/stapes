@@ -162,6 +162,7 @@ import {
 } from "../lib/battler";
 import {
   experienceMultiplier,
+  masteryMultiplier,
   hasExperience,
   levelForXp,
   MASTERIES,
@@ -183,6 +184,7 @@ import {
   damageAfterDefence,
   damageFraction,
   inflictedBy,
+  cappedToHealth,
   rollAttack,
   strikeRecoveryMs,
   underPressure,
@@ -4220,10 +4222,12 @@ export class GameSession implements PlaySession {
     // assailant of one and `underPressure` hands the stats straight back. Its own
     // interval is what buys it a place in the count — see `ASSAILANT_GRACE_MS`.
     const assailants = this.noteAssailant(target, attacker.id, interval);
-    const outcome = rollAttack(
-      attackerStats,
-      underPressure(targetStats, assailants),
-      this.rng,
+    // Trimmed to what the target is standing up with before anybody is told
+    // about it, so the experience, the floating receipt and the health all read
+    // one figure — see `./combat`'s {@link cappedToHealth}.
+    const outcome = cappedToHealth(
+      rollAttack(attackerStats, underPressure(targetStats, assailants), this.rng),
+      this.hpOf(target) ?? 0,
     );
     // Noted even on a dodge: what a creature reacts to is being swung at, and a
     // cat that only fought back when a blow landed would stand there being
@@ -4346,11 +4350,16 @@ export class GameSession implements PlaySession {
   /**
    * Pay both sides of one swing whatever it taught them.
    *
-   * **Scaled by how the two bodies compare, and each side sees its own ratio.**
-   * The rat learns nothing from a player it could never beat and the player
-   * learns nearly nothing from the rat, from one and the same blow — which is
-   * the whole of what makes the world a ladder rather than a place to grind the
-   * first thing you meet.
+   * **Scaled by how far above the learner the other body is, and each side sees
+   * its own ratio.** The rat learns nothing from a player it could never beat,
+   * from the same blow the player learns from — which is the whole of what makes
+   * the world a ladder rather than a place to grind the first thing you meet.
+   *
+   * **The offensive side asks that question once per mastery**, because the
+   * answer differs: a rat is a fair opponent for a veteran's first sword and no
+   * opponent at all for their footwork. See `../lib/mastery`'s `standingIn`. The
+   * defensive side asks it once, against the Rating, because both masteries it
+   * pays are the body itself.
    *
    * Silent for a creature on either side. Only a player has experience to be
    * given, and asking that question here rather than inside the arithmetic keeps
@@ -4397,7 +4406,7 @@ export class GameSession implements PlaySession {
           attackerEarnings(
             outcome,
             weaponInHand(body, attacker.equipment, this.tilesById, swung),
-            experienceMultiplier(targetRating, attackerRating),
+            (mastery) => masteryMultiplier(targetRating, body.masteries, mastery),
           ),
         );
       }
@@ -4465,13 +4474,9 @@ export class GameSession implements PlaySession {
     const victimRating = this.ratingOf(victim);
     if (casterRating === null || victimRating === null) return;
 
-    this.grantCasting(
-      caster,
-      damage,
-      elements,
-      experienceMultiplier(victimRating, casterRating),
+    this.grantCasting(caster, damage, elements, (mastery) =>
+      masteryMultiplier(victimRating, this.bodyOf(caster)?.masteries ?? {}, mastery),
     );
-
   }
 
   /**
@@ -4490,11 +4495,20 @@ export class GameSession implements PlaySession {
     caster: ActorRuntime,
     amount: number,
     elements: readonly Element[],
-    multiplier: number,
+    /**
+     * What this cast is worth to a given mastery, as a multiple of the plain
+     * rate.
+     *
+     * A function rather than a number because Arcane and each element are
+     * weighed against their own levels — see `../lib/mastery`'s `standingIn` —
+     * and because a mend has nobody to be weighed against at all and hands over
+     * a flat figure instead.
+     */
+    multiplierFor: (mastery: Mastery) => number,
   ) {
     const body = this.bodyOf(caster);
     if (!body) return;
-    this.grantExperience(caster, casterEarnings(amount, elements, multiplier));
+    this.grantExperience(caster, casterEarnings(amount, elements, multiplierFor));
   }
 
   /**
@@ -5818,7 +5832,9 @@ export class GameSession implements PlaySession {
     // same reason: what `experienceMultiplier` weighs is how far above or below
     // you the other body is, and mending is not an exchange with anybody. A
     // caster who has mended a troll has mended somebody, not beaten them.
-    this.grantCasting(actor, restored, elements, SELF_SPELL_MULTIPLIER);
+    // Flat, because a mend is not an exchange with anybody: there is no second
+    // body whose Rating could say how far above or below this was.
+    this.grantCasting(actor, restored, elements, () => SELF_SPELL_MULTIPLIER);
   }
 
   /**
@@ -5862,15 +5878,12 @@ export class GameSession implements PlaySession {
     elements: readonly Element[],
   ) {
     if (caster.resident) return;
-    const casterRating = this.ratingOf(caster);
+    const body = this.bodyOf(caster);
     const victimRating = this.ratingOf(victim);
-    if (casterRating === null || victimRating === null) return;
+    if (!body || victimRating === null) return;
 
-    this.grantCasting(
-      caster,
-      damage,
-      elements,
-      experienceMultiplier(victimRating, casterRating),
+    this.grantCasting(caster, damage, elements, (mastery) =>
+      masteryMultiplier(victimRating, body.masteries, mastery),
     );
   }
 

@@ -1,6 +1,6 @@
 import type { Element } from "../lib/element";
 import type { WeaponItem } from "../lib/item";
-import type { MasteryXp } from "../lib/mastery";
+import type { Mastery, MasteryXp } from "../lib/mastery";
 import type { AttackOutcome } from "./combat";
 
 /**
@@ -16,10 +16,13 @@ import type { AttackOutcome } from "./combat";
  * ## Experience goes to the masteries that did the work
  *
  * Not to a pool, and not to whatever the player would like it to go to. You
- * swing a sword, your Sharp improves; you get hit, your Toughness does. That is
- * also what makes sandbagging pointless — Rating counts your *best* weapon
- * mastery rather than the one you happen to be holding, so there is nothing to
- * be gained by leaving one untrained.
+ * swing a sword, your Sharp improves; you get hit, your Toughness does.
+ *
+ * **And each of them is weighed against its own level rather than against the
+ * whole body.** A Blunt 80 veteran holding their first sword is a novice
+ * swordsman, and a rat is a fair opponent for that — see `../lib/mastery`'s
+ * {@link standingIn}, which is where the split between a skill and a physique is
+ * written down.
  */
 
 /**
@@ -103,24 +106,40 @@ export function defensiveDecay(payouts: number): number {
  * are barely allowed to lift. There used to be a `learningRate` here cubing the
  * ratio of the requirement to your level, and it charged a player twice for one
  * choice: the outgrown weapon is the weaker weapon, experience is counted in
- * damage dealt, so it was already paying less. What stops a mastery being ground
- * for ever is `../lib/mastery`'s `experienceMultiplier`, which pays nothing for a
- * fight beneath your Rating — a brake on what you fight rather than on what you
- * grip.
+ * damage dealt, so it was already paying less.
+ *
+ * **The two rows are weighed against different things, which is why the
+ * multiplier arrives as a function rather than a number.** How far above you a
+ * foe is depends on which part of you is asking: a rat is a fair opponent for a
+ * novice's Sharp and no opponent at all for a veteran's footwork, and both of
+ * those are true of one body on one blow. @see `../lib/mastery`'s
+ * {@link standingIn}, which owns that split.
+ *
+ * And the damage itself is already trimmed to what the defender had left — see
+ * `./combat`'s {@link cappedToHealth} — so one rat pays one rat's worth however
+ * large the thing that killed it.
  */
 export function attackerEarnings(
   outcome: AttackOutcome,
   weapon: WeaponItem,
-  multiplier: number,
+  /**
+   * What this fight is worth to a given mastery, as a multiple of the plain
+   * rate.
+   *
+   * Passed rather than computed, on the terms everything in this module is: it
+   * needs a body's Rating and this module knows arithmetic about a swing, not
+   * who anybody is. @see `../lib/mastery`'s {@link masteryMultiplier}
+   */
+  multiplierFor: (mastery: Mastery) => number,
 ): MasteryXp {
   if (outcome.missed || outcome.dodged || outcome.damage <= 0) return {};
 
-  const earned = XP_PER_DAMAGE * outcome.damage * multiplier;
+  const earned = XP_PER_DAMAGE * outcome.damage;
   if (earned <= 0) return {};
 
   return {
-    agility: earned * AGILITY_SHARE_OF_OFFENCE,
-    [weapon.mastery]: earned,
+    agility: earned * AGILITY_SHARE_OF_OFFENCE * multiplierFor("agility"),
+    [weapon.mastery]: earned * multiplierFor(weapon.mastery),
   };
 }
 
@@ -342,9 +361,13 @@ export function practiceEarnings(
  *
  * Unscaled by the stone, exactly as a swing is unscaled by the weapon — see
  * {@link attackerEarnings} for why a stone you have outgrown still teaches at
- * the plain rate. Nothing goes to Agility, unlike a landed blow — closing on
- * something and staying on it is footwork, and casting is the one thing in this
- * game you do standing still.
+ * the plain rate, and for why the multiplier arrives as a function. Arcane and
+ * each element are weighed against their own levels, so a veteran arcanist who
+ * has never thrown fire learns Fire from something their Arcane finds trivial.
+ *
+ * Nothing goes to Agility, unlike a landed blow — closing on something and
+ * staying on it is footwork, and casting is the one thing in this game you do
+ * standing still.
  */
 export function casterEarnings(
   /**
@@ -371,18 +394,19 @@ export function casterEarnings(
    * @see `./statuses`'s {@link StatusInstance.elements}
    */
   elements: readonly Element[],
-  multiplier: number,
+  /** @see {@link attackerEarnings}, which takes the same. */
+  multiplierFor: (mastery: Mastery) => number,
 ): MasteryXp {
   if (amount <= 0) return {};
 
-  const earned = XP_PER_DAMAGE * amount * multiplier;
+  const earned = XP_PER_DAMAGE * amount;
   if (earned <= 0) return {};
 
   // Arcane for having cast anything, and each element the spell was made of on
   // top rather than out of the same pot — the split `practiceEarnings` already
   // makes, for the same reason: a fire specialist must not be slower at magic
   // than somebody pressing a light.
-  const earnings: MasteryXp = { arcane: earned };
-  for (const element of elements) earnings[element] = earned;
+  const earnings: MasteryXp = { arcane: earned * multiplierFor("arcane") };
+  for (const element of elements) earnings[element] = earned * multiplierFor(element);
   return earnings;
 }

@@ -11,6 +11,7 @@ import {
   MAX_ATTACK_TICKS,
   MIN_ATTACK_TICKS,
   attackIntervalMs,
+  cappedToHealth,
   damageFraction,
   defenceAgainst,
   dodgeChance,
@@ -689,6 +690,52 @@ describe("statuses a weapon inflicts", () => {
         "fed",
       ]);
     }
+  });
+});
+
+/**
+ * The most damage a body can take is the health it is standing up with.
+ *
+ * **A rule about the world, not about bookkeeping.** Experience is counted in
+ * damage dealt and the floating receipt over a body shows the same figure, so an
+ * untrimmed overkill made one rat worth as much as the weapon that killed it
+ * rather than as much as the rat was — and floated "60" over something that had
+ * nine left.
+ */
+describe("a blow trimmed to what the body had left", () => {
+  const landed = {
+    missed: false,
+    dodged: false,
+    damage: 60,
+    potentialDamage: 72,
+    inflicted: [],
+  };
+
+  it("takes off no more than the body was standing up with", () => {
+    expect(cappedToHealth(landed, 9).damage).toBe(9);
+    expect(cappedToHealth(landed, 0).damage).toBe(0);
+  });
+
+  it("leaves a blow the body could survive exactly as it was", () => {
+    expect(cappedToHealth(landed, 60)).toBe(landed);
+    expect(cappedToHealth(landed, 200)).toBe(landed);
+  });
+
+  /**
+   * What the blow *threatened* is a different question from what it took, and it
+   * is the one the defensive payout asks — `./experience`'s `threatRate` weighs
+   * it against the body's whole health. Trimming it would read as a blow that
+   * got gentler the closer its target came to dying.
+   */
+  it("leaves what the blow threatened alone", () => {
+    expect(cappedToHealth(landed, 9).potentialDamage).toBe(72);
+  });
+
+  it("has nothing to trim on a miss or a dodge", () => {
+    const missed = { ...landed, missed: true, damage: 0, potentialDamage: 0 };
+    const dodged = { ...landed, dodged: true, damage: 0 };
+    expect(cappedToHealth(missed, 0)).toBe(missed);
+    expect(cappedToHealth(dodged, 0)).toBe(dodged);
   });
 });
 

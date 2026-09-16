@@ -1012,17 +1012,20 @@ describe("what pressing a stone teaches you for its own sake", () => {
 });
 
 describe("casterEarnings", () => {
+  /** Every mastery weighed the same, so the arithmetic reads as itself. */
+  const FLAT = () => 1;
+
   it("pays nothing for nothing", () => {
-    expect(casterEarnings(0, [], 1)).toEqual({});
-    expect(casterEarnings(-4, [], 1)).toEqual({});
+    expect(casterEarnings(0, [], FLAT)).toEqual({});
+    expect(casterEarnings(-4, [], FLAT)).toEqual({});
   });
 
   it("pays arcane and nothing else for an elementless spell", () => {
-    expect(Object.keys(casterEarnings(5, [], 1))).toEqual(["arcane"]);
+    expect(Object.keys(casterEarnings(5, [], FLAT))).toEqual(["arcane"]);
   });
 
   it("pays each element the spell is made of on top of arcane", () => {
-    expect(casterEarnings(5, ["fire"], 1)).toEqual({
+    expect(casterEarnings(5, ["fire"], FLAT)).toEqual({
       arcane: XP_PER_DAMAGE * 5,
       fire: XP_PER_DAMAGE * 5,
     });
@@ -1035,7 +1038,20 @@ describe("casterEarnings", () => {
    * here charged a player twice for one choice.
    */
   it("pays the plain rate whatever the stone asked", () => {
-    expect(casterEarnings(5, [], 1).arcane).toBeCloseTo(XP_PER_DAMAGE * 5, 6);
+    expect(casterEarnings(5, [], FLAT).arcane).toBeCloseTo(XP_PER_DAMAGE * 5, 6);
+  });
+
+  /**
+   * Arcane and each element are weighed against their own levels, so a veteran
+   * arcanist throwing their first fire learns Fire from something their Arcane
+   * finds beneath it. @see `../lib/mastery`'s `standingIn`
+   */
+  it("weighs arcane and each element separately", () => {
+    const earned = casterEarnings(5, ["fire"], (mastery) =>
+      mastery === "fire" ? 2 : 0,
+    );
+    expect(earned.fire).toBe(XP_PER_DAMAGE * 5 * 2);
+    expect(earned.arcane).toBe(0);
   });
 });
 

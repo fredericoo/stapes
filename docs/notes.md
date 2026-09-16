@@ -4039,10 +4039,11 @@ accuracy and swing rate only.**
 
 - `learningRate` and `OUTGROWN_FALLOFF` are gone. `attackerEarnings` and
   `casterEarnings` pay what the blow or the cast did, full stop — which also let
-  both shed the `masteries` and `requirements` arguments they only needed for the
-  falloff. What still stops a mastery being ground for ever is
-  `experienceMultiplier`, which pays nothing for a fight beneath your Rating: a
-  brake on what you fight rather than on what you grip.
+  both shed the `requirements` argument they only needed for the falloff. What
+  still stops a mastery being ground for ever is `experienceMultiplier`, which
+  pays nothing for a fight beneath the mastery being trained: a brake on what
+  you fight rather than on what you grip. See *A mastery is weighed against
+  itself* below for what "beneath" is measured against.
 - `weaponReadiness` is `weaponHandling`, it leaves damage alone, and it floors at
   `MIN_HANDLING` rather than at zero. A weapon nobody can use at all is a weapon
   nobody can learn on.
@@ -4120,34 +4121,71 @@ and at mastery 8, the weapon two rungs up: 0.75x for the knight's sword, and 0.0
 for a top-rung weapon in any family. The margins on the first table are thin by
 design — reaching early is meant to be a real choice rather than a free upgrade.
 
-#### Starting a second weapon mastery, when Rating counts your best
+#### A mastery is weighed against itself, and a blow against what the body had left
 
 Rating is half your *best* weapon mastery, so a Blunt 80 veteran who has never
-held a blade still rates ⭐60 — and `experienceMultiplier` pays on Rating, not on
-the mastery being trained. So: **no, they cannot train Sharp on rats.** Measured
-against that body, a rat, a cat, a snake and a bat all pay exactly zero, the wolf
-pays 0.02x, and only the cave troll at ⭐51 pays anything worth having (0.44x).
+held a blade rates ⭐60. While every payout was weighed against that one number,
+their first sword had no on-ramp at all: measured on that body, a rat, a cat, a
+snake and a bat paid exactly zero, the wolf paid 0.02x, and only the cave troll
+at ⭐51 paid anything worth having. Being good at maces made you unable to learn
+swords, which reads as a punishment for having played.
 
-That is the anti-sandbagging rule working as designed, and the on-ramp survives
-it for two reasons that are easy to miss:
+`standingIn` splits it. **A mastery you practise with something in your hand is
+weighed against itself; the two that are just your body are weighed against your
+Rating.** Sharp 7 against a rat's ⭐8 says the true thing — this is a fight at the
+level of the skill being practised — while the same blow pays that veteran's
+Blunt and Agility nothing, because those are not novices at anything.
 
-- **The early points of a mastery are nearly free.** The curve is quadratic, so
-  Sharp 5 to 15 is 800 raw experience against the 22,400 that Sharp 65 to 75
-  costs. A landed blow at parity pays around 38.
-- **What pays is the damage, and damage no longer depends on the mastery.** The
-  veteran swings a rusty sword for 7 a blow at ⭐60 — feeble in absolute terms,
-  and still 3.7 Sharp experience per second against a cave troll, which is Sharp
-  5 to 15 in under four minutes of swinging.
+Toughness and Agility keep the Rating because **you cannot be a novice at having
+a body**. A rat's bite teaches a tough body nothing however little Toughness it
+has trained, and the reason is not its Rating — it is that the bite does not
+hurt, which `threatRate` asks directly and better.
 
-The practical answer is also the unintuitive one: **cross-train on the weapon you
-have earned, not the one your Rating deserves.** At Sharp 5 the rusty sword does
-4.16 dps and the tempered longsword 0.25, because the longsword is 28 points
-short and sits on the handling floor. The best trainer is the small weapon.
+**What this gives up is that an untrained mastery is now farmable**, which one
+body Rating deliberately prevented. Two things bound it, and the second is the
+other half of this change:
 
-What the measurement does expose is a **content** gap rather than a rule one: at
-⭐60 the world holds exactly one creature worth fighting at all. That is the same
-finding as *the ladder runs out above the best thing in the world* in
-`duel.test.ts`, and it wants more creatures rather than a different rule.
+- A rat stops paying once the mastery passes about three times the rat's own
+  Rating, so the ceiling on rats is around Sharp 24.
+- **`cappedToHealth` trims a blow to the health the body was standing up with**,
+  so one rat is worth one rat however large the thing that killed it. Before it,
+  a 66-damage battleaxe blow on an 11-hit-point rat paid as though it had done
+  66 — which is the same grind `experienceMultiplier` exists to close, arriving
+  by a different door. It is a rule about the world rather than about
+  bookkeeping: the floating receipt over a body reads the same figure, and "60"
+  over something that had nine left is a receipt for an event that did not
+  happen. `applyHealing` has always made that argument on the other side — what
+  actually went in, never what was offered.
+
+What comes out is an on-ramp that is steep at the bottom and useless at the top,
+which is the shape it should be. From Sharp 5, on rats alone:
+
+```
+  sharp  8        5 rats
+  sharp 10       13
+  sharp 12       45
+  sharp 15      220
+  sharp 20    1,742
+  sharp 24    6,409   and then nothing, ever
+```
+
+Five rats to get going; six thousand to get nowhere. Going and finding harder
+things is still the fast way up — this is a way *in*.
+
+**`potentialDamage` is deliberately left whole.** It is what the blow threatened
+rather than what it took, which is the question the defensive payout asks:
+`threatRate` weighs it against the body's *full* health, and a trimmed figure
+would read as a blow that got gentler as its target got closer to death.
+
+The practical advice for a cross-trainer is the unintuitive one: **train on the
+weapon you have earned, not the one your Rating deserves.** At Sharp 5 the rusty
+sword does 4.16 dps and the tempered longsword 0.25, because the longsword is 28
+points short and sits on the handling floor. The best trainer is the small weapon.
+
+What the measurement still exposes is a **content** gap: at ⭐60 the world holds
+exactly one creature worth fighting at all. That is the same finding as *the
+ladder runs out above the best thing in the world* in `duel.test.ts`, and it
+wants more creatures rather than a different rule.
 
 #### The wolf moved down a level rather than the sword moving up
 

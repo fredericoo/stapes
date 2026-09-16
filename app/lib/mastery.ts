@@ -346,10 +346,11 @@ export function requirementCoverage(
  * same fact and left putting the thing down as the only way to keep earning.
  *
  * The brake that remains is the one that was always doing the real work:
- * `experienceMultiplier` pays nothing for a fight beneath your Rating, whatever
- * you are holding. It is keyed to what you are fighting rather than to what you
- * are gripping, so a player who wants Sharp 33 on a rusty sword may have it and
- * has to keep finding harder things to swing at to get there.
+ * {@link experienceMultiplier} pays nothing for a fight beneath the mastery
+ * being trained — see {@link standingIn} for what "beneath" is measured against.
+ * It is keyed to what you are fighting rather than to what you are gripping, so
+ * a player who wants Sharp 33 on a rusty sword may have it and has to keep
+ * finding harder things to swing at to get there.
  *
  * See `../game/experience`'s `attackerEarnings` and `casterEarnings`, which pay
  * the plain rate.
@@ -612,6 +613,58 @@ export function experienceMultiplier(
   if (r < NOTHING_BELOW_RATIO) return 0;
   if (r <= 1) return r ** BENEATH_YOU_EXPONENT;
   return Math.min(MAX_XP_MULTIPLIER, r * r);
+}
+
+/**
+ * What a fight is weighed against, for one mastery.
+ *
+ * **A mastery you practise with something in your hand is weighed against
+ * itself; the two that are just your body are weighed against your Rating.**
+ * That split is the whole rule, and it is the difference between a skill and a
+ * physique.
+ *
+ * A Blunt 80 veteran who has never held a blade is a novice swordsman. A rat is
+ * a fair opponent for that — not for them, for their Sharp — and under a single
+ * body Rating it paid them nothing, so there was no way into a second weapon
+ * except to take a fresh mastery into fights already pitched at everything else
+ * they had. Weighing Sharp 7 against a rat's ⭐8 says the true thing: this is a
+ * fight at the level of the skill being practised.
+ *
+ * **Toughness and Agility get the Rating, because you cannot be a novice at
+ * having a body.** A rat's bite teaches a tough body nothing however little
+ * Toughness it has trained, and the reason is not its Rating — it is that the
+ * bite does not hurt. Half of Rating is those two between them, so weighing them
+ * against it is very nearly weighing them against themselves, and
+ * `../game/experience`'s `threatRate` already asks the sharper question of
+ * whether the blow could dent you at all.
+ *
+ * **What this gives up is that a mastery left untrained is now farmable**, which
+ * a single body Rating deliberately prevented. It is bounded rather than
+ * unbounded: a rat pays nothing once the mastery passes about ⭐24, and
+ * `../game/combat`'s `cappedToHealth` means one rat is worth one rat's health
+ * however large the weapon. Going and finding harder things is still the fast
+ * way up; this is a way *in*.
+ */
+export function standingIn(masteries: Masteries, mastery: Mastery): number {
+  return BODY_MASTERIES.includes(mastery as BodyMastery)
+    ? rating(masteries)
+    : masteryLevel(masteries, mastery);
+}
+
+/**
+ * What one fight is worth to one mastery, as a multiple of the plain rate.
+ *
+ * {@link experienceMultiplier} against {@link standingIn} — the pair of them is
+ * "how far above or below *this skill* is the thing I am fighting". Every earning
+ * path goes through it, so the answer cannot come to differ between a swing and
+ * a cast.
+ */
+export function masteryMultiplier(
+  theirRating: number,
+  masteries: Masteries,
+  mastery: Mastery,
+): number {
+  return experienceMultiplier(theirRating, standingIn(masteries, mastery));
 }
 
 const masteryLevelSchema = v.pipe(

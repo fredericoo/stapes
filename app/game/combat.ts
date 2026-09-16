@@ -497,7 +497,15 @@ export type AttackOutcome = {
   missed: boolean;
   /** The defender got out of the way; nothing else here happened. */
   dodged: boolean;
-  /** Hit points actually taken off, after {@link FightingStats.def}. */
+  /**
+   * Hit points actually taken off, after {@link FightingStats.def} and after
+   * {@link cappedToHealth} has trimmed whatever the body did not have left.
+   *
+   * **Never more than the defender was standing up with.** A blow for sixty on
+   * something with nine hit points left did nine, because nine is what there was
+   * to do — see {@link cappedToHealth} for why that is a rule about the world
+   * rather than a rule about bookkeeping.
+   */
   damage: number;
   /**
    * What the blow would have been worth had it landed, before defence.
@@ -522,6 +530,47 @@ export type AttackOutcome = {
    */
   inflicted: readonly WeaponStatus[];
 };
+
+/**
+ * The same blow, with whatever the defender did not have left taken off it.
+ *
+ * **The most damage a body can take is the health it is standing up with**, and
+ * this is where that becomes true. A greatsword swung for sixty at a rat with
+ * nine hit points did nine: the other fifty-one went into the air, and nothing
+ * downstream should be told otherwise.
+ *
+ * It matters in three places, and only one of them is arithmetic:
+ *
+ * - **What a blow teaches you is what it did.** Experience is counted in damage
+ *   dealt, so an uncapped overkill let one rat pay as much as the weapon was
+ *   theoretically worth rather than as much as the rat was — which is precisely
+ *   the grind that `experienceMultiplier` exists to close, arriving by a
+ *   different door.
+ * - **What floats over a body is a receipt.** `GameSession`'s `applyDamage`
+ *   shows this figure, and "60" over something that had nine left is a receipt
+ *   for an event that did not happen. `applyHealing` has always made the same
+ *   argument on the other side: what actually went in, never what was offered.
+ * - **`rollAttack` cannot do it itself**, because it is given two
+ *   {@link FightingStats} and neither carries a body's current health — `maxHp`
+ *   is what a body is when it is whole. So the trim is a separate step, applied
+ *   by each of the two callers that own a body's health: the session's
+ *   `tryAttack` and `./duel`'s loop. One function rather than two subtractions,
+ *   for the reason `strikeRecoveryMs` is one function: two readings of a rule is
+ *   one of them being changed alone.
+ *
+ * {@link AttackOutcome.potentialDamage} is deliberately left whole. It is what
+ * the blow *threatened* rather than what it took, which is the question the
+ * defensive payout asks — see `./experience`'s `threatRate`, which weighs it
+ * against the body's full health and would read a trimmed figure as a blow that
+ * got gentler as its target got closer to death.
+ */
+export function cappedToHealth(
+  outcome: AttackOutcome,
+  healthLeft: number,
+): AttackOutcome {
+  const landed = Math.max(0, Math.min(outcome.damage, healthLeft));
+  return landed === outcome.damage ? outcome : { ...outcome, damage: landed };
+}
 
 /** No status was inflicted, which is the answer for nearly every blow struck. */
 const NOTHING_INFLICTED: readonly never[] = [];
