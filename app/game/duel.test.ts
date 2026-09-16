@@ -11,7 +11,7 @@ import { resolveWeapon, type WeaponItem } from "../lib/item";
 import { experienceMultiplier, type Mastery, rating } from "../lib/mastery";
 import { COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import { normalizeTiles } from "../lib/types";
-import { attackIntervalMs, MIN_ATTACK_TICKS, rollAttack } from "./combat";
+import { attackIntervalMs, MIN_ATTACK_TICKS, rollAttack, swingIntervalMs } from "./combat";
 import { TICK_MS } from "./constants";
 import { Duel, type DuelResult, MAX_DUEL_TICKS, runDuel } from "./duel";
 import { Rng } from "./rng";
@@ -103,6 +103,14 @@ function winRate(a: FightingStats, b: FightingStats, fights = 200): number {
  * Damage per second against a defenceless target, which is the cleanest measure
  * of what a weapon is worth: it folds landing, the damage band and the swing
  * rate into one number without a defender's luck in it.
+ *
+ * **Through `swingIntervalMs` rather than `attackIntervalMs(spd)`**, which is
+ * the whole of what "the swing rate" means now. This used to read `spd` alone
+ * and was right to, back when falling short of a weapon's requirements was taken
+ * out of `spd` — but the shortfall is a share of the *rate* and now rides on
+ * `haste`, along with Agility. Reading `spd` alone measured a weapon nobody is
+ * holding: it charged an unearned weapon for its accuracy and let it swing at
+ * full speed.
  */
 function damagePerSecond(attacker: FightingStats, fights = 400): number {
   const dummy: FightingStats = {
@@ -122,7 +130,7 @@ function damagePerSecond(attacker: FightingStats, fights = 400): number {
     for (let tick = 0; tick < ticks; tick++) {
       cooldown -= TICK_MS;
       if (cooldown > 0) continue;
-      cooldown = attackIntervalMs(attacker.spd);
+      cooldown = swingIntervalMs(attacker);
       total += rollAttack(attacker, dummy, rng).damage;
     }
   }
@@ -144,17 +152,20 @@ describe("learning a weapon", () => {
   });
 
   /**
-   * **The climb never reverses, and it steepens all the way to the gate.** The
-   * shortfall is cubed, so the bottom of a requirement is nearly flat — a couple
-   * of points into a five-point sword barely moves it — and the point that opens
-   * the gate is the biggest single step on the way there.
+   * **The climb never reverses, and no single point of it is a cliff.**
    *
-   * **It is a ramp topping out rather than a cliff, and that is the change.**
-   * Under the full cube the last point was worth several times every point
-   * before it put together; at half the bite it is merely the largest. The
-   * requirement is still worth reaching and no longer worth *waiting* for, which
-   * is the whole of what this pass was for — see `../lib/battler`'s
-   * `SHORTFALL_BITE`.
+   * Handling costs a flat slice per point short, so the way to a requirement is
+   * a ramp: every point a player puts in buys back the same share of the
+   * weapon's accuracy and swing rate. What comes out the far end is not perfectly
+   * even — the hit chance and the swing interval are both curves — but nothing
+   * on it is a step you have to reach the top of before the weapon starts
+   * working.
+   *
+   * **That is the change, and it is the whole of what this pass was for.** Under
+   * the old cubed share the last point before the gate was worth several times
+   * every point before it put together, which made a requirement something to
+   * wait behind rather than something to reach for. See `../lib/battler`'s
+   * {@link HANDLING_PER_POINT_SHORT}.
    */
   it("never goes backwards on the way to the requirement", () => {
     const curve: number[] = [];
@@ -165,10 +176,11 @@ describe("learning a weapon", () => {
     for (let i = 1; i < curve.length; i++) {
       expect(curve[i]!).toBeGreaterThanOrEqual(curve[i - 1]!);
     }
-    // The point that opens the gate is the biggest single step on the way there.
+
+    // No cliff: no one point is worth more than half of the whole climb.
+    const climb = curve.at(-1)! - curve[0]!;
     const steps = curve.slice(1).map((dps, i) => dps - curve[i]!);
-    const last = steps.at(-1)!;
-    for (const step of steps.slice(0, -1)) expect(last).toBeGreaterThan(step);
+    for (const step of steps) expect(step).toBeLessThan(climb / 2);
   });
 
   /**
@@ -232,6 +244,109 @@ describe("learning a weapon", () => {
     expect(double.haste).toBe(met.haste);
     expect(tenfold.haste).toBe(met.haste);
   });
+});
+
+/**
+ * Reaching one rung early is a choice; reaching two is a mistake.
+ *
+ * ## The two promises, and why they are one test
+ *
+ * A weapon ladder is only a ladder if both of these hold at once:
+ *
+ * - **Two points short of the next rung, that rung is already worth carrying.**
+ *   A requirement you have to stand and wait behind is a wall, and the whole
+ *   point of the shortfall being a handicap rather than a refusal is that
+ *   reaching is allowed.
+ * - **Two rungs up is still a mistake.** Otherwise there is no ladder: a fresh
+ *   player walks to the best weapon in the world and swings it.
+ *
+ * They pull against each other, and neither the handling curve nor the authored
+ * damage can deliver them alone — see `../lib/battler`'s {@link MIN_HANDLING},
+ * where the arithmetic of the window between them is written down. That is
+ * exactly why it is asserted here, against `data/tiles.json`, rather than as two
+ * separate unit tests that both pass while the world is unplayable.
+ *
+ * ## Toughness is handed over rather than earned
+ *
+ * Heavy weapons ask for Toughness alongside their own mastery, and Toughness is
+ * the one mastery nobody trains on purpose — it arrives from being hit. Leaving
+ * it at the authored 5 would measure "has not been in many fights" rather than
+ * "is short of this axe", so the body under test is given whatever Toughness the
+ * family asks for and only the weapon mastery is moved.
+ */
+describe("the weapon ladder", () => {
+  /**
+   * Every family, bottom rung first, and only the rungs.
+   *
+   * The greatsword is deliberately absent: it asks Sharp 22 in a ladder that
+   * steps 15 to 33, which makes it a heavy alternative to the knight's sword
+   * rather than a tier of its own. Nothing here promises anything about it.
+   */
+  const LADDERS: { mastery: Mastery; rungs: string[] }[] = [
+    { mastery: "sharp", rungs: ["rusty-sword", "iron-sword", "knights-sword", "tempered-longsword"] },
+    { mastery: "sharp", rungs: ["simple-axe", "broad-axe", "battleaxe"] },
+    { mastery: "blunt", rungs: ["simple-hammer", "iron-mace", "war-maul"] },
+    { mastery: "ranged", rungs: ["simple-bow", "hunting-bow", "war-bow"] },
+  ];
+
+  /** What a weapon asks of the mastery it trains. */
+  const asks = (id: string) => weaponOf(id).requirements?.[weaponOf(id).mastery] ?? 0;
+
+  /** A body at this level in the family's mastery, with its Toughness earned. */
+  function climbing(mastery: Mastery, level: number, rungs: string[]): BattlerDef {
+    const toughness = Math.max(
+      bodyOf("player").masteries.toughness ?? 0,
+      ...rungs.map((id) => weaponOf(id).requirements?.toughness ?? 0),
+    );
+    const at = playerAt(mastery, level);
+    return { ...at, masteries: { ...at.masteries, toughness } };
+  }
+
+  const dpsWith = (id: string, mastery: Mastery, level: number, rungs: string[]) =>
+    damagePerSecond(fightingStats(climbing(mastery, level, rungs), weaponOf(id)));
+
+  for (const { mastery, rungs } of LADDERS) {
+    describe(`${rungs[0]} to ${rungs.at(-1)}`, () => {
+      for (let i = 1; i < rungs.length; i++) {
+        const rung = rungs[i]!;
+        const below = rungs[i - 1]!;
+        const short = asks(rung) - 2;
+
+        it(`is worth picking up ${rung} at ${mastery} ${short}, two short of it`, () => {
+          expect(dpsWith(rung, mastery, short, rungs)).toBeGreaterThan(
+            dpsWith(below, mastery, short, rungs),
+          );
+        });
+
+        it(`makes ${rung} a real step up once it is earned`, () => {
+          expect(dpsWith(rung, mastery, asks(rung), rungs)).toBeGreaterThan(
+            dpsWith(below, mastery, asks(rung), rungs) * 1.2,
+          );
+        });
+
+        if (i + 1 < rungs.length) {
+          const twoUp = rungs[i + 1]!;
+          it(`still leaves ${twoUp} a mistake at ${mastery} ${short}`, () => {
+            expect(dpsWith(twoUp, mastery, short, rungs)).toBeLessThan(
+              dpsWith(below, mastery, short, rungs),
+            );
+          });
+        }
+      }
+
+      /**
+       * The promise as it was actually made: at mastery 8 — on the bottom rung
+       * of every family — the weapon two rungs up is not worth grabbing.
+       */
+      if (rungs.length >= 3) {
+        it(`leaves ${rungs[2]} a mistake at ${mastery} 8`, () => {
+          expect(dpsWith(rungs[2]!, mastery, 8, rungs)).toBeLessThan(
+            dpsWith(rungs[0]!, mastery, 8, rungs),
+          );
+        });
+      }
+    });
+  }
 });
 
 describe("the authored ladder", () => {
@@ -403,6 +518,14 @@ describe("the wolf", () => {
    * Held from both ends, because either one alone is a worse game: a wolf a
    * fresh player can beat is not a rung, and one a properly-equipped player
    * cannot is a wall.
+   *
+   * **"Earned" is Sharp 15, which is what the sword asks, and it used to be read
+   * here as Sharp 20.** Twenty was five levels past the gate, and it was the
+   * honest number back when the rungs were flat enough that out-levelling a wolf
+   * was the only way past it. Now that each rung is a real step up, the sword is
+   * the answer at the moment you can hold it — which is what this test has
+   * always claimed to be about. The wolf still rates ⭐28 against this body's
+   * ⭐15, so it is emphatically not a fight anybody has outgrown.
    */
   it("is out of reach until the right sword is earned, and then a real fight", () => {
     const fresh = winRate(fists(bodyOf("player")), fists(wolf));
@@ -410,7 +533,7 @@ describe("the wolf", () => {
 
     const earned = {
       ...bodyOf("player"),
-      masteries: { ...bodyOf("player").masteries, sharp: 20, toughness: 20, agility: 20 },
+      masteries: { ...bodyOf("player").masteries, sharp: 15, toughness: 15, agility: 15 },
     };
     const properly = winRate(armed(earned, "knights-sword"), fists(wolf));
 

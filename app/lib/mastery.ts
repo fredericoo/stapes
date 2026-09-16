@@ -255,6 +255,44 @@ export function requirementShare(
 }
 
 /**
+ * How many points of requirement this body is missing, pooled across every
+ * mastery a weapon asks for.
+ *
+ * **Points, not a proportion, and the difference is the whole reason this
+ * exists beside {@link requirementShare}.** A share answers "how far along am
+ * I", which is the right question for a progress bar and the wrong one for a
+ * handicap: two points short of Sharp 10 is a share of 0.80 and two points
+ * short of Sharp 33 is 0.94, so a curve steep enough to make the first hurt is
+ * far too steep for a weapon seven points out of reach. Counting the points
+ * makes "two short" mean the same thing wherever a player is standing, which is
+ * what a ladder needs — see `./battler`'s {@link weaponHandling}, the one caller.
+ *
+ * Pooled and capped on exactly the terms the share is: a maul asking Blunt 33
+ * and Toughness 15 wanted from a wielder with Blunt 33 and Toughness 8 is seven
+ * points short, and a surplus of Blunt cannot pay for the missing Toughness
+ * because each requirement is counted on its own.
+ *
+ * Zero for a weapon that asks nothing, which is bare hands and every natural
+ * weapon: nothing to be short of.
+ */
+export function requirementShortfall(
+  masteries: Masteries,
+  requirements: Masteries | undefined,
+): number {
+  if (!requirements) return 0;
+
+  let missing = 0;
+  for (const mastery of MASTERIES) {
+    const required = requirements[mastery] ?? 0;
+    if (required <= 0) continue;
+    // Per requirement, so a surplus in one cannot cover a shortfall in another —
+    // the same reason `requirementShare` caps what each one contributes.
+    missing += Math.max(0, required - masteryLevel(masteries, mastery));
+  }
+  return missing;
+}
+
+/**
  * How much of what a stone asks this body brings, as a fraction of 1, **with the
  * surplus counted**.
  *

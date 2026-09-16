@@ -2,7 +2,7 @@ import { attackIntervalMs, damageFraction, dodgeChance } from "../game/combat";
 import {
   ACCURACY_AT_MAX_MASTERY,
   DAMAGE_AT_MAX_MASTERY,
-  SHORTFALL_BITE,
+  MIN_HANDLING,
   weaponHandling,
 } from "../lib/battler";
 import { TICK_MS } from "../game/constants";
@@ -140,7 +140,7 @@ const STARTER_PROJECTILE: ProjectileDef = {
 };
 
 /** The one paragraph of arithmetic behind the requirements grid, as a tooltip. */
-const REQUIREMENTS_INFO = `Zero asks nothing. Requirements are pooled, and falling short costs accuracy and swing rate only — damage is never scaled by them. The shortfall runs on the cube of what was brought and then half of it is charged, so 90% brought handles at ${Math.round(weaponHandling(0.9) * 100)}% and half brought at ${Math.round(weaponHandling(0.5) * 100)}%, never below ${Math.round((1 - SHORTFALL_BITE) * 100)}%. Meeting a requirement is worth full handling and exceeding it is worth nothing more. Nothing here scales the experience the weapon earns.`;
+const REQUIREMENTS_INFO = `Zero asks nothing. Requirements are pooled, and falling short costs accuracy and swing rate only — damage is never scaled by them. Handling runs straight from ${Math.round(MIN_HANDLING * 100)}% at nothing brought to 100% at everything brought, so 90% brought handles at ${Math.round(weaponHandling(0.9) * 100)}% and half brought at ${Math.round(weaponHandling(0.5) * 100)}%. Meeting a requirement is worth full handling and exceeding it is worth nothing more. Nothing here scales the experience the weapon earns.`;
 
 export function WeaponFields({
   weapon,

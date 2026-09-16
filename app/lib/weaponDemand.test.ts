@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { weaponDemand, weaponDemandFor } from "./weaponDemand";
-import { SHORTFALL_BITE, weaponHandling } from "./battler";
+import { MIN_HANDLING, weaponHandling } from "./battler";
 import { xpForLevel } from "./mastery";
 import { normalizeTileDef } from "./types";
 
@@ -8,10 +8,10 @@ import { normalizeTileDef } from "./types";
  * What a player is told about a weapon they cannot use.
  *
  * This replaced a sentence — "You can hardly wield it" — and the whole point of
- * the replacement is that the numbers are not guessable: requirements pool, and
- * the falloff is cubed. So the assertions here are about *the facts being
- * present*, not about phrasing: which mastery, how short, and what share of the
- * weapon that comes to.
+ * the replacement is that the numbers are not guessable: the points missing are
+ * pooled across every mastery a weapon asks for. So the assertions here are
+ * about *the facts being present*, not about phrasing: which mastery, how short,
+ * what that costs, and what it does not.
  */
 
 const sword = (requirements: Record<string, number> | undefined) =>
@@ -55,19 +55,18 @@ describe("weaponDemand", () => {
 
   /**
    * The handling line is the load-bearing one, and it names damage because
-   * damage is the surprising half: pooled requirements and a cubed-then-halved
-   * shortfall mean nobody arrives at the percentage in their head, and a player
-   * who is not told the weapon still hits for everything it is written to hit
-   * for will put it back down.
+   * damage is the surprising half: the points missing are pooled across every
+   * mastery a weapon asks for, so nobody arrives at the percentage in their
+   * head, and a player who is not told the weapon still hits for everything it
+   * is written to hit for will put it back down.
    */
   it("states what falling short actually costs, and what it does not", () => {
+    // Ten points short of Sharp 20, at a twentieth apiece.
     const lines = weaponDemand({ sharp: 10 }, { sharp: 20 });
-    const handling = Math.round(weaponHandling(0.5) * 100);
+    const handling = Math.round(weaponHandling(10) * 100);
     expect(lines).toContain(`${handling}% accuracy and swing rate; full damage`);
-    // Well under the half a linear reading would suggest, and never under the
-    // floor the bite leaves.
-    expect(handling).toBeLessThan(75);
-    expect(handling).toBeGreaterThan(Math.round((1 - SHORTFALL_BITE) * 100));
+    expect(handling).toBe(50);
+    expect(handling).toBeGreaterThan(Math.round(MIN_HANDLING * 100));
   });
 
   it("says so plainly once everything is met", () => {

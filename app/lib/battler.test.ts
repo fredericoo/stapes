@@ -13,7 +13,7 @@ import {
   MIN_CHANCE,
   MASTERY_ACCURACY_BONUS,
   MASTERY_DAMAGE_BONUS,
-  SHORTFALL_BITE,
+  MIN_HANDLING,
   weaponHandling,
   spellPower,
 } from "./battler";
@@ -107,10 +107,10 @@ describe("hitChanceFrom", () => {
  *
  * Two axes, and keeping them apart is the whole design:
  *
- * - **Handling** — how much of what the weapon asks you brought, cubed and then
- *   half charged. It scales accuracy and the swing rate and never damage, and it
- *   caps at fully met. A requirement is a gate on how well you swing the thing,
- *   not on how hard it lands.
+ * - **Handling** — how many points of what the weapon asks you are missing, at a
+ *   flat slice off each. It scales accuracy and the swing rate and never damage,
+ *   and it caps at fully met. A requirement is a gate on how well you swing the
+ *   thing, not on how hard it lands.
  * - **Skill** — the absolute level of the mastery the weapon answers to. It adds
  *   damage and accuracy and never speed, and it goes on paying long after the
  *   requirement stopped mattering.
@@ -131,14 +131,17 @@ describe("what a weapon is worth in the hand", () => {
    * so taking its damage away made the rung below strictly better and left the
    * requirement a wall to wait behind rather than a thing to reach for.
    *
-   * Handling floors at `1 - SHORTFALL_BITE` rather than at zero, so even a
-   * wielder who brings nothing at all swings at half rate and half accuracy.
+   * Handling floors at {@link MIN_HANDLING} rather than at zero, so even a
+   * wielder who brings nothing at all still swings — slowly and wildly, and for
+   * the blade's full damage.
    *
    * **The rate is `haste` and never `spd`.** `spd` is a position on a curve
    * running 100:1 from end to end, so docking it by a half is not half the rate
    * but a third of it — and handling is quoted to the player as a share of their
    * swing rate. The weapon keeps its authored `spd`; the share goes where a
    * share of the rate is what it means.
+   *
+   * Forty points short is well past the floor, which is reached at seventeen.
    */
   it("leaves a weapon far beyond its wielder clumsy and slow, not weak", () => {
     const asked = weapon({ requirements: { blunt: 40 } });
@@ -147,23 +150,32 @@ describe("what a weapon is worth in the hand", () => {
 
     expect(stats.damage).toBe(unasked.damage);
     expect(stats.spd).toBe(asked.spd);
-    expect(stats.accuracy).toBe(Math.round(100 * (1 - SHORTFALL_BITE)));
-    expect(stats.haste).toBeCloseTo(unasked.haste * (1 - SHORTFALL_BITE), 10);
+    expect(stats.accuracy).toBe(Math.round(100 * MIN_HANDLING));
+    expect(stats.haste).toBeCloseTo(unasked.haste * MIN_HANDLING, 10);
     expect(stats.hitChance).toBeLessThan(unasked.hitChance);
   });
 
-  /** Cubed, so falling short costs more than proportionally — and then halved. */
-  it("falls away faster than the shortfall itself", () => {
+  /**
+   * **A flat slice per point short, so two points short means the same thing
+   * wherever a player is standing.** That is what a share could not do: two
+   * points short of Blunt 10 is 80% of it and two short of Blunt 33 is 94%, so
+   * any curve on the share charges the same shortfall differently at every rung.
+   */
+  it("costs a flat slice of accuracy and rate for each point short", () => {
     const short = body({ blunt: 20 });
-    const half = fightingStats(short, weapon({ requirements: { blunt: 40 } }));
+    const twenty = fightingStats(short, weapon({ requirements: { blunt: 40 } }));
+    const two = fightingStats(short, weapon({ requirements: { blunt: 22 } }));
     const whole = fightingStats(short, weapon());
 
-    // An eighth of the curve is charged at half, so 56% rather than 13%.
-    expect(half.accuracy).toBe(Math.round(whole.accuracy * weaponHandling(0.5)));
-    expect(half.haste).toBeCloseTo(whole.haste * weaponHandling(0.5), 10);
-    expect(weaponHandling(0.5)).toBeLessThan(1 - SHORTFALL_BITE / 2);
+    expect(twenty.accuracy).toBe(Math.round(whole.accuracy * weaponHandling(20)));
+    expect(twenty.haste).toBeCloseTo(whole.haste * weaponHandling(20), 10);
+    expect(two.haste).toBeCloseTo(whole.haste * weaponHandling(2), 10);
+    // Two points is a tenth off, twenty is all the way down to the floor.
+    expect(weaponHandling(2)).toBeCloseTo(0.9, 10);
+    expect(weaponHandling(20)).toBe(MIN_HANDLING);
     // And the damage is untouched by any of it.
-    expect(half.damage).toBe(whole.damage);
+    expect(twenty.damage).toBe(whole.damage);
+    expect(two.damage).toBe(whole.damage);
   });
 
   /**
@@ -237,7 +249,8 @@ describe("what a weapon is worth in the hand", () => {
       weapon({ requirements }),
     );
 
-    expect(stats.accuracy).toBe(Math.round(able.accuracy * weaponHandling(5 / 105)));
+    // A hundred points of Toughness short, which is long past the floor.
+    expect(stats.accuracy).toBe(Math.round(able.accuracy * weaponHandling(100)));
     expect(stats.hitChance).toBeLessThan(able.hitChance);
     expect(stats.damage).toBe(able.damage);
     expect(able.damage).toBeGreaterThan(100);
@@ -330,20 +343,21 @@ describe("what a weapon is worth in the hand", () => {
   });
 
   /**
-   * A requirement on a mastery the weapon never trains still counts — but it is
-   * pooled with the rest rather than deciding on its own, so being short on it
-   * costs a share rather than halving the weapon outright.
+   * A requirement on a mastery the weapon never trains still counts, and it is
+   * pooled with the rest: what a wielder is short of is added up across every
+   * mastery a weapon asks for, so a surplus of Blunt cannot pay for the missing
+   * Toughness.
    */
   it("counts a requirement the weapon does not train, pooled with the others", () => {
     const stats = fightingStats(
       body({ blunt: 35, toughness: 10 }),
       weapon({ requirements: { blunt: 35, toughness: 20 } }),
     );
-    // 45 of the 55 points asked for, cubed and then half charged.
     // Asserted on `haste`, which is the one of the two that is not rounded on
-    // the way out: 45 of the 55 points asked for, cubed and then half charged.
+    // the way out. Ten points of Toughness missing and none of Blunt, so the
+    // pooled shortfall is ten however mastered the Blunt is.
     const whole = fightingStats(body({ blunt: 35, toughness: 10 }), weapon());
-    expect(stats.haste).toBeCloseTo(whole.haste * weaponHandling(45 / 55), 10);
+    expect(stats.haste).toBeCloseTo(whole.haste * weaponHandling(10), 10);
     expect(stats.accuracy).toBeLessThan(whole.accuracy);
     expect(stats.hitChance).toBeLessThan(MAX_CHANCE);
   });

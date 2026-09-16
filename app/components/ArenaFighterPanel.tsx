@@ -29,6 +29,7 @@ import {
   rating,
   RATING_GLYPH,
   requirementShare,
+  requirementShortfall,
 } from "../lib/mastery";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { NumberInput, Select } from "../ui";
@@ -378,7 +379,9 @@ function MasteryDemand({
     (mastery) => (weapon.requirements?.[mastery] ?? 0) > 0,
   );
   const share = requirementShare(fighter.masteries, weapon.requirements);
-  const handling = weaponHandling(share);
+  const handling = weaponHandling(
+    requirementShortfall(fighter.masteries, weapon.requirements),
+  );
   const skill = fighter.masteries[weapon.mastery] ?? 0;
 
   return (

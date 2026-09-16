@@ -33,6 +33,7 @@ import {
   type Mastery,
   type MasteryXp,
   requirementShare,
+  requirementShortfall,
   WEAPON_MASTERIES,
   type WeaponMastery,
 } from "../lib/mastery";
@@ -69,7 +70,7 @@ import { swingIntervalMs } from "./combat";
  *
  * That is also why this module computes nothing itself. Restating the combat
  * arithmetic here would be a second definition of what a weapon is worth, and
- * the two would diverge the next time somebody changed the falloff.
+ * the two would diverge the next time somebody changed the handling rule.
  *
  * ## Data, not JSX
  *
@@ -228,11 +229,11 @@ export type ItemCard = {
    * How well the reader handles this weapon, as a percentage — its accuracy and
    * its swing rate, and never its damage.
    *
-   * `weaponHandling` of the pooled `requirementShare`, in the unit a player can
-   * read — and the same number `../lib/weaponDemand` prints over the canvas, so
+   * `weaponHandling` of the pooled `requirementShortfall`, in the unit a player
+   * can read — and the same number `../lib/weaponDemand` prints over the canvas, so
    * the sword on the floor and the sword in your bag cannot disagree about it.
    *
-   * Runs from a hundred down to `1 - SHORTFALL_BITE` and never above a hundred.
+   * Runs from a hundred down to `MIN_HANDLING` and never above a hundred.
    * Requirements gate rather than scale: meeting them is worth full handling and
    * exceeding them is worth nothing more. Skill with the weapon is paid
    * separately and shows up in the figures above — see `../lib/battler`'s
@@ -897,7 +898,7 @@ export function itemCard(
     stats: statsFor(item, instance, masteries),
     requirements: requirementsFrom(demandsOf(item), masteries),
     handling: weapon
-      ? percent(weaponHandling(requirementShare(masteries, weapon.requirements)))
+      ? percent(weaponHandling(requirementShortfall(masteries, weapon.requirements)))
       : null,
     effects: effectsFrom(grantsOn(item), statusDefs),
     resists: item.type === "armor" ? resistsFrom(item) : [],

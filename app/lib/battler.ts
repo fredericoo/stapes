@@ -17,7 +17,7 @@ import {
   masteriesSchema,
   masteryLevel,
   MAX_MASTERY,
-  requirementShare,
+  requirementShortfall,
   spellElements,
   type WeaponMastery,
 } from "./mastery";
@@ -576,53 +576,79 @@ export function fleeFrom(agility: number): number {
 }
 
 /**
- * How steeply handling falls off below what a weapon asks.
+ * What each point of requirement you are short costs you, as a share of your
+ * accuracy and your swing rate.
  *
- * Cubed, so falling short costs more than proportionally: nine tenths of the
- * way there is three quarters of the curve, and half way there is an eighth of
- * it. The shape is what keeps the last few points of a requirement worth having
- * — a penalty that faded linearly would be a discount rather than a gate.
+ * **A twentieth per point, counted in points rather than in proportion**, so
+ * "two points short" means the same handicap wherever on the ladder a player is
+ * standing: ten percent off both, whether the weapon asks five or fifty.
  *
- * **It is a curve on handling alone, and {@link SHORTFALL_BITE} decides how much
- * of it is actually charged.** See that constant for why the cube no longer has
- * to carry the whole gate on its own.
+ * ## It was a share of what you brought, and a share cannot keep both promises
+ *
+ * Two things are asked of the gate, and they pull against each other:
+ *
+ * - **Two points short of the next rung, that rung is already worth carrying.**
+ *   Reaching is the whole point of a ladder; a requirement you have to stand and
+ *   wait behind is a wall.
+ * - **Two rungs up is still a mistake.** Otherwise there is no ladder at all — a
+ *   new player walks to the best weapon in the world and swings it.
+ *
+ * Write `h` for handling and `r` for how much better each rung is than the one
+ * below. Both promises are about one body at one moment, so the weapons' own
+ * numbers cancel and what is left is `r·h(two short)² > 1 > r²·h(two rungs up)²`
+ * — a window for `r` at all only when `h(two rungs up) < h(two short)²`.
+ *
+ * Read off the *share* of what a weapon asks, those two are much closer together
+ * than they look, because the ladder's rungs get further apart as it climbs: two
+ * points short of Sharp 10 is a share of 0.80, and the whole seven points from
+ * Sharp 8 to Sharp 15 is still 0.53. A curve steep enough to make 0.80 hurt is
+ * far too steep at 0.53. Cubing the share and charging half of it gave
+ * `h = 0.76` and `0.58`, and `0.58 > 0.57`: **the window was empty, whatever any
+ * weapon was authored at.** No damage number could buy both promises.
+ *
+ * Counting the points decouples them. At a twentieth apiece, two short is 0.90
+ * and seven short is 0.65, so `r` may be anything from 1.24 to 1.54 — and the
+ * authored ladder needs only a modest lift to sit inside that, where a share
+ * would have demanded the weapons outrun every creature in the world.
+ *
+ * ## Softer where it was asked to be, harder where it had to be
+ *
+ * Against the cube at half bite, on the sword ladder:
+ *
+ * ```
+ *   short of it   2 of 10   2 of 15   2 of 33   7 of 15   10 of 15
+ *   cube, half      0.76      0.83      0.92      0.58       0.51
+ *   this            0.90      0.90      0.90      0.65       0.50
+ * ```
+ *
+ * Every "a couple of points short" case is gentler, which is what was asked for.
+ * Everything a long way out of reach is as hard as it was or harder, which is
+ * what pays for it.
  */
-export const REQUIREMENT_FALLOFF = 3;
+export const HANDLING_PER_POINT_SHORT = 0.05;
 
 /**
- * How much of the shortfall curve a wielder is actually charged.
+ * The least a weapon can handle at, however little its wielder brings.
  *
- * **Half, and it was all of it.** Falling short of a weapon's requirements used
- * to take the full cube off all three of the things a weapon is — damage,
- * accuracy and swing rate — which punished the same choice twice over. A weapon
- * you are short of is the *stronger* weapon; that is why you reached for it.
- * Making it weaker than the one you had outgrown meant the only rational move
- * was to keep swinging what you already had, so the requirement was not a thing
- * to reach for but a wall to wait behind.
- *
- * Two things changed together, and they are one rule: **damage is no longer
- * scaled at all, and what is left is halved.** A greatsword swung badly is still
- * a greatsword — it hits hard when it lands. What being short of it costs you is
- * *landing it*: you are clumsy with it and you are slow with it, and that is
- * enough to make meeting the requirement worth the work without making the
- * weapon worse than the one below it.
- *
- * So handling runs from 1 down to `1 - SHORTFALL_BITE` — half accuracy and half
- * swing rate at the very bottom — rather than to zero. The floor is deliberate:
- * a weapon nobody can use at all is a weapon nobody can learn on, and getting
- * better with a thing by swinging it is how every mastery in this game moves.
+ * **Not zero, for the reason it never was.** A weapon nobody can use at all is a
+ * weapon nobody can learn on, and getting better with a thing by swinging it is
+ * how every mastery in this game moves. At 0.15 a body seventeen points out of
+ * its depth still swings — slowly, wildly, and for the blade's full damage.
  */
-export const SHORTFALL_BITE = 0.5;
+export const MIN_HANDLING = 0.15;
 
 /**
  * How well this body handles a weapon, as a fraction of 1 — its accuracy and its
  * swing rate, and never its damage.
  *
- * One when the requirements are met, `1 - SHORTFALL_BITE` at the bottom.
+ * One when every requirement is met, and {@link HANDLING_PER_POINT_SHORT} off
+ * for each point missing, down to {@link MIN_HANDLING}.
+ *
+ * @param shortfall pooled points of requirement missing, from `./mastery`'s
+ *   {@link requirementShortfall}.
  */
-export function weaponHandling(share: number): number {
-  const curve = Math.max(0, Math.min(1, share)) ** REQUIREMENT_FALLOFF;
-  return 1 - SHORTFALL_BITE * (1 - curve);
+export function weaponHandling(shortfall: number): number {
+  return Math.max(MIN_HANDLING, 1 - HANDLING_PER_POINT_SHORT * Math.max(0, shortfall));
 }
 
 /**
@@ -735,9 +761,9 @@ export function fightingStats(
 ): FightingStats {
   // How much of what the weapon asks this body brings, and how well it therefore
   // handles right now. Falling short makes a weapon clumsier and slower and
-  // leaves its damage alone — see {@link SHORTFALL_BITE}.
+  // leaves its damage alone — see {@link MIN_HANDLING}.
   const handling = weaponHandling(
-    requirementShare(battler.masteries, weapon.requirements),
+    requirementShortfall(battler.masteries, weapon.requirements),
   );
 
   // The mastery the weapon itself answers to, read at its absolute level. This

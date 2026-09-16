@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_BASE_HP, fightingStats, weaponHandling } from "../lib/battler";
+import { DEFAULT_BASE_HP, fightingStats, MIN_HANDLING, weaponHandling } from "../lib/battler";
 import { MELEE_REACH, type ItemDef, type WeaponItem } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import {
@@ -24,7 +24,7 @@ import { itemCard, type ItemCardStat } from "./itemCard";
  * checked to agree with them.
  * Pinning literals instead would turn every balance change into a failing card
  * test, and worse, would let the card go on being confidently wrong the day
- * somebody tuned the falloff without touching this file.
+ * somebody tuned the handling rule without touching this file.
  *
  * What *is* pinned literally is the shape a reader depends on: which rows
  * appear, in which order, which of them carry the item's own figure alongside
@@ -266,22 +266,25 @@ describe("itemCard", () => {
 
   /**
    * The number the requirements alone cannot tell you, and the reason it is
-   * worth printing: the share is pooled, the falloff is cubed and only half of
-   * it is charged, so nobody is arriving at it by arithmetic in their head.
+   * worth printing: the points missing are pooled across every mastery a weapon
+   * asks for, so a player short on two of them has to add up their own gap
+   * before the rule applies.
    *
-   * **It floors at half rather than at nothing**, which is the fact worth
-   * pinning here: half way to what the sword asks still swings at 56% accuracy
-   * and 56% of the rate, and for the sword's full damage.
+   * **A flat slice per point, floored short of nothing.** This sword asks Sharp
+   * 20, so every level below that costs the same twentieth of its accuracy and
+   * swing rate, and a body that has learnt nothing at all still handles it at
+   * {@link MIN_HANDLING} rather than not at all.
    */
   it("puts how well you handle the weapon in the unit the player asked for", () => {
     const handling = (level: number) =>
       itemCard(tileWith(SWORD), null, { sharp: xpForLevel(level) })!.handling;
 
-    expect(handling(10)).toBe(percentOf(weaponHandling(0.5)));
-    expect(handling(10)).toBe(56);
-    expect(handling(16)).toBe(percentOf(weaponHandling(0.8)));
-    // Nothing brought at all still handles at half, never at none.
-    expect(handling(0)).toBe(50);
+    expect(handling(10)).toBe(percentOf(weaponHandling(10)));
+    expect(handling(10)).toBe(50);
+    expect(handling(16)).toBe(percentOf(weaponHandling(4)));
+    expect(handling(16)).toBe(80);
+    // Nothing learnt at all is the floor, never nothing.
+    expect(handling(0)).toBe(percentOf(MIN_HANDLING));
 
     // **A gate, not a scaling term.** Meeting every requirement is worth full
     // handling, and exceeding them is worth nothing more here — being good with

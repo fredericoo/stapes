@@ -290,11 +290,12 @@ function ResistRow({ row }: { row: ItemCardResist }) {
  * anybody can read across a table: it is the single number the "hit" and "every"
  * rows above have both been scaled through.
  *
- * **It stops at half rather than at nothing**, which is the fact the bar exists
- * to make visible. A weapon you are a long way short of is clumsy and slow and
- * still hits for everything it is written to hit for, so reaching for the next
- * rung early is a real choice rather than a mistake. See `../lib/battler`'s
- * `SHORTFALL_BITE`.
+ * **It stops short of nothing, and it moves in a straight line**, which is what
+ * the bar exists to make visible: every point of a requirement buys the same
+ * slice of the bar back. A weapon you are a couple of points short of is barely
+ * clumsier and still hits for everything it is written to hit for, so reaching
+ * for the next rung early is a real choice. See `../lib/battler`'s
+ * `MIN_HANDLING`.
  *
  * A full bar means every requirement met and nothing left to earn *on this
  * weapon* — which is not the same as nothing left to earn. Being good with a
