@@ -538,12 +538,50 @@ export type MotionEvent =
    * a *person*, and the count it carries is the answer to "how many people are
    * in the world". A rat is not one of them.
    *
-   * Carries nothing but the id: everything else about the body — where it is,
-   * what it is holding, what it has left — is already on its way in the same
-   * frame, as cell patches and as the hit-point and light diffs. This says only
-   * that there is somebody to hang them on.
+   * Carries the id and the cell, and nothing else: what the body is holding and
+   * what it has left are on their way in the same frame, as the hit-point and
+   * light diffs beside this.
+   *
+   * **The cell is here to keep the receiver off a board sweep.** A client's
+   * `motions` entry is looked up through `locateActor`, which confirms the last
+   * cell it saw a body in before searching — and a body it has never heard of
+   * has no last cell, so the lookup falls all the way through to
+   * `findActorAnywhere` and walks the whole board. Once a spawn was a rare
+   * event and that was a cost nobody could measure; now every body entering a
+   * client's subscription is one, so the sweep would be paid for every creature
+   * a player walks past. @see `./scope`
    */
-  | { kind: "spawned"; actorId: string }
+  | {
+      kind: "spawned";
+      actorId: string;
+      /** Where its tile is in this same frame's board. */
+      at: { x: number; y: number; z: number; stackIndex: number };
+    }
+  /**
+   * A body this client is no longer being told about.
+   *
+   * {@link spawned}'s other half, and it exists because the subscription moves:
+   * a body that walks out of the chunks this client holds — or that stands
+   * still while the client walks away from it — stops being somebody the server
+   * sends hit points, statuses or steps for, and the client has to stop holding
+   * an entry for it on exactly the same tick.
+   *
+   * **The entry is what costs, not the memory.** `RemoteSession` reads every
+   * body's position off its own board, and a body it has no ground for is the
+   * one case where that lookup sweeps the whole board rather than confirming a
+   * cell — every frame, for as long as the entry sits there.
+   *
+   * This is not a death and does not mean the body is gone: it says only that
+   * this client is no longer being kept current about it. What a death looks
+   * like on the wire is unchanged — the tile is simply not in any cell of the
+   * frame that took it off the board. @see `RemoteSession.forgetDeparted`
+   *
+   * Never sent for a client's own body, on the terms `ownersLeaving` excludes
+   * it: a player's own death is told rather than inferred, and the subscription
+   * is centred on their body, so the only way to be outside it is to have no
+   * body at all.
+   */
+  | { kind: "despawned"; actorId: string }
   /**
    * A blow landed, worth this much.
    *
@@ -1511,6 +1549,14 @@ const serverMessageSchema = v.variant("type", [
         v.object({
           kind: v.literal("spawned"),
           actorId: v.string(),
+          // Named here as well as in the type: valibot strips what a schema
+          // does not mention, and a cell dropped on the way in would put the
+          // receiver straight back on the board sweep this carries it to avoid.
+          at: objectRefSchema,
+        }),
+        v.object({
+          kind: v.literal("despawned"),
+          actorId: v.string(),
         }),
         v.object({
           kind: v.literal("damage"),
@@ -1654,7 +1700,7 @@ export const GAME_SOCKET_PATH = "/online/ws";
  * This is deliberately not the build id. A client deploy that changes no
  * messages should not disconnect anybody, and most client deploys are that.
  */
-export const PROTOCOL_VERSION = 12;
+export const PROTOCOL_VERSION = 13;
 
 /**
  * How often the world says nothing, to keep a proxy from hanging up.

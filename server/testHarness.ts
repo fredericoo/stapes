@@ -32,6 +32,10 @@ import { GameSocket, SocketHub, type WorldContext } from "./sockets";
  *   `addEventListener("message")` shape the suite already waits on.
  */
 
+/** `WebSocket.OPEN` and `WebSocket.CLOSED`, without needing the global. */
+const WEBSOCKET_OPEN = 1;
+const WEBSOCKET_CLOSED = 3;
+
 /** The client end of a connection, shaped like the browser's `WebSocket`. */
 export interface TestSocket {
   /** Send a frame to the world, as a browser would. */
@@ -46,6 +50,15 @@ export interface TestSocket {
   removeEventListener(type: "message", listener: (event: { data: string }) => void): void;
   readonly closeCode: number | null;
   readonly closeReason: string | null;
+  /**
+   * `WebSocket.OPEN` until this half closes.
+   *
+   * Shaped like the browser's because a client reads it: `RemoteSession.sendRaw`
+   * drops anything it is asked to send on a socket that is not open, so a pair
+   * without this is a client that never speaks — and a test driving one reads
+   * as a world refusing every step rather than a harness swallowing them.
+   */
+  readonly readyState: number;
   close(): void;
 }
 
@@ -167,6 +180,9 @@ class Pair {
       },
       get closeReason() {
         return pair.reason;
+      },
+      get readyState() {
+        return pair.isClosed ? WEBSOCKET_CLOSED : WEBSOCKET_OPEN;
       },
       discardPending() {
         pair.discardPending();
