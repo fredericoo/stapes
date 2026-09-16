@@ -23126,7 +23126,7 @@
     "interactions": {
       "item": {
         "type": "weapon",
-        "damage": 10,
+        "damage": 17,
         "def": 0,
         "accuracy": 82,
         "variance": 60,
@@ -23276,7 +23276,7 @@
     "interactions": {
       "item": {
         "type": "weapon",
-        "damage": 8,
+        "damage": 13,
         "def": 0,
         "accuracy": 62,
         "variance": 75,
@@ -23384,7 +23384,7 @@
     "interactions": {
       "item": {
         "type": "weapon",
-        "damage": 5,
+        "damage": 7,
         "def": 0,
         "accuracy": 84,
         "variance": 20,
@@ -23531,7 +23531,7 @@
     "interactions": {
       "item": {
         "type": "weapon",
-        "damage": 17,
+        "damage": 34,
         "def": 0,
         "accuracy": 80,
         "variance": 55,
@@ -23581,7 +23581,7 @@
     "interactions": {
       "item": {
         "type": "weapon",
-        "damage": 33,
+        "damage": 64,
         "def": 1,
         "accuracy": 78,
         "variance": 50,
@@ -23632,7 +23632,7 @@
     "interactions": {
       "item": {
         "type": "weapon",
-        "damage": 13,
+        "damage": 22,
         "def": 0,
         "accuracy": 84,
         "variance": 25,
@@ -23681,7 +23681,7 @@
     "interactions": {
       "item": {
         "type": "weapon",
-        "damage": 34,
+        "damage": 54,
         "def": 1,
         "accuracy": 80,
         "variance": 25,
@@ -23732,7 +23732,7 @@
     "interactions": {
       "item": {
         "type": "weapon",
-        "damage": 14,
+        "damage": 28,
         "def": 0,
         "accuracy": 72,
         "variance": 60,
@@ -23790,7 +23790,7 @@
     "interactions": {
       "item": {
         "type": "weapon",
-        "damage": 22,
+        "damage": 40,
         "def": 0,
         "accuracy": 80,
         "variance": 50,

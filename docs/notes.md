@@ -3968,12 +3968,47 @@ hold it is worth nothing. Damage is what moved — nothing else about any weapon
 was touched — and the sizes are in `data/tiles.json`.
 
 **Why damage and not speed, when speed is what holds the heavy weapons back.**
-The rate runs on a curve 100:1 from end to end, so the battleaxe at `spd` 30
-waits 4.5s between blows where the longsword at 40 waits 2.9s, and no plausible
-damage number makes those two equal. That gap is real and is left alone here:
-the promises below are about climbing a family's own rungs, and within a rung the
-sword families still out-damage the slow ones by about two to one. Closing *that*
-means re-authoring speeds across the world, which is a separate pass.
+The rate runs on a curve 100:1 from end to end, so a battleaxe at `spd` 30 waits
+4.5s between blows where a longsword at 40 waits 2.9s — half again as long for a
+quarter less speed. Speed is what a heavy weapon *is*, so the compensation is
+damage rather than a faster axe.
+
+#### Two weapons on one rung are a choice, not a tier
+
+The same measurement, taken sideways instead of upwards, was worse than the
+ladder itself. Every slow weapon in the world sat at 47–78% of the sword standing
+on its rung:
+
+```
+  rung                         was    now
+   5  simple-hammer            78%   100%   of the sword on the same rung
+   5  simple-bow               54%    80%
+  10  simple-axe               62%    98%
+  15  broad-axe                55%    99%
+  15  iron-mace                61%    99%
+  15  hunting-bow              47%    84%
+  33  battleaxe                58%   105%
+  33  war-maul                 71%   107%
+  33  war-bow                  51%    85%
+```
+
+At 55% there is no question to answer: "axe or sword" has one sane answer at
+every level of the game, and the axe families are decoration. Damage is again the
+only thing that moved — the heavies are still slower, still less accurate, and
+still ask for the Toughness the sword does not.
+
+**The top rung overshoots parity by a little, and that is the ladder asking
+rather than the rung.** A battleaxe at exactly the longsword's DPS is only 1.00x
+the broad axe two points short of it, which fails the reaching promise; the
+handling penalty bites a low-accuracy weapon harder, because its hit chance is
+nearer the floor. Sixty-four rather than sixty buys the headroom and costs five
+percent of sideways parity.
+
+**Bows are held to 85% rather than parity, deliberately.** A bow has six cells of
+reach against a sword's one and a half, so anything closing on an archer eats a
+shot or two on the way in — worth roughly a fifth of an engagement, and invisible
+to `damagePerSecond`, which starts both bodies in contact. Paying a bow parity
+*and* the reach would make it the only sane thing to carry.
 
 ### Nothing is taken off a weapon for being one you have outgrown
 
@@ -4084,6 +4119,35 @@ against the rung already earned:
 and at mastery 8, the weapon two rungs up: 0.75x for the knight's sword, and 0.06x
 for a top-rung weapon in any family. The margins on the first table are thin by
 design — reaching early is meant to be a real choice rather than a free upgrade.
+
+#### Starting a second weapon mastery, when Rating counts your best
+
+Rating is half your *best* weapon mastery, so a Blunt 80 veteran who has never
+held a blade still rates ⭐60 — and `experienceMultiplier` pays on Rating, not on
+the mastery being trained. So: **no, they cannot train Sharp on rats.** Measured
+against that body, a rat, a cat, a snake and a bat all pay exactly zero, the wolf
+pays 0.02x, and only the cave troll at ⭐51 pays anything worth having (0.44x).
+
+That is the anti-sandbagging rule working as designed, and the on-ramp survives
+it for two reasons that are easy to miss:
+
+- **The early points of a mastery are nearly free.** The curve is quadratic, so
+  Sharp 5 to 15 is 800 raw experience against the 22,400 that Sharp 65 to 75
+  costs. A landed blow at parity pays around 38.
+- **What pays is the damage, and damage no longer depends on the mastery.** The
+  veteran swings a rusty sword for 7 a blow at ⭐60 — feeble in absolute terms,
+  and still 3.7 Sharp experience per second against a cave troll, which is Sharp
+  5 to 15 in under four minutes of swinging.
+
+The practical answer is also the unintuitive one: **cross-train on the weapon you
+have earned, not the one your Rating deserves.** At Sharp 5 the rusty sword does
+4.16 dps and the tempered longsword 0.25, because the longsword is 28 points
+short and sits on the handling floor. The best trainer is the small weapon.
+
+What the measurement does expose is a **content** gap rather than a rule one: at
+⭐60 the world holds exactly one creature worth fighting at all. That is the same
+finding as *the ladder runs out above the best thing in the world* in
+`duel.test.ts`, and it wants more creatures rather than a different rule.
 
 #### The wolf moved down a level rather than the sword moving up
 

@@ -7,7 +7,7 @@ import {
   fightingStats,
   resolveBattler,
 } from "../lib/battler";
-import { resolveWeapon, type WeaponItem } from "../lib/item";
+import { isRanged, resolveWeapon, type WeaponItem } from "../lib/item";
 import { experienceMultiplier, type Mastery, rating } from "../lib/mastery";
 import { COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import { normalizeTiles } from "../lib/types";
@@ -348,6 +348,73 @@ describe("the weapon ladder", () => {
     });
   }
 });
+
+/**
+ * Two weapons on the same rung are a choice, not a tier.
+ *
+ * **The heavy families were never a choice, because speed is not a linear cost.**
+ * `attackIntervalMs` runs a curve 100:1 from end to end, so a battleaxe at `spd`
+ * 30 waits 4.5s between blows where a longsword at 40 waits 2.9s — half again as
+ * long for a quarter less speed. Measured before this was fixed, every slow
+ * weapon in the world sat at 47–78% of the sword standing on its rung, which
+ * makes "axe or sword" a question with one answer at every level of the game.
+ *
+ * The compensation is damage, because damage is the thing a heavy weapon is
+ * supposed to have. Nothing else about any of them moved: they are still slower,
+ * still less accurate, still ask for Toughness the sword does not.
+ *
+ * **Bows are held to 85% rather than parity, deliberately.** A bow has six cells
+ * of reach against a sword's one and a half, so anything closing on an archer
+ * eats a shot or two on the way in — worth roughly a fifth of an engagement, and
+ * invisible to a duel that starts both bodies in contact. Paying them parity
+ * *and* the reach would make a bow the only sane thing to carry.
+ */
+describe("two weapons on one rung", () => {
+  /** What each rung offers, sword first — the sword is the yardstick. */
+  const ROWS: [number, string[]][] = [
+    [5, ["rusty-sword", "simple-hammer", "simple-bow"]],
+    [10, ["iron-sword", "simple-axe"]],
+    [15, ["knights-sword", "broad-axe", "iron-mace", "hunting-bow"]],
+    [33, ["tempered-longsword", "battleaxe", "war-maul", "war-bow"]],
+  ];
+
+  /** A player standing on a rung: every weapon mastery there, Toughness earned. */
+  function onRung(level: number, id: string): BattlerDef {
+    const player = bodyOf("player");
+    return {
+      ...player,
+      masteries: {
+        ...player.masteries,
+        fist: level,
+        sharp: level,
+        blunt: level,
+        ranged: level,
+        toughness: Math.max(
+          player.masteries.toughness ?? 0,
+          weaponOf(id).requirements?.toughness ?? 0,
+        ),
+      },
+    };
+  }
+
+  /** Something that shoots is paid in reach for the damage it gives up. */
+  const floorFor = (id: string) => (isRanged(weaponOf(id)) ? 0.75 : 0.9);
+
+  for (const [rung, ids] of ROWS) {
+    const sword = ids[0]!;
+    for (const id of ids.slice(1)) {
+      it(`makes ${id} worth carrying beside ${sword} at ${rung}`, () => {
+        const theirs = damagePerSecond(armed(onRung(rung, id), id));
+        const swords = damagePerSecond(armed(onRung(rung, sword), sword));
+
+        expect(theirs / swords).toBeGreaterThan(floorFor(id));
+        // And never so far past it that the sword stops being a choice either.
+        expect(theirs / swords).toBeLessThan(1.15);
+      });
+    }
+  }
+});
+
 
 describe("the authored ladder", () => {
   const player = bodyOf("player");
