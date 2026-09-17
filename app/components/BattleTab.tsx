@@ -10,7 +10,7 @@ import { attackIntervalMs, dodgeChance } from "../game/combat";
 import type { Element } from "../lib/element";
 import { hasAnyInteraction, type TileInteractions } from "../lib/interactions";
 import type { WeaponItem } from "../lib/item";
-import { MAX_PERCENT_STAT, UNNAMED_WEAPON, resolveItem } from "../lib/item";
+import { UNNAMED_WEAPON, resolveItem } from "../lib/item";
 import {
   MAX_MASTERY,
   type Mastery,
@@ -58,15 +58,34 @@ const MASTERY_FIELDS: Array<{ mastery: Mastery; label: string; hint?: string }> 
 ];
 
 /**
- * What this evasion is worth against a typical weapon and against the best
- * there is. Read out of the contest itself, since a logistic is not something
+ * What this evasion is worth against something slow and against something
+ * quick. Read out of the contest itself, since a logistic is not something
  * anybody can eyeball from a number in a box.
+ *
+ * **The other side of the contest is a body, not a weapon.** It used to be quoted
+ * against two weapon accuracies, which stopped being the question the day the
+ * dodge became Agility against Agility — see `../game/combat`'s `dodgeChance`.
+ * The two brackets are evasions rather than accuracies now, and they are the
+ * ones the world is actually authored between: a cave troll at the bottom and a
+ * bat at the top.
  */
 function describeDodge(flee: number): string {
-  const typical = Math.round(dodgeChance(flee, 85) * 100);
-  const best = Math.round(dodgeChance(flee, MAX_PERCENT_STAT) * 100);
-  return `Dodges ${typical}% at 85 accuracy, ${best}% at 100.`;
+  const versusSlow = Math.round(dodgeChance(flee, SLUGGISH_REFLEX) * 100);
+  const versusQuick = Math.round(dodgeChance(flee, QUICK_REFLEX) * 100);
+  return `Dodges ${versusSlow}% of a slow body's blows, ${versusQuick}% of a quick one's.`;
 }
+
+/**
+ * The two ends the readout above brackets, in `flee` rather than in Agility.
+ *
+ * Authored numbers rather than derived ones on purpose: they are a *scale* for
+ * reading the figure beside them, and a scale that moved every time somebody
+ * re-authored the troll would make two readouts taken a week apart
+ * incomparable. The cave troll sits at 26 and the bat at 65, so these are the
+ * world as it stands, rounded to numbers a person can hold.
+ */
+const SLUGGISH_REFLEX = 25;
+const QUICK_REFLEX = 65;
 
 /**
  * What this body is good at, and what it fights with.

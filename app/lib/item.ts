@@ -211,11 +211,20 @@ export type WeaponItem = {
   /**
    * 0–100. How reliably this finds its target.
    *
-   * **Only that.** It used to answer three questions at once — whether a blow
-   * landed, how true it was when it did, and how hard it was to dodge — which
-   * made it by far the most load-bearing number on a weapon and left no way to
-   * author a thing that lands often and hits unpredictably. Most melee weapons
-   * should sit high here; how *risky* they are is {@link variance}.
+   * **Only that, and it took two passes to mean it.** It used to answer three
+   * questions at once — whether a blow landed, how true it was when it did, and
+   * how hard it was to dodge — which made it by far the most load-bearing number
+   * on a weapon and left no way to author a thing that lands often and hits
+   * unpredictably. The first pass moved *how true* out to {@link variance} and
+   * this comment claimed the job was done while `dodgeChance` was still reading
+   * accuracy; the second moved the dodge out to a contest between the two
+   * bodies' Agility. What is left is one question, and it is about the swing
+   * rather than about its target.
+   *
+   * Most melee weapons should sit high here; how *risky* they are is
+   * {@link variance}. An inaccurate weapon is now charged for it exactly once,
+   * in the swings that go nowhere — which is what makes a number this low
+   * authorable at all.
    */
   accuracy: number;
   /**

@@ -1,7 +1,8 @@
-import { attackIntervalMs, damageFraction, dodgeChance } from "../game/combat";
+import { attackIntervalMs, damageFraction } from "../game/combat";
 import {
   ACCURACY_AT_MAX_MASTERY,
   DAMAGE_AT_MAX_MASTERY,
+  hitChanceFrom,
   MIN_HANDLING,
   weaponHandling,
 } from "../lib/battler";
@@ -75,16 +76,22 @@ export function describeDamageBand(weapon: {
 }
 
 /**
- * What this accuracy is worth against somebody quick and somebody slow.
+ * How often a swing at this accuracy goes where it was aimed.
  *
- * Read out of the contest the simulation actually runs, at two evasions that
- * bracket what the world is authored with — the curve is a logistic and nobody
- * can read one off a number in a box.
+ * Read out of {@link hitChanceFrom} rather than restated as a percentage,
+ * because the two ends of the scale are clamped and a box reading 3 does not
+ * mean one swing in thirty-three.
+ *
+ * **It used to read out how often the blow was dodged**, back when a weapon's
+ * accuracy was what a defender's evasion was contested against. That contest is
+ * between the two bodies' Agility now — see `../game/combat`'s `dodgeChance` —
+ * so a weapon has nothing to say about it, and a readout here that mentioned
+ * dodging would be an author tuning a number against an outcome it no longer
+ * touches.
  */
-export function describeDodging(accuracy: number): string {
-  const nimble = Math.round(dodgeChance(60, accuracy) * 100);
-  const slow = Math.round(dodgeChance(30, accuracy) * 100);
-  return `Dodged ${nimble}% by the quick, ${slow}% by the slow.`;
+export function describeLanding(accuracy: number): string {
+  const lands = Math.round(hitChanceFrom(accuracy) * 100);
+  return `Finds its target ${lands}% of the time, before mastery moves it.`;
 }
 
 /**
@@ -207,11 +214,12 @@ export function WeaponFields({
         />
         <StatField
           label="Accuracy"
+          info="How often a swing goes where it was aimed, and nothing else. Whether the target gets out of the way is their Agility against the wielder's."
           value={weapon.accuracy}
           min={MIN_PERCENT_STAT}
           max={MAX_PERCENT_STAT}
           onChange={(accuracy) => onChange({ accuracy })}
-          readout={describeDodging(weapon.accuracy)}
+          readout={describeLanding(weapon.accuracy)}
         />
         <StatField
           label="Variance"

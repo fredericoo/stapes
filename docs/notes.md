@@ -2565,14 +2565,70 @@ The formulas live in `app/game/combat.ts`, kept pure so they can be asserted:
 - **`acc` widens a band downward; it never raises the ceiling.** Full damage is
   always `atk`. Within the band the roll is triangular, so a middling blow is
   common and both a glancing and a shattering one are rare.
-- **`flee` is contested against the attacker's `acc` on a logistic curve**, which
-  is what stops perfect accuracy from erasing the stat.
+- **`flee` is contested against the *other body's* `flee` on a logistic curve**,
+  with a flat `REFLEX_EDGE` to the swinger — see *A dodge is Agility against
+  Agility* below. Nothing the attacker is holding bears on it.
 - **`spd` is geometric between 6 and 600 ticks.** Linear would make the whole
   lower half of the stat indistinguishable from zero; on this curve 50 is twenty
   ticks.
 - **A swing always costs three draws**, whatever the stats. The dice are seeded so
   a world is reproducible, and a draw count that varied with accuracy would make
   one creature's stats change what every creature after it rolled.
+
+### A dodge is Agility against Agility, and the weapon has no say
+
+`dodgeChance` contests the defender's `flee` against the *attacker's* `flee` —
+the same field, read the other way round, named `reflex` where the swinging body
+reads it. Getting out of the way and staying with something that is getting out
+of the way are one faculty, so Agility buys both, and a body that has trained it
+is both hard to hit and hard to escape.
+
+**It used to be contested against the attacker's accuracy, and that made accuracy
+answer two questions at once.** Whether a swing goes where it was aimed is a fact
+about the swinger and the thing in their hand. Whether its target twists away
+from it is a race between two bodies. Fusing them had three costs:
+
+- **An inaccurate weapon was charged for it twice** — once in the swings that
+  went nowhere, and again in losing the contest against anything nimble. The bows
+  are the case that made it visible: dropped to 45 accuracy, a war bow missed
+  half its shots and had two thirds of the rest dodged by a bat, landing one
+  arrow in six where the authored number said one in two.
+- **Agility was defence only.** Training it did nothing whatever about the cat
+  that keeps stepping out of the way of you; the only answer the game had to
+  "things keep dodging me" was a better sword.
+- **A better sword was that answer**, which is the same thing said from the other
+  end: upgrading a weapon quietly bought anti-evasion nobody was told about.
+
+**`REFLEX_EDGE` is 55, and naming it is most of the change.** Both sides of the
+contest now come off one scale, so without a shift, two bodies of equal Agility
+would dodge half of each other's blows — and equal is the common case. The
+swinger has the initiative; a dodge is the exception. The old rule had the same
+constant by accident: it contested evasions running 26 to 65 against accuracies
+sitting near 85, and the gap between the two scales was doing this job silently.
+How often anybody dodges is now one number somebody can move.
+
+Measured against the creatures on disk, the share of *aimed* blows dodged:
+
+```
+                        rat   cat  snake  wolf   bat  troll
+  player, fists        12→11 15→14  7→6  16→15 29→27   5→5
+  knight's sword @15    8→11  9→14  5→6  10→15 19→27   5→5
+  longsword @33         5→11  7→14  5→6   7→15 14→27   5→5
+  the same player at Agility 40, against a bat:        27→8
+```
+
+The melee game barely moves, which is the calibration working. What moved is
+*where* it comes from: the top row and the bottom row used to differ because of
+the sword, and now they do not. Agility is the only answer, and it is an answer
+the player can train — Agility 10 to 40 takes a bat from dodging 27% of your
+blows to 8%.
+
+**Two consequences worth knowing.** Accuracy above 100 now buys nothing at all,
+where it used to keep paying into the contest past `hitChanceFrom`'s ceiling —
+what mastery keeps buying past that point is damage. And `chilled`, which docks
+`flee` by 10, now also makes its victim worse at catching anything that runs;
+that follows from the rule rather than being authored, and it is the right
+reading of chilled reflexes.
 
 ### Eight rats used to be one rat, eight times
 
@@ -3914,7 +3970,8 @@ form is to work the arithmetic out on paper and type the result in, and it is a
 trap with a long fuse: the day somebody changes how accuracy works, the fight
 changes and the table quietly does not — and the table is what they are changing
 it *against*. So `combat.ts` names each rule once — `landChance`,
-`dodgeChance`, `potentialDamageFrom`, `damageAfterDefence`, `attackIntervalMs` —
+`reflex`, `dodgeChance`, `potentialDamageFrom`, `damageAfterDefence`,
+`attackIntervalMs` —
 `rollAttack` rolls against them and `combatMetrics` reports on them. Where the
 closed form needs something the functions do not hand over — *where* in the draw
 one whole number of damage becomes the next — it **bisects `potentialDamageFrom`

@@ -240,9 +240,12 @@ export type FightingStats = {
   /**
    * 0–100. How reliably this finds its target.
    *
-   * Half of {@link hitChance}, and what a defender's {@link flee} is contested
-   * against. It no longer says anything about how much a connecting blow is
-   * worth — that is {@link variance}.
+   * **The whole of {@link hitChance} and nothing else.** It no longer says how
+   * much a connecting blow is worth — that is {@link variance} — and it no
+   * longer says how hard the blow is to dodge, which is {@link flee} on both
+   * sides of `../game/combat`'s `dodgeChance`. What is left is one question
+   * about the swinger and the thing in their hand: did the swing go where it was
+   * aimed.
    */
   accuracy: number;
   /** 0–100. How much a connecting blow varies, as a share of {@link damage}. */
@@ -294,9 +297,17 @@ export type FightingStats = {
    */
   hitChance: number;
   /**
-   * 0–100. Evasion, contested against the attacker's {@link accuracy} on a
-   * logistic curve — see `../game/combat`'s `dodgeChance`. Level pegging is a
-   * coin toss, and neither end ever reaches certainty.
+   * 0–100. Evasion, and the same number read the other way round when this body
+   * is the one swinging.
+   *
+   * Contested against the *other* body's `flee` on a logistic curve — see
+   * `../game/combat`'s `dodgeChance` and `reflex`. Getting out of the way and
+   * staying with something that is getting out of the way are one faculty, so
+   * Agility buys both at once and a dodge is a race between two bodies with
+   * nothing in their hands bearing on it.
+   *
+   * Level pegging favours the swinger by `REFLEX_EDGE`, because a dodge is the
+   * exception; neither end ever reaches certainty.
    */
   flee: number;
   /**
@@ -562,7 +573,8 @@ export function hasteFrom(agility: number): number {
 }
 
 /**
- * How well a body with this much Agility gets out of the way.
+ * How well a body with this much Agility gets out of the way — and, read the
+ * other way round, how well it stays with something else that is.
  *
  * **Deliberately unbounded above**, unlike every other percent stat. It used to
  * clamp at 100 because it *was* a probability — the old rule read it as one
@@ -692,10 +704,12 @@ export const ACCURACY_AT_MAX_MASTERY = 5;
  * lands one swing in twenty, so it is poor rather than inert and can still teach
  * you; and a master still whiffs one in twenty, because nothing is ever certain.
  *
- * **Accuracy above 100 is meaningful and deliberately not wasted.** It cannot
- * buy more than {@link MAX_CHANCE} here, but it is also what a defender’s
- * evasion is contested against — so a master is harder to dodge as well as
- * harder to escape.
+ * **Accuracy above 100 buys nothing, and that is now true rather than nearly
+ * true.** It used to carry on paying past the ceiling because a defender's
+ * evasion was contested against it; the contest is Agility against Agility now,
+ * so the surplus stops here. What mastery keeps buying past that point is
+ * damage, and a body that wants to catch nimble things trains Agility for it —
+ * which is the point of moving the contest, not a side effect of it.
  */
 export function hitChanceFrom(accuracy: number): number {
   return clampChance(accuracy / MAX_PERCENT_STAT);
