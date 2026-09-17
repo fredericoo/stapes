@@ -14,6 +14,7 @@ import {
   maxHpFrom,
   resolveBattler,
 } from "../lib/battler";
+import type { WeaponItem } from "../lib/item";
 import {
   ARMOR_SLOTS,
   armorSlotOf,
@@ -33,6 +34,7 @@ import {
   armorDefence,
   armorResistances,
   bodyElements,
+  fightsWithAHand,
   fightsWithBothHands,
   HANDS,
   handClaimedByTwoHander,
@@ -934,6 +936,91 @@ describe("taking turns between two hands", () => {
       expect(handToSwing(kit, tiles, "weapon")).toBeNull();
       expect(weaponInHand(base, kit, tiles, null)).toEqual(base.naturalWeapon);
     }
+  });
+
+  /**
+   * **A weapon that cannot be used here is skipped exactly as an empty fist
+   * is**, which is the whole of "a bow and a knife is one loadout". The filter
+   * is how far each hand's weapon reaches against where the target is standing;
+   * everything else about the rotation is untouched.
+   *
+   * Written against a predicate rather than against a bow, because that is what
+   * the function takes: `GameSession` hands it `canReach` with the real board
+   * and the real positions in it, and a fixture map here would be testing the
+   * fixture. The fight's own cases are the session suite's.
+   */
+  describe("when a weapon has no answer to this fight", () => {
+    /** Stands in for a bow inside its minimum: the off hand is no use here. */
+    const onlyTheMainHand = (_weapon: WeaponItem, hand: Hand) =>
+      hand === "weapon";
+    const neither = () => false;
+
+    it("takes the turn of a hand whose weapon cannot be used", () => {
+      const both = held("sword", "rusty-sword");
+      // Whosever turn it nominally is, the hand that works answers.
+      for (const preferred of HANDS) {
+        expect(handToSwing(both, tiles, preferred, onlyTheMainHand)).toBe(
+          "weapon",
+        );
+      }
+    });
+
+    /**
+     * **The stall this exists to prevent.** The rotation only advances on a
+     * swing that is actually spent, so a body that kept offering a hand it
+     * could not use would offer it again next tick, and every tick after.
+     */
+    it("does not simply refuse when the preferred hand is the useless one", () => {
+      const both = held("sword", "rusty-sword");
+      expect(handToSwing(both, tiles, "offhand", onlyTheMainHand)).toBe(
+        "weapon",
+      );
+    });
+
+    /**
+     * Null, and the caller must not read it as bare hands: a held weapon
+     * replaces the natural one, so an archer with somebody in their face does
+     * not start punching. @see `fightsWithAHand`, which is how the two nulls
+     * are told apart.
+     */
+    it("answers null when no hand's weapon works, and still counts as armed", () => {
+      const both = held("sword", "rusty-sword");
+      expect(handToSwing(both, tiles, "weapon", neither)).toBeNull();
+      expect(fightsWithAHand(both, tiles)).toBe(true);
+    });
+
+    it("is not asked of a hand with nothing to swing in it", () => {
+      const kit = held("sword", "hand-lantern");
+      const asked: Hand[] = [];
+      handToSwing(kit, tiles, "offhand", (_weapon, hand) => {
+        asked.push(hand);
+        return true;
+      });
+      expect(asked).toEqual(["weapon"]);
+    });
+
+    it("leaves a body with no filter exactly as it was", () => {
+      const both = held("sword", "rusty-sword");
+      expect(handToSwing(both, tiles, "offhand")).toBe("offhand");
+    });
+  });
+
+  /**
+   * The unfiltered half of the question, and what tells an unarmed body from an
+   * armed one whose weapons all fall short.
+   */
+  describe("fightsWithAHand", () => {
+    it("is true for one weapon and for two", () => {
+      expect(fightsWithAHand(held("sword", null), tiles)).toBe(true);
+      expect(fightsWithAHand(held(null, "sword"), tiles)).toBe(true);
+      expect(fightsWithAHand(held("sword", "rusty-sword"), tiles)).toBe(true);
+    });
+
+    it("is false for empty hands and for hands holding things nobody swings", () => {
+      expect(fightsWithAHand(emptyEquipment(), tiles)).toBe(false);
+      expect(fightsWithAHand(held("shield", "hand-lantern"), tiles)).toBe(false);
+      expect(fightsWithAHand(null, tiles)).toBe(false);
+    });
   });
 
   /**

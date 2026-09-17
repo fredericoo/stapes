@@ -198,6 +198,7 @@ import {
   effectiveBattler,
   emptyEquipment,
   HANDS,
+  fightsWithAHand,
   handToSwing,
   otherHand,
   spilled,
@@ -4227,24 +4228,66 @@ export class GameSession implements PlaySession {
     const target = this.actors.get(targetId);
     if (!target) return false;
 
-    // Both ends have to be battlers, and reading it off the body is what makes
-    // "attack anything, fail graciously" true: swinging at a crate is a lookup
-    // that comes back null, not a special case anybody had to write.
-    const attackerStats = this.battlerOf(attacker);
-    const targetStats = this.battlerOf(target);
-    if (!attackerStats || !targetStats) return false;
-
     const from = this.tryLocate(attacker);
     const to = this.tryLocate(target);
     if (!from || !to) return false;
     const fromPoint = this.reachPointOf(from);
     const toPoint = this.reachPointOf(to);
+
+    // **Which hand swings is a question about where the target is standing**,
+    // not only about what is in the hand. A weapon can be held and have no
+    // answer to this fight — a bow inside its `Reach.min`, a dagger across a
+    // courtyard — and the rotation skips one of those exactly as it skips an
+    // empty fist. That is what makes a bow and a knife one loadout instead of
+    // two: the knife takes the turns the bow cannot.
+    //
+    // It is also what stops the rotation stalling. The turn only advances on a
+    // swing that was actually spent, further down, so a body that picked a hand
+    // it could not use would fail the reach check, return here, and offer the
+    // same hand again forever.
+    //
     // The weapon's own reach, not a constant and not the body's: a bow and a
     // fist ask the same question with different numbers, and the number belongs
     // to whatever is being swung. `canReach` is also where the wall costs
     // something — a target picked through a window stays picked, and the shot
     // simply does not go.
+    const hand = handToSwing(
+      attacker.equipment,
+      this.tilesById,
+      attacker.nextHand,
+      // Straight off the parsed weapon: `resolveWeapon` has already applied the
+      // schema's melee default, so there is no draft here for `reachOf` to
+      // rescue — and the class has a `reachOf` of its own about brains.
+      (weapon) =>
+        canReach(this.map, this.tilesById, fromPoint, toPoint, weapon.reach),
+    );
+    // An armed body whose weapons all fall short does not start punching. A
+    // held weapon *replaces* the natural one — see `./equipment`'s
+    // `weaponInHand`, which reads a null hand as "swing what you were born
+    // with" — and that fallback is for a body with nothing in either fist, not
+    // for an archer who has let something get too close.
+    if (hand === null && fightsWithAHand(attacker.equipment, this.tilesById)) {
+      return false;
+    }
+
+    // Both ends have to be battlers, and reading it off the body is what makes
+    // "attack anything, fail graciously" true: swinging at a crate is a lookup
+    // that comes back null, not a special case anybody had to write.
+    const attackerStats = this.battlerOf(attacker, hand);
+    const targetStats = this.battlerOf(target);
+    if (!attackerStats || !targetStats) return false;
+
+    // **Bare hands only**, because every armed hand was held to exactly this
+    // above and asking twice is a second line-of-sight trace for an answer
+    // already given. A body with nothing in either fist swings its natural
+    // weapon, nothing filtered on that, and this is where it finds out its claws
+    // do not carry.
+    //
+    // The two are the same question because reach is the weapon's alone — no
+    // status modifies it, so what the filter saw is what `attackerStats` holds.
+    // A `reach` added to `withStatusModifiers`'s keys would have to undo this.
     if (
+      hand === null &&
       !canReach(this.map, this.tilesById, fromPoint, toPoint, attackerStats.reach)
     ) {
       return false;
@@ -4258,11 +4301,11 @@ export class GameSession implements PlaySession {
     const interval = swingIntervalMs(attackerStats);
     attacker.attackCooldownMs = interval;
 
-    // Read before the rotation moves and carried down, rather than asked again
-    // where the experience is settled: that would be the *next* hand's weapon
-    // teaching the wielder, and a body alternating a blade and a hammer would
-    // spend the whole fight training the wrong mastery.
-    const swung = this.handOf(attacker);
+    // The hand chosen above, carried down rather than asked again where the
+    // experience is settled: that would be the *next* hand's weapon teaching the
+    // wielder, and a body alternating a blade and a hammer would spend the whole
+    // fight training the wrong mastery.
+    const swung = hand;
     // Advanced on the swing rather than on the blow landing, on exactly the
     // terms the cooldown above is spent: a hand that has taken its turn has
     // taken it, and a miss that let you swing the same weapon again would make
@@ -5106,8 +5149,11 @@ export class GameSession implements PlaySession {
    * caller of `resolveBattler` would be a body that fights with its sword and
    * one that does not, depending on who asked.
    */
-  private battlerOf(actor: ActorRuntime): FightingStats | null {
-    const base = this.baseBattlerOf(actor);
+  private battlerOf(
+    actor: ActorRuntime,
+    hand: Hand | null = this.handOf(actor),
+  ): FightingStats | null {
+    const base = this.baseBattlerOf(actor, hand);
     if (!base) return null;
     return withStatusModifiers(
       base,
@@ -5132,15 +5178,13 @@ export class GameSession implements PlaySession {
    * It is also the only honest input to `withStatusModifiers`, which sums deltas
    * onto a base — folding statuses into their own input would apply them twice.
    */
-  private baseBattlerOf(actor: ActorRuntime): FightingStats | null {
+  private baseBattlerOf(
+    actor: ActorRuntime,
+    hand: Hand | null = this.handOf(actor),
+  ): FightingStats | null {
     const body = this.bodyOf(actor);
     if (!body) return null;
-    return effectiveBattler(
-      body,
-      actor.equipment,
-      this.tilesById,
-      this.handOf(actor),
-    );
+    return effectiveBattler(body, actor.equipment, this.tilesById, hand);
   }
 
   /**

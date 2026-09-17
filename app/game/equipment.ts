@@ -567,19 +567,54 @@ export function weaponSwungBy(
  * equipment moves, which is the entire reason the state can be a single hand
  * rather than a history.
  *
- * Null when neither hand answers, which is bare hands, two torches, or a body
- * that never had hands to speak of. The caller reads
- * {@link BattlerDef.naturalWeapon} through {@link weaponInHand}, which takes
- * null and means exactly this.
+ * **`usable` is the same skip, asked of the fight rather than of the kit.** A
+ * weapon can be held and still have no answer to where the target is standing —
+ * a bow inside its {@link Reach.min}, a dagger across a courtyard — and a
+ * rotation that could not see that would offer the wrong hand and stop there.
+ * Given one, this is "the next hand with a weapon that works here" instead of
+ * "the next hand with a weapon", and the fallthrough is the same fallthrough:
+ * a body with a bow and a knife swings the knife when the bow is useless,
+ * because the bow's turn is skipped exactly as an empty fist's is.
+ *
+ * Null when neither hand answers, which is bare hands, two torches, a body that
+ * never had hands to speak of — **and, with a `usable`, an armed body whose
+ * weapons all fall short**. Those last two are not the same case and the caller
+ * has to tell them apart, because a held weapon *replaces* the natural one:
+ * {@link weaponInHand} reads null as "swing what you were born with", which is
+ * right for empty hands and wrong for a bow you cannot fire. Ask
+ * {@link fightsWithAHand}, which is the unfiltered half of this question.
  */
 export function handToSwing(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
   preferred: Hand,
+  usable?: (weapon: WeaponItem, hand: Hand) => boolean,
 ): Hand | null {
-  if (weaponSwungBy(equipment, tilesById, preferred)) return preferred;
-  const other = otherHand(preferred);
-  return weaponSwungBy(equipment, tilesById, other) ? other : null;
+  for (const hand of [preferred, otherHand(preferred)]) {
+    const weapon = weaponSwungBy(equipment, tilesById, hand);
+    if (weapon && (!usable || usable(weapon, hand))) return hand;
+  }
+  return null;
+}
+
+/**
+ * Whether either hand holds something this body would swing at all.
+ *
+ * **The unfiltered half of {@link handToSwing}**, and it exists because that
+ * function's null has two meanings once a `usable` is given: nothing held, or
+ * nothing held that works here. A held weapon replaces the natural one, so only
+ * the first of those may fall back to a fist — an archer standing too close
+ * does not start punching, they simply do not swing.
+ *
+ * Also what {@link natureDefence} asks, which is the same question in its
+ * original clothing: a body swinging something of its own is a body whose claws
+ * are not in the fight.
+ */
+export function fightsWithAHand(
+  equipment: Equipment | null,
+  tilesById: Record<string, TileDef>,
+): boolean {
+  return HANDS.some((hand) => weaponSwungBy(equipment, tilesById, hand));
 }
 
 /**
@@ -820,10 +855,7 @@ function natureDefence(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
 ): number {
-  const swinging = HANDS.some((hand) =>
-    weaponSwungBy(equipment, tilesById, hand),
-  );
-  return swinging ? 0 : base.naturalWeapon.def;
+  return fightsWithAHand(equipment, tilesById) ? 0 : base.naturalWeapon.def;
 }
 
 /**

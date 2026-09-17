@@ -961,6 +961,186 @@ describe("shooting at somebody", () => {
 });
 
 /**
+ * A bow in one hand and a knife in the other.
+ *
+ * **The rotation is a question about the fight, not only about the kit.** A hand
+ * can hold a weapon that has no answer to where the target is standing — a bow
+ * inside its `Reach.min` — and until it could see that, the rotation offered
+ * that hand, failed the reach check, and offered it again next tick, forever:
+ * the turn only advances on a swing that is actually spent. So a body with a bow
+ * and a knife stood on top of its target doing nothing at all.
+ *
+ * @see `./equipment`'s `handToSwing`, which is where the skip lives
+ */
+describe("a bow and a knife", () => {
+  /** A one-handed bow with a hole in the middle of its reach. */
+  const BOW = "belt-bow";
+  /** And what fills the hole: an ordinary blade, at an arm's length. */
+  const KNIFE = "belt-knife";
+
+  const duellistTiles: TileDef[] = [
+    ...tiles.map((t) =>
+      t.id === "player"
+        ? tile({
+            ...t,
+            interactions: {
+              battler: {
+                baseHp: FIXTURE_BASE_HP,
+                masteries: { toughness: PLAYER_TOUGHNESS },
+                // Enough to kill on its own, so "did anything happen" cannot be
+                // answered by the body's fists where a held weapon should have
+                // answered. @see the point-blank bow case below.
+                naturalWeapon: claws({
+                  damage: feltBy(DUMMY_TOUGHNESS),
+                  ...CERTAIN,
+                }),
+                kit: [
+                  { slot: "weapon", tileId: BOW, chance: 100 },
+                  { slot: "offhand", tileId: KNIFE, chance: 100 },
+                ],
+              },
+            },
+          })
+        : t,
+    ),
+    tile({
+      id: BOW,
+      height: 0,
+      intangible: true,
+      kind: "item",
+      interactions: {
+        item: {
+          type: "weapon",
+          damage: feltBy(DUMMY_TOUGHNESS),
+          def: 0,
+          accuracy: 100,
+          variance: 0,
+          spd: 100,
+          mastery: "ranged",
+          reach: { cells: 6, min: 2, height: HEIGHT_PER_LEVEL },
+          projectile: { tileId: "arrow", cellsPerSecond: 20 },
+        },
+      },
+    }),
+    tile({
+      id: KNIFE,
+      height: 0,
+      intangible: true,
+      kind: "item",
+      interactions: {
+        item: {
+          type: "weapon",
+          damage: feltBy(DUMMY_TOUGHNESS),
+          def: 0,
+          accuracy: 100,
+          variance: 0,
+          spd: 100,
+          mastery: "sharp",
+        },
+      },
+    }),
+  ];
+
+  /** The same body carrying only the bow, which is what a minimum costs. */
+  const bowOnlyTiles: TileDef[] = duellistTiles.map((t) =>
+    t.id === "player"
+      ? tile({
+          ...t,
+          interactions: {
+            battler: {
+              baseHp: FIXTURE_BASE_HP,
+              masteries: { toughness: PLAYER_TOUGHNESS },
+              naturalWeapon: claws({
+                damage: feltBy(DUMMY_TOUGHNESS),
+                ...CERTAIN,
+              }),
+              kit: [{ slot: "weapon", tileId: BOW, chance: 100 }],
+            },
+          },
+        })
+      : t,
+  );
+
+  it("shoots at something across the yard", () => {
+    const session = new GameSession(
+      withBody(field(6), 4, 0, "dummy"),
+      duellistTiles,
+    );
+    fight(session, bodyOf(session, "dummy")!.id);
+
+    advanceUntil(session, () => arrows(session).length > 0);
+
+    expect(bodyOf(session, "dummy")!.hp).toBeLessThan(DUMMY_MAX_HP);
+  });
+
+  /**
+   * **The case the whole change is for.** The bow is in the hand whose turn it
+   * is and cannot be fired from here, so the knife takes the turn — and the
+   * absence of arrows is what says the bow was skipped rather than merely
+   * missing.
+   */
+  it("uses the knife on something in its face, and fires nothing", () => {
+    const session = new GameSession(
+      withBody(field(), 1, 0, "dummy"),
+      duellistTiles,
+    );
+    fight(session, bodyOf(session, "dummy")!.id);
+
+    advance(session, 1000);
+
+    expect(bodyOf(session, "dummy")!.hp).toBeLessThan(DUMMY_MAX_HP);
+    expect(arrows(session)).toHaveLength(0);
+  });
+
+  /**
+   * **And it keeps doing it**, which is the regression the stall would have been.
+   * A rotation that offered the bow, failed, and never advanced would land the
+   * first blow only if the knife happened to be up first.
+   */
+  it("keeps swinging the knife rather than stalling on the bow's turn", () => {
+    const session = new GameSession(
+      withBody(field(), 1, 0, "dummy"),
+      duellistTiles,
+    );
+    fight(session, bodyOf(session, "dummy")!.id);
+
+    expect(swingsOver(session, 1000)).toBeGreaterThan(1);
+  });
+
+  /**
+   * **A held weapon replaces the natural one, minimum or no minimum.** An archer
+   * who has let something get too close does not start punching: the fallback to
+   * a body's own claws is for a body with nothing in either fist, and reading a
+   * skipped hand as an empty one would give every archer a free melee weapon.
+   */
+  it("does not fall back to its fists when the only weapon is out of range", () => {
+    const session = new GameSession(
+      withBody(field(), 1, 0, "dummy"),
+      bowOnlyTiles,
+    );
+    fight(session, bodyOf(session, "dummy")!.id);
+
+    advance(session, 1000);
+
+    expect(bodyOf(session, "dummy")!.hp).toBe(DUMMY_MAX_HP);
+    expect(arrows(session)).toHaveLength(0);
+  });
+
+  /** And the same body, backed off, shoots exactly as it always did. */
+  it("shoots once it has the room", () => {
+    const session = new GameSession(
+      withBody(field(6), 4, 0, "dummy"),
+      bowOnlyTiles,
+    );
+    fight(session, bodyOf(session, "dummy")!.id);
+
+    advanceUntil(session, () => arrows(session).length > 0);
+
+    expect(bodyOf(session, "dummy")!.hp).toBeLessThan(DUMMY_MAX_HP);
+  });
+});
+
+/**
  * What a bite leaves behind once the hit points have moved.
  *
  * The odds are `./combat.test`'s subject; this is the plumbing around them — that

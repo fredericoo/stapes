@@ -2874,6 +2874,45 @@ rather than about range.
   at, and `two weapons on one rung` keeps passing while meaning less. Anything a
   minimum is supposed to fix has to be checked by playing it.
 
+### Which hand swings is a question about where the target is standing
+
+`handToSwing` used to ask one thing: does this hand hold something I would
+swing? That is enough while every weapon works at every distance it is allowed
+to reach, and it stops being enough the moment a weapon can be held and be no
+use — a bow inside its `Reach.min`, a dagger across a courtyard. It takes an
+optional `usable` predicate now, and skips a hand whose weapon has no answer to
+this fight exactly as it skips an empty fist. `GameSession.tryAttack` hands it
+`canReach` with the real board and the real positions in it.
+
+**The rotation stalled without it, silently.** The turn only advances on a swing
+that is actually spent, and the reach check sits above that line:
+
+```
+if (!canReach(…, attackerStats.reach)) return false;   // returns here
+…
+attacker.nextHand = swung ? otherHand(swung) : attacker.nextHand;
+```
+
+So a body that picked a hand it could not use failed, returned, and offered the
+same hand again next tick and every tick after. A bow and a knife, standing on
+top of the thing it was fighting, did nothing at all.
+
+**A null hand means two things now, and only one of them is fists.** A held
+weapon *replaces* the natural one — `weaponInHand` reads a null hand as "swing
+what you were born with" — and that fallback is for a body with nothing in
+either fist, not for an archer who has let something get too close. Reading a
+skipped hand as an empty one would hand every archer a free melee weapon.
+`fightsWithAHand` is the unfiltered half of the question and is what tells the
+two apart; it is also what `natureDefence` was already asking inline.
+
+**What a panel draws is still the rotation**, not the choice. `battlerOf` takes
+the hand as an argument and defaults to `handOf` — the body's own turn, with no
+target in it — so a health bar can be asked sixty times a second without a fight
+in scope. Only the swing passes a hand it worked out, which means the stat panel
+can show a bow while the knife lands. That is honest rather than a bug: which
+weapon you use is now a fact about where the wolf is standing, and the panel has
+no wolf.
+
 ### A ranged weapon is one with a projectile, and the arrow is only a picture
 
 There is no `ranged` flag and there must not be one: a weapon is ranged exactly
