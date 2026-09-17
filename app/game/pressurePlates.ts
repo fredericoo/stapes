@@ -36,7 +36,6 @@ export function loadAbove(
   return load;
 }
 
-/** Does any tile in this cell's stack behave as a pressure plate? */
 export function cellHasPlate(
   map: MapFile,
   cell: Coord,

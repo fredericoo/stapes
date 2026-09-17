@@ -2,34 +2,20 @@
  * How far apart two things are, when the answer decides whether one can touch
  * the other.
  *
- * One metric, shared by every kind of reach, because the alternative is what
- * this codebase already had: a swing counted in a square, a brain's "within five
- * cells" counted in steps on the plan, and a level worth either nothing or
- * everything depending on which of them you asked. Three answers to one
- * question, and no way to author a creature against all three at once.
+ * One metric, shared by every kind of reach — a swing, `./affordances`' touch
+ * test, a brain's `in_range` — so a creature can be authored against one
+ * answer rather than three.
  *
  * ## A disc and a height, not a sphere
  *
- * This was a sphere, with height weighted at a whole cell per unit so that the
- * one shape anybody wanted to author — the 3×3 box, half a level either way —
- * fell out of a single radius. It worked for exactly that shape and for nothing
- * beyond it. A bow is the same question with a bigger answer, and the answer a
- * sphere gives is wrong: at six cells' radius, "six cells across the yard"
- * necessarily also means "six cells straight up", which is three storeys of
- * building nobody meant to shoot through. There is no weighting that fixes it,
- * because a weighting only decides *where* the sphere bulges, never that the
- * shape has a flat lid.
- *
- * So reach is two independent tests: a disc on the plan, and a height either
- * side of it. Every shape worth authoring exists in that pair — melee is a small
- * disc and a thin band, a bow is a wide disc and a band a storey or two tall,
- * and a thing that can only hit its own floor is a band of nothing.
- *
- * **It is also what the rest of the game was already doing in private.**
- * `./affordances` measures what you can touch as a disc plus a level slack, and
- * a brain's `in_range` measures plan steps plus its sight's up and down. Neither
- * could be written against the sphere, so neither was. This is those two, and
- * the fight, agreeing at last.
+ * Reach is two independent tests: a disc on the plan, and a height either side
+ * of it. A sphere cannot express a bow: at six cells' radius, "six cells across
+ * the yard" is also "six cells straight up", three storeys of building nobody
+ * meant to shoot through, and no weighting fixes that because a weighting only
+ * decides where the sphere bulges, never that the shape has a flat lid. Every
+ * shape worth authoring exists in the pair — melee is a small disc and a thin
+ * band, a bow is a wide disc and a band a storey or two tall, and a thing that
+ * can only hit its own floor is a band of nothing.
  *
  * ## Height is in height units
  *

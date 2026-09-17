@@ -7,8 +7,7 @@ import { InfoTip } from "./InfoTip";
  * One component so every caption in the editor is the same size and weight,
  * and so the tooltip sits in the same place beside every one of them. The
  * caption is the field's name in the engine's own words; `info` is what the
- * engine does with it. Nothing else belongs up here — a sentence that only
- * restates the caption is the thing this replaced.
+ * engine does with it. Nothing else belongs up here.
  */
 export function FieldLabel({
   children,

@@ -1,10 +1,7 @@
 /**
- * The one function that answers "which frame is on screen right now".
- *
- * Both renderers read it — once when a mesh is built and again every tick — and
- * the two answers agreeing is what keeps a walk cycle steady across the rebuild
- * that every step triggers. When the build path answered "frame 0" instead,
- * walking restarted the cycle several times a second.
+ * Both renderers read this, once when a mesh is built and again every tick,
+ * and the two answers agreeing is what keeps a walk cycle steady across the
+ * rebuild that every step triggers.
  */
 import { describe, expect, it } from "vitest";
 import { frameAtTime, frameIndexAtTime, type Frame } from "./types";

@@ -23,14 +23,14 @@ function footPixel(cellX: number, cellY: number) {
 }
 
 /**
- * The bug `../render/depthClump` exists for, in the two numbers that caused it.
+ * The case `../render/depthClump` exists for.
  *
- * Anything standing in an open door shares its cell — the door is intangible,
- * so it takes up no elevation — and the door is a full level tall. At a pixel
+ * Anything standing in an open door shares its cell (the door is intangible,
+ * so it takes up no elevation) and the door is a full level tall. At a pixel
  * in the band above the co-tenant's own height the door has a real surface and
- * the co-tenant has only art hanging outside its box, so the door was drawn
- * across the face of whoever stood in it and the top of any barrel left in it.
- * Merging the two into one extent is what leaves stack order to settle it.
+ * the co-tenant has only art hanging outside its box, so the door is drawn
+ * across the face of whoever stands in it and the top of any barrel left in
+ * it. Merging the two into one extent leaves stack order to settle it.
  */
 describe("something standing in a doorway", () => {
   const DOORWAY = { x: 0, y: 0 };

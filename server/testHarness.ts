@@ -9,27 +9,9 @@ import { GameServer } from "./GameServer";
 import { GameSocket, SocketHub, type WorldContext } from "./sockets";
 
 /**
- * What `cloudflare:test` used to provide.
- *
- * `GameServer.test.ts` is the most valuable thing in this repository — both
- * bugs that ever shipped in the world lived in its load and restore paths and
- * were invisible to anything that did not construct the object from a real
- * checkpoint. So the suite was kept, near enough verbatim, and the handful of
- * platform helpers it leaned on are reimplemented here instead.
- *
- * The substitutions are close to exact:
- *
- * - `runInDurableObject` reached inside a live instance for its private fields
- *   and its raw storage. There is no RPC boundary any more, so it is a function
- *   call — and the white-box access it existed for is simply direct.
- * - `runDurableObjectAlarm` fired the platform's alarm. `alarm()` is an
- *   ordinary method.
- * - `env.DATA` was an R2 bucket. It is the blob table, against a real database
- *   file in a temporary directory — real, for the reason the original ran
- *   inside workerd rather than against a stub.
- * - Sockets are a local pair rather than a `WebSocketPair`. `GameServer` only
- *   ever sends, closes and reads an attachment, and the client half exposes the
- *   `addEventListener("message")` shape the suite already waits on.
+ * Harness for `GameServer.test.ts`: a real database file in a temporary
+ * directory rather than a stub, and a local socket pair whose client half
+ * exposes the `addEventListener("message")` shape the suite waits on.
  */
 
 /** `WebSocket.OPEN` and `WebSocket.CLOSED`, without needing the global. */
@@ -38,7 +20,6 @@ const WEBSOCKET_CLOSED = 3;
 
 /** The client end of a connection, shaped like the browser's `WebSocket`. */
 export interface TestSocket {
-  /** Send a frame to the world, as a browser would. */
   send(data: string): void;
   /** Forget anything sent but not yet taken, so what follows is only what is next. */
   discardPending(): void;
@@ -51,12 +32,9 @@ export interface TestSocket {
   readonly closeCode: number | null;
   readonly closeReason: string | null;
   /**
-   * `WebSocket.OPEN` until this half closes.
-   *
-   * Shaped like the browser's because a client reads it: `RemoteSession.sendRaw`
-   * drops anything it is asked to send on a socket that is not open, so a pair
-   * without this is a client that never speaks — and a test driving one reads
-   * as a world refusing every step rather than a harness swallowing them.
+   * `WebSocket.OPEN` until this half closes. `RemoteSession.sendRaw` drops
+   * anything sent on a socket that is not open, so a client without this never
+   * speaks.
    */
   readonly readyState: number;
   close(): void;
@@ -74,12 +52,9 @@ class Pair {
   /** Wired by the suite's `connect`, so the client half can talk back. */
   onClientMessage: ((data: string) => void) | null = null;
   /**
-   * Wired alongside it, for the browser going away.
-   *
-   * A tab closing is not the same event as a person leaving — `dropSocket`
-   * turns on exactly that distinction — so the client half has to actually
-   * reach the world, or every test about somebody leaving passes for the wrong
-   * reason.
+   * Wired alongside it. A tab closing is a different event from a person
+   * leaving (`dropSocket` distinguishes them), so the client half's `close`
+   * has to reach the world.
    */
   onClientClose: (() => void) | null = null;
 
@@ -89,17 +64,7 @@ class Pair {
     const pair = this;
     this.server = new GameSocket({
       send(data: string) {
-        // Queued, not delivered, and this is the part that has to be right for
-        // the suite to mean anything.
-        //
-        // A browser buffers frames as they arrive and hands them to the page
-        // when it next runs, so a frame sent during a call the test awaited is
-        // still there once the test attaches its listener. Delivering straight
-        // to whoever happens to be listening drops it instead, and the tests
-        // that read `await thing(); await nextMessage(ws)` fail for a reason
-        // that has nothing to do with the world. Order is preserved, which the
-        // death tests depend on — the patch that empties somebody has to reach
-        // them before the death that follows it.
+        // Queued, not delivered to current listeners; see `drain`.
         pair.queue.push(data);
         pair.drain();
       },
@@ -234,12 +199,10 @@ export class Harness {
   /**
    * Fire the world's alarm when it comes due.
    *
-   * The platform did this, and without it every respawn test measures nothing:
    * `GameServer` schedules a refill by asking storage to wake it at a
-   * wall-clock time, and if nobody is listening the deadline simply passes.
-   * `server/world.ts` does the same thing in production, and this is the same
-   * few lines rather than a stub, so the tests exercise the arrangement that
-   * actually ships.
+   * wall-clock time; if nobody is listening the deadline passes and every
+   * respawn test measures nothing. `server/world.ts` does the same thing in
+   * production, and this is the same few lines rather than a stub.
    */
   private startAlarms() {
     this.store.onAlarmChange = (atMs) => {
@@ -257,12 +220,8 @@ export class Harness {
   }
 
   /**
-   * Throw away the world in memory without touching storage or sockets.
-   *
-   * What eviction did, and the reason the suite could see the load path at all.
-   * A long-running process is never evicted — but a *restart* is exactly this,
-   * and a restart happens on every deploy, so the path is if anything more
-   * travelled than it was.
+   * Throw away the world in memory without touching storage or sockets, which
+   * is what a process restart does, and a restart happens on every deploy.
    */
   evict() {
     const internals = this.server as unknown as Record<string, unknown>;
@@ -290,13 +249,10 @@ export class Harness {
   }
 
   /**
-   * Read rows straight out of the database.
-   *
-   * The suite used to reach through `state.storage.sql.exec` for this, which
-   * the platform could answer synchronously. `WorldStore.sql.exec` queues
-   * statements to be committed with the next batch and cannot, so reads come
-   * through here — and flush first, since what the tests are asking about is
-   * what has been *written*.
+   * Read rows straight out of the database. `WorldStore.sql.exec` queues
+   * statements for the next batch and cannot answer a read, so reads come
+   * through here, flushing first: what the tests ask about is what has been
+   * written.
    */
   async query(sql: string): Promise<Record<string, unknown>[]> {
     await this.store.flush();

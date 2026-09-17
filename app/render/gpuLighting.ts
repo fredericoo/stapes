@@ -1,10 +1,9 @@
 /**
- * GPU-oriented lighting bake facade.
+ * Lighting bake facade.
  *
- * Production bake uses the CPU Minecraft-style flood fill ({@link computeLightingFlood})
- * — already within budget on the fixture map (~4ms). Jacobi ping-pong shaders are
- * provided for future RT binding without CPU readback; enable via
- * {@link GpuLightingOptions.useGpuJacobi} when a renderer is supplied.
+ * The bake is the CPU flood fill ({@link computeLightingFlood}), ~4ms on the
+ * fixture map. {@link GpuLightingOptions.useGpuJacobi} is reserved for a GPU
+ * path and currently falls back to the same flood.
  *
  * Player / dynamic lights stay as add-only overlays ({@link overlayEmitterOverrides}).
  */
@@ -47,9 +46,8 @@ export class GpuLighting {
   ): LightGrid {
     void this.opts.useGpuJacobi;
     void this.opts.renderer;
-    // CPU flood is the production path — faster than GPU readback for our grid size.
-    // Gpu Jacobi (ping-pong RTs → bind as uLightMap) can replace this without
-    // changing callers once RT sampling is wired in WorldRenderer.
+    // CPU flood is faster than GPU readback for our grid size. A GPU Jacobi
+    // pass can replace this without changing callers.
     return composeLightGrid(
       computeLightingFlood(map, tilesById, undefined, omitLightTileIds),
       ambient,

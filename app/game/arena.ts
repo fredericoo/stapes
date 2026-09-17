@@ -164,12 +164,10 @@ export function statsOf(
  * is the same shape `GameSession` fights in, arrived at the same way: see
  * `./equipment`'s {@link handToSwing}.
  *
- * A list rather than a single block because a tuner that showed one hand's
- * numbers for a body holding two weapons would be answering a different
- * question than the one being asked. This *was* a single block, and passed
- * `null` for the hand — which does not mean "no hand in particular", it means
- * bare hands, so the Arena quietly reported every fighter's natural weapon
- * whatever it was holding.
+ * A list rather than a single block: a tuner that showed one hand's numbers
+ * for a body holding two weapons would be answering a different question. Nor
+ * can the hand be `null` to mean "no hand in particular" — `null` means bare
+ * hands, and would report every fighter's natural weapon whatever it held.
  */
 export function swingsOf(
   fighter: ArenaFighter,

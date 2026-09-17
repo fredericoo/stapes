@@ -11,12 +11,8 @@ import {
 } from "./projectile";
 
 /**
- * How long a shot takes and where it is part-way through.
- *
- * The arithmetic of a picture, which is exactly why it is asserted rather than
- * eyeballed: nothing in the game goes wrong when a flight time is subtly off. It
- * simply looks slightly wrong forever, and the only way to notice is to have
- * written down what it should be.
+ * Nothing in the game goes wrong when a flight time is off; it looks wrong
+ * forever, so the arithmetic is asserted rather than eyeballed.
  */
 
 function at(x: number, y: number, elevAbs = 0) {
@@ -70,12 +66,8 @@ describe("how long a shot is in the air", () => {
   });
 
   /**
-   * **The unit is cells per second, and it is the whole reason this test
-   * exists.** The first arrows in this game were authored at `0.03` in pixels
-   * per millisecond, which is three and three quarter cells a second — slower
-   * than a body walks — and nothing about the number said so. Anchoring a cell
-   * to a round hundred milliseconds is what makes a wrong speed visible here
-   * rather than in somebody's face six cells away.
+   * The unit is cells per second. A speed authored in another unit reads as a
+   * plausible number, so the unit is pinned here.
    */
   it("crosses one cell per second at a speed of one", () => {
     const crawling: ProjectileDef = { tileId: "arrow", cellsPerSecond: 1 };

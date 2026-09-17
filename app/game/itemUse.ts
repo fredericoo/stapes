@@ -99,11 +99,8 @@ export function itemUseFor(
       : null;
   }
 
-  // **Where the thing belongs**, which is the same answer the floor's "Wield"
-  // and "Hold" rows are built from — see `./affordances`' `equipSlotOf`. This
-  // used to be guessed from whether the tile gave off light, because a lantern
-  // is authored as a weapon and the swinging hand was once the only hand; the
-  // guess is gone now that `WeaponItem.offhand` says it outright.
+  // Where the thing belongs, which is the same answer the floor's "Wield" and
+  // "Hold" rows are built from — see `./affordances`' `equipSlotOf`.
   // Every slot but the bag, which the container branch above has already
   // answered — the only things that belong on a back are containers, and looking
   // into one beats taking it off.

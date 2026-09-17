@@ -31,8 +31,8 @@ import { cellKey } from "./pressurePlates";
 export type SpawnPoint = {
   /**
    * Stable identity for this point: the owner id for a creature, cell-and-tile
-   * for an object. What deadlines are filed under, so it must survive the
-   * round trip through Durable Object storage.
+   * for an object. What deadlines are filed under, so it must survive a
+   * checkpoint.
    */
   key: string;
   cell: Coord;
@@ -135,8 +135,8 @@ function objectKey(cell: Coord, tileId: string): string {
  * the one a fresh world opens with, after residents have been adopted (their
  * owner ids are read off the placements rather than re-derived, so the two can
  * never disagree). Run against a resumed checkpoint this would silently drop
- * every point whose creature died before the eviction, which is why the server
- * derives once and stores the result.
+ * every point whose creature had already died, which is why the server derives
+ * once and stores the result.
  */
 export function findSpawnPoints(
   map: MapFile,

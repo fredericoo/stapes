@@ -1,15 +1,12 @@
 /**
  * What each of the renderer's windows is drawn in under `?debug=1`.
  *
- * One table, shared by the outlines in the scene (`./WorldRenderer`) and the
- * rows of the panel beside them (`./debugPanel`), because the panel *is* the
- * legend — a row in a colour the rectangle no longer wears would be a legend
- * that lies, and there would be nothing on screen to catch it.
+ * Shared by the outlines in the scene (`./WorldRenderer`) and the rows of the
+ * panel beside them (`./debugPanel`), so the panel's colours always match the
+ * rectangles it is the legend for.
  *
- * Nothing else in the game reads these. The play chrome has its own palette
- * (`./GameRenderer`), and deliberately does not share one with this: a hover
- * yellow that shifted because somebody re-toned a debug grid would be a real
- * change made by accident.
+ * The play chrome has its own palette (`./GameRenderer`) and does not share
+ * this one, so retoning a debug colour cannot change a play colour.
  */
 export const DEBUG_COLORS = {
   /** The square the player can actually see. */

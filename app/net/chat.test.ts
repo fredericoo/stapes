@@ -1,14 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAX_CHAT_LENGTH, MAX_CHAT_RAW_LENGTH, sanitizeChatText } from "./chat";
 
-/**
- * What a browser is allowed to put on the wire.
- *
- * This runs on text from a player nobody controls, and it is the only thing
- * standing between that text and both a broadcast and a row on disk — so the
- * interesting cases are all the ones where the input is not a sentence.
- */
-
 describe("sanitizeChatText", () => {
   it("keeps an ordinary message as it was typed", () => {
     expect(sanitizeChatText("hey there!")).toBe("hey there!");
@@ -44,9 +36,8 @@ describe("sanitizeChatText", () => {
   });
 
   /**
-   * The one character in printable ASCII that NF Pixels has no glyph for. It is
-   * dropped so the rule "anything that survives here can be drawn" stays
-   * literally true — a message must never arrive with a hole in it.
+   * The one character in printable ASCII that NF Pixels has no glyph for, so
+   * everything that survives the sanitizer can be drawn.
    */
   it("drops the tilde, which the font cannot draw", () => {
     expect(sanitizeChatText("a ~ b")).toBe("a b");
@@ -74,10 +65,9 @@ describe("sanitizeChatText", () => {
   });
 
   /**
-   * The raw cap is a bound on the work, not on the message. A client must not be
-   * able to hand this a megabyte to walk, so the slice happens before the loop —
-   * which means a message whose first 512 characters are all strippable really
-   * does come back empty.
+   * The raw cap bounds the work, not the message: the slice happens before the
+   * loop, so a message whose first 512 characters are all strippable comes back
+   * empty.
    */
   it("never walks more than the raw cap", () => {
     const flood = "🎉".repeat(MAX_CHAT_RAW_LENGTH * 10) + "hello";

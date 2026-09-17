@@ -7,9 +7,8 @@
  * of: how long `GameSession.tick` takes, and how many bytes the patch it
  * produces would put on every socket. The diff and the serialization mirror
  * `GameServer.tick` (`changedCellsOnLevel` per level, then one
- * `JSON.stringify`), because measuring anything else has already sent one
- * round of this work the wrong way: the checkpoint's chunk diff reads 43x
- * worse than the wire's cell diff and is not what a client is sent.
+ * `JSON.stringify`): the checkpoint's chunk diff reads 43x worse than the
+ * wire's cell diff and is not what a client is sent.
  *
  *   bun scripts/bench-server.ts                 # every scenario, 30s each
  *   bun scripts/bench-server.ts --scenario den  # one of them

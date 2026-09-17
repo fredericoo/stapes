@@ -3,19 +3,12 @@ import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 
 /**
- * The database, which is Turso rather than SQLite proper.
+ * The database, which is Turso rather than SQLite proper: a from-scratch
+ * SQLite-compatible engine.
  *
- * Turso is a from-scratch SQLite-compatible engine, so the storage model is the
- * one the Durable Object already used — `ctx.storage` is SQLite underneath, and
- * `GameServer` already wrote SQL for its chat table. Nothing about the data
- * changes shape by moving here.
- *
- * **Its API is asynchronous, and that is the one thing worth knowing.** There is
- * no synchronous escape hatch, which would ordinarily be a problem: `saveActors`
- * is synchronous and writes from inside a tick. It is not a problem, because
- * `WorldStore` buffers writes in memory and commits them in one transaction off
- * the tick — exactly what the Durable Object's unawaited `storage.put` was
- * doing, only now the batch is a transaction and therefore atomic.
+ * Its API is asynchronous, with no synchronous escape hatch. `saveActors` is
+ * synchronous and writes from inside a tick, which works because `WorldStore`
+ * buffers writes in memory and commits them in one transaction off the tick.
  */
 export type Database = Awaited<ReturnType<typeof connect>>;
 
@@ -31,14 +24,7 @@ export type Database = Awaited<ReturnType<typeof connect>>;
  * has already run it and will not run it again.
  */
 const MIGRATIONS: readonly string[] = [
-  // v1 — the world's key/value checkpoint, and the chat log.
-  //
-  // `kv` is deliberately shaped like Durable Object storage rather than
-  // normalised into per-actor and per-chunk tables. The 3,100 lines of
-  // `GameServer` that read and write it are the most heavily tested code in the
-  // repo, and reshaping their persistence in the same change that moves runtime
-  // would mean the test suite proves nothing about either. Normalising is a
-  // later refactor with the suite green on both sides of it.
+  // v1: the world's key/value checkpoint, and the chat log.
   //
   // The value is a BLOB holding JSON. Not TEXT, because tileset PNGs go through
   // the same store and a TEXT column would mean base64 and a third of the space

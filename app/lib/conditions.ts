@@ -1,57 +1,38 @@
 import * as v from "valibot";
 
 /**
- * Asking several questions at once, as data.
+ * Composable conditions, as data.
  *
- * The shape is react-querybuilder's — a group is `{ combinator, not, rules }`
- * and a rule is either a leaf or another group — and taking a shape somebody
- * else already settled is most of the point. It is the structure every
- * rule-builder UI in the world already knows how to draw, it survives a trip
- * through JSON without a parser, and nobody here has to defend a novel encoding
- * of "and".
+ * The shape is react-querybuilder's: a group is `{ combinator, not, rules }`
+ * and a rule is either a leaf or another group. It survives JSON as is and
+ * every rule-builder UI already draws it.
  *
- * What is *not* borrowed is the leaf. react-querybuilder's rule is
- * `{ field, operator, value }`, which is the right answer to filtering rows of a
- * table and the wrong one for a question like "is my partner within five cells
- * and in plain view" — that has two parameters of different kinds, and squeezing
- * them into one `value` means encoding a selector back into a string. So this
- * module is generic over its leaf: it owns composition and nothing else, and
- * each caller brings the vocabulary it is composing. @see ../lib/brain
+ * The leaf is not borrowed. react-querybuilder's `{ field, operator, value }`
+ * cannot hold a question with two parameters of different kinds ("is my
+ * partner within five cells and in plain view") without encoding a selector
+ * into a string, so this module is generic over its leaf and owns only the
+ * composition. @see ../lib/brain
  *
- * **A bare leaf is a valid node.** That is the compatibility hinge and it is
- * deliberate: every condition ever authored — a whole `tiles.json` of them —
- * stays exactly as written, and a group only appears where somebody wanted one.
- * It also keeps the simple case simple, which is nearly every case.
- *
+ * A bare leaf is a valid node; a group only appears where somebody wanted one.
  * The one thing a leaf type may not have is a `rules` key, since that is how a
  * group is told from a leaf.
  */
 
-/** The two ways a group joins its rules. */
 export const COMBINATORS = ["and", "or"] as const;
 
 export type Combinator = (typeof COMBINATORS)[number];
 
 /**
- * Several questions joined into one.
- *
- * `not` inverts the whole group rather than any single rule, which is what makes
- * "everything except" one wrapper rather than a negated form of every leaf. A
- * group of one rule is the way to negate that rule alone, and that is not a
- * degenerate case — it is the normal shape of `not`.
+ * `not` inverts the whole group rather than any single rule. A group of one
+ * rule is the way to negate that rule alone.
  */
 export type ConditionGroup<Leaf> = {
   combinator: Combinator;
   not?: boolean;
   /**
-   * Never empty.
-   *
-   * An empty `and` is vacuously true and an empty `or` vacuously false, so the
-   * combinator would decide whether a condition nobody finished writing fires
-   * constantly or never. Both are worse than refusing it: this is parsed rather
-   * than trusted, on the same terms the rest of an authored blob is, and a group
-   * with nothing in it makes the whole thing inert instead of silently picking
-   * one of the two.
+   * Never empty. An empty `and` is vacuously true and an empty `or` vacuously
+   * false, so a group nobody finished writing would fire constantly or never;
+   * the schema refuses it instead.
    */
   rules: ConditionNode<Leaf>[];
 };
@@ -59,13 +40,9 @@ export type ConditionGroup<Leaf> = {
 export type ConditionNode<Leaf> = Leaf | ConditionGroup<Leaf>;
 
 /**
- * Is this a group rather than a leaf?
- *
- * `rules` is the tell, and it is the one key a leaf vocabulary is asked to leave
- * alone. Checking the array rather than `combinator` means a hand-authored group
- * that lost its combinator still reads as a group and fails to parse as one,
- * rather than being mistaken for a leaf of some vocabulary that has no such
- * condition.
+ * Checks `rules` rather than `combinator` so a hand-authored group that lost
+ * its combinator still reads as a group and fails to parse as one, rather than
+ * being mistaken for a leaf.
  */
 export function isConditionGroup<Leaf extends object>(
   node: ConditionNode<Leaf>,
@@ -73,7 +50,6 @@ export function isConditionGroup<Leaf extends object>(
   return "rules" in node && Array.isArray((node as ConditionGroup<Leaf>).rules);
 }
 
-/** A group of one, which is how a single leaf is negated. */
 export function group<Leaf>(
   combinator: Combinator,
   rules: ConditionNode<Leaf>[],
@@ -83,18 +59,15 @@ export function group<Leaf>(
 }
 
 /**
- * Does this hold, given something that can answer one leaf?
- *
- * Short-circuiting, and that matters beyond the wasted work: a leaf may be an
- * *event* query that records who set it off as it answers — which is exactly
- * what the brain's `heard` does — so an `and` whose first rule already failed
- * must not go on to ask the second and leave its fingerprints behind.
+ * Short-circuits, and that matters beyond the wasted work: a leaf may be an
+ * event query that records who set it off as it answers (the brain's `heard`),
+ * so an `and` whose first rule failed must not go on to ask the second.
  *
  * The `negated` flag handed to `test` is the parity of the `not`s above this
- * leaf, and it exists for those same side-effecting leaves. A branch asking
- * whether something did *not* happen has nobody to name, so a caller whose
- * leaves record a subject uses this to put back what was there — see
- * `holds` in `../game/brainRuntime`. Callers with pure leaves ignore it.
+ * leaf, for those same side-effecting leaves: a branch asking whether something
+ * did not happen has nobody to name, so a caller whose leaves record a subject
+ * uses it to put back what was there — see `holds` in `../game/brainRuntime`.
+ * Callers with pure leaves ignore it.
  */
 export function evaluateCondition<Leaf extends object>(
   node: ConditionNode<Leaf>,
@@ -127,12 +100,9 @@ export function conditionLeaves<Leaf extends object>(
 }
 
 /**
- * Where a node sits, as the indices to walk from the root.
- *
- * react-querybuilder's own addressing, and the reason to keep it is that a tree
- * editor needs to name a node it is about to change without holding a reference
- * to it — React has just handed the row a copy, and the thing that must change
- * is the tree the copy came out of. An empty path is the root.
+ * Where a node sits, as the indices to walk from the root. An empty path is
+ * the root. A tree editor needs to name a node without holding a reference to
+ * it, since React hands the row a copy and the tree is what must change.
  */
 export type ConditionPath = number[];
 
@@ -150,11 +120,9 @@ export function nodeAt<Leaf extends object>(
 }
 
 /**
- * The tree with the node at `path` swapped for `next`.
- *
- * Returns the root unchanged when the path leads nowhere, on the terms every
- * other mutation here does: an editor asking about a row that has already gone
- * is a race, not a bug worth throwing over.
+ * The tree with the node at `path` swapped for `next`. Returns the root
+ * unchanged when the path leads nowhere, as every mutation here does: an
+ * editor asking about a row that has already gone is a race, not a bug.
  */
 export function replaceAt<Leaf extends object>(
   root: ConditionNode<Leaf>,
@@ -171,11 +139,8 @@ export function replaceAt<Leaf extends object>(
 }
 
 /**
- * The tree with `node` added to the end of the group at `path`.
- *
- * Unchanged when the path names a leaf: there is nothing to add to, and an
- * editor that could turn a leaf into a group by adding to it would be doing
- * something the author did not ask for.
+ * The tree with `node` added to the end of the group at `path`. Unchanged when
+ * the path names a leaf: adding to a leaf must not turn it into a group.
  */
 export function appendTo<Leaf extends object>(
   root: ConditionNode<Leaf>,
@@ -190,13 +155,9 @@ export function appendTo<Leaf extends object>(
 /**
  * The tree with the node at `path` taken out, or null when nothing is left.
  *
- * A group emptied by the removal goes with it, recursively — a bare `and` with
- * no rules is not a thing this module lets exist, so leaving one behind to be
- * refused at parse time would make deleting a row a way to break a brain.
- *
- * Null means the caller removed the last leaf in the tree. Whoever owns the
- * condition decides what that means; the brain's editor simply does not offer
- * the button, since a transition with no `if` has nothing to fire on.
+ * A group emptied by the removal goes with it, recursively, because an empty
+ * group is refused at parse time. Null means the last leaf was removed; the
+ * owner of the condition decides what that means.
  */
 export function removeAt<Leaf extends object>(
   root: ConditionNode<Leaf>,

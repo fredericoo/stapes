@@ -79,7 +79,7 @@ const _everyCastSquareIsWorn: readonly (keyof Equipment)[] = CAST_SQUARES;
  * Where one cast comes from: a square on the body, or the body itself.
  *
  * **A tagged pair rather than a widened square**, because the two are not the
- * same kind of thing and the difference is load-bearing in three places: what
+ * same kind of thing and the difference matters in three places: what
  * the stone is read off, where the cooldown is kept, and what a name collision
  * would mean. A body's own spells are named by their author — see
  * `../lib/battler`'s {@link NaturalSpell} — and a spell somebody called
@@ -387,10 +387,9 @@ function reachability(
   }
 
   // Asked here rather than when the placement is made, so a conjure that
-  // cannot land is a refusal and costs nothing. It used to spend its cooldown
-  // on the grounds that a swing that misses does too — but a swing that misses
-  // still swung, and a flame that never appeared is a press the player cannot
-  // tell from a dropped key.
+  // cannot land is a refusal and costs nothing: a swing that misses still
+  // swung, but a flame that never appeared is a press the player cannot tell
+  // from a dropped key.
   if (
     stone.effect.kind === "conjure" &&
     !conjureLanding(context, stone.effect.tileId)
@@ -497,24 +496,12 @@ function lowestBodyIn(
  * targeted and no range. A **conjure** always wants a cell, and picks the one in
  * front when nobody is targeted.
  *
- * **The charm used to be refused a target outright**, on the argument that a
- * passive trinket reaching as far as a hand does would be the longest-ranged
- * thing in the game. The cost of that rule was worse than the thing it
- * prevented: a stone authored `on: "target"` did not fail in the charm square,
- * it *silently landed on its wearer* — so dragging Sleet onto the charm turned
- * an attack into four points of self-harm behind a fully lit button. The rule
- * was stated in five places and the retargeting in two, and nothing said the
- * two were the same rule.
- *
- * So a charm reaches whatever a hand reaches, held to the same range and the
- * same wall. What still separates the squares is what they *cost*: a hand is a
- * swing you gave up, and the charm is the square that costs no swing at all —
- * see {@link CAST_SQUARES}. That is a price, not a reach, and it is the one this
- * module was conflating.
- *
- * The `square` is still taken, and deliberately: an unused parameter here would
- * be a caller free to stop passing one, and the next rule that genuinely is
- * about the square would have to thread it back through four call sites.
+ * A charm reaches whatever a hand reaches, held to the same range and the same
+ * wall. What separates the squares is what they *cost*: a hand is a swing you
+ * gave up, and the charm is the square that costs no swing at all — see
+ * {@link CAST_SQUARES}. That is a price, not a reach. Refusing the charm a
+ * target would not make a targeted stone fail there: a stone authored
+ * `on: "target"` would silently land on its wearer behind a lit button.
  */
 function needsTarget(stone: ArcaneStoneItem): boolean {
   if (stone.effect.kind === "conjure") return true;

@@ -35,7 +35,6 @@ import { PLAYER_TILE_ID } from "./constants";
 import { handAccepts, handHasRoomFor, type Equipment } from "./equipment";
 import { pushDestination } from "./push";
 
-/** A specific placed tile in the map — cell plus slot in its stack. */
 export type ObjectRef = Coord & { stackIndex: number };
 
 /** The part of an actor these questions need: where they are standing. */
@@ -68,9 +67,9 @@ export const INTERACT_LEVEL_SLACK = 1;
  * or down, if there is a way through".
  *
  * {@link INTERACT_LEVEL_SLACK} on its own is what lets you crouch at the lip of
- * a ledge and work the lever below it; on its own it also let you shut a door in
- * the cellar while standing on the ground above it, which reads as reaching
- * through solid earth because that is exactly what it was.
+ * a ledge and work the lever below it; on its own it would also let you shut a
+ * door in the cellar while standing on the ground above it, reaching through
+ * solid earth.
  *
  * {@link hasLineOfSight} answers the "way through" half, rather than a fresh
  * test for a floor in between, because it is the same question
@@ -188,7 +187,6 @@ export function pushTargetFrom(
   return check.ok ? check.to : null;
 }
 
-/** Would the switch target fit in this stack slot? */
 export function switchWouldFit(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -343,7 +341,7 @@ function standingElevationUnder(
  * line the stacking model already draws between things that take up room and
  * things that merely rest somewhere.
  *
- * The body exception is older and separate: standing on a sword does not bury
+ * The body exception is separate: standing on a sword does not bury
  * it, and a chest with somebody on top is a chest you can still open. Any body,
  * not only your own — two people standing over one sword either both reach it or
  * neither does, and "whoever stepped on it owns it" is a rule nothing else in
@@ -443,9 +441,8 @@ export function reachableItemDefAt(
  * exactly what they want. This is what happens when they do not say. **Armour is
  * the one thing the two agree about**, since its square takes nothing else.
  *
- * Re-exported from `../lib/kit` rather than spelled out here, which it was: a
- * second list of the slots is a second list to forget a slot from, and this one
- * had already been written before the body square existed.
+ * Re-exported from `../lib/kit` rather than spelled out here: a second list of
+ * the slots is a second list to forget a slot from.
  */
 export type { EquipSlot };
 
@@ -472,8 +469,7 @@ export function equipSlotOf(def: TileDef): EquipSlot | null {
   // An arcane stone is held and never swung, on exactly the terms a shield is —
   // so the hand you do not fight with is where it goes when nobody has said
   // otherwise, and putting it in the other one is choosing to cast instead of
-  // swinging with that fist. Every stone now, where an automatic one used to go
-  // round the neck instead.
+  // swinging with that fist.
   if (item.type === "stone") return "offhand";
   // A charm has exactly one square, and `handAccepts` refuses it a hand — so
   // offering anything else here would be a "Hold" row the move rules decline.
@@ -487,11 +483,9 @@ export function equipSlotOf(def: TileDef): EquipSlot | null {
  *
  * **Equipping off the floor is not picking up**, which is the whole reason this
  * is a question of its own: a sword goes into your hand, and a hand is not a
- * pocket. It is what lets somebody with no bag at all arm themselves — the case
- * that used to be reachable only for a backpack, since that was the one thing
- * with somewhere to go.
+ * pocket. It is what lets somebody with no bag at all arm themselves.
  *
- * The slot has to be **empty**, and this is the one place that rule still holds
+ * The slot has to be **empty**, and this is the one place that rule holds
  * outright. A drag names a square, so landing on a taken one trades what is in
  * it — see `./itemMoves`' `swapInto`. A row in the world names nothing: it is
  * offered by the interface rather than aimed at, and one that quietly put your
@@ -547,12 +541,12 @@ export function canEquipFrom(
  * follows that the two rows can never name one outcome, and neither has to ask
  * about the other.
  *
- * The off hand before the weapon hand, though it no longer matters which: both
- * hands swing, so neither is the one with consequences and a thing picked up
- * into either joins the rotation. It stays in this order because a stable
- * answer is worth more than an arbitrary one, and because the other hand is
- * where `equipSlotOf` sends a weapon that *belongs* somewhere — leaving it free
- * keeps the two rows out of each other's way.
+ * The off hand before the weapon hand. Both hands swing, so neither is the one
+ * with consequences and a thing picked up into either joins the rotation; the
+ * order is fixed because a stable answer is worth more than an arbitrary one,
+ * and because the other hand is where `equipSlotOf` sends a weapon that
+ * *belongs* somewhere — leaving it free keeps the two rows out of each other's
+ * way.
  *
  * A container never goes in the bag, wearable or not: nothing nests. A wearable
  * one can still end up in a hand, since a hand takes anything you can carry.
@@ -714,8 +708,8 @@ export function dropDestinationAt(
 
   // Nothing is laid on top of something that cannot be stood on. The topmost
   // tile decides a stack's walkability, so without this a berry dropped on a
-  // bush becomes the top of it and opens a way through — which is how anybody
-  // carrying food used to get past any hedge in the world. Asked here rather
+  // bush becomes the top of it and opens a way through any hedge to anybody
+  // carrying food. Asked here rather
   // than in `canReplaceStack` on purpose: the editor asks that one too, and an
   // author stacking a plank on a fence is building a bridge, not cheating.
   if (walkableElevInStack(stack, tilesById) == null) return null;

@@ -6,10 +6,9 @@ import type { Database } from "./db";
 /**
  * Authored content in the database.
  *
- * Replaces `R2Blobs`. A table rather than a bucket because the whole of it is
- * around two and a half megabytes — a bucket would be a second service to
- * provision, back up and clone for every preview environment, in aid of data
- * that fits comfortably in the file we already keep.
+ * A table rather than a bucket because the whole of it is around two and a
+ * half megabytes; a bucket would be a second service to provision, back up and
+ * clone for every preview environment.
  *
  * Reads go straight to the database rather than through `WorldStore`'s write
  * buffer: authored content is written by an editor save, at human speed, and
@@ -62,14 +61,9 @@ export class SqliteBlobs implements Blobs {
 /**
  * Authored content on disk, for development.
  *
- * The point is unchanged from the Worker version: `data/` stays the single
- * source of truth while developing, so a tileset edited in an external tool is
- * live on the next request and the map editor's Save lands in `data/map.json`
- * as a reviewable diff. What has gone is the plumbing — the Worker had no
- * filesystem, so this used to be an HTTP call to a Vite middleware that in turn
- * read the directory, with the origin threaded through the socket handshake so
- * a Durable Object could find it. There is a filesystem now, so it is a file
- * read.
+ * `data/` stays the single source of truth while developing, so a tileset
+ * edited in an external tool is live on the next request and the map editor's
+ * Save lands in `data/map.json` as a reviewable diff.
  */
 export class DiskBlobs implements Blobs {
   constructor(private readonly root: string) {}

@@ -67,13 +67,9 @@ function pick(words: readonly string[], id: string, salt: string): string {
 }
 
 /**
- * Capitalised, because it is a name.
- *
- * The handle this replaced was uppercase so that a tag would not read as a
- * sentence, and that argument still holds where it matters — the name hangs
- * over a head in the same face as the words people say. Two capitals in a
- * two-word name carry it, and "Green Fox" is a thing you would call someone
- * out loud in a way "GREEN FOX" is not.
+ * Capitalised, because it is a name. The name hangs over a head in the same
+ * face as the words people say, and two capitals in a two-word name keep it
+ * from reading as a sentence.
  */
 function capitalise(word: string): string {
   return word.charAt(0).toUpperCase() + word.slice(1);
@@ -89,7 +85,7 @@ export function displayNameFor(actorId: string): string {
  * What to call a body — which is not the same question for a person and for a
  * deer.
  *
- * Two callers now: attributing something said, and the name tag over every
+ * Two callers: attributing something said, and the name tag over every
  * battler's head. They want the same answer, which is the reason this is a
  * function rather than a line inside either of them.
  *
@@ -102,7 +98,7 @@ export function displayNameFor(actorId: string): string {
  *
  * The body is what asks the question, not the id: `npc:` prefixes are an
  * implementation detail of how residents are keyed, and reading identity off
- * the shape of an id is how that detail becomes load-bearing.
+ * the shape of an id would make that detail a dependency.
  */
 export function bodyNameFor(
   body: { actorId: string; tileId: string },

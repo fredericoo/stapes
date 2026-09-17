@@ -290,14 +290,12 @@ async function main() {
     map.levels[zk]![`${x},${y}`] = stack;
   };
 
-  // Grass field 0..7 x 0..7
   for (let y = 0; y < 8; y++) {
     for (let x = 0; x < 8; x++) {
       put(0, x, y, [{ tileId: "grass" }]);
     }
   }
 
-  // Water pond
   for (const [x, y] of [
     [2, 2],
     [3, 2],
@@ -307,7 +305,6 @@ async function main() {
     put(0, x, y, [{ tileId: "water" }]);
   }
 
-  // Tree
   put(0, 5, 5, [{ tileId: "grass" }, { tileId: "tree" }]);
 
   // Wall enclosure with torches

@@ -3,13 +3,6 @@ import { ServerRouter } from "react-router";
 import { isbot } from "isbot";
 import { renderToReadableStream } from "react-dom/server";
 
-/**
- * Web-streams server render.
- *
- * React Router's default entry uses `renderToPipeableStream` over `node:stream`,
- * which does not exist in workerd — hence this file. `renderToReadableStream` is
- * the same streaming render against the platform's own stream type.
- */
 export default async function handleRequest(
   request: Request,
   responseStatusCode: number,

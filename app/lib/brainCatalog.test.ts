@@ -57,7 +57,6 @@ describe("the authoring catalog", () => {
           do: ACTION_NAMES.map((n) => ACTIONS[n].make()),
         },
       },
-      // One transition per condition, all pointing back at the only state.
       transitions: CONDITION_NAMES.map((n) => ({
         from: "any" as const,
         if: CONDITIONS[n].make(),
@@ -104,11 +103,11 @@ describe("the authoring catalog", () => {
 });
 
 /**
- * The two things the editor can now author that a flat `make()` does not cover:
- * a condition narrowed to one voice, and several conditions joined into one.
- * Both are optional shapes layered over the same vocabulary, so the round trip
- * is the whole test — a field dropped on the way to disk is an NPC that stops
- * telling its partner from a passer-by, silently.
+ * Two shapes a flat `make()` does not cover: a condition narrowed to one voice,
+ * and several conditions joined into one. Both are optional shapes over the
+ * same vocabulary, so the round trip is the whole test: a field dropped on the
+ * way to disk is an NPC that silently stops telling its partner from a
+ * passer-by.
  */
 describe("the shapes a condition can grow", () => {
   it("round-trips a heard narrowed to one voice, either way round", () => {

@@ -6,16 +6,9 @@ import { tilesByIdFromList } from "../lib/validation";
 import { equipmentOf, fighterForTile, statsOf, swingsOf } from "./arena";
 
 /**
- * The tuner's numbers, against the world we ship.
- *
- * **This file exists because the Arena silently stopped reading equipment and
- * nothing noticed.** When both hands learnt to swing, `statsOf` was handed
- * `null` for the hand — which does not mean "no hand in particular", it means
- * bare hands — so every fighter reported its natural weapon whatever was in its
- * hands, and every unit below `arena.ts` went on passing because none of them
- * went through it. A tuner that quietly answers a different question than the
- * one on screen is worse than no tuner, so the claims here are deliberately the
- * dull ones: that what you put in a hand is what the row reports.
+ * Passing `statsOf` `null` for a hand means bare hands, not "no hand in
+ * particular", and no unit below `arena.ts` goes through it. So these claims
+ * check that what is in a hand is what the Arena row reports.
  */
 describe("what the Arena reports", () => {
   const tilesById = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]));
@@ -28,7 +21,6 @@ describe("what the Arena reports", () => {
     };
   };
 
-  /** The regression, stated as plainly as it can be. */
   it("reports the weapon in hand rather than the body's own", () => {
     const bare = statsOf(armed(null), tilesById)!;
     const sworded = statsOf(armed("knights-sword"), tilesById)!;
@@ -44,10 +36,6 @@ describe("what the Arena reports", () => {
     expect(swingsOf(armed(null), tilesById)).toHaveLength(1);
   });
 
-  /**
-   * The case that sent somebody looking: a sword and a hammer, expecting to see
-   * both. One row per hand, each answering to its own mastery.
-   */
   it("swings once per hand for a body fighting with two", () => {
     const swings = swingsOf(armed("knights-sword", "simple-hammer"), tilesById);
 

@@ -3,14 +3,13 @@ import * as v from "valibot";
 /**
  * Everything the process needs from its environment, parsed once at boot.
  *
- * Validated rather than read ad hoc, because the failure mode otherwise is a
- * server that starts, serves, and only discovers at the first editor save that
- * `BUCKET_NAME` was a typo. A missing or malformed variable should stop the
- * process at second zero, on the deploy that introduced it.
+ * Validated rather than read ad hoc, so a missing or malformed variable stops
+ * the process at boot, on the deploy that introduced it, rather than at the
+ * first editor save.
  *
- * Every value has a development default except the secrets, which deliberately
- * have none: an unset `RESET_SECRET` disables `/api/reset` entirely rather than
- * defaulting to something guessable. See `resetSecret` below.
+ * Every value has a development default except the secret, which has none: an
+ * unset `ADMIN_SECRET` disables the admin endpoints rather than defaulting to
+ * something guessable.
  */
 const schema = v.object({
   /** Where the server listens. `0` asks the OS for a free port — see `scripts/dev.ts`. */
@@ -40,7 +39,7 @@ const schema = v.object({
    * Almost never needed. The server writes down what it is serving and comes
    * back up on it, so this only matters for the very first deploy — see
    * `ClientBundle.restore`. Builds themselves live on the volume under
-   * `clients/`, put there by `POST /api/client/upload`; there is no bucket.
+   * `clients/`, put there by `POST /api/client/upload`.
    */
   CLIENT_BUILD_ID: v.optional(v.string()),
 

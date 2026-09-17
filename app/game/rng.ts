@@ -57,8 +57,7 @@ export class Rng {
    * The generator's whole state, for a checkpoint.
    *
    * The *current* state rather than the seed it started from: a world resumed
-   * from its opening seed would replay the same wander it played before the
-   * eviction, which is the one thing a fresh draw is supposed to avoid.
+   * from its opening seed would replay the wander it has already played.
    */
   save(): number {
     return this.state;

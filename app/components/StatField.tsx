@@ -10,10 +10,8 @@ import { FieldLabel, NumberInput } from "../ui";
  * with `50` in it. Showing what the current value *means* is what makes the
  * curves authorable rather than something to be discovered by fighting things.
  *
- * Shared by the Battle and Item tabs, which used to hold a copy each. They are
- * read side by side when balancing a weapon against the creature it is meant to
- * kill, and two components that were meant to look identical are two components
- * that will eventually not.
+ * Shared by the Battle and Item tabs, which are read side by side when
+ * balancing a weapon against the creature it is meant to kill.
  */
 export function StatField({
   label,

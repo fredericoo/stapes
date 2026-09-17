@@ -13,12 +13,9 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
 /**
- * Everything the platform used to do around `GameServer`.
- *
- * A Durable Object was handed a storage engine, a socket registry, an alarm
- * clock and a lifecycle for free. None of that was ever the world's own logic,
- * which is why none of it lives in `GameServer` — it lives here, and it is
- * about two hundred lines.
+ * The storage, socket registry, alarm timer and lifecycle around
+ * `GameServer`. None of it is the world's own logic, which is why it lives
+ * here rather than in `GameServer`.
  */
 export class World {
   private checkpointTimer: ReturnType<typeof setInterval> | null = null;
@@ -86,15 +83,11 @@ export class World {
   }
 
   /**
-   * Commit whatever the tick has buffered, on a fixed cadence.
+   * Commit whatever the tick has buffered, on a fixed cadence. This bounds the
+   * loss from a crash nothing gets to drain to one interval, two seconds by
+   * default.
    *
-   * The Durable Object wrote when it felt like it and relied on the platform to
-   * make an unawaited `put` durable. Nothing does that here, so this is what
-   * bounds the loss from a crash nothing gets to drain — two seconds by
-   * default, against the thirty the actor flush used to allow.
-   *
-   * An idle world costs nothing: the store knows whether anything is dirty, and
-   * a board nobody has touched is the same object with nothing to re-flatten.
+   * An idle world costs nothing: the store knows whether anything is dirty.
    */
   private startCheckpointing() {
     this.checkpointTimer = setInterval(() => {
@@ -106,9 +99,9 @@ export class World {
   }
 
   /**
-   * Say nothing, out loud, on a fixed cadence.
+   * Send a keepalive frame on a fixed cadence.
    *
-   * **Lives here rather than in the tick, which is the entire point.** A world
+   * Lives here rather than in the tick, and that is the point. A world
    * at rest stops ticking, so anything hung off the tick goes quiet exactly
    * when a proxy is deciding whether this connection is still alive. A player
    * standing alone in a still world would be disconnected and reconnected
@@ -123,11 +116,9 @@ export class World {
   }
 
   /**
-   * Point a timer at the next alarm.
-   *
-   * `GameServer` schedules respawns by asking storage to wake it at a
-   * wall-clock time — an API that existed because a hibernating object has no
-   * timers of its own. A process that stays up does, so this is a `setTimeout`.
+   * Point a timer at the next alarm. `GameServer` schedules respawns by asking
+   * storage to wake it at a wall-clock time; this is the `setTimeout` behind
+   * that.
    *
    * Clamped at zero rather than skipped when the deadline has already passed: a
    * world restored from a checkpoint written an hour ago has every pending
@@ -150,7 +141,6 @@ export class World {
     );
   }
 
-  /** Attach a freshly upgraded connection to the world. */
   async join(socket: GameSocket, actorId: string): Promise<void> {
     await this.server.join(socket, actorId);
   }

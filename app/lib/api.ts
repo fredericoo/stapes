@@ -123,7 +123,6 @@ export async function startSession(): Promise<{ protocolVersion: number }> {
   return (await response.json()) as { protocolVersion: number };
 }
 
-/** Where a tileset PNG is served from, for the renderer's image loads. */
 export function tilesetUrl(file: string): string {
   return `/api/tilesets/${encodeURIComponent(file)}`;
 }

@@ -23,11 +23,9 @@ import { STRIKE_DURATION_MS, TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
 
 /**
- * Fighting, on a board.
- *
- * The formulas have their own file; this is about everything around them — who
- * may swing at whom, how often, what a blow does to the world, and what happens
- * to a body that runs out of hit points.
+ * The formulas are `./combat.test`'s; this covers who may swing at whom, how
+ * often, what a blow does to the world, and what happens to a body that runs
+ * out of hit points.
  */
 
 const frame = {
@@ -96,37 +94,9 @@ const brawlerBrain = {
   ],
 };
 
-/**
- * Certain to hit, certain to hurt, and as fast as the rules allow.
- *
- * The key was `acc` until the field was renamed to `accuracy`, and a stale one
- * is silently dropped by the schema — so this spread nothing and every fixture
- * claiming to be certain was landing half its blows. Nothing failed, because
- * every assertion downstream was about *eventually* doing damage.
- */
+/** Certain to hit, and as fast as the rules allow. */
 const CERTAIN = { accuracy: 100, spd: 100 };
 
-/**
- * A natural weapon, spelled out once.
- *
- * Every body has one now, and most of these fixtures only care about two of its
- * numbers — so the rest are defaulted here rather than repeated five times.
- */
-/**
- * The Toughness these fixtures buy their hit points with, and what it now costs
- * them.
- *
- * **Toughness is no longer a pure hit-point dial** — see `../lib/battler`'s
- * `defFrom`, which gives every body a share of defence on the same curve. These
- * tests are about reach, targeting and the plumbing of a blow, so what they need
- * is a body with a lot of health that a swing still visibly dents; a fixture
- * that quietly grew eighteen points of armour turned every one of them into an
- * assertion about mitigation instead.
- *
- * So the figures are *derived* rather than typed. A hundred hit points was
- * written as `92` and read as `100` in six places, and the day the curve moved,
- * all six were wrong in a way that read as a broken swing.
- */
 /**
  * What every body in here is worth before Toughness adds any — see
  * `../lib/battler`'s `baseHp`. One figure for all of them, so a comparison
@@ -134,6 +104,10 @@ const CERTAIN = { accuracy: 100, spd: 100 };
  */
 const FIXTURE_BASE_HP = 8;
 
+/**
+ * Toughness buys defence as well as hit points — see `../lib/battler`'s
+ * `defFrom` — so the hit-point figures are derived from it rather than typed.
+ */
 const PLAYER_TOUGHNESS = 92;
 const PLAYER_MAX_HP = maxHpFrom(FIXTURE_BASE_HP, PLAYER_TOUGHNESS);
 const DUMMY_TOUGHNESS = 42;
@@ -189,10 +163,9 @@ const tiles: TileDef[] = [
       battler: { baseHp: FIXTURE_BASE_HP, masteries: { toughness: DUMMY_TOUGHNESS }, naturalWeapon: claws({}) },
     },
   }),
-  // Armoured past anything the player can do to it. That takes four times the
-  // defence it used to: armour is drawn rather than subtracted, so what has to
-  // outweigh the blow is {@link MIN_GUARD_SHARE} of this and not the whole of
-  // it.
+  // Armoured past anything the player can do to it. Armour is drawn rather than
+  // subtracted, so what has to outweigh the blow is {@link MIN_GUARD_SHARE} of
+  // this and not the whole of it.
   tile({
     id: "anvil",
     height: 2,
@@ -243,8 +216,7 @@ const tiles: TileDef[] = [
       brain: brawlerBrain,
     },
   }),
-  // The same venom in something a player can pick up, which is the case that
-  // comes free from routing a weapon's statuses through `FightingStats`.
+  // The same venom in something a player can pick up.
   tile({
     id: "venom-fang",
     height: 0,
@@ -315,12 +287,10 @@ function advance(session: GameSession, ms: number) {
  * Per tick because a lean is aged and dropped as the world runs — a single look
  * at the end would see at most the last one.
  *
- * **The lean rather than the receipt, and it used to be the receipt.** A swing no
- * longer reliably produces one: a dodged blow is now a movement on the defender
+ * The lean rather than the receipt: a dodged blow is a movement on the defender
  * and nothing floating at all, so a rate counted in receipts would come up short
  * one swing in twenty and fail on the unlucky run. Every swing thrown inside
- * arm's reach leans, which is what makes this the honest measure of *rate* — and
- * everything here fights at arm's reach.
+ * arm's reach leans, and everything here fights at arm's reach.
  *
  * Identity, exactly as the wire counts them: the state is mutated in place as it
  * ages, so a new object is a new swing and nothing else is.
@@ -374,9 +344,8 @@ describe("hit points", () => {
 /**
  * How long to swing for before a blow is certain enough to assert on.
  *
- * **Nothing in a fight is certain any more** — every probability is held inside
- * a band with a floor and a ceiling, so even a perfect attacker whiffs one swing
- * in twenty. These tests are about *reach and targeting*, not about the odds, so
+ * Every probability is held inside a band with a floor and a ceiling, so even a
+ * perfect attacker whiffs one swing in twenty. These tests are about *reach and targeting*, not about the odds, so
  * they swing several times and assert that hit points moved. The arithmetic of a
  * single blow is `./combat.test`'s subject, where the stats can be forced.
  */
@@ -508,8 +477,7 @@ describe("swinging at a target", () => {
 
 /**
  * A target is who; attack mode is whether. Pointing at a creature is how a
- * player asks about one — its name, its health — and before these were separate
- * the only way to look that closely was to start a fight.
+ * player asks about one — its name, its health.
  */
 describe("targeting without attacking", () => {
   it("keeps the target and never swings", () => {
@@ -524,10 +492,8 @@ describe("targeting without attacking", () => {
   });
 
   /**
-   * And it costs the world nothing. A target used to hold the tick loop open on
-   * its own, because a fight is a cooldown counting down; standing there
-   * watching a deer must not keep a Durable Object awake for as long as you look
-   * at it.
+   * A target alone must not hold the tick loop open: a fight is a cooldown
+   * counting down, but standing there watching a deer is not.
    */
   it("leaves an idle world idle", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
@@ -608,7 +574,7 @@ describe("damage numbers", () => {
     fight(session, bodyOf(session, "dummy")!.id);
 
     // Until something actually floats, rather than for one tick: a dodged blow
-    // is a movement now and produces no receipt, so the first swing is not
+    // is a movement and produces no receipt, so the first swing is not
     // guaranteed to make one.
     advanceUntil(session, () => session.getSnapshot().damage.length > 0);
     session.drainDamage();
@@ -815,12 +781,10 @@ describe("the authored creatures", () => {
 });
 
 /**
- * A body that shoots rather than swings.
- *
- * The reach is the interesting half — six cells across the floor and a level
- * either way — and it is on the *weapon*, which is the whole of what moved when
- * ranged weapons arrived. The projectile beside it is what makes it ranged;
- * there is no flag saying so. @see `../lib/item`'s `isRanged`
+ * A body that shoots rather than swings. The reach — six cells across the floor
+ * and a level either way — is on the weapon, and the projectile beside it is
+ * what makes it ranged; there is no flag saying so. @see `../lib/item`'s
+ * `isRanged`
  */
 const bow = claws({
   damage: feltBy(DUMMY_TOUGHNESS),
@@ -891,7 +855,6 @@ describe("shooting at somebody", () => {
     expect(swingsOver(session, 1000)).toBe(0);
   });
 
-  /** What a shot puts in the air, aimed from where the shooter is to where they are. */
   it("puts an arrow in the air, from the bow to the target", () => {
     const session = new GameSession(withBody(field(6), 4, 0, "dummy"), archerTiles);
     fight(session, bodyOf(session, "dummy")!.id);
@@ -1008,7 +971,7 @@ describe("venom", () => {
     fight(session, bodyOf(session, "viper")!.id);
 
     // For the venom by name: the first swing puts the player in combat, which
-    // is a status too, and waiting for "anything" stopped there.
+    // is a status too.
     advanceUntil(session, () =>
       (session.statusesOf("local") ?? []).some((s) => s.defId === "venom"),
     );
@@ -1029,7 +992,7 @@ describe("venom", () => {
     fight(session, bodyOf(session, "viper")!.id);
 
     // For the venom by name: the first swing puts the player in combat, which
-    // is a status too, and waiting for "anything" stopped there.
+    // is a status too.
     advanceUntil(session, () =>
       (session.statusesOf("local") ?? []).some((s) => s.defId === "venom"),
     );
@@ -1105,19 +1068,16 @@ describe("venom", () => {
 });
 
 /**
- * What a blow costs the body that threw it, in footwork.
+ * Every blow plants its thrower for two of that body's steps. Swinging is
+ * automatic, so without a cost the strictly better way to fight is never to
+ * stand still. The cost is read off the tile rather than from a constant, so a
+ * creature authored to walk slowly is not punished twice for it, and off the
+ * tile rather than off Agility, so it is the one thing in a fight nobody can
+ * train away.
  *
- * A fight used to be winnable by holding a movement key: the swinging is
- * automatic and cost nothing, so the strictly better way to fight was to never
- * stand still. Every blow now plants its thrower for two of that body's steps —
- * read off the tile rather than from a constant, so a creature authored to walk
- * slowly is not punished twice for it, and off the tile rather than off Agility,
- * so it is the one thing in a fight nobody can train away.
- *
- * Two rather than one, because one was very nearly free: a retreat that swung on
- * the way out gave up a fraction of a step per blow and there was no decision in
- * it. The plant holds the aim as well as the feet, which is the other half of
- * the same rule — see the turning tests below.
+ * Two steps rather than one, because one is very nearly free: a retreat that
+ * swings on the way out gives up a fraction of a step per blow. The plant holds
+ * the aim as well as the feet — see the turning tests below.
  */
 describe("what a swing costs in footwork", () => {
   /**
@@ -1129,7 +1089,6 @@ describe("what a swing costs in footwork", () => {
    */
   const PLODDER_WALK_MS = WALK_DURATION_MS * 3;
 
-  /** What a blow plants a body for, as the rule states it. */
   const recoveryOf = (walkMs: number) => walkMs * STRIKE_RECOVERY_STEPS;
 
   /**
@@ -1195,9 +1154,9 @@ describe("what a swing costs in footwork", () => {
   });
 
   /**
-   * The second step is the whole of what this change bought, so it is asserted
-   * on its own: at one step the body would already be walking here, and the
-   * distance a retreat gives up per blow is the difference.
+   * The second step is asserted on its own: at one step the body would already
+   * be walking here, and the distance a retreat gives up per blow is the
+   * difference.
    */
   it("holds the step past the first of the two steps it costs", () => {
     const session = planted(ponderous(PLODDER_WALK_MS));
@@ -1248,9 +1207,9 @@ describe("what a swing costs in footwork", () => {
   });
 
   /**
-   * And gives the aim back with the footwork. The fought corner the old rule
-   * worried about is still aimable — the plant runs out between blows for every
-   * weapon anybody has authored — it is simply not aimable *during* a blow.
+   * The aim comes back with the footwork. The plant runs out between blows for
+   * every weapon anybody has authored, so a body is only unaimable *during* a
+   * blow.
    */
   it("turns again the moment the recovery is spent", () => {
     const session = planted(ponderous(PLODDER_WALK_MS));
@@ -1361,9 +1320,7 @@ describe("what a swing costs in footwork", () => {
  *
  * Every one of these swings a blow the target's armour all but stops in a duel —
  * `feltBy(DUMMY_TOUGHNESS)` against a player wearing `PLAYER_TOUGHNESS` — so
- * almost nothing lands here until the crowd itself is what makes it land. That
- * is the exact fight this rule was written for: eight rats gnawing a
- * well-armoured ankle.
+ * almost nothing lands here until the crowd itself is what makes it land.
  *
  * **The control is a comparison rather than a zero**, and it has to be: armour
  * is drawn rather than subtracted, so a body would need four times this
@@ -1431,7 +1388,6 @@ describe("being outnumbered", () => {
     expect(mauled).toBeGreaterThan(chipped);
   });
 
-  /** The reported fight: eight of the same thing is not one thing, eight times. */
   it("opens a body up once a crowd is on it", () => {
     const { session } = surrounded(SURROUNDING_CELLS.length);
 

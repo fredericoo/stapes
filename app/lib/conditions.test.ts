@@ -14,12 +14,10 @@ import {
 } from "./conditions";
 
 /**
- * Composing questions, with a leaf vocabulary invented for the test.
- *
- * Deliberately not the brain's: this module's whole claim is that it knows
- * nothing about what a leaf means, and a test written against `in_range` would
- * quietly stop checking that. Here a leaf is a letter and whether it holds is a
- * lookup, which is the least this module could possibly be told.
+ * A leaf vocabulary invented for the test, deliberately not the brain's: this
+ * module claims to know nothing about what a leaf means, and a test written
+ * against `in_range` would stop checking that. A leaf is a letter and whether
+ * it holds is a lookup.
  */
 type Leaf = { name: string };
 
@@ -207,8 +205,8 @@ describe("parsing", () => {
   const schema = conditionSchema(leafSchema);
 
   /**
-   * The compatibility hinge. Every condition ever authored is a bare leaf, and
-   * they all have to keep parsing without a migration.
+   * Every condition already authored is a bare leaf, and they all have to keep
+   * parsing without a migration.
    */
   it("takes a bare leaf as a whole condition", () => {
     expect(v.parse(schema, { name: "a" })).toEqual(leaf("a"));

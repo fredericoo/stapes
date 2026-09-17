@@ -1,17 +1,13 @@
 /**
  * The game view: a fixed square of world, the same on every device.
  *
- * Everyone sees exactly {@link VIEW_CELLS} cells across, whatever they are
- * playing on. A wider monitor buys bigger pixels, never more world — which is
- * the point, since seeing further than the person you are standing next to is
- * an advantage the window size should not hand out.
+ * Everyone sees exactly {@link VIEW_CELLS} cells across. A wider monitor buys
+ * bigger pixels, never more world, so window size does not hand out an
+ * advantage in how far you can see.
  *
- * Tibia frames it the same way, on a slightly tighter square (15 tiles wide,
- * player in the centre one, three more shipped either side that are never
- * drawn). The off-screen ring costs us nothing to keep: chunk geometry is built
- * for the whole map and culled per chunk, and the lighting window is already
- * grown past the view, so a step never reveals an unbuilt or unlit strip at the
- * edge.
+ * No off-screen ring is shipped: chunk geometry is built for the whole map and
+ * culled per chunk, and the lighting window is grown past the view, so a step
+ * never reveals an unbuilt or unlit strip at the edge.
  */
 import { CELL_SIZE } from "../lib/types";
 import { VIEW_CELLS } from "../lib/view";
@@ -42,18 +38,15 @@ export type ViewportFit = {
  * Fit a square of world to a square pane of `cssSize` CSS pixels.
  *
  * The buffer is a whole multiple of the span and the element is then stretched
- * over the pane, so the fit is exact with no letterbox *inside* the square. The
- * stretch is the only fractional step, and `image-rendering: pixelated` keeps
- * it a nearest-neighbour blow-up: some pixels land a device pixel wider than
- * their neighbours, but the unevenness is static rather than crawling with the
- * camera, which is what a fractional render scale would give.
+ * over the pane, so there is no letterbox inside the square. The stretch is the
+ * only fractional step, and `image-rendering: pixelated` keeps it a
+ * nearest-neighbour blow-up: some pixels land a device pixel wider than their
+ * neighbours, but the unevenness is static rather than crawling with the
+ * camera as a fractional render scale would.
  *
- * `spanPx` is {@link VIEW_PX} for everybody playing, and that is the only value
- * it ever takes in a shipped frame. The debug view (`./debugView`) hands a
- * multiple of it so the camera can be pulled back off the play square; passing
- * it here rather than scaling the result afterwards is what keeps the whole
- * pixel grid — the render scale is still whole, it is just a smaller whole
- * number.
+ * `spanPx` is {@link VIEW_PX} in every shipped frame. The debug view
+ * (`./debugView`) passes a multiple of it to pull the camera back; passing it
+ * here rather than scaling the result afterwards keeps the render scale whole.
  */
 export function fitViewport(cssSize: number, spanPx: number = VIEW_PX): ViewportFit {
   const usable = Math.max(1, Math.floor(cssSize));

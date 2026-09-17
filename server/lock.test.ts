@@ -7,17 +7,13 @@ import { openDatabase } from "./db";
 import { openWorldDatabaseExclusively } from "./lock";
 
 /**
- * The single-writer guarantee.
+ * The single-writer guarantee. Two processes both simulating one world write a
+ * board blended from two timelines, which persists because the checkpoint is
+ * preferred over the authored map on load.
  *
- * This is the one thing the Durable Object provided that a virtual machine does
- * not, and its absence does not announce itself: two processes both simulating
- * one world write a board blended from two timelines, which then persists
- * because the checkpoint is preferred over the authored map on load.
- *
- * **These tests spawn real processes, and they have to.** POSIX advisory locks
- * are held per *process*, so a second connection opened inside this one does
- * not conflict with the first — an in-process test would report a guarantee
- * that does not exist. The failure mode being guarded is two containers, so the
+ * These tests spawn real processes, and they have to: POSIX advisory locks are
+ * held per process, so a second connection opened inside this one does not
+ * conflict with the first. The failure being guarded is two containers, so the
  * test is two processes.
  */
 
@@ -85,12 +81,11 @@ describe("exclusive world database", () => {
   }, 30_000);
 
   it("takes the lock at open, not at the first write", async () => {
-    // The failure this guards was real while writing this code: the pragma only
-    // takes effect on a connection's first write, so on an already-migrated
-    // database two processes would both boot, both load a world, and only
-    // diverge visibly at the first checkpoint two seconds later. Migrating
-    // first, so the holder has no migration write to take the lock for, is
-    // exactly that case.
+    // The pragma only takes effect on a connection's first write, so on an
+    // already-migrated database two processes would both boot, both load a
+    // world, and only diverge visibly at the first checkpoint two seconds
+    // later. Migrating first leaves the holder no migration write to take the
+    // lock with.
     const path = join(await scratchDir(), "stapes.db");
     const migrated = await openDatabase(path);
     await migrated.close?.();

@@ -24,16 +24,12 @@ import type { GameServer } from "./GameServer";
  * A real client and a real world, talking to each other.
  *
  * Everything else in this suite reads the wire: it asserts on the frames the
- * server sends, which is the right test for what the server decided and says
- * nothing about what a browser does with it. Three regressions shipped in #224
- * that every one of those tests was happy with — a corpse that stayed on the
- * board, a step thrown back across a chunk boundary, and frames getting slower
- * — because all three are what the *client* is left holding after a run of
- * frames, and nothing here had ever run one.
- *
- * So this drives a `RemoteSession` over the same socket pair the rest of the
- * suite uses, with both clocks in the test's hand, and asserts on
- * `getSnapshot()` — the thing the renderer actually draws.
+ * server sends, which says nothing about what a browser is left holding after
+ * a run of them — a corpse that stays on the board, a step thrown back across
+ * a chunk boundary, frames getting slower. So this drives a `RemoteSession`
+ * over the same socket pair the rest of the suite uses, with both clocks in
+ * the test's hand, and asserts on `getSnapshot()`, which is what the renderer
+ * draws.
  */
 
 const JSON_TYPE = "application/json";
@@ -49,10 +45,10 @@ const SPAWN_X = CHUNK_SIZE;
 /**
  * A deer two cells east of the player: in reach, in view, and killable.
  *
- * A deer rather than a rat, and not a detail — a rat hunts, so a test that
- * walks a player past one is a test about a fight, and the player being sent
- * back to the spawn point by a rat reads exactly like the step being thrown
- * back that this file is here to look for.
+ * A deer rather than a rat: a rat hunts, so a test that walks a player past
+ * one is a test about a fight, and the player being sent back to the spawn
+ * point by a rat reads exactly like the step being thrown back that this file
+ * is here to look for.
  */
 const DEER_X = SPAWN_X + 2;
 const DEER_ID = `npc:${DEER_X},0,0,1`;
@@ -192,11 +188,10 @@ function kill(actorId: string) {
  * Every cell where the client's board and the world's disagree, inside what the
  * client is subscribed to.
  *
- * The invariant the whole scoping rests on, and the one nothing was checking:
- * what a client holds is the world's board, with the bodies it is too far away
- * to be told about taken out of it. A cell the server decided not to send is a
- * cell the client goes on drawing — too far to see today, in the way of its own
- * feet tomorrow.
+ * The invariant the whole scoping rests on: what a client holds is the world's
+ * board, with the bodies it is too far away to be told about taken out of it. A
+ * cell the server decided not to send is a cell the client goes on drawing —
+ * too far to see today, in the way of its own feet tomorrow.
  *
  * Stripped rather than raw, because a body beyond the body reach is *meant* to
  * be missing: comparing against the world as it stands would call the saving
@@ -257,8 +252,7 @@ function divergence(remote: RemoteSession, actorId: string): string[] {
  * 5.01s on CI, where the second crossed the 5000ms default and failed. It failed
  * *as a timeout*, and the assertion that landed after the deadline then reported
  * a half-finished walk as a divergence between client and world — which reads
- * exactly like the scoping bug this file exists to catch. A test that cries wolf
- * on a loaded runner is worse than no test.
+ * exactly like the scoping bug this file exists to catch.
  *
  * Fifteen seconds is three times the slowest run seen: room for a runner under
  * load, and still short enough that something genuinely hung fails rather than
@@ -288,10 +282,10 @@ describe("a client playing against a real world", () => {
   });
 
   /**
-   * The first thing #224 broke. A death is a cell change with no terrain in it,
-   * and the body it is about is gone from the tick's snapshot before the patch
-   * is cut — so the one patch that takes the corpse off the board was the one
-   * the scoping dropped, and nothing ever rewrote that cell again.
+   * A death is a cell change with no terrain in it, and the body it is about
+   * is gone from the tick's snapshot before the patch is cut — so the patch
+   * that takes the corpse off the board is the one the scoping would drop, and
+   * nothing ever rewrites that cell again.
    */
   it("takes a dead body off the board it draws", async () => {
     const { remote, advance } = await play("alice");

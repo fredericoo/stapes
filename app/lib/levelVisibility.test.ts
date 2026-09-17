@@ -112,10 +112,8 @@ describe("viewAnchorFor", () => {
 });
 
 /**
- * Does the cut take anything at all? The question the old boolean roof-cut
- * asked, kept because every case below it is still a case about the probe —
- * which cells the viewer can see above themselves — and the probe did not
- * change when the cut stopped being a storey.
+ * Does the cut take anything at all? The cases below are about the probe:
+ * which cells the viewer can see above themselves.
  */
 function cuts(
   map: MapFile,
@@ -232,15 +230,9 @@ describe("the roof-cut probe", () => {
 });
 
 /**
- * The scenarios the shipped map used to be read for, rebuilt cell by cell out
- * of the real tile catalogue.
- *
- * Reading `data/map.json` meant each case pinned a coordinate in a file the
- * editor rewrites: swapping one wall of the square for a window flipped an
- * expectation and broke the build, which says nothing about this code. What is
- * worth keeping is that the shipped tiles — their heights, their light-passing
- * flags — really do drive the roof-cut, so the tile definitions stay real and
- * only the geometry is local.
+ * Scenarios built cell by cell out of the real tile catalogue. The shipped
+ * tiles (their heights, their light-passing flags) drive the roof-cut, so the
+ * tile definitions stay real and only the geometry is local.
  */
 describe("the roof-cut probe with the shipped tiles", () => {
   const mapTiles = tilesByIdFromList(
@@ -346,11 +338,8 @@ describe("occluders out at the probe radius", () => {
 });
 
 /**
- * A house is a house, and the one next door is not.
- *
- * The geometry here is the smallest thing that can tell the two apart: two
- * one-cell rooms with a gap between them, each with its own roof. Before the
- * cut was a structure, standing in either lifted both roofs.
+ * Two one-cell rooms with a gap between them, each with its own roof: the
+ * smallest geometry that can tell one structure from the one next door.
  */
 describe("roofCutFor picks out one structure", () => {
   const inside = { x: 0, y: 0, z: 0 };
@@ -461,16 +450,13 @@ describe("roofCutFor picks out one structure", () => {
 });
 
 /**
- * Terrain is not a structure, and the cut says so by giving up.
- *
- * A continuous slab above the viewer — the level over a cliff, a cave ceiling —
+ * A continuous slab above the viewer (the level over a cliff, a cave ceiling)
  * has no building in it to single out. The fill refuses past MAX_CUT_CELLS and
- * the cut degrades to the whole storey, which is what this did before it could
- * tell one house from another.
+ * the cut degrades to the whole storey.
  */
 describe("roofCutFor falls back to the whole storey", () => {
   it("cuts every level above once the fill runs past its budget", () => {
-    const side = 80; // 6400 cells, comfortably past MAX_CUT_CELLS
+    const side = 80;
     expect(side * side).toBeGreaterThan(MAX_CUT_CELLS);
     const cells: Array<{ x: number; y: number; z?: number; tiles: string[] }> =
       [{ x: 0, y: 0, tiles: ["floor"] }];

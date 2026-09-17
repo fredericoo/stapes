@@ -4,9 +4,9 @@
  *   bun scripts/anchor-tiles.ts            # rewrite in place
  *   bun scripts/anchor-tiles.ts --check    # say what would change, write nothing
  *
- * A tile used to name a sheet on every one of its sprites and measure every rect
- * from that sheet's corner. It now names the sheet once, on `TileDef.anchor`,
- * and measures every rect from there — see `app/lib/types`.
+ * The old encoding names a sheet on every one of a tile's sprites and measures
+ * every rect from that sheet's corner. The anchored one names the sheet once,
+ * on `TileDef.anchor`, and measures every rect from there — see `app/lib/types`.
  *
  * `normalizeTileDef` migrates the old encoding on load, so the game reads the
  * file either way and this script changes nothing anybody can see. It exists so
@@ -16,9 +16,8 @@
  *
  * **It refuses a tile whose sprites disagree about their sheet.** The migration
  * takes the first sheet it finds and would silently draw the rest of that tile
- * from the wrong picture. Nothing in the catalogue has ever done this — checked
- * before the encoding changed — so the refusal is a guard against a hand-edit,
- * not a case anybody has to handle.
+ * from the wrong picture. Nothing in the catalogue does this, so the refusal
+ * is a guard against a hand-edit, not a case anybody has to handle.
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { normalizeTiles } from "../app/lib/types";

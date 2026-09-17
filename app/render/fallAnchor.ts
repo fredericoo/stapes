@@ -23,18 +23,12 @@ export function standingFootAbs(
 /**
  * How far below its map anchor a falling sprite is drawn, in world pixels.
  *
- * A fall runs in absolute height units, but the map can only stand a tile on a
- * surface — and feet part-way up a level have no surface to be placed on, so
- * the simulation puts the tile on the level below, a whole unit low. Anchoring the sprite on that cell and adding only the
- * progress through the current unit therefore drew every other unit of the drop
- * a unit too low: down a unit at one boundary, back up at the next. That is the
- * twitch.
- *
- * Taking the offset as the distance between where the fall says the feet are
- * and where the map could put them keeps the sprite on the fall's own line, and
- * the map's rounding never reaches the screen. It also puts the sprite back
- * where its depth box already claimed to be, which is computed from the same
- * absolute feet.
+ * A fall runs in absolute height units, but the map can only stand a tile on
+ * a surface, so feet part-way up a level are placed on the level below. Adding
+ * only the progress through the current unit to that anchor drew every other
+ * unit of the drop a unit too low. The offset is instead the distance between
+ * where the fall says the feet are and where the map put them, which also
+ * matches the depth box computed from the same absolute feet.
  */
 export function fallDropPx(
   map: MapFile,

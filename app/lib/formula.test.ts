@@ -15,7 +15,6 @@ const scope: FormulaScope = {
   statuses: [{ defId: "combat" }, { defId: "food-poisoning" }],
 };
 
-/** Compile and run in one go; the tests are about answers, not about handles. */
 function evaluate(source: string, over: Partial<FormulaScope> = {}): number | null {
   const formula = parseFormula(source);
   return formula ? formula.evaluate({ ...scope, ...over }) : null;

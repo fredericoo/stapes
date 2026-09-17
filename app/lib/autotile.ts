@@ -46,7 +46,6 @@ const MASK_TO_SLICE: Uint8Array = (() => {
   const order: number[] = [];
   const seen = new Map<number, number>();
 
-  // Prefer scanning in a stable order; ensure 0 (isolated) is slice 0.
   for (let raw = 0; raw < 256; raw++) {
     const masked = maskBlobCorners(raw);
     if (!seen.has(masked)) {
@@ -55,7 +54,6 @@ const MASK_TO_SLICE: Uint8Array = (() => {
     }
   }
 
-  // Re-number so isolated (0) is index 0; keep relative order otherwise.
   const remap = new Map<number, number>();
   remap.set(0, 0);
   let next = 1;
@@ -109,14 +107,12 @@ const NEIGHBOR_OFFSETS: { bit: number; dx: number; dy: number }[] = [
 ];
 
 /**
- * Everything the mask needs to know about the tile doing the looking: its own
- * id, and whatever else it counts as itself.
+ * The tile doing the looking: its own id, and whatever else it counts as
+ * itself.
  *
  * A `TileDef` is structurally one of these, so callers pass the def they
- * already hold. That is the point of taking an object rather than an id — the
- * two call sites both have the def, and an id alone is a signature that lets a
- * caller drop {@link TileDef.connectsTo} on the floor and get a plausible,
- * silently wrong slice back.
+ * already hold. Taking an object rather than an id keeps a caller from
+ * dropping {@link TileDef.connectsTo} and getting a plausible, wrong slice.
  */
 export type AutotileIdentity = {
   id: string;
@@ -136,7 +132,6 @@ export function stackConnects(
   );
 }
 
-/** Build 8-neighbor bitmask for an autotile placement. */
 export function neighborMask(
   map: MapFile,
   x: number,

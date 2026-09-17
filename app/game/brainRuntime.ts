@@ -137,21 +137,12 @@ export type BrainMemory = {
 /**
  * What an action did.
  *
- * The behaviour-tree leaf protocol, and it is the tri-state that earns its
- * keep: `failure` is what lets a priority list fall through to its next line,
- * and `running` is what stops the scan while a body finishes a step it cannot
- * take twice.
+ * The behaviour-tree leaf protocol: `failure` is what lets a priority list fall
+ * through to its next line, and `running` is what stops the scan while a body
+ * finishes a step it cannot take twice.
  */
 export type ActionStatus = "success" | "failure" | "running";
 
-/**
- * The world as one action sees it.
- *
- * Narrow on purpose. An action can look at where it is, roll a die, and ask to
- * move; it cannot reach the map, the other actors, or the session. Widening
- * this is how a registry of small declarative verbs would quietly become a
- * scripting language.
- */
 /**
  * Somewhere a creature has set off for.
  *
@@ -181,11 +172,18 @@ export type WalkOrderState = "walking" | "arrived" | "blocked";
  */
 export type FoundThing = { readonly at: Coord; readonly tileId: string };
 
+/**
+ * The world as one action sees it.
+ *
+ * Narrow on purpose. An action can look at where it is, roll a die, and ask to
+ * move; it cannot reach the map, the other actors, or the session. Widening
+ * this is how a registry of small declarative verbs would quietly become a
+ * scripting language.
+ */
 export type BrainContext = {
   /** Still finishing a walk, a fall, or a shove. */
   busy: boolean;
   rng: Rng;
-  /** Where this creature is standing. */
   self: Coord;
   /**
    * The cell this body was authored on, or null for one the world did not
@@ -261,11 +259,9 @@ export type BrainContext = {
    *
    * **The one action here that outlives the turn that asked for it**, and the
    * reason is the clock. A brain decides every `BRAIN_TICK_MS`; an action that
-   * pressed one direction per decision therefore took a step per *round*, which
-   * rounded every creature's pace up to a whole number of rounds. A bat
-   * authored at 90ms walked at 200, a snake authored at 320 walked at 400, and
-   * of everything we ship only the cat — authored at exactly 400 — moved at the
-   * pace it was written to.
+   * pressed one direction per decision would take a step per *round*, rounding
+   * every creature's pace up to a whole number of rounds — a bat authored at
+   * 90ms would walk at 200.
    *
    * So this states an intent rather than taking a step. The session holds it
    * and presses the next leg the moment the body is free, at whatever pace that
@@ -294,11 +290,11 @@ export type BrainContext = {
    * the threat, and out of its sight where two are equally far.
    * @see ./pathfinding's `findRefuge`
    *
-   * **The refuge is kept until it is reached or cut off**, which is the half of
-   * this that stops the flickering. An animal that re-decided every round took
-   * whichever of four cells was momentarily best, and that flips between two of
-   * them as the threat moves — a rabbit shuffling on the spot rather than one
-   * running. Committing to somewhere is what a run is.
+   * **The refuge is kept until it is reached or cut off.** An animal that
+   * re-decided every round would take whichever of four cells was momentarily
+   * best, which flips between two of them as the threat moves — a rabbit
+   * shuffling on the spot rather than one running. Committing to somewhere is
+   * what a run is.
    *
    * Two answers rather than three, and the missing one is the point: arriving is
    * not something this reports, because an animal that reaches its refuge with
@@ -639,7 +635,6 @@ function identify(
   }
 }
 
-/** An actor id as a bound target, or null for nobody. */
 function asBody(id: string | null): Bound | null {
   return id === null ? null : { kind: "body", id };
 }
@@ -943,7 +938,7 @@ function struckBy(memory: BrainMemory, ctx: BrainContext): boolean {
  * on them, else hold" read straight down the list. They are still two facts:
  * only the second is a `stuck` a transition can watch for.
  *
- * There is no `busy` check any more. A body mid-step is a body already walking
+ * There is no `busy` check. A body mid-step is a body already walking
  * where it was told to, so the order it is walking out *is* the answer; asking
  * again would be this line reporting on the state of a leg rather than on
  * whether the creature is going anywhere.
@@ -965,14 +960,9 @@ function walkAlongRoute(
  * stands — and that failure is what an author's `stuck` reads to put an animal
  * in a cornered state.
  *
- * **This used to be greedy and is not any more.** It scored the four
- * neighbouring cells, took whichever opened the distance most, and failed when
- * none of them did. A wall defeated it: a rabbit in a corner has no neighbour
- * that gains anything, so it gave up after two steps of hill-climbing having
- * never looked at the gap it could have run through — and while it still had
- * somewhere to go it shuffled between two cells, because the best of four flips
- * as the threat moves and nothing was committed to. @see ./pathfinding's
- * `findRefuge`, which is where the argument for the change is written down.
+ * A flood rather than a greedy step: a rabbit in a corner has no neighbour that
+ * opens the distance, so hill-climbing gives up without ever looking at the gap
+ * it could have run through. @see ./pathfinding's `findRefuge`.
  */
 function fleeAlongRoute(
   target: Coord,

@@ -81,9 +81,8 @@ describe("HeldDirections", () => {
 });
 
 /**
- * A clicked walk is one more thing pressing a direction, and this is where the
- * two are settled — the same "latest wins" rule the keys order themselves by,
- * with the click as a press nobody will ever let go of. @see ./walkTo
+ * A clicked walk is a press nobody releases, ranked by the same latest-wins
+ * rule as the keys. @see ./walkTo
  */
 describe("a clicked direction against the keys", () => {
   it("outranks a key that was already down", () => {
@@ -98,8 +97,7 @@ describe("a clicked direction against the keys", () => {
     input.press("e");
     input.setAuto("n");
     input.setAuto(null);
-    // The key was never released, so this is what the player's hand is still
-    // asking for. Emptying here is a key gone dead in their hand.
+    // The key was never released, so it is still being asked for.
     expect(latest()!.directions).toEqual(["e"]);
   });
 
@@ -115,8 +113,7 @@ describe("a clicked direction against the keys", () => {
     const { input, latest } = recorder();
     input.setAuto("n");
     input.clear();
-    // Nobody is going to release it, and a body walking itself across town in
-    // a tab that is not in front of anybody is the stuck key this guards.
+    // Nobody will release it, so a blurred tab would otherwise keep walking.
     expect(latest()!.directions).toEqual([]);
     expect(input.autoPressed).toBe(false);
   });

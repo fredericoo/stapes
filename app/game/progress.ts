@@ -41,7 +41,6 @@ export function progressFraction(progress: Progress): number {
   return Math.max(0, Math.min(1, done));
 }
 
-/** Take a frame off, floored at zero. */
 export function windProgress(progress: Progress, dtMs: number) {
   progress.remainingMs = Math.max(0, progress.remainingMs - dtMs);
 }

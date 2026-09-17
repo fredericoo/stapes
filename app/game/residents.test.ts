@@ -6,14 +6,10 @@ import { FALL_MS_PER_HEIGHT, TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
 
 /**
- * Bodies that live in the map rather than arriving on a socket.
- *
- * The whole of putting an NPC in the world is placing its tile, so this is
- * mostly about what happens at *load*: who gets adopted, who keeps the identity
- * they were given last time, and who survives a cleanup pass aimed at
- * connections that died. The motion itself is deliberately untested here —
- * a resident walks and falls through the same code a player does, and that code
- * has its own suites.
+ * Putting an NPC in the world is placing its tile, so this is about load: who
+ * gets adopted, who keeps the identity they were given last time, and who
+ * survives a cleanup pass aimed at dead connections. Motion is untested here;
+ * a resident walks and falls through the same code a player does.
  */
 
 const frame = {
@@ -47,10 +43,7 @@ const tiles: TileDef[] = [
     walkable: false,
     variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
   }),
-  // A deer falls, like the player does.
   tile({ id: "deer", height: 2, actor: true, affectedByGravity: true, walkable: false }),
-  // A ghost is a body that gravity has no opinion about, which is the case the
-  // player tile would never have exercised.
   tile({ id: "ghost", height: 2, actor: true, walkable: false }),
   tile({
     id: "plate",
@@ -75,7 +68,6 @@ function strip(width: number): MapFile {
   return map;
 }
 
-/** Put a body on the grass at `x`, and hand back the map. */
 function withBody(map: MapFile, x: number, tileId: string): MapFile {
   return replaceStack(map, x, 0, 0, [{ tileId: "grass" }, { tileId }]);
 }
@@ -84,18 +76,13 @@ function placedAt(map: MapFile, x: number, y: number, z: number): PlacedTile[] {
   return getStack(map, x, y, z);
 }
 
-/** Owners of every placement in a cell, in stack order. */
 function ownersAt(map: MapFile, x: number, y: number, z: number) {
   return placedAt(map, x, y, z).map((placed) => placed.owner);
 }
 
 /**
- * Advance in whole ticks.
- *
- * Not `update`, which deliberately caps how far a single call will catch up —
- * handing it a whole fall's worth of milliseconds silently runs ten ticks and
- * stops, so a drop that needs longer never lands and the assertion passes or
- * fails for the wrong reason.
+ * Not `update`, which caps how far one call catches up at ten ticks, so a drop
+ * that needs longer never lands.
  */
 function advance(session: GameSession, ms: number) {
   for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) {
@@ -153,9 +140,9 @@ describe("adopting residents", () => {
   });
 
   /**
-   * Regression shape: a resumed world already carries the owners minted the
-   * first time it loaded. Re-minting would hand the same creature a second
-   * identity, and the runtime that drives the first would never find its body.
+   * A resumed world already carries the owners minted the first time it loaded.
+   * Re-minting would hand the same creature a second identity, and the runtime
+   * that drives the first would never find its body.
    */
   it("keeps the identity a resumed body already carries", () => {
     const first = new GameSession(withBody(strip(4), 2, "deer"), tiles, { actorIds: [] });
@@ -176,9 +163,9 @@ describe("adopting residents", () => {
 
 describe("residents and the reaper", () => {
   /**
-   * The cleanup pass exists for connections that died while the object was
-   * evicted. A resident is nobody's connection, so it is absent from every list
-   * of who is present — and reaping on that alone emptied the world.
+   * The cleanup pass exists for connections that died. A resident is nobody's
+   * connection, so it is absent from every list of who is present, and reaping
+   * on that alone would empty the world.
    */
   it("keeps residents while removing players nobody is driving", () => {
     const session = new GameSession(withBody(strip(4), 2, "deer"), tiles, { actorIds: [
@@ -198,14 +185,8 @@ describe("residents and the reaper", () => {
 });
 
 describe("a resident is its own tile", () => {
-  /**
-   * Every actor used to move as the player def, which was true while every
-   * actor was a person. A body that gravity has no opinion about is the cheapest
-   * proof that it no longer is.
-   */
   it("does not fall a body its tile says gravity ignores", () => {
     let map = strip(4);
-    // One level up, over open air.
     map = replaceStack(map, 2, 0, 1, [{ tileId: "ghost" }]);
 
     const session = new GameSession(map, tiles, { actorIds: [] });
@@ -242,9 +223,9 @@ describe("a resident is its own tile", () => {
 
 describe("a world nobody is watching", () => {
   /**
-   * The Durable Object stops ticking when the session says it has settled, and
-   * an idle world is what makes an empty one free. A motionless resident must
-   * not be a reason to stay awake.
+   * The server stops ticking when the session says it has settled, and an idle
+   * world is what makes an empty one free. A motionless resident must not be a
+   * reason to stay awake.
    */
   it("comes to rest with residents on the board and nobody connected", () => {
     const session = new GameSession(withBody(strip(4), 2, "deer"), tiles, { actorIds: [] });

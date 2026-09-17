@@ -3,13 +3,9 @@ import { parseCoordKey } from "../lib/types";
 /**
  * One level's roof-cut, laid out as the bytes a mask texture is uploaded from.
  *
- * Separated from `./WorldRenderer` for the reason `./tileEmitters` is: what is
- * decided here is arithmetic — a bounding box, an apron, a row-major index —
- * and arithmetic can be asserted in a test rather than eyeballed against a
- * canvas. Getting the index wrong does not fail loudly; it cuts a hole in the
- * building next door, which is a thing you only find by walking past it.
- *
- * Nothing in here knows what THREE is.
+ * Kept free of THREE so the bounding box, apron and row-major index can be
+ * asserted in a test: a wrong index cuts a hole in the building next door and
+ * shows up only on screen.
  */
 
 /**
@@ -37,11 +33,9 @@ export type CutMask = {
 /**
  * Lay out one level's cut cells, or null when the level has none.
  *
- * **Sized to the cut, not to the camera.** A lifted roof is tens of cells
- * across wherever the viewer happens to be standing, so a mask sized to its own
- * bounding box is a few hundred bytes whatever the viewport is doing and
- * whatever the world measures. It also means the mask does not have to be
- * rewritten when the camera slides — only when the cut itself changes.
+ * Sized to the cut's bounding box, not to the camera: a few hundred bytes
+ * whatever the viewport or world measures, and rewritten only when the cut
+ * changes rather than when the camera moves.
  *
  * @param cells cut cells on one level, keyed by {@link coordKey}.
  */

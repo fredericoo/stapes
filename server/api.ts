@@ -7,17 +7,9 @@ import type { ClientBundle } from "./clientBundle";
 import type { Config } from "./config";
 
 /**
- * Everything the pages used to get from a loader.
- *
- * The client is a static bundle now, so the eight things `DataStore` exposed
- * have become eight endpoints. That translation is mechanical rather than a
- * redesign, and deliberately so: every route in the app already went through
- * `dataStore(context)` and nothing else, which is the only reason splitting the
- * client off is a day's work instead of a rewrite.
- *
- * Typed end-to-end through Eden Treaty — the client imports `typeof api` and
- * gets the return types of these handlers with no codegen and no duplicated
- * schema. That is what pays back the typed loader data that `ssr: false` costs.
+ * The HTTP API. Typed end-to-end through Eden Treaty: the client imports
+ * `typeof api` and gets the return types of these handlers with no codegen and
+ * no duplicated schema.
  */
 export function createApi(world: World, bundle: ClientBundle, config: Config) {
   const store = world.blobs;
@@ -60,16 +52,11 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
         "/tiles",
         async ({ body }) => {
           await store.writeTiles(body.tiles as never);
-          // Written *before* the world is told, on the terms the map save above
-          // is: a catalogue that failed to store must not become the one the
-          // world reloads against, or a reload would pick up the old files and
-          // an author would be told their save worked.
-          //
-          // And the world *is* told, which it used to not be. Reading the
-          // catalogue is guarded on there being no session, so before this an
-          // edit changed what the next world would be built from and nothing
-          // about the one the author was standing in — see
-          // `GameServer.reloadContent`, which is where that argument lives.
+          // Written *before* the world is told, on the terms the map save is:
+          // a catalogue that failed to store must not become the one the world
+          // reloads against, or a reload would pick up the old files and an
+          // author would be told their save worked. See
+          // `GameServer.reloadContent`.
           await world.server.reloadContent();
           return { ok: true as const };
         },
@@ -87,9 +74,9 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
         "/statuses",
         async ({ body }) => {
           await store.writeStatuses(body.statuses);
-          // Beside the tiles and for the same reason: the running world compiled
-          // its status catalogue at load, so a re-authored burn reached the file
-          // and nobody who was already on fire.
+          // For the same reason as the tiles: the running world compiled its
+          // status catalogue at load, so without this a re-authored burn
+          // reaches the file and nobody who is already on fire.
           await world.server.reloadContent();
           return { ok: true as const };
         },
@@ -173,14 +160,6 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
         },
         { detail: { summary: "Replace the authored content with the image's" } },
       )
-      /**
-       * Take a built client from continuous integration.
-       *
-       * A tar archive rather than a file per request: a build is a few hundred
-       * files, and a request each would be a deploy that can half-finish. This
-       * either stores the whole thing or throws, and the build does not become
-       * the live page until it is activated separately.
-       */
       .post(
         "/backup",
         async ({ headers, status }) => {
@@ -193,6 +172,14 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
           return { ok: true as const, path };
         },
       )
+      /**
+       * Take a built client from continuous integration.
+       *
+       * A tar archive rather than a file per request: a build is a few hundred
+       * files, and a request each would be a deploy that can half-finish. This
+       * either stores the whole thing or throws, and the build does not become
+       * the live page until it is activated separately.
+       */
       .post(
         "/client/upload",
         async ({ headers, body, status }) => {

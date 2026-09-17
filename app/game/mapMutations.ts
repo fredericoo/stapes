@@ -9,7 +9,6 @@ import {
 import type { Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, MAX_LEVEL } from "../lib/types";
 
-/** Remove the tile at stackIndex and return the new map. */
 export function removeEntity(
   map: MapFile,
   x: number,
@@ -122,7 +121,6 @@ export function moveColumn(
   );
 }
 
-/** Update only the direction on a placed entity (in place). */
 export function setEntityDirection(
   map: MapFile,
   x: number,

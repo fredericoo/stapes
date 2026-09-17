@@ -9,10 +9,8 @@ import { findLooseGravityCells, gravityPullOn, settleGravity } from "./gravity";
 import shippedTiles from "../../data/tiles.json";
 
 /**
- * Passive gravity for the bodies no runtime drives. An actor animates its own
- * fall; a crate has no runtime to do that, so the board drops it on settle —
- * instantly, which is the point: a thing whose floor was pulled hanging in the
- * air reads as a broken mechanism, not as physics waiting to happen.
+ * An actor animates its own fall; a crate has no runtime to do that, so the
+ * board drops it on settle, instantly.
  */
 
 const frame = {
@@ -76,8 +74,6 @@ const tiles: TileDef[] = [
   }),
   // The hole: a floor tile you can see and cannot stand on.
   tile({ id: "hole-floor", height: 0, intangible: true }),
-  // A ladder shaft's worth of intangible with real authored height — the thing
-  // that used to fill a level and read as a floor.
   tile({ id: "shaft", height: 4, intangible: true }),
   // A full-height crate that can be shoved: the support to pull out.
   tile({
@@ -94,12 +90,9 @@ const byId = tilesByIdFromList(tiles);
 const ids = (stack: { tileId: string }[]) => stack.map((p) => p.tileId);
 
 /**
- * The verdict both machines read.
- *
- * The simulation asks it to start a fall; the online client asks it to know
- * that a step it predicted has left the body in the air and the next one would
- * be refused. The three answers are genuinely different outcomes rather than
- * degrees of one — a settle happens in the tick that finds it, a fall is
+ * `gravityPullOn` serves the simulation (to start a fall) and the client (to
+ * know a predicted step left the body in the air). Its three answers are
+ * distinct outcomes: a settle happens in the tick that finds it, a fall is
  * animated, and standing over a bottomless column is neither.
  */
 describe("what gravity is about to do", () => {
@@ -137,8 +130,8 @@ describe("what gravity is about to do", () => {
   });
 
   it("leaves a body over a column with nothing in it where it is", () => {
-    // Nothing to land on is not a fall. The simulation has always held such a
-    // body still, and a client that read it as falling would refuse to walk.
+    // Nothing to land on is not a fall: a client that read it as falling would
+    // refuse to walk.
     const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "player" }]);
 
     expect(
@@ -204,15 +197,9 @@ describe("settling loose gravity", () => {
 });
 
 /**
- * The bat is the one body in the world authored to stay up, so it is the one
- * that proves the flag is read rather than assumed. Built against the *real*
- * tile rather than a fixture with an invented flag — a fixture here would test
- * the fixture, and what is being asserted is a fact about the shipped creature.
- *
- * The rat stands beside it in every case as the control. Both are creatures,
- * both are the same shape of block, and the only thing between them is
- * `affectedByGravity` — so a change that broke this would have to break them
- * together, which is a much louder failure than one silently dropping.
+ * Built against the real bat tile: a fixture with an invented flag would test
+ * the fixture. The rat is the control; the only difference between the two is
+ * `affectedByGravity`.
  */
 describe("a body that does not fall", () => {
   const shipped = (id: string): TileDef =>
@@ -249,10 +236,8 @@ describe("a body that does not fall", () => {
 });
 
 /**
- * Intangible tiles have no volume, so nothing rests on one. Everything here is
- * one rule seen from three sides: a hole you can see through is a hole you fall
- * through, and a floor that holds you up has to be a solid tile you then put
- * the ladder, the water or the hole art on top of.
+ * Intangible tiles have no volume, so nothing rests on one. A floor that holds
+ * you up has to be a solid tile with the ladder, water or hole art on top.
  */
 describe("intangible tiles are not a floor", () => {
   it("drops a body lying on an intangible floor tile", () => {
@@ -326,15 +311,14 @@ describe("a crate in a running world", () => {
   });
 
   /**
-   * The whole reason this exists: a crate dropping onto a plate has to press it
-   * on the frame it lands, or the door it drives looks broken. Gravity settles
-   * before plates in the same pass, so the press and the open happen at once.
+   * A crate dropping onto a plate has to press it on the frame it lands, or the
+   * door it drives looks broken. Gravity settles before plates in the same
+   * pass, so the press and the open happen at once.
    */
   it("drops onto a plate, presses it, and opens the door it drives", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
     map = replaceStack(map, 1, 0, 0, [{ tileId: "plate", channel: "gate" }]);
     map = replaceStack(map, 3, 0, 0, [{ tileId: "door", channel: "gate" }]);
-    // The crate, hanging one level above the plate.
     map = replaceStack(map, 1, 0, 1, [{ tileId: "box" }]);
 
     const session = new GameSession(map, tiles, { actorIds: [], spawnAt: spawn });
@@ -344,11 +328,6 @@ describe("a crate in a running world", () => {
     expect(at({ x: 3, y: 0, z: 0 })).toContain("door-open");
   });
 
-  /**
-   * The motivating case, at runtime: a support shoved away mid-play leaves what
-   * sat on it hanging, and the very next settle drops it. No brains, no actor on
-   * the crate — just a body and the floor it lost.
-   */
   it("drops a body when its support is pushed out from under it", () => {
     let map = emptyMap();
     for (let x = 0; x <= 3; x++) {
@@ -358,14 +337,12 @@ describe("a crate in a running world", () => {
       { tileId: "grass" },
       { tileId: "player", direction: "e" },
     ]);
-    // A full-height crate holds a box up one level.
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "crate" }]);
     map = replaceStack(map, 1, 0, 1, [{ tileId: "box" }]);
 
     const session = new GameSession(map, tiles);
     expect(ids(getStack(session.getMap(), 1, 0, 1))).toEqual(["box"]);
 
-    // Shove the crate east, out from under the box.
     expect(session.push({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(true);
     for (let i = 0; i < 4; i++) session.tick(TICK_MS);
 

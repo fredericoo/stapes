@@ -84,7 +84,6 @@ const ONE_WALK_MS = WALK_DURATION_MS + 80;
 
 const tilesById = tilesByIdFromList(tiles);
 
-/** Run whole ticks worth of `ms`, as the render loop would. */
 function advance(session: GameSession, ms: number) {
   session.update(ms);
 }
@@ -169,12 +168,6 @@ describe("actor lifecycle", () => {
   });
 
   /**
-   * Starting a session consumes the authored marker, so a map that has already
-   * been run cannot be handed back without its spawn point — there is no tile
-   * left to read it from. The server checkpoints the two together for exactly
-   * this reason.
-   */
-  /**
    * The server resumes worlds from a checkpoint whose map already holds every
    * actor's tile. Spawning them again would mint a second body, and `despawn`
    * only ever removes one — so the first would linger forever.
@@ -204,6 +197,12 @@ describe("actor lifecycle", () => {
     expect(owners).toEqual(["b"]);
   });
 
+  /**
+   * Starting a session consumes the authored marker, so a map that has already
+   * been run cannot be handed back without its spawn point — there is no tile
+   * left to read it from. The server checkpoints the two together for exactly
+   * this reason.
+   */
   it("resumes a map whose marker was already consumed", () => {
     const first = new GameSession(strip(3), tiles, { actorIds: [] });
     const ranMap = first.getMap();

@@ -91,13 +91,10 @@ describe("mintItemIds", () => {
   });
 
   /**
-   * The one an authored chest depends on. `serializeMap` strips a content's id
-   * on the way to disk because this pass is meant to hand it a fresh one on the
-   * way back — and while it did not, taking the sword out of the crate put an
-   * instance with no `id` in somebody's bag, which is a shape the protocol's own
-   * schema refuses. The kit stopped crossing the wire, and the `hello` carrying
-   * it stopped crossing too: a player who touched that sword could never finish
-   * joining again.
+   * `serializeMap` strips a content's id on the way to disk and relies on this
+   * pass to hand it a fresh one on the way back. A content with no `id` is a
+   * shape the protocol's schema refuses, so the kit would stop crossing the
+   * wire.
    */
   it("gives an item inside a container an identity", () => {
     const map = mapWith([

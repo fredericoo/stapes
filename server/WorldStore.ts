@@ -1,28 +1,12 @@
 import type { Database } from "./db";
 
 /**
- * Durable Object storage, reimplemented over Turso.
+ * Key-value storage for `GameServer`, over the `kv` table.
  *
- * **This deliberately keeps the shape it is replacing.** `GameServer` reads and
- * writes through `this.ctx.storage`, and those several hundred lines are the
- * most heavily tested code in the repository — the two bugs that ever shipped
- * in that file both lived in the load and restore paths. Presenting the same
- * interface means the runtime moves underneath the world without the world's
- * persistence logic changing, so the suite that guards it keeps being about the
- * same thing. Normalising into per-actor and per-chunk tables is worth doing
- * and is a later change, made with that suite green on both sides.
- *
- * Two differences from the platform original, both improvements:
- *
- * - **Writes are buffered and committed together.** The Durable Object's
- *   `put` returned a promise that `GameServer` deliberately did not await, so a
- *   tick could write without becoming asynchronous. Here `put` records into an
- *   in-memory map synchronously and {@link flush} commits the batch. The tick
- *   stays synchronous, and the batch is a transaction.
- * - **That transaction is what makes a death atomic.** `pendingDeathWrites`
- *   exists in `GameServer` because the board write and the actor write could
- *   land separately — how a sword carried into a losing fight ended up in
- *   neither the kit nor the cell. Both now ride one commit or neither does.
+ * Writes are buffered: `put` records into an in-memory map synchronously, so
+ * the tick stays synchronous, and {@link flush} commits the batch as one
+ * transaction. That transaction is what makes a death atomic: the board write
+ * and the actor write ride one commit or neither does.
  */
 export class WorldStore {
   /** Values written since the last flush, by key. */
@@ -31,7 +15,6 @@ export class WorldStore {
   private readonly tombstones = new Set<string>();
   /** Statements queued by {@link sql}, committed with the batch. */
   private pendingSql: { query: string; bindings: unknown[] }[] = [];
-  /** Set by {@link setAlarm}, cleared by {@link deleteAlarm}. */
   private alarmAtMs: number | null = null;
   private alarmDirty = false;
   /** Guards against two flushes overlapping, which would interleave batches. */
@@ -42,20 +25,15 @@ export class WorldStore {
    *
    * A callback rather than the scheduler polling, because the gap matters: a
    * respawn deadline set now and noticed at the next flush is a deadline up to
-   * a checkpoint interval late, every time. The Durable Object had a platform
-   * to hand `setAlarm` to; this is the local equivalent.
+   * a checkpoint interval late, every time.
    */
   onAlarmChange: ((atMs: number | null) => void) | null = null;
 
   constructor(private readonly db: Database) {}
 
   /**
-   * The chat log's escape hatch, kept because `GameServer.logChat` writes SQL
-   * directly and there is no reason for it not to.
-   *
-   * `exec` is synchronous and returns nothing, matching the platform API's
-   * shape at the only call site that uses it — which ignores the result. The
-   * statements are queued and committed with the next batch.
+   * Raw SQL, for `GameServer.logChat`. `exec` is synchronous and returns
+   * nothing; the statements are queued and committed with the next batch.
    */
   readonly sql = {
     exec: (query: string, ...bindings: unknown[]): void => {
@@ -104,9 +82,8 @@ export class WorldStore {
   /**
    * Record one value, or a batch of them.
    *
-   * Returns an already-resolved promise so the callers that attach a `.catch`
-   * for write failures keep working. A rejection can no longer originate here —
-   * it originates in {@link flush}, which reports for itself.
+   * Returns an already-resolved promise so callers can attach a `.catch`. A
+   * rejection originates in {@link flush}, which reports for itself.
    */
   put(key: string, value: unknown, options?: unknown): Promise<void>;
   put(entries: Record<string, unknown>, options?: unknown): Promise<void>;
@@ -172,8 +149,8 @@ export class WorldStore {
           args: statement.bindings,
         })),
         // The key-value side only. A table made through `sql` is not a key and
-        // survives this — which is the behaviour being replaced, and what
-        // `resetWorld`'s explicit drop above exists for.
+        // survives this, which is what `resetWorld`'s explicit drop above
+        // exists for.
         { sql: "DELETE FROM kv", args: [] },
         { sql: "DELETE FROM alarm", args: [] },
       ],
@@ -210,7 +187,6 @@ export class WorldStore {
     return this.alarmAtMs;
   }
 
-  /** Whether anything is waiting to be written. */
   get dirty(): boolean {
     return (
       this.pending.size > 0 ||

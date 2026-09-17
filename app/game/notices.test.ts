@@ -12,15 +12,9 @@ import type { ObjectRef } from "./affordances";
 import { masteryNotice, rewardNotice } from "./notices";
 
 /**
- * What crossing a mastery says, and when it is said.
- *
- * The sentence itself is one line and barely worth a test; what is worth testing
- * is that **only earning speaks**. A body is seeded with the masteries its tile
- * was authored with, and a seed that announced itself would greet every new
- * player with a burst of level-ups for progress they never made — which is
- * exactly the failure the old client-side diff needed a `hasExperience` gate to
- * avoid. Composed at the source, the silence is structural, and the tests below
- * are what say so.
+ * Only earning speaks. A body is seeded with the masteries its tile was
+ * authored with, and a seed that announced itself would greet every new player
+ * with level-ups for progress they never made.
  */
 
 describe("what a crossing says", () => {
@@ -34,13 +28,9 @@ describe("what a crossing says", () => {
 });
 
 /**
- * The same sentence out of a real fight, because the line above proves nothing
- * about whether anything ever says it.
- *
- * A session is the only honest source: a crossing is a thing that happens inside
- * `grantExperience`, between two totals that exist together nowhere else. The
- * fixtures are the ones `./experience.test.ts` fights with, cut down to the pair
- * that is needed.
+ * A crossing happens inside `grantExperience`, between two totals that exist
+ * together nowhere else, so only a session can show the line is ever said.
+ * Fixtures are cut down from `./experience.test.ts`.
  */
 
 const frame = {
@@ -67,10 +57,9 @@ function tile(
 }
 
 /**
- * How tough both sides are, named above the claws because the claws must clear
- * it: Toughness grants defence now — see `../lib/battler`'s `defFrom` — and a
- * fixture bred to trade blows for a whole test had quietly grown enough armour
- * to swallow every blow in the file, which reads as level-ups never happening.
+ * Toughness grants defence (`defFrom` in `../lib/battler`), so the claws are
+ * sized above it; otherwise the fixture's armour swallows every blow, which
+ * reads as level-ups never happening.
  */
 const SPARRING_TOUGHNESS = 95;
 
@@ -177,14 +166,10 @@ describe("level-ups out of a fight that actually happened", () => {
 });
 
 /**
- * What a chest says when it is opened.
- *
- * The unit tests read the sentence; the session test after them is about the
- * plumbing — that the line is composed at all, that it goes to the taker and to
- * nobody else, and that a second tap on an emptied chest says nothing. A
- * sentence that is perfect and wired to nothing is the more likely failure, and
- * here it is the *only* evidence a reward left: the board is untouched by
- * design.
+ * The unit tests read the sentence; the session test checks that the line is
+ * composed at all, goes only to the taker, and that a second tap on an emptied
+ * chest says nothing. The board is untouched by design, so the notice is the
+ * only evidence a reward left.
  */
 
 const named = (id: string, name: string, extra: Record<string, unknown> = {}) =>

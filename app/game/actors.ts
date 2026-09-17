@@ -4,7 +4,6 @@ import { MAX_LEVEL, MIN_LEVEL, resolveActor } from "../lib/types";
 import { PLAYER_TILE_ID } from "./constants";
 import { requireSinglePlayer } from "./player";
 
-/** A placed player tile plus who drives it. */
 export type ActorLocation = Coord & {
   stackIndex: number;
   placed: PlacedTile;
@@ -21,13 +20,8 @@ export const DEFAULT_FACING: Direction = "s";
 const ACTOR_SEARCH_RADIUS = 1;
 
 /**
- * An actor is any placement carrying an owner — the tile it happens to be is
- * not part of the test.
- *
- * This used to insist on the `player` tile, which was true while a socket was
- * the only thing that could drive a body. An owner now means "something is
- * driving this", whether that something is a connection or an authored brain,
- * so the tile id has no bearing on it.
+ * An actor is any placement carrying an owner — a connection or an authored
+ * brain. The tile it happens to be is not part of the test.
  */
 function isActor(placed: PlacedTile | undefined, ownerId: string): boolean {
   return placed?.owner === ownerId;
@@ -140,8 +134,8 @@ export function adoptAuthoredPlayer(map: MapFile, ownerId: string): MapFile {
  * Every actor with a tile on the board.
  *
  * A resumed world can hold actors nobody is driving any more — a connection
- * that died while the object was evicted leaves its body behind — so the server
- * needs to know who is present before deciding who belongs.
+ * that died leaves its body behind — so the server needs to know who is
+ * present before deciding who belongs.
  */
 export function listActorOwners(map: MapFile): string[] {
   const owners = new Set<string>();
@@ -206,18 +200,15 @@ const RESIDENT_ID_PREFIX = "npc:";
  * The cell a resident was authored on, read back out of the name it was given
  * there.
  *
- * The exact inverse of {@link residentOwnerId}, and it lives against it so the
- * two cannot drift — a change to the format is a change to both, three lines
- * apart, rather than a decoder somewhere else that quietly stops matching.
+ * The exact inverse of {@link residentOwnerId}, kept beside it so the two
+ * cannot drift.
  *
- * This is the whole of how a creature knows where it belongs, and the reason it
- * needs no storage of its own is that the answer was already being written down.
- * An owner id is minted once, from the authored placement, and then persists on
- * that placement through every checkpoint — so it survives the reload that a
- * "where did I start" recorded at adoption could not, because a resumed world
- * adopts a body wherever it had already wandered to. A respawned body is handed
- * the same id back (see `SpawnPoint.ownerId`), so what grows back knows the same
- * home the original did.
+ * This is how a creature knows where it belongs, and it needs no storage of its
+ * own: an owner id is minted once, from the authored placement, and persists on
+ * that placement through every checkpoint. A "where did I start" recorded at
+ * adoption would not survive a reload, because a resumed world adopts a body
+ * wherever it had already wandered to. A respawned body is handed the same id
+ * back (see `SpawnPoint.ownerId`), so what grows back knows the same home.
  *
  * Null for any name this did not mint — a player's cookie, an owner some future
  * path invents. Those are bodies with no authored cell rather than bodies whose

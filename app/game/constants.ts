@@ -1,6 +1,5 @@
 import { HEIGHT_PER_LEVEL } from "../lib/types";
 
-/** Fixed simulation tick rate. */
 export const TICK_HZ = 30;
 
 export const TICK_MS = 1000 / TICK_HZ;
@@ -32,13 +31,9 @@ export const PUSH_STEP_MS = WALK_DURATION_MS;
 
 /**
  * The tile a person arrives in — and, since a kit hangs off the battler block,
- * where the backpack they arrive with comes from too.
- *
- * There used to be a `STARTING_BAG_TILE_ID` beside this, naming that bag
- * directly. It is gone: the player's bag is authored on this tile exactly as a
- * rat's meat is authored on `rat`, so there is one place a body's belongings
- * are decided rather than one for people and one for everything else. See
- * `../lib/kit`.
+ * where the backpack they arrive with comes from too. The player's bag is
+ * authored on this tile exactly as a rat's meat is authored on `rat`, so there
+ * is one place a body's belongings are decided. See `../lib/kit`.
  */
 export const PLAYER_TILE_ID = "player";
 
@@ -46,9 +41,9 @@ export const PLAYER_TILE_ID = "player";
 /**
  * How often a brain decides. Six simulation ticks — one decision per walk.
  *
- * A whole number of ticks, and that is load-bearing rather than tidy: a
- * fractional cadence would drift against the tick loop and stop being
- * reproducible, and reproducibility is the entire reason the dice are seeded.
+ * A whole number of ticks: a fractional cadence would drift against the tick
+ * loop and stop being reproducible, and reproducibility is the entire reason
+ * the dice are seeded.
  *
  * Bodies still move at the full tick rate. This is only the rate at which a
  * creature reconsiders — thirty times a second is thirty times more often than

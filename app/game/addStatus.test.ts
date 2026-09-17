@@ -11,14 +11,7 @@ import { canAddStatusFrom, reachableAddStatusAt } from "./affordances";
 import { TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
 
-/**
- * A tile that puts a condition on whoever sets it off.
- *
- * The reach rules are the teleport's and are tested as such; what is its own
- * here is that a body takes the status, that a thing without hit points does
- * not, that walking back in does it again, and that standing still in it keeps
- * doing it.
- */
+/** The reach rules are the teleport's and are tested there. */
 
 /** Ticks a started walk needs to reach its destination and commit. */
 const TICKS_PER_STEP = Math.ceil(WALK_DURATION_MS / TICK_MS) + 1;
@@ -127,7 +120,6 @@ const tiles: TileDef[] = [
     id: "fire",
     interactions: { addStatus: { trigger: "step", statusId: "burned" } },
   }),
-  // The pressed halves, one per gesture.
   tile({
     id: "brazier",
     height: 2,

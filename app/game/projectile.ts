@@ -134,7 +134,6 @@ export function flightDurationMs(
   return Math.max(MIN_FLIGHT_MS, Math.hypot(dx, dy) / pxPerMs);
 }
 
-/** So the conversion above reads as one, rather than as a bare thousand. */
 const MS_PER_SECOND = 1000;
 
 /**

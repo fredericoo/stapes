@@ -10,15 +10,6 @@ import {
   isEngravable,
 } from "./engraving";
 
-/**
- * A name with somebody's name written into it.
- *
- * The shipped skull is asserted against the real catalogue on
- * `data/tiles.json`'s own terms — its name has to keep its hole in it, and it
- * has to keep refusing to pile, or every skull in a cell fuses into one nobody
- * can tell apart.
- */
-
 describe("engravedName", () => {
   it("puts the engraving where the token is", () => {
     expect(engravedName(`${ENGRAVING_TOKEN}'s skull`, "Green Fox")).toBe(
@@ -63,10 +54,10 @@ describe("the shipped skull", () => {
   });
 
   /**
-   * What a body leaves is authored now — see `./battler`'s
-   * {@link BattlerDef.remains} — so the whole feature is one field in
-   * `data/tiles.json`, and nothing in the engine would notice it going. A tile
-   * id naming nothing leaves nothing, silently and by design.
+   * What a body leaves is authored ({@link BattlerDef.remains} in
+   * `./battler`), so the whole feature is one field in `data/tiles.json` and
+   * nothing in the engine would notice it going. A tile id naming nothing
+   * leaves nothing, silently and by design.
    */
   it("is what the player is authored to leave, and it exists", () => {
     const byId = new Map(tiles.map((def) => [def.id, def]));

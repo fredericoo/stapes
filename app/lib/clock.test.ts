@@ -44,8 +44,7 @@ describe("sampleIllumination", () => {
   });
 
   it("wraps midnight", () => {
-    // Halfway from noon white → midnight black via wrap: at 18:00 is mid
-    // of 12:00→00:00 span (12h). From 12:00 to 00:00 is 12h; 18:00 is 6h in.
+    // 18:00 is halfway through the 12:00→00:00 span, which wraps midnight.
     const dusk = sampleIllumination(18 * 60, keys);
     expect(dusk.ambient[0]).toBeCloseTo(0.5, 5);
   });

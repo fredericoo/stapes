@@ -435,10 +435,9 @@ describe("interactionsForSave", () => {
   });
 
   /**
-   * The same standing cost, and this one had already been paid: `immuneTo` was
-   * missing here, so opening the wolf's tile dialog and pressing save made it
-   * catchable by carrion again — silently, with the toggles on screen showing
-   * the immunity it was about to drop.
+   * Same standing cost as the kit: forgotten here, opening the wolf's tile
+   * dialog and pressing save would make it catchable by carrion again, with
+   * the toggles on screen still showing the immunity.
    */
   it("carries immunities through a save", () => {
     expect(

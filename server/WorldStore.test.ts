@@ -6,12 +6,9 @@ import { openDatabase, type Database } from "./db";
 import { WorldStore } from "./WorldStore";
 
 /**
- * The storage the world checkpoints into.
- *
- * Tested against a real database file rather than a stub, for the reason the
- * suite it replaces ran inside workerd: the two bugs that ever shipped in
- * `GameServer` both lived in the load and restore paths, and a fake store
- * cannot have the behaviour those paths trip over.
+ * Tested against a real database file rather than a stub: the bugs that have
+ * shipped in `GameServer` lived in the load and restore paths, and a fake
+ * store cannot have the behaviour those paths trip over.
  */
 
 let dir: string;

@@ -9,11 +9,9 @@ import { GameSession } from "./GameSession";
 import type { SlotRef } from "./itemMoves";
 
 /**
- * Several of one thing, as the session moves them about.
- *
- * The arithmetic is `../lib/piles`' own file; this is about the four verbs that
- * meet it — taking a pile off the board, putting one down, spending one of it,
- * and dragging the lot from square to square.
+ * The arithmetic is in `../lib/piles`; this covers the four verbs that meet
+ * it: taking a pile off the board, putting one down, spending one of it, and
+ * moving it between squares.
  */
 
 const frame = {
@@ -103,7 +101,6 @@ const tiles: TileDef[] = [
   }),
 ];
 
-/** Where the bearer stands, and the tile they can reach. */
 const HERE: Coord = { x: 0, y: 0, z: 0 };
 const BESIDE: Coord = { x: 1, y: 0, z: 0 };
 /** Whose kit these tests are about — never the map's own idle player. */
@@ -113,12 +110,9 @@ const SECOND_BAG_SLOT: SlotRef = { kind: "contents", index: 1 };
 const OFFHAND: SlotRef = { kind: "offhand" };
 
 /**
- * Open grass, with the map's own player parked well out of the way.
- *
- * The bearer is spawned into it rather than being that player, because a body
- * already on the board keeps whatever kit it arrived with — `spawn` is how a
- * *new* actor is given one, and it does nothing for an id the session already
- * holds. Every test here is about a kit somebody was handed.
+ * The bearer is spawned rather than being the map's own player, because a body
+ * already on the board keeps whatever kit it arrived with; `spawn` is how a new
+ * actor is given one.
  */
 function field(): MapFile {
   let map = emptyMap();
@@ -133,7 +127,6 @@ function field(): MapFile {
   ]);
 }
 
-/** A world with `placed` on the grass beside the player. */
 function beside(placed: PlacedTile): MapFile {
   return replaceStack(field(), BESIDE.x, BESIDE.y, BESIDE.z, [
     { tileId: "grass" },
@@ -149,7 +142,6 @@ function carrying(contents: ItemInstance[], slots: Partial<Equipment> = {}) {
   };
 }
 
-/** A session with the bearer carrying `kit`, and `placed` on the next tile. */
 function world(kit: Equipment, placed?: PlacedTile): GameSession {
   const session = new GameSession(placed ? beside(placed) : field(), tiles);
   session.spawn(WHO, { at: { ...HERE, direction: "e" }, carrying: kit });
@@ -170,7 +162,6 @@ function asideStack(session: GameSession): PlacedTile[] {
   return getStack(session.getMap(), BESIDE.x, BESIDE.y, BESIDE.z);
 }
 
-/** The thing lying beside the player, as something to act on. */
 const ASIDE = { ...BESIDE, stackIndex: 1 };
 
 describe("picking a pile up", () => {

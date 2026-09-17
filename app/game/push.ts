@@ -9,7 +9,6 @@ import { DIR_DELTA, listStandingSurfaces } from "./movement";
 
 export type PushCheck = { ok: true; to: Coord } | { ok: false; reason: string };
 
-/** A pushable object's place in the map — cell plus slot in its stack. */
 export type PushFrom = Coord & { stackIndex: number };
 
 /**

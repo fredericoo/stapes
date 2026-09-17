@@ -17,7 +17,6 @@ export type PlayerLocation = Coord & {
   placed: PlacedTile;
 };
 
-/** Find every placed tile with id `player` across all levels. */
 export function findPlayers(map: MapFile): PlayerLocation[] {
   const found: PlayerLocation[] = [];
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {

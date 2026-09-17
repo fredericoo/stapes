@@ -137,7 +137,6 @@ describe("pickAutotileSprite", () => {
       base: { x: 0, y: 0 },
     },
     durationMs: 200,
-    // tag via tileset — actually use duration as marker; use light color
     light: { radius: 1, intensity: 1, color: id },
   });
 
@@ -165,16 +164,15 @@ describe("pickAutotileSprite", () => {
 });
 
 /**
- * The wooden floor's inner block, as authored, against the real `tiles.json`.
+ * The wooden floor's inner block against the real `tiles.json`.
  *
- * The inset floor and its complement have to agree on *which* neighbourhood
- * they are in, or the two halves are drawn for different shapes and meet in a
- * seam. Nothing in the data says so: the agreement is produced entirely by the
- * inner tile naming the floor in `connectsTo`, which is what makes it read the
- * stack it sits on as more of itself. The last test here is the one that would
- * actually catch its removal — an author paints the inner tile on the ring
- * hugging an opening and nowhere else, so an inner tile left to autotile
- * against its own placements sees a thin ring where the floor sees a field.
+ * The inset floor and its complement must agree on which neighbourhood they
+ * are in, or the two halves are drawn for different shapes and meet in a seam.
+ * Nothing in the data says so: the agreement comes from the inner tile naming
+ * the floor in `connectsTo`, so it reads the stack it sits on as itself. The
+ * last test is the one that catches its removal: the inner tile is painted
+ * only on the ring around an opening, so autotiled against its own placements
+ * it sees a thin ring where the floor sees a field.
  */
 describe("wooden floor inner", () => {
   const tiles = normalizeTiles(tilesJson as unknown[]);

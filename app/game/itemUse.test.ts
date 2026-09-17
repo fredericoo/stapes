@@ -13,12 +13,8 @@ import tilesJson from "../../data/tiles.json";
 import { normalizeTiles } from "../lib/types";
 
 /**
- * What a tap on a carried thing does.
- *
- * The rule worth pinning is the one the interface is built on: a tap never
- * asks "where does this go", it asks what the thing is *for*. So every case
- * here is about the item's own kind, and the slot only ever decides which way
- * round the answer runs.
+ * A tap asks what the thing is for, not where it goes: every case is about the
+ * item's kind, and the slot only decides which way round the answer runs.
  */
 
 function tile(partial: Record<string, unknown>): TileDef {
@@ -133,8 +129,6 @@ describe("itemUseFor", () => {
     ).toBeNull();
   });
 
-  // The case this module said it was waiting to gain: a consumable is for
-  // being eaten, from any square it can be sitting in.
   it("consumes a consumable from wherever it is", () => {
     for (const slot of [
       { kind: "contents", index: 1 } as const,
@@ -160,13 +154,8 @@ describe("itemUseFor", () => {
 });
 
 /**
- * A light goes to the other hand.
- *
- * Checked before the weapon rule rather than after it, because a lantern *is* a
- * weapon as far as the catalogue is concerned — it had to be, when the swinging
- * hand was the only hand there was. Tapping one is a request to see in the dark
- * and never a request to fight with it, and getting that order wrong is how the
- * off hand would ship and change nothing anybody noticed.
+ * Checked before the weapon rule, because a lantern is a weapon as far as the
+ * catalogue is concerned. Tapping one is a request to see, not to fight.
  */
 describe("a tap on a light", () => {
   const shipped = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]));

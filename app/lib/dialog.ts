@@ -5,8 +5,6 @@ import type { TileDef } from "./types";
 /**
  * A conversation an NPC can hold, authored as a script of commands.
  *
- * ## An event, not a menu
- *
  * A dialog is an ordered list of commands, the way an RPG Maker event is: say
  * a line, offer choices, ask for a trade, mark the player, jump to a label.
  * Some commands hold nested lists — each choice has the commands it leads to,
@@ -16,27 +14,11 @@ import type { TileDef } from "./types";
  * block when the branch runs out. `anchor` and `goto` are how a script comes
  * back to its menu; running off the end is how it stops.
  *
- * This replaced a tree of buttons, where every button carried its own
- * condition, reply and effects. That shape could say one thing per press and
- * nothing between presses; a script says as much as it likes, in any order,
- * and a new kind of command is one more arm rather than a new field on every
- * option. `if` is the arm coming next, and the interpreter already treats
- * every nested list the same, so it will be a block like any other.
- *
- * ## What the player sees
- *
- * A transcript. Every line said and every choice made stays on the panel,
- * and the only controls are the ones the command the script is waiting on
- * needs: buttons for `choices`, a preview with a quantity and Trade / Cancel
- * for `request_trade`. When the script ends, the transcript stays and the
- * close button is all that is left.
- *
  * Parsed with valibot and memoised on def identity, on the same trust model
  * as every other interaction block: a malformed dialog is a body with no Talk
  * row, never a crashed world.
  */
 
-/** So many of one tile, as one side of a trade. */
 export type TradeSide = { tileId: string; count: number };
 
 export type DialogTrade = {
@@ -101,7 +83,6 @@ export const MAX_DIALOG_AMOUNT = 99;
  */
 export const MAX_DIALOG_DEPTH = 3;
 
-/** What a fresh dialog says, so the editor has something to show. */
 export const DEFAULT_DIALOG: DialogDef = {
   script: [{ kind: "say", text: "Hello, {partner}." }],
 };
@@ -192,7 +173,6 @@ export function branchesOf(command: DialogCommand): readonly DialogCommand[][] {
   return [];
 }
 
-/** The command with branch `index` replaced. */
 export function withBranch(
   command: DialogCommand,
   index: number,

@@ -2,16 +2,12 @@ import { Tabs as BaseTabs } from "@base-ui/react/tabs";
 import type { ReactNode } from "react";
 
 /**
- * Folder tabs: a row of flaps standing on a rule, with the open one joined to
- * the page below it.
+ * Folder tabs: a row of flaps on a rule, with the open one joined to the page
+ * below it.
  *
- * Deliberately not the button treatment. A button is raised — hard shadow,
- * pressed-down travel — and a tab that wore the same chrome read as one more
- * button in a row of them, so switching sections looked like triggering
- * actions. Tabs here are flat and attached to the rule, and the open flap
- * erases its own stretch of the rule so it visibly *is* the panel underneath.
- * The join only works over a paper ground, which is the only ground a tab
- * strip sits on in this app.
+ * Not the button treatment: a raised tab reads as one more button in a row,
+ * so switching sections looks like triggering actions. The join only works
+ * over a paper ground, which is the only ground a tab strip sits on here.
  */
 export function Tabs({
   value,

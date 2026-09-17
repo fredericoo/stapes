@@ -12,14 +12,6 @@ import {
   type ScopedCell,
 } from "./scope";
 
-/**
- * What one client is told about.
- *
- * Two rules and they have to agree: a cell reaches whoever holds the chunk it
- * is in, and an event reaches whoever holds the body it is about — or, where it
- * names no body, the chunk it happened in.
- */
-
 /** A subscription holding the chunks these cells are in, and no others. */
 function holding(...cells: Array<[number, number]>): Set<string> {
   return new Set(cells.map(([x, y]) => chunkKeyFor(x, y)));
@@ -58,9 +50,9 @@ describe("cells of a patch", () => {
   });
 
   /**
-   * Null, and it is not a detail: the caller sends one serialization to every
-   * client that takes the patch whole, and this is how it tells. A same-length
-   * answer would not do — a cell can come back with a body taken out of it.
+   * The caller sends one serialization to every client that takes the patch
+   * whole, and null is how it tells. A same-length answer would not do: a cell
+   * can come back with a body taken out of it.
    */
   it("says so when none is dropped or rewritten", () => {
     expect(cellsInScope([terrain(1, 0), terrain(2, 0)], holding(HERE), NOBODY, NOBODY))
@@ -72,9 +64,8 @@ describe("cells of a patch", () => {
   });
 
   /**
-   * The saving this exists for. A creature's step is two cells that changed for
-   * no other reason, and the world walks two dozen creatures a round — none of
-   * which a client 60 cells away can see.
+   * The saving this exists for: a creature's step is two cells that changed
+   * for no other reason, and the world walks two dozen creatures a round.
    */
   it("drops a step by a body this client is not being told about", () => {
     const cells = [stepped(1, 0, [grass]), stepped(2, 0, [grass, deer])];
@@ -91,11 +82,10 @@ describe("cells of a patch", () => {
   });
 
   /**
-   * The bug that shipped. A body is in `known` and not in `held` for exactly
-   * one tick — the tick it died, or the tick it walked out of reach — and that
-   * is the tick carrying the patch that takes its tile off this client's
-   * board. Asking only about `held` dropped it, and nothing rewrites that cell
-   * again: the corpse stayed where it fell.
+   * A body is in `known` and not in `held` for exactly one tick, the tick it
+   * died or walked out of reach, and that is the tick carrying the patch that
+   * takes its tile off this client's board. Asking only about `held` would
+   * drop it, and nothing rewrites that cell again.
    */
   it("sends the step that takes a body this client had off the board", () => {
     const gone = [stepped(2, 0, [grass])];

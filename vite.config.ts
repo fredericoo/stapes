@@ -44,8 +44,7 @@ function dependencyRoot(from: string): string {
 export default defineConfig({
   server: {
     // Whoever launched us says where to listen. `scripts/dev.ts` picks free
-    // ports for both halves, so several worktrees can run at once — which they
-    // do, and which used to be free because each had its own `.wrangler`.
+    // ports for both halves, so several worktrees can run at once.
     port: process.env.PORT ? Number(process.env.PORT) : undefined,
     proxy: {
       "/api": { target: SERVER_ORIGIN, changeOrigin: false },

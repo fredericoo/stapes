@@ -1,11 +1,10 @@
 /**
  * What a number box accepts, decided once the author has finished typing.
  *
- * Pure, so the rule can be tested without a DOM and read without one: the
- * component in `./NumberInput.tsx` only decides *when* to ask, which is on blur
- * and on Enter. Asking on every keystroke was the old behaviour, and it made
- * the box fight the person in it — clearing "1" to type "7" snapped straight
- * back to "1" before the 7 could be pressed.
+ * Pure, so the rule can be tested without a DOM: the component in
+ * `./NumberInput.tsx` only decides when to ask, which is on blur and on Enter.
+ * Not on every keystroke: clearing "1" to type "7" would snap back to "1"
+ * before the 7 could be pressed.
  */
 export type NumberRule = {
   min?: number;

@@ -6,19 +6,14 @@ import type { Config } from "./config";
  * The built client, served from disk.
  *
  * The client is only files, so the process that already owns the origin serves
- * them — which is what collapses the deployment to one container, removes the
- * reverse-proxy routing table, and makes the actor cookie first-party by
- * construction rather than by configuration.
+ * them, which keeps the deployment to one container and makes the actor cookie
+ * first-party by construction.
  *
- * **There is no object storage.** An earlier draft read builds from an S3
- * bucket; on a single box that meant either paying for storage somewhere else
- * or running a MinIO container to talk to itself over HTTP. Continuous
- * integration can simply post the build here, so it does — the store is a
- * directory on the same volume the world lives on.
+ * There is no object storage: continuous integration posts the build here, and
+ * the store is a directory on the same volume the world lives on.
  *
- * **Builds are immutable and activation is a pointer flip.** CI uploads to
- * `clients/<sha>/` and then activates it. That is the same work as overwriting
- * one directory, and it removes three failure modes:
+ * Builds are immutable and activation is a pointer flip. CI uploads to
+ * `clients/<sha>/` and then activates it. That removes three failure modes:
  *
  * - An upload is not atomic. Overwriting one directory leaves a window where
  *   `index.html` is the new build and a chunk is still the old one.
@@ -85,13 +80,11 @@ export class ClientBundle {
   /**
    * Build ids on disk, oldest first — ordered by when they were written.
    *
-   * **Not by name.** A build id is a commit sha, so sorting ids alphabetically
-   * sorts builds at random, and everything below that says "newest" would mean
-   * "whose sha happens to sort highest". That is not a cosmetic difference:
-   * `collectGarbage` deletes everything outside this list's tail, and a deploy
-   * uploads its build *before* the restart that collects, so an alphabetical
-   * order deleted the build the deploy was about to activate whenever its sha
-   * sorted low. Three deploys died that way before the cause was in one place.
+   * Not by name. A build id is a commit sha, so sorting ids alphabetically
+   * sorts builds at random. `collectGarbage` deletes everything outside this
+   * list's tail, and a deploy uploads its build *before* the restart that
+   * collects, so an alphabetical order would delete the build the deploy was
+   * about to activate whenever its sha sorted low.
    */
   async stored(): Promise<string[]> {
     let ids: string[];

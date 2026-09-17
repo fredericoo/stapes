@@ -20,20 +20,9 @@ import {
 import { MELEE_REACH, type WeaponItem } from "./item";
 
 /**
- * A body plus what it is swinging, resolved into numbers.
- *
- * Every one of these is a curve, and a curve is the kind of thing that is
- * quietly wrong for months: it produces plausible numbers whatever it does, so
- * nothing about playing the game tells you the penalty stopped biting. These are
- * the claims the design makes, written where they can fail.
- */
-
-/**
- * A weapon with round numbers, so a multiplier is legible in the result.
- *
- * Perfectly precise on purpose, which takes `acc` out of the hit chance and
- * leaves the mastery term alone in it — these tests are about what the *ratio*
- * does, and the weapon's own precision is covered above.
+ * Round numbers, so a multiplier is legible in the result. Accuracy 100 and no
+ * variance take the weapon's own precision out of the hit chance and leave
+ * only the mastery term in it.
  */
 function weapon(overrides: Partial<WeaponItem> = {}): WeaponItem {
   return {
@@ -125,21 +114,18 @@ describe("what a weapon is worth in the hand", () => {
   });
 
   /**
-   * **A weapon you have not earned is clumsy and slow, and never weak.** This is
-   * the fairness rule the whole shortfall is now built around: the weapon you
-   * are short of is the harder-hitting weapon — that is why you reached for it —
-   * so taking its damage away made the rung below strictly better and left the
-   * requirement a wall to wait behind rather than a thing to reach for.
+   * A weapon you have not earned is clumsy and slow, never weak. The weapon you
+   * are short of is the harder-hitting one, so docking its damage would make
+   * the rung below strictly better and the requirement a wall to wait behind.
    *
-   * Handling floors at {@link MIN_HANDLING} rather than at zero, so even a
-   * wielder who brings nothing at all still swings — slowly and wildly, and for
-   * the blade's full damage.
+   * Handling floors at {@link MIN_HANDLING} rather than at zero, so a wielder
+   * who brings nothing still swings, slowly and wildly, for the blade's full
+   * damage.
    *
-   * **The rate is `haste` and never `spd`.** `spd` is a position on a curve
-   * running 100:1 from end to end, so docking it by a half is not half the rate
-   * but a third of it — and handling is quoted to the player as a share of their
-   * swing rate. The weapon keeps its authored `spd`; the share goes where a
-   * share of the rate is what it means.
+   * The rate is `haste` and never `spd`: `spd` is a position on a curve running
+   * 100:1 end to end, so halving it is a third of the rate, not half, and
+   * handling is quoted to the player as a share of their swing rate. The weapon
+   * keeps its authored `spd`.
    *
    * Forty points short is well past the floor, which is reached at seventeen.
    */
@@ -156,10 +142,10 @@ describe("what a weapon is worth in the hand", () => {
   });
 
   /**
-   * **A flat slice per point short, so two points short means the same thing
-   * wherever a player is standing.** That is what a share could not do: two
-   * points short of Blunt 10 is 80% of it and two short of Blunt 33 is 94%, so
-   * any curve on the share charges the same shortfall differently at every rung.
+   * A flat slice per point short, so two points short means the same thing
+   * wherever a player is standing. A share cannot do that: two points short of
+   * Blunt 10 is 80% of it and two short of Blunt 33 is 94%, so any curve on the
+   * share charges the same shortfall differently at every rung.
    */
   it("costs a flat slice of accuracy and rate for each point short", () => {
     const short = body({ blunt: 20 });
@@ -198,10 +184,9 @@ describe("what a weapon is worth in the hand", () => {
   });
 
   /**
-   * **Being good with a weapon keeps paying after its requirement has stopped.**
-   * The half of mastery a gate cannot express: a hundred-Sharp hero and a
-   * five-Sharp novice both meet a requirement-1 dagger in full, and should not
-   * swing it identically.
+   * Skill keeps paying after the requirement is met. A gate cannot express
+   * this: a hundred-Sharp hero and a five-Sharp novice both meet a
+   * requirement-1 dagger in full, and should not swing it identically.
    */
   it("pays skill on damage and accuracy long past the requirement", () => {
     const master = fightingStats(
@@ -225,15 +210,14 @@ describe("what a weapon is worth in the hand", () => {
   });
 
   /**
-   * **A hole in the gate, closed.** The skill bonus has a flat term that does not
-   * depend on the weapon, and while it sat outside handling a Blunt 100 hero
-   * could pick up something whose *other* requirement they came nowhere near and
-   * still aim it as well as anything else. Handling multiplies the accuracy side
-   * of the skill bonus as well, so being good with maces cannot cancel out being
-   * short of this one.
+   * The skill bonus has a flat term that does not depend on the weapon. If it
+   * sat outside handling, a Blunt 100 hero could pick up something whose other
+   * requirement they came nowhere near and still aim it as well as anything
+   * else. Handling multiplies the accuracy side of the skill bonus as well, so
+   * being good with maces cannot cancel being short of this one.
    *
-   * Damage is exempt on purpose — see the shortfall rule above — so what a
-   * master loses on a weapon they cannot lift is aim and pace, not force.
+   * Damage is exempt on purpose (the shortfall rule above): what a master loses
+   * on a weapon they cannot lift is aim and pace, not force.
    */
   it("gives a master no extra aim from a weapon they cannot lift", () => {
     const requirements = { blunt: 5, toughness: 100 };
@@ -257,12 +241,10 @@ describe("what a weapon is worth in the hand", () => {
   });
 
   /**
-   * **An author's zero is the author speaking.** A shield goes in the main hand,
-   * where it replaces what you swing — that is what makes taking one up a
-   * decision rather than three free points. The flat half of the skill bonus
-   * does not depend on the weapon's own damage, so without this rule a skilled
-   * body chipped away at things with a shield, and the trade quietly stopped
-   * being a trade.
+   * A shield goes in the main hand, where it replaces what you swing, which is
+   * what makes taking one up a decision rather than three free points. The flat
+   * half of the skill bonus does not depend on the weapon's own damage, so
+   * without this rule a skilled body would chip away at things with a shield.
    */
   it("leaves a weapon authored at no damage doing none, however skilled", () => {
     for (const blunt of [0, 50, 100]) {
@@ -288,10 +270,9 @@ describe("what a weapon is worth in the hand", () => {
   });
 
   /**
-   * **Accuracy is scaled now, where it used to pass through untouched.** It is
-   * both the input to a hit chance and what a defender's evasion is contested
-   * against, so a master is harder to dodge as well as harder to escape — and a
-   * body swinging something it cannot lift is easy to read.
+   * Accuracy is both the input to a hit chance and what a defender's evasion is
+   * contested against, so a master is harder to dodge as well as harder to
+   * escape, and a body swinging something it cannot lift is easy to read.
    */
   it("moves accuracy with both handling and skill", () => {
     const outclassed = fightingStats(
@@ -380,7 +361,7 @@ describe("what a spell is worth in the hand", () => {
   });
 
   /**
-   * **Both halves, averaged, and neither can stand in for the other.** A great
+   * Both halves averaged, and neither stands in for the other: a great
    * arcanist who has never thrown fire throws mediocre fire, and somebody with
    * nothing but Fire has nothing to point it with.
    */
@@ -419,10 +400,9 @@ describe("what a spell is worth in the hand", () => {
   });
 
   /**
-   * **The sign survives and the magnitude grows.** A mend is a harm with a minus
-   * in front of it, so mastery has to make it *deeper* — a flat term added
-   * without regard to the sign would have a master's stone of life mending less
-   * than a novice's, and eventually mending nothing at all.
+   * A mend is a harm with a minus in front of it, so mastery has to make it
+   * deeper: a flat term added without regard to the sign would have a master's
+   * stone of life mending less than a novice's.
    */
   it("makes a mend deeper rather than shallower", () => {
     const novice = spellPower(-20, undefined, {});

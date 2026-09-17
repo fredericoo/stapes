@@ -5,11 +5,8 @@ import { PROTOCOL_VERSION } from "../net/protocol";
  * each other.
  *
  * The server refuses a socket whose protocol version is not its own — see
- * `PROTOCOL_VERSION` — and until this existed the refusal had no picture at all.
- * The page reloaded once, hit the same wall, and then sat behind `LoadingScreen`
- * saying "Loading…" for ever, with the word OUTDATED in a chip beside the clock
- * that nobody reads while they are waiting for a world to appear. A wait that
- * will never end has to say so.
+ * `PROTOCOL_VERSION`. Without this screen the page would sit behind
+ * `LoadingScreen` for ever; a wait that will never end has to say so.
  *
  * **There are two of these and they need opposite advice**, which is the whole
  * reason the version is carried out of `RemoteSession` rather than the close

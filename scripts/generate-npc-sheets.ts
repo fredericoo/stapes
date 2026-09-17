@@ -2,21 +2,17 @@
  * Derives further sets of clothes for the one person in `people.png`.
  * Run: bun run generate:npcs
  *
- * There is exactly one humanoid drawn for this world and the player is wearing
- * it, so the first NPC anybody stands next to would be the player's twin — which
- * is the single worst thing a body can look like in a game where the interesting
- * question is *who* said that. Redrawing the figure is the right fix and needs
- * somebody who can draw; recolouring it is the cheap one, and it is honest about
- * being cheap: same silhouette, same animation, different person.
+ * There is one humanoid drawn for this world and the player wears it, so an
+ * NPC is a recolour of that figure: same silhouette, same animation, different
+ * cloth.
  *
- * Only the warm tones move. The greys and the outline carry every bit of the
- * shading and the read of the pose, so a remap that touched them would make a
- * flatter figure rather than a differently dressed one — what changes is the
- * cloth, which is what tells two people apart at eight pixels tall anyway.
+ * Only the warm tones move. The greys and the outline carry the shading and the
+ * read of the pose, so a remap that touched them would make a flatter figure
+ * rather than a differently dressed one.
  *
- * Generated rather than committed as art because there is no drawing decision in
- * it: the output is pinned by `people.png` plus the table below, so a hand-edited
- * version is either identical to this or a divergence nobody meant.
+ * Generated rather than committed as art because the output is pinned by
+ * `people.png` plus the table below, so a hand-edited version is either
+ * identical to this or a divergence nobody meant.
  */
 import { promises as fs } from "node:fs";
 import path from "node:path";

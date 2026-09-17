@@ -67,7 +67,6 @@ function at(map: MapFile, x: number, y: number, z: number) {
   return { x, y, z, stackIndex: getStack(map, x, y, z).length - 1 };
 }
 
-/** Flat grass strip along y=0 from x=0..width-1, with the object on x=0. */
 function grassStrip(width: number, objectId = "crate"): MapFile {
   let map = emptyMap();
   for (let x = 0; x < width; x++) {
@@ -203,7 +202,6 @@ describe("pushDestination climb", () => {
 describe("pushDestination physics", () => {
   it("a gravity object shoved off a ledge settles on the surface below", () => {
     let map = emptyMap();
-    // Plateau at z=1, open ground two levels down at z=-1.
     map = place(map, 0, 0, 0, ["wall"]);
     map = place(map, 0, 0, 1, ["crate"]);
     map = place(map, 1, 0, -1, ["grass"]);

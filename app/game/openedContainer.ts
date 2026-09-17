@@ -7,30 +7,20 @@ import type { OpenedContainer } from "./itemMoves";
 /**
  * Whether a container somebody opened is still theirs to look into.
  *
- * Pure, and out here rather than inside the render loop, because it is a rule
- * about the world rather than about drawing: *may this person see inside that
- * box, right now*. The loop's job is only to ask it at the right moments — see
- * `GameRenderer.pushOpenedContainer`, which asks whenever the viewer moves or
- * the container's cell changes, and those are the only two things that can
+ * A rule about the world rather than about drawing, so it lives here and not
+ * in the render loop. `GameRenderer.pushOpenedContainer` asks it whenever the
+ * viewer moves or the container's cell changes, the only two things that can
  * change the answer.
  *
- * ## Closed is closed
+ * There is no "temporarily out of view" state. Anything that stops the panel —
+ * walking off, somebody carrying the box away, a crate landing on it — closes
+ * it for good, so a panel never reopens on its own as you wander past a chest.
  *
- * There is no "temporarily out of view" state to come back from. Anything that
- * stops the panel — walking off, somebody carrying the box away, a crate landing
- * on it — closes it for good, and opening it again is a deliberate act. The
- * alternative reopens a panel on its own as you wander back past a chest, which
- * is a window appearing without anybody asking for one.
- *
- * That also disposes of the case worth being strict about. A reference names a
- * *slot*, not a thing, so a box that has been carried off leaves its slot to
- * whatever comes next; a reference kept alive across that would show the inside
- * of whatever took its place. **You must not see what is in a bag somebody else
- * has picked up.** With nothing kept, there is nothing to substitute into.
- *
- * The identity check earns its keep even so: a box can be swapped while you are
- * standing right over it, and that is precisely when nobody is walking anywhere
- * to close the panel.
+ * A reference names a *slot*, not a thing, so a box carried off leaves its slot
+ * to whatever comes next. **You must not see what is in a bag somebody else has
+ * picked up**, which is why the item id is checked as well as the slot: a box
+ * can be swapped while you stand over it, when nobody is walking anywhere to
+ * close the panel.
  */
 export type OpenedContainerRead =
   /** In reach and the same box. Here is what is in it. */

@@ -253,7 +253,6 @@ describe("GameSession pressure plates", () => {
   });
 
   it("presses when a crate is shoved on and releases when it leaves", () => {
-    // Player at (0,0) shoves the crate at (1,0) east onto the plate at (2,0).
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
       { tileId: "player", direction: "e" },
@@ -267,7 +266,6 @@ describe("GameSession pressure plates", () => {
     session.tick(TICK_MS);
     expect(stackIds(session.getMap(), 2, 0)).toEqual(["plate-pressed", "crate"]);
 
-    // Walk up to it and shove it off again.
     step(session, "e");
     expect(session.push({ x: 2, y: 0, z: 0, stackIndex: 1 })).toBe(true);
     session.tick(TICK_MS);
@@ -299,7 +297,6 @@ describe("GameSession pressure plates", () => {
       "player",
     ]);
 
-    // And it comes back up once both of them are off it.
     step(session, "e", "a");
     step(session, "e", "b");
     expect(stackIds(session.getMap(), 1, 0)).toEqual(["plate"]);

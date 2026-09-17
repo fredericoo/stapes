@@ -1,12 +1,11 @@
 /**
  * Run both halves of the app, on ports nothing else is using.
  *
- * Several worktrees of this repository run `bun dev` at once. That used to be
- * free — each had its own `.wrangler` state directory, so the world and its
- * storage were isolated by construction. It stays free for *state*, since the
- * database is a file inside the worktree, but ports are shared: Vite would pick
- * the next one up from 5173 while the server sat on a fixed 3000, and the
- * second worktree's client would quietly proxy to the first worktree's world.
+ * Several worktrees of this repository run `bun dev` at once. State is
+ * isolated, since the database is a file inside the worktree, but ports are
+ * shared: Vite would pick the next one up from 5173 while the server sat on a
+ * fixed 3000, and the second worktree's client would quietly proxy to the first
+ * worktree's world.
  *
  * That failure looks exactly like a state bug and is not one, so this asks the
  * operating system for two free ports and tells each half about the other.
@@ -67,11 +66,10 @@ function run(name: string, command: string[], env: Record<string, string>) {
   });
 
   child.on("exit", (code, signal) => {
-    // **Say which half died, and say it for a signal too.** A process killed by
+    // Say which half died, and say it for a signal too. A process killed by
     // one exits with a null code, so reporting only on `code` means a crash —
     // which is exactly the case somebody needs told about — prints nothing at
-    // all, and the only thing on screen is the *other* half draining. That is
-    // how a Vite abort looked like the server deciding to stop on its own.
+    // all, and the only thing on screen is the *other* half draining.
     if (!stopping) {
       const how = signal ? `killed by ${signal}` : `exited ${code}`;
       if (signal || code !== 0) console.error(`\n[dev] ${name} ${how}`);

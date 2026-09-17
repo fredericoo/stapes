@@ -25,11 +25,8 @@ import type { Equipment } from "./equipment";
 import { emptyEquipment } from "./equipment";
 
 /**
- * Reaching for things.
- *
- * The geometry above all: pick-up and open share a round radius that is
- * deliberately not the orthogonal-adjacent rule a push uses, and the difference
- * is the whole reason these are separate functions.
+ * Pick-up and open share a round radius; a push uses orthogonal adjacency, which
+ * is why they are separate functions.
  */
 
 function tile(partial: Record<string, unknown>): TileDef {
@@ -53,9 +50,8 @@ const tiles = [
   // where sight is light and you see over anything shorter than a level.
   tile({ id: "wall", height: 4 }),
   tile({ id: "sword", kind: "item", interactions: { item: DEFAULT_WEAPON } }),
-  // An off-hand *weapon* — a shield. What a torch used to be authored as, and
-  // the reason `WeaponItem.offhand` exists: only the author knows which hand a
-  // block of weapon numbers was meant for.
+  // An off-hand weapon. `WeaponItem.offhand` exists because only the author
+  // knows which hand a block of weapon numbers is meant for.
   tile({
     id: "shield",
     kind: "item",
@@ -346,10 +342,6 @@ describe("canPickUpFrom", () => {
   });
 });
 
-/**
- * Arming yourself off the floor, which is what you can do with no bag at all.
- * One slot per thing, and it has to be empty.
- */
 describe("equipSlotFrom", () => {
   const slotFor = (tileId: string, kit: Equipment) =>
     equipSlotFrom(mapWith(1, 0, tileId), tilesById, ME, ref(1, 0), kit);
@@ -377,7 +369,6 @@ describe("equipSlotFrom", () => {
     expect(slotFor("mail", helmed)).toBe("armor");
   });
 
-  /** The point of the whole thing: a sword with nothing to put it in. */
   it("arms somebody carrying nothing", () => {
     expect(canEquipFrom(mapWith(1, 0, "sword"), tilesById, ME, ref(1, 0), emptyEquipment())).toBe(
       true,
@@ -414,7 +405,6 @@ describe("equipSlotFrom", () => {
     expect(slotFor("chest", emptyEquipment())).toBeNull();
   });
 
-  /** A hand is not a pocket. A berry goes in the bag or in your mouth. */
   it("has no slot for a consumable", () => {
     expect(slotFor("berry", emptyEquipment())).toBeNull();
   });

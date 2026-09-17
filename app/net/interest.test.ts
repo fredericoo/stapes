@@ -30,17 +30,6 @@ import {
 import type { MapFile, PlacedTile } from "../lib/types";
 import { MESH_WINDOW_MARGIN, VIEW_CELLS } from "../lib/view";
 
-/**
- * What a client is owed.
- *
- * The reach is the whole of this: too small and the client's own sky flood
- * seeds daylight at the edge of what it holds, which is a lit boundary that
- * moves as you walk. Every case below is either about that or about the
- * subscription being a function of where the body is rather than of how big
- * the world is.
- */
-
-/** A client that has been told about nobody, which is most of the map to most of them. */
 const NOBODY: ReadonlySet<string> = new Set();
 
 function mapAt(...cells: Array<{ x: number; y: number; z: number }>): MapFile {
@@ -53,10 +42,8 @@ function mapAt(...cells: Array<{ x: number; y: number; z: number }>): MapFile {
 
 describe("how far a client is told about", () => {
   /**
-   * The reach is derived from what the *lighting* reads, and this is that
-   * derivation written out a second way. If it ever disagrees with the module,
-   * one of the two has stopped tracking the constants it is made of — which is
-   * exactly the drift the derivation exists to prevent.
+   * The derivation written out a second way. If it disagrees with the module,
+   * one of the two has stopped tracking the constants it is made of.
    */
   it("covers everything the client's own light bake can read", () => {
     expect(INTEREST_REACH_CELLS).toBe(
@@ -154,19 +141,12 @@ describe("what comes into reach", () => {
   });
 });
 
-/**
- * How far a *body* is worth mentioning, which is a different question from how
- * much map a client needs. Scoping bodies at the map's reach is what the first
- * version of this did, and on a map narrower than the subscription it saved
- * nothing at all.
- */
 describe("the body reach", () => {
   /**
-   * The one relationship that has to hold. A body announced on ground its
-   * client has not been sent is one it can only find by searching its whole
-   * board — and `INTEREST_REACH_CHUNKS` chunks is the *least* a subscription
-   * covers in any direction, since a body at the start of its own chunk holds
-   * exactly that far west.
+   * A body announced on ground its client has not been sent is one it can only
+   * find by searching its whole board. `INTEREST_REACH_CHUNKS` chunks is the
+   * least a subscription covers in any direction, since a body at the start of
+   * its own chunk holds exactly that far west.
    */
   it("stays inside the least the map reach covers", () => {
     expect(BODY_REACH_CELLS).toBeLessThanOrEqual(
@@ -181,8 +161,7 @@ describe("the body reach", () => {
         MESH_WINDOW_MARGIN +
         MAX_LIGHT_LEVEL,
     );
-    // The point of the exercise: well under the map's, which is mostly the
-    // cached light bake's own apron.
+    // Well under the map's, which is mostly the cached light bake's own apron.
     expect(BODY_REACH_CELLS).toBeLessThan(INTEREST_REACH_CELLS);
   });
 
@@ -198,9 +177,9 @@ describe("the body reach", () => {
 
   /**
    * The projection shifts a level by its own number, so a body some storeys off
-   * is drawn that far from its own column — and only that far. Charging the
-   * whole level span for a body on the floor you are standing on is what made
-   * a den of cave floors read as one enormous room.
+   * is drawn that far from its own column and no further. Charging the whole
+   * level span for a body on the same floor would make a stack of cave floors
+   * count as one room.
    */
   it("widens by the storeys between the two, and no further", () => {
     const at = { x: 100, y: 100, z: 0 };
@@ -217,12 +196,9 @@ describe("the body reach", () => {
 });
 
 /**
- * What a client is not told about, it is not sent — including the tile of it.
- *
- * The cheaper arrangement is to stop sending a distant creature's steps and
- * leave the cells alone, and it leaves that creature's tile in the client's
- * board for ever: too far to draw, and `fitsTile` counts it as solid, so the
- * player is refused a step into a cell a deer left an hour ago.
+ * A client is not sent the tile of a body it is not told about. Leaving the
+ * cells alone while not sending a distant creature's steps would leave its tile
+ * in the client's board for ever, and `fitsTile` counts it as solid.
  */
 describe("bodies in a stack", () => {
   const grass = { tileId: "grass" } as PlacedTile;
@@ -302,10 +278,9 @@ describe("handing the cells over", () => {
   });
 
   /**
-   * Scoping by level as well is the tempting next step and is a trap: you can
-   * see down a hole into the floor below, a pit drops you a level without
-   * warning, and a ramp is a level change you walk up. A body has to land
-   * somewhere it has been told about.
+   * Scoping by level as well would break: you can see down a hole into the
+   * floor below, a pit drops you a level without warning, and a ramp is a level
+   * change you walk up. A body has to land somewhere it has been told about.
    */
   it("holds every level of the chunks it holds", () => {
     let map = emptyMap();

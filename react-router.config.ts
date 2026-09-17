@@ -4,7 +4,7 @@ export default {
   /**
    * No server rendering.
    *
-   * The client is a bundle of static files now, pushed to a bucket and served
+   * The client is a bundle of static files, pushed to a bucket and served
    * by the game server — so deploying it is a push and a pointer flip rather
    * than a restart, and nobody playing is disconnected by a change to the UI.
    *

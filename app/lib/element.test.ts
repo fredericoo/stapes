@@ -8,14 +8,6 @@ import {
   NEUTRAL,
 } from "./element";
 
-/**
- * The wheel, on its own.
- *
- * Nothing here needs a body, a stone or a world — which is the point of the
- * module being this small. What a spell is worth against what it lands on is
- * arithmetic over two lists of words.
- */
-
 describe("the wheel", () => {
   it("has every element beating exactly one and losing to exactly one", () => {
     for (const element of ELEMENTS) {

@@ -14,20 +14,15 @@ function frameMsBudget(): number | null {
 }
 
 /**
- * How long the app is allowed to take to exist, as opposed to to draw.
+ * How long the app may take to boot, as opposed to draw.
  *
- * None of this is a budget — the budgets are the assertions at the bottom, and
- * they only measure frames taken after `ready()` resolves. Everything before
- * that is the app booting, and on a cold Vite cache most of it is the module
- * graph being transformed for the first time: a fresh clone, CI, the first run
- * after touching a source file, or simply another dev server compiling on the
- * same machine.
- *
- * These were 15s and 30s, which a cold compile beats on a quiet laptop and
- * loses to badly under any contention. That failed the run on a timeout, which
- * reads as a renderer regression and is nothing of the sort. Generous here
- * costs a slow failure on a genuinely broken app and buys a test that only
- * fails for the reason it exists.
+ * Not a budget: the budgets are the assertions at the bottom, and they only
+ * measure frames taken after `ready()` resolves. Everything before that is the
+ * app booting, and on a cold Vite cache most of it is the module graph being
+ * transformed for the first time: a fresh clone, CI, the first run after
+ * touching a source file, or another dev server compiling on the same machine.
+ * A tight timeout here fails the run on a slow compile, which reads as a
+ * renderer regression. Generous costs a slow failure on a genuinely broken app.
  */
 const BOOT_TIMEOUT_MS = 120_000;
 const READY_TIMEOUT_MS = 60_000;
@@ -83,12 +78,11 @@ test.describe("editor renderer perf", () => {
       `draw calls ${result.calls} exceeded budget ${PERF_BUDGETS.maxDrawCalls}`,
     ).toBeLessThanOrEqual(PERF_BUDGETS.maxDrawCalls);
 
-    // **Derived from the map rather than typed in.** `placedQuads` is every
+    // Derived from the map rather than typed in. `placedQuads` is every
     // placement the authored world holds — see `EditorRenderer.countPlacedQuads`,
     // which walks the map itself and not the camera — so this ceiling grows when
     // somebody builds a town and a failure can only mean the renderer started
-    // emitting more geometry per tile. There used to be a flat `maxTriangles`
-    // beside it; see `PERF_BUDGETS.maxTrianglesPerQuad` for why it is gone.
+    // emitting more geometry per tile.
     const triangleBudget = Math.round(
       result.placedQuads * PERF_BUDGETS.maxTrianglesPerQuad,
     );

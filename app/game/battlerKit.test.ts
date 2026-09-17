@@ -16,14 +16,11 @@ import {
 } from "./equipment";
 
 /**
- * The hand a body starts a fight on, which is what nearly every case here means.
- *
- * Both hands swing now, so "the numbers this body fights with" is a question
- * about a *turn* rather than about a body — see `./equipment`'s
- * `effectiveBattler`. Almost nothing below is about the rotation, so almost
- * everything below asks for the first hand that has something to swing and lets
- * `handToSwing` fall back to bare hands on its own. The cases that *are* about
- * the rotation name their hand outright.
+ * The hand a body starts a fight on. "The numbers this body fights with" is a
+ * question about a turn rather than a body — see `./equipment`'s
+ * `effectiveBattler` — so the cases not about the rotation ask for the first
+ * hand that has something to swing and let `handToSwing` fall back to bare
+ * hands. The cases that are about the rotation name their hand outright.
  */
 function firstHand(
   equipment: Equipment | null,
@@ -31,16 +28,6 @@ function firstHand(
 ): Hand | null {
   return handToSwing(equipment, tiles, HANDS[0]);
 }
-
-/**
- * Rolling an authored kit into a body's equipment.
- *
- * Two things are being pinned down here and they pull in opposite directions.
- * One is that the *outcome* follows the chances and the slot rules. The other is
- * that the *cost in dice* follows neither — a kit draws the same number of times
- * whatever it rolls, because everything else in the world is drawing from the
- * same stream behind it.
- */
 
 function tile(id: string, extra: Record<string, unknown> = {}): TileDef {
   return normalizeTileDef({

@@ -10,14 +10,10 @@ import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 
 /**
- * The rule both machines walk by.
- *
- * Client-side prediction only works while the browser and the server agree
- * about what a held direction means — a client stepping by a rule of its own
- * would draw steps the server then takes back, and every disagreement is a
- * visible snap. So the rule lives in one function, and this covers the parts of
- * it that are easy to get subtly different: which held direction wins, and what
- * happens to facing when none of them can be walked.
+ * Client prediction only works while the browser and the server agree what a
+ * held direction means; every disagreement is a visible snap. So the rule lives
+ * in one function, and this covers the parts easy to get different: which held
+ * direction wins, and what happens to facing when none can be walked.
  */
 
 const frame = {
@@ -143,7 +139,6 @@ describe("chooseStep", () => {
   });
 });
 
-/** Which cell the actor's tile is in, as an x. */
 function actorX(session: GameSession, id: string): number {
   const actor = session.actorSnapshots().find((a) => a.id === id);
   if (!actor) throw new Error(`no actor ${id}`);
@@ -201,12 +196,9 @@ describe("GameSession.requestStep", () => {
   });
 
   /**
-   * The invariant the server's queue is built on.
-   *
-   * A held key has always started the next step inside the very tick that
-   * committed the last one. A queued step has to be takeable in that same tick
-   * or every cell walked costs a tick of dead time, and the server falls
-   * steadily further behind the client that is predicting it.
+   * A queued step has to be takeable in the tick that commits the last one, or
+   * every cell walked costs a tick of dead time and the server falls behind the
+   * client predicting it.
    */
   it("frees the actor in the same tick the walk commits", () => {
     const session = sessionOnStrip();

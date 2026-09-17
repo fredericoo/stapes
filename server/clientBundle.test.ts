@@ -151,12 +151,12 @@ describe("housekeeping", () => {
   }
 
   it("does not delete a build that is uploaded but not yet activated", async () => {
-    // The shape of a production deploy, and the bug that killed three of them.
-    // Continuous integration uploads, restarts the server, and only *then*
-    // activates — so the restart collects garbage while the new build is on
-    // disk and nothing points at it yet. Build ids are commit shas, so keeping
-    // "the last five by name" kept five arbitrary builds and threw away the one
-    // the deploy was seconds from serving.
+    // The shape of a production deploy. Continuous integration uploads,
+    // restarts the server, and only *then* activates — so the restart collects
+    // garbage while the new build is on disk and nothing points at it yet.
+    // Build ids are commit shas, so keeping "the last five by name" keeps five
+    // arbitrary builds and throws away the one the deploy is seconds from
+    // serving.
     const alreadyDeployed = ["ff", "ee", "dd", "cc", "bb"];
     for (const [index, id] of alreadyDeployed.entries()) {
       await bundle.store(id, build(id));

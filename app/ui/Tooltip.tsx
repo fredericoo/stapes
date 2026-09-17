@@ -1,19 +1,14 @@
 import { Tooltip as BaseTooltip } from "@base-ui/react/tooltip";
 import type { ReactElement, ReactNode } from "react";
 
-/** The wait a tooltip nobody asked for should sit behind. */
 const HOVER_DELAY_MS = 400;
 
 /**
- * Shares an open delay across every tooltip so moving along a toolbar
- * shows adjacent tooltips instantly.
- *
- * The delay is what stops a sweep across a toolbar flashing six tooltips on the
- * way past — it is there for the pointer that is only travelling. A control
- * whose whole purpose is to be hovered has already been aimed at by the time it
- * is under the pointer, so it nests its own provider with no delay at all; see
- * `./InfoTip`. Base UI keeps the delay on the provider rather than on a root,
- * so nesting one is how a subtree says it wants a different wait.
+ * Shares an open delay across every tooltip so moving along a toolbar shows
+ * adjacent tooltips instantly, while a sweep across it does not flash each one
+ * on the way past. A control that exists to be hovered nests its own provider
+ * with no delay; see `./InfoTip`. Base UI keeps the delay on the provider, not
+ * the root, so nesting one is how a subtree gets a different wait.
  */
 export function TooltipProvider({
   children,

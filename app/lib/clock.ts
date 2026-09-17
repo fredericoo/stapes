@@ -11,9 +11,9 @@ export const MS_PER_CLOCK_MINUTE = 1000;
 export type MinutesOfDay = number;
 
 /**
- * The sky colour alone. The clear colour behind the world used to ride along
- * here and follow the hour; it is now `VOID_BACKGROUND` in `./lighting`, fixed,
- * because what shows through where there are no tiles is not sky but nothing.
+ * The sky colour alone. The clear colour behind the world is the fixed
+ * `VOID_BACKGROUND` in `./lighting`, because what shows through where there
+ * are no tiles is not sky.
  */
 export type Illumination = {
   ambient: [number, number, number];
@@ -43,10 +43,8 @@ export const ILLUMINATION_KEYFRAMES: readonly IlluminationKeyframe[] = [
   { at: 19 * 60, ambient: [0.04, 0.05, 0.1] },
 ];
 
-/** Noon — editor default. */
 export const DEFAULT_EDITOR_MINUTES = 12 * 60;
 
-/** Late evening — play default (was `"night"`). */
 export const DEFAULT_PLAY_MINUTES = 22 * 60;
 
 export function wrapMinutes(m: number): MinutesOfDay {

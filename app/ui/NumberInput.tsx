@@ -17,9 +17,8 @@ import { parseNumberInput, type NumberRule } from "./numberParse";
  * and nothing is committed. Escape puts the last committed value back.
  *
  * That last point is a choice: a box showing "99999" in red beside a Save
- * button will save the *previous* number. The alternative was clamping, which
- * silently writes a number the author did not type, and was the behaviour this
- * replaced.
+ * button will save the *previous* number. Clamping instead would silently
+ * write a number the author did not type.
  */
 type SharedProps = Omit<
   ComponentProps<typeof Input>,
@@ -30,7 +29,6 @@ type SharedProps = Omit<
   step?: number;
 };
 
-/** What the box shows for a committed value. */
 function textOf(value: number | null | undefined): string {
   return value == null ? "" : String(value);
 }
