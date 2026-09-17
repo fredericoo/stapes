@@ -284,9 +284,9 @@ import {
   canWalk,
   DIR_DELTA,
   listStandingSurfaces,
-  resolveWalkDurationMs,
   standingAbs,
   surfacesInClimbBand,
+  walkDurationMsFor,
 } from "./movement";
 import {
   dropLanding,
@@ -368,6 +368,7 @@ import {
   NO_STATUSES,
   type StatusInstance,
   statusReading,
+  walkSpeedPercentFrom,
   withStatusModifiers,
 } from "./statuses";
 import { sanitizeChatText } from "../net/chat";
@@ -6748,6 +6749,22 @@ export class GameSession implements PlaySession {
   }
 
   /**
+   * How long this body's next step takes, with everything that has a say in it.
+   *
+   * The one place the sources are gathered, so a step begun by held input, by a
+   * creature's legs and by a slide off a ledge are all timed the same way. The
+   * browser gathers the same two for itself — see `../net/RemoteSession`'s
+   * `walkDurationAt` — which is the arrangement a pace that never travels is
+   * under. @see `./movement`'s `walkDurationMsFor`
+   */
+  private walkDurationOf(actor: ActorRuntime): number {
+    return walkDurationMsFor(
+      this.defFor(actor),
+      walkSpeedPercentFrom(actor.statuses, this.statusDefs),
+    );
+  }
+
+  /**
    * Is a status running on this body, with at least this long left?
    *
    * Read off the live instances rather than through `battlerOf`, which is where
@@ -9328,7 +9345,7 @@ export class GameSession implements PlaySession {
       to: choice.step.to,
       direction: choice.step.direction,
       elapsedMs: 0,
-      durationMs: resolveWalkDurationMs(this.defFor(actor)),
+      durationMs: this.walkDurationOf(actor),
     };
     return true;
   }
@@ -9517,7 +9534,7 @@ export class GameSession implements PlaySession {
           to: slide.to,
           direction: facing,
           elapsedMs: 0,
-          durationMs: resolveWalkDurationMs(this.defFor(actor)),
+          durationMs: this.walkDurationOf(actor),
         };
         return;
       }

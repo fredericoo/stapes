@@ -14,6 +14,7 @@ import { CHAT_LIFETIME_MS } from "./chat";
 import { RemoteSession, STEP_CONFIRM_TIMEOUT_MS } from "./RemoteSession";
 import type { CellPatch, HpPatch, MotionEvent } from "./protocol";
 import { UNKNOWN_REMAINING_MS } from "../game/statuses";
+import type { StatusDef } from "../lib/status";
 import { MAX_HELD_TRANSITIONS, MAX_TRANSITION_MS } from "../lib/tileTransition";
 
 /**
@@ -132,9 +133,15 @@ const SERVER_MINUTES = 7 * 60 + 30;
 
 function connected(
   now?: () => number,
+  statusDefs: Record<string, StatusDef> = {},
 ): { socket: FakeSocket; session: RemoteSession } {
   const socket = new FakeSocket();
-  const session = new RemoteSession(socket as unknown as WebSocket, tiles, now);
+  const session = new RemoteSession(
+    socket as unknown as WebSocket,
+    tiles,
+    statusDefs,
+    now,
+  );
   socket.deliver({
     type: "hello",
     selfId: SELF,

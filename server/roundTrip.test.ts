@@ -17,6 +17,7 @@ import type { ActorPosition } from "../app/game/GameSession";
 import type { FlatMapFile, TileDef } from "../app/lib/types";
 import { PLAYER_TILE_ID, TICK_MS, WALK_DURATION_MS } from "../app/game/constants";
 import { CHUNK_SIZE } from "../app/lib/types";
+import { statusesById } from "../app/lib/status";
 import type { GameServer } from "./GameServer";
 
 /**
@@ -37,6 +38,11 @@ import type { GameServer } from "./GameServer";
 
 const JSON_TYPE = "application/json";
 const tiles: TileDef[] = (tilesJson as TileDef[]).map(normalizeTileDef);
+/**
+ * The same catalogue the world is loaded with, so the client times a step the
+ * way the simulation does — a pace is derived on both sides and never sent.
+ */
+const statuses = statusesById(statusesJson as unknown[]);
 
 /** Where the player starts, one chunk in so it can walk either way. */
 const SPAWN_X = CHUNK_SIZE;
@@ -86,7 +92,12 @@ async function play(actorId: string) {
     void harness.server.webSocketClose(pair.server);
   };
   let clock = 0;
-  const remote = new RemoteSession(socket as unknown as WebSocket, tiles, () => clock);
+  const remote = new RemoteSession(
+    socket as unknown as WebSocket,
+    tiles,
+    statuses,
+    () => clock,
+  );
   await harness.server.join(pair.server, actorId);
   // The `hello` is sent inside `join`, so by here the client has a world.
   expect(remote.isReady()).toBe(true);

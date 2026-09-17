@@ -5458,6 +5458,48 @@ moment a brain could pick a bush — a hedge and a herd would grow `pendingNotic
 without bound for the life of the world. `GameSession.say` drops them at the
 door.
 
+## A pace is a percentage, and it never travels
+
+`walkDurationMs` on a tile is how fast a body walks when nothing is touching it.
+A status can now move that, as a **percentage of speed**: `-50` is half the pace
+and therefore twice the milliseconds, and sources sum before anything divides, so
+two chills at `-30` come to `-60` rather than to `-51`.
+
+**The constraint that shaped it is that a pace is derived on both sides of the
+wire and never sent.** `walkStarted` carries no duration — the browser knows
+which tile is walking and works it out for itself, which is cheaper than a field
+on every step and cannot disagree. Anything allowed to move a pace therefore has
+to be something the browser can read too, and that is the whole reason the
+percentage is a plain number rather than a formula like every other status
+modifier:
+
+- A modifier is evaluated against a scope that includes how long the status has
+  left to run. The browser is broadcast other bodies' status **ids** and nothing
+  else — `applyStatusIds` builds every instance at `UNKNOWN_REMAINING_MS` — so a
+  pace that varied with the remainder would have the two sides drawing the same
+  step at two different speeds.
+- Modifiers are deltas to `FightingStats`, applied where those are read. The
+  browser never builds `FightingStats` at all: it does not know what anybody is
+  wearing or what they have practised. Walking pace it has to know, for every
+  body it draws taking a step.
+
+So `walkSpeedPercent` sits beside `modifiers` rather than in it, and
+`walkSpeedPercentFrom` is reachable without going through `withStatusModifiers`.
+`RemoteSession` takes the status catalogue in its constructor for this one
+purpose, alongside the tiles — both are authored data a pace is derived from.
+`spd`, which is still a modifier, is how fast you **swing**.
+
+**The band is `-90` to `400`, and the floor is the load-bearing end.** The
+duration is a divisor, so `-100` is a body that never finishes a step, and
+nothing in the game clears a condition that stopped you walking out of it. A
+tenth of the pace is a bog everybody escapes.
+
+**A blow still plants you for the pace you are authored at.** `strikeRecoveryMs`
+reads `resolveWalkDurationMs` and not the moved figure: how long a swing costs is
+a fact about the swing, both ends already derive it from the tile alone, and
+tying it to whatever the swinger happened to be standing in would make the
+recovery depend on state the client may not hold at the moment of the blow.
+
 ## A creature can read its own health, and only as a share
 
 `health` is the condition that makes "run when you are losing" authorable. Every

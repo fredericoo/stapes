@@ -18,12 +18,19 @@ import {
 import {
   FALL_MS_PER_HEIGHT,
   PUSH_STEP_MS,
+  TICK_MS,
   WALK_DURATION_MS,
 } from "./constants";
+import { resolveStatus } from "../lib/status";
 import { GameSession } from "./GameSession";
 import { findLandingAbs, isSupported } from "./gravity";
 import { canWalk, standingAbs } from "./movement";
 import { findPlayers, requireSinglePlayer } from "./player";
+
+/** Run a session for `ms`, a tick at a time, the way a server does. */
+function advance(session: GameSession, ms: number) {
+  for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) session.tick(TICK_MS);
+}
 
 function tile(
   partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
@@ -937,6 +944,40 @@ describe("GameSession walk", () => {
     expect(getStack(snap.map, 0, 0, 0).some((p) => p.tileId === "player")).toBe(
       false,
     );
+  });
+
+  /**
+   * A status that says the bearer is slower, from one end of the feature to the
+   * other: the catalogue, the command that puts it on, and the step it times.
+   * The unit tests underneath assert the arithmetic; this asserts that the pace
+   * a body actually walks at reads it.
+   */
+  it("walks a slowed body at the slowed pace", () => {
+    const mired = resolveStatus({
+      id: "mired",
+      name: "Mired",
+      description: "Wading.",
+      tone: "bad",
+      fromMs: 60_000,
+      toMs: 60_000,
+      walkSpeedPercent: -50,
+    })!;
+    let map = mapWithPlayer({ x: 0, y: 0 });
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
+    const session = new GameSession(map, tiles, {
+      statuses: { mired: mired },
+    });
+    session.runCommand("/status mired");
+    session.setInput({ directions: ["e"] });
+
+    session.tick(TICK_MS);
+    // Half the speed, so twice the milliseconds — and still walking at the
+    // moment an unslowed body would have arrived.
+    advance(session, WALK_DURATION_MS);
+    expect(session.getSnapshot().self.x).toBe(0);
+
+    advance(session, WALK_DURATION_MS + TICK_MS * 2);
+    expect(session.getSnapshot().self.x).toBe(1);
   });
 });
 

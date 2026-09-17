@@ -7,6 +7,10 @@ import {
   statusVfxSchema,
 } from "./statusVfx";
 import { type CellRect, defaultBase, type AnchoredSprite } from "./types";
+import {
+  MAX_WALK_SPEED_PERCENT,
+  MIN_WALK_SPEED_PERCENT,
+} from "./walkSpeed";
 
 /**
  * What a status effect *is*: a lifetime, something it does while it lasts, and
@@ -128,6 +132,29 @@ export type StatusDef = {
   /** What holding this does to the numbers a fight is fought with. */
   modifiers: StatusModifiers;
   /**
+   * How much quicker or slower this makes its bearer walk, as a percentage.
+   *
+   * Zero is the pace the body is authored at; `-50` is half speed and `100` is
+   * twice it. Several sources sum before anything is divided — see
+   * `./walkSpeed`'s {@link walkDurationFrom} — so two chills are worse than
+   * one and neither can drive a body to a standstill.
+   *
+   * **Beside {@link modifiers} rather than inside it**, for two reasons that
+   * point the same way. Every modifier there is a delta in a fighting stat's own
+   * units, applied where `FightingStats` is read; walking pace is not a fighting
+   * stat and is not read there — `spd` is how fast you *swing*. And a modifier
+   * is a formula, evaluated against a scope that includes how long the status
+   * has left to run; the browser times other bodies' steps from the status
+   * *ids* it is broadcast and has no countdown for anybody but its viewer, so a
+   * pace that varied with the remainder would have the two sides drawing the
+   * same step at two different speeds. A plain number is the same answer on
+   * both.
+   *
+   * Zero for every status authored before this existed, which is the honest
+   * reading: a condition says nothing about your legs unless somebody says so.
+   */
+  walkSpeedPercent: number;
+  /**
    * What it looks like: a colour on the body, a plume over the tile.
    *
    * Never {@link NO_VFX} by accident — a status with nothing authored gets it on
@@ -172,6 +199,7 @@ export const DEFAULT_STATUS_SOURCE = {
   everyMs: 1_000,
   effects: {},
   modifiers: {},
+  walkSpeedPercent: 0,
   // Neither half authored, so a new status looks like every existing one until
   // somebody turns an effect on. The editor's defaults for each half live in
   // `./statusVfx`, and are only reached when an author asks for one.
@@ -250,6 +278,20 @@ const statusSourceSchema = v.pipe(
       ),
       () => ({}),
     ),
+    // A plain number rather than a formula, unlike everything in `modifiers`
+    // above — see `StatusDef.walkSpeedPercent`, which is where the reason is.
+    // Bounded on both sides by the band `../game/movement` clamps to anyway, so
+    // a typo'd extra digit reads as malformed rather than as a body that cannot
+    // be caught.
+    walkSpeedPercent: v.optional(
+      v.pipe(
+        v.number(),
+        v.integer(),
+        v.minValue(MIN_WALK_SPEED_PERCENT),
+        v.maxValue(MAX_WALK_SPEED_PERCENT),
+      ),
+      0,
+    ),
     // Optional and defaulted, which is the whole compatibility story: every
     // status in `data/statuses.json` predates this field, and an absent block
     // has to keep loading rather than dropping the status from the catalogue.
@@ -311,6 +353,7 @@ function compileStatus(raw: StatusSource): StatusDef | null {
     everyMs,
     effects,
     modifiers,
+    walkSpeedPercent: raw.walkSpeedPercent,
     vfx: resolveStatusVfx(raw.vfx),
   };
 }
@@ -364,6 +407,8 @@ export const COMBAT_STATUS: StatusDef = {
   everyMs: constantFormula(0),
   effects: {},
   modifiers: {},
+  // Being in a fight says nothing about your legs: you can run from one.
+  walkSpeedPercent: 0,
   vfx: NO_VFX,
 };
 

@@ -296,7 +296,8 @@
       "spd": "-10",
       "def": "-10",
       "flee": "-10"
-    }
+    },
+    "walkSpeedPercent": -30
   },
   {
     "id": "luminous",

@@ -10,6 +10,7 @@ import {
 import {
   UNKNOWN_REMAINING_MS,
   type StatusInstance,
+  walkSpeedPercentFrom,
 } from "../game/statuses";
 import type { ProjectileFlight } from "../game/projectile";
 import {
@@ -59,6 +60,7 @@ import {
 } from "../game/casting";
 import { castRefusalNotice } from "../game/notices";
 import { masteriesFromXp, type MasteryXp } from "../lib/mastery";
+import type { StatusDef } from "../lib/status";
 import { canMoveItem, itemInSlot, type SlotRef } from "../game/itemMoves";
 import type { ConsumeSource } from "../game/itemUse";
 import { canTransmuteFrom } from "../game/transmute";
@@ -76,7 +78,7 @@ import type {
   PlaySession,
   WalkState,
 } from "../game/GameSession";
-import { resolveWalkDurationMs, standingAbs } from "../game/movement";
+import { standingAbs, walkDurationMsFor } from "../game/movement";
 import { STRIKE_RECOVERY_STEPS, strikeRecoveryMs } from "../game/combat";
 import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
 import {
@@ -418,6 +420,14 @@ export class RemoteSession implements PlaySession {
   constructor(
     private readonly socket: WebSocket,
     tiles: TileDef[],
+    /**
+     * The status catalogue, for the one thing this side has to work out about
+     * somebody else's condition: how fast it makes them walk. Constructor-shaped
+     * like the tiles rather than a setter, because a session that had it a
+     * moment later would time the first steps it ever drew at the wrong pace.
+     * @see walkSpeedPercentOf
+     */
+    private readonly statusDefs: Record<string, StatusDef> = {},
     /** Milliseconds on a clock that keeps running while the tab is hidden. */
     private readonly now: () => number = () => performance.now(),
   ) {
@@ -908,17 +918,43 @@ export class RemoteSession implements PlaySession {
   }
 
   /**
-   * How fast whatever is standing at `at` walks.
+   * How fast the body at `at` walks, with whatever is slowing or hurrying it.
    *
    * Taken from the top of the stack, which is where a body sits. A cell that
    * has already been patched out from under the event falls back to the
    * player's pace — the wrong answer for one step of one creature, and better
    * than refusing to animate it.
+   *
+   * **Derived here rather than sent, which is what constrains what may move a
+   * pace.** The statuses are the ids the broadcast carries, and the percentage
+   * each one is worth is a plain number in the catalogue — so this side reaches
+   * the same answer the simulation did without a countdown it does not have for
+   * anybody but its viewer. @see `../lib/status`'s `StatusDef.walkSpeedPercent`
    */
-  private walkDurationAt(at: { x: number; y: number; z: number }): number {
+  private walkDurationAt(
+    actorId: string,
+    at: { x: number; y: number; z: number },
+  ): number {
     const stack = getStack(this.map, at.x, at.y, at.z);
     const def = this.tilesById[stack[stack.length - 1]?.tileId ?? ""];
-    return def ? resolveWalkDurationMs(def) : WALK_DURATION_MS;
+    if (!def) return WALK_DURATION_MS;
+    return walkDurationMsFor(def, this.walkSpeedPercentOf(actorId));
+  }
+
+  /**
+   * How much quicker or slower everything on one body makes it walk.
+   *
+   * The viewer's own list where there is one and the broadcast ids otherwise,
+   * which is the same split {@link getSnapshot} draws statuses by — and here it
+   * costs nothing, because the percentage a status is worth does not depend on
+   * how long it has left.
+   */
+  private walkSpeedPercentOf(actorId: string): number {
+    const statuses =
+      actorId === this.selfId
+        ? this.statuses
+        : (this.statusesById.get(actorId) ?? NO_STATUSES);
+    return walkSpeedPercentFrom(statuses, this.statusDefs);
   }
 
   /**
@@ -1194,7 +1230,7 @@ export class RemoteSession implements PlaySession {
         // Read off the body rather than sent with the event: this side already
         // knows which tile is walking, so deriving the pace here cannot
         // disagree with the server and costs nothing on the wire.
-        durationMs: this.walkDurationAt(event.from),
+        durationMs: this.walkDurationAt(event.actorId, event.from),
       };
     } else if (event.kind === "fallStarted") {
       motion.fall = {
@@ -1552,8 +1588,9 @@ export class RemoteSession implements PlaySession {
       to: choice.step.to,
       direction: choice.step.direction,
       elapsedMs,
-      // Our own body, so its pace is the one the server will time us by.
-      durationMs: resolveWalkDurationMs(def),
+      // Our own body, so its pace is the one the server will time us by —
+      // whatever we are under and whatever we are standing on included.
+      durationMs: walkDurationMsFor(def, this.walkSpeedPercentOf(this.selfId)),
     };
     this.pending.push({
       seq,

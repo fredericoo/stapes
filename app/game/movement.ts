@@ -17,6 +17,7 @@ import {
   resolveClimbFrom,
   resolveWalkable,
 } from "../lib/types";
+import { walkDurationFrom } from "../lib/walkSpeed";
 import type { FitOpts } from "../lib/validation";
 import { fitsAtElevation, fitsTile } from "../lib/validation";
 import {
@@ -46,18 +47,41 @@ export function sceneryStack(
 }
 
 /**
- * How long one step takes this body, in milliseconds.
+ * How long one step takes this body when nothing is in its way, in
+ * milliseconds. The pace it is authored at, before a status or the ground has
+ * moved it — see {@link walkDurationMsFor}, which is what times an actual step.
  *
  * Lives beside the movement rules rather than in the tile module because both
  * ends of the wire need it and neither should have to guess: the simulation
  * times the step with it, and the client divides by it to place the sprite. It
  * never travels — a client already knows which tile an actor is, so deriving it
  * on both sides is cheaper than a field on every walk event, and cannot
- * disagree.
+ * disagree. **That bargain is the constraint on everything allowed to move a
+ * pace**: a source the browser cannot read for itself would have to travel, and
+ * it is why a status's share of this is a plain number rather than a formula.
  */
 export function resolveWalkDurationMs(def: TileDef): number {
   const authored = def.walkDurationMs;
   return authored != null && authored > 0 ? authored : WALK_DURATION_MS;
+}
+
+/**
+ * How long one step actually takes, with everything slowing or hurrying this
+ * body counted in.
+ *
+ * {@link resolveWalkDurationMs} is what the body is authored at; this is what
+ * it is walking at now. The split is worth keeping because the two have
+ * different readers: a pace that must not change with circumstance reads the
+ * first — see `./combat`'s `strikeRecoveryMs`, where how long a blow plants you
+ * is a fact about the swing — and everything that times an actual step reads
+ * this.
+ *
+ * The percentage is passed in rather than gathered here, because the sources
+ * are not this module's to know: one is the statuses on the body and one is the
+ * ground under it, and only the caller holds both. @see `../lib/walkSpeed`
+ */
+export function walkDurationMsFor(def: TileDef, speedPercent: number): number {
+  return walkDurationFrom(resolveWalkDurationMs(def), speedPercent);
 }
 
 export function standingAbs(

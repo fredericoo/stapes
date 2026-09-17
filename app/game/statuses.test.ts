@@ -18,6 +18,7 @@ import {
   rollDurationMs,
   snapToTick,
   type StatusInstance,
+  walkSpeedPercentFrom,
   withStatusModifiers,
 } from "./statuses";
 import { DEFAULT_BATTLER, fightingStats } from "../lib/battler";
@@ -437,6 +438,45 @@ describe("modifiers", () => {
     const out = withStatusModifiers(base, held, catalogue(def), 8);
     expect(out.maxHp).toBe(base.maxHp * 2);
     expect(out.damage).toBe(base.damage + base.maxHp);
+  });
+});
+
+describe("walking pace", () => {
+  it("is untouched by a status that says nothing about it", () => {
+    const def = status({ id: "quiet", effects: {} });
+    const held = applyStatus([], def, new Rng(1));
+    expect(walkSpeedPercentFrom(held, catalogue(def))).toBe(0);
+  });
+
+  it("sums across two, so two chills are twice one", () => {
+    const a = status({ id: "a", effects: {}, walkSpeedPercent: -30 });
+    const b = status({ id: "b", effects: {}, walkSpeedPercent: -30 });
+    const rng = new Rng(1);
+    const held = applyStatus(applyStatus([], a, rng), b, rng);
+    expect(walkSpeedPercentFrom(held, catalogue(a, b))).toBe(-60);
+  });
+
+  /**
+   * On the terms every other reference to a catalogue is under: content moved
+   * on, and a body under something nobody authors any more walks normally
+   * rather than not at all.
+   */
+  it("reads a status the catalogue no longer holds as no change", () => {
+    const def = status({ id: "gone", effects: {}, walkSpeedPercent: -50 });
+    const held = applyStatus([], def, new Rng(1));
+    expect(walkSpeedPercentFrom(held, {})).toBe(0);
+  });
+
+  /**
+   * The sum is left unclamped here on purpose — the ground has not had its say
+   * yet. @see `../lib/walkSpeed`
+   */
+  it("hands the raw total on, out of band and all", () => {
+    const tar = status({ id: "tar", effects: {}, walkSpeedPercent: -90 });
+    const chill = status({ id: "chill", effects: {}, walkSpeedPercent: -90 });
+    const rng = new Rng(1);
+    const held = applyStatus(applyStatus([], tar, rng), chill, rng);
+    expect(walkSpeedPercentFrom(held, catalogue(tar, chill))).toBe(-180);
   });
 });
 

@@ -333,7 +333,9 @@ export default function OnlinePage() {
       url.searchParams.set(PROTOCOL_VERSION_PARAM, String(PROTOCOL_VERSION));
       socket = new WebSocket(url);
 
-      const remote = new RemoteSession(socket, tiles);
+      // The status catalogue goes in with the tiles: both are authored data the
+      // session derives a walking pace from, and a pace never travels.
+      const remote = new RemoteSession(socket, tiles, statusDefsRef.current);
       // Read in the close handler below, which is where the difference between
       // "the world went away" and "the world is being replaced" is acted on.
       restarting = false;
