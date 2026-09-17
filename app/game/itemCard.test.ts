@@ -214,6 +214,35 @@ describe("itemCard", () => {
     );
   });
 
+  /**
+   * The floor is the one number on the card that says what a weapon *cannot*
+   * do, so it is stated rather than left to be discovered by standing in it.
+   * @see `../lib/item`'s `Reach.min`
+   */
+  it("states a minimum as a span", () => {
+    const bow: WeaponItem = {
+      ...SWORD,
+      mastery: "ranged",
+      reach: { cells: 8, min: 2, height: 2 },
+      projectile: { tileId: "arrow", cellsPerSecond: 20 },
+    };
+    expect(statAt(itemCard(tileWith(bow), null, NOTHING_LEARNT)!.stats, "reach").value).toBe(
+      "2–8 cells, fired",
+    );
+  });
+
+  /**
+   * A short weapon with a hole in it is not "Melee", however short. Saying so
+   * would be the card contradicting the one thing the minimum is there to warn
+   * about.
+   */
+  it("refuses to call a weapon with a minimum a melee one", () => {
+    const pike: WeaponItem = { ...SWORD, reach: { cells: 1.5, min: 1, height: 2 } };
+    expect(statAt(itemCard(tileWith(pike), null, NOTHING_LEARNT)!.stats, "reach").value).toBe(
+      "1–1.5 cells",
+    );
+  });
+
   it("keeps quiet about defence until there is some", () => {
     const plain = itemCard(tileWith(SWORD), null, NOTHING_LEARNT)!;
     expect(plain.stats.some((row) => row.key === "def")).toBe(false);

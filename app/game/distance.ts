@@ -25,6 +25,16 @@
  * disc and a thin band, a bow is a wide disc and a band a storey or two tall,
  * and a thing that can only hit its own floor is a band of nothing.
  *
+ * ## The disc may have a hole in it
+ *
+ * A third test, `Reach.min`, and it is on the plan only. It exists for the one
+ * shape the pair cannot draw: a bow that does not work with somebody in your
+ * face. Without it a bow's disc contains a sword's entirely, so a bow is
+ * strictly the better weapon at every distance a sword works at. Height is left
+ * out of the floor deliberately — somebody a storey below you is zero cells away
+ * on the plan, and a floor that counted it would punch the hole straight down
+ * instead of around you.
+ *
  * **It is also what the rest of the game was already doing in private.**
  * `./affordances` measures what you can touch as a disc plus a level slack, and
  * a brain's `in_range` measures plan steps plus its sight's up and down. Neither
@@ -84,12 +94,36 @@ export function heightApart(from: ReachPoint, to: ReachPoint): number {
   return Math.abs(from.elevAbs - to.elevAbs);
 }
 
-/** Is `to` inside the disc and the band `reach` describes? @see module doc */
+/**
+ * Is `to` inside the disc and the band `reach` describes? @see module doc
+ *
+ * **Three tests where there were two**, and the third takes the middle out. A
+ * `Reach.min` is how a bow is made useless in somebody's face: without it a
+ * ranged weapon's disc contains a melee one's entirely, so a bow is strictly
+ * better at every distance a sword works at, and the only thing that had ever
+ * stopped an archer trading blows at arm's length was needing both hands for the
+ * bow.
+ *
+ * **The floor is on the plan alone**, which is the same split the ceiling is
+ * under and matters more. Somebody one floor below you is zero cells away on the
+ * plan, so a floor measured in three dimensions would let a bow shoot straight
+ * down at them and refuse the wolf standing beside them — a hole in the wrong
+ * shape. The lid already refuses the floor below; the hole is about the yard.
+ *
+ * Squared like the ceiling, and inclusive at the boundary on both ends: the
+ * values worth authoring land *on* boundaries, so a `min` wants the same room
+ * on either side that `cells` does.
+ */
 export function withinReach(
   from: ReachPoint,
   to: ReachPoint,
   reach: Reach,
 ): boolean {
   if (heightApart(from, to) > reach.height) return false;
-  return planDistanceSq(from, to) <= reach.cells * reach.cells;
+  const planSq = planDistanceSq(from, to);
+  if (planSq > reach.cells * reach.cells) return false;
+  // Absent is no floor, which is every weapon in the world but the bows. @see
+  // `../lib/item`'s `Reach.min`
+  const min = reach.min ?? 0;
+  return planSq >= min * min;
 }

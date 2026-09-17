@@ -46,6 +46,7 @@ import {
   describeFlight,
   describeReachCells,
   describeReachHeight,
+  describeReachMin,
 } from "./WeaponFields";
 
 /**
@@ -371,6 +372,16 @@ export function StoneFields({
           step={0.5}
           onChange={(cells) => patchReach({ cells })}
           readout={describeReachCells(reach.cells)}
+        />
+        <StatField
+          label="Minimum"
+          info="How close is too close, in cells. Zero is no minimum. On the plan only, so somebody a floor below you is nought cells away and the Height lid is what refuses them."
+          value={reach.min ?? 0}
+          min={0}
+          max={MAX_REACH_CELLS}
+          step={0.5}
+          onChange={(min) => patchReach({ min })}
+          readout={describeReachMin(reach.min ?? 0, reach.cells)}
         />
         <StatField
           label="Height"

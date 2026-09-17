@@ -53,7 +53,8 @@ import { CELL_SIZE, HEIGHT_PER_LEVEL, type TileDef } from "./types";
  * See `./battler` for the derivation and `plans/masteries.md` for the argument.
  */
 /**
- * How far something reaches: a disc on the plan, and a height either side.
+ * How far something reaches: a disc on the plan, a height either side, and
+ * optionally a hole in the middle.
  *
  * **Two numbers rather than one radius, and the split is the whole point.** A
  * single radius cannot say "everything on my floor for six cells, but only half
@@ -68,6 +69,10 @@ import { CELL_SIZE, HEIGHT_PER_LEVEL, type TileDef } from "./types";
  * can touch as a disc plus a level slack, and a brain's `in_range` measures plan
  * steps plus its sight's up and down. This is those, written down once.
  *
+ * {@link min} adds a third test and takes the middle out, which is the one shape
+ * a bow wants and a fist has no use for. It is on the plan alone, so what it
+ * draws is an annulus with the same flat lid.
+ *
  * @see `../game/distance` for the metric, and {@link MELEE_REACH} for the shape
  *   an arm draws.
  */
@@ -81,6 +86,31 @@ export type Reach = {
    * sides rather than a value sitting on either.
    */
   cells: number;
+  /**
+   * How close is too close, on the plan, in cells. Absent means nothing is.
+   *
+   * **The hole in the middle of the disc**, and it exists for one shape: a bow
+   * you cannot use with somebody in your face. A reach with no floor makes a
+   * ranged weapon strictly better than a melee one at every distance a melee
+   * weapon works at, because the bow's disc contains the sword's entirely — and
+   * the only thing that had ever stopped an archer trading blows at arm's length
+   * was {@link twoHanded} taking the other hand away.
+   *
+   * On the plan alone, never on the height, which is the same split
+   * {@link cells} is under and matters more here: somebody directly below you
+   * through a floor is zero cells away, and a bow that could shoot straight down
+   * at them but not at the wolf beside them would be a hole in the wrong shape.
+   *
+   * Compared squared, like {@link cells}, and inclusive at the boundary — a
+   * `min` of 2 lets the cell exactly two along be shot and refuses the diagonal
+   * neighbour at 2 squared... which is why the interesting values want room on
+   * both sides here too. @see `../game/distance`'s `withinReach`
+   *
+   * Absent rather than zero for every weapon in the world that has no floor,
+   * which is all of them but the bows: a `min: 0` written on every sword is a
+   * key that says what its absence says.
+   */
+  min?: number;
   /**
    * How far up or down it reaches, in height units — four to a level.
    *
@@ -1659,7 +1689,8 @@ const weaponStatusSchema = v.pipe(
 );
 
 /**
- * A disc on the plan and a height either side of it, bounded.
+ * A disc on the plan, a height either side of it, and an optional hole in the
+ * middle — all bounded.
  *
  * Written down once because two kinds of item now reach: a weapon and a stone
  * ask the same question with the same numbers, and the whole reason a spell's
@@ -1672,10 +1703,22 @@ const weaponStatusSchema = v.pipe(
  * reaches somebody else. {@link reachOf} is where "absent is an arm's length"
  * is written, and it is the one place either kind is read through.
  */
-const reachEntries = v.object({
-  cells: v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_REACH_CELLS)),
-  height: v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_REACH_HEIGHT)),
-});
+const REACH_ORDERED_MESSAGE = "minimum reach is beyond the maximum";
+
+const reachEntries = v.pipe(
+  v.object({
+    cells: v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_REACH_CELLS)),
+    min: v.optional(
+      v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_REACH_CELLS)),
+    ),
+    height: v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_REACH_HEIGHT)),
+  }),
+  // A floor above the ceiling is a weapon that can never reach anything, which
+  // is a malformed block rather than a design — the same judgement an inverted
+  // duration range gets above. Equal is allowed: a reach of exactly one ring of
+  // cells is a strange weapon and an authorable one.
+  v.check((raw) => (raw.min ?? 0) <= raw.cells, REACH_ORDERED_MESSAGE),
+);
 
 /**
  * What a thing puts in the air, shared by a bow and by a bolt.
@@ -2237,6 +2280,20 @@ export function reachOf(weapon: { reach?: Reach }): Reach {
   return { ...MELEE_REACH, ...weapon.reach };
 }
 
+/**
+ * A reach with the keys that say nothing left off, ready to be written out.
+ *
+ * Only {@link Reach.min} is ever dropped. `cells` and `height` are spelled out
+ * on every weapon deliberately — see {@link weaponForSave} — but a floor of
+ * zero is not a floor, and `min: 0` on every sword in the file is a key that
+ * says what its absence says. The editor's number field has no way to express
+ * "none" other than zero, so this is where the two meet.
+ */
+export function reachForSave(reach: Reach): Reach {
+  const { min, ...rest } = reach;
+  return min ? { ...rest, min } : rest;
+}
+
 export function weaponForSave(weapon: WeaponItem): WeaponItem {
   // Zeroes dropped along with the absent keys, and the whole block dropped when
   // nothing survives: a requirement of zero is not a requirement, and a weapon
@@ -2270,7 +2327,7 @@ export function weaponForSave(weapon: WeaponItem): WeaponItem {
     //
     // Through `reachOf`, because what arrives is the editor's *draft* — the
     // authored block, never parsed — so the schema's default has not run on it.
-    reach: reachOf(weapon),
+    reach: reachForSave(reachOf(weapon)),
     mastery: weapon.mastery,
     ...(weapon.projectile
       ? {
@@ -2472,7 +2529,7 @@ export function stoneForSave(stone: ArcaneStoneItem): ArcaneStoneItem {
     // which is always spelled out. A stone that reaches only its holder has no
     // opinion about range, and writing an arm's length onto one would read as an
     // author having decided something they never thought about.
-    ...(stone.reach ? { reach: { ...stone.reach } } : {}),
+    ...(stone.reach ? { reach: reachForSave(stone.reach) } : {}),
     ...elementsForSave(stone.elements),
   };
 }

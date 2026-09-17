@@ -2846,6 +2846,34 @@ rat that picks up a bow shoots as far as the bow carries — a body has no reach
 its own, because bare hands are a weapon and a bite is a weapon and each carries
 the distance it works at. A `range` left on a tile parses fine and is dropped.
 
+**The disc may have a hole in it.** `Reach.min` is a third test, and it exists
+because without one a bow is strictly the better weapon everywhere: a ranged
+weapon's disc contains a melee one's entirely, so there is no distance at which
+the sword is the answer. The only thing that had ever kept an archer out of a
+melee was `twoHanded` taking the other hand away, and that is a rule about hands
+rather than about range.
+
+- **On the plan alone**, which matters more than it does for the ceiling.
+  Somebody a storey below you is nought cells away, so a floor measured in three
+  dimensions would let a bow shoot straight down through a floor and refuse the
+  wolf standing beside them. The lid already refuses the floor below; the hole is
+  about the yard.
+- **Squared and inclusive on both ends**, like `cells`. The diagonal neighbour is
+  exactly 2 and the cell two along exactly 4, so a `min` of 2 keeps the cell two
+  along and drops the diagonal — the same boundary care a radius wants, from the
+  other side.
+- **Absent, not zero, for everything without one.** A `min: 0` written on every
+  sword in `tiles.json` is a key that says what its absence says, so
+  `reachForSave` drops it. The editor's number field can only say zero, and that
+  is where the two meet.
+- **It is shared with a spell**, because `Reach` is, and a stone that cannot be
+  cast at point-blank range is authorable for free. Nothing ships with one.
+- **`duel.ts` has no distance in it at all** — it is two bodies "in reach of each
+  other" — so no balance measurement sees a minimum. That is the cost of the
+  change: the Arena reports a bow's rate at a range the bow can no longer fire
+  at, and `two weapons on one rung` keeps passing while meaning less. Anything a
+  minimum is supposed to fix has to be checked by playing it.
+
 ### A ranged weapon is one with a projectile, and the arrow is only a picture
 
 There is no `ranged` flag and there must not be one: a weapon is ranged exactly

@@ -430,7 +430,14 @@ function DerivedStats({
         <Figure label="spd" value={stats.spd} />
         <Figure label="flee" value={stats.flee} />
         <Figure label="hit" value={`${Math.round(stats.hitChance * 100)}%`} />
-        <Figure label="reach" value={`${stats.reach.cells}c`} />
+        <Figure
+          label="reach"
+          value={
+            stats.reach.min
+              ? `${stats.reach.min}–${stats.reach.cells}c`
+              : `${stats.reach.cells}c`
+          }
+        />
         <Figure label="haste" value={`${stats.haste.toFixed(2)}×`} />
         <Figure label="strikes as" value={stats.mastery} />
       </dl>

@@ -185,6 +185,16 @@ describe("resolveItem", () => {
           statuses: [{ id: "poison", chance: 10, fromMs: 2000, toMs: 1000 }],
         },
       ],
+      // A floor above the ceiling is a weapon that can never reach anything,
+      // which is a malformed block rather than a design. @see `Reach.min`
+      [
+        "a minimum reach beyond the maximum",
+        { ...DEFAULT_WEAPON, reach: { cells: 4, min: 5, height: 2 } },
+      ],
+      [
+        "a minimum reach below zero",
+        { ...DEFAULT_WEAPON, reach: { cells: 4, min: -1, height: 2 } },
+      ],
     ];
 
     for (const [name, block] of cases) {
@@ -317,6 +327,21 @@ describe("itemForSave", () => {
   it("keeps a reach the author did name", () => {
     const bow = { ...DEFAULT_WEAPON, reach: { cells: 6, height: 4 } };
     expect(weaponForSave(bow).reach).toEqual({ cells: 6, height: 4 });
+  });
+
+  it("keeps a minimum the author did name", () => {
+    const bow = { ...DEFAULT_WEAPON, reach: { cells: 8, min: 2, height: 4 } };
+    expect(weaponForSave(bow).reach).toEqual({ cells: 8, min: 2, height: 4 });
+  });
+
+  /**
+   * A floor of zero is not a floor, and the editor's number field has no way to
+   * say "none" other than a zero. `min: 0` on every sword in `tiles.json` would
+   * be a key that says exactly what its absence says. @see `reachForSave`
+   */
+  it("drops a minimum of nothing rather than writing it on every weapon", () => {
+    const sword = { ...DEFAULT_WEAPON, reach: { cells: 1.5, min: 0, height: 2 } };
+    expect(weaponForSave(sword).reach).not.toHaveProperty("min");
   });
 
   it("keeps armour's defence, and drops the resistances that say nothing", () => {
