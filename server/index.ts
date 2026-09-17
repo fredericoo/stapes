@@ -154,10 +154,8 @@ console.log(`[server] listening on ${port} (protocol v${PROTOCOL_VERSION})`);
 /**
  * Stop cleanly on a deploy.
  *
- * `bun run --watch` sends this before each restart too, which means the drain
- * is exercised on every server edit in development rather than only in
- * production — the most safety-critical path in the system, run a hundred times
- * a day by people not thinking about it.
+ * `bun run --watch` sends this before each restart too, so the drain runs on
+ * every server edit in development rather than only in production.
  *
  * `once`, because a second signal while draining should not start a second
  * drain; and the drain itself is idempotent for the same reason.

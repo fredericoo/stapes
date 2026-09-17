@@ -162,7 +162,6 @@ function bodiesIn(before: PlacedTile[], after: PlacedTile[]): string[] {
 
 const NO_BODIES: string[] = [];
 
-/** A client that has been handed no ground, and one that knows no bodies. */
 const NO_CHUNKS: ReadonlySet<string> = new Set();
 const NO_ACTORS: ReadonlySet<string> = new Set();
 
@@ -173,35 +172,20 @@ const CHECKPOINT_KEY = "world";
  * Key prefix under which one chunk of the checkpointed board is kept, as
  * `chunk:<level>:<chunkKey>`.
  *
- * A key per chunk rather than the whole map in one value, for two reasons that
- * are really the same reason.
- *
- * **There is a ceiling, and the map was growing toward it.** A Durable Object's
- * storage refuses a value over about two megabytes — `SQLITE_TOOBIG` — and the
- * whole-map checkpoint was a single value that grew with the world. Today's map
- * serializes to a few hundred kilobytes, so a world six or eight times its size
- * would have started failing, and failing *silently*: the write is fire-and-
- * forget, so nothing would have said so, and every player would simply have been
- * handed back wherever they stood at the last checkpoint small enough to land. A
- * chunk is at most {@link CHUNK_SIZE}² cells and cannot approach the limit, so
- * the ceiling now scales with the world instead of standing across it.
- *
- * **And the map is already chunked copy-on-write.** A flush that re-serialized
- * every cell in the world every five seconds was doing it to record that
- * somebody had walked two tiles; {@link changedChunks} turns that into the one
- * chunk they walked through.
+ * A key per chunk rather than the whole map in one value: a chunk is at most
+ * {@link CHUNK_SIZE}² cells, so no stored value grows with the world, and the
+ * map is chunked copy-on-write, so {@link changedChunks} lets a flush write
+ * only the chunks that changed.
  */
 const CHUNK_KEY_PREFIX = "chunk:";
 
-/** Where one chunk of the board is kept. */
 /**
  * Chunks handed to one client per tick as they walk into reach.
  *
  * A chunk column of the den's caves is a few hundred cells, and handing a
- * whole leading edge over at once is the lump that made a previous attempt at
- * scoping measure *worse* than sending the world. Walking is five cells a
- * second and a chunk is sixteen across, so two a tick is minutes ahead of
- * need — this exists to spread the cost, not to ration it.
+ * whole leading edge over at once costs more than the scoping saves. Walking
+ * is five cells a second and a chunk is sixteen across, so two a tick is
+ * minutes ahead of need — this exists to spread the cost, not to ration it.
  */
 const CHUNKS_STREAMED_PER_TICK = 2;
 
@@ -386,11 +370,10 @@ function castProgressOf(casting: CastProgress): CastProgress {
 /**
  * How many messages the log keeps.
  *
- * Nothing reads this table yet, which is exactly why it needs a ceiling: an
- * append-only store with no reader and no deletion path is the one thing in this
- * object that grows without bound, and a Durable Object's disk is finite. Pruned
- * on insert rather than on a timer so it cannot be forgotten when a reader
- * finally arrives.
+ * Nothing reads this table yet, which is why it needs a ceiling: an append-only
+ * store with no reader and no deletion path grows without bound. Pruned on
+ * insert rather than on a timer so it cannot be forgotten when a reader
+ * arrives.
  */
 export const CHAT_LOG_MAX_ROWS = 5_000;
 
@@ -450,21 +433,18 @@ const TAGS_KEY_PREFIX = "tags:";
 /**
  * Key prefix under which one actor's earned masteries are kept.
  *
- * The third and last thing a world owes a returning player, and a fourth key
- * rather than a field on any of the others for the same reason they are separate
- * from each other: it is a different kind of fact with a different population.
- * Every body has a position, only players have a kit, and only players who have
- * been in a fight have any of this.
+ * Its own key because it is a different kind of fact with a different
+ * population: every body has a position, only players have a kit, and only
+ * players who have been in a fight have any of this.
  *
- * Like a tag and unlike a kit, **it is never checked against the authored
- * world** — what it records is that something already happened. Unlike a tag, it
- * is checked for *shape*, because it is arithmetic rather than a list of strings
- * and a malformed figure would propagate through every fight the player has from
- * then on rather than failing where it was read.
+ * Like a tag and unlike a kit, it is never checked against the authored world:
+ * what it records is that something already happened. Unlike a tag, it is
+ * checked for shape, because it is arithmetic and a malformed figure would
+ * propagate through every fight from then on rather than failing where it was
+ * read.
  */
 const MASTERIES_KEY_PREFIX = "mast:";
 
-/**
 /**
  * Key prefix under which one player's spawn point is kept — where a death puts
  * them back.
@@ -504,15 +484,13 @@ const STATUSES_KEY_PREFIX = "status:";
 /**
  * Key prefix under which one actor's hit points are kept.
  *
- * Hit points used to be rebuilt from the tile on every load, on the grounds that
- * a world nobody is looking at owes no continuity. Statuses broke that: a heal
- * that runs for half an hour is undone by a reconnect, and a poison is cured by
- * one, so the feature would have been decorative in exactly the case it was
- * written for.
+ * Kept so that statuses mean something across a reconnect: rebuilt from the
+ * tile on every load, a heal that runs for half an hour would be undone by one
+ * and a poison cured by one.
  *
- * Written **only when they are not full**, which is what keeps the cost
- * proportional to injury rather than to visitors: a body at its maximum needs no
- * memory, because the tile says so again next load.
+ * Written only when they are not full, which keeps the cost proportional to
+ * injury rather than to visitors: a body at its maximum needs no row, because
+ * the tile says so again next load.
  */
 const HP_KEY_PREFIX = "hp:";
 
@@ -531,26 +509,19 @@ export const MAX_REMEMBERED_ACTORS = 1_000;
 /**
  * How often what has changed is written out while the world is being played.
  *
- * The ceiling on how much a crash can cost somebody, and the whole reason this
- * is not simply left to the idle checkpoint: **a world with anybody in it never
- * settles.** `GameSession.isAtRest` stays false for as long as a player is
- * present and any creature has a brain wanting a turn, so an object that died
- * mid-session would hand everybody back the position they had when the room was
- * last empty — which on a busy world is hours ago, not minutes.
+ * The ceiling on how much a crash can cost somebody, and why this is not left
+ * to the idle checkpoint: a world with anybody in it never settles.
+ * `GameSession.isAtRest` stays false for as long as a player is present and any
+ * creature has a brain wanting a turn, so a process that died mid-session would
+ * hand everybody back the position they had when the room was last empty —
+ * which on a busy world is hours ago, not minutes.
  *
- * Thirty seconds rather than the five it began at. Five was chosen when a flush
- * wrote every actor unconditionally, so the interval was the only thing holding
- * the write rate down, and it was holding it down at roughly thirteen thousand
- * rows an hour for a single connected player — enough to exhaust a day's free
- * tier in one sitting, which is exactly how this was found. Now that
- * {@link GameServer.saveActors} writes only what has actually moved, the
- * interval is free to be what it should always have been: a statement about how
- * much progress is acceptable to lose, and nothing about cost.
- *
- * Thirty seconds of walking and fighting is the exposure, and it is bounded on
- * both ends by things that do not wait for it — a socket closing saves before
- * the body goes, and a world settling saves before it may be evicted. What is
- * left is the genuinely unannounced death: a crash, an eviction, or a deploy.
+ * {@link GameServer.saveActors} writes only what has changed, so the interval
+ * is a statement about how much progress is acceptable to lose, not about
+ * cost. Thirty seconds of walking and fighting is the exposure, bounded on both
+ * ends by things that do not wait for it — a socket closing saves before the
+ * body goes, and a world settling saves on its own. What is left is a crash or
+ * a deploy.
  */
 const ACTOR_FLUSH_INTERVAL_MS = 30_000;
 
@@ -661,7 +632,6 @@ type WrittenActor = {
   hp: number | null;
 };
 
-/** Whether two positions describe the same standing place, facing the same way. */
 function samePosition(a: ActorPosition, b: ActorPosition): boolean {
   return (
     a.x === b.x && a.y === b.y && a.z === b.z && a.direction === b.direction
@@ -690,7 +660,6 @@ type QueuedIntent =
   | { kind: "face"; direction: Direction }
   | { kind: "cast"; slot: CastSlot };
 
-/** A queued turn or cast — whatever is not a step. @see QueuedIntent */
 type QueuedAction = Exclude<QueuedIntent, { kind: "step" }>;
 
 /**
@@ -702,13 +671,10 @@ type QueuedAction = Exclude<QueuedIntent, { kind: "step" }>;
  */
 type Checkpoint = {
   /**
-   * The whole board, as worlds checkpointed before {@link CHUNK_KEY_PREFIX}
-   * existed carry it.
+   * The whole board, as older checkpoints carry it.
    *
-   * Read but never written. A world resumed through this field is written back
-   * out in chunks by its first flush, and the field goes with it — so this is
-   * the migration, and it costs one extra load of the shape that already
-   * worked.
+   * Read but never written: a world resumed through this field is written back
+   * out in chunks by its first flush, and the field goes with it.
    *
    * @deprecated The board lives under {@link CHUNK_KEY_PREFIX}.
    */
@@ -717,7 +683,7 @@ type Checkpoint = {
   /**
    * The world's dice, mid-roll. Travels for the same reason the spawn point
    * does — it cannot be recovered from the map — and resuming without it would
-   * have every wake replay the wander the world had already played.
+   * have every load replay the wander the world had already played.
    *
    * Optional because checkpoints written before brains existed do not carry
    * one; those worlds simply start rolling from the default.
@@ -728,9 +694,8 @@ type Checkpoint = {
    *
    * Carried for the same reason the spawn point is — it cannot be recovered from
    * the map, because the whole evidence of a death is a tile that is *not*
-   * there. Without it the first hibernation wake would look at a dead player's
-   * still-open socket, find them missing from the board, and seat them again:
-   * every death undone by an eviction nobody noticed.
+   * there. Without it a load would find a dead player missing from the board
+   * and seat them again.
    *
    * Optional because checkpoints written before combat existed have none.
    */
@@ -754,19 +719,10 @@ type SentMotion = {
 /**
  * The authoritative game world.
  *
- * One instance, addressed by name — the world is the coordination atom here, so
- * a single Durable Object is the model rather than the usual global-DO
- * anti-pattern. It does mean concurrent players are capped by what one object
- * can tick.
+ * One instance holds one world, so concurrent players are capped by what one
+ * instance can tick.
  */
 export class GameServer {
-  /**
-   * Named `ctx` and `env` because that is what they were called when a platform
-   * base class supplied them. Several hundred `this.ctx.storage.*` and
-   * `this.ctx.getWebSockets()` call sites below are unchanged as a result, and
-   * so is the suite that guards them — which matters more than the names do,
-   * since that suite is the only reason to believe this file still works.
-   */
   constructor(
     protected readonly ctx: WorldContext,
     protected readonly env: { dataStore: DataStore },
@@ -778,11 +734,11 @@ export class GameServer {
    * minutes.
    *
    * An offset rather than a stored hour, so the clock is still a pure function
-   * of `Date.now()` and keeps running through hibernation exactly as before.
-   * Held here rather than on the session, because a session is replaced on
-   * eviction and on every content save, and the hour somebody chose should
-   * outlive both. It does not outlive the process: nothing checkpoints it, so a
-   * deploy puts the world back on the wall clock.
+   * of `Date.now()` and keeps running while nobody is connected. Held here
+   * rather than on the session, because a session is replaced on every content
+   * save, and the hour somebody chose should outlive that. It does not outlive
+   * the process: nothing checkpoints it, so a deploy puts the world back on the
+   * wall clock.
    */
   private clockOffsetMinutes = 0;
   private tiles: TileDef[] = [];
@@ -798,19 +754,16 @@ export class GameServer {
   /**
    * The bodies each client has been told about, by the actor id of the client.
    *
-   * **A client's actor set is its `hello` plus what it is told afterwards**, and
-   * what it was told afterwards used to be sockets opening and closing only.
-   * Anything else a world adopts at runtime — a creature that respawned, one
-   * somebody summoned with `/tile` — reached a client by accident: a
-   * `walkStarted` for an unknown id is what quietly added it. So a body that
-   * never moves never arrived. Its tile was drawn, because a body is a tile in a
-   * stack and cell patches carry that, and everything keyed on the actor was
-   * missing — no name over its head, no health bar, no Talk row. That is a
-   * shopkeeper who cannot be spoken to until somebody reloads.
+   * A client's actor set is its `hello` plus what it is told afterwards, and
+   * this is what tells it about a body the world adopts at runtime — a creature
+   * that respawned, one somebody summoned with `/tile`. Its tile is drawn
+   * regardless, because a body is a tile in a stack and cell patches carry
+   * that, but everything keyed on the actor — the name over its head, the
+   * health bar, the Talk row — needs the client to know the actor exists.
    *
-   * **One set per client rather than one for the world**, because the answer is
-   * now a different one for each of them: a client is told about the bodies
-   * standing in the chunks it holds, and about no others. @see `../app/net/scope`
+   * One set per client rather than one for the world, because the answer is a
+   * different one for each of them: a client is told about the bodies standing
+   * in the chunks it holds, and about no others. @see `../app/net/scope`
    *
    * Seeded where a `hello` goes out, because that message is the other way a
    * client learns a body exists, and diffed once per tick in
@@ -818,12 +771,6 @@ export class GameServer {
    * what closes the window where a world loads, somebody summons something, and
    * the tick that would have announced it is also the tick that would have
    * seeded the set.
-   *
-   * A wake is the one case it is wrong about, and wrong in the safe direction:
-   * the instance is rebuilt with this empty while the sockets it inherited were
-   * helloed by an instance that is gone, so the next tick announces every body
-   * in reach once. Each of those is one the client already holds, and it
-   * ignores an id it is already holding.
    *
    * Nothing here needs clearing when a body dies or leaves: a body off the board
    * is in nobody's reach, so the next tick takes it out of every set that had
@@ -875,7 +822,6 @@ export class GameServer {
   /** Consecutive throwing ticks, for the rate-limited report. See {@link tickSafely}. */
   private consecutiveTickFailures = 0;
   private loading: Promise<void> | null = null;
-  /** Where `data/` is served in dev, told to us by whoever called in. */
   /** When each actor last said something, for the rate limit. */
   private lastSaidAt = new Map<string, number>();
   /** When positions were last written out. See {@link saveActorsIfDue}. */
@@ -884,8 +830,8 @@ export class GameServer {
    * The map the last checkpoint was taken of, by identity.
    *
    * The map is copy-on-write, so a world nobody has touched is the same object
-   * and there is nothing to re-flatten — which is what keeps a five-second flush
-   * from serializing thousands of cells for a room where everyone is standing
+   * and there is nothing to re-flatten — which is what keeps a flush from
+   * serializing thousands of cells for a room where everyone is standing
    * still. Sound because storage writes are ordered: a later batch cannot be
    * durable while the batch holding the map it was read against is not.
    */
@@ -900,7 +846,7 @@ export class GameServer {
    *
    * There is no respawn, so a dead player sits there connected and inert until
    * they reload — and reloading is what clears them from here, because a fresh
-   * socket is a fresh body by definition. Checkpointed, so an eviction in the
+   * socket is a fresh body by definition. Checkpointed, so a restart in the
    * meantime does not quietly resurrect them.
    */
   private dead = new Set<string>();
@@ -910,10 +856,9 @@ export class GameServer {
    *
    * Their rows cannot be built by {@link saveActors}' own loop, which reads the
    * session: a dead actor has no position and no runtime, so the loop skips them
-   * entirely — and it was *only* the loop that skipped, while the board below it
-   * was written regardless. That is how a sword picked up and carried into a
-   * losing fight ended up neither in its owner's kit nor on the floor it had
-   * been taken from. See {@link noteDeaths}.
+   * entirely, while the board below it is written regardless. Without this a
+   * sword picked up and carried into a losing fight would end up neither in its
+   * owner's kit nor on the floor it had been taken from. See {@link noteDeaths}.
    */
   private pendingDeathWrites = new Map<string, Death>();
   /**
@@ -932,9 +877,9 @@ export class GameServer {
    * broadcast, which of thousands of dead deer had a connection. This holds the
    * handful that do.
    *
-   * Not checkpointed, and not because it does not matter across an eviction: it
+   * Not checkpointed, and not because it does not matter across a restart: it
    * is derivable there, from `dead` — which *is* checkpointed — intersected
-   * with the sockets that survived. {@link restoreActors} does exactly that.
+   * with the sockets still open. {@link restoreActors} does exactly that.
    */
   private silenced = new Set<string>();
   /**
@@ -1008,17 +953,6 @@ export class GameServer {
   /** Spawn points waiting to refill, as key → wall-clock deadline. */
   private respawnPending = new Map<string, number>();
 
-  /**
-   * Find authored content.
-   *
-   * Handed in whole, which is all this needs to be now. It used to work out an
-   * origin and remember it, because the Worker had no filesystem: a dev build
-   * reached `data/` over HTTP through a middleware whose address only a request
-   * could reveal, and a Durable Object has no request of its own — so the
-   * origin was threaded through the socket handshake and the editor's save, and
-   * getting that wrong ran the world against a stale bucket while every loader
-   * read the disk. This process opens the directory.
-   */
   private store(): DataStore {
     return this.env.dataStore;
   }
@@ -1026,10 +960,10 @@ export class GameServer {
   /**
    * Bring the world into memory, once.
    *
-   * Prefers the checkpoint over R2: the checkpoint holds where everyone was
-   * standing when the world last went quiet, and restoring from the authored
-   * map instead would teleport a room full of idle players back to spawn just
-   * because the object was evicted.
+   * Prefers the checkpoint over the authored map: the checkpoint holds where
+   * everyone was standing when the world last went quiet, and restoring from
+   * the authored map instead would teleport a room full of idle players back to
+   * spawn on every restart.
    */
   private async ensureLoaded(): Promise<void> {
     if (this.session) return;
@@ -1131,9 +1065,9 @@ export class GameServer {
    * misderived point would grow a duplicate.
    *
    * The arming pass at the end is what makes the whole system self-healing: a
-   * death or pickup whose deadline never reached storage — the object was
-   * evicted in between — reads here as "empty, owing nothing" and is simply
-   * armed afresh, at the cost of one extra wait.
+   * death or pickup whose deadline never reached storage — the process died in
+   * between — reads here as "empty, owing nothing" and is simply armed afresh,
+   * at the cost of one extra wait.
    */
   private async loadRespawnState(resumed: boolean) {
     const session = this.session;
@@ -1160,7 +1094,7 @@ export class GameServer {
     for (const point of this.respawnPoints.values()) {
       this.forgetDepartedItems(point);
     }
-    // Written back on a resume too, now that a point carries state the stored
+    // Written back on a resume too, because a point carries state the stored
     // copy can be behind on: the pass above is only a migration if it sticks.
     this.persistRespawnPoints();
 
@@ -1231,11 +1165,10 @@ export class GameServer {
   }
 
   /**
-   * Keep the Durable Object alarm pointed at the soonest deadline.
+   * Keep the alarm pointed at the soonest deadline.
    *
-   * The alarm is what divorces respawn from the tick loop: it fires with the
-   * world hibernated and nobody connected, which is exactly when a wall-clock
-   * promise has to be kept. While the world *is* ticking the tick gets there
+   * The alarm is what divorces respawn from the tick loop: it fires with nobody
+   * connected, which is exactly when a wall-clock promise has to be kept. While the world *is* ticking the tick gets there
    * first and the alarm wakes to nothing owed, which is harmless.
    */
   private scheduleRespawnAlarm() {
@@ -1392,22 +1325,21 @@ export class GameServer {
   }
 
   /**
-   * Re-seat the actors whose sockets survived eviction, and clear out the rest.
+   * Re-seat the actors whose sockets are still open, and clear out the rest.
    *
-   * Hibernation drops in-memory state but not the connections, so after a wake
-   * the sockets are still there and their ids are on the attachments. A
-   * checkpointed map also still holds everyone's *tile*, so `spawn` re-seats
-   * them on the body they already have rather than minting a second.
+   * The ids of the open sockets are on their attachments. A checkpointed map
+   * still holds everyone's *tile*, so `spawn` re-seats them on the body they
+   * already have rather than minting a second.
    *
-   * Anyone in the map without a socket is gone for good — their connection died
-   * while the object was evicted, so no close ever ran. Their body is reaped
-   * here; nothing else would ever remove it.
+   * Anyone in the map without a socket is gone for good: their connection died
+   * while the world was down, so no close ever ran. Their body is reaped here;
+   * nothing else would ever remove it.
    *
    * The remembered position is consulted for the same reason it is on a fresh
    * join, and it is not redundant with the checkpoint: a socket can outlive the
    * world its owner's body was in — the editor's save replaces the map and
-   * drops the checkpoint — and without this those players would come back from
-   * the next wake standing at spawn.
+   * drops the checkpoint — and without this those players would come back
+   * standing at spawn.
    */
   private async restoreActors() {
     const live: string[] = [];
@@ -1424,16 +1356,15 @@ export class GameServer {
       // It stays *silent* too, and that is what this rebuilds: the set of
       // sockets the world is not talking to is derived rather than stored, and
       // this is the one moment it can be — everybody dead with a connection is
-      // exactly the intersection being walked here. Missing it would have an
-      // eviction quietly resume the patch stream to a screen still saying you
-      // are dead.
+      // exactly the intersection being walked here. Missing it would quietly
+      // resume the patch stream to a screen still saying you are dead.
       if (this.dead.has(id)) {
         this.silenced.add(id);
         continue;
       }
       // Note this seats rather than joins: nobody arrived, and the door is
-      // remembered here because a player restored across a wake can die without
-      // ever running {@link fetch} again.
+      // remembered here because a player restored here can die without ever
+      // running {@link join} again.
       await this.seatActor(id);
     }
   }
@@ -1442,8 +1373,8 @@ export class GameServer {
    * Everything the world remembers about one person, fetched together.
    *
    * One helper rather than six awaits at each of the three places somebody is
-   * seated, because the list only ever grows and the three had already drifted
-   * into three different lengths once. Whatever is here is what `spawn` is
+   * seated, because the list only ever grows and the three drift apart
+   * otherwise. Whatever is here is what `spawn` is
    * handed, and an absent key is `undefined`, which every field reads as "give
    * them the default".
    */
@@ -1460,14 +1391,6 @@ export class GameServer {
   }
 
   /**
-   * Forget the checkpointed board entirely.
-   *
-   * Every key, not the ones the incoming map happens to reuse: a new world is
-   * usually a different shape, and a chunk of the old one left behind under a
-   * key the new one never writes would be resumed as part of it — a corner of a
-   * map nobody authored, sitting there until somebody edited that exact chunk.
-   */
-  /**
    * Forget where everybody came in.
    *
    * Only {@link replaceWorld} calls this, and only because a save can move the
@@ -1481,6 +1404,14 @@ export class GameServer {
     await this.ctx.storage.delete([...stored.keys()]);
   }
 
+  /**
+   * Forget the checkpointed board entirely.
+   *
+   * Every key, not the ones the incoming map happens to reuse: a new world is
+   * usually a different shape, and a chunk of the old one left behind under a
+   * key the new one never writes would be resumed as part of it — a corner of a
+   * map nobody authored, sitting there until somebody edited that exact chunk.
+   */
   private async deleteCheckpointedBoard() {
     const stored = await this.ctx.storage.list({ prefix: CHUNK_KEY_PREFIX });
     if (stored.size === 0) return;
@@ -1675,14 +1606,11 @@ export class GameServer {
    * of the same fact once picking something up moves it between them, and making
    * one durable without the other is how an item comes to exist twice.
    *
-   * `allowUnconfirmed` is the other load-bearing part. A Durable Object normally
-   * holds every outgoing message until the writes that preceded it are durable,
-   * so that nobody can observe state that a failed write would roll back — and
-   * that is the right default for anything the world's consistency rests on.
-   * This is not that: what is written here is *behind* what has already been
-   * broadcast either way, so gating output on it would buy nothing and cost the
-   * whole world's latency thirty times a second. What matters is that these
-   * entries land together, which one `put` guarantees regardless.
+   * Not awaited, and `allowUnconfirmed` says so: what is written here is
+   * *behind* what has already been broadcast either way, so gating output on it
+   * would buy nothing and cost the whole world's latency thirty times a second.
+   * What matters is that these entries land together, which one `put`
+   * guarantees regardless.
    *
    * The rejection is swallowed for the same reason: there is nothing useful to
    * do about a position that did not stick, and an unhandled rejection here
@@ -1724,10 +1652,6 @@ export class GameServer {
       // board no longer says where they were. A creature is the opposite: it is
       // adopted *out of* the board, so the checkpointed chunks already hold its
       // position and a `pos:` row beside them is a second copy nobody consults.
-      //
-      // This was the bulk of the write rate rather than a tidy-up. Twelve of the
-      // eighteen-odd rows a flush wrote on today's map were creatures recording
-      // where they stood for no reader at all.
       if (!session.isResident(actorId)) {
         if (!written?.position || !samePosition(written.position, at)) {
           entries[this.positionKey(actorId)] = { ...at, savedAt };
@@ -1742,7 +1666,7 @@ export class GameServer {
       // **A resident's kit is never written, on exactly the grounds its position
       // is not: nothing ever reads it.** A creature is adopted out of the board
       // and rolls its kit as it is adopted (`../app/game/battlerKit`), so a
-      // stored row would be a copy that the next wake overwrites with a fresh
+      // stored row would be a copy that the next load overwrites with a fresh
       // roll before anybody could consult it. That test, and not emptiness, is
       // what keeps the row ceiling below from being spent on a key per creature
       // per world — which is just as well, because the day a rat could be
@@ -1808,7 +1732,7 @@ export class GameServer {
       // `status:` row left behind when the last one ran out is a status that
       // comes back from the dead on the next reconnect, and an `hp:` row left
       // behind after somebody healed to full un-heals them. Skipping the empty
-      // case is what a `length > 0` guard alone would do, and it was wrong.
+      // case is what a `length > 0` guard alone would do.
       //
       // Residents are excluded outright, on exactly the grounds their position
       // is: `spawn` refuses restored statuses for a body that lives in the map,
@@ -1857,7 +1781,7 @@ export class GameServer {
     // there is nothing to compare that against.
     for (const [actorId, death] of this.pendingDeathWrites) {
       // **The spawn point, not the cell they fell in.** Their position row is
-      // overwritten rather than left alone, because leaving it is what put
+      // overwritten rather than left alone, because leaving it would put
       // people back wherever the last flush caught them — up to a whole
       // {@link ACTOR_FLUSH_INTERVAL_MS} of walking ago.
       const spawn = this.spawns.get(actorId);
@@ -1873,8 +1797,8 @@ export class GameServer {
       // cannot ride in this `put`, and a second call is a second moment at which
       // the board and the kit can disagree. The refused-drop case is the one
       // exception — nothing reached the floor, so they still own all of it.
-      // Every slot, read off the one list of them: a hand-written triple here is
-      // the shape the off hand has already been left out of once.
+      // Every slot, read off the one list of them rather than a hand-written
+      // triple that can leave one out.
       const stillOwned = wornInstances(death.equipment).length > 0;
       entries[this.equipmentKey(actorId)] = {
         equipment: stillOwned ? death.equipment : session.startingKit(),
@@ -1948,7 +1872,7 @@ export class GameServer {
     // records, and throwing here would take the whole object down over a
     // position — but a checkpoint failing quietly is how a world comes to hand
     // everybody back where they stood an hour ago with nothing anywhere saying
-    // why. Observability is on, so this reaches the logs.
+    // why.
     this.ctx.storage
       .put(entries, { allowUnconfirmed: true })
       .catch(GameServer.reportWriteFailure("checkpoint write"));
@@ -1977,9 +1901,7 @@ export class GameServer {
    * Drop what the world remembers about the people it has not seen in longest.
    *
    * On load, because that is the one moment this object is already doing async
-   * I/O with nothing waiting on a tick — and it runs once per instance rather
-   * than once per wake, since an object that is already in memory does not
-   * reload.
+   * I/O with nothing waiting on a tick.
    *
    * Each prefix is capped on its own rather than the two being reconciled. They
    * hold different populations — everybody has a position and only players have
@@ -2017,12 +1939,8 @@ export class GameServer {
   }
 
   /**
-   * Seat somebody who has just connected.
-   *
-   * Was a `fetch` returning a 101 with a socket attached, because a Durable
-   * Object could only be reached by request. The upgrade is the HTTP layer's
-   * business now — `server/index.ts` does it — and what is left here is the
-   * part that was always about the world.
+   * Seat somebody who has just connected. The upgrade is `server/index.ts`'s
+   * business; this is the world's half.
    *
    * **The socket is registered before the world is loaded, and the order still
    * matters.** Loading reaps any actor in the checkpoint with no connection, so
@@ -2037,10 +1955,9 @@ export class GameServer {
 
     await this.ensureLoaded();
 
-    // A new socket is a reload, and a reload is still a way back from being
-    // killed — it was the only one before the death screen's button, and it
-    // stays honest beside it: whatever state a tab has got itself into, opening
-    // the page again hands you a body.
+    // A new socket is a reload, and a reload is a way back from being killed
+    // beside the death screen's button: whatever state a tab has got itself
+    // into, opening the page again hands you a body.
     await this.seatActor(actorId);
     this.events.push({
       kind: "joined",
@@ -2149,7 +2066,7 @@ export class GameServer {
       playerCount: this.playerCount(),
       // Read here rather than tracked: time of day is a function of the
       // server's clock, so it costs nothing to keep and cannot fall behind
-      // while the object is hibernating.
+      // while nobody is connected.
       minutesOfDay: this.minutesOfDay(),
     };
     ws.send(JSON.stringify(message));
@@ -2187,13 +2104,11 @@ export class GameServer {
       // Sent inline rather than queued into `events`, which is patch-scoped and
       // shared by everyone.
       //
-      // This used to return without waking, on the grounds that talking does
-      // not move the board — true of the words, and no longer true of what
-      // hearing them can start. A brain gets one turn to notice an utterance, so
-      // an idle world has to tick at least once more or the call is simply never
-      // heard. The cost that comment was guarding against does not follow: what
-      // holds the loop open is one brain tick, not the five seconds the bubble
-      // hangs there, and `sleepIfIdle` puts the world straight back under.
+      // Woken even though the words do not move the board: a brain gets one
+      // turn to notice an utterance, so an idle world has to tick at least once
+      // more or the call is never heard. What holds the loop open is one brain
+      // tick, not the five seconds the bubble hangs there, and `sleepIfIdle`
+      // puts the world straight back under.
       this.say(actorId, message.text);
       this.wake();
       return;
@@ -2352,9 +2267,9 @@ export class GameServer {
    * sees it. A swing never had this problem because a swing happens *inside* the
    * tick; a cast is a message.
    *
-   * **This is what a bolt fired and nobody saw.** Both pages, and both of them
-   * genuinely reachable from input now: the number floating off whoever the
-   * bolt landed on, and the mote in the air on its way there. A flush that
+   * Both pages, and both of them reachable from input: the number floating off
+   * whoever the bolt landed on, and the mote in the air on its way there. A
+   * flush that
    * covered one of the two would be exactly the trap {@link flushSounds} says
    * it is refusing to lay.
    *
@@ -2416,13 +2331,6 @@ export class GameServer {
   }
 
   /**
-   * Tell anybody whose tags changed what they have taken now.
-   *
-   * Its own drain and its own message, sent from the same places the kit is —
-   * they change together today, and the two queues are what keeps that a fact
-   * about rewards rather than an assumption in the plumbing.
-   */
-  /**
    * Tell whoever started or stopped a pull what they are now working.
    *
    * Beside {@link flushTags} and shaped exactly like it, because it is the same
@@ -2450,6 +2358,13 @@ export class GameServer {
     }
   }
 
+  /**
+   * Tell anybody whose tags changed what they have taken now.
+   *
+   * Its own drain and its own message, sent from the same places the kit is —
+   * they change together today, and the two queues are what keeps that a fact
+   * about rewards rather than an assumption in the plumbing.
+   */
   private flushTags() {
     const session = this.session;
     if (!session) return;
@@ -2861,13 +2776,11 @@ export class GameServer {
   /**
    * Send to everyone who could see the cell it happened in.
    *
-   * **The level *and* the distance, and the second half was missing.** A bubble
-   * and a noise are both drawn at a cell — they hang over the body that made
-   * them — so a client that cannot see that cell draws nothing whatever it is
-   * told. Scoping by storey alone meant every crunch, gulp, hiss and howl in
-   * the world reached every client standing on that storey: measured on the den
-   * with people in it, five of every six noises a client was sent were made
-   * somewhere it could not see, and the other one was the only one it drew.
+   * The level *and* the distance. A bubble and a noise are both drawn at a
+   * cell — they hang over the body that made them — so a client that cannot
+   * see that cell draws nothing whatever it is told. Scoped by storey alone,
+   * five of every six noises a client is sent are made somewhere it cannot see
+   * (measured on the den with people in it).
    *
    * The reach is the body reach, because that is the same question — a noise is
    * made by a body, and if you are too far away to be told the body is there
@@ -2887,9 +2800,9 @@ export class GameServer {
       const attachment = ws.deserializeAttachment() as Attachment | null;
       if (!attachment) continue;
       const viewer = whereById.get(attachment.actorId);
-      // The storey test stays as it was: a client takes one of these as already
-      // theirs to draw, and a bubble from the floor below would be drawn
-      // through it. The reach is what is new.
+      // The storey test is separate from the reach: a client takes one of these
+      // as already theirs to draw, and a bubble from the floor below would be
+      // drawn through it.
       if (!viewer || viewer.z !== at.z) continue;
       if (!withinBodyReach(viewer, at.x, at.y, at.z)) continue;
       try {
@@ -2904,8 +2817,8 @@ export class GameServer {
    * Keep what was said.
    *
    * Write-only for now — there is no log on screen and nothing queries this. It
-   * exists so the history is not lost before anything wants it, which makes the
-   * row cap the load-bearing part rather than an afterthought.
+   * exists so the history is not lost before anything wants it, which is why
+   * the row cap matters.
    */
   private logChat(
     atMs: number,
@@ -2959,18 +2872,15 @@ export class GameServer {
     // Somebody is still driving this actor, so nothing here applies to them:
     // their body stays, their queued steps stay, and nobody is told they left.
     //
-    // **This is what a reload looks like from in here.** A closing socket is
-    // not the same event as a person leaving, and the two come apart in the one
-    // moment that matters most: a browser opening its new connection before the
-    // old one's close has been delivered. Despawning on the socket rather than
-    // on the actor took the body out from under the connection that had just
-    // replaced it — leaving a client that was told it had a body, watching a
-    // world it was no longer in, with every message it sent dropped by the
-    // `actorIds` gate in {@link webSocketMessage}. There is no recovery from
-    // that short of another reload, which races exactly the same way.
+    // A closing socket is not the same event as a person leaving: a browser
+    // opens its new connection before the old one's close has been delivered,
+    // and despawning on the socket rather than on the actor would take the body
+    // out from under the connection that had just replaced it — a client told
+    // it had a body, watching a world it is no longer in, with every message it
+    // sends dropped by the `actorIds` gate in {@link webSocketMessage}.
     //
-    // {@link displaceSockets} now clears the old socket's attachment when the
-    // new one joins, so that late close returns above. This stays as the check
+    // {@link displaceSockets} clears the old socket's attachment when the new
+    // one joins, so that late close returns above. This stays as the check
     // that the actor has really gone, rather than trusting that it always will.
     if (this.hasSocket(attachment.actorId, ws)) return;
 
@@ -3111,24 +3021,20 @@ export class GameServer {
    * business in an authored file.
    *
    * **Nothing is persisted until the new world has been proved to start, and
-   * the running one is never loaded to get here.** Both halves of that are
-   * load-bearing, and the order they used to be in cost a live world.
+   * the running one is never loaded to get here.**
    *
    * A map with no `player` tile has no spawn point, so `new GameSession` throws
-   * on it. That used to happen *after* the map had been written and the
-   * checkpoint deleted — so one save of a map whose marker had been erased
-   * persisted the unstartable map and destroyed the only startable copy left.
-   * From then on every load threw, and because this method began by loading,
-   * the editor could no longer save the very fix that would have repaired it:
-   * placing the marker back required a world that could not come up. The world
-   * was unreachable and the one tool that could mend it was locked behind it.
+   * on it. Thrown after the map had been written and the checkpoint deleted,
+   * one save of a map whose marker had been erased would persist the
+   * unstartable map and destroy the only startable copy left; and if this
+   * method began by loading, the editor could not save the fix, because
+   * placing the marker back would need a world that cannot come up.
    *
    * So the session is built first, from the incoming map, and storage is only
-   * touched once it exists. A bad save now fails having changed nothing, and
-   * the save path stays usable on a world too broken to load — which is exactly
-   * when it is needed. Nothing here reads the old session: the tiles are re-read
-   * and every actor is re-seated below, so loading it was only ever a way for
-   * its failures to become this one's.
+   * touched once it exists. A bad save fails having changed nothing, and the
+   * save path stays usable on a world too broken to load — which is exactly
+   * when it is needed. Nothing here reads the old session: the tiles are
+   * re-read and every actor is re-seated below.
    *
    * `keepPositions` re-seats everyone where they were standing instead of at
    * the new world's spawn. It is what a *deploy* wants — the map changed under
@@ -3168,8 +3074,8 @@ export class GameServer {
 
     // Read off the outgoing session, and read *here* — this is the last moment
     // it exists, and it holds the only copy of anybody's kit that is newer than
-    // the last five-second flush. A player who picked something up four seconds
-    // before somebody hit save is carrying it only in memory.
+    // the last flush. A player who picked something up just before somebody hit
+    // save is carrying it only in memory.
     const carried = new Map<string, Equipment>();
     const taken = new Map<string, string[]>();
     const learnt = new Map<string, MasteryXp>();
@@ -3274,9 +3180,9 @@ export class GameServer {
     // map, and saving it is how an author puts a sword back. What is in
     // somebody's bag is not the map: nobody authored it, it is not in the file
     // that was just written, and there is nothing in a save that says anything
-    // about it. Seating them with the starting kit read the one as the other and
-    // emptied every connected player's pockets, and the flush five seconds later
-    // wrote that emptiness over the only record of what they had.
+    // about it. Seating them with the starting kit would read the one as the
+    // other and empty every connected player's pockets, and the next flush
+    // would write that emptiness over the only record of what they had.
     //
     // Their tags travel for the same reason and with less to argue about: a tag
     // records something that happened to the *player*, so a new map has nothing
@@ -3323,28 +3229,18 @@ export class GameServer {
    * Pick up authored content that has just been written, without disturbing the
    * world it describes.
    *
-   * **A tile save used to reach the store and stop there.** {@link load} reads
-   * the catalogue once per world — it is guarded on there being no session — so
-   * an author who edited a stone's cooldown, a sword's damage or a status's
-   * duration changed what the *next* world would be built from and nothing
-   * about the one they were standing in. The map editor never had this problem
-   * because saving a map goes through {@link replaceWorld}, which re-reads both
-   * catalogues on its way past; the tile editor had no equivalent.
+   * {@link load} reads the catalogue once per world — it is guarded on there
+   * being no session — so without this an author who edited a stone's
+   * cooldown, a sword's damage or a status's duration would change what the
+   * *next* world is built from and nothing about the one they are standing in.
+   * A map save goes through {@link replaceWorld}, which re-reads both
+   * catalogues on its way past; this is the tile editor's equivalent.
    *
-   * It was invisible until a number a player *watches* changed. An arcane
-   * stone's cooldown is the first of those: the server went on spending the old
-   * one while the reloaded browser drew the bar against the new one, so it sat
-   * pinned at full and looked frozen rather than merely stale.
-   *
-   * ## It is an eviction, on purpose
-   *
-   * Checkpoint, drop the session, load again. That is precisely what
-   * hibernation already does to this object, which is why it is the shape to
-   * borrow rather than a re-seating written specially: everybody's position,
-   * kit, tags, experience, statuses and hit points survive a wake because a
-   * great deal of care was taken to make them, and {@link restoreActors} at the
-   * end of {@link load} re-seats every socket that is still open. Nothing here
-   * has to know that list exists.
+   * Checkpoint, drop the session, load again, rather than a re-seating written
+   * specially: everybody's position, kit, tags, experience, statuses and hit
+   * points survive a load, and {@link restoreActors} at the end of
+   * {@link load} re-seats every socket that is still open. Nothing here has to
+   * know that list exists.
    *
    * **Not {@link replaceWorld}**, which is about a new *board*: it deletes the
    * checkpoint, re-derives the spawn registry and drops every pending respawn,
@@ -3387,19 +3283,15 @@ export class GameServer {
     this.loading = null;
     await this.ensureLoaded();
 
-    // **And everybody is told, which a wake from hibernation deliberately does
-    // not do.** A wake resumes the same board against the same catalogue, so a
-    // client's copy is still true and the patch stream picks up where it left
-    // off. This is the opposite case: the tiles have changed meaning, the new
-    // session re-settled the board on its way up, and `broadcastMap` was reset
-    // to that settled board — so nothing would ever be diffed out, and every
-    // client would go on drawing a world the server has already moved on from.
-    // {@link replaceWorld} sends a `hello` for exactly this reason, and this is
-    // the same reason.
+    // And everybody is told: the tiles have changed meaning, the new session
+    // re-settled the board on its way up, and `broadcastMap` was reset to that
+    // settled board — so nothing would ever be diffed out, and every client
+    // would go on drawing a world the server has already moved on from.
+    // {@link replaceWorld} sends a `hello` for the same reason.
     //
     // What it cannot fix is the client's own catalogue, which reaches a browser
-    // only when the page loads. An author still reloads to see their new art;
-    // what they no longer have to do is reload to make the *world* obey them.
+    // only when the page loads. An author still reloads to see their new art,
+    // not to make the *world* obey them.
     for (const ws of this.ctx.getWebSockets()) {
       const attachment = ws.deserializeAttachment() as Attachment | null;
       if (attachment) this.sendHello(ws, attachment.actorId);
@@ -3417,21 +3309,21 @@ export class GameServer {
    * carries every player's kit, tags and masteries across, deliberately,
    * because nothing an author writes in a map has any bearing on what a player
    * is holding or has learnt. Every other mechanism here pulls the same way —
-   * a checkpoint is preferred to the authored map so an eviction does not
+   * a checkpoint is preferred to the authored map so a restart does not
    * teleport a room full of people, and a tag is never checked against the
    * world so a re-authored chest cannot be refilled underneath somebody.
    *
    * That is all correct until the thing that has to go *is* what the object
-   * remembers, at which point there is no route to it. Seeding the bucket
-   * cannot reach it, a save carries it forward, and an eviction preserves it.
+   * remembers, at which point there is no route to it. Seeding the store
+   * cannot reach it, a save carries it forward, and a restart preserves it.
    * A player whose stored state disagrees with the content it was written
    * against — a mastery block, a tag naming a reward that has been
    * re-authored, a kit of tiles that have changed meaning — stays that way
    * through everything, and there is no repair short of not remembering them.
    *
-   * So: `data/` is the source of truth in the repo, R2 is the source of truth
-   * in production, and this object is the source of truth for the running
-   * world. Nothing reconciles the three. This is the reconciliation, and it is
+   * So: `data/` is the source of truth in the repo, the store is the source of
+   * truth in production, and this object is the source of truth for the
+   * running world. Nothing reconciles the three. This is the reconciliation, and it is
    * destructive by design — every position, kit, tag and mastery in the world
    * is dropped, and everyone still connected re-enters as somebody this world
    * has never met.
@@ -3514,8 +3406,7 @@ export class GameServer {
   /**
    * Start ticking, if it is not already.
    *
-   * `setInterval` blocks hibernation, which is exactly why it only runs while
-   * there is something to simulate — see {@link sleepIfIdle}.
+   * Only runs while there is something to simulate — see {@link sleepIfIdle}.
    */
   private wake() {
     if (this.timer !== null) return;
@@ -3525,12 +3416,9 @@ export class GameServer {
   /**
    * Run a tick, and survive one that throws.
    *
-   * **A platform used to do this.** An exception inside a Durable Object's
-   * timer was caught by the runtime and cost that tick; the same exception
-   * inside `setInterval` here is an uncaught exception, which ends the process
-   * — so one bad tick disconnected everybody, lost up to a checkpoint interval,
-   * and handed the whole world to the restart policy. A queued step belonging
-   * to somebody who had just walked into a fire was enough to do it.
+   * An exception inside `setInterval` is an uncaught exception, which ends the
+   * process — so one bad tick would disconnect everybody, lose up to a
+   * checkpoint interval, and hand the whole world to the restart policy.
    *
    * Ticking continues afterwards, deliberately. A world frozen at the moment it
    * first went wrong is worse than one that skips a frame and says so: the skip
@@ -3560,8 +3448,8 @@ export class GameServer {
   /**
    * Stop ticking once the world settles, and checkpoint where everyone is.
    *
-   * The checkpoint is what makes hibernation invisible: without it an evicted
-   * object would reload the authored map and drop every actor back at spawn.
+   * The checkpoint is what makes a restart invisible: without it the world
+   * would reload the authored map and drop every actor back at spawn.
    */
   private sleepIfIdle() {
     const session = this.session;
@@ -3574,10 +3462,10 @@ export class GameServer {
       clearInterval(this.timer);
       this.timer = null;
     }
-    // The last thing that happens before this object may be evicted, and the
-    // only chance to record the people whose sockets will not survive it: a
-    // connection that dies during hibernation runs no close, so the wake reaps
-    // its body without ever hearing about it.
+    // The last thing that happens before the world goes quiet, and the only
+    // chance to record the people whose sockets will not survive a restart: a
+    // connection that dies while the world is down runs no close, so the load
+    // reaps its body without ever hearing about it.
     //
     // Forced, for the reason the close is and one more: this is where a world
     // goes quiet, so it is the one flush whose cost does not repeat, and paying
@@ -3680,7 +3568,7 @@ export class GameServer {
       live.add(actor.id);
       // A body nobody has been told about is announced in {@link scopedPatchFor}
       // rather than here: whether it is news is a question with one answer per
-      // client now, and this list is the one every client shares.
+      // client, and this list is the one every client shares.
       const sent = this.sentMotion.get(actor.id);
 
       if (actor.walk && actor.walk !== sent?.walk) {
@@ -3740,7 +3628,7 @@ export class GameServer {
    * the news, and every client already draws an actor by finding their body on
    * the board. What this is for is the *server's* own state — a queued step
    * aimed by a body that no longer exists, the record that keeps them off the
-   * board across a wake, and the one chance to make a death durable.
+   * board across a restart, and the one chance to make a death durable.
    *
    * **A death is the moment the session stops being able to answer for
    * somebody.** Everything a reload hands back — where they were, what they
@@ -3823,7 +3711,7 @@ export class GameServer {
    * Put somebody back in the world with a body.
    *
    * The one path onto the board for a player, taken by all three ways of
-   * getting there: a fresh socket, a wake that found one still open, and a
+   * getting there: a fresh socket, a load that found one still open, and a
    * {@link rebirth} asked for from the death screen. Written once because the
    * order in it is load-bearing — the door has to be remembered before the
    * seating, since a death arriving in the gap has nowhere to put them back —
@@ -3831,18 +3719,18 @@ export class GameServer {
    *
    * Clearing the death is not merely tidying: {@link dead} is what
    * {@link restoreActors} consults to leave a dead player's socket empty across
-   * a wake, so a seating that left it set would be undone by the next eviction.
+   * a load, so a seating that left it set would be undone by the next restart.
    *
    * Rejoining with the same id keeps the actor already on the board; the
    * remembered position is for somebody whose body is gone — they left, or
-   * their connection died while this object was evicted and they were reaped.
+   * their connection died while the world was down and they were reaped.
    */
   private async seatActor(actorId: string) {
     this.dead.delete(actorId);
     this.silenced.delete(actorId);
     await this.rememberSpawn(actorId);
     this.session!.spawn(actorId, await this.restoredActor(actorId));
-    // A seat happens on a join, a wake or a rebirth, never inside a tick, and
+    // A seat happens on a join, a load or a rebirth, never inside a tick, and
     // the next tick empties whatever it finds pending before it drains: the
     // body's way in has to be collected here or it is never sent.
     this.collectTransitionEvents(this.session!);
@@ -3851,9 +3739,9 @@ export class GameServer {
   /**
    * Answer "put me back in" from a dead player.
    *
-   * Reloading the page does the same thing by way of {@link fetch}, and did it
-   * first — this exists so that coming back does not mean losing the tab. What
-   * it costs over a reload is one `hello`, which a reload was paying anyway.
+   * Reloading the page does the same thing by way of {@link join}; this exists
+   * so that coming back does not mean losing the tab. What it costs over a
+   * reload is one `hello`, which a reload pays anyway.
    *
    * **Answered with a whole `hello`.** A silenced socket has been receiving
    * nothing for as long as its owner sat on the death screen, so its map is
@@ -4192,9 +4080,8 @@ export class GameServer {
    * not been shown must not follow it.
    *
    * A budget per tick, nearest chunk first, because a chunk column of dense
-   * cave is a few hundred cells and arriving all at once is the lump that made
-   * a previous attempt at this measure *worse* than sending everything. At a
-   * walking pace a player has a whole chunk to cross before any of the ground
+   * cave is a few hundred cells and arriving all at once costs more than the
+   * scoping saves. At a walking pace a player has a whole chunk to cross before any of the ground
    * ahead is on screen, so a handful a tick is far ahead of need.
    */
   private streamEnteredChunks() {
@@ -4282,20 +4169,18 @@ export class GameServer {
    * **A client hears about a chunk exactly while it is subscribed to it.** The
    * subscription already decided what map it was handed on join and what ground
    * it is handed as it walks (`../app/net/interest`); this is the other half of
-   * the same rule, and until it existed the two disagreed — a join scaled with
-   * the player and the tick stream scaled with everybody else. Twenty people in
-   * twenty corners of the world each heard the other nineteen neighbourhoods
-   * walk about, none of which they could see.
+   * the same rule. Without it a join scales with the player and the tick
+   * stream scales with everybody else: twenty people in twenty corners of the
+   * world each hear the other nineteen neighbourhoods walk about, none of
+   * which they can see.
    *
    * **Serialization is shared wherever the patch survives the cut whole.**
-   * That was the standing objection to doing this at all: one `JSON.stringify`
-   * per tick regardless of player count is a real property, and spending it to
-   * save bytes nobody was reading would be a poor trade. It is not spent in the
-   * case it was written about — a world whose players are in one place all hold
-   * the chunks the tick touched, {@link scopedPatchFor} hands each of them the
-   * same object back, and one string goes to all of them. What costs a string
-   * of its own is a client the patch had to be cut for, and that string is
-   * smaller than the one it replaces.
+   * One `JSON.stringify` per tick regardless of player count is worth keeping,
+   * and it is kept where it matters: a world whose players are in one place
+   * all hold the chunks the tick touched, {@link scopedPatchFor} hands each of
+   * them the same object back, and one string goes to all of them. What costs
+   * a string of its own is a client the patch had to be cut for, and that
+   * string is smaller than the one it replaces.
    *
    * Still one pass per *actor* rather than per socket: two tabs on one body are
    * owed the same message, and the set of bodies each client holds is advanced
@@ -4367,12 +4252,10 @@ export class GameServer {
     actors: ActorSnapshot[],
     patch: SharedPatch,
   ): TickPatch | null {
-    // No record means this instance has never handed this socket any ground:
-    // an inherited socket after a wake, whose `hello` was sent by an instance
-    // that no longer exists. An empty subscription is the honest reading —
-    // {@link streamEnteredChunks} hands the ground back over the next few ticks
-    // and every body on it is announced as it arrives, which is what the old
-    // instance's client is already holding.
+    // No record means this instance has never handed this socket any ground.
+    // An empty subscription is the honest reading: {@link streamEnteredChunks}
+    // hands the ground over the next few ticks and every body on it is
+    // announced as it arrives.
     const chunks = this.subscribed.get(actorId) ?? NO_CHUNKS;
     const known = this.announcedActors.get(actorId) ?? NO_ACTORS;
     // Where this client is looking from. A body between a death and a respawn
@@ -4428,8 +4311,8 @@ export class GameServer {
       // the announcement beside it. While a body was out of reach this client
       // heard nothing about the cells it was standing in, and nothing re-hands
       // that ground — it never left the subscription. So a creature that
-      // wandered off and came back was drawn where it used to be, facing the
-      // way it used to face, for as long as it stood still. @see `../app/net/scope`
+      // wandered off and came back would be drawn where it used to be, facing
+      // the way it used to face, for as long as it stood still. @see `../app/net/scope`
       cells: [
         ...(cells ?? wholePatch(patch).cells),
         ...this.cellsOfChangedReach(arrivals, departed ?? [], held),
@@ -4479,8 +4362,7 @@ export class GameServer {
    * ground its client has not been handed is a body that client can only find
    * by searching its whole board. The reach is well inside the subscription by
    * construction (`interest.test.ts` pins it), so this only ever bites while a
-   * client is still being handed its ground — an inherited socket after a wake,
-   * whose `hello` came from an instance that is gone.
+   * client is still being handed its ground.
    */
   private isNearby(
     at: { x: number; y: number; z: number } | null,
@@ -4505,7 +4387,7 @@ export class GameServer {
    * - **Coming in**, that is wherever the body was when it left, facing
    *   whichever way it faced. Nothing re-hands that ground, because the chunk
    *   never left the subscription. A creature that wandered off and came back
-   *   was drawn where it used to be for as long as it stood still.
+   *   would be drawn where it used to be for as long as it stood still.
    * - **Going out**, that is a body tile in a cell nothing will ever rewrite.
    *   Too far away to draw and solid to `fitsTile`, so it refuses the player a
    *   step into a cell a creature left an hour ago.

@@ -5,10 +5,8 @@ import type { Blobs } from "../app/lib/storage.server";
 /**
  * Authored content, as it is laid out in the repository.
  *
- * Keys mirror the paths under `data/`, so what a listing shows reads like the
- * checked-in tree — which was true of the bucket this replaces and is worth
- * keeping, because it is what makes a seed a straight copy rather than a
- * translation.
+ * Keys mirror the paths under `data/`, so a listing reads like the checked-in
+ * tree and a seed is a straight copy rather than a translation.
  */
 const JSON_FILES = ["map.json", "tiles.json", "tilesets.json", "statuses.json"];
 const TILESET_DIRECTORY = "tilesets";
@@ -18,9 +16,9 @@ const TILESET_DIRECTORY = "tilesets";
  *
  * **Called on boot when the store has nothing in it**, which is what makes a
  * fresh deployment come up playable with no seeding step in the pipeline at
- * all. It is also most of why previews stopped being work: a pull request's
- * container starts against an empty volume, builds its own world from the image
- * it was built with, and needs nothing provisioned for it.
+ * all. A pull request's preview container starts against an empty volume,
+ * builds its own world from the image it was built with, and needs nothing
+ * provisioned for it.
  *
  * It has one other caller, and that one *is* an overwrite: `World.reseed`,
  * behind `POST /api/seed`, which the deploy pipeline hits after every merge to

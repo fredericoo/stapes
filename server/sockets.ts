@@ -1,16 +1,12 @@
 /**
- * The socket side of the Durable Object's context, reimplemented.
+ * The sockets `GameServer` talks to.
  *
- * `GameServer` reaches sockets through `this.ctx.getWebSockets()` and stores an
- * actor id on each with `serializeAttachment`. That API exists on Cloudflare
- * because a hibernating object may be evicted while its connections stay open,
- * so the id has to survive in the platform's hands rather than in a `Map` the
- * object no longer has. Nothing hibernates here — but keeping the shape keeps
- * `GameServer` and its tests unchanged, and an attachment is a perfectly
- * ordinary way to hang an id off a connection.
+ * `GameServer` reaches them through `this.ctx.getWebSockets()` and stores an
+ * actor id on each with `serializeAttachment`, which is an ordinary way to
+ * hang an id off a connection.
  */
 
-/** What a socket can be asked to do, once the transport is abstracted away. */
+/** What a socket can be asked to do. */
 export interface Transport {
   send(data: string): void;
   close(code?: number, reason?: string): void;
@@ -79,8 +75,6 @@ export class SocketHub {
    *
    * `dropSocket` runs while `GameServer` is iterating in several places, and a
    * `Set` mutated mid-iteration is how a broadcast silently skips somebody.
-   * The Durable Object's `getWebSockets()` returns an array for the same
-   * reason.
    */
   all(): GameSocket[] {
     return [...this.sockets];
@@ -92,10 +86,8 @@ export class SocketHub {
 }
 
 /**
- * The context object `GameServer` is constructed with.
- *
- * Named for what it replaces so the several hundred `this.ctx.*` call sites in
- * that file did not have to be touched. `storage` is the {@link WorldStore}.
+ * The context object `GameServer` is constructed with. `storage` is the
+ * {@link WorldStore}.
  */
 export interface WorldContext {
   storage: {

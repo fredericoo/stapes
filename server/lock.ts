@@ -3,12 +3,10 @@ import { openDatabase, type Database } from "./db";
 /**
  * Open the world's database, refusing to be the second process to do so.
  *
- * The Durable Object gave this away free: a namespace guarantees exactly one
- * instance of `world` exists anywhere, and every line of `GameServer` that
- * treats its in-memory board as authoritative depends on it. Nothing on a
- * virtual machine provides it, and the ways two processes end up sharing a
- * database are ordinary — a drain overlapping a boot, a deploy retry, a
- * `docker compose up` run by hand on the box.
+ * Every line of `GameServer` that treats its in-memory board as authoritative
+ * depends on exactly one instance of the world existing, and the ways two
+ * processes end up sharing a database are ordinary — a drain overlapping a
+ * boot, a deploy retry, a `docker compose up` run by hand on the box.
  *
  * Ordinary SQLite locking is not enough. It prevents *corruption*, serialising
  * two writers rather than interleaving them mid-statement, but both may open
@@ -66,9 +64,8 @@ export async function openWorldDatabaseExclusively(
  *
  * **Matched on the driver's own phrasing rather than on the word "lock".** The
  * error text embeds the database path, so a looser pattern matches any
- * deployment whose data directory happens to be named for a lock — which is
- * how this first went wrong, against a temporary directory called
- * `stapes-lock-…`. `server/lock.test.ts` still uses that prefix on purpose.
+ * deployment whose data directory happens to be named for a lock.
+ * `server/lock.test.ts` uses such a prefix (`stapes-lock-…`) on purpose.
  */
 function isLockError(error: unknown): boolean {
   return /Locking error|locked by another process/i.test(String(error));
