@@ -23,6 +23,7 @@ import {
 import type { Element } from "../lib/element";
 import { engravedName } from "../lib/engraving";
 import type { ItemInstance } from "../lib/itemInstance";
+import { seconds } from "../lib/duration";
 import { countOf } from "../lib/piles";
 import {
   MASTERIES,
@@ -301,26 +302,6 @@ function bodyWith(masteries: BattlerDef["masteries"], weapon: WeaponItem): Battl
   };
 }
 
-/** A minute, past which seconds stop being the unit anybody reads in. */
-const SECONDS_PER_MINUTE = 60;
-
-/**
- * A duration, in whichever unit a reader can hold.
- *
- * A tenth of a second distinguishes a fast weapon from a slow one at the bottom
- * of the scale and distinguishes nothing at the top, where a range would read
- * "5.0s–20s" and leave the reader wondering why one end has more precision than
- * the other. Past a minute seconds stop working entirely: an hour-long status
- * reported as "3600s" is a number to convert rather than to read.
- */
-function seconds(ms: number): string {
-  const s = ms / 1000;
-  if (s < 10) return `${Number(s.toFixed(1))}s`;
-  if (s < SECONDS_PER_MINUTE) return `${Math.round(s)}s`;
-  const minutes = s / SECONDS_PER_MINUTE;
-  return `${Number(minutes.toFixed(minutes < 10 ? 1 : 0))}m`;
-}
-
 /** How long a grant runs, read off the override or off the status itself. */
 function durationOf(grant: StatusGrant, def: StatusDef): string {
   const fromMs = grant.fromMs ?? def.fromMs;
@@ -342,6 +323,11 @@ function durationOf(grant: StatusGrant, def: StatusDef): string {
  * reading "2–8 cells, fired" are the same weapon everywhere except the fight
  * you are about to lose, and a player who has to discover the hole by standing
  * in it has been told nothing. @see `../lib/item`'s `Reach.min`
+ *
+ * The stats panel asks the same question of a *body* and answers it shorter —
+ * see `./attributes`'s `Attributes.reach`, which has about fourteen characters
+ * to say it in. Both name an arm's length rather than measuring it, and both
+ * state a floor as a span; only this one has room for the arrow.
  */
 function reachLine(thing: {
   reach?: Reach;

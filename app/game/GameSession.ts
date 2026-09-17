@@ -225,6 +225,7 @@ import {
   type SpellButton,
 } from "./casting";
 import type { Progress } from "./progress";
+import { type Attributes, attributesOf } from "./attributes";
 import { equipmentForBody } from "./battlerKit";
 import {
   attackerEarnings,
@@ -804,6 +805,19 @@ export type GameSnapshot = {
    */
   masteryXp: MasteryXp;
   /**
+   * What the viewer's own body fights and walks at, or null for a body with no
+   * stats at all.
+   *
+   * Theirs alone on exactly the terms {@link masteryXp} is, and for the same
+   * reason: it folds in what they are wearing and what they have practised, and
+   * nobody else's frame draws either. The ⭐ on {@link ActorSnapshot} is still
+   * the only part of a body's competence everybody sees.
+   *
+   * A projection rather than the `FightingStats` a blow is resolved against —
+   * see `./attributes`, which is where the two are turned into one another.
+   */
+  attributes: Attributes | null;
+  /**
    * Speech still on screen, on this viewer's level only.
    *
    * Always present rather than optional so the renderer's contract stays total;
@@ -842,6 +856,16 @@ export type Vitals = {
    * and it happens in the route that has the catalogue.
    */
   statuses: readonly StatusInstance[];
+  /**
+   * What this body hits for, how often, and how fast it walks — or null for a
+   * body with no stats at all, on the same terms every field above is.
+   *
+   * Carried here rather than on a channel of its own because it answers the
+   * same question the rest of the block does: *what state is my body in*. See
+   * `./attributes`, which works it out, and `../components/StatsPanel`, which is
+   * the one thing that reads it.
+   */
+  attributes: Attributes | null;
 };
 
 /** The id the single local actor takes when nobody names one. */
@@ -5188,6 +5212,36 @@ export class GameSession implements PlaySession {
   }
 
   /**
+   * The same body as a set of readings for its own player's chrome.
+   *
+   * **Beside {@link baseBattlerOf} rather than through it**, because the two
+   * want different hands: a swing is thrown with whichever hand's turn it is,
+   * and a panel has to hold still. `./attributes` owns that choice and both
+   * ends of the wire call it, which is what stops `/play` and a connected world
+   * quoting two figures for one body.
+   *
+   * Null for a body with no battler block, which the panel says plainly.
+   */
+  private attributesOf(actor: ActorRuntime): Attributes | null {
+    const body = this.bodyOf(actor);
+    const loc = this.tryLocate(actor);
+    const bodyDef = loc ? this.tilesById[loc.placed.tileId] : undefined;
+    if (!body || !bodyDef) return null;
+    return attributesOf({
+      body,
+      bodyDef,
+      equipment: actor.equipment,
+      tilesById: this.tilesById,
+      statuses: actor.statuses,
+      statusDefs: this.statusDefs,
+      // The stored figure rather than {@link hpOf}, on exactly the terms
+      // {@link battlerOf} passes it: a formula reading `HP` wants what this body
+      // has, and filling it in is not this function's business.
+      hp: actor.hp,
+    });
+  }
+
+  /**
    * Which hand this body is about to swing with, or null for one swinging what
    * it was born with.
    *
@@ -9357,6 +9411,7 @@ export class GameSession implements PlaySession {
       // body for its stats, which is what fills a fresh player's experience in
       // from their tile. The fallback is for the body that has none to give.
       masteryXp: self.masteryXp ?? {},
+      attributes: this.attributesOf(self),
       // Nobody to talk to: the local simulation has no wire and no other actors
       // worth naming, so speech is a thing only the online client carries.
       chats: [],

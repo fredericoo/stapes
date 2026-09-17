@@ -5956,9 +5956,12 @@ modifier:
   pace that varied with the remainder would have the two sides drawing the same
   step at two different speeds.
 - Modifiers are deltas to `FightingStats`, applied where those are read. The
-  browser never builds `FightingStats` at all: it does not know what anybody is
-  wearing or what they have practised. Walking pace it has to know, for every
-  body it draws taking a step.
+  browser cannot build `FightingStats` for **anybody else**: it does not know
+  what they are wearing or what they have practised. Walking pace it has to
+  know, for every body it draws taking a step. (It does build one block, for its
+  own body, because equipment and masteries arrive on the viewer's own channels
+  — see "The stats panel derives its own body's block" below. That is one body
+  and not the board.)
 
 So `walkSpeedPercent` sits beside `modifiers` rather than in it, and
 `walkSpeedPercentFrom` is reachable without going through `withStatusModifiers`.
@@ -5990,6 +5993,83 @@ reads `resolveWalkDurationMs` and not the moved figure: how long a swing costs i
 a fact about the swing, both ends already derive it from the tile alone, and
 tying it to whatever the swinger happened to be standing in would make the
 recovery depend on state the client may not hold at the moment of the blow.
+
+### The stats panel derives its own body's block
+
+The **Combat** block under the masteries shows what you hit for, how often, what
+you turn aside and how fast you walk: a damage band, an attack interval, an
+accuracy, a reach, defence, evasion and a walking rate.
+`app/game/attributes.ts` works all of it out, and **the simulation and the
+browser both call it**, which is why `/play` and a connected world quote the same
+figures for the same body.
+
+**Seven short labels in two columns — attack down the left, survival down the
+right.** One column of seven rows was the tallest thing in the panel for the
+least information in it: the figures are two to six characters and the rest was
+whitespace. Labels are abbreviated to a column of about fourteen characters, and
+units ride on the figures rather than in the labels — `c` is cells, `c/s` cells
+a second — so "Range 6c" and "Move 5.0c/s" read against each other. The reach
+wording is shorter than an item card's for the same reason: a card has room to
+say a shot is a shot and this cell does not.
+
+**Under the masteries, not over them.** What you have practised is what you are;
+this is what it currently comes to with a weapon in your hand. On a body that
+has earned every mastery the block therefore starts below the panel's fold,
+which is the cost of that ordering.
+
+`Attributes` is a projection of `FightingStats` and not the block itself. Half of
+that block is not a reading: `accuracy` is a position in a contest, `variance` is
+the width of a band, `haste` is a multiplier on a curve. What a player decides on
+is a band of damage, an interval and a probability, so those are what the panel
+holds. The weapon's own mastery has no row either — the masteries above already
+have a line for the level that weapon is earning. The Arena prints the whole
+block instead, because tuning is what it is for — see `ArenaFighterPanel`.
+
+**The browser building one of these is not a hole in the rule above.** Equipment
+arrives on the viewer's own channel and masteries on the mastery one, both theirs
+alone, so their own body is the one body the browser can resolve; it reaches the
+same masteries `GameSession.bodyOf` does, by the same `masteriesFromXp`. It is
+also the only body with real status countdowns on this side — everybody else's
+statuses are ids at `UNKNOWN_REMAINING_MS` — which is what a modifier formula
+reading `REMAINING_SEC` needs. Nothing new travels.
+
+**The hand is fixed and the rotation is not read.** Which hand swings next is
+state of a fight, advanced only where a swing is spent and never broadcast, so a
+panel reading it would flip between two sets of numbers on one client and sit
+still on the other. The weapon hand is reported, and a body holding two different
+weapons therefore has a second blow the panel does not describe — each weapon's
+own card says what that one is worth.
+
+**Walking pace counts statuses and not the ground**, unlike a step actually
+taken. The panel says what this body *is*; what is under its feet is where it
+happens to be standing, and a reading that moved as you crossed a bog would be
+answering a question about the floor.
+
+The block rides on `Vitals`, beside the hit points, and `GameRenderer.pushVitals`
+diffs it field by field — which is why every field is a primitive. It is rebuilt
+every tick out of objects that are themselves rebuilt every tick, so an identity
+check would push a new object thirty times a second and re-render the panel with
+it. A field added to `Attributes` and not to `sameAttributes` is a reading that
+silently stops updating; the test walks the keys so that cannot happen quietly.
+
+**The panel's body is capped at 200px and scrolls, on a desktop only.** Four
+sections, two of which grow: ten masteries and a handful of statuses came to more
+than half a tall window, and the column it sits in gives its room up out of the
+list of what is in reach. The ⭐ heading stays outside the scroller so the panel
+keeps a line saying what it is.
+
+A fixed height rather than a share of the viewport, which is what it was first:
+at two fifths, a tall screen gave the panel most of the column whether or not it
+had anything to put there. What the panel is for is checking a number and going
+back to the world, so it takes a fixed slice — about eight rows, enough for
+health and the first few masteries — and everything past that is scrolled to on
+purpose. On a phone the cap is off,
+because the panels there already sit in a column that scrolls as one and a second
+scroller inside the first is a trap for a finger — a drag that starts on the
+stats catches the inner box, hits its end, and the column behind it never moves.
+The scrollbar is given layout width (`.scrolls-in-chrome`) rather than left as an
+overlay: a cut that lands between two rows and shows nothing reads as a panel
+that simply ends.
 
 ## A creature can read its own health, and only as a share
 

@@ -8,7 +8,11 @@ import {
   RATING_GLYPH,
   rating,
 } from "../lib/mastery";
+import type { Attributes } from "../game/attributes";
 import type { Vitals } from "../game/GameSession";
+// Aliased because `EffectRow` below already has a `seconds` of its own, which is
+// a count and not a wording.
+import { seconds as inSeconds } from "../lib/duration";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { healthBarColor, healthFraction } from "../render/healthBar";
 import { secondsLeft } from "../game/statuses";
@@ -30,12 +34,22 @@ import { SpritePreview } from "./TilePreview";
  * says the same thing, but it is drawn in world space at the top of the screen
  * and says it in a colour rather than a number — and "am I going to survive the
  * next rat" is a question with an exact answer.
+ *
+ * ## The heading stays and everything under it scrolls
+ *
+ * Four sections — health, effects, masteries, combat — and two of them grow: ten
+ * masteries and a handful of statuses came to more than half a tall desktop
+ * window, and the column this sits in gives its room up out of the list of what
+ * is in reach. So the body is held to {@link STATS_BODY_MAX_HEIGHT} and scrolls,
+ * and the ⭐ line stays put as the thing that says which panel you are looking
+ * at. See {@link scrolls}, which is why the cap is not always on.
  */
 export function StatsPanel({
   vitals,
   masteryXp,
   statuses = [],
   tilesets = [],
+  scrolls = false,
   className = "",
 }: {
   vitals: Vitals;
@@ -43,6 +57,22 @@ export function StatsPanel({
   /** What is running on this body. See `./StatusStrip`, which draws the glance. */
   statuses?: ActiveStatus[];
   tilesets?: TilesetDef[];
+  /**
+   * Whether the body is capped at {@link STATS_BODY_MAX_HEIGHT} and scrolls
+   * inside it.
+   *
+   * **On beside a mouse and off under a thumb**, rather than always. On a phone
+   * the panels already sit in a column that scrolls as one — see
+   * `./GameViewport` — and a second scroller inside the first is a trap for a
+   * finger: a drag that starts on the stats catches the inner box, hits its end,
+   * and the column behind it never moves. A desktop column has no such scroller
+   * for this to fight with, and it is the one that runs out of height.
+   *
+   * Off by default, which is the reading a caller that has not thought about it
+   * should get: an uncapped panel is the one that is always legible, merely
+   * long.
+   */
+  scrolls?: boolean;
   className?: string;
 }) {
   const earned = MASTERIES.map((mastery) => ({
@@ -67,6 +97,8 @@ export function StatsPanel({
       className={["flex flex-col gap-1", className].filter(Boolean).join(" ")}
       aria-label="Stats"
     >
+      {/* Outside the scroller, so the panel keeps a line saying what it is
+          however far down the masteries you have read. */}
       <h2 className="flex items-baseline gap-1 text-[11px] font-bold uppercase tracking-wide text-paper/50">
         Stats
         <span className="ml-auto tabular-nums text-paper/70">
@@ -75,31 +107,168 @@ export function StatsPanel({
         </span>
       </h2>
 
-      <Health vitals={vitals} />
+      <div
+        className={[
+          "flex flex-col gap-1",
+          // `contain` rather than `none`: reaching the end of this box should
+          // hand the wheel to the column behind it, and only the page-level
+          // bounce is worth refusing. The scrollbar is given width on purpose —
+          // see `.scrolls-in-chrome` in `../app.css`.
+          scrolls ? "scrolls-in-chrome overflow-y-auto overscroll-contain" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        style={scrolls ? { maxHeight: STATS_BODY_MAX_HEIGHT } : undefined}
+      >
+        <Health vitals={vitals} />
 
-      <Effects statuses={statuses} tilesets={tilesets} />
+        <Effects statuses={statuses} tilesets={tilesets} />
 
-      <h3 className="mt-1 text-[11px] font-bold uppercase tracking-wide text-paper/50">
-        Masteries
-      </h3>
-      {earned.length === 0 ? (
-        <p className="px-1 py-1 text-xs text-paper/50">
-          Nothing practised yet. Hit something.
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-1">
-          {earned.map(({ mastery, level, progress }) => (
-            <li key={mastery} className="flex flex-col gap-0.5">
-              <span className="flex items-baseline gap-1 text-xs">
-                <span className="capitalize text-paper/80">{mastery}</span>
-                <span className="ml-auto tabular-nums text-paper">{level}</span>
-              </span>
-              <MasteryProgress mastery={mastery} level={level} progress={progress} />
-            </li>
-          ))}
-        </ul>
-      )}
+        <h3 className="mt-1 text-[11px] font-bold uppercase tracking-wide text-paper/50">
+          Masteries
+        </h3>
+        {earned.length === 0 ? (
+          <p className="px-1 py-1 text-xs text-paper/50">
+            Nothing practised yet. Hit something.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-1">
+            {earned.map(({ mastery, level, progress }) => (
+              <li key={mastery} className="flex flex-col gap-0.5">
+                <span className="flex items-baseline gap-1 text-xs">
+                  <span className="capitalize text-paper/80">{mastery}</span>
+                  <span className="ml-auto tabular-nums text-paper">{level}</span>
+                </span>
+                <MasteryProgress mastery={mastery} level={level} progress={progress} />
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {/* Under the masteries rather than over them: what you have practised is
+            what you are, and these are what it currently comes to with a weapon
+            in your hand. */}
+        <Combat attributes={vitals.attributes} />
+      </div>
     </section>
+  );
+}
+
+/**
+ * The tallest the panel's body may get before it scrolls.
+ *
+ * **A fixed height rather than a share of the window, and small on purpose.**
+ * It was two fifths of the viewport, which on a tall screen is most of the
+ * column: the panel would take its share whether or not it had anything to put
+ * there, and the list of what is in reach — the thing you actually act on —
+ * gave up the room. What this panel is for is checking a number and going back
+ * to the world, so it gets a fixed slice and everything past it is scrolled to
+ * on purpose.
+ *
+ * Two hundred is about eight rows. Health and the first few masteries are in
+ * view, which is the part somebody glances at; the rest, Combat included, is a
+ * scroll away. That is the trade the number makes, and it is the one to revisit
+ * if it turns out to be the wrong part of the panel to have free.
+ *
+ * Only ever applied on a device with a mouse — see {@link scrolls}, which is
+ * where the reason lives.
+ */
+const STATS_BODY_MAX_HEIGHT = 200;
+
+/**
+ * The combat block: what this body hits for, how often, and what it turns aside.
+ *
+ * ## Two columns of short labels
+ *
+ * **Attack down the left, survival down the right**, which is what the ordering
+ * below buys and the reason the grid is worth having over a list. Seven rows in
+ * one column was the tallest thing in the panel for the least information in it:
+ * the figures are two to six characters and the rest was whitespace. Paired up
+ * they cost four rows, and the reader gets the two halves of a fight side by
+ * side rather than having to hold one while scrolling to the other.
+ *
+ * Labels are abbreviated to fit a column of about fourteen characters, and
+ * `../game/attributes` shortens the reach wording for the same reason. Units are
+ * on the figures rather than in the labels — `c` is cells, `c/s` cells a second
+ * — so "Range 6c" and "Move 5.0c/s" read against each other.
+ *
+ * ## Read, not explained
+ *
+ * Every row is a number that came out of a function — see `../game/attributes`,
+ * which is called by the simulation and the browser alike, so the panel cannot
+ * quote a figure a blow does not use. Nothing here describes a curve in words: a
+ * sentence about a formula is a second copy of that formula which no test can
+ * fail when the first one moves. That is `./ArenaFighterPanel`'s rule, and it
+ * holds harder here, where the reader is a player rather than somebody tuning
+ * the numbers.
+ *
+ * `haste`, `variance` and the weapon's mastery have no row. The first two are
+ * not readings — they are terms inside two of the rows here — and the third is
+ * said better by the masteries above, where the level you are earning with that
+ * weapon already has a line.
+ *
+ * No section at all for a body with no stats, on {@link Effects}'s terms: the
+ * health line already says this body has nothing to fight with.
+ */
+function Combat({ attributes }: { attributes: Attributes | null }) {
+  if (!attributes) return null;
+
+  const { minDamage, maxDamage, swingMs, hitChance, def, flee, reach, walkPace } =
+    attributes;
+
+  return (
+    <>
+      <h3 className="mt-1 text-[11px] font-bold uppercase tracking-wide text-paper/50">
+        Combat
+      </h3>
+      {/* Row-major, so the left column is items 1, 3, 5, 7 — see the ordering
+          note above. The last cell is left empty rather than balanced, on the
+          terms `./ArenaFighterPanel`'s three-column grid already sets. */}
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px] tabular-nums">
+        {/* A band rather than a face value and a variance, because a range is
+            one reading: what it takes to kill the thing in front of you is
+            worked out from both ends at once. One figure for a weapon with no
+            variance, where "6–6" would be a range with nothing in it. */}
+        <Reading
+          label="Damage"
+          value={
+            minDamage === maxDamage ? `${minDamage}` : `${minDamage}–${maxDamage}`
+          }
+        />
+        <Reading label="Defence" value={`${def}`} />
+        <Reading label="Atk Spd" value={inSeconds(swingMs)} />
+        {/* Not a percentage, and deliberately not dressed as one: it is one side
+            of a contest against whatever is swinging at you, so there is no
+            number of blows it corresponds to on its own. @see `../game/combat`'s
+            `dodgeChance` */}
+        <Reading label="Evasion" value={`${flee}`} />
+        <Reading label="Accuracy" value={`${Math.round(hitChance * 100)}%`} />
+        {/* A rate, unlike the swing above — see `../game/attributes`'s
+            `walkPace` for why this one is not quoted as an interval. */}
+        <Reading label="Move" value={`${walkPace.toFixed(1)}c/s`} />
+        <Reading label="Range" value={reach} />
+      </dl>
+    </>
+  );
+}
+
+/**
+ * One reading: what it is, and what it comes to.
+ *
+ * A `dt`/`dd` pair rather than two spans, because that is what the grid holds —
+ * names and figures — and it is what lets a screen reader read each pair out
+ * together instead of announcing seven labels and then seven numbers. The `div`
+ * around them is what keeps a pair in one grid cell.
+ *
+ * Sized by the grid rather than here, so the two columns cannot come to be set
+ * in different type.
+ */
+function Reading({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline gap-1">
+      <dt className="truncate text-paper/80">{label}</dt>
+      <dd className="ml-auto shrink-0 text-paper">{value}</dd>
+    </div>
   );
 }
 

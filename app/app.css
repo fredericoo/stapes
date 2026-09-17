@@ -132,6 +132,31 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 
+  /**
+   * A scrolling box inside the game's chrome, with a scrollbar you can see.
+   *
+   * **The point is that it takes space.** A browser drawing overlay scrollbars
+   * shows nothing at all until the pointer is already moving over the box, so a
+   * capped panel whose cut lands between two rows reads as a panel that simply
+   * ends — and six masteries below the fold are six a player never learns they
+   * have. Naming a `scrollbar-color` is what opts a Chromium scroller out of
+   * overlay scrollbars, so the declaration is load-bearing rather than
+   * decoration.
+   *
+   * `stable` holds the gutter open whether or not there is anything to scroll,
+   * so a panel does not shuffle its right-aligned figures sideways the moment a
+   * status lands and pushes it past its cap.
+   *
+   * Muted rather than paper: it is the edge of a box and not a reading, and the
+   * game's panels are light-on-dark, where a full-strength thumb reads as a
+   * second column of content.
+   */
+  .scrolls-in-chrome {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-muted) transparent;
+    scrollbar-gutter: stable;
+  }
+
   .shadow-hard {
     box-shadow: 2px 2px 0 0 var(--color-border);
   }
