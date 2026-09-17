@@ -6,7 +6,6 @@ import {
   type BrainConditionDef,
   type BrainEffectDef,
 } from "./brain";
-import { DEFAULT_SPELL_NAME } from "./battler";
 import { PLAYER_TILE_ID } from "../game/constants";
 
 /**
@@ -72,16 +71,14 @@ export type ParamSpec =
   | { key: string; kind: "ground"; label: string }
   /**
    * One of the spells on this body's own battler block, picked rather than
-   * typed.
+   * typed — and written down as its **position**, counting from one.
    *
-   * Its own kind rather than a `text` box holding a name, on the {@link tile}
-   * field's grounds and more sharply: the names it may hold are authored two
-   * tabs away on the very same tile, so the editor can offer exactly the set
-   * that exists — and a typo is a line that can only ever fail, which is
-   * indistinguishable from a line somebody switched off deliberately.
-   *
-   * An empty pick is a spell nothing answers to, which is what a freshly added
-   * `cast` row says until an author names one.
+   * Its own kind rather than a number box, on the {@link tile} field's grounds
+   * and more sharply: the spells it may point at are authored two tabs away on
+   * the very same tile, so the editor can offer exactly the ones that exist,
+   * by name, and write the number. A typed position is a line that can only
+   * ever fail, which is indistinguishable from a line somebody switched off
+   * deliberately.
    */
   | { key: string; kind: "spell"; label: string }
   /**
@@ -331,22 +328,16 @@ export const ACTIONS: Record<
   },
   cast: {
     label: "cast",
-    hint: "Cast one of this body's own spells — by name, off its Spells tab. Holds the line for as long as the bar takes. Fails on a name it has no spell for, one still cooling, a caster short of what it asks, or a target out of reach. A spell that lands on its caster ignores the target.",
+    hint: "Cast one of this body's own spells, by its position on the Spells tab. Holds the line for as long as the bar takes. Fails on a position it has no spell at, one still cooling, a caster short of what it asks, or a target out of reach. A spell that lands on its caster ignores the target.",
     params: [
       { key: "spell", kind: "spell", label: "spell" },
       { key: "of", kind: "selector", label: "at" },
     ],
-    // The name a body's first spell is given, because the catalog cannot see
-    // the body this is being authored onto and a blank name is refused by the
-    // schema — which would take the whole brain down rather than leave one row
-    // inert. An author who adds a spell and a `cast` in either order finds them
-    // already pointing at each other. The selector starts on the player, on
-    // `DEFAULT_SELECTOR`'s grounds.
-    make: () => ({
-      action: "cast",
-      spell: DEFAULT_SPELL_NAME,
-      of: DEFAULT_SELECTOR,
-    }),
+    // The first spell, which is a position every body with any spells at all
+    // has — and one the schema accepts whatever the body turns out to carry,
+    // since the catalog cannot see the tile this is being authored onto. The
+    // selector starts on the player, on `DEFAULT_SELECTOR`'s grounds.
+    make: () => ({ action: "cast", spell: 1, of: DEFAULT_SELECTOR }),
   },
   extract: {
     label: "extract",

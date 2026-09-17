@@ -6937,12 +6937,23 @@ export class GameSession implements PlaySession {
    * restarted: pressing a stone that is casting *stops* it, and a brain that
    * asked for the same spell twice in two ticks would otherwise cancel its own
    * cast. @see ./brainRuntime's `BrainContext.cast`
+   *
+   * **A position in, a name out.** A brain names the spell by where it sits on
+   * the body's list — see `../lib/brain`'s `cast` — and everything downstream
+   * of here names it the way the player's own row does. So the one place the
+   * two ever meet is this lookup, and a position nothing sits at is a refusal
+   * rather than a slot naming a spell that is not there.
    */
   private castForBrain(
     actor: ActorRuntime,
-    spell: string,
+    position: number,
     targetId: string | null,
   ): "cast" | "casting" | "no" {
+    // Counting from one, because that is the number the editor shows an author
+    // beside the spell. @see ../lib/brain's `cast`
+    const spell = this.spellsOf(actor)[position - 1]?.name;
+    if (spell === undefined) return "no";
+
     const running = actor.casting?.progress.slot;
     if (running?.from === "natural" && running.name === spell) return "casting";
 

@@ -388,15 +388,19 @@ export type BrainContext = {
   /**
    * Cast one of this body's own spells, at somebody or at nobody.
    *
+   * `spell` is its position on the body's own list, counting from one — the
+   * number beside it on the Spells tab. @see ../lib/brain's `cast`
+   *
    * Three answers rather than two, and the middle one is what holds a priority
    * list still: `"cast"` for a spell that has landed, `"casting"` for one with
    * a bar running — started on this turn or already going from an earlier one —
-   * and `"no"` for every refusal there is. @see ../lib/brain's `cast`
+   * and `"no"` for every refusal there is, a position this body has no spell at
+   * included.
    *
    * A null target is a spell aimed at nobody, which a mend at its own caster
    * wants and a bolt at somebody else is refused for.
    */
-  cast(spell: string, targetId: string | null): "cast" | "casting" | "no";
+  cast(spell: number, targetId: string | null): "cast" | "casting" | "no";
   /**
    * Work a thing for what it is made of, and keep working it.
    *

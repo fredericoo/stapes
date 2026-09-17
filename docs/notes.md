@@ -5534,10 +5534,16 @@ Spells tab is `StoneFields`, the very component the Item tab uses. What is added
 is the two things a carried stone gets from its tile and this has none of: a
 **name** and an **icon**.
 
-The name is an identifier as well as a label. A brain's `cast` action names the
-spell it wants, so renaming one is renaming what that line points at — the same
-bargain a tile id is under, and the reason the brain editor offers a picker fed
-from the very same tile's Spells tab rather than a text box.
+**A brain names one by its position, not by its name.** `cast` carries the number
+beside the spell on the Spells tab, counting from one, and `castForBrain` is the
+single place that turns it back into the name everything downstream uses. That is
+a trade rather than a free win: renaming a spell can no longer break the line
+that casts it, and *removing* one above it now can, because everything below
+slides up. The list is short, authored on one tile and edited in one place, which
+is what makes that the better of the two failures — a stack index is refused
+elsewhere in this codebase precisely because a stack has neither property. The
+editor's picker offers the spells by name and writes the number, so an author
+never types either.
 
 ### The cast path grew a slot, not a second path
 

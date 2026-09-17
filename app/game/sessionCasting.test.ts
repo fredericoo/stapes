@@ -2601,8 +2601,9 @@ describe("a creature casting a spell of its own", () => {
         hunting: {
           do: [
             {
+              // Its first and only spell, counting from one.
               action: "cast",
-              spell: "Ember",
+              spell: 1,
               of: { type: "nearest", data: { tileIds: ["player"] } },
             },
             { action: "hold" },
@@ -2624,6 +2625,53 @@ describe("a creature casting a spell of its own", () => {
       statuses: catalogue,
     });
   }
+
+  /**
+   * A position rather than a name, which is what makes renaming a spell safe —
+   * and the case that proves the lookup is a lookup: the brain says "the first
+   * one", and the first one is whatever the Spells tab currently calls it.
+   */
+  it("casts whatever sits at the position, whatever it is called", () => {
+    const tile = casterTile();
+    const battler = tile.interactions!.battler as Record<string, unknown>;
+    const spells = battler.spells as Array<Record<string, unknown>>;
+    spells[0]!.name = "Something else entirely";
+
+    const map = replaceStack(world(), 2, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "burner", direction: "w" },
+    ]);
+    const play = new GameSession(map, [...props, playerTile([]), tile], {
+      statuses: catalogue,
+    });
+    const before = hpOf(play)!;
+
+    run(play, TICKS_PER_SECOND);
+
+    expect(hpOf(play)).toBeLessThan(before);
+  });
+
+  /** And a position nothing sits at is a refusal, not a crash. */
+  it("does nothing at a position this body has no spell at", () => {
+    const tile = casterTile();
+    const brain = tile.interactions!.brain as {
+      states: Record<string, { do: Array<Record<string, unknown>> }>;
+    };
+    brain.states.hunting!.do[0]!.spell = 4;
+
+    const map = replaceStack(world(), 2, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "burner", direction: "w" },
+    ]);
+    const play = new GameSession(map, [...props, playerTile([]), tile], {
+      statuses: catalogue,
+    });
+    const before = hpOf(play)!;
+
+    run(play, TICKS_PER_SECOND);
+
+    expect(hpOf(play)).toBe(before);
+  });
 
   it("burns whoever its brain aimed at", () => {
     const play = burning();

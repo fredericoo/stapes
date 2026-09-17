@@ -26388,7 +26388,7 @@
             "do": [
               {
                 "action": "cast",
-                "spell": "Constrict",
+                "spell": 1,
                 "of": {
                   "type": "slot",
                   "data": {
@@ -28428,7 +28428,7 @@
             "do": [
               {
                 "action": "cast",
-                "spell": "Ember breath",
+                "spell": 1,
                 "of": {
                   "type": "slot",
                   "data": {

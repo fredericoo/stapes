@@ -4927,7 +4927,10 @@ describe("casting a spell of its own", () => {
     states: {
       hunting: {
         do: [
-          { action: "cast", spell: "Ember", of: nearest("player") },
+          // The second spell on the body, counting from one — which is what
+          // makes this a position rather than an index, and the number an
+          // author is looking at on the Spells tab.
+          { action: "cast", spell: 2, of: nearest("player") },
           { action: "step_toward", of: nearest("player") },
         ],
       },
@@ -4935,10 +4938,10 @@ describe("casting a spell of its own", () => {
     transitions: [],
   };
 
-  it("names the spell and whom it is aimed at", () => {
+  it("names the spell's position and whom it is aimed at", () => {
     const c = ctx();
     stepBrain(casting, initialMemory(casting), BRAIN_TICK_MS, c);
-    expect(c.cast).toHaveBeenCalledWith("Ember", "player");
+    expect(c.cast).toHaveBeenCalledWith(2, "player");
   });
 
   it("stops the list where it lands", () => {
@@ -4976,6 +4979,6 @@ describe("casting a spell of its own", () => {
   it("casts at nobody rather than failing", () => {
     const c = ctx({ nearestOnTile: () => null });
     stepBrain(casting, initialMemory(casting), BRAIN_TICK_MS, c);
-    expect(c.cast).toHaveBeenCalledWith("Ember", null);
+    expect(c.cast).toHaveBeenCalledWith(2, null);
   });
 });

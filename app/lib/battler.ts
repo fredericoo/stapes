@@ -1007,14 +1007,11 @@ export function spellPower(
 export const MAX_SPELL_NAME_LENGTH = 48;
 
 /**
- * What the first spell somebody adds is called.
+ * What the first spell somebody adds is called, until they name it.
  *
- * Shared between the editor's Spells tab and the brain catalog's fresh `cast`
- * row, and that is the whole reason it is a constant: a freshly picked `cast`
- * has to name a spell the schema accepts — an empty name is refused, and a
- * refused action takes the whole brain down with it — so it names the one a
- * body's first spell will be called. An author who adds both in either order
- * finds them already pointing at each other.
+ * A placeholder rather than a meaning: the name is required — a spell has to be
+ * called *something* to be drawn on a button or engraved on a skull — and a box
+ * that opened empty would be one the schema refuses the moment it is saved.
  */
 export const DEFAULT_SPELL_NAME = "Spell";
 

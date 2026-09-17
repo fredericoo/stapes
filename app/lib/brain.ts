@@ -1,5 +1,4 @@
 import * as v from "valibot";
-import { MAX_SPELL_NAME_LENGTH } from "./battler";
 import { conditionLeaves, conditionSchema, type ConditionNode } from "./conditions";
 import type { TileDef } from "./types";
 
@@ -617,18 +616,28 @@ export type BrainActionDef =
   /**
    * Cast one of this body's own spells at somebody.
    *
-   * **The spell is named, and the name is the one on the body's own block** —
-   * see `./battler`'s {@link BattlerDef.spells}. A carried stone is not
-   * castable from here: what a creature has in its hands is a loadout, and a
-   * brain that could press it would be authoring a second, invisible kit on
-   * every creature that picks something up.
+   * **The spell is named by its position on the body's own list**, counting
+   * from one — the number beside it on the Spells tab. See `./battler`'s
+   * {@link BattlerDef.spells}. A carried stone is not castable from here: what
+   * a creature has in its hands is a loadout, and a brain that could press it
+   * would be authoring a second, invisible kit on every creature that picks
+   * something up.
+   *
+   * **A position rather than the name, so renaming a spell cannot break the
+   * line that casts it** — and that is a trade rather than a free win. What it
+   * gives up is the other half: *removing* a spell above this one slides
+   * everything below it up, and a line pointing at the third of three now casts
+   * the second. The list is short, authored on one tile and edited in one
+   * place, which is what makes that the better of the two failures; a stack
+   * index is refused elsewhere in this codebase precisely because a stack has
+   * neither of those properties. @see ../game/brainRuntime's `Bound`
    *
    * Fails, rather than erroring, at every way this can be the wrong thing to
-   * ask for, on `attack`'s terms: a name this body has no spell for, one still
-   * cooling, a caster short of what it asks, nobody targeted for a spell that
-   * needs somebody, or a target out of range. A renamed spell is the first of
-   * those, and it falls through to the next line rather than stalling the
-   * creature.
+   * ask for, on `attack`'s terms: a position this body has no spell at, one
+   * still cooling, a caster short of what it asks, nobody targeted for a spell
+   * that needs somebody, or a target out of range. A spell somebody deleted is
+   * the first of those, and it falls through to the next line rather than
+   * stalling the creature.
    *
    * **It holds the line while a bar is running**, which is `extract`'s rule and
    * is here for its reason: a cast with a time on it is something this creature
@@ -641,7 +650,7 @@ export type BrainActionDef =
    * the creature at them, exactly as a player pointing at somebody does; it is
    * not an attack, and nothing swings because of it.
    */
-  | { action: "cast"; spell: string; of: Selector }
+  | { action: "cast"; spell: number; of: Selector }
   /**
    * Work a thing for what it is made of — pick a bush, chip a crystal.
    *
@@ -943,17 +952,13 @@ const actionSchema = v.variant("action", [
   v.object({ action: v.literal("attack"), of: selectorSchema }),
   v.object({
     action: v.literal("cast"),
-    // The name off the body's own battler block, which this module has never
-    // seen — so a string, on the terms a `nearest` tile id and a `status` id
-    // are. A name nothing answers to is a line that never fires, which is what
-    // a renamed spell should cost. Bounded where it is authored.
-    // @see ./battler's MAX_SPELL_NAME_LENGTH
-    spell: v.pipe(
-      v.string(),
-      v.trim(),
-      v.minLength(1),
-      v.maxLength(MAX_SPELL_NAME_LENGTH),
-    ),
+    // Counting from one, because that is the number an author is looking at:
+    // the editor numbers a `do` list's rows from one and the Spells tab does
+    // the same. No ceiling — how many spells a body has is a fact about that
+    // body, which this module has never seen — so a position past the end is a
+    // line that never fires, on the terms a `nearest` naming a tile nothing
+    // stands on is.
+    spell: v.pipe(v.number(), v.integer(), v.minValue(1)),
     of: selectorSchema,
   }),
   v.object({ action: v.literal("extract"), of: selectorSchema }),

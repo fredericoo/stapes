@@ -232,6 +232,11 @@ export type Vocabulary = {
    * natural spell belongs to one tile, and offering another creature's would be
    * offering a line that can only fail. Empty on a tile with none, where the
    * row says so rather than showing a dropdown with nothing in it.
+   *
+   * **Named to read and numbered to write.** What is authored is the position —
+   * see `../lib/brain`'s `cast` — and what an author picks from is a list of
+   * names, because nobody knows a spell by its index. The label carries both,
+   * so the row says the same thing the Spells tab does.
    */
   spells: Array<{ value: string; label: string }>;
   describe(selector: Selector): SelectorNames | null;
@@ -350,11 +355,15 @@ export function selectorVocabulary(
       value: def.id,
       label: def.name,
     })),
-    // Named rather than keyed, because a natural spell's name *is* its id —
-    // which is also why renaming one breaks the `cast` line that points at it.
-    spells: spells
-      .filter((spell) => spell.name.trim())
-      .map((spell) => ({ value: spell.name, label: spell.name })),
+    // Positions, counting from one, off the list as it is authored — so the
+    // number a row writes is the number beside the spell on the Spells tab.
+    // Unnamed rows are kept rather than filtered, because dropping one would
+    // shift every position below it and the picker would then disagree with
+    // the file about what "the second spell" is.
+    spells: spells.map((spell, index) => ({
+      value: String(index + 1),
+      label: `${index + 1} — ${spell.name.trim() || "unnamed"}`,
+    })),
     describe,
   };
 }
@@ -1241,11 +1250,11 @@ function ParamField({
       <label className="flex items-center gap-1 text-[10px] uppercase text-muted">
         {spec.label}
         <Select
-          value={typeof value === "string" && value ? value : null}
-          // A name is never cleared to nothing: the schema refuses a blank one,
-          // and a refused action takes the whole brain down rather than leaving
-          // one row inert. Picking another spell is how a row is re-pointed.
-          onValueChange={(name) => name && onChange(name)}
+          value={typeof value === "number" ? String(value) : null}
+          // Never cleared to nothing: the schema wants a position of at least
+          // one, and a refused action takes the whole brain down rather than
+          // leaving one row inert. Picking another spell re-points the row.
+          onValueChange={(position) => position && onChange(Number(position))}
           options={vocab.spells}
           className="min-w-[7rem]"
           placeholder="Pick one…"
