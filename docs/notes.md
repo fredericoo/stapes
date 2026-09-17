@@ -5458,6 +5458,68 @@ moment a brain could pick a bush — a hedge and a herd would grow `pendingNotic
 without bound for the life of the world. `GameSession.say` drops them at the
 door.
 
+## What the roster does with all of it
+
+The three mechanisms above were added for creatures, so three creatures use
+them. Nothing new was placed — these are the same bodies doing things they could
+not do before.
+
+**The cave troll breathes.** `Ember breath` is a bolt with a cast time, so the
+fight opens with a bar over its head that a player can walk out of the way of.
+It is a fire spell because its *requirements* name Fire, which is the only place
+a spell's element is written down — and the troll was given the Arcane and Fire
+to meet them, since an unmet requirement refuses the cast outright.
+
+**The snake constricts.** `Constrict` is a hold at arm's length: five points and
+`paralysed`, which takes a body to a tenth of its walking pace for two to three
+and a half seconds. The damage is the smaller half of it. What the spell is
+*for* is that the snake is the slowest body in the world — it crawled, and you
+walked away — so what it needs is not reach but a moment where you cannot use
+yours.
+
+**It asks for nothing, and that is what keeps it a grip rather than a rune.** A
+natural spell with no `requirements` is always castable, casts at exactly its
+authored time, and — since a spell's elements are read off its requirements and
+nowhere else — is made of nothing. So the snake needs no Arcane to do it, which
+is the right answer for an animal: the spell block is the only way a creature
+gets a special move, and a special move is not necessarily magic.
+
+It is **first** in `striking`, unlike the troll's: the hold is the special move
+and the bite is the filler, so the snake takes it whenever it is off cooldown
+and goes back to biting for the twelve seconds in between.
+
+**A wounded wolf breaks off.** Three rows and a state:
+
+- The row that sends it to `slinking` is **first in the table** and `from: any`.
+  That position is the whole of what makes it work — the row above it used to be
+  "whoever hit you is your prey", so a wolf that had decided to leave was dragged
+  back into the fight by the next blow.
+- It re-fires every round while it holds, and that is free: a transition into the
+  state you are already in is a no-op — no `onEnter`, no reset — and it keeps
+  every row below it quiet until the wolf is clear. It is also why there is no
+  `stuck` row for a cornered wolf: nothing below the slink row gets a turn, so a
+  wolf with a wall behind it backs into it and holds. That is what the rabbit's
+  `cornered` amounts to anyway.
+- Two ways out, and it takes whichever comes first: out of range, or healed. The
+  second is what makes the loop worth having, because the wolf already had a
+  `feeding` state — hurt, break off, find a carcass, `fed` puts the health back,
+  come back. Feeding is deliberately **not** gated on being unhurt, for exactly
+  that reason; the two hunt-entry rows are, so a hurt wolf does not pick a new
+  fight on the way.
+
+**`paralysed` is the strongest thing a status may say about a pair of legs, and
+it is deliberately not a stun.** `-90` is the floor `../lib/walkSpeed` clamps to,
+and the floor exists so that no authored content can stop a body walking at all:
+a lock nothing in the game could free is worse than any creature it would make
+interesting. It does not stack, so a second grip refreshes the hold rather than
+adding to it, and it leaves `spd` alone — a held body still swings at whatever
+is holding it.
+
+**These are driven in a test rather than read.** `battle.test.ts` builds a board
+by hand and runs the real bodies on it, because what makes the wolf work is the
+*order* of its transition rows, and a table read for its contents would pass
+with the rows either way round.
+
 ## A body can have spells as well as hold them
 
 `BattlerDef.spells` is the natural weapon's opposite number: what a body can cast

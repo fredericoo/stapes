@@ -5,6 +5,7 @@ import { defFrom, maxHpFrom, resolveBattler } from "../lib/battler";
 import { ATTACKER_SELECTOR, resolveBrain, slot } from "../lib/brain";
 import { conditionLeaves } from "../lib/conditions";
 import { emptyMap, replaceStack } from "../lib/mapData";
+import { MIN_WALK_SPEED_PERCENT } from "../lib/walkSpeed";
 import {
   COMBAT_DURATION_MS,
   COMBAT_STATUS_ID,
@@ -811,6 +812,128 @@ describe("the authored creatures", () => {
     );
     expect(spook?.bind).toEqual({ spooked: ATTACKER_SELECTOR });
     expect(spook?.to).toBe("flee");
+  });
+
+  /**
+   * Two creatures and the world they are authored against, driven rather than
+   * read. The board is built by hand — `data/map.json` is edited constantly and
+   * a test that read it would go red because somebody moved a rock — but the
+   * bodies, the statuses and the spells are the real ones, which is the whole
+   * point: what is under test is the content, not a fixture of it.
+   */
+  describe("driven on a board of their own", () => {
+    const statuses = statusesById(statusesJson as unknown[]);
+
+    /** Open grass, the player at the origin, one creature `x` cells east. */
+    function facing(tileId: string, x: number): GameSession {
+      let map = emptyMap();
+      for (let cx = -2; cx <= x + 6; cx++) {
+        for (let cy = -3; cy <= 3; cy++) {
+          map = replaceStack(map, cx, cy, 0, [{ tileId: "grass" }]);
+        }
+      }
+      map = replaceStack(map, 0, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "player", direction: "e" },
+      ]);
+      map = replaceStack(map, x, 0, 0, [{ tileId: "grass" }, { tileId }]);
+      return new GameSession(map, authored, { statuses });
+    }
+
+    const creature = (session: GameSession, tileId: string) =>
+      session.actorSnapshots().find((actor) => actor.tileId === tileId)!;
+
+    /**
+     * The snake's special move, and what it leaves is the point of it: a body
+     * that has been held cannot walk away from the thing holding it.
+     */
+    it("has the snake paralyse whatever it gets hold of", () => {
+      const session = facing("snake", 2);
+      const held = () =>
+        session.getSnapshot().self.statuses.some((s) => s.defId === "paralysed");
+
+      // Waited for rather than checked at a moment: the hold runs for two to
+      // three and a half seconds off one draw, so a fixed window is a test that
+      // passes or fails on the dice.
+      advanceUntil(session, held);
+
+      expect(held()).toBe(true);
+    });
+
+    /**
+     * The cross-file guard the bite already has, for the hold: the two files are
+     * edited independently, and a renamed status leaves the spell reading as an
+     * effect that never happens.
+     */
+    it("holds with a status the catalogue actually holds", () => {
+      const [hold] = resolveBattler(byId.snake!)!.spells!;
+      const [left] = hold!.effect.kind === "bolt" ? (hold!.effect.statuses ?? []) : [];
+      expect(left?.id).toBe("paralysed");
+      expect(statuses).toHaveProperty("paralysed");
+      // What being held *is*, and the reason the spell is worth casting rather
+      // than biting again.
+      expect(statuses.paralysed!.walkSpeedPercent).toBeLessThan(0);
+    });
+
+    /**
+     * A snake is not an arcanist. The hold asks for nothing, which is what
+     * keeps it a grip rather than a rune — and is why the snake needs none of
+     * the masteries a stone would have made it carry.
+     */
+    it("asks nothing of the snake to cast it", () => {
+      const [hold] = resolveBattler(byId.snake!)!.spells!;
+      expect(hold!.requirements).toBeUndefined();
+      // Arm's length, on a weapon's terms: an absent reach is a hold and not a
+      // thing thrown across a room.
+      expect(hold!.reach).toBeUndefined();
+    });
+
+    /**
+     * The floor exists so that no authored content can stop a body walking at
+     * all — a lock nothing in the game could free. Paralysis is the strongest
+     * thing that may be said about a pair of legs, and it still is not that.
+     */
+    it("leaves a paralysed body able to walk out, slowly", () => {
+      expect(statuses.paralysed!.walkSpeedPercent).toBeGreaterThanOrEqual(
+        MIN_WALK_SPEED_PERCENT,
+      );
+    });
+
+    /**
+     * A wolf that is losing breaks off. Driven rather than read off the
+     * transition table, because what makes it work is the *order* of the rows —
+     * the row that says "back away" sits above the one that says "whoever hit
+     * you is your prey", and a table read for its contents would pass either
+     * way round.
+     */
+    it("has a wounded wolf back away rather than press the fight", () => {
+      const session = facing("wolf", 2);
+      const wolfId = creature(session, "wolf").id;
+
+      // Let it close, so what is measured afterwards is a retreat rather than
+      // an approach that never started.
+      advance(session, 1500);
+      const closed = creature(session, "wolf").x;
+
+      // Down to a fifth, which is under the threshold the wolf breaks off at
+      // and comfortably above nothing: a dead wolf is not a wolf that ran.
+      const hurt = creature(session, "wolf");
+      const left = Math.max(1, Math.round(hurt.maxHp! * 0.2));
+      session.runCommand(`/health ${left - hurt.hp!} ${wolfId}`);
+      advance(session, 3000);
+
+      expect(creature(session, "wolf").x).toBeGreaterThan(closed);
+    });
+
+    /** And an unhurt one does not: the same board, without the wound. */
+    it("has a whole wolf keep coming", () => {
+      const session = facing("wolf", 4);
+      const started = creature(session, "wolf").x;
+
+      advance(session, 3000);
+
+      expect(creature(session, "wolf").x).toBeLessThan(started);
+    });
   });
 });
 

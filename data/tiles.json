@@ -26387,6 +26387,16 @@
             ],
             "do": [
               {
+                "action": "cast",
+                "spell": "Constrict",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
                 "action": "attack",
                 "of": {
                   "type": "slot",
@@ -26566,6 +26576,29 @@
         },
         "elements": [
           "nature"
+        ],
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Constrict",
+            "effect": {
+              "kind": "bolt",
+              "on": "target",
+              "damage": 5,
+              "variance": 25,
+              "statuses": [
+                {
+                  "id": "paralysed",
+                  "chance": 100,
+                  "fromMs": 2000,
+                  "toMs": 3500
+                }
+              ]
+            },
+            "cooldownMs": 12000,
+            "castTimeMs": 500,
+            "sound": "*sssk*"
+          }
         ]
       },
       "respawn": {
@@ -27016,6 +27049,29 @@
               }
             ]
           },
+          "slinking": {
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "*whine*"
+              }
+            ],
+            "do": [
+              {
+                "action": "step_away_from",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                },
+                "allowDrops": true
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
           "casting": {
             "do": [
               {
@@ -27099,6 +27155,29 @@
           {
             "from": "any",
             "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "health",
+                  "atMostPercent": 35
+                },
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 12
+                }
+              ]
+            },
+            "to": "slinking"
+          },
+          {
+            "from": "any",
+            "if": {
               "cond": "attacked"
             },
             "bind": {
@@ -27179,6 +27258,16 @@
                       "atLeastMs": 120000
                     }
                   ]
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "health",
+                      "atMostPercent": 35
+                    }
+                  ]
                 }
               ]
             },
@@ -27220,6 +27309,16 @@
                       "cond": "status",
                       "id": "fed",
                       "atLeastMs": 120000
+                    }
+                  ]
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "health",
+                      "atMostPercent": 35
                     }
                   ]
                 }
@@ -27441,6 +27540,34 @@
               "cond": "stuck"
             },
             "to": "casting"
+          },
+          {
+            "from": "slinking",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "prey"
+                }
+              },
+              "cells": 12
+            },
+            "to": "prowling"
+          },
+          {
+            "from": "slinking",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "health",
+                  "atMostPercent": 35
+                }
+              ]
+            },
+            "to": "hunting"
           }
         ]
       },
