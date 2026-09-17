@@ -41,8 +41,6 @@ export class SmoothedRemaining {
   private readonly clocks = new Map<string, Clock>();
 
   /**
-   * Carry every tracked status forward by a frame.
-   *
    * Called once before the frame's reads rather than inside them, so a status
    * read twice in one frame cannot be aged twice.
    */
@@ -54,8 +52,6 @@ export class SmoothedRemaining {
   }
 
   /**
-   * What this status has left, smoothed.
-   *
    * Re-anchors whenever the snapshot's figure differs from the one it was last
    * anchored to — which is every message online, and every tick locally.
    *
@@ -78,7 +74,6 @@ export class SmoothedRemaining {
     return existing.localMs;
   }
 
-  /** Forget every status that was not read this frame. */
   endFrame() {
     for (const [key, clock] of this.clocks) {
       if (!clock.seen) this.clocks.delete(key);

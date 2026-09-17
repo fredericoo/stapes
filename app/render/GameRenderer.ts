@@ -236,9 +236,9 @@ const HOVER_LABEL_INK = "#ffe27a";
  * {@link HOVER_COLOR} and `--color-interact` are one colour: the row in the list
  * and the silhouette in the world are one state.
  *
- * The third colour a pointer can produce, where two was the rule for a long
- * time — and the rule was about not making the player decode a legend for
- * something they already knew. This one is different in kind: nothing about the
+ * A third pointer colour, where the rule of two is about not making the player
+ * decode a legend for something they already know. This one is different in
+ * kind: nothing about the
  * verb, the sprite or the outline says whether a chest is one you can come back
  * to, and that is exactly the thing worth knowing before you walk away from it.
  */
@@ -355,8 +355,7 @@ export class GameRenderer {
    * routes already resolve one to draw the strip with — see `routes/play`.
    *
    * Empty until {@link setStatuses}, which is the honest state for a renderer
-   * built before its route has finished loading: no tint, no plume, and a world
-   * that draws exactly as it did before this feature existed.
+   * built before its route has finished loading: no tint, no plume.
    */
   private statusDefs: Record<string, StatusDef> = {};
   /**
@@ -536,7 +535,7 @@ export class GameRenderer {
    * Two things can raise it and they are the same gesture on two devices, which
    * is why neither is the flag itself: a mouse holds shift, and a finger holds
    * still. Kept apart underneath so that letting go of one cannot cancel the
-   * other — the bug the modes had, in miniature.
+   * other.
    */
   private lookMode = false;
   /** Shift is down. @see attachKeys */
@@ -623,11 +622,6 @@ export class GameRenderer {
   }
 
   /**
-   * Set the clock. Online this is the server's reading, taken on `hello`; the
-   * local rate carries it from there, so one anchor keeps every client in step
-   * for as long as the tab is open.
-   */
-  /**
    * Hand over the status catalogue, so a poisoned body can be drawn poisoned.
    *
    * Separate from the constructor because it is not needed to draw a frame: a
@@ -658,6 +652,11 @@ export class GameRenderer {
     this.walkTo = new WalkTo(directions);
   }
 
+  /**
+   * Set the clock. Online this is the server's reading, taken on `hello`; the
+   * local rate carries it from there, so one anchor keeps every client in step
+   * for as long as the tab is open.
+   */
   setMinutesOfDay(m: MinutesOfDay) {
     this.minutesOfDay = wrapMinutes(m);
     this.reanchorClock(this.minutesOfDay);
@@ -707,15 +706,6 @@ export class GameRenderer {
     this.world.setProfiler(cb ? this.profiler : null);
   }
 
-  /**
-   * What the player could act on right now, whenever that changes.
-   *
-   * Derived here rather than polled from outside because this is the loop that
-   * already knows when the world moved, and the answer is only ever interesting
-   * at the moments it changes — a list rebuilt into React state thirty times a
-   * second would re-render the page for a frame nobody could tell apart from
-   * the last one. See {@link pushInteractionOptions} for the two gates.
-   */
   /**
    * What the viewer is carrying, whenever it changes.
    *
@@ -846,13 +836,11 @@ export class GameRenderer {
    * the addressed `notice` message online. A refused click is drained beside
    * them from the walk controller, on the same terms. @see ../game/notices
    *
-   * The level-up line used to be a diff taken here, across successive
-   * `masteryXp` blocks, and it is worth knowing why it is not: reconstructing an
-   * event from state meant holding a private copy of the last block, gating on
-   * `hasExperience` so the empty block held before `hello` was not read as a
-   * lifetime of level-ups, and being careful that a re-registered listener did
-   * not replay them. All of it existed to guess at something the session knew
-   * exactly. A renderer draws; it does not infer what happened.
+   * The level-up line is not a diff taken here across successive `masteryXp`
+   * blocks: reconstructing an event from state means holding a private copy of
+   * the last block and guarding against replaying it, all to guess at
+   * something the session knows exactly. A renderer draws; it does not infer
+   * what happened.
    *
    * The layer is written every frame whether or not anything arrived, because a
    * notice also has to *leave*, and nothing else in the loop knows when its four
@@ -947,11 +935,10 @@ export class GameRenderer {
    *
    * **Two things can change the answer, and the gate has to admit both.** The
    * container's cell can change — somebody takes something out, or takes the
-   * whole box — and the viewer can walk. Gating on the placement alone was a
-   * real bug: the map is copy-on-write, so a chest nobody touches is the same
-   * object for as long as it sits there, and walking out of range never
-   * re-asked the question. Whether it closed depended on whether anything
-   * happened to the box while you were away.
+   * whole box — and the viewer can walk. Gating on the placement alone is not
+   * enough: the map is copy-on-write, so a chest nobody touches is the same
+   * object for as long as it sits there, and walking out of range would never
+   * re-ask the question.
    *
    * So: the placement object, which is exactly the right granularity for "did
    * that cell change", *and* the cell the viewer is standing in, which is the
@@ -1002,6 +989,15 @@ export class GameRenderer {
     this.onOpenedContainer(container);
   }
 
+  /**
+   * What the player could act on right now, whenever that changes.
+   *
+   * Derived here rather than polled from outside because this is the loop that
+   * already knows when the world moved, and the answer is only ever interesting
+   * at the moments it changes — a list rebuilt into React state thirty times a
+   * second would re-render the page for a frame nobody could tell apart from
+   * the last one. See {@link pushInteractionOptions} for the two gates.
+   */
   setOnInteractions(cb: ((options: InteractionOption[]) => void) | null) {
     this.onInteractions = cb;
     // The next frame has to report to a fresh listener even if nothing has
@@ -1024,7 +1020,7 @@ export class GameRenderer {
    * question the world can answer for free — so hovering a row lights its
    * subject exactly as the cursor would if it were over the sprite instead.
    *
-   * **Held by id rather than by option, and that is the whole trick.** A row's
+   * **Held by id rather than by option.** A row's
    * subject moves: the list is rebuilt on every commit, so the reference inside
    * an option is stale 200ms later, and the element does not re-fire its enter
    * event because it is the same row. Resolving the id against the list as it
@@ -1122,10 +1118,7 @@ export class GameRenderer {
    *
    * Held here rather than by the page, because all three are answers to
    * questions this class already owns — what the pointer is over, who is
-   * targeted, and what the outline is drawn in. They used to live in a hook
-   * beside a row of buttons that showed which mode they had left you in; the
-   * buttons are gone, so there is no second holder of the answer to keep in
-   * step, and the page has nothing to pass down.
+   * targeted, and what the outline is drawn in.
    *
    * On the window rather than the canvas, because a canvas cannot hold focus in
    * any way a player would recognise: they click a creature, move the mouse, and
@@ -1174,8 +1167,8 @@ export class GameRenderer {
    * The keyboard's half of the pair of rows on a body — see
    * `../game/interactionOptions`' `attack` — and deliberately only that half: it
    * cannot *pick* anybody. Choosing who you are fighting is done by pointing at
-   * them, and a key that chose for you is how a fight used to start with
-   * somebody nobody had looked at. With nothing picked it does nothing at all.
+   * them, and a key that chose for you would start a fight with somebody
+   * nobody had looked at. With nothing picked it does nothing at all.
    */
   private toggleSwing() {
     const snap = this.session.getSnapshot();
@@ -1270,7 +1263,7 @@ export class GameRenderer {
    *
    * Gated on *having a row* rather than on the session's own precedence. A
    * chest offers nothing that precedence knows about — opening is panel state,
-   * so `canInteract` says no — and gating on it left a box that the list was
+   * so `canInteract` says no — and gating on it would leave a box the list is
    * offering to open sitting in the world unclickable.
    */
   private pickAt(
@@ -1296,8 +1289,8 @@ export class GameRenderer {
 
   /**
    * One button for everything: a tap on an object runs whatever it offers.
-   * The alternative — a modifier or a second button per interaction — is the
-   * thing that made this unlearnable, and touch has neither.
+   * A modifier or a second button per interaction is unlearnable, and touch
+   * has neither.
    *
    * **A mouse acts on the press and a finger on the lift**, which is the whole
    * of what hold-to-read costs: a finger has not said what it meant yet at the
@@ -1759,22 +1752,18 @@ export class GameRenderer {
    *
    * Chrome is drawn over the finished frame — a name tag and a damage number are
    * elements above the canvas, owing nothing to depth — so without asking this
-   * they report things the world has hidden. That is exactly what went wrong when
-   * every battler started being named: the second cat lives two floors up, its
-   * sprite is cut away with the roof, and its name hung in the sky over an empty
-   * roofline. It reads as a ghost — an invisible thing that is plainly still
-   * alive, because it is: a real actor, ticking, just not on screen.
+   * they report things the world has hidden: a cat two floors up, its sprite
+   * cut away with the roof, would have its name hanging in the sky over an
+   * empty roofline.
    *
    * Two rules. The roof-cut takes the geometry above the viewer, and
    * {@link isHiddenFromCamera} answers the storeys below: is there a floor
    * painted between the eye and this cell. Its own floor is always visible,
    * because everything drawn there is drawn in front of nothing.
    *
-   * This used to be a level slack — one floor either way — and the slack was
-   * always an admission that there was no cheap per-pixel answer. There is one
-   * now, and it is the rule {@link isVisibleBody} already uses. Leaving the
-   * slack over it meant a fight one storey down in a cave rained damage numbers
-   * over the ground above, through rock that was drawn in front of it.
+   * Not a level slack of one floor either way: that rains the damage numbers
+   * of a fight one storey down in a cave over the ground above, through rock
+   * that is drawn in front of it.
    */
   private isVisibleCell(
     snap: GameSnapshot,
@@ -1792,7 +1781,7 @@ export class GameRenderer {
    * list offers to target.
    *
    * **Deliberately not a question about levels, and not about reach either.**
-   * Both were tried and both are wrong. A level test names a rat on the floor
+   * Both are wrong. A level test names a rat on the floor
    * above whose sprite is behind a ceiling, and goes silent on one standing in
    * the open a storey down that you are looking straight at. A reach test — only
    * name what you could hit — sounds principled and reads as blindness: you can
@@ -1867,13 +1856,6 @@ export class GameRenderer {
     return { ref: this.lookedAt, placed, def };
   }
 
-  /**
-   * Re-pick when the world has moved under the pointer.
-   *
-   * Keyed on the camera and the map rather than run every frame: standing still
-   * and looking at a rock costs nothing, and the probe only pays while
-   * something is actually changing.
-   */
   /**
    * Re-pick the battler under the pointer when the world has moved under it.
    *
@@ -1970,6 +1952,13 @@ export class GameRenderer {
     );
   }
 
+  /**
+   * Re-pick when the world has moved under the pointer.
+   *
+   * Keyed on the camera and the map rather than run every frame: standing still
+   * and looking at a rock costs nothing, and the probe only pays while
+   * something is actually changing.
+   */
   private repickLook(snap: GameSnapshot, camera: { x: number; y: number }) {
     if (!this.lookMode || !this.lastPointer) return;
     const key = `${camera.x},${camera.y}`;
@@ -2153,7 +2142,7 @@ export class GameRenderer {
    * the object: the name and the writing on it are the same for everybody who
    * walks past, where "Sharp 20 — you have 12" is about the person doing the
    * looking. See `../lib/weaponDemand` for why it is a table of numbers rather
-   * than the sentence it replaced.
+   * than a sentence.
    */
   private lookLines(snap: GameSnapshot): PointerLabel | null {
     const target = this.lookTarget(snap);
@@ -2212,20 +2201,16 @@ export class GameRenderer {
   /**
    * A name over every battler, with its health under the name.
    *
-   * **Anything that can be fought says what it is.** That used to be a mode the
-   * online route turned on and a check for the player tile inside it, which drew
-   * handles over people and left the wildlife anonymous — fine while a creature
-   * was scenery you walked past, and wrong the moment it is something you can
-   * pick a fight with. What a thing is called is what you need before you decide
-   * to hit it, and "battler" is exactly the set of things that question is asked
-   * about. Everything else on the map stays unlabelled, which is what keeps a
-   * field of grass a field of grass.
+   * **Anything that can be fought says what it is.** What a thing is called is
+   * what you need before you decide to hit it, and "battler" is exactly the set
+   * of things that question is asked about. Everything else on the map stays
+   * unlabelled, which is what keeps a field of grass a field of grass.
    *
    * **And only what you can see** — see {@link isVisibleBody}. Not what you can
    * reach, and not what shares your floor: a tag hanging over a rat behind a
    * cave ceiling is a ghost, and going silent about one standing in the open a
-   * storey down is blindness. Both were shipped before this and both read as
-   * bugs. Being on screen is the rule, because that is what a player means.
+   * storey down is blindness. Being on screen is the rule, because that is what
+   * a player means.
    *
    * Naming is `bodyNameFor`'s job, which already answers it for speech: a person
    * by the handle derived from their connection, a creature by what its tile is
@@ -2288,8 +2273,8 @@ export class GameRenderer {
         // as one reading of one thing rather than as a yellow label that happens
         // to have a coloured strip beneath it.
         color: healthBarColor(fraction),
-        // Always, even at full. A bar that appeared only once a creature had
-        // been hit made its *absence* carry the meaning "unhurt" — which is a
+        // Always, even at full. A bar that appears only once a creature has
+        // been hit makes its *absence* carry the meaning "unhurt" — which is a
         // thing you can only read if you already know the rule, and which looks
         // identical to a battler whose bar has not been drawn yet. A full green
         // track says the same thing to somebody seeing it for the first time,
@@ -2329,9 +2314,9 @@ export class GameRenderer {
    * measured in world pixels would close at low zoom and yawn at high.
    */
   private pushSpeechLabels(snap: GameSnapshot, into: WorldLabel[]) {
-    // No clearing of the anchor map here, though this used to: it is shared
-    // with noises now, and a frame with nothing being said still has hisses in
-    // it. Both are swept together by `forgetStaleAnchors` instead.
+    // The anchor map is not cleared here: it is shared with noises, and a
+    // frame with nothing being said still has hisses in it. Both are swept
+    // together by `forgetStaleAnchors`.
     if (snap.chats.length === 0) return;
 
     // Grouped by cell, in the order they arrived: the map preserves insertion
@@ -2405,14 +2390,14 @@ export class GameRenderer {
    *
    * **It ignores the speaker's own body.** `sceneryStack` drops the tile at the
    * speaker's stack index, so the anchor is the ground they were standing *on*
-   * rather than the top of their head. Measured the other way the bubble
-   * appeared a body's height too high and then visibly dropped the moment they
+   * rather than the top of their head. Measured the other way the bubble would
+   * appear a body's height too high and then visibly drop the moment they
    * stepped away — the position after that drop is the right one, so it is the
    * one taken from the start.
    *
-   * **It is frozen.** Recomputing per frame meant the words rode whatever
+   * **It is frozen.** Recomputed per frame, the words would ride whatever
    * happened to the cell afterwards: drop a crate on the spot and the sentence
-   * climbed with it. A remark belongs to the moment it was made, so the height
+   * climbs with it. A remark belongs to the moment it was made, so the height
    * is read once, at the level and elevation of that moment, and kept.
    */
   private speechAnchor(
@@ -2487,8 +2472,8 @@ export class GameRenderer {
    * moves in a frame — an arrow, a rat, the clock — cannot change which
    * structure is between the player and the sky.
    *
-   * Worth caching at all because the cut is a flood fill over one building
-   * rather than the old boolean probe, and three callers ask for it in a frame:
+   * Worth caching at all because the cut is a flood fill over one building,
+   * and three callers ask for it in a frame:
    * the pointer pick, the view push, and the labels behind it. Held on the
    * renderer rather than inside `roofCutFor` so the identity is stable, which is
    * what lets `WorldRenderer.applyRoofCut` skip a frame that changed nothing.
@@ -2545,8 +2530,8 @@ export class GameRenderer {
    * from the last frame so pointer picking inverts the projection the player
    * is looking at, even between frames or before the first one.
    *
-   * The span is {@link VIEW_PX} whatever the canvas measures, so this no longer
-   * asks the element how much world to show — that is the fixed view.
+   * The span is {@link VIEW_PX} whatever the canvas measures, so this does not
+   * ask the element how much world to show.
    */
   private cameraFor(snap: GameSnapshot): { x: number; y: number } {
     const visual = this.actorVisualWorld(snap.map, snap.self);
@@ -2815,13 +2800,11 @@ export class GameRenderer {
    * it mattered most.
    *
    * **And it is frozen the first frame the number is seen**, exactly as a speech
-   * anchor is. This used to be recomputed every frame, on the reasoning that a
-   * number lives under a second and so could not outlive the ground beneath it.
-   * That was wrong, and visibly so: the height comes from the *scenery* in the
-   * cell, so stepping out of the cell you were just hit in takes your own body
-   * out of that stack and the number you are still reading drops by your own
-   * height. The damage happened at a height, and a receipt for it has no
-   * business riding later edits to the floor it was printed over.
+   * anchor is. Recomputed every frame, the height would come from the *scenery*
+   * in the cell, so stepping out of the cell you were just hit in takes your
+   * own body out of that stack and the number you are still reading drops by
+   * your own height. The damage happened at a height, and a receipt for it has
+   * no business riding later edits to the floor it was printed over.
    *
    * Filtered to the floors this client is drawing, because the wire carries every
    * blow struck anywhere in the world: without this a fight two storeys down
@@ -2858,7 +2841,7 @@ export class GameRenderer {
    * Read at the height the blow landed at — the ground in that cell plus the
    * struck body's own height, so the figure comes off the head of whatever took
    * it — and then never asked again. Both halves of that matter; see
-   * {@link damageFor} for what recomputing it did.
+   * {@link damageFor} for what recomputing it would do.
    */
   private damageAnchor(
     hit: DamageNumber,
@@ -2891,11 +2874,6 @@ export class GameRenderer {
     }
   }
 
-  /**
-   * Cell-space fractional emit positions for the player light.
-   * Always returned when the player emits light — standing uses the tile
-   * centre so the static bake can omit the player and never re-run on each step.
-   */
   /**
    * What every body on the board is wearing and emitting this frame.
    *
@@ -3012,6 +2990,11 @@ export class GameRenderer {
     };
   }
 
+  /**
+   * Cell-space fractional emit positions for the player light.
+   * Always returned when the player emits light — standing uses the tile
+   * centre so the static bake can omit the player and never re-run on each step.
+   */
   private emitterOverridesFor(
     snap: GameSnapshot,
   ): EmitterOverride[] | undefined {
@@ -3029,8 +3012,8 @@ export class GameRenderer {
     // this instant: that override is a position, and the light itself is
     // resolved from the stack against the animation clock when it is painted.
     // Asking for the live frame's light would drop the override on the dark
-    // half of a flicker and stop the light coming back. It is also no longer a
-    // per-actor question, since facing does not change whether a tile emits.
+    // half of a flicker and stop the light coming back. It is not a per-actor
+    // question either, since facing does not change whether a tile emits.
     const bodyEmits = tileCanEmitLight(playerDef);
     const overrides: EmitterOverride[] = [];
     for (const actor of snap.actors) {
@@ -3039,7 +3022,7 @@ export class GameRenderer {
       if (!bodyEmits && !carried && !fromStatuses) continue;
       const at = this.actorEmitter(snap.map, actor, playerDef.height ?? 0);
       // The body's own light is found by reading the stack it is standing in,
-      // which is what an override has always meant. What is in the bag is not in
+      // which is what an override means. What is in the bag is not in
       // any stack, so it travels on a second override at the same position — the
       // cast accumulates, and one lantern at your hip lights exactly like one
       // lantern at your hip.
@@ -3182,10 +3165,9 @@ export class GameRenderer {
   }
 
   /**
-   * Motions for tiles currently lerping. Same path for any moving tile — today
-   * only the player walks/falls. The box travels with the sprite in fractional
-   * cells, which is what lets a mover be behind the wall beside it and in front
-   * of the floor it is stepping onto at the same time.
+   * Motions for tiles currently lerping. The box travels with the sprite in
+   * fractional cells, which is what lets a mover be behind the wall beside it
+   * and in front of the floor it is stepping onto at the same time.
    */
   private tileMotionsFor(snap: GameSnapshot): TileMotion[] {
     const motions: TileMotion[] = [];
@@ -3355,9 +3337,9 @@ export class GameRenderer {
    * How tall the body itself is — never its clump.
    *
    * What hangs over a head belongs to the head, and a clump is a fact about
-   * *sorting* and nothing else. Reading the clump here put a person's health bar
-   * up at the top of the open door they were standing in, which is a bar that
-   * has stopped reporting on the person.
+   * *sorting* and nothing else. Reading the clump here would put a person's
+   * health bar up at the top of the open door they were standing in, which is a
+   * bar that has stopped reporting on the person.
    */
   private bodyOwnHeight(
     map: MapFile,
@@ -3395,8 +3377,8 @@ export class GameRenderer {
    *
    * Per actor rather than per frame: the camera wants this for the viewer's own
    * actor, and every moving actor wants it for their own lerp. Computing it
-   * once for the camera and reusing it as everyone's offset — which is what the
-   * single-player version did — silently pins every other actor to the viewer.
+   * once for the camera and reusing it as everyone's offset would pin every
+   * other actor to the viewer.
    */
   private actorVisualWorld(
     map: MapFile,

@@ -27,11 +27,11 @@
  * lands on the grid the letters land on, and the fill steps a whole brick at a
  * time like a bar drawn in pixel art would.
  *
- * This is no longer the width of the bar over a head — that is a cell wide now,
- * so it changes with the zoom; see {@link healthBarTrackBricks}. What is left is
- * the number a track falls back to when it is not being fitted to anything: the
- * row in the interaction list, whose bar is a percentage of a column it does not
- * choose the width of, and which uses this only for the rounding.
+ * The bar over a head is a cell wide and changes with the zoom; see
+ * {@link healthBarTrackBricks}. This is the number a track falls back to when it
+ * is not being fitted to anything: the row in the interaction list, whose bar is
+ * a percentage of a column it does not choose the width of, and which uses this
+ * only for the rounding.
  */
 export const HEALTH_BAR_FILL_STEPS = 24;
 
@@ -58,12 +58,9 @@ const MIN_TRACK_BRICKS = 4;
 /**
  * How wide the track over a head should be: one cell, in whole bricks.
  *
- * The bar used to be a fixed 24 bricks whatever the zoom, which is a width that
- * happens to equal a cell at one particular window size and is wrong either side
- * of it — on a small screen it was two cells wide, so two creatures standing
- * side by side had bars lying across each other and neither reading belonged to
- * anybody in particular. Since telling those two apart is most of what a bar
- * over a head is for, the width follows the cell.
+ * The width follows the cell because telling two neighbours' bars apart is most
+ * of what a bar over a head is for: a fixed width is two cells wide on a small
+ * screen, and two bars lying across each other belong to nobody in particular.
  *
  * **Rounded down, and the border counts.** A cell in CSS pixels is
  * `CELL_SIZE * cssScale` and is fractional almost always; taking the whole
@@ -90,13 +87,10 @@ export function healthBarTrackBricks(
  *
  * The bar is a shape before it is a reading: a long thin rule reads as a gauge,
  * and something close to square reads as a block of colour with no length to
- * judge. Since the track is now a cell wide and a cell is much narrower on a
- * phone than on a monitor, a fixed thickness cannot be right at both — at the
- * small end a four-brick fill in a six-brick track is very nearly a square.
- *
- * A fifth is the ratio the desktop bar already had and looked right at, so this
- * is the number that keeps that case exactly where it was while the small end
- * thins out to match.
+ * judge. Since the track is a cell wide and a cell is much narrower on a phone
+ * than on a monitor, a fixed thickness cannot be right at both — at the small
+ * end a four-brick fill in a six-brick track is very nearly a square. A fifth
+ * looks right on a desktop bar, and the small end thins out to match.
  */
 const TRACK_BRICKS_PER_FILL_BRICK = 5;
 
@@ -149,7 +143,6 @@ export function healthFraction(hp: number, maxHp: number): number {
   return Math.max(0, Math.min(1, hp / maxHp));
 }
 
-/** Green, yellow, red, then dark red, as a bar empties. */
 export function healthBarColor(fraction: number): string {
   for (const stop of HEALTH_BAR_STOPS) {
     if (fraction <= stop.upTo) return stop.color;
@@ -160,7 +153,7 @@ export function healthBarColor(fraction: number): string {
 /**
  * Filled length in whole bricks, out of a track of `trackBricks`.
  *
- * The track's length is an argument because it is no longer one number: a bar
+ * The track's length is an argument because it is not one number: a bar
  * over a head is as wide as a cell and so changes with the zoom, while the row
  * in the interaction list is a percentage of a column. Both round the same way,
  * which is what keeps a creature going red on the list at the same moment it
@@ -171,7 +164,7 @@ export function healthBarColor(fraction: number): string {
  * - **Anything above zero keeps at least one brick.** A creature on its last hit
  *   point out of five hundred is one you can still kill, and an empty bar says
  *   the opposite.
- * - **Anything below full loses at least one.** Every battler carries a bar now,
+ * - **Anything below full loses at least one.** Every battler carries a bar,
  *   full or not, so a completely full track is the one reading that means
  *   "untouched" — and a scratch that rounded up to it would be the bar saying
  *   nothing had happened.

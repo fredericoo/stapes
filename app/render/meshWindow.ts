@@ -1,11 +1,8 @@
 /**
  * Which of the map's chunks are worth turning into geometry.
  *
- * The renderer used to build every cell of every level the moment it had a
- * map, and rebuild a whole level whenever one of its chunks changed. That is a
- * cost proportional to the *world*: the animal den took the board from 20,887
- * cells to 44,160, and every one of them was meshed for a player who can see
- * 23 cells across.
+ * Meshing every cell of every level is a cost proportional to the *world* —
+ * 44,160 cells with the animal den — for a player who can see 23 cells across.
  *
  * A player can only ever see {@link VIEW_CELLS} of world, and that is a
  * guarantee rather than a happy accident — the viewport is a fixed square on
@@ -112,7 +109,6 @@ export function visibleChunkKeys(map: MapFile, window: WorldRect): Set<string> {
   return wanted;
 }
 
-/** Read an address key back into the level and chunk it names. */
 export function parseChunkAddress(key: string): ChunkAddress {
   const at = key.indexOf(":");
   return { z: Number(key.slice(0, at)), chunk: key.slice(at + 1) };

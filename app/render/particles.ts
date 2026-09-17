@@ -176,7 +176,6 @@ export class ParticleSystem {
     this.random = random;
   }
 
-  /** How many particles are in the air. */
   get count(): number {
     return this.liveCount;
   }
@@ -229,8 +228,6 @@ export class ParticleSystem {
   }
 
   /**
-   * Move time forward: age everything, bury what is done, and emit what is owed.
-   *
    * Emission comes last so a particle born this frame is drawn at its birth
    * position rather than a frame's travel past it — a plume whose first frame of
    * every spark is already in flight has a visible hole at its mouth.
@@ -321,7 +318,6 @@ export class ParticleSystem {
     return into;
   }
 
-  /** Forget every plume and every particle. */
   clear() {
     this.liveCount = 0;
     this.emitters = [];

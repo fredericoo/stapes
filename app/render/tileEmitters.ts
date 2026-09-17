@@ -60,7 +60,7 @@ export function tileEmitterPrefix(z: number, x: number, y: number): string {
 /**
  * Append the board's visible plumes to a list that already holds the caller's.
  *
- * **Appended rather than merged, and the order is load-bearing.** The particle
+ * **Appended rather than merged, and the order matters.** The particle
  * pool is a fixed size and emission is served in emitter order, so whatever came
  * first wins the last slot in a full pool. A status is something happening to
  * somebody and a chimney is scenery, so a crowded board thins its smoke rather

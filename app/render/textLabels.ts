@@ -9,10 +9,9 @@
  *
  * ## Why these are DOM elements and not quads in the scene
  *
- * They used to be quads. A string was rasterised into a canvas at 8px, uploaded
- * as a texture and drawn like any other sprite, which is what tied it to world
- * pixels — one texel covered one world pixel, so a 5-pixel-tall capital arrived
- * on screen five *world* pixels tall and grew with the zoom.
+ * A string rasterised into a texture and drawn like any other sprite is tied to
+ * world pixels — one texel covers one world pixel, so a 5-pixel-tall capital
+ * arrives on screen five *world* pixels tall and grows with the zoom.
  *
  * Keeping the text inside the canvas but at screen scale does not work. The
  * drawing buffer is a whole multiple of the view and is then *stretched* to fill
@@ -21,13 +20,10 @@
  * to put crisp text.
  *
  * The browser rasterises a webfont against real device pixels at any DPR, which
- * is exactly the thing being asked for, so the text moves out to the DOM. The
- * old code argued against this on the grounds that an element chasing a canvas
- * position is a second, slightly-late copy of the camera. It is not: positions
- * are written from inside the same rAF callback that draws the frame, so the
- * style change and the canvas paint land in the same commit. What that comment
- * was really defending was world-pixel alignment, and world-pixel alignment is
- * what is being given up on purpose.
+ * is exactly the thing being asked for. An element chasing a canvas position is
+ * not a late copy of the camera: positions are written from inside the same rAF
+ * callback that draws the frame, so the style change and the canvas paint land
+ * in the same commit.
  *
  * ## Three phases, in that order, every frame
  *
@@ -134,8 +130,7 @@ export type WorldLabel = {
  *
  * Rounded, because the font's bricks have to sit on whole pixels — a half pixel
  * of offset is the browser antialiasing a pixel font, which is the one thing
- * 1-bit type cannot absorb. This is the same argument the old world-pixel
- * rounding made, one coordinate space along.
+ * 1-bit type cannot absorb.
  */
 export function labelScreenPosition(
   worldX: number,
@@ -158,12 +153,10 @@ export function labelScreenPosition(
  * it would close up at low zoom and yawn at high, which is the same argument
  * that took this text out of the scene in the first place.
  *
- * It has been raised twice, each time because the group it clears grew a row.
- * One and a half cleared a name on its own; two cleared the health bar that
- * came to sit under it, the pair standing about one-and-two-thirds ems tall.
- * Two and three quarters clears the bar a pull or a cast draws *over* the name
- * — see {@link WorldLabelLayer.fill} for why it goes there — which is a further
- * half an em of track, border and margin.
+ * Two and three quarters clears a name, the health bar under it (the pair
+ * standing about one-and-two-thirds ems tall) and the bar a pull or a cast
+ * draws *over* the name — see {@link WorldLabelLayer.fill} for why it goes
+ * there — which is a further half an em of track, border and margin.
  *
  * **Measured against the tallest the group ever gets, not the usual one**, and
  * that is the trade: every bubble in the world sits a little higher than it
@@ -233,7 +226,7 @@ function fillTrack(
  * Give a track its box: a cell long, and thick in proportion to that.
  *
  * Both dimensions together, because they are one shape — a length set without
- * the thickness that goes with it is the bar that looked square on a phone. This
+ * the thickness that goes with it is a bar that looks square on a phone. This
  * is layout, unlike {@link fillBar}, so it runs only when the zoom moves.
  */
 function shapeTrack(track: HTMLElement, trackBricks: number) {
@@ -376,15 +369,13 @@ export class WorldLabelLayer {
   }
 
   /**
-   * Keep the view size honest, every frame, observer or no observer.
+   * Read the view size every frame, observer or no observer.
    *
-   * This used to return early whenever a ResizeObserver existed, on the grounds
-   * that the observer already knew. The observer is not a thing you can bet a
-   * frame on: notifications go undelivered when a callback resizes something —
-   * the "ResizeObserver loop" case — and the layer has no way to find out it
-   * missed one. Nothing else here ever reads the container again, so a single
-   * skipped delivery left `view` stale until the *next* resize, which is a long
-   * time to be wrong.
+   * The observer is not a thing you can bet a frame on: notifications go
+   * undelivered when a callback resizes something — the "ResizeObserver loop"
+   * case — and the layer has no way to find out it missed one. Nothing else
+   * here ever reads the container again, so a single skipped delivery would
+   * leave `view` stale until the *next* resize.
    *
    * Being wrong here is not a slightly misplaced label. `../render/labelLayout`
    * drops any label whose anchor falls outside the view, so a `view` smaller
@@ -572,12 +563,12 @@ export class WorldLabelLayer {
     }
     // Written as custom properties feeding a transform, never as `left`/`top`.
     // An absolutely positioned box gets `containingBlockWidth - left` to lay
-    // out in, so a label placed near the right edge wrapped by how close it
-    // was to the edge rather than by its own max-width — the same sentence
-    // broke onto two lines on the right of the view and one on the left.
+    // out in, so a label placed near the right edge would wrap by how close it
+    // is to the edge rather than by its own max-width — the same sentence
+    // breaking onto two lines on the right of the view and one on the left.
     // Anchored at the origin and moved by a transform, every label lays out
     // against the full width and wraps only where it is told to. The transform
-    // now takes the label's *top left*: with the pass deciding placement, a
+    // takes the label's *top left*: with the pass deciding placement, a
     // stylesheet that also shifted the box by -50%/-100% would be a second,
     // invisible opinion about where the text goes.
     entry.element.style.setProperty("--label-x", `${at.left}px`);
@@ -599,8 +590,7 @@ export class WorldLabelLayer {
    * The clearance is derived from the element's own computed font size rather
    * than a number copied out of the stylesheet: the size lives in one place
    * (`--world-label-size` in `app/app.css`), and this way changing it there
-   * moves the bubbles with it — which is what "a line and a half" has to mean
-   * to stay true.
+   * moves the bubbles with it.
    */
   private measure(
     entry: LabelEntry,

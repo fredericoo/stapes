@@ -77,10 +77,9 @@ import {
  * ## What it can draw on
  *
  * Any tile in the catalogue — that is the whole point of taking a `TileDef`
- * rather than a `SpriteRef`. A bush cannot yet *carry* a status in play (see
+ * rather than a `SpriteRef`. A bush cannot *carry* a status in play (see
  * `./spriteTint` for why a merged tile has no material of its own), but it can
- * be designed here, which is the order these two things were always going to
- * arrive in.
+ * be designed here.
  */
 
 /** How many cells of world fit across the preview. */
@@ -94,8 +93,8 @@ const SUBJECT_CELL = { x: 4, y: 4 };
  *
  * The camera is centred on the subject and fitted to the shorter side of the
  * canvas, so a panel that is not square sees further along one axis than the
- * other. A grid sized exactly to the span therefore ran out along the long axis
- * and left a bar of clear colour at the edge. Cheap insurance: this is a few
+ * other. A grid sized exactly to the span would run out along the long axis
+ * and leave a bar of clear colour at the edge. Cheap insurance: this is a few
  * dozen quads drawn once.
  */
 const FLOOR_MARGIN_CELLS = 4;
@@ -606,7 +605,6 @@ export class VfxPreview {
     this.advanceTransition();
   }
 
-  /** Wind the playing transition on, and let it go once its end has been held. */
   private advanceTransition() {
     const live = this.playing;
     if (!live) return;
@@ -642,7 +640,6 @@ export class VfxPreview {
     mesh.updateMatrixWorld(true);
   }
 
-  /** Point the subject at whatever frame the shared clock says is live. */
   private updateSubjectFrame() {
     if (!this.subject || this.frames.length < 2) return;
     const idx = frameIndexAtTime(this.frames, this.clockMs);
@@ -709,8 +706,8 @@ export class VfxPreview {
     const indices: number[] = [];
     // Through THREE.Color rather than `hexToRgb01`, because a vertex colour is
     // multiplied into `diffuseColor` in **linear** space and an sRGB triple put
-    // there directly comes out visibly too bright — which quantised the two
-    // chequer greys onto the same palette entry and made the ground look flat.
+    // there directly comes out visibly too bright — which would quantise the
+    // two chequer greys onto the same palette entry and make the ground flat.
     const light = linearRgb(FLOOR_LIGHT);
     const dark = linearRgb(FLOOR_DARK);
 

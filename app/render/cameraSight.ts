@@ -51,10 +51,9 @@
  * body in it would go anonymous behind a ceiling that is no longer on screen.
  *
  * The cut is per cell, so this skips the cells it took and keeps walking rather
- * than stopping at a ceiling level. That is not a refinement of the old clamp —
- * it is the only version that works once one roof can lift while its neighbour
- * stays: the rat on the *drawn* roof two cells over must still go anonymous, and
- * a level threshold cannot tell the two roofs apart.
+ * than stopping at a ceiling level: one roof can lift while its neighbour stays,
+ * the rat on the *drawn* roof two cells over must still go anonymous, and a
+ * level threshold cannot tell the two roofs apart.
  */
 
 import { stackOcclusion } from "../lib/lighting";
@@ -79,8 +78,7 @@ function covers(
  *
  * **Two rules, and the second is not an optimisation of the first.** The
  * diagonal answers what is painted in front of this cell. The column answers
- * whether there is a floor between the viewer's eye level and it. They catch
- * different things and the gap between them is a real bug this used to have.
+ * whether there is a floor between the viewer's eye level and it.
  *
  * A body standing directly under a one-cell ledge is *not* caught by the
  * diagonal, and strictly speaking the diagonal is right: the floor overhead sits
@@ -88,9 +86,8 @@ function covers(
  * feet really are still on screen beside it. Painting is not the rule players
  * read, though. "There is a floor between us" is a statement about the building,
  * and somebody standing on a landing does not expect to be reading the health of
- * whatever is in the room below them. A wide cave ceiling happened to satisfy the
- * diagonal — its `(x+1, y+1, z+1)` is more rock — which is exactly what made the
- * gap so easy to miss: the rule looked right until the floor was one tile.
+ * whatever is in the room below them. A wide cave ceiling satisfies the
+ * diagonal — its `(x+1, y+1, z+1)` is more rock — and a one-tile floor does not.
  *
  * The column is walked on the *subject's* own cell rather than along a ray from
  * the viewer, and that is deliberate. Where the viewer stands on the plan must
@@ -107,8 +104,7 @@ function covers(
  *   under a roof of theirs; anything above is the roof-cut's business.
  * @param cut the roof-cut, or undefined when nothing is cut. A cell it takes is
  *   not drawn and therefore hides nothing — asked per cell rather than against a
- *   ceiling, because the cut is now the structure the viewer can see into and
- *   the roof of the house next door is still very much in the way.
+ *   ceiling, because the roof of the house next door is still in the way.
  */
 export function isHiddenFromCamera(
   map: MapFile,
@@ -134,11 +130,8 @@ export function isHiddenFromCamera(
 
 /**
  * Is this cell one the viewer can see, on the terms every piece of chrome uses?
- *
- * The whole rule, in one place, because the alternative is what shipped before
- * it: a name tag asked {@link isHiddenFromCamera} and a damage number asked
- * whether the blow landed within a floor of the viewer, and the second answered
- * yes for a fight one storey down inside a cave — numbers rising off solid rock.
+ * One rule in one place, so a name tag and a damage number cannot disagree
+ * about a fight one storey down inside a cave.
  *
  * Three parts, and the middle one is the exception rather than a shortcut:
  *

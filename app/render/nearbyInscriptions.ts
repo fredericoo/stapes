@@ -8,12 +8,11 @@
  * to discover a modifier before the world will speak to them will simply walk
  * past it. So standing next to an inscribed placement reads it out.
  *
- * **Inscriptions only, which is the whole reason that field is its own.** This
- * used to read a placement's `description`, which meant the only way to put a
- * line of prose on an object was to make every passer-by recite it — and a cell
- * holding nine skulls was nine sentences hanging in the air. What a thing has
- * *written on it* is public; what you learn by turning it over is not. See
- * `../lib/types`' {@link PlacedTile.description} for the quiet half.
+ * **Inscriptions only, never `description`.** What a thing has *written on it*
+ * is public; what you learn by turning it over is not, and reciting every
+ * description to every passer-by would make a cell holding nine skulls nine
+ * sentences hanging in the air. See `../lib/types`' {@link PlacedTile.description}
+ * for the quiet half.
  *
  * **The inscription alone, never the name.** A look answers "what is that?" and
  * needs the name to answer it; standing beside a sign is not a question, and

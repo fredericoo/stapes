@@ -21,10 +21,10 @@ import type { StatusTint } from "../lib/statusVfx";
  *
  * The consequence worth stating plainly: **only a separately-meshed tile can be
  * tinted.** In practice that is every actor, because a tile that can move gets
- * its own mesh (see `cellItems`). A bush cannot yet — it is merged into its
+ * its own mesh (see `cellItems`). A bush cannot — it is merged into its
  * floor's batch, and tinting it would mean promoting it out of that batch. The
  * status editor's preview draws its subject as its own mesh, so a bush on fire
- * can be *designed* now and lit later.
+ * can still be *designed*.
  *
  * ## Why OKLab
  *
@@ -58,7 +58,6 @@ export function noTintUniforms(): TintUniforms {
   };
 }
 
-/** Uniforms for one authored tint. */
 export function tintUniforms(tint: StatusTint): TintUniforms {
   const [L, a, b] = tintOklab(tint);
   return {

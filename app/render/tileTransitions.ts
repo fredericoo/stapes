@@ -30,7 +30,7 @@ import type { ParticleEmitterSpec } from "./particles";
  *
  * Decay fires in bursts, so a disappear authored on something that decays in
  * bulk must not start a hundred meshes on one tick. Past the cap a tile simply
- * changes, which is what every tile did before this existed.
+ * changes.
  */
 export const MAX_LIVE_TRANSITIONS = 32;
 
@@ -68,7 +68,7 @@ export function transitionAddress(note: {
  * An appear on a named placement follows the name rather than the cell it
  * formed in, so a body that takes a step while it forms goes on forming in
  * the next cell. An anonymous tile is found by its cell, and a step drops its
- * appear — which costs nothing today, since everything that walks has an owner.
+ * appear — which costs nothing, since everything that walks has an owner.
  */
 export function placementIdentity(placed: {
   owner?: string;
@@ -121,7 +121,7 @@ export function admitTransitions(
  * flame, a creature eating the berry under an ember. So the slot is trusted only
  * while the tile it names is still there; failing that, the cell's only copy of
  * that tile is taken; failing that, there is no telling which copy was meant and
- * the tile simply changes, as every tile did before this existed.
+ * the tile simply changes.
  */
 export function resolveTransitionSlot(
   stack: readonly { tileId: string }[],
@@ -225,8 +225,7 @@ export function pixelSnappedQuad(
  * back: the batch's signature is computed with the forming tile routed away, so
  * the next patch to its cell compares two signatures that both omit it, takes
  * the cheap path, and drops the own-mesh copy without merging anything in its
- * place. That is what left a conjured flame invisible while it went on burning
- * whoever stepped in it, until a reload rebuilt the chunk from the map.
+ * place.
  *
  * A copy has nothing to rejoin — the map no longer holds the tile — and neither
  * does a placement that moves, which keeps its own mesh for good and may be
@@ -297,9 +296,9 @@ export function appendTransitionEmitters(
 /**
  * How much of a dissolving tile's light is left, on the shared step grid.
  *
- * Read at the last grid line rather than now, which is the whole trick: the
- * value can only change when the grid does, and the grid is the same for every
- * light. See {@link LIGHT_FADE_STEP_MS}.
+ * Read at the last grid line rather than now, so the value can only change when
+ * the grid does, and the grid is the same for every light. See
+ * {@link LIGHT_FADE_STEP_MS}.
  */
 export function fadingLightScale(live: LiveTransition, clockMs: number): number {
   const gridMs = Math.floor(clockMs / LIGHT_FADE_STEP_MS) * LIGHT_FADE_STEP_MS;
@@ -443,7 +442,6 @@ function farthestCornerPx(
   return farthest;
 }
 
-/** The sRGB transfer curve, undone. */
 function srgbToLinear(channel: number): number {
   return channel <= 0.04045
     ? channel / 12.92

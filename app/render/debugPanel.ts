@@ -28,7 +28,6 @@ import { VIEW_CELLS } from "./viewport";
  */
 export const DEBUG_PANEL_INTERVAL_MS = 250;
 
-/** The rows, in the order they are stacked. */
 const ROWS = ["title", "play", "mesh", "light", "held", "draws"] as const;
 type Row = (typeof ROWS)[number];
 
@@ -61,8 +60,6 @@ export class DebugPanel {
   private lastWriteMs = 0;
 
   /**
-   * Attach beside the canvas.
-   *
    * The canvas's own parent, because that is the box the canvas fills and the
    * label layer already sits over — anything higher up is the page's furniture
    * and would put the panel next to the game rather than on it.
@@ -89,8 +86,6 @@ export class DebugPanel {
   }
 
   /**
-   * Rewrite the panel, at most {@link DEBUG_PANEL_INTERVAL_MS} apart.
-   *
    * The throttle is here rather than at the call site so the caller can hand
    * this every frame without holding a clock of its own.
    */
@@ -146,7 +141,6 @@ function reach(cells: number | null): string {
   return cells === null ? " · waiting" : ` · +${cells}c`;
 }
 
-/** A Three.js hex colour as the CSS the panel wears. */
 function cssColor(hex: number): string {
   return `#${hex.toString(16).padStart(6, "0")}`;
 }

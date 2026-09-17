@@ -56,7 +56,6 @@ export const NOTICE_LIFETIME_MS = 4_000;
  */
 export const MAX_NOTICES = 2;
 
-/** One line waiting to be read, with the moment it went up. */
 export type Notice = {
   /** Stable per notice; the element cache is keyed on it. */
   id: string;
@@ -82,8 +81,6 @@ export class NoticeQueue {
   private nextId = 0;
 
   /**
-   * Put a line up, or refresh the one already saying it.
-   *
    * The refresh is what keeps a refusal readable. "You cannot fit there" comes
    * of pressing a key, and a key gets mashed: without this, four presses would
    * fill both slots with the same sentence and evict whatever else was up. With
@@ -111,8 +108,6 @@ export class NoticeQueue {
   }
 
   /**
-   * The lines still up, oldest first.
-   *
    * The live array rather than a copy, on the same terms `GameSnapshot.damage`
    * hands out its own: this is read once per frame by the layer below and by
    * nothing else, and a copy per frame would allocate for the ninety-nine frames
@@ -159,8 +154,6 @@ export class NotificationLayer {
   }
 
   /**
-   * Draw this frame's notices.
-   *
    * Order comes free: the queue is oldest-first, elements are appended the frame
    * they first appear, and removing the oldest leaves the rest where they are.
    * So the column's document order is always the queue's order, and the column

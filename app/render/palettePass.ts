@@ -22,7 +22,6 @@ function paletteVec3Array(flat: Float32Array): THREE.Vector3[] {
   return out;
 }
 
-/** Fullscreen nearest-OKLab palette match. */
 export function createPaletteMaterial(): THREE.ShaderMaterial {
   const paletteRgb = paletteVec3Array(PALETTE_RGB01);
   const paletteLab = paletteVec3Array(PALETTE_LAB);
@@ -111,7 +110,7 @@ export function createPaletteMaterial(): THREE.ShaderMaterial {
  * fade can be applied once. Every floor above the one being edited is drawn
  * into a single depth-sorted target first and arrives here as one picture, so
  * what fades is the silhouette of the stack — not each floor over the last,
- * which showed every interior wall in the building at once.
+ * which would show every interior wall in the building at once.
  *
  * Runs after the quantise, over the finished frame, and is the one thing in the
  * editor allowed off the ramp. Blended into the scene target it would be
@@ -220,7 +219,6 @@ export class PalettePass {
     return this.target;
   }
 
-  /** Bind the scene RT and blit the quantised result to the canvas. */
   blitToCanvas(renderer: THREE.WebGLRenderer): void {
     this.material.uniforms.tScene!.value = this.target?.texture ?? null;
     renderer.setRenderTarget(null);

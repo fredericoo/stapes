@@ -1,10 +1,9 @@
 /**
  * Where the sprites of a pile sit inside the cell they share.
  *
- * A pile is one placement holding several things — see `../lib/piles` — and up
- * to now it drew as one sprite with a number beside it. This is the other half
- * of that: three berries look like three berries, laid out the way the pips on a
- * die are, so the count is legible on the board without reading anything.
+ * A pile is one placement holding several things — see `../lib/piles`. Three
+ * berries look like three berries, laid out the way the pips on a die are, so
+ * the count is legible on the board without reading anything.
  *
  * ## Deterministic, not jittered
  *
@@ -77,11 +76,10 @@ export const MAX_PILE_SPRITES = 12;
  * than the same object holding more.
  *
  * **Three of the eight pixels a cell is wide**, which puts opposite pips six
- * apart, and the number was arrived at by looking. Two was the first attempt and
- * was wrong for a reason worth writing down: a tile's sprite is as wide as its
- * cell, so pips four apart overlap by half their own width and a four and a five
- * come out as the same red blob. A die face only reads when the pips are small
- * against the gaps between them, and six pixels is the least that buys here.
+ * apart. Two is too few: a tile's sprite is as wide as its cell, so pips four
+ * apart overlap by half their own width and a four and a five come out as the
+ * same red blob. A die face only reads when the pips are small against the
+ * gaps between them, and six pixels is the least that buys here.
  */
 const DIE_RADIUS_PX = 3;
 
@@ -97,7 +95,7 @@ const DIE_RADIUS_PX = 3;
  * The cap is what stops a heap becoming a field. Sprites already overhang their
  * own cell — a tile's art is as wide as the cell it stands on — so what this
  * bounds is how much *further* the outermost one reaches: half a cell, which
- * looks like a heap that has spread a bit, where a whole cell looked like
+ * looks like a heap that has spread a bit, where a whole cell looks like
  * berries scattered over the three tiles around it.
  */
 const SPREAD_PER_ROOT_PX = 1.5;
@@ -230,8 +228,8 @@ function inDrawOrder(offsets: PileOffset[]): PileOffset[] {
  * Asked once per distinct count and then never again.
  *
  * Counts are small integers bounded by {@link MAX_PILE_SPRITES}, so this holds a
- * dozen entries for the life of the page — where the pass it replaces runs
- * inside the cell loop of a level rebuild, which is thousands of cells.
+ * dozen entries for the life of the page rather than recomputing inside the
+ * cell loop of a level rebuild, which is thousands of cells.
  */
 const memo = new Map<number, readonly PileOffset[]>();
 

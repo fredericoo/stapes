@@ -47,7 +47,6 @@ export class FrameProfiler {
   private phases = new Map<FramePhase, number[]>();
   private lastReport = 0;
 
-  /** Time `fn`, record it against `phase`, and hand back whatever it returned. */
   measure<T>(phase: FramePhase, fn: () => T): T {
     const start = performance.now();
     try {

@@ -79,7 +79,7 @@ export type LevelLightUniforms = {
 /**
  * The roof-cut, as a per-level mask the fragment shader reads.
  *
- * A cut is a set of *cells* now rather than a level threshold (see
+ * A cut is a set of *cells* rather than a level threshold (see
  * `lib/levelVisibility`), and level geometry is merged into one draw call per
  * texture — so there is no object to hide. This is the same road the light map
  * already travels: a small texture in cell space, sampled at the quad's own

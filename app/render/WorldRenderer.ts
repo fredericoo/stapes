@@ -247,8 +247,7 @@ type BuildItem = Quad & {
    * Whether the placement can ever change cell, which is what makes its own
    * mesh permanent.
    *
-   * **Not the same question as {@link tileKey}**, and reading one for the other
-   * is what left a conjured flame invisible: a still tile is separate only
+   * **Not the same question as {@link tileKey}**: a still tile is separate only
    * while its appear runs, and its batch has to take it back afterwards.
    * @see ./tileTransitions#rejoinsBatch
    */
@@ -616,10 +615,9 @@ function emitterOverridesKey(
  * Tiles the static bake leaves out, painted per frame by the overlay instead.
  *
  * Derived from the tile set rather than named, so a second character — or a
- * hundred — is omitted automatically. A hardcoded `{player}` was correct only
- * for as long as exactly one thing moved.
+ * hundred — is omitted automatically.
  *
- * Both conditions are load-bearing, and both are *narrow*. **Actor** is the
+ * Both conditions matter, and both are *narrow*. **Actor** is the
  * rule, not "mobile": the overlay paints an override per actor per frame, so an
  * actor is exactly the population that gets painted back. **Light-passing** is
  * what makes omitting it sound: the overlay is add-only, so it can paint a light
@@ -628,26 +626,26 @@ function emitterOverridesKey(
  * blocks light therefore stays baked and pays for its movement — see the note in
  * docs/notes.md before changing that.
  *
- * **It used to say `isMobileTile`, and that let a lit thing vanish.** A lantern
- * is affected by gravity and passes light, so it was omitted from the bake — and
- * nothing paints an override at a cell nobody is standing in, so a lantern lying
- * on the floor lit nothing at all. Omitting a tile is only ever worth it for
+ * **Not `isMobileTile`.** A lantern is affected by gravity and passes light, so
+ * it would be omitted from the bake — and nothing paints an override at a cell
+ * nobody is standing in, so a lantern lying on the floor would light nothing at
+ * all. Omitting a tile is only ever worth it for
  * something that moves *every frame*; a dropped item moves on the tick it lands
  * and dirties a cell doing it, which is a cost it was always going to pay.
  *
  * **The player is named rather than derived, and it has to be.** It is driven by
  * a connection and adopted by tile id, so {@link resolveActor} deliberately
  * refuses it — see the note there. Deriving this set from actorhood alone
- * therefore returned an empty set on the shipped tile catalogue and quietly
- * stopped omitting the one body that moves every single frame, which put a ~22ms
- * rebake on every step the player took.
+ * would return an empty set on the shipped tile catalogue and stop omitting the
+ * one body that moves every single frame, which is a ~22ms rebake on every step
+ * the player takes.
  */
 export function dynamicLightTileIds(
   tilesById: Record<string, TileDef>,
 ): ReadonlySet<string> {
   const ids = new Set<string>();
   for (const def of Object.values(tilesById)) {
-    // Light-passing is the load-bearing half and is checked first: omitting an
+    // Light-passing is the half that matters and is checked first: omitting an
     // occluder would light straight through it, whoever it belongs to.
     if (!resolveLightPassing(def)) continue;
     if (resolveActor(def) || def.id === PLAYER_TILE_ID) ids.add(def.id);
@@ -744,7 +742,6 @@ type ChunkGeometry = {
   movableKeys: Set<string>;
 };
 
-/** Do two windows name the same cells? Four compares on the common frame. */
 /**
  * What the debug view can say in numbers — see {@link WorldRenderer.debugReading}.
  *
@@ -1004,8 +1001,8 @@ export class WorldRenderer {
    * the map that still holds it — a torn-down geometry drawn on the next frame.
    * Nothing is lost by staying out: depth is resolved per fragment from the box
    * each quad carries, so group membership decides nothing about sorting. The
-   * one thing it did decide is roof-cut visibility, and that is a line of code
-   * here instead — see {@link applyProjectiles}.
+   * one thing it would decide is roof-cut visibility, and that is a line of
+   * code in {@link applyProjectiles} instead.
    */
   private projectileGroup: THREE.Group;
   private movableBasePos = new Map<string, { x: number; y: number }>();
@@ -1603,7 +1600,7 @@ export class WorldRenderer {
    * nothing about it can change, so cutting it a quad of its own is exact too.
    *
    * **A list, because a heap is one placement drawn several times.** Outlining
-   * only the quad the placement would have drawn on its own put a ring around a
+   * only the quad the placement would draw on its own puts a ring around a
    * single berry in the middle of a dozen — which reads as "that one", where
    * what a press actually takes is all of them. One ring per sprite says the
    * true thing, and it says it in the same offsets the sprites were drawn at, so
@@ -1686,15 +1683,15 @@ export class WorldRenderer {
    * Hand the frame's cut to the geometry. No mesh rebuild, ever.
    *
    * **Two mechanisms, because the cut has two shapes.** A whole-storey cut is a
-   * level threshold and stays what it always was: `group.visible = false`, which
-   * skips the floor's draw calls outright. A structure cut is a set of cells
+   * level threshold: `group.visible = false`, which skips the floor's draw
+   * calls outright. A structure cut is a set of cells
    * inside a level whose static geometry is merged into one draw call per
    * texture, so there is no object to hide — that one is a mask the fragment
    * shader reads (see {@link writeCutMask}).
    *
-   * Rebuilding the merged geometry instead was the obvious alternative and is
-   * the one thing that must not happen here: rebuilding walks every coordinate
-   * of a chunk, and the cut changes every time the player takes a step.
+   * Rebuilding the merged geometry instead is the one thing that must not
+   * happen here: rebuilding walks every coordinate of a chunk, and the cut
+   * changes every time the player takes a step.
    *
    * Skipped when the cut is the same object as last frame, which is the usual
    * case — `GameRenderer` caches it on the map and the anchor, so it is a new
@@ -1776,10 +1773,10 @@ export class WorldRenderer {
       this.applyPulse();
       this.needsRender = true;
     }
-    // Kept outside `updateAnimations`, which has nothing to do — and used to
-    // return before advancing this — when no animated sprite is on screen. The
-    // light bake reads the same clock, and an emitter can sit outside the built
-    // geometry while its light still reaches inside the window.
+    // Kept outside `updateAnimations`, which returns early when no animated
+    // sprite is on screen. The light bake reads the same clock, and an emitter
+    // can sit outside the built geometry while its light still reaches inside
+    // the window.
     this.animClock += dt;
     // Beside the clock it reads, and before the early return below: a tile
     // forming in an otherwise still world is exactly the frame that reports
@@ -1965,8 +1962,6 @@ export class WorldRenderer {
   }
 
   /**
-   * Draw this frame's arrows.
-   *
    * A mesh per flight, made once and moved ever after. Everything that varies
    * frame to frame — where it is, what it sorts against, which cell's light it
    * takes — is an attribute write on geometry that already exists; the sprite's
@@ -2059,7 +2054,6 @@ export class WorldRenderer {
     return entry;
   }
 
-  /** Put one arrow where this frame says it is. */
   private placeProjectile(entry: ProjectileMesh, view: ProjectileView) {
     const frameIdx = frameIndexAtTime(entry.frames, this.animClock);
     const frame = entry.frames[frameIdx]!;
@@ -2267,7 +2261,6 @@ export class WorldRenderer {
     this.camera.updateMatrixWorld(true);
   }
 
-  /** This level's cut uniforms, with the mask already written into them. */
   /**
    * This level's animation uniforms, inert until the level is built.
    *
@@ -2319,6 +2312,7 @@ export class WorldRenderer {
     u.uAnimEnabled.value = 1;
   }
 
+  /** This level's cut uniforms, with the mask already written into them. */
   private ensureCutUniforms(z: number): LevelCutUniforms {
     let u = this.cutUniformsByZ.get(z);
     if (!u) {
@@ -2446,8 +2440,8 @@ export class WorldRenderer {
    * The cells the camera actually draws, as opposed to the ones the play view
    * covers.
    *
-   * The same arithmetic {@link cameraWindow} did before the play square could
-   * come apart from the camera, and it has exactly one caller: the debug view,
+   * The same arithmetic as {@link cameraWindow}, on the camera alone. It has
+   * exactly one caller: the debug view,
    * which culls its own outlines to the frame. Nothing about the world is
    * decided from this — that is the whole point of the split.
    */
@@ -2501,8 +2495,7 @@ export class WorldRenderer {
 
     // Bakes only the chunks in view that are missing, and hands back the same
     // grid object while nothing has changed — so identity, not a content hash,
-    // is what decides whether the textures need rewriting. This is what
-    // replaced hashing every cell in the map on every frame.
+    // is what decides whether the textures need rewriting.
     //
     // The animation clock is a bake input: a torch that flickers emits what its
     // live frame says it does, not what frame 0 said. Chunks no flicker reaches
@@ -2623,9 +2616,7 @@ export class WorldRenderer {
    * here**, and the failure when it is not is total rather than subtle: the
    * child is removed *and disposed*, so its geometry is freed underneath a
    * renderer that goes on thinking it is drawing. The particle mesh is built
-   * once in the constructor and the first map build ate it, which looked
-   * exactly like a particle system that had never been wired up at all.
-   * @see projectileGroup
+   * once in the constructor and is never rebuilt. @see projectileGroup
    *
    * Arrows and plumes survive on purpose: a new tile catalogue is not a reason
    * for a shot already in the air to vanish or a fire to go out, and neither is
@@ -2728,10 +2719,9 @@ export class WorldRenderer {
    *
    * **The ring is why this is not asked chunk by chunk.** An autotile reads its
    * eight neighbours, so a wall placed at the edge of one chunk restyles cells
-   * in the chunk next door without those cells changing. When geometry was one
-   * batch per floor that fell out for free — the whole floor was rebuilt. Per
-   * chunk it has to be said out loud, and the failure it prevents is a visible
-   * seam at a chunk boundary that nothing later would repair.
+   * in the chunk next door without those cells changing. Per chunk that has to
+   * be said out loud, and the failure it prevents is a visible seam at a chunk
+   * boundary that nothing later would repair.
    *
    * A cell outside the built set is skipped before its signature is computed,
    * so an edit in an unwatched corner of the world costs the walk and nothing
@@ -2885,13 +2875,11 @@ export class WorldRenderer {
   }
 
   /**
-   * Turn one chunk of one level into geometry.
-   *
-   * The same split the level build always made — merged batches per texture for
-   * everything still, a mesh of its own for anything animated or mobile — with
-   * the floor replaced by the chunk. Which is the whole change: the merged
-   * batch an edit used to invalidate was 4,565 cells of ground on level 0 and
-   * is now at most `CHUNK_SIZE` squared.
+   * Turn one chunk of one level into geometry: merged batches per texture for
+   * everything still, a mesh of its own for anything animated or mobile. The
+   * unit is the chunk, so the merged batch an edit invalidates is at most
+   * `CHUNK_SIZE` squared rather than a whole floor (4,565 cells of ground on
+   * level 0).
    */
   private buildChunk(map: MapFile, z: number, chunk: string) {
     const cells = getChunk(map, z, chunk);
@@ -2979,7 +2967,7 @@ export class WorldRenderer {
     for (const item of this.cellItems(map, z, x, y, getStack(map, x, y, z))) {
       if (item.anim || item.tileKey) continue;
       const b = item.box;
-      // The animation is part of the merged contribution now, so an edit that
+      // The animation is part of the merged contribution, so an edit that
       // changes which cycle a cell plays — or how far into it that cell starts —
       // has to fall through to a full rebuild rather than be read as unchanged.
       const a = item.mergedAnim;
@@ -3121,16 +3109,13 @@ export class WorldRenderer {
 
       const animates = frames.length > 1;
       // Own mesh only when the tile can *move* — not merely when it animates.
-      // Animation used to be a reason too, because the only way to change a
-      // frame was to rewrite the UVs of a mesh nobody else shared; the shader
-      // reads the frame off a table now, so a still animated tile merges like
-      // any other scenery. That is what makes a pond affordable: water is
-      // terrain and arrives in hundreds, and hundreds of meshes is hundreds of
-      // draw calls. See `./animTable`.
+      // The shader reads the frame off a table, so a still animated tile merges
+      // like any other scenery; water is terrain and arrives in hundreds, and
+      // hundreds of meshes is hundreds of draw calls. See `./animTable`.
       //
-      // Keying this on the live motion set was the older bug: a tile changed
-      // batch membership the instant it started and stopped, and changing
-      // membership rebuilds the whole floor — a full rebuild per step.
+      // Not the live motion set: keyed on that, a tile changes batch membership
+      // the instant it starts and stops, and changing membership rebuilds the
+      // batch — a rebuild per step.
       //
       // `isMobileTile` also covers every tile that can change sprite state,
       // because `moving` is the only state and `availableStates` gates it on
@@ -3302,8 +3287,6 @@ export class WorldRenderer {
   }
 
   /**
-   * Take on this frame's transitions.
-   *
    * Each note's slot is resolved against the board it is about — the new map
    * for an appear, the previous one for a disappear — and trusted only while
    * the tile it names is still there (see `resolveTransitionSlot`). A note that
@@ -3516,7 +3499,6 @@ export class WorldRenderer {
     return mat;
   }
 
-  /** Wind every transition on to the clock, and retire the ones that are done. */
   private advanceTransitions() {
     for (const [id, state] of this.liveTransitions) {
       if (this.transitionIsOver(state)) {
@@ -3636,7 +3618,6 @@ export class WorldRenderer {
     this.chunksToRebuild.clear();
   }
 
-  /** Ask for the chunk holding this cell to be rebuilt at the next flush. */
   private queueChunkRebuild(x: number, y: number, z: number) {
     this.chunksToRebuild.add(chunkAddressKey(z, chunkKeyFor(x, y)));
   }
@@ -3671,8 +3652,9 @@ export class WorldRenderer {
    *
    * **Not until the bake has dropped it.** The bake can run off the main
    * thread, so for a few frames after the tile leaves the grid being drawn is
-   * still the one that holds its light. Painting the fade over that doubled
-   * the light for exactly those frames — the room flared before it dimmed.
+   * still the one that holds its light. Painting the fade over that would
+   * double the light for exactly those frames — the room flaring before it
+   * dimmed.
    */
   private withFadingLights(
     view: WorldView,
@@ -3772,10 +3754,9 @@ export class WorldRenderer {
    * together — and a sprite's cadence is the cadence its frames are authored
    * with, whatever the frame rate.
    *
-   * The skip is per instance, not per key. Keying it off the shared index was
-   * the bug that made walking look erratic: a step rebuilds the walker's mesh
-   * at build-time UVs, and a shared index that already read `2` said "nothing
-   * to write" about a mesh that was showing something else entirely.
+   * The skip is per instance, not per key: a step rebuilds the walker's mesh
+   * at build-time UVs, and a shared index that already reads `2` would say
+   * "nothing to write" about a mesh showing something else entirely.
    */
   private updateAnimations(): boolean {
     // The merged batch's animations are a function of this one number, so a
@@ -3810,21 +3791,6 @@ export class WorldRenderer {
     return changed;
   }
 
-  /**
-   * Point every stateful mesh at the sprite its current {@link SpriteState}
-   * resolves to.
-   *
-   * A sibling of {@link applyTileMotions} rather than part of the map build, for
-   * the reason that pass is separate too: a state changes on a frame where the
-   * map has not, so routing it through the rebuild would mean inventing a map
-   * edit to trigger one. Here it costs a walk of the registry, which holds only
-   * the handful of meshes that can change at all.
-   *
-   * Only the frame *list* is replaced. The mesh's geometry keeps the footprint it
-   * was built with, which is why a state's sprites must match idle's `rect` and
-   * `base` — the same constraint the animation path has always had between the
-   * frames of one sprite, applied one level up. See `validateStateFootprints`.
-   */
   /**
    * Put each placement in the colour its statuses say it is wearing, and take
    * the colour off anything that has stopped wearing one.
@@ -3875,6 +3841,21 @@ export class WorldRenderer {
     }
   }
 
+  /**
+   * Point every stateful mesh at the sprite its current {@link SpriteState}
+   * resolves to.
+   *
+   * A sibling of {@link applyTileMotions} rather than part of the map build, for
+   * the reason that pass is separate too: a state changes on a frame where the
+   * map has not, so routing it through the rebuild would mean inventing a map
+   * edit to trigger one. Here it costs a walk of the registry, which holds only
+   * the handful of meshes that can change at all.
+   *
+   * Only the frame *list* is replaced. The mesh's geometry keeps the footprint it
+   * was built with, which is why a state's sprites must match idle's `rect` and
+   * `base` — the same constraint the animation path has between the frames of
+   * one sprite, applied one level up. See `validateStateFootprints`.
+   */
   private applySpriteStates(states: ReadonlyMap<string, SpriteState> | undefined) {
     if (this.animated.length === 0) return;
     let swapped = false;
@@ -3913,7 +3894,6 @@ export class WorldRenderer {
   }
 }
 
-/** Point one quad at a frame's slice of its atlas. */
 /**
  * A frame's slice of its atlas, in texture coordinates.
  *

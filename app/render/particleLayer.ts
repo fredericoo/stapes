@@ -272,8 +272,6 @@ export class ParticleLayer {
   }
 
   /**
-   * The material a plume on this level is drawn with.
-   *
    * The same depth machinery every sprite goes through — a particle sorts by the
    * box it carries, exactly as a tile does — and the same per-level light map,
    * so a lit spark is lit by the room it is actually in.
@@ -377,7 +375,6 @@ export class ParticleLayer {
       }
       const written = quad * INDICES_PER_QUAD - groupStart;
       if (written === 0) continue;
-      // One group per level, pointing at that level's material.
       this.geometry.addGroup(groupStart, written, this.levels.length);
       this.levels.push(z);
     }
@@ -524,11 +521,10 @@ export class ParticleLayer {
       indices[ib + 5] = base + 1;
     }
     geo.setIndex(new THREE.BufferAttribute(indices, 1));
-    // **Left wide open on purpose, and it must stay that way.** Groups do not
-    // replace the draw range, they are intersected with it — a geometry pinned
-    // to `setDrawRange(0, 0)` draws nothing however many groups it carries, and
-    // that is exactly how the whole layer went silently blank. What bounds the
-    // draw is the groups; `mesh.visible` is what covers the frame with none.
+    // **Left wide open on purpose.** Groups do not replace the draw range, they
+    // are intersected with it — a geometry pinned to `setDrawRange(0, 0)` draws
+    // nothing however many groups it carries. What bounds the draw is the
+    // groups; `mesh.visible` is what covers the frame with none.
     geo.setDrawRange(0, Infinity);
     return geo;
   }

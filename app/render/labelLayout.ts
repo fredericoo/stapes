@@ -10,13 +10,12 @@
  *
  * ## Why a pass rather than per-label rules
  *
- * The stylesheet used to hold a single offset that lifted speech clear of a name
- * tag on the same head. That works exactly as far as the case it was written for
- * and no further: it knows nothing about a second speaker standing beside the
- * first, about a look at an object someone is talking over, or about a label
- * near the edge of the square. None of those can be answered by a label on its
- * own, because the answer depends on where the *other* labels landed. So they
- * are solved together, after measuring, in screen pixels.
+ * A single offset lifting speech clear of a name tag on the same head knows
+ * nothing about a second speaker standing beside the first, about a look at an
+ * object someone is talking over, or about a label near the edge of the square.
+ * None of those can be answered by a label on its own, because the answer
+ * depends on where the *other* labels landed. So they are solved together,
+ * after measuring, in screen pixels.
  *
  * ## The order is the priority
  *
@@ -203,9 +202,9 @@ function wantedRect(
  * The bar is a child of the name label, so left alone it would ride along with
  * whatever the text above it did — and the text is centred on a box as wide as
  * the name, then dragged inside the view. A creature at the left edge of the
- * square therefore had its bar sitting under the *middle* of a long name, a
- * whole name's width away from the thing it was reporting on: at a glance the
- * bar belonged to whatever was standing over there instead.
+ * square would have its bar sitting under the *middle* of a long name, a whole
+ * name's width away from the thing it was reporting on: at a glance the bar
+ * would belong to whatever was standing over there instead.
  *
  * So the bar is placed on the anchor directly, and pulled inside the view by its
  * own width. Every reading is one cell wide whoever it belongs to, which is why

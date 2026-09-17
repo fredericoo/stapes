@@ -387,25 +387,19 @@ function dressOutline(
  * The outline materials, lent out and taken back rather than made and thrown
  * away.
  *
- * **Because a disposed material takes its compiled program with it.** Three
- * refcounts programs by the materials using them, and the outline shader is the
- * one program in the game whose only users are in the chrome layer —
- * everything else up there is a `MeshBasicMaterial` or a `LineBasicMaterial`
- * the world is already drawing with. So emptying that layer dropped its count
- * to zero, and the driver freed the program; the next outline compiled and
- * linked the whole thing again, inside `render`, on the frame it was wanted.
+ * A disposed material takes its compiled program with it. Three refcounts
+ * programs by the materials using them, and the outline shader's only users
+ * are in the chrome layer — everything else up there is a `MeshBasicMaterial`
+ * or a `LineBasicMaterial` the world is already drawing with. Emptying that
+ * layer with disposal drops the count to zero, and the next outline compiles
+ * and links the shader again, inside `render`. A rebuild happens on every
+ * pointer move down the interaction list or across the editor's grid, and a
+ * relink is milliseconds each, in the `draw` phase.
  *
- * That is once per rebuild, and a rebuild is a pointer moving from one thing to
- * the next: sliding down the interaction list or across the editor's grid
- * relinks a shader per mouse move, which is milliseconds each and lands in the
- * `draw` phase where it reads as the renderer having got slower. Nothing about
- * it is visible until you look at what the chrome layer costs when it is
- * *changing* rather than when it is up.
- *
- * Keeping the materials is the whole fix — the program's count never reaches
- * zero, so it is compiled once for the life of the page. The pool is bounded by
- * the most outlines ever on screen at once, which is one ring per thing in the
- * widest heap (see `./pileLayout`'s `MAX_PILE_SPRITES`) plus a handful.
+ * Kept, the program's count never reaches zero, so it is compiled once for the
+ * life of the page. The pool is bounded by the most outlines ever on screen at
+ * once, which is one ring per thing in the widest heap (see `./pileLayout`'s
+ * `MAX_PILE_SPRITES`) plus a handful.
  *
  * Deliberately per-renderer rather than a module-level singleton: this owns GPU
  * resources, and everything else here that does is freed by the renderer that
@@ -415,7 +409,6 @@ export class OutlineMaterials {
   private free: THREE.ShaderMaterial[] = [];
   private lent = new Set<THREE.ShaderMaterial>();
 
-  /** A material dressed for this outline, reused if one is going spare. */
   take(
     art: OutlineArt,
     color: number,
@@ -428,8 +421,6 @@ export class OutlineMaterials {
   }
 
   /**
-   * Take a material back if it is one of ours, and say whether it was.
-   *
    * Asked per material by {@link disposeGroupChildren} rather than in a sweep
    * of its own, so there is no order to get wrong: a material is returned by
    * the same pass that drops the mesh holding it, and can never be handed out

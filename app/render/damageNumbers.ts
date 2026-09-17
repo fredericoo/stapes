@@ -37,7 +37,6 @@ export type DamageNumberView = {
   /** World-pixel anchor — the point the number rises from. */
   x: number;
   y: number;
-  /** Which of the two this was; decides the word and the colour. */
   outcome: SwingOutcome;
   /** Read only for a hit — a miss says a word instead. */
   amount: number;
@@ -74,8 +73,6 @@ export class DamageNumberLayer {
   constructor(private readonly container: HTMLElement) {}
 
   /**
-   * Draw this frame's numbers.
-   *
    * Position is computed from the anchor and the number's own age, so a number
    * rises at the same rate whatever the frame rate is doing — and, because the
    * anchor is a fixed world point rather than the body it came off, it keeps
@@ -154,11 +151,9 @@ export class DamageNumberLayer {
  * swinger failing, and a player who cannot read that off the screen cannot tell
  * a weapon they have no business holding from a foe they cannot catch.
  *
- * **The only one of the three left in text.** A dodge used to be a word here
- * beside this one, and is now the defender hopping half a tile out of the way —
- * see `../game/strike`. That is the split: a miss is something the *attacker*
- * did, with no body free to act it out, and a dodge is something the defender
- * did, which their own body says better than a label ever could.
+ * A dodge is not a word here: it is the defender hopping half a tile out of the
+ * way — see `../game/strike`. A miss is something the *attacker* did, with no
+ * body free to act it out.
  */
 const NOTHING_HAPPENED: Record<"miss", string> = {
   miss: "miss",
@@ -216,9 +211,6 @@ export function classFor(number: DamageNumberView): string {
   if (number.outcome === "heal") {
     return "damage-number damage-number--mend";
   }
-  // A blocked blow reads as nothing rather than as damage, and *whoever* it
-  // happened to: red marks hit points you cannot afford to miss, and a blow that
-  // took none has nothing at stake.
   if (number.outcome !== "hit" || number.amount <= 0) {
     return "damage-number damage-number--nothing";
   }

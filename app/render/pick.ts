@@ -23,7 +23,7 @@ import { CELL_SIZE, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
  * ground of everything behind it: the tree is trivial to hit from anywhere in a
  * wide region it does not occupy, and the cat standing one cell back is
  * *unreachable*, because the tree's quad wins the depth comparison over every
- * pixel of it. Size became reach, and small things behind big things could not
+ * pixel of it. Size becomes reach, and small things behind big things cannot
  * be pointed at at all.
  *
  * A foot is the same eight pixels square for every tile — the ground its column
@@ -49,10 +49,10 @@ import { CELL_SIZE, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
  *
  * Measuring at each tile's own elevation instead is the obvious thing and it
  * leaves holes. A tile standing one unit up has its square lifted four pixels
- * up-left, off the strip of ground it used to cover — and nothing else claims
- * that strip, because the tile that would have is the one that moved. On screen
- * that was a half-cell band, below and right of anything raised, where pointing
- * selected nothing at all.
+ * up-left, off the strip of ground it would otherwise cover — and nothing else
+ * claims that strip, because the tile that would have is the one that moved. On
+ * screen that is a half-cell band, below and right of anything raised, where
+ * pointing selects nothing at all.
  */
 export function footRect(
   x: number,
@@ -78,9 +78,7 @@ export type PickContext = {
  * **Top down rather than the top alone, because you stand on things.** A body is
  * a placement like any other, so the ladder you are climbing has *you* above it
  * in its stack — and a pick that read only the topmost slot could never see the
- * one tile the cell exists for. It showed as a ladder the interaction list
- * offered "Climb up" on while the world under the cursor stayed dark and
- * swallowed the click; the same was true of anything you were standing over.
+ * one tile the cell exists for.
  *
  * How far down it reaches is {@link coveredBySomething} and deliberately nothing
  * new: the affordances already own where a hand can get to, and reusing their
@@ -125,12 +123,10 @@ function candidateIn(
  *
  * Ground squares tile the plane and {@link screenToCoord} is their exact
  * inverse, so a point belongs to exactly one cell on each level and there is
- * nothing to search: three levels are three lookups. This replaced a pair of
- * indexes that were rebuilt whenever the map changed identity — every commit
- * anywhere in the world — and each rebuild walked every cell on three levels to
- * find the dozen that were interesting. It cost 17ms a frame on the live map to
- * produce 23 candidates, and only ever ran while the cursor was over the canvas,
- * which is how it presented: fps that recovered the moment the mouse left.
+ * nothing to search: three levels are three lookups. An index rebuilt whenever
+ * the map changes identity — every commit anywhere in the world — walks every
+ * cell on three levels to find a couple of dozen candidates, which is 17ms a
+ * frame on the live map.
  *
  * Which slot of a stack answers is {@link candidateIn}: the top of it, and then
  * down past anything that does not bury what is beneath it — your own feet
@@ -145,8 +141,7 @@ function candidateIn(
  * a target at all right now.
  *
  * Feet on different levels do overlap on screen — a floor above projects onto
- * the one below — which is why the draw-order tie-break survives the move away
- * from sprite quads.
+ * the one below — which is why there is a draw-order tie-break at all.
  */
 function pickTopAt(
   ctx: PickContext,
@@ -235,7 +230,7 @@ export function pickInteractiveAt(
  *
  * A dialog counts because the NPCs that talk are mostly props: no hit points,
  * and `dialog` is not one of `interactionKinds`, so neither this pick nor
- * {@link pickInteractiveAt} would find them, and a tap on a salesman walked
+ * {@link pickInteractiveAt} would find them, and a tap on a salesman would walk
  * towards him instead of opening his Talk row.
  */
 export function pickBodyAt(
@@ -264,12 +259,7 @@ function isBody(def: TileDef): boolean {
  * than whatever can be done to it. The roof-cut is honoured for the reason only
  * the top of a stack is offered: a roof the view has cut away is not there to be
  * named. A roof that is still drawn very much is, and reports "Roof" — including
- * the one on the house next door, now that the cut is a structure and no longer
- * a level.
- *
- * This used to probe a square of cells around the pointer, sized by the widest
- * sprite in the tile set, and test each one's art. Both the search and the
- * dependency on the atlas are gone with it.
+ * the one on the house next door.
  */
 export function pickTileAt(
   ctx: PickContext,

@@ -10,7 +10,7 @@
  * cannot see any of this from.
  *
  * **Debug mode pulls the camera back and leaves every window where it was.**
- * That is the whole trick, and it is why {@link WorldView.playSquare} exists:
+ * That is why {@link WorldView.playSquare} exists:
  * grow the camera and the windows grow with it, and there is nothing to look
  * at. Pinned, the extra world on screen is a picture of what the renderer was
  * already paying for — chunks appearing a chunk-column ahead of the walk, light
@@ -54,7 +54,6 @@ export function debugSpanPx(zoomOut: number): number {
   return VIEW_PX * clampZoomOut(zoomOut);
 }
 
-/** Keep a zoom-out inside the range, whole, and never zero. */
 export function clampZoomOut(zoomOut: number): number {
   const whole = Math.round(zoomOut);
   if (!Number.isFinite(whole)) return DEBUG_ZOOM_OUT;

@@ -10,14 +10,10 @@ import {
 /**
  * Every animation one level draws, as a texture its vertex shader can read.
  *
- * The point of it is that an animated tile no longer needs a mesh of its own.
- * Until this existed the renderer kept animated tiles out of the merged batch so
- * their UVs could be rewritten when the frame flipped, which costs one mesh and
- * one draw call *per placement* — fine for the handful of torches a map has, and
- * ruinous for water, which is terrain and arrives in hundreds. Here the frame is
- * a function the vertex shader evaluates instead: the quad carries a row index
- * and its own phase, and this table says where each frame of that row sits
- * relative to frame 0.
+ * An animated tile needs no mesh of its own: the quad carries a row index and
+ * its own phase, and this table says where each frame of that row sits relative
+ * to frame 0, so the vertex shader picks the live frame itself. That is what
+ * keeps water, which arrives in hundreds of placements, inside the merged batch.
  *
  * One row per animation, one texel per frame, `RGBA32F`:
  *
@@ -51,15 +47,9 @@ export class AnimationTable {
   }
 
   /**
-   * The row for these frames, adding it on first sight.
-   *
    * Returns {@link NO_ANIMATION} for anything with fewer than two frames, and
-   * for a sprite whose frames disagree about their footprint. That is already
-   * impossible for a tile that animates today — the old path rewrote UVs into
-   * geometry built once, which only works when the rect never changes size — but
-   * it is impossible *implicitly*, and this path would mis-draw rather than
-   * refuse. So it refuses, and the tile falls back to standing still on frame 0
-   * rather than smearing a neighbouring sprite across itself.
+   * for a sprite whose frames disagree about their footprint: that tile stands
+   * still on frame 0 rather than smearing a neighbouring sprite across itself.
    */
   add(frames: Frame[], tileset: TilesetDef): number {
     const existing = this.rows.get(frames);
@@ -91,8 +81,6 @@ export class AnimationTable {
   }
 
   /**
-   * The texture, built on first ask and held until another animation arrives.
-   *
    * A level's quads are all walked before anything draws, so this is baked once
    * per rebuild however many times it is read.
    */
@@ -133,17 +121,12 @@ export class AnimationTable {
 
   /**
    * Whether anything in this table draws differently at `toMs` than at `fromMs`.
-   *
-   * What stops a world with a pond in it from rendering every frame for ever.
-   * The clock moving is not the question — it moves every frame — the question
-   * is whether it crossed a frame boundary, and between boundaries there is
-   * nothing new to draw.
+   * Between frame boundaries there is nothing new to draw, which is what lets a
+   * world with a pond in it skip frames.
    *
    * One answer covers every placement however they are phased, because a phase
-   * is always a whole number of frames (`cellPhaseMs` returns a frame's start):
-   * shifting a cycle by one of its own boundaries lands its boundaries back on
-   * the same set. So a cell is mid-frame exactly when every other cell of that
-   * animation is, and asking about phase zero asks about all of them.
+   * is always a whole number of frames (`cellPhaseMs` returns a frame's start),
+   * so a cell is mid-frame exactly when every other cell of that animation is.
    */
   crossedFrame(fromMs: number, toMs: number): boolean {
     for (const { frames } of this.order) {
@@ -193,16 +176,9 @@ export function tableCanHold(frames: Frame[]): boolean {
 }
 
 /**
- * Whether every frame draws the same size from the same sheet.
- *
- * A frame of a different *size* would need the quad's geometry to change, and
- * the whole point here is that it does not.
- *
- * A frame from a different *sheet* would break a merged batch too — it is one
- * texture by construction, and the quad would sample whichever sheet its
- * neighbours happened to put it in — but that is no longer something a tile can
- * say. The sheet is asked once, on `TileDef.anchor`, so there is nothing
- * left here to check.
+ * A frame of a different size would need the quad's geometry to change, which
+ * the table cannot do. The sheet is asked once, on `TileDef.anchor`, so it is
+ * not checked here.
  */
 function uniformFootprint(frames: Frame[]): boolean {
   const first = frames[0]!.sprite;
