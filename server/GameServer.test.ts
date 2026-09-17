@@ -4264,7 +4264,7 @@ describe("casting", () => {
     // Nothing cast yet, so nothing cooling — the state the button draws as lit.
     expect(charmCooldown(hello)).toBeUndefined();
 
-    send(ws, { type: "cast", square: "charm" });
+    send(ws, { type: "cast", slot: { from: "square", square: "charm" } });
     const kit = await equipmentWithin(ws);
     expect(kit).not.toBeNull();
     expect(charmCooldown(kit!)).toBe(STONE_COOLDOWN_MS);
@@ -4294,7 +4294,7 @@ describe("casting", () => {
     const hits = eventsWithin(thrower.ws, "damage", 400);
 
     send(thrower.ws, { type: "target", actorId: victimId });
-    send(thrower.ws, { type: "cast", square: "weapon" });
+    send(thrower.ws, { type: "cast", slot: { from: "square", square: "weapon" } });
 
     expect((await shots).map((shot) => shot.tileId)).toContain("arrow");
     expect(await hits).not.toHaveLength(0);
@@ -4308,7 +4308,7 @@ describe("casting", () => {
   it("brings the cooldown back after the world has been evicted", async () => {
     const who = freshPlayer();
     const first = await connect(who);
-    send(first.ws, { type: "cast", square: "charm" });
+    send(first.ws, { type: "cast", slot: { from: "square", square: "charm" } });
     await equipmentWithin(first.ws);
     await leave(first.ws);
 
@@ -4439,7 +4439,7 @@ describe("saving authored content", () => {
     // The reload hands every open socket a fresh `hello`; the cast goes after it.
     await messageWithin(ws, "hello", 2000);
 
-    send(ws, { type: "cast", square: "charm" });
+    send(ws, { type: "cast", slot: { from: "square", square: "charm" } });
     const kit = await equipmentWithin(ws);
     expect(charm(kit!)?.cooldownMs).toBe(SHORT_MS);
   });
@@ -4451,7 +4451,7 @@ describe("saving authored content", () => {
    */
   it("clamps a running cooldown to the shortened stone", async () => {
     const { ws } = await connect(freshPlayer());
-    send(ws, { type: "cast", square: "charm" });
+    send(ws, { type: "cast", slot: { from: "square", square: "charm" } });
     expect(charm((await equipmentWithin(ws))!)?.cooldownMs).toBe(LONG_MS);
 
     await saveTiles(SHORT_MS);
@@ -4578,7 +4578,7 @@ describe("tile transitions", () => {
     send(alice.ws, { type: "command", text: "/mastery arcane 10" });
     await nextMessageOfType(alice.ws, "masteries");
 
-    send(alice.ws, { type: "cast", square: "offhand" });
+    send(alice.ws, { type: "cast", slot: { from: "square", square: "offhand" } });
     // The flame's, not the caster's own: the real player tile has a way in too.
     const formed = await eventWithin(
       alice.ws,
@@ -4810,18 +4810,18 @@ describe("a cast somebody else is making", () => {
     const bob = await connect("bob");
 
     const starting = castWithin(bob.ws, "alice");
-    send(alice.ws, { type: "cast", square: "charm" });
+    send(alice.ws, { type: "cast", slot: { from: "square", square: "charm" } });
     const started = await starting;
     const progress = started?.progress as {
       remainingMs: number;
       durationMs: number;
-      square: string;
+      slot: { from: string; square?: string };
     };
     expect(progress.durationMs).toBeGreaterThan(0);
     expect(progress.remainingMs).toBeLessThanOrEqual(progress.durationMs);
-    // Which square rides along, for the caster's own row: the button the cast
-    // came out of is the one that stops it.
-    expect(progress.square).toBe("charm");
+    // Which button rides along, for the caster's own row: the one the cast came
+    // out of is the one that stops it.
+    expect(progress.slot).toEqual({ from: "square", square: "charm" });
 
     expect(await castWithin(bob.ws, "alice")).toEqual({
       actorId: "alice",
@@ -4844,7 +4844,7 @@ describe("a cast somebody else is making", () => {
     const bob = await connect("bob");
 
     const starting = castWithin(bob.ws, "alice");
-    send(alice.ws, { type: "cast", square: "charm" });
+    send(alice.ws, { type: "cast", slot: { from: "square", square: "charm" } });
     expect((await starting)?.progress).not.toBeNull();
 
     const ending = castWithin(bob.ws, "alice");
@@ -4852,7 +4852,7 @@ describe("a cast somebody else is making", () => {
     expect(await ending).toEqual({ actorId: "alice", progress: null });
 
     const again = castWithin(bob.ws, "alice");
-    send(alice.ws, { type: "cast", square: "charm" });
+    send(alice.ws, { type: "cast", slot: { from: "square", square: "charm" } });
     expect((await again)?.progress).not.toBeNull();
   });
 
@@ -4863,7 +4863,7 @@ describe("a cast somebody else is making", () => {
       JSON_TYPE,
     );
     const alice = await connect("alice");
-    send(alice.ws, { type: "cast", square: "charm" });
+    send(alice.ws, { type: "cast", slot: { from: "square", square: "charm" } });
     await messageWithin(alice.ws, "patch", MESSAGE_TIMEOUT_MS);
 
     const bob = await connect("bob");

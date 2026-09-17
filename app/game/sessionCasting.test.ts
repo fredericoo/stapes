@@ -11,6 +11,7 @@ import { COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import type { Coord, MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
+import { naturalSlot, squareSlot } from "./casting";
 import { guardBand, MIN_GUARD_SHARE } from "./combat";
 import { TICK_MS } from "./constants";
 import {
@@ -657,7 +658,7 @@ function session(
 
 /** Wind a stone forward by hand, for a case about what happens while it cools. */
 function cool(play: GameSession, square: Square, cooldownMs: number) {
-  play.cast(square);
+  play.cast(squareSlot(square));
   const kit = play.equipmentOf("local")!;
   const held = kit[square]!;
   Object.assign(held, { cooldownMs });
@@ -709,7 +710,7 @@ describe("spending a cooldown", () => {
     play.runCommand("/health 10");
     play.drainNotices();
 
-    expect(play.cast("charm")).toBe(true);
+    expect(play.cast(squareSlot("charm"))).toBe(true);
     expect(coolingIn(play, "charm")).toBe(MEND_COOLDOWN_MS);
   });
 
@@ -722,20 +723,20 @@ describe("spending a cooldown", () => {
     const play = session({ charm: "mend-stone" });
 
     expect(hpOf(play)).toBe(PLAYER_MAX_HP);
-    expect(play.cast("charm")).toBe(true);
+    expect(play.cast(squareSlot("charm"))).toBe(true);
     expect(hpOf(play)).toBe(PLAYER_MAX_HP);
     expect(coolingIn(play, "charm")).toBe(MEND_COOLDOWN_MS);
   });
 
   it("refuses a second cast until the stone is ready", () => {
     const play = session({ charm: "mend-stone" });
-    play.cast("charm");
-    expect(play.cast("charm")).toBe(false);
+    play.cast(squareSlot("charm"));
+    expect(play.cast(squareSlot("charm"))).toBe(false);
   });
 
   it("counts a full cooldown down second by second", () => {
     const play = session({ charm: "mend-stone" });
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
     expect(coolingIn(play, "charm")).toBe(MEND_COOLDOWN_MS);
 
     run(play, TICKS_PER_SECOND);
@@ -753,7 +754,7 @@ describe("spending a cooldown", () => {
     run(play, TICKS_PER_SECOND);
     // Absent rather than zero: ready is the absence of a cooldown everywhere.
     expect(coolingIn(play, "charm")).toBeUndefined();
-    expect(play.cast("charm")).toBe(true);
+    expect(play.cast(squareSlot("charm"))).toBe(true);
   });
 
   /**
@@ -765,7 +766,7 @@ describe("spending a cooldown", () => {
     const play = session({ charm: "mend-stone" });
     expect(play.isAtRest()).toBe(true);
 
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
     expect(play.isAtRest()).toBe(false);
   });
 });
@@ -775,7 +776,7 @@ describe("a cooling stone is locked in its square", () => {
 
   function armed(): GameSession {
     const play = session({ charm: "mend-stone" });
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
     play.drainNotices();
     return play;
   }
@@ -819,7 +820,7 @@ describe("a cooling stone is locked in its square", () => {
    */
   it("cannot be traded out by something dropped on top of it", () => {
     const play = session({ charm: "mend-stone", weapon: "flame-stone" });
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
     play.drainNotices();
 
     expect(play.moveItem({ kind: "weapon" }, { kind: "charm" })).toBe(false);
@@ -873,7 +874,7 @@ describe("a cooling stone is locked in its square", () => {
   /** The lock is about the stone. Everything else on the body still moves. */
   it("leaves the rest of the kit alone", () => {
     const play = session({ charm: "mend-stone", weapon: "brand-stone" });
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
     play.drainNotices();
     expect(play.moveItem({ kind: "weapon" }, { kind: "offhand" })).toBe(true);
   });
@@ -892,7 +893,7 @@ describe("what casting earns", () => {
     play.drainNotices();
 
     const before = arcane(play);
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
     expect(arcane(play) - before).toBeCloseTo(rate(MEND_HP) + XP_PER_CAST, 6);
   });
 
@@ -905,7 +906,7 @@ describe("what casting earns", () => {
     const play = session({ charm: "mend-stone" });
 
     const before = arcane(play);
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
     expect(arcane(play) - before).toBe(XP_PER_CAST);
   });
 
@@ -915,7 +916,7 @@ describe("what casting earns", () => {
     play.drainNotices();
 
     const before = arcane(play);
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
     expect(arcane(play) - before).toBeCloseTo(rate(3) + XP_PER_CAST, 6);
   });
 
@@ -927,7 +928,7 @@ describe("what casting earns", () => {
   it("pays nothing for damage a caster does to themselves", () => {
     const play = session({ charm: "scorch-stone" });
 
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
     const before = arcane(play);
     // Long enough for the burn to pay out several times over.
     run(play, TICKS_PER_SECOND * 3);
@@ -950,7 +951,7 @@ describe("what pressing a stone teaches you for its own sake", () => {
   /** Cast, wait out the cooldown, repeat. */
   function castRepeatedly(play: GameSession, times: number, cooldownMs: number) {
     for (let i = 0; i < times; i++) {
-      expect(play.cast("weapon")).toBe(true);
+      expect(play.cast(squareSlot("weapon"))).toBe(true);
       run(play, TICKS_PER_SECOND * Math.ceil(cooldownMs / 1000));
     }
   }
@@ -958,7 +959,7 @@ describe("what pressing a stone teaches you for its own sake", () => {
   it("pays a flat amount for a spell that accomplished nothing at all", () => {
     const play = session({ weapon: "ward-stone" });
     const before = arcane(play);
-    play.cast("weapon");
+    play.cast(squareSlot("weapon"));
     expect(arcane(play) - before).toBe(XP_PER_CAST);
   });
 
@@ -989,8 +990,8 @@ describe("what pressing a stone teaches you for its own sake", () => {
 
     const cheapBefore = arcane(cheap);
     const dearBefore = arcane(dear);
-    cheap.cast("weapon");
-    dear.cast("weapon");
+    cheap.cast(squareSlot("weapon"));
+    dear.cast(squareSlot("weapon"));
 
     // The dear one mends a body at full health, so its outcome is worth nothing
     // and the whole of what it paid is the fee.
@@ -1002,7 +1003,7 @@ describe("what pressing a stone teaches you for its own sake", () => {
   it("pays nothing for a press the stone refused", () => {
     const play = session({ charm: "adept-stone" });
     const before = arcane(play);
-    expect(play.cast("charm")).toBe(false);
+    expect(play.cast(squareSlot("charm"))).toBe(false);
     expect(arcane(play)).toBe(before);
   });
 
@@ -1059,7 +1060,7 @@ describe("conjuring", () => {
   it("places the tile in front of the caster when nothing is targeted", () => {
     const play = session({ weapon: "flame-stone" });
 
-    expect(play.cast("weapon")).toBe(true);
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
     expect(getStack(play.getMap(), 1, 0, 0).map((p) => p.tileId)).toContain(
       "conjured-flame",
     );
@@ -1068,7 +1069,7 @@ describe("conjuring", () => {
   it("announces the flame it placed, when that flame has a way in authored", () => {
     const play = session({ weapon: "form-stone" });
 
-    expect(play.cast("weapon")).toBe(true);
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
     // On the grass in front of the caster, so second in its stack.
     expect(play.drainTransitions()).toEqual([
       {
@@ -1086,13 +1087,13 @@ describe("conjuring", () => {
   it("announces nothing for a flame with no way in authored", () => {
     const play = session({ weapon: "flame-stone" });
 
-    expect(play.cast("weapon")).toBe(true);
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
     expect(play.drainTransitions()).toEqual([]);
   });
 
   it("still hands a cast's flame to a viewer on this machine after a tick", () => {
     const play = session({ weapon: "form-stone" });
-    play.cast("weapon");
+    play.cast(squareSlot("weapon"));
     // A tick empties what a server drains. A local viewer advances by ticks and
     // a cast lands between them, so its hand-over has to outlive one.
     run(play, 1);
@@ -1110,7 +1111,7 @@ describe("conjuring", () => {
     );
     play.setTarget(ratAt(play, { x: 3, y: 0, z: 0 }));
 
-    expect(play.cast("weapon")).toBe(true);
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
     expect(getStack(play.getMap(), 3, 0, 0).map((p) => p.tileId)).toContain(
       "conjured-flame",
     );
@@ -1121,7 +1122,7 @@ describe("conjuring", () => {
 
   it("marks the placement with whoever cast it", () => {
     const play = session({ weapon: "flame-stone" });
-    play.cast("weapon");
+    play.cast(squareSlot("weapon"));
 
     const placed = getStack(play.getMap(), 1, 0, 0).find(
       (p) => p.tileId === "conjured-flame",
@@ -1134,7 +1135,7 @@ describe("conjuring", () => {
 
   it("goes out on its own", () => {
     const play = session({ weapon: "flame-stone" });
-    play.cast("weapon");
+    play.cast(squareSlot("weapon"));
 
     run(play, TICKS_PER_SECOND * 9);
     expect(getStack(play.getMap(), 1, 0, 0).map((p) => p.tileId)).not.toContain(
@@ -1154,7 +1155,7 @@ describe("conjuring", () => {
     ]);
     const play = session({ weapon: "flame-stone" }, map);
 
-    expect(play.cast("weapon")).toBe(false);
+    expect(play.cast(squareSlot("weapon"))).toBe(false);
     expect(coolingIn(play, "weapon")).toBeUndefined();
     expect(play.spells()[0]?.castability).toEqual({
       ok: false,
@@ -1172,7 +1173,7 @@ describe("conjuring", () => {
     const play = session({ weapon: "flame-stone" });
     expect(play.requestStep("local", "e")).toBe("started");
 
-    expect(play.cast("weapon")).toBe(true);
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
     expect(getStack(play.getMap(), 1, 0, 0).map((p) => p.tileId)).not.toContain(
       "conjured-flame",
     );
@@ -1201,7 +1202,7 @@ describe("conjuring", () => {
     );
     expect(player?.direction).toBe("w");
 
-    expect(play.cast("weapon")).toBe(true);
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
     expect(getStack(play.getMap(), 0, 0, 0).map((p) => p.tileId)).toContain(
       "conjured-flame",
     );
@@ -1220,7 +1221,7 @@ describe("a flame you conjured, burning somebody else", () => {
   function litWorld(): GameSession {
     const play = session({ weapon: "flame-stone" }, spawnRat(world(), RAT_CELL));
     play.setTarget(ratAt(play, RAT_CELL));
-    play.cast("weapon");
+    play.cast(squareSlot("weapon"));
     play.drainNotices();
     return play;
   }
@@ -1267,7 +1268,7 @@ describe("a status cast at somebody", () => {
     const rat = ratAt(play, RAT_CELL);
     play.setTarget(rat);
 
-    expect(play.cast("weapon")).toBe(true);
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
     expect((play.statusesOf(rat) ?? []).map((s) => s.defId)).toEqual(["burned"]);
 
     const before = play.masteryXpOf("local")?.arcane ?? 0;
@@ -1277,7 +1278,7 @@ describe("a status cast at somebody", () => {
 
   it("refuses to fire with nobody targeted, and costs nothing", () => {
     const play = session({ weapon: "brand-stone" });
-    expect(play.cast("weapon")).toBe(false);
+    expect(play.cast(squareSlot("weapon"))).toBe(false);
     expect(coolingIn(play, "weapon")).toBeUndefined();
   });
 });
@@ -1292,7 +1293,7 @@ describe("a stone above the caster's mastery", () => {
   it("refuses to fire, and spends nothing", () => {
     const play = session({ charm: "adept-stone" });
 
-    expect(play.cast("charm")).toBe(false);
+    expect(play.cast(squareSlot("charm"))).toBe(false);
     expect(coolingIn(play, "charm")).toBeUndefined();
   });
 
@@ -1301,13 +1302,13 @@ describe("a stone above the caster's mastery", () => {
     play.runCommand("/mastery arcane 10");
     play.drainNotices();
 
-    expect(play.cast("charm")).toBe(true);
+    expect(play.cast(squareSlot("charm"))).toBe(true);
   });
 
   /**
    * And it has no button until then. A refusal a player can do nothing about
    * from where they are standing is not worth a permanently dead disc — what the
-   * stone asks for is on its item card. @see `./casting`'s castableStones
+   * stone asks for is on its item card. @see `./casting`'s castableSpells
    */
   it("is not in the row until then", () => {
     const play = session({ charm: "adept-stone" });
@@ -1315,7 +1316,9 @@ describe("a stone above the caster's mastery", () => {
 
     play.runCommand("/mastery arcane 10");
     play.drainNotices();
-    expect(play.spells().map((spell) => spell.square)).toEqual(["charm"]);
+    expect(play.spells().map((spell) => spell.slot)).toEqual([
+      squareSlot("charm"),
+    ]);
   });
 });
 
@@ -1326,9 +1329,9 @@ describe("the row the session reports", () => {
 
   it("names every stone that can be pressed, in square order", () => {
     const play = session({ offhand: "mend-stone", charm: "flame-stone" });
-    expect(play.spells().map((spell) => spell.square)).toEqual([
-      "offhand",
-      "charm",
+    expect(play.spells().map((spell) => spell.slot)).toEqual([
+      squareSlot("offhand"),
+      squareSlot("charm"),
     ]);
   });
 });
@@ -1360,7 +1363,7 @@ describe("an elemental spell", () => {
     );
     const target = bodyAt(play, RAT_CELL, victim);
     play.setTarget(target);
-    expect(play.cast("weapon")).toBe(true);
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
 
     const before = play.actorSnapshots().find((a) => a.id === target)!.hp!;
     run(play, TICKS_PER_SECOND);
@@ -1457,7 +1460,7 @@ describe("an elemental spell", () => {
    */
   function selfBurnPerSecond(commands: string[]): number {
     const play = session({ charm: "ember-self-stone" });
-    expect(play.cast("charm")).toBe(true);
+    expect(play.cast(squareSlot("charm"))).toBe(true);
     for (const command of commands) play.runCommand(command);
     play.drainNotices();
 
@@ -1496,7 +1499,7 @@ describe("an elemental spell", () => {
     );
     const target = bodyAt(lit, RAT_CELL, "nature-rat");
     lit.setTarget(target);
-    expect(lit.cast("weapon")).toBe(true);
+    expect(lit.cast(squareSlot("weapon"))).toBe(true);
 
     const before = lit.actorSnapshots().find((a) => a.id === target)!.hp!;
     run(lit, TICKS_PER_SECOND);
@@ -1536,7 +1539,7 @@ describe("a bolt thrown at somebody", () => {
    */
   it("takes the stone's own damage off the target", () => {
     const { play, target, before } = boltAt("bolt-stone");
-    expect(play.cast("weapon")).toBe(true);
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
     expectThrough(took(play, target, before));
   });
 
@@ -1550,7 +1553,7 @@ describe("a bolt thrown at somebody", () => {
     const { play } = boltAt("bolt-stone");
     play.faceActor("local", "w");
 
-    expect(play.cast("weapon")).toBe(true);
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
     expect(facingOfCaster(play)).toBe("e");
   });
 
@@ -1562,7 +1565,7 @@ describe("a bolt thrown at somebody", () => {
    */
   it("is never dodged, however nimble the target", () => {
     const { play, target, before } = boltAt("bolt-stone", "nimble-rat");
-    expect(play.cast("weapon")).toBe(true);
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
     expectThrough(took(play, target, before));
   });
 
@@ -1582,20 +1585,20 @@ describe("a bolt thrown at somebody", () => {
     // And the cast landed inside it. Not compared against a bare rat's cast:
     // the two sessions build different boards and so are not on the same draw.
     const { play, target, before } = boltAt("bolt-stone", "mailed-rat");
-    expect(play.cast("weapon")).toBe(true);
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
     expectThrough(took(play, target, before), MAILED_THROUGH);
   });
 
   /** And then the wheel, on what got through — the same order a burn is under. */
   it("is weighed on the wheel against what the target is made of", () => {
     const strong = boltAt("ember-bolt-stone", "nature-rat");
-    expect(strong.play.cast("weapon")).toBe(true);
+    expect(strong.play.cast(squareSlot("weapon"))).toBe(true);
     expect(took(strong.play, strong.target, strong.before)).toBeGreaterThan(
       BOLT_THROUGH.most,
     );
 
     const weak = boltAt("ember-bolt-stone", "water-rat");
-    expect(weak.play.cast("weapon")).toBe(true);
+    expect(weak.play.cast(squareSlot("weapon"))).toBe(true);
     expect(took(weak.play, weak.target, weak.before)).toBeLessThan(
       BOLT_THROUGH.least,
     );
@@ -1607,7 +1610,7 @@ describe("a bolt thrown at somebody", () => {
    */
   it("puts its projectile in the air", () => {
     const { play } = boltAt("bolt-stone");
-    expect(play.cast("weapon")).toBe(true);
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
 
     const flights = play.drainProjectiles();
     expect(flights).toHaveLength(1);
@@ -1623,7 +1626,7 @@ describe("a bolt thrown at somebody", () => {
     play.drainNotices();
     play.drainProjectiles();
 
-    expect(play.cast("charm")).toBe(true);
+    expect(play.cast(squareSlot("charm"))).toBe(true);
     expect(play.drainProjectiles()).toHaveLength(0);
   });
 
@@ -1635,7 +1638,7 @@ describe("a bolt thrown at somebody", () => {
   it("pays the caster for what it actually did", () => {
     const { play } = boltAt("bolt-stone");
     const before = play.masteryXpOf("local")?.arcane ?? 0;
-    expect(play.cast("weapon")).toBe(true);
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
     expect(play.masteryXpOf("local")?.arcane ?? 0).toBeGreaterThan(
       before + XP_PER_CAST,
     );
@@ -1648,7 +1651,7 @@ describe("a bolt thrown at somebody", () => {
    */
   it("takes health and leaves a status in the same cast", () => {
     const { play, target, before } = boltAt("brand-bolt-stone");
-    expect(play.cast("weapon")).toBe(true);
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
 
     expectThrough(took(play, target, before));
     expect(statusIdsOf(play, target)).toContain("burned");
@@ -1661,7 +1664,7 @@ describe("a bolt thrown at somebody", () => {
    */
   it("leaves nothing when the roll says so, and still takes the health", () => {
     const { play, target, before } = boltAt("dud-brand-stone");
-    expect(play.cast("weapon")).toBe(true);
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
 
     expectThrough(took(play, target, before));
     expect(statusIdsOf(play, target)).not.toContain("burned");
@@ -1677,7 +1680,7 @@ describe("a bolt thrown at somebody", () => {
    */
   it("brands a body its damage could not get through", () => {
     const { play, target, before } = boltAt("brand-bolt-stone", "walled-rat");
-    expect(play.cast("weapon")).toBe(true);
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
 
     expect(took(play, target, before)).toBe(0);
     expect(statusIdsOf(play, target)).toContain("burned");
@@ -1694,7 +1697,7 @@ describe("a bolt thrown at somebody", () => {
     play.runCommand(`/health ${PLAYER_MAX_HP - 3}`);
     play.drainNotices();
 
-    expect(play.cast("charm")).toBe(true);
+    expect(play.cast(squareSlot("charm"))).toBe(true);
     expect(hpOf(play)).toBe(PLAYER_MAX_HP);
   });
 });
@@ -1725,7 +1728,7 @@ describe("a harming stone worn as a charm", () => {
     const mine = hpOf(play)!;
     const theirs = hpOf(play, target)!;
 
-    expect(play.cast("charm")).toBe(true);
+    expect(play.cast(squareSlot("charm"))).toBe(true);
     expect(hpOf(play, target)).toBeLessThan(theirs);
     expect(hpOf(play)).toBe(mine);
   });
@@ -1739,7 +1742,7 @@ describe("a harming stone worn as a charm", () => {
     const { play } = charmed();
     const mine = hpOf(play)!;
 
-    expect(play.cast("charm")).toBe(false);
+    expect(play.cast(squareSlot("charm"))).toBe(false);
     expect(hpOf(play)).toBe(mine);
   });
 });
@@ -1769,7 +1772,7 @@ describe("what a spell is worth in a trained hand", () => {
     const target = bodyAt(play, RAT_CELL, "rat");
     play.setTarget(target);
     const before = hpOf(play, target)!;
-    expect(play.cast("weapon")).toBe(true);
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
     return before - hpOf(play, target)!;
   }
 
@@ -1795,7 +1798,7 @@ describe("what an elemental cast teaches", () => {
   function castAt(stone: string, victim = "rat"): GameSession {
     const play = session({ weapon: stone }, spawnRat(world(), RAT_CELL, victim));
     play.setTarget(bodyAt(play, RAT_CELL, victim));
-    expect(play.cast("weapon")).toBe(true);
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
     return play;
   }
 
@@ -1878,13 +1881,13 @@ describe("what an elemental cast teaches", () => {
 describe("a cast refused for want of a target", () => {
   it("says what to do, rather than refusing in silence", () => {
     const play = session({ weapon: "bolt-stone" });
-    expect(play.cast("weapon")).toBe(false);
+    expect(play.cast(squareSlot("weapon"))).toBe(false);
     expect(play.drainNotices()).toEqual(["Select a target first"]);
   });
 
   it("says nothing about a refusal the button already draws", () => {
     const play = session({ charm: "adept-stone" });
-    expect(play.cast("charm")).toBe(false);
+    expect(play.cast(squareSlot("charm"))).toBe(false);
     expect(play.drainNotices()).toEqual([]);
   });
 
@@ -1892,7 +1895,7 @@ describe("a cast refused for want of a target", () => {
     const at = { x: 2, y: 0, z: 0 };
     const play = session({ weapon: "bolt-stone" }, spawnRat(world(), at));
     play.setTarget(ratAt(play, at));
-    expect(play.cast("weapon")).toBe(true);
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
     // Not empty — the cast earned a mastery, which has a line of its own. What
     // matters is that nothing was said about a target.
     expect(play.drainNotices()).not.toContain("Select a target first");
@@ -2039,7 +2042,7 @@ describe("what a mend floats", () => {
     play.runCommand(`/health -${MEND_HP}`);
     const before = numbersOf(play).length;
 
-    expect(play.cast("weapon")).toBe(true);
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
     expect(mends(play, before)).toMatchObject([
       { outcome: "heal", amount: MEND_HP },
     ]);
@@ -2084,7 +2087,7 @@ describe("a cast that takes time", () => {
     play.runCommand(`/health ${HURT_HP}`);
     play.drainNotices();
 
-    expect(play.cast("charm")).toBe(true);
+    expect(play.cast(squareSlot("charm"))).toBe(true);
     run(play, CAST_TICKS - 1);
     expect(hpOf(play)).toBe(HURT_HP);
 
@@ -2096,7 +2099,7 @@ describe("a cast that takes time", () => {
     const play = session({ charm: "slow-mend-stone" });
     play.runCommand(`/health ${HURT_HP}`);
     play.drainNotices();
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
 
     // The stone is still ready as far as anything can see, which is what makes
     // an interrupted cast free.
@@ -2114,7 +2117,7 @@ describe("a cast that takes time", () => {
   it("makes the stone's noise when the bar fills, and says nothing at the press", () => {
     const play = session({ charm: "slow-flame-stone" });
 
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
     expect(play.drainSpeech()).toEqual([]);
     expect(play.drainNoise()).toEqual([]);
 
@@ -2126,7 +2129,7 @@ describe("a cast that takes time", () => {
   it("makes it at once for an instant spell", () => {
     const play = session({ charm: "flame-stone" });
 
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
 
     expect(play.drainNoise().map((noise) => noise.text)).toEqual(["whoosh"]);
   });
@@ -2135,7 +2138,7 @@ describe("a cast that takes time", () => {
   it("makes it where the caster is standing", () => {
     const play = session({ charm: "flame-stone" });
 
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
 
     expect(play.drainNoise()[0]).toMatchObject({ x: 0, y: 0, z: 0 });
   });
@@ -2143,7 +2146,7 @@ describe("a cast that takes time", () => {
   it("is silent for a stone with no sound authored, which is most of them", () => {
     const play = session({ charm: "slow-mend-stone" });
 
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
     run(play, CAST_TICKS);
 
     expect(play.drainNoise()).toEqual([]);
@@ -2154,13 +2157,13 @@ describe("a cast that takes time", () => {
       weapon: "slow-mend-stone",
       offhand: "mend-stone",
     });
-    play.cast("weapon");
+    play.cast(squareSlot("weapon"));
 
     // The other hand as well as the same one: a body mid-cast has its hands
     // full, and the whole row says so — in two words, because the square the
     // cast came out of is the one that can stop it.
-    expect(play.cast("offhand")).toBe(false);
-    expect(play.cast("weapon")).toBe(false);
+    expect(play.cast(squareSlot("offhand"))).toBe(false);
+    expect(play.cast(squareSlot("weapon"))).toBe(false);
     expect(
       play.spells().map((spell) => spell.castability),
     ).toEqual([
@@ -2173,7 +2176,7 @@ describe("a cast that takes time", () => {
     const play = session({ charm: "slow-mend-stone" });
     play.runCommand(`/health ${HURT_HP}`);
     play.drainNotices();
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
     run(play, 1);
 
     expect(play.cancelCast()).toBe(true);
@@ -2197,7 +2200,7 @@ describe("a cast that takes time", () => {
    */
   it("stops quietly, since the caster chose it", () => {
     const play = session({ charm: "slow-mend-stone" });
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
     play.drainNotices();
 
     play.cancelCast();
@@ -2207,24 +2210,24 @@ describe("a cast that takes time", () => {
 
   it("can be cast again the moment it is stopped", () => {
     const play = session({ charm: "slow-mend-stone" });
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
     play.cancelCast();
 
-    expect(play.cast("charm")).toBe(true);
+    expect(play.cast(squareSlot("charm"))).toBe(true);
   });
 
   it("draws a bar everybody can see, and takes it away when it lands", () => {
     const play = session({ charm: "slow-mend-stone" });
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
 
     const casting = () =>
       play.actorSnapshots().find((actor) => actor.id === "local")?.casting;
-    // Which square travels with the clock, for the caster's own row: the
+    // Which button travels with the clock, for the caster's own row: the
     // button the cast came out of is the one that stops it.
     expect(casting()).toEqual({
       remainingMs: CAST_MS,
       durationMs: CAST_MS,
-      square: "charm",
+      slot: squareSlot("charm"),
     });
 
     run(play, CAST_TICKS);
@@ -2234,7 +2237,7 @@ describe("a cast that takes time", () => {
   it("is broken by a blow, and costs the caster nothing", () => {
     const play = session({ charm: "slow-mend-stone" });
     play.runCommand(`/health ${PLAYER_MAX_HP}`);
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
     run(play, 1);
 
     // The same door every blow in the game comes through — see
@@ -2250,7 +2253,7 @@ describe("a cast that takes time", () => {
   it("says so, rather than leaving the bar to vanish without a word", () => {
     const play = session({ charm: "slow-mend-stone" });
     play.runCommand(`/health ${PLAYER_MAX_HP}`);
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
     play.drainNotices();
 
     play.runCommand(`/health ${PLAYER_MAX_HP - 1}`);
@@ -2261,7 +2264,7 @@ describe("a cast that takes time", () => {
   it("is not broken by being healed, which is not a blow", () => {
     const play = session({ charm: "slow-mend-stone" });
     play.runCommand(`/health ${HURT_HP}`);
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
     play.runCommand(`/health ${HURT_HP + 1}`);
     play.drainNotices();
 
@@ -2273,7 +2276,7 @@ describe("a cast that takes time", () => {
   it("finishes through a blow when the stone says it cannot be broken", () => {
     const play = session({ charm: "steady-mend-stone" });
     play.runCommand(`/health ${HURT_HP}`);
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
     play.runCommand(`/health ${HURT_HP - 1}`);
     play.drainNotices();
 
@@ -2290,7 +2293,7 @@ describe("a cast that takes time", () => {
    */
   it("comes to nothing when it can no longer land, and stays ready", () => {
     const play = session({ charm: "slow-flame-stone" });
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
 
     // A wall in the cell it was aimed at, put there while the bar was filling.
     play.runCommand("/tile wall +1");
@@ -2311,7 +2314,7 @@ describe("a cast that takes time", () => {
     const play = session({ weapon: "slow-mend-stone" });
     play.runCommand(`/health ${HURT_HP}`);
     play.drainNotices();
-    play.cast("weapon");
+    play.cast(squareSlot("weapon"));
 
     // The same stone, in the other hand: what pays is the stone that was
     // pressed, in the square it was pressed from.
@@ -2337,7 +2340,7 @@ describe("a cast that takes time", () => {
     const play = session({ charm: "slow-mend-stone" });
     expect(play.isAtRest()).toBe(true);
 
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
     play.drainSpeech();
 
     // Nothing else on the board is holding it awake: the cooldown has not been
@@ -2356,7 +2359,7 @@ describe("a cast that takes time", () => {
   it("plants the caster, and still lets them turn", () => {
     const play = session({ charm: "slow-mend-stone" });
     const before = play.actorSnapshots().find((actor) => actor.id === "local")!;
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
 
     play.setInput({ directions: ["e"] });
     run(play, CAST_TICKS - 1);
@@ -2370,7 +2373,7 @@ describe("a cast that takes time", () => {
 
   it("lets them walk again the moment it lands", () => {
     const play = session({ charm: "slow-mend-stone" });
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
     play.setInput({ directions: ["e"] });
     run(play, CAST_TICKS + 1);
 
@@ -2387,7 +2390,7 @@ describe("a cast that takes time", () => {
     const play = session({ charm: "slow-mend-stone" });
     play.runCommand(`/health ${HURT_HP}`);
     play.drainNotices();
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
 
     play.standIdle("local");
     run(play, CAST_TICKS);
@@ -2405,7 +2408,7 @@ describe("a cast that takes time", () => {
       play.runCommand(`/mastery arcane ${arcane}`);
       play.runCommand(`/health ${HURT_HP}`);
       play.drainNotices();
-      play.cast("charm");
+      play.cast(squareSlot("charm"));
       run(play, halfWay);
       return hpOf(play);
     };
@@ -2420,8 +2423,233 @@ describe("a cast that takes time", () => {
     play.runCommand(`/health ${HURT_HP}`);
     play.drainNotices();
 
-    play.cast("charm");
+    play.cast(squareSlot("charm"));
 
     expect(hpOf(play)).toBeGreaterThan(HURT_HP);
+  });
+});
+
+/**
+ * A spell a body has rather than holds.
+ *
+ * The same stone, cast the same way, spending the same cooldown — what differs
+ * is that there is no square and no instance, so what these cases are about is
+ * the three places that difference shows: the row it appears in, where the
+ * cooldown is kept, and what a body with no hands at all can still do.
+ * @see `../lib/battler`'s `BattlerDef.spells`
+ */
+describe("a spell a body has of its own", () => {
+  const BREATH_COOLDOWN_MS = 20_000;
+
+  /** A body's own mend, authored as the shipped stone is. */
+  const BREATH = {
+    type: "stone",
+    name: "Second wind",
+    effect: { kind: "bolt", damage: -MEND_HP, on: "caster" },
+    cooldownMs: BREATH_COOLDOWN_MS,
+  };
+
+  /** The player, with `spells` on its battler block and nothing in its hands. */
+  function casterTile(spells: Record<string, unknown>[]): TileDef {
+    const tile = playerTile([]);
+    const battler = tile.interactions!.battler as Record<string, unknown>;
+    battler.spells = spells;
+    return tile;
+  }
+
+  function withSpells(spells: Record<string, unknown>[] = [BREATH]) {
+    return new GameSession(world(), [...props, casterTile(spells)], {
+      statuses: catalogue,
+    });
+  }
+
+  it("is in the row, after the squares", () => {
+    const play = withSpells();
+    expect(play.spells().map((spell) => spell.slot)).toEqual([
+      naturalSlot("Second wind"),
+    ]);
+  });
+
+  /**
+   * The order is the order the number keys are bound in, so picking a stone up
+   * must not renumber what a body could already do.
+   */
+  it("comes after a stone in a hand", () => {
+    const tile = casterTile([BREATH]);
+    const battler = tile.interactions!.battler as Record<string, unknown>;
+    battler.kit = [{ slot: "charm", tileId: "mend-stone", chance: 100 }];
+    const play = new GameSession(world(), [...props, tile], {
+      statuses: catalogue,
+    });
+    expect(play.spells().map((spell) => spell.slot)).toEqual([
+      squareSlot("charm"),
+      naturalSlot("Second wind"),
+    ]);
+  });
+
+  it("casts, with no hands and nothing carried", () => {
+    const play = withSpells();
+    play.runCommand("/health -5");
+    play.drainNotices();
+    const before = hpOf(play)!;
+
+    expect(play.cast(naturalSlot("Second wind"))).toBe(true);
+    expect(hpOf(play)).toBeGreaterThan(before);
+  });
+
+  /**
+   * The one place a natural spell genuinely differs from a carried one: there
+   * is no instance to write a cooldown onto, so it goes on the body.
+   */
+  it("spends its cooldown on the body, not on a kit", () => {
+    const play = withSpells();
+    play.cast(naturalSlot("Second wind"));
+
+    expect(play.spellCooldownsOf("local")).toEqual({
+      "Second wind": BREATH_COOLDOWN_MS,
+    });
+    // And nothing has appeared in a square, which is what "has rather than
+    // holds" means.
+    expect(play.equipmentOf("local")?.charm ?? null).toBeNull();
+  });
+
+  it("refuses a second press while it is cooling", () => {
+    const play = withSpells();
+    play.cast(naturalSlot("Second wind"));
+    play.drainNotices();
+
+    expect(play.cast(naturalSlot("Second wind"))).toBe(false);
+    expect(play.spells()[0]?.castability).toEqual({
+      ok: false,
+      reason: "cooling",
+    });
+  });
+
+  it("winds down at the second, as a stone's does", () => {
+    const play = withSpells();
+    play.cast(naturalSlot("Second wind"));
+
+    run(play, TICKS_PER_SECOND);
+    expect(play.spellCooldownsOf("local")).toEqual({
+      "Second wind": BREATH_COOLDOWN_MS - 1000,
+    });
+  });
+
+  /**
+   * Ready is the *absence* of a cooldown, everywhere: the same rule a stone
+   * instance is under, and one fewer state for anything reading it to tell
+   * apart.
+   */
+  it("clears the name entirely once it is ready again", () => {
+    const play = withSpells();
+    play.cast(naturalSlot("Second wind"));
+
+    run(play, TICKS_PER_SECOND * (BREATH_COOLDOWN_MS / 1000));
+    expect(play.spellCooldownsOf("local")).toEqual({});
+    expect(play.cast(naturalSlot("Second wind"))).toBe(true);
+  });
+
+  /** A name nothing answers to is an empty square, to a caster. */
+  it("refuses a name this body has no spell for", () => {
+    const play = withSpells();
+    expect(play.cast(naturalSlot("Third wind"))).toBe(false);
+  });
+
+  /**
+   * A spell with no name is a row somebody started and did not finish. The
+   * schema drops the whole battler block for one, which reads as "not a
+   * battler" — the standing bargain every other malformed block is under.
+   */
+  it("is not a battler at all when a spell has no name", () => {
+    const play = withSpells([{ ...BREATH, name: "" }]);
+    expect(play.spells()).toEqual([]);
+  });
+});
+
+/**
+ * A creature casting one, which is what the whole feature is for.
+ *
+ * The session cases above press the button by hand; this one lets a brain do
+ * it, because the two halves that only meet here are the ones worth an
+ * end-to-end case: a `cast` action names a spell by its name, and aiming at
+ * somebody is what puts them in range of a bolt authored at a target.
+ */
+describe("a creature casting a spell of its own", () => {
+  const BOLT = 6;
+
+  /** A creature whose whole mind is "burn whoever is nearest". */
+  function casterTile(): TileDef {
+    const tile = body("burner", RAT_TOUGHNESS, { actor: true });
+    const battler = tile.interactions!.battler as Record<string, unknown>;
+    battler.spells = [
+      {
+        type: "stone",
+        name: "Ember",
+        effect: {
+          kind: "bolt",
+          on: "target",
+          damage: BOLT,
+          reach: { cells: 4, height: 2 },
+        },
+        cooldownMs: 30_000,
+        reach: { cells: 4, height: 2 },
+      },
+    ];
+    tile.interactions!.brain = {
+      initial: "hunting",
+      states: {
+        hunting: {
+          do: [
+            {
+              action: "cast",
+              spell: "Ember",
+              of: { type: "nearest", data: { tileIds: ["player"] } },
+            },
+            { action: "hold" },
+          ],
+        },
+      },
+      transitions: [],
+    };
+    return tile;
+  }
+
+  /** The player at the origin with a burner two cells east of it. */
+  function burning(): GameSession {
+    const map = replaceStack(world(), 2, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "burner", direction: "w" },
+    ]);
+    return new GameSession(map, [...props, playerTile([]), casterTile()], {
+      statuses: catalogue,
+    });
+  }
+
+  it("burns whoever its brain aimed at", () => {
+    const play = burning();
+    const before = hpOf(play)!;
+
+    run(play, TICKS_PER_SECOND);
+
+    expect(hpOf(play)).toBeLessThan(before);
+  });
+
+  /**
+   * Aiming is pointing, which is what lets the cast path read the target off
+   * the body as it already does. It is emphatically not an attack: nothing
+   * swings because a creature pointed at somebody.
+   */
+  it("spends its own cooldown rather than a kit's", () => {
+    const play = burning();
+    run(play, TICKS_PER_SECOND);
+
+    const burner = play
+      .actorSnapshots()
+      .find((actor) => actor.tileId === "burner")!;
+    // Cooling rather than exactly a full cooldown: a second of winding has
+    // already happened by the time the blow lands, and what this is about is
+    // that the clock is on the body at all.
+    expect(play.spellCooldownsOf(burner.id)?.Ember).toBeGreaterThan(0);
+    expect(play.equipmentOf(burner.id)?.charm ?? null).toBeNull();
   });
 });

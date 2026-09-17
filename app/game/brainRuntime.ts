@@ -386,6 +386,18 @@ export type BrainContext = {
    */
   attack(actorId: string): boolean;
   /**
+   * Cast one of this body's own spells, at somebody or at nobody.
+   *
+   * Three answers rather than two, and the middle one is what holds a priority
+   * list still: `"cast"` for a spell that has landed, `"casting"` for one with
+   * a bar running — started on this turn or already going from an earlier one —
+   * and `"no"` for every refusal there is. @see ../lib/brain's `cast`
+   *
+   * A null target is a spell aimed at nobody, which a mend at its own caster
+   * wants and a bolt at somebody else is refused for.
+   */
+  cast(spell: string, targetId: string | null): "cast" | "casting" | "no";
+  /**
    * Work a thing for what it is made of, and keep working it.
    *
    * True while a pull is being made — started on this turn, or already running
@@ -1026,6 +1038,18 @@ function runAction(
       // read "hit them, else chase them, else hold" straight down the list.
       if (id === null) return "failure";
       return ctx.attack(id) ? "success" : "failure";
+    }
+    case "cast": {
+      // Nobody is not a refusal here, unlike `attack`'s: a spell that lands on
+      // its own caster has nobody to aim at, and the session refuses the ones
+      // that do need somebody. A thing answers nobody, on `attack`'s terms.
+      const id = boundBody(identify(action.of, memory, ctx));
+      const verdict = ctx.cast(action.spell, id);
+      // Running rather than success while a bar is up, on `extract`'s terms: a
+      // cast is something this creature is part-way through, and a lower line
+      // that stepped would be asking for a step the simulation refuses anyway.
+      if (verdict === "casting") return "running";
+      return verdict === "cast" ? "success" : "failure";
     }
     case "extract": {
       const bound = identify(action.of, memory, ctx);

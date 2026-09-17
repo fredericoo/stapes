@@ -28300,6 +28300,16 @@
             ],
             "do": [
               {
+                "action": "cast",
+                "spell": "Ember breath",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
                 "action": "attack",
                 "of": {
                   "type": "slot",
@@ -28526,7 +28536,9 @@
         "masteries": {
           "blunt": 60,
           "toughness": 66,
-          "agility": 6
+          "agility": 6,
+          "arcane": 24,
+          "fire": 20
         },
         "naturalWeapon": {
           "type": "weapon",
@@ -28580,7 +28592,42 @@
         "elements": [
           "fire"
         ],
-        "remains": "skull-troll"
+        "remains": "skull-troll",
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Ember breath",
+            "effect": {
+              "kind": "bolt",
+              "on": "target",
+              "damage": 15,
+              "variance": 40,
+              "projectile": {
+                "tileId": "arcane-shard",
+                "cellsPerSecond": 8
+              },
+              "statuses": [
+                {
+                  "id": "burned",
+                  "chance": 50,
+                  "fromMs": 3000,
+                  "toMs": 6000
+                }
+              ]
+            },
+            "cooldownMs": 12000,
+            "castTimeMs": 1500,
+            "sound": "*hhhaaa*",
+            "requirements": {
+              "arcane": 20,
+              "fire": 10
+            },
+            "reach": {
+              "cells": 5.5,
+              "height": 3
+            }
+          }
+        ]
       },
       "respawn": {
         "fromMs": 180000,

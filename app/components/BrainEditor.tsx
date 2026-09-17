@@ -80,6 +80,12 @@ type Props = {
   tiles: TileDef[];
   /** The status catalogue, for the `status` condition's picker. */
   statusDefs: Record<string, StatusDef>;
+  /**
+   * The spells on this very tile's battler block, for the `cast` action's
+   * picker. Handed down rather than read off the brain, because a brain does
+   * not know what body it is on — the dialog holding both tabs does.
+   */
+  spells?: readonly { name: string }[];
   onChange: (next: BrainDef | undefined) => void;
 };
 
@@ -219,6 +225,15 @@ export type Vocabulary = {
   tiles: Record<TileFilter, TileOption[]>;
   /** The whole status catalogue, for a `status` field. */
   statuses: Array<{ value: string; label: string }>;
+  /**
+   * The spells on the body this brain drives, for a `cast` field.
+   *
+   * The body's own rather than the library's, unlike every other picker here: a
+   * natural spell belongs to one tile, and offering another creature's would be
+   * offering a line that can only fail. Empty on a tile with none, where the
+   * row says so rather than showing a dropdown with nothing in it.
+   */
+  spells: Array<{ value: string; label: string }>;
   describe(selector: Selector): SelectorNames | null;
 };
 
@@ -264,6 +279,7 @@ export function selectorVocabulary(
   brain: BrainDef,
   tiles: TileDef[],
   statusDefs: Record<string, StatusDef> = {},
+  spells: readonly { name: string }[] = [],
 ): Vocabulary {
   const named = new Map(tiles.map((tile) => [tile.id, tile.name || tile.id]));
   const nameOf = (tileId: string) => named.get(tileId) ?? tileId;
@@ -334,6 +350,11 @@ export function selectorVocabulary(
       value: def.id,
       label: def.name,
     })),
+    // Named rather than keyed, because a natural spell's name *is* its id —
+    // which is also why renaming one breaks the `cast` line that points at it.
+    spells: spells
+      .filter((spell) => spell.name.trim())
+      .map((spell) => ({ value: spell.name, label: spell.name })),
     describe,
   };
 }
@@ -395,7 +416,13 @@ export function renamedState(brain: BrainDef, oldName: string, newName: string):
   };
 }
 
-export function BrainEditor({ brain, tiles, statusDefs, onChange }: Props) {
+export function BrainEditor({
+  brain,
+  tiles,
+  statusDefs,
+  spells = [],
+  onChange,
+}: Props) {
   if (!brain) {
     return (
       <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
@@ -411,7 +438,7 @@ export function BrainEditor({ brain, tiles, statusDefs, onChange }: Props) {
   }
 
   const stateNames = Object.keys(brain.states);
-  const vocab = selectorVocabulary(brain, tiles, statusDefs);
+  const vocab = selectorVocabulary(brain, tiles, statusDefs, spells);
   const issues = validateBrain(brain);
 
   const setState = (name: string, next: BrainStateDef) => {
@@ -1193,6 +1220,33 @@ function ParamField({
           value={typeof value === "string" ? value : null}
           onValueChange={(id) => onChange(id ?? undefined)}
           options={vocab.statuses}
+          className="min-w-[7rem]"
+          placeholder="Pick one…"
+        />
+      </label>
+    );
+  }
+  if (spec.kind === "spell") {
+    // Says so rather than offering an empty dropdown, on the terms the immunity
+    // toggles do when nothing is authored: a picker with nothing in it looks
+    // like a picker that has not loaded.
+    if (vocab.spells.length === 0) {
+      return (
+        <span className="text-[10px] uppercase text-muted">
+          no spells on this body
+        </span>
+      );
+    }
+    return (
+      <label className="flex items-center gap-1 text-[10px] uppercase text-muted">
+        {spec.label}
+        <Select
+          value={typeof value === "string" && value ? value : null}
+          // A name is never cleared to nothing: the schema refuses a blank one,
+          // and a refused action takes the whole brain down rather than leaving
+          // one row inert. Picking another spell is how a row is re-pointed.
+          onValueChange={(name) => name && onChange(name)}
+          options={vocab.spells}
           className="min-w-[7rem]"
           placeholder="Pick one…"
         />

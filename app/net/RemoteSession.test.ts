@@ -755,7 +755,12 @@ describe("RemoteSession casting", () => {
   const casting = (progress: { remainingMs: number; durationMs: number } | null) => ({
     ...patch([]),
     castings: [
-      { actorId: SELF, progress: progress ? { ...progress, square: "charm" } : null },
+      {
+        actorId: SELF,
+        progress: progress
+          ? { ...progress, slot: { from: "square", square: "charm" } }
+          : null,
+      },
     ],
   });
 

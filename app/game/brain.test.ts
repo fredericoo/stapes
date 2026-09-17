@@ -307,6 +307,7 @@ describe("deciding", () => {
       talking: () => false,
       hurtBy: () => [],
       attack: vi.fn(() => false),
+      cast: vi.fn((): "cast" | "casting" | "no" => "no"),
       extract: vi.fn(() => false),
       consume: vi.fn(() => false),
       consumeOn: vi.fn(() => false),
@@ -1095,6 +1096,7 @@ describe("giving up", () => {
       talking: () => false,
       hurtBy: () => [],
       attack: () => false,
+      cast: (): "cast" | "casting" | "no" => "no",
       extract: () => false,
       consume: () => false,
       consumeOn: () => false,
@@ -1444,6 +1446,7 @@ describe("actions that take time", () => {
       talking: () => false,
       hurtBy: () => [],
       attack: vi.fn(() => false),
+      cast: vi.fn((): "cast" | "casting" | "no" => "no"),
       extract: vi.fn(() => false),
       consume: vi.fn(() => false),
       consumeOn: vi.fn(() => false),
@@ -1888,6 +1891,7 @@ describe("a deer that yelps", () => {
       talking: () => false,
       hurtBy: () => [],
       attack: () => false,
+      cast: (): "cast" | "casting" | "no" => "no",
       extract: () => false,
       consume: () => false,
       consumeOn: () => false,
@@ -1976,6 +1980,7 @@ describe("a deer that yelps", () => {
       talking: () => false,
       hurtBy: () => [],
       attack: () => false,
+      cast: (): "cast" | "casting" | "no" => "no",
       extract: () => false,
       consume: () => false,
       consumeOn: () => false,
@@ -2640,6 +2645,7 @@ describe("composing conditions", () => {
       talking: () => false,
       hurtBy: () => [],
       attack: vi.fn(() => false),
+      cast: vi.fn((): "cast" | "casting" | "no" => "no"),
       extract: vi.fn(() => false),
       consume: vi.fn(() => false),
       consumeOn: vi.fn(() => false),
@@ -3347,6 +3353,7 @@ describe("knowing where it belongs", () => {
       talking: () => false,
       hurtBy: () => [],
       attack: vi.fn(() => false),
+      cast: vi.fn((): "cast" | "casting" | "no" => "no"),
       extract: vi.fn(() => false),
       consume: vi.fn(() => false),
       consumeOn: vi.fn(() => false),
@@ -4536,6 +4543,7 @@ describe("naming a thing", () => {
       talking: () => false,
       hurtBy: () => [],
       attack: vi.fn(() => false),
+      cast: vi.fn((): "cast" | "casting" | "no" => "no"),
       extract: vi.fn(() => true),
       consume: vi.fn(() => false),
       consumeOn: vi.fn(() => false),
@@ -4713,6 +4721,7 @@ describe("asking what a body is under", () => {
       talking: () => false,
       hurtBy: () => [],
       attack: vi.fn(() => false),
+      cast: vi.fn((): "cast" | "casting" | "no" => "no"),
       extract: vi.fn(() => false),
       consume: vi.fn(() => false),
       consumeOn: vi.fn(() => true),
@@ -4863,5 +4872,110 @@ describe("asking what a body is under", () => {
       expect(ran(fresh, ctx({ health: () => 1 }))).toBe("alert");
       expect(ran(fresh, ctx({ health: () => 0.1 }))).toBe("idle");
     });
+  });
+});
+
+/**
+ * Casting, from a brain's side of the line.
+ *
+ * What the session does with the press is `./sessionCasting`'s business. What
+ * these are about is the three answers the verb can get back and what each one
+ * does to a priority list — which is the whole of why it is a tri-state rather
+ * than a boolean.
+ */
+describe("casting a spell of its own", () => {
+  function ctx(overrides: Partial<Parameters<typeof stepBrain>[3]> = {}) {
+    const built = {
+      busy: false,
+      rng: new Rng(1),
+      self: { x: 0, y: 0, z: 0 },
+      home: null,
+      nearestOnTile: () => "player",
+      nearestThing: () => null,
+      thingStillThere: () => true,
+      positionOf: () => ({ x: 2, y: 0, z: 0 }),
+      wouldDrop: () => false,
+      wouldStepIntoHazard: () => false,
+      walkTo: vi.fn((): WalkOrderState => "walking"),
+      fleeFrom: (): WalkOrderState => "walking",
+      step: () => true,
+      say: vi.fn(),
+      noise: vi.fn(),
+      canSee: () => true,
+      sight: { up: 0, down: 0 },
+      heard: () => [],
+      heardNoise: () => [],
+      talking: () => false,
+      hurtBy: () => [],
+      attack: vi.fn(() => false),
+      cast: vi.fn((): "cast" | "casting" | "no" => "cast"),
+      extract: vi.fn(() => false),
+      consume: vi.fn(() => false),
+      consumeOn: vi.fn(() => false),
+      carrying: () => false,
+      hasStatus: () => false,
+      health: () => 1,
+      nameOf: (id: string) => id,
+      ...overrides,
+    } satisfies Parameters<typeof stepBrain>[3];
+    return built;
+  }
+
+  /** Burn them if you can, otherwise close in. The list a caster is authored as. */
+  const casting: BrainDef = {
+    initial: "hunting",
+    states: {
+      hunting: {
+        do: [
+          { action: "cast", spell: "Ember", of: nearest("player") },
+          { action: "step_toward", of: nearest("player") },
+        ],
+      },
+    },
+    transitions: [],
+  };
+
+  it("names the spell and whom it is aimed at", () => {
+    const c = ctx();
+    stepBrain(casting, initialMemory(casting), BRAIN_TICK_MS, c);
+    expect(c.cast).toHaveBeenCalledWith("Ember", "player");
+  });
+
+  it("stops the list where it lands", () => {
+    const c = ctx();
+    stepBrain(casting, initialMemory(casting), BRAIN_TICK_MS, c);
+    expect(c.walkTo).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The refusal every line in a priority list is written against: a spell still
+   * cooling is a line that did nothing, and the creature closes instead.
+   */
+  it("falls through to the next line when it is refused", () => {
+    const c = ctx({ cast: vi.fn((): "cast" | "casting" | "no" => "no") });
+    stepBrain(casting, initialMemory(casting), BRAIN_TICK_MS, c);
+    expect(c.walkTo).toHaveBeenCalled();
+  });
+
+  /**
+   * `extract`'s rule: a bar that is running is something this creature is
+   * part-way through, and a lower line that stepped would be asking for a step
+   * the simulation refuses anyway — a cast plants the caster.
+   */
+  it("holds the line while a bar is running", () => {
+    const c = ctx({ cast: vi.fn((): "cast" | "casting" | "no" => "casting") });
+    stepBrain(casting, initialMemory(casting), BRAIN_TICK_MS, c);
+    expect(c.walkTo).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Unlike `attack`'s, which has nothing to swing at. A mend on its own caster
+   * needs nobody, and what needs somebody is refused by the session rather than
+   * here.
+   */
+  it("casts at nobody rather than failing", () => {
+    const c = ctx({ nearestOnTile: () => null });
+    stepBrain(casting, initialMemory(casting), BRAIN_TICK_MS, c);
+    expect(c.cast).toHaveBeenCalledWith("Ember", null);
   });
 });

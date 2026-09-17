@@ -2,8 +2,9 @@ import * as v from "valibot";
 import {
   CAST_SQUARES,
   type CastProgress,
-  type CastSquare,
+  type CastSlot,
 } from "../game/casting";
+import { MAX_SPELL_NAME_LENGTH } from "../lib/battler";
 import type { Equipment } from "../game/equipment";
 import type { SlotRef } from "../game/itemMoves";
 import { SWING_OUTCOMES, type SwingOutcome } from "../game/GameSession";
@@ -130,6 +131,22 @@ const carriedLightsPatchSchema = v.object({
   tileIds: v.array(v.string()),
 });
 
+/**
+ * Where a cast came from, as it travels.
+ *
+ * The one shape both directions use: a client says which button it pressed, and
+ * the broadcast says which button a body is busy with. A variant rather than a
+ * string, on `../game/casting`'s {@link CastSlot} terms — a spell somebody
+ * called "charm" must not be the charm square.
+ */
+const castSlotSchema = v.variant("from", [
+  v.object({ from: v.literal("square"), square: v.picklist(CAST_SQUARES) }),
+  v.object({
+    from: v.literal("natural"),
+    name: v.pipe(v.string(), v.minLength(1), v.maxLength(MAX_SPELL_NAME_LENGTH)),
+  }),
+]);
+
 const statusIdsPatchSchema = v.object({
   actorId: v.string(),
   defIds: v.array(v.string()),
@@ -156,9 +173,9 @@ const castingPatchSchema = v.object({
     v.object({
       remainingMs: v.number(),
       durationMs: v.number(),
-      // Which square, so the caster's own row can offer to stop it. A picklist
-      // off the game's own list, as the `cast` message's is. @see CastingPatch
-      square: v.picklist(CAST_SQUARES),
+      // Which button, so the caster's own row can offer to stop it — the same
+      // shape the `cast` message names one with. @see CastingPatch
+      slot: castSlotSchema,
     }),
   ),
 });
@@ -784,7 +801,23 @@ export type ServerMessage =
    * events would drift the moment one was missed, and go on being wrong with
    * nothing to correct it.
    */
-  | { type: "equipment"; equipment: Equipment }
+  | {
+      type: "equipment";
+      equipment: Equipment;
+      /**
+       * How long each of this body's *own* spells has left, by name — the same
+       * fact the cooldowns inside `equipment` carry, for the spells that are
+       * not carried. @see `../lib/battler`'s `BattlerDef.spells`
+       *
+       * On this message rather than one of its own because it is the same kind
+       * of thing said about the same body to the same socket, and the two
+       * change at the same moment. Whole state, on the terms the kit beside it
+       * is: a record rebuilt from "this one started cooling" events drifts the
+       * moment one is missed, and a caster left holding a dimmed button has no
+       * way to clear it.
+       */
+      spellCooldowns: Record<string, number>;
+    }
   /**
    * "Here is everything you have taken."
    *
@@ -1189,11 +1222,11 @@ export type ClientMessage =
    * is already on the server, put there by {@link ClientMessage} `target`, and a
    * second copy arriving here would be one more thing to disbelieve.
    */
-  | { type: "cast"; square: CastSquare }
+  | { type: "cast"; slot: CastSlot }
   /**
    * "Stop the cast I am making."
    *
-   * **Its own message rather than a second `cast` of the same square**, because
+   * **Its own message rather than a second `cast` of the same slot**, because
    * a cast is queued behind the steps sent before it and a stop is not: stopping
    * depends on nothing about where the caster is standing, and a "stop" that
    * waited its turn behind a "start" would arrive to find nothing running. Two
@@ -1374,10 +1407,13 @@ const clientMessageSchema = v.variant("type", [
   }),
   v.object({
     type: v.literal("cast"),
-    // A picklist off the game's own list, so a square added to a body is a
-    // square this schema already accepts and a client naming a bag is refused
-    // before anything looks a kit up.
-    square: v.picklist(CAST_SQUARES),
+    // A square off the game's own list, or the name of a spell the body has —
+    // so a square added to a body is a square this schema already accepts, a
+    // client naming a bag is refused before anything looks a kit up, and a name
+    // nothing answers to is refused by `castability` rather than here. What the
+    // name may be is not this schema's to know: it is authored content, exactly
+    // as a tile id in a kit is.
+    slot: castSlotSchema,
   }),
   v.object({
     type: v.literal("cancelCast"),
@@ -1430,6 +1466,10 @@ const serverMessageSchema = v.variant("type", [
   }),
   v.object({
     type: v.literal("equipment"),
+    // Defaulted rather than required, on the terms every optional block on this
+    // wire is: a body with no spells of its own sends nothing, which is almost
+    // every body.
+    spellCooldowns: v.optional(v.record(v.string(), v.number()), () => ({})),
     equipment: tolerantEquipmentSchema,
   }),
   v.object({
@@ -1700,7 +1740,7 @@ export const GAME_SOCKET_PATH = "/online/ws";
  * This is deliberately not the build id. A client deploy that changes no
  * messages should not disconnect anybody, and most client deploys are that.
  */
-export const PROTOCOL_VERSION = 13;
+export const PROTOCOL_VERSION = 14;
 
 /**
  * How often the world says nothing, to keep a proxy from hanging up.

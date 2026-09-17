@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { MAX_SPELL_NAME_LENGTH } from "./battler";
 import { conditionLeaves, conditionSchema, type ConditionNode } from "./conditions";
 import type { TileDef } from "./types";
 
@@ -614,6 +615,34 @@ export type BrainActionDef =
    */
   | { action: "attack"; of: Selector }
   /**
+   * Cast one of this body's own spells at somebody.
+   *
+   * **The spell is named, and the name is the one on the body's own block** —
+   * see `./battler`'s {@link BattlerDef.spells}. A carried stone is not
+   * castable from here: what a creature has in its hands is a loadout, and a
+   * brain that could press it would be authoring a second, invisible kit on
+   * every creature that picks something up.
+   *
+   * Fails, rather than erroring, at every way this can be the wrong thing to
+   * ask for, on `attack`'s terms: a name this body has no spell for, one still
+   * cooling, a caster short of what it asks, nobody targeted for a spell that
+   * needs somebody, or a target out of range. A renamed spell is the first of
+   * those, and it falls through to the next line rather than stalling the
+   * creature.
+   *
+   * **It holds the line while a bar is running**, which is `extract`'s rule and
+   * is here for its reason: a cast with a time on it is something this creature
+   * is part-way through, and a lower line that stepped would be a step the
+   * simulation refuses anyway — a cast plants the caster. So a state reads as
+   * "burn them if you can, otherwise close in, otherwise hold" straight down.
+   *
+   * `of` is who it is aimed at, and a spell that lands on its own caster
+   * ignores it — a mend is at arm's length in every square. Aiming also points
+   * the creature at them, exactly as a player pointing at somebody does; it is
+   * not an attack, and nothing swings because of it.
+   */
+  | { action: "cast"; spell: string; of: Selector }
+  /**
    * Work a thing for what it is made of — pick a bush, chip a crystal.
    *
    * The player's pull and not a second one: the same reach, the same reservation
@@ -912,6 +941,21 @@ const actionSchema = v.variant("action", [
     allowDrops,
   }),
   v.object({ action: v.literal("attack"), of: selectorSchema }),
+  v.object({
+    action: v.literal("cast"),
+    // The name off the body's own battler block, which this module has never
+    // seen — so a string, on the terms a `nearest` tile id and a `status` id
+    // are. A name nothing answers to is a line that never fires, which is what
+    // a renamed spell should cost. Bounded where it is authored.
+    // @see ./battler's MAX_SPELL_NAME_LENGTH
+    spell: v.pipe(
+      v.string(),
+      v.trim(),
+      v.minLength(1),
+      v.maxLength(MAX_SPELL_NAME_LENGTH),
+    ),
+    of: selectorSchema,
+  }),
   v.object({ action: v.literal("extract"), of: selectorSchema }),
   v.object({
     action: v.literal("consume"),

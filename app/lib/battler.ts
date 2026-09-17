@@ -1,11 +1,13 @@
 import * as v from "valibot";
 import { type Element, ELEMENTS } from "./element";
 import {
+  type ArcaneStoneItem,
   DEFAULT_WEAPON,
   MAX_PERCENT_STAT,
   MELEE_REACH,
   type ProjectileDef,
   type Reach,
+  stoneSchema,
   weaponSchema,
   type WeaponItem,
   type WeaponResistances,
@@ -21,7 +23,7 @@ import {
   spellElements,
   type WeaponMastery,
 } from "./mastery";
-import type { TileDef } from "./types";
+import { type AnchoredSprite, defaultBase, type TileDef } from "./types";
 
 /**
  * What it takes to be hit, and to hit back.
@@ -193,6 +195,60 @@ export type BattlerDef = {
    * renamed piece of content should read.
    */
   remains?: string;
+  /**
+   * Spells this body has of its own, with nothing in its hands.
+   *
+   * **{@link naturalWeapon}'s opposite number, and the same bargain.** A body
+   * that could only cast what it was carrying meant a caster had to be given a
+   * stone, a hand to hold it in and a kit roll that produced it — so a troll
+   * that breathes fire was three pieces of content and a chance of arming the
+   * player who killed it. What a body can *do* is a fact about the body, on
+   * exactly the grounds a bite is.
+   *
+   * They are {@link ArcaneStoneItem}s and not a second vocabulary. Everything a
+   * stone already knows how to say — a bolt, a conjure, a cooldown, a cast
+   * time, what it asks of whoever casts it, how far it reaches, what it leaves
+   * behind — is what a natural spell needs to say, and a parallel block would
+   * be the same fields drifting apart. `../game/casting` decides one the same
+   * way it decides the other; only where the cooldown is kept differs.
+   *
+   * **A name each, because a stone has none.** A carried stone is a tile and
+   * the tile is what a death by it has to say; a natural spell has no tile, so
+   * it carries its name for the same three readers a natural weapon's is for —
+   * a skull's engraving, the button's label, and the brain line that names
+   * which spell to cast. Names are how a brain names one, so renaming a spell
+   * is renaming what a `cast` action points at, exactly as renaming a tile id
+   * is.
+   *
+   * Optional and absent means "casts nothing", which is every body in the world
+   * but the ones an author has said otherwise about.
+   */
+  spells?: NaturalSpell[];
+};
+
+/**
+ * A spell a body has rather than holds.
+ *
+ * A stone plus the two things a carried one gets from its tile: what it is
+ * called, and what to draw on the button that presses it.
+ */
+export type NaturalSpell = ArcaneStoneItem & {
+  /**
+   * What it is called. Required, unlike a natural weapon's name, because this
+   * one is an identifier as well as a label: a brain's `cast` action names the
+   * spell it wants, and an unnamed spell is one nothing can point at.
+   */
+  name: string;
+  /**
+   * The picture on the button that casts it, or absent for a spell nobody has
+   * drawn yet.
+   *
+   * A bare sprite rather than a tile id, on `../lib/status`'s {@link
+   * StatusDef.icon} terms and for its reason: there is no tile to borrow one
+   * from, and a spell that only a creature ever casts has no button at all. A
+   * blank disc is a better answer than refusing to load the body.
+   */
+  icon?: AnchoredSprite;
 };
 
 /**
@@ -939,8 +995,65 @@ export function spellPower(
   return damage < 0 ? -magnitude : magnitude;
 }
 
+/**
+ * Longest a natural spell's name may be.
+ *
+ * A bound rather than a balance figure, on {@link MAX_BASE_HP}'s terms: a name
+ * is what a button is labelled with, what a skull is engraved with and what a
+ * brain line points at, and a paragraph in any of those three is a mistake
+ * rather than a style. It is enforced on the wire too — see `../net/protocol` —
+ * because a `cast` message names a spell by it.
+ */
+export const MAX_SPELL_NAME_LENGTH = 48;
+
+/**
+ * What the first spell somebody adds is called.
+ *
+ * Shared between the editor's Spells tab and the brain catalog's fresh `cast`
+ * row, and that is the whole reason it is a constant: a freshly picked `cast`
+ * has to name a spell the schema accepts — an empty name is refused, and a
+ * refused action takes the whole brain down with it — so it names the one a
+ * body's first spell will be called. An author who adds both in either order
+ * finds them already pointing at each other.
+ */
+export const DEFAULT_SPELL_NAME = "Spell";
+
 /** Floors of perception, up or down. Whole floors — half a look is not a thing. */
 const levelSlack = v.pipe(v.number(), v.integer(), v.minValue(0));
+
+/**
+ * The picture on a natural spell's button.
+ *
+ * Restated here rather than imported from the tile schema or the status one, on
+ * exactly the grounds `../lib/status`'s own copy is: the three are validated at
+ * different boundaries, and a spell must not start depending on what a tile
+ * happens to allow. The base is filled in on the way out, so everything
+ * downstream of a parse has a whole {@link AnchoredSprite} rather than the same
+ * `??` at each place that draws one.
+ */
+const iconSchema = v.pipe(
+  v.object({
+    tilesetId: v.string(),
+    rect: v.object({
+      x: v.pipe(v.number(), v.integer(), v.minValue(0)),
+      y: v.pipe(v.number(), v.integer(), v.minValue(0)),
+      w: v.pipe(v.number(), v.integer(), v.minValue(1)),
+      h: v.pipe(v.number(), v.integer(), v.minValue(1)),
+    }),
+    base: v.optional(
+      v.object({
+        x: v.pipe(v.number(), v.integer(), v.minValue(0)),
+        y: v.pipe(v.number(), v.integer(), v.minValue(0)),
+      }),
+    ),
+  }),
+  v.transform(
+    (raw): AnchoredSprite => ({
+      ...raw,
+      base: raw.base ?? defaultBase(raw.rect),
+    }),
+  ),
+);
 
 const battlerSchema = v.object({
   // All three required, unlike the optionals below: a body with no masteries and
@@ -984,6 +1097,31 @@ const battlerSchema = v.object({
   // A tile id this module never resolves, on `immuneTo`'s own terms. Absent is
   // every body in the world but the handful worth remembering.
   remains: v.optional(v.pipe(v.string(), v.minLength(1))),
+  // The stone schema with a name bolted on, rather than a schema of its own: a
+  // natural spell *is* a stone, and two shapes that had to be kept saying the
+  // same thing is the arrangement `StoneEffect` was folded together to avoid.
+  //
+  // Optional and defaulted to nothing, on `kit`'s terms — every creature in
+  // `data/` predates it. A spell that does not validate takes the whole battler
+  // block with it, which is this module's standing bargain: a half-parsed body
+  // would be a creature whose author cannot see what is wrong with it.
+  spells: v.optional(
+    v.array(
+      v.object({
+        ...stoneSchema.entries,
+        // Required where a weapon's name is optional, because a brain names the
+        // spell it casts: an unnamed one is a spell nothing can point at.
+        name: v.pipe(
+          v.string(),
+          v.trim(),
+          v.minLength(1),
+          v.maxLength(MAX_SPELL_NAME_LENGTH),
+        ),
+        icon: v.optional(iconSchema),
+      }),
+    ),
+    () => [],
+  ),
 });
 
 const battlerCache = new WeakMap<TileDef, BattlerDef | null>();

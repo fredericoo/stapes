@@ -24,7 +24,7 @@ import {
 } from "../lib/clock";
 import type { ObjectRef } from "../game/affordances";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
-import { type CastSquare, type SpellButton, spellPress } from "../game/casting";
+import { type CastSlot, type SpellButton, spellPress } from "../game/casting";
 import { useGameAssets } from "../lib/gameAssets";
 import type { Direction } from "../lib/types";
 import { fetchBootstrap, fetchMapText } from "../lib/api";
@@ -141,8 +141,8 @@ export default function PlayPage() {
   // Straight at the session, like every other thing a player asks the world to
   // do: whether the stone answers is the simulation's decision, and the button
   // finds out from the next snapshot rather than from this call.
-  const cast = useCallback((square: CastSquare) => {
-    sessionRef.current?.cast(square);
+  const cast = useCallback((slot: CastSlot) => {
+    sessionRef.current?.cast(slot);
   }, []);
   const stopCast = useCallback(() => {
     sessionRef.current?.cancelCast();
@@ -254,7 +254,7 @@ export default function PlayPage() {
       // The same question the button asks, so `1` on the stone being cast
       // stops it exactly as a tap on it does. @see `../game/casting`'s `spellPress`
       if (spellPress(spell.castability) === "stop") session.cancelCast();
-      else session.cast(spell.square);
+      else session.cast(spell.slot);
     });
 
     return () => {

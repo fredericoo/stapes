@@ -71,6 +71,7 @@ import type { StatusDef } from "../lib/status";
 import { RespawnTab } from "./RespawnTab";
 import { EffectsTab } from "./EffectsTab";
 import { BrainEditor } from "./BrainEditor";
+import { SpellsTab } from "./SpellsTab";
 import { DialogEditor } from "./DialogEditor";
 import {
   availableStates,
@@ -491,6 +492,7 @@ const TAB_INTERACTIVE = "interactive";
 const TAB_BRAIN = "brain";
 const TAB_DIALOG = "dialog";
 const TAB_BATTLE = "battle";
+const TAB_SPELLS = "spells";
 const TAB_ITEM = "item";
 const TAB_RESPAWN = "respawn";
 const TAB_EFFECTS = "effects";
@@ -1903,7 +1905,21 @@ export function TileEditorDialog({
             // kind can add or remove them, which is why the select lives on the
             // tab that is always present.
             ...(draft.kind === "battler"
-              ? [{ value: TAB_BATTLE, label: "Battle" }]
+              ? [
+                  { value: TAB_BATTLE, label: "Battle" },
+                  // Beside Battle and on the same answer, because a spell needs
+                  // a body to belong to — and its own tab rather than a section
+                  // under the natural weapon, because a stone is three blocks
+                  // and Battle is already a long page. It carries the "•" the
+                  // kind-driven tabs do not, because unlike them it *can* be
+                  // empty: a battler with no spells of its own is the norm.
+                  {
+                    value: TAB_SPELLS,
+                    label: draft.interactions?.battler?.spells?.length
+                      ? "Spells •"
+                      : "Spells",
+                  },
+                ]
               : []),
             ...(draft.kind === "item"
               ? [{ value: TAB_ITEM, label: "Item" }]
@@ -1933,6 +1949,10 @@ export function TileEditorDialog({
               brain={draft.interactions?.brain}
               tiles={tiles}
               statusDefs={statusDefs}
+              // The draft's own, not the saved tile's: a spell renamed on the
+              // Spells tab is the name this tab offers on the next render, so
+              // the two halves of one edit cannot disagree about what exists.
+              spells={draft.interactions?.battler?.spells}
               onChange={setBrain}
             />
           </TabPanel>
@@ -1952,6 +1972,16 @@ export function TileEditorDialog({
               draft={draft}
               onChange={setDraft}
               tiles={tiles}
+              statusDefs={statusDefs}
+            />
+          </TabPanel>
+
+          <TabPanel value={TAB_SPELLS}>
+            <SpellsTab
+              draft={draft}
+              onChange={setDraft}
+              tiles={tiles}
+              tilesets={tilesets}
               statusDefs={statusDefs}
             />
           </TabPanel>

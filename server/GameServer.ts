@@ -39,7 +39,7 @@ import {
   wornInstances,
 } from "../app/game/equipment";
 import { DEFAULT_FACING } from "../app/game/actors";
-import type { CastProgress, CastSquare } from "../app/game/casting";
+import type { CastProgress, CastSlot } from "../app/game/casting";
 import { resolveRespawn } from "../app/lib/interactions";
 import {
   minutesOfDayAt,
@@ -372,14 +372,14 @@ function progressOf(
 }
 
 /**
- * The two numbers of a cast and the square it came out of, copied off the
+ * The two numbers of a cast and the button it came out of, copied off the
  * runtime's object on {@link progressOf}'s terms.
  */
 function castProgressOf(casting: CastProgress): CastProgress {
   return {
     remainingMs: casting.remainingMs,
     durationMs: casting.durationMs,
-    square: casting.square,
+    slot: casting.slot,
   };
 }
 
@@ -688,7 +688,7 @@ type QueuedStep = {
 type QueuedIntent =
   | ({ kind: "step" } & QueuedStep)
   | { kind: "face"; direction: Direction }
-  | { kind: "cast"; square: CastSquare };
+  | { kind: "cast"; slot: CastSlot };
 
 /** A queued turn or cast — whatever is not a step. @see QueuedIntent */
 type QueuedAction = Exclude<QueuedIntent, { kind: "step" }>;
@@ -2219,7 +2219,7 @@ export class GameServer {
       // Behind any step this client sent before it, for the reason on
       // {@link QueuedIntent}: where a cast lands depends on where the caster is
       // standing, and the client cast from a cell its steps had already reached.
-      this.queueAction(actorId, { kind: "cast", square: message.square });
+      this.queueAction(actorId, { kind: "cast", slot: message.slot });
     } else if (message.type === "cancelCast") {
       // Honoured now rather than queued, unlike the cast it stops: where a cast
       // lands depends on where the caster is standing, and stopping one does
@@ -2402,7 +2402,16 @@ export class GameServer {
       // Gone between the change and the flush — a body that died still had its
       // kit changed, and there is nobody left to tell.
       if (!equipment) continue;
-      ws.send(JSON.stringify({ type: "equipment", equipment } satisfies ServerMessage));
+      ws.send(
+        JSON.stringify({
+          type: "equipment",
+          equipment,
+          // Beside the kit because it is the same fact about the same caster —
+          // see `GameSession.spellCooldownsOf`. Empty for every body with no
+          // spells of its own, which is almost every body.
+          spellCooldowns: session.spellCooldownsOf(attachment.actorId) ?? {},
+        } satisfies ServerMessage),
+      );
     }
   }
 
@@ -2649,7 +2658,7 @@ export class GameServer {
     const session = this.session;
     if (!session) return;
     if (action.kind === "face") session.faceActor(actorId, action.direction);
-    else session.cast(action.square, actorId);
+    else session.cast(action.slot, actorId);
   }
 
   /**

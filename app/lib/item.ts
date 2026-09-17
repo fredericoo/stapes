@@ -1974,7 +1974,7 @@ const stoneEffectSchema = v.variant("kind", [
   }),
 ]);
 
-const stoneSchema = v.object({
+export const stoneSchema = v.object({
   type: v.literal("stone"),
   effect: stoneEffectSchema,
   // Required and floored, unlike almost everything else optional here: a stone
@@ -2432,7 +2432,7 @@ function elementsForSave(elements: Element[] | undefined) {
   return kept.length > 0 ? { elements: kept } : {};
 }
 
-function stoneForSave(stone: ArcaneStoneItem): ArcaneStoneItem {
+export function stoneForSave(stone: ArcaneStoneItem): ArcaneStoneItem {
   // The same rule a weapon's requirements block is saved under: a requirement of
   // zero is not a requirement, and a stone carrying `requirements: {}` would read
   // as "asks something" to anybody skimming the file.

@@ -5458,6 +5458,67 @@ moment a brain could pick a bush — a hedge and a herd would grow `pendingNotic
 without bound for the life of the world. `GameSession.say` drops them at the
 door.
 
+## A body can have spells as well as hold them
+
+`BattlerDef.spells` is the natural weapon's opposite number: what a body can cast
+with nothing in its hands. Before it, a caster had to be *given* a stone, a hand
+to hold it in and a kit roll that produced it — so a troll that breathes fire was
+three pieces of content and a chance of arming whoever killed it.
+
+**They are `ArcaneStoneItem`s, not a second vocabulary.** Everything a stone
+already says — a bolt, a conjure, a cooldown, a cast time, requirements, reach,
+what it leaves behind — is what a natural spell needs to say, and the editor's
+Spells tab is `StoneFields`, the very component the Item tab uses. What is added
+is the two things a carried stone gets from its tile and this has none of: a
+**name** and an **icon**.
+
+The name is an identifier as well as a label. A brain's `cast` action names the
+spell it wants, so renaming one is renaming what that line points at — the same
+bargain a tile id is under, and the reason the brain editor offers a picker fed
+from the very same tile's Spells tab rather than a text box.
+
+### The cast path grew a slot, not a second path
+
+`castability`, the cooldown, the experience and the effect are all the one
+function they were. What changed is that a cast is named by a `CastSlot` —
+`{from: "square", square}` or `{from: "natural", name}` — instead of a bare
+square, all the way out to the wire and back. A tagged pair rather than a widened
+string, because a spell somebody called "charm" must not be the charm square.
+
+**The cooldown is the one place the two genuinely differ.** A stone's rides its
+`ItemInstance`, because a stone is picked up, put down and stored. A body's own
+spell has no instance, so it goes on the actor, beside the swing cooldown — and
+it is **not durable**, where a stone's is. The difference is what is being kept:
+a stone survives a reconnection and coming back holding a cooled one would make
+reconnecting the cheapest spell in the game; everything about a *body* that is
+mid-swing or mid-recovery is dropped on the way in, and a body's spell is part of
+the body.
+
+It rides the **equipment message** to its owner, because it is the same kind of
+thing said about the same caster to the same socket — what this body can press
+right now — and the two change at the same moment. Nobody else's is sent, on
+exactly the grounds nobody else's inventory is.
+
+### A brain aims by pointing
+
+The `cast` action resolves its selector to a body, sets the creature's
+`targetId`, and presses. Pointing rather than threading a target through the cast
+path is what keeps there being *one* cast path: `castBolt` reads the target off
+the body as it always has, for the press and for the bar that finishes a beat
+later alike. It is not an attack — `runAutoAttacks` swings only for a body in
+attack mode, and a brain never sets that.
+
+The verb answers three ways rather than two, and the middle one is what holds a
+priority list still: `cast` for a spell that landed, `casting` for a bar that is
+running, `no` for every refusal. `casting` maps to `running`, on `extract`'s
+terms — a cast plants the caster, so a lower line that stepped would be asking
+for a step the simulation refuses anyway. A creature reads as "burn them if you
+can, otherwise close in, otherwise hold" straight down the list.
+
+A brain that asked for the same spell twice in two ticks must not cancel its own
+cast, so `castForBrain` reports a run already going for that name rather than
+pressing again: pressing a stone that is casting *stops* it.
+
 ## A pace is a percentage, and it never travels
 
 `walkDurationMs` on a tile is how fast a body walks when nothing is touching it.

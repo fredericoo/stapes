@@ -212,15 +212,17 @@ describe("resolveBattler's kind gate", () => {
   };
 
   it("reads stats on a battler", () => {
-    // Floors of interest and the kit are optional, so a block without them
-    // parses to minding its own floor and to carrying nothing. That fallback is
-    // the compatibility promise, so it is asserted here. Reach is no longer
-    // among them: it moved onto the weapon, and the natural weapon in `stats`
-    // already carries it. @see `./item`'s `Reach`
+    // Floors of interest, the kit and the spells are optional, so a block
+    // without them parses to minding its own floor, carrying nothing and
+    // casting nothing. That fallback is the compatibility promise, so it is
+    // asserted here. Reach is no longer among them: it moved onto the weapon,
+    // and the natural weapon in `stats` already carries it.
+    // @see `./item`'s `Reach`
     expect(resolveBattler(tile("battler", { battler: stats }))).toEqual({
       ...stats,
       sight: { up: 0, down: 0 },
       kit: [],
+      spells: [],
     });
   });
 
