@@ -4075,6 +4075,33 @@ receiving nothing for as long as its owner sat on the screen, so its map is
 arbitrarily stale and no diff would catch it up. Reloading still works and still does the same thing through
 `fetch`; the button exists so that coming back does not mean losing the tab.
 
+**Pressing Rebirth puts the loading screen back up**, and the wait is a state of
+the death screen rather than a state of the button. What the press costs is a
+round trip, a seating that reads the player's remembered spawn out of storage,
+and then a whole map to rebuild — a rebirth somewhere else dirties every chunk
+on screen, and `syncChunks` rebuilds them inside one frame. For all of that the
+old screen sat there unchanged with the world frozen behind it, which reads as a
+button that did not take; the second press it invites does nothing, since the
+server holds no death for somebody it has already seated.
+
+**It comes down against the world appearing, not against the `hello`.** Those
+are different moments, and the gap between them is the expensive one — the
+message lands, and the frame that draws what it carried is the rebuild. So the
+page re-arms `setOnNextFrame`, which is what the loading screen already comes
+down on. That hook is one shot, so the rebirth's handler sets `painted` as well
+as clearing its own wait: a death in the gap between the first `hello` and the
+first paint would otherwise take the loading screen's turn at it and leave that
+screen up for good.
+
+The page asks `RemoteSession.isDead()` before showing the wait, rather than
+trusting its own `dead`, because the session is what decides whether the message
+goes out at all — and a wait shown for a message that was never sent is a wait
+nothing ends. The socket dropping ends it too: `teardownRenderer` clears it with
+the death, and the reconnect's own loading screen takes over. What is deliberately
+*not* there is a timeout back to the button. An open socket does not lose a
+message, so the only way the `hello` never comes is a socket that is already
+gone — and that closes, which is the path above.
+
 **The blocking is `inert`, not an overlay.** The page marks everything under the
 death screen inert, which is the browser's own answer to "this subtree is not
 interactive": it covers the pointer, the tab order, a keypress reaching a
@@ -4082,7 +4109,12 @@ focused chat field and anything reading the page aloud. An overlay drawn on top
 covers none of those — a dimmed panel is still tabbable. The screen itself only
 darkens, because the frozen world behind it is the answer to what happened.
 `RemoteSession.setInput` refuses while dead for the half `inert` cannot reach:
-the keyboard is bound to the window, which no overlay covers.
+the keyboard is bound to the window, which no overlay covers. The wait after a
+press is inert on the same terms — the `hello` clears the death before the frame
+that draws it, and the game is not for pressing while a screen is still over it
+— which is also why that wait is drawn beside the death screen rather than in
+the game's own slot where the loading screen lives: an inert live region is one
+nothing reads aloud.
 
 **Being a battler is what earns a name tag**, and the health bar rides in the
 same label. Names used to be a mode the online route switched on, with a check
@@ -4127,7 +4159,7 @@ hands the renderer decoded images; the renderer needs GPU textures and fetches
 them again on its own account, so `WorldRenderer.renderOnce` paints nothing
 until `assetsReady` — a material whose texture has not landed draws
 `magentaTex`, and the placeholder is there to make a *missing* tileset obvious,
-not one that is still in flight. `setOnFirstFrame` is what takes the screen
+not one that is still in flight. `setOnNextFrame` is what takes the screen
 down, so it comes off against the world appearing rather than against a guess.
 That also makes `preloadTextures` catch per tileset: left to reject, one 404
 would mean the flag never flips and the world is never drawn at all.

@@ -687,14 +687,17 @@ export class GameRenderer {
   }
 
   /**
-   * When there is a world on the canvas, so a page can hold its loading screen
-   * up until then. The world is not painted until its tilesets are on the GPU,
-   * and that lands some frames after the renderer is built — long enough that
-   * swapping to an empty canvas is a visible blank between the loading screen
-   * and the game.
+   * When there is a world on the canvas, so a page can hold a screen up until
+   * then. The world is not painted until its tilesets are on the GPU, and that
+   * lands some frames after the renderer is built — long enough that swapping to
+   * an empty canvas is a visible blank between the loading screen and the game.
+   *
+   * One shot: it fires on the next frame and clears itself, so a page that wants
+   * to wait for a second world — the one a rebirth's `hello` brings — asks
+   * again.
    */
-  setOnFirstFrame(cb: (() => void) | null) {
-    this.world.setOnFirstFrame(cb);
+  setOnNextFrame(cb: (() => void) | null) {
+    this.world.setOnNextFrame(cb);
   }
 
   /**

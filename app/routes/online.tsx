@@ -142,11 +142,29 @@ export default function OnlinePage() {
    *
    * Page state rather than the renderer's, unlike the vitals beside it, because
    * what it changes is the page: everything under the death screen goes `inert`
-   * for as long as it is true, and that is a React attribute on a real element
-   * rather than something a frame can draw.
+   * for as long as it or {@link rebirthing} is true, and that is a React
+   * attribute on a real element rather than something a frame can draw.
    */
   const [dead, setDead] = useState(false);
-  const rebirth = useCallback(() => sessionRef.current?.rebirth(), []);
+  /**
+   * Whether a body has been asked for and the world it comes with is not drawn.
+   *
+   * Beside {@link dead} rather than inside it, because the two do not end at
+   * the same moment: the `hello` answering a rebirth clears the death on the
+   * message, and this outlasts it by however long the renderer takes to build
+   * the map that message carried. The screen is one thing to the person
+   * watching, so it comes down once, at the end of both.
+   */
+  const [rebirthing, setRebirthing] = useState(false);
+  const rebirth = useCallback(() => {
+    const session = sessionRef.current;
+    // Asked of the session rather than of this page's own `dead`, because the
+    // server drops a `rebirth` from anybody it does not hold a death for — and
+    // a wait shown for a message that was never sent is a wait nothing ends.
+    if (!session?.isDead()) return;
+    session.rebirth();
+    setRebirthing(true);
+  }, []);
   // Placeholder until `hello` says what time it is out there. Nobody scrubs it:
   // the hour belongs to the world, not to whoever is looking at it.
   const [minutesOfDay, setMinutesOfDay] = useState<MinutesOfDay>(
@@ -324,6 +342,10 @@ export default function OnlinePage() {
       // across a reconnect would put a Rebirth button over a world this player
       // is already standing in.
       setDead(false);
+      // And with it the wait for a body, whose answer went away with the socket
+      // that owed it. What stands over the page from here is the reconnect's
+      // own loading screen, which says what is being waited for.
+      setRebirthing(false);
     };
 
     const connect = () => {
@@ -359,7 +381,31 @@ export default function OnlinePage() {
       // the same reason: a death can only reach a session that is live, but a
       // *reconnect* builds a fresh one, and a listener attached on the renderer
       // path would be one the second session never got.
-      remote.setOnDead(setDead);
+      remote.setOnDead((isDead) => {
+        setDead(isDead);
+        if (isDead) return;
+        // A body again — but the `hello` that said so carries a whole map, and
+        // nothing has been drawn from it yet: a rebirth somewhere else dirties
+        // every chunk on screen, and `syncChunks` rebuilds them all inside one
+        // frame. Taking the screen down on the message would hand the player
+        // that frame, which is the world they died in, frozen, for as long as
+        // the rebuild takes. So it comes down against the world appearing,
+        // exactly as the loading screen does.
+        //
+        // No renderer is no frame to wait for, and the wait has to end anyway.
+        if (!rendererRef.current) {
+          setRebirthing(false);
+          return;
+        }
+        rendererRef.current.setOnNextFrame(() => {
+          setRebirthing(false);
+          // And the loading screen's own wait, which is the same wait: the hook
+          // is one shot, so a death in the gap between the first `hello` and
+          // the first paint would otherwise take its turn and leave it up for
+          // good. A frame on the canvas is what it was waiting for too.
+          setPainted(true);
+        });
+      });
       // The renderer runs the clock forward from one anchor, so a `/time` has
       // to reach it as a new anchor. Before the first `hello` there is no
       // renderer yet, and `setOnReady` below reads the hour for itself.
@@ -398,7 +444,7 @@ export default function OnlinePage() {
         renderer.setOnMasteries(setMasteryXp);
         renderer.setOnVitals(setVitals);
         renderer.setOnOpenedContainer(setOpenedContainer);
-        renderer.setOnFirstFrame(() => setPainted(true));
+        renderer.setOnNextFrame(() => setPainted(true));
         // The keys, the on-screen pad and a click on the world all press the
         // same list, which is what settles between them: taking the keys back
         // ends a clicked walk, and neither has to know the other exists. The
@@ -512,7 +558,7 @@ export default function OnlinePage() {
           none of which an overlay drawn on top of them covers. The wrapper
           exists for the attribute and takes the height back, because the shell
           under it is sized against its parent. */}
-      <div className="h-full" inert={dead}>
+      <div className="h-full" inert={dead || rebirthing}>
         <AppShell
           menuExtras={
             <>
@@ -602,7 +648,12 @@ export default function OnlinePage() {
           </div>
         </AppShell>
       </div>
-      {dead ? <DeathScreen onRebirth={rebirth} /> : null}
+      {/* One screen for the whole time this player has no body to act with,
+          which is why the wait is a state of it rather than a second overlay:
+          the death outlasts the press, and the wait outlasts the death. */}
+      {dead || rebirthing ? (
+        <DeathScreen onRebirth={rebirth} pending={rebirthing} />
+      ) : null}
     </>
   );
 }

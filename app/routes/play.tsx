@@ -234,7 +234,7 @@ export default function PlayPage() {
     renderer.setOnMasteries(setMasteryXp);
     renderer.setOnVitals(setVitals);
     renderer.setOnOpenedContainer(setOpenedContainer);
-    renderer.setOnFirstFrame(() => setPainted(true));
+    renderer.setOnNextFrame(() => setPainted(true));
     rendererRef.current = renderer;
     renderer.start();
 

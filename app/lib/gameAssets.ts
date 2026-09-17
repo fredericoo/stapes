@@ -39,7 +39,7 @@ import type { TilesetDef } from "./types";
  * This is only the first of two waits the loading screen covers. The renderer
  * fetches the tilesets a second time on its own account — it needs them as GPU
  * textures, not as decoded images — and paints nothing until it has them, so a
- * page holds its loading screen until `setOnFirstFrame` says there is a world
+ * page holds its loading screen until `setOnNextFrame` says there is a world
  * on the canvas. What this gate buys is that the second fetch is served warm.
  */
 
