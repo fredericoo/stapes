@@ -48,6 +48,7 @@ import {
 import { type Progress, windProgress } from "../game/progress";
 import { gravityPullOn } from "../game/gravity";
 import { type Equipment, emptyEquipment } from "../game/equipment";
+import { type Attributes, attributesOf } from "../game/attributes";
 import {
   castability,
   castableSpells,
@@ -996,6 +997,49 @@ export class RemoteSession implements PlaySession {
           this.tilesById,
         ),
     );
+  }
+
+  /**
+   * What the viewer's own body fights and walks at.
+   *
+   * **Derived here rather than sent, which is the same bargain
+   * {@link walkDurationAt} is under** — and it is available for exactly one
+   * body. The note in `docs/notes.md` says the browser never builds
+   * `FightingStats` because it does not know what anybody is wearing or what
+   * they have practised; that is true of everybody *else*. What the viewer is
+   * carrying arrives on the equipment channel and what they have learnt arrives
+   * on the mastery one, both theirs alone, so their own block is the one the
+   * browser can reach without a field on the wire that would go stale between
+   * the two.
+   *
+   * The masteries come out of the experience through `masteriesFromXp`, which is
+   * the same route `GameSession.bodyOf` takes to the same numbers — a second
+   * reading here would be a panel quoting a level the fight does not use.
+   *
+   * **Null exactly when the health reading is**, which is the gate rather than a
+   * second opinion: `maxHp` is the snapshot's own answer to "is this a battler",
+   * it is null on the stand-in body a viewer has before their first `hello`, and
+   * a panel that said what a body with no hit points hits for would be
+   * describing nobody. The tile's own block is checked as well, for the tile
+   * that has lost its battler under a body the server is still reporting.
+   */
+  private attributesOf(self: ActorSnapshot): Attributes | null {
+    if (self.maxHp === null) return null;
+    const bodyDef = this.tilesById[self.tileId];
+    const authored = bodyDef ? resolveBattler(bodyDef) : null;
+    if (!bodyDef || !authored) return null;
+    return attributesOf({
+      body: { ...authored, masteries: masteriesFromXp(this.masteryXp) },
+      bodyDef,
+      equipment: this.equipment,
+      tilesById: this.tilesById,
+      // The viewer's own list, with the countdowns the server addressed to them
+      // — which is what a modifier formula reading `REMAINING_SEC` needs, and
+      // what nobody else's broadcast ids could supply. @see applyStatusIds
+      statuses: this.statuses,
+      statusDefs: this.statusDefs,
+      hp: self.hp,
+    });
   }
 
   /**
@@ -2061,20 +2105,25 @@ export class RemoteSession implements PlaySession {
       if (id === this.selfId) self = snapshot;
     }
     if (self) this.lastSelf = self;
+    // Before the first hello, or in the gap after a restart, there is nothing to
+    // centre on. A placeholder keeps the renderer's contract total rather than
+    // making every caller handle a null actor.
+    //
+    // Once there *has* been a body, the last one is a far better stand-in than
+    // the placeholder: being killed removes it from the board, and falling back
+    // to the origin would answer a player's death by throwing the camera to the
+    // corner of the map. Holding the last known cell leaves them looking at the
+    // place it happened, which is the only honest view of a world they are no
+    // longer in.
+    //
+    // Named rather than written inline, because the readings below are about
+    // this body too and a second copy of the chain would be the camera and the
+    // stats panel describing two different ones.
+    const mine = self ?? this.lastSelf ?? offscreenActor(this.selfId);
 
     return {
       map: this.map,
-      // Before the first hello, or in the gap after a restart, there is nothing
-      // to centre on. A placeholder keeps the renderer's contract total rather
-      // than making every caller handle a null actor.
-      //
-      // Once there *has* been a body, the last one is a far better stand-in than
-      // the placeholder: being killed removes it from the board, and falling
-      // back to the origin would answer a player's death by throwing the camera
-      // to the corner of the map. Holding the last known cell leaves them
-      // looking at the place it happened, which is the only honest view of a
-      // world they are no longer in.
-      self: self ?? this.lastSelf ?? offscreenActor(this.selfId),
+      self: mine,
       actors,
       targetId: this.targetId,
       attacking: this.attacking,
@@ -2083,6 +2132,7 @@ export class RemoteSession implements PlaySession {
       conversation: this.conversation,
       extracting: this.extracting,
       masteryXp: this.masteryXp,
+      attributes: this.attributesOf(mine),
       chats: this.chats,
       noises: this.noises,
       damage: this.damage,

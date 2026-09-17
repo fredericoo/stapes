@@ -181,7 +181,7 @@ export default function OnlinePage() {
   /** What this player has learnt — theirs alone, beside the kit. */
   const [masteryXp, setMasteryXp] = useState<MasteryXp>({});
   /** What this player's body can take, and its ⭐. */
-  const [vitals, setVitals] = useState<Vitals>({ hp: null, maxHp: null, rating: null, statuses: [] });
+  const [vitals, setVitals] = useState<Vitals>({ hp: null, maxHp: null, rating: null, statuses: [], attributes: null });
   const [openedContainer, setOpenedContainer] =
     useState<OpenedContainer | null>(null);
   /**
@@ -332,7 +332,7 @@ export default function OnlinePage() {
       setConversation(null);
       setSpells([]);
       setMasteryXp({});
-      setVitals({ hp: null, maxHp: null, rating: null, statuses: [] });
+      setVitals({ hp: null, maxHp: null, rating: null, statuses: [], attributes: null });
       setOpenedContainer(null);
       // And the loading screen comes back for the same reason: the next
       // renderer starts with an empty canvas, and a reconnect can take a while.

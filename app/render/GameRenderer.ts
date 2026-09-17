@@ -22,6 +22,7 @@ import type { Equipment } from "../game/equipment";
 import type { Conversation } from "../game/dialogRuntime";
 import type { MasteryXp } from "../lib/mastery";
 import { weaponDemandFor } from "../lib/weaponDemand";
+import { sameAttributes } from "../game/attributes";
 import type { Vitals } from "../game/GameSession";
 import { statusReading } from "../game/statuses";
 import { type SpellButton, spellReading } from "../game/casting";
@@ -776,6 +777,10 @@ export class GameRenderer {
       maxHp: snap.self.maxHp,
       rating: snap.self.rating,
       statuses: snap.self.statuses,
+      // Off the snapshot rather than worked out here: the session that holds the
+      // equipment and the masteries is the one that can answer it. @see
+      // `../game/attributes`
+      attributes: snap.attributes,
     };
     const sent = this.vitalsSent;
     if (
@@ -783,6 +788,10 @@ export class GameRenderer {
       sent.hp === next.hp &&
       sent.maxHp === next.maxHp &&
       sent.rating === next.rating &&
+      // Field by field, for the reason the statuses are compared by reading: the
+      // block is rebuilt every tick, so identity here would push a new object
+      // thirty times a second. @see `../game/attributes`'s `sameAttributes`
+      sameAttributes(sent.attributes, next.attributes) &&
       // By reading rather than by identity: the status list is a fresh array on
       // every tick a status is running, so an identity check here would push a
       // new object thirty times a second and re-render the panel with it. What

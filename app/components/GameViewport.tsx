@@ -31,7 +31,13 @@ import { useItemDrag } from "./useItemDrag";
 import { useNoZoom } from "./useNoZoom";
 
 /** A body nothing has reported on yet. Shared, so a default costs no allocation. */
-const NO_VITALS: Vitals = { hp: null, maxHp: null, rating: null, statuses: [] };
+const NO_VITALS: Vitals = {
+  hp: null,
+  maxHp: null,
+  rating: null,
+  statuses: [],
+  attributes: null,
+};
 
 /** Nobody is under anything, which is almost everybody almost always. */
 const NO_STATUSES: ActiveStatus[] = [];

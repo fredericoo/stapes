@@ -8,7 +8,11 @@ import {
   RATING_GLYPH,
   rating,
 } from "../lib/mastery";
+import type { Attributes } from "../game/attributes";
 import type { Vitals } from "../game/GameSession";
+// Aliased because `EffectRow` below already has a `seconds` of its own, which is
+// a count and not a wording.
+import { seconds as inSeconds } from "../lib/duration";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { healthBarColor, healthFraction } from "../render/healthBar";
 import { secondsLeft } from "../game/statuses";
@@ -99,7 +103,109 @@ export function StatsPanel({
           ))}
         </ul>
       )}
+
+      {/* Under the masteries rather than over them: what you have practised is
+          what you are, and these are what it currently comes to with a weapon
+          in your hand. */}
+      <Combat attributes={vitals.attributes} />
     </section>
+  );
+}
+
+/**
+ * The combat block: what this body hits for, how often, and what it turns aside.
+ *
+ * ## Two columns of short labels
+ *
+ * **Attack down the left, survival down the right**, which is what the ordering
+ * below buys and the reason the grid is worth having over a list. Seven rows in
+ * one column was the tallest thing in the panel for the least information in it:
+ * the figures are two to six characters and the rest was whitespace. Paired up
+ * they cost four rows, and the reader gets the two halves of a fight side by
+ * side rather than having to hold one while scrolling to the other.
+ *
+ * Labels are abbreviated to fit a column of about fourteen characters, and
+ * `../game/attributes` shortens the reach wording for the same reason. Units are
+ * on the figures rather than in the labels — `c` is cells, `c/s` cells a second
+ * — so "Range 6c" and "Move 5.0c/s" read against each other.
+ *
+ * ## Read, not explained
+ *
+ * Every row is a number that came out of a function — see `../game/attributes`,
+ * which is called by the simulation and the browser alike, so the panel cannot
+ * quote a figure a blow does not use. Nothing here describes a curve in words: a
+ * sentence about a formula is a second copy of that formula which no test can
+ * fail when the first one moves. That is `./ArenaFighterPanel`'s rule, and it
+ * holds harder here, where the reader is a player rather than somebody tuning
+ * the numbers.
+ *
+ * `haste`, `variance` and the weapon's mastery have no row. The first two are
+ * not readings — they are terms inside two of the rows here — and the third is
+ * said better by the masteries above, where the level you are earning with that
+ * weapon already has a line.
+ *
+ * No section at all for a body with no stats, on {@link Effects}'s terms: the
+ * health line already says this body has nothing to fight with.
+ */
+function Combat({ attributes }: { attributes: Attributes | null }) {
+  if (!attributes) return null;
+
+  const { minDamage, maxDamage, swingMs, hitChance, def, flee, reach, walkPace } =
+    attributes;
+
+  return (
+    <>
+      <h3 className="mt-1 text-[11px] font-bold uppercase tracking-wide text-paper/50">
+        Combat
+      </h3>
+      {/* Row-major, so the left column is items 1, 3, 5, 7 — see the ordering
+          note above. The last cell is left empty rather than balanced, on the
+          terms `./ArenaFighterPanel`'s three-column grid already sets. */}
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px] tabular-nums">
+        {/* A band rather than a face value and a variance, because a range is
+            one reading: what it takes to kill the thing in front of you is
+            worked out from both ends at once. One figure for a weapon with no
+            variance, where "6–6" would be a range with nothing in it. */}
+        <Reading
+          label="Damage"
+          value={
+            minDamage === maxDamage ? `${minDamage}` : `${minDamage}–${maxDamage}`
+          }
+        />
+        <Reading label="Defence" value={`${def}`} />
+        <Reading label="Atk Spd" value={inSeconds(swingMs)} />
+        {/* Not a percentage, and deliberately not dressed as one: it is one side
+            of a contest against whatever is swinging at you, so there is no
+            number of blows it corresponds to on its own. @see `../game/combat`'s
+            `dodgeChance` */}
+        <Reading label="Evasion" value={`${flee}`} />
+        <Reading label="Accuracy" value={`${Math.round(hitChance * 100)}%`} />
+        {/* A rate, unlike the swing above — see `../game/attributes`'s
+            `walkPace` for why this one is not quoted as an interval. */}
+        <Reading label="Move" value={`${walkPace.toFixed(1)}c/s`} />
+        <Reading label="Range" value={reach} />
+      </dl>
+    </>
+  );
+}
+
+/**
+ * One reading: what it is, and what it comes to.
+ *
+ * A `dt`/`dd` pair rather than two spans, because that is what the grid holds —
+ * names and figures — and it is what lets a screen reader read each pair out
+ * together instead of announcing seven labels and then seven numbers. The `div`
+ * around them is what keeps a pair in one grid cell.
+ *
+ * Sized by the grid rather than here, so the two columns cannot come to be set
+ * in different type.
+ */
+function Reading({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline gap-1">
+      <dt className="truncate text-paper/80">{label}</dt>
+      <dd className="ml-auto shrink-0 text-paper">{value}</dd>
+    </div>
   );
 }
 
