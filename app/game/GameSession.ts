@@ -112,8 +112,9 @@ import {
   healthNotice,
   noRoomToLeaveNotice,
   rewardNotice,
+  statusAcquiredNotice,
+  otherStatusNotice,
   statusesClearedNotice,
-  statusGrantedNotice,
   tileNotice,
   timeNotice,
 } from "./notices";
@@ -1213,6 +1214,21 @@ const CAST_INTERRUPTED_NOTICE = "Your cast is broken";
  * event on screen.
  */
 const EXTRACT_INTERRUPTED_NOTICE = "You are interrupted";
+
+/**
+ * What became of one application of a status.
+ *
+ * Three answers rather than a boolean because the two that are not "it went on"
+ * are not the same thing and the one caller that reads this has to say something
+ * different about each: a body already under it has been refreshed, and a body
+ * the author made immune has been refused. Everything else — a bite, a bolt, a
+ * berry — discards it, which is why `grantStatus` reads as though it returned
+ * nothing at almost every call site.
+ *
+ * `"acquired"` is the only one that speaks on its own, and it is what the
+ * arrival sentence hangs off. @see ./notices' `statusAcquiredNotice`
+ */
+type StatusGrantOutcome = "acquired" | "refreshed" | "refused";
 
 type ActorRuntime = {
   readonly id: string;
@@ -5184,6 +5200,9 @@ export class GameSession implements PlaySession {
    * that did not happen, not as a world that will not start.
    *
    * The dice are the world's own — see `./statuses`.
+   *
+   * Answers with what actually became of the application, which only
+   * {@link runStatusCommand} reads — see {@link StatusGrantOutcome}.
    */
   private grantStatus(
     actor: ActorRuntime,
@@ -5213,9 +5232,9 @@ export class GameSession implements PlaySession {
      * `./statuses`'s {@link StatusInstance.blame}.
      */
     blame?: Blame,
-  ) {
+  ): StatusGrantOutcome {
     const def = this.statusDefs[grant.id];
-    if (!def) return;
+    if (!def) return "refused";
     // **One gate, whatever brought it.** A wolf that cannot be made ill by raw
     // meat cannot be made ill by a blade dipped in it either, and putting the
     // check on the body rather than beside each source is what makes that true
@@ -5224,7 +5243,16 @@ export class GameSession implements PlaySession {
     // arithmetic: an immunity is a fact about what a wolf is, and reading it
     // through a projection that statuses feed into would let a status decide
     // whether a status may be applied.
-    if (resolveBattler(this.defFor(actor))?.immuneTo?.includes(grant.id)) return;
+    if (resolveBattler(this.defFor(actor))?.immuneTo?.includes(grant.id)) {
+      return "refused";
+    }
+    // Read before the list is replaced, because afterwards there is nothing to
+    // compare against: `applyStatus` stacks and refreshes in place, so a body
+    // that was already burning and one that has just caught fire come back
+    // holding the same one instance.
+    const already = actor.statuses.some(
+      (instance) => instance.defId === def.id,
+    );
     // The item's range where it states one, and the status's own otherwise —
     // see `../lib/item`'s `StatusGrant`. Both ends or neither, so this
     // cannot end up ordering one source's floor against another's ceiling.
@@ -5241,10 +5269,21 @@ export class GameSession implements PlaySession {
       elements,
       blame,
     );
+    // **Only the arrival speaks.** A fire re-grants Burned on every standing
+    // period and a second berry is a longer helping of Fed, neither of which is
+    // news: what a player has to be told is that they are now under something
+    // they were not under a moment ago. @see ./notices' `statusAcquiredNotice`
+    //
+    // Said to the body rather than to whatever did it, so that every one of
+    // these — a bite, a bolt, a berry, a floor of flame — reads as one sentence
+    // about the player's own condition. `say` drops a resident's, so a deer
+    // walking through a fire queues nothing.
+    if (!already) this.say(actor.id, statusAcquiredNotice(def.name));
     // Noted here as well as on the tick, because eating happens *between* ticks
     // and the world may be asleep when it does — the same reason the kit is
     // flushed wherever it can change rather than only on the loop.
     this.noteStatusReading(actor);
+    return already ? "refreshed" : "acquired";
   }
 
   /**
@@ -8623,12 +8662,34 @@ export class GameSession implements PlaySession {
       };
     }
 
-    this.grantStatus(actor, { id: def.id });
-    // Said to whoever typed it rather than to the body it landed on: this is a
-    // debugging acknowledgement, not something that happened in the world, and
-    // a deer announcing that it is on fire because somebody set it on fire from
-    // a console is a bubble the room should not see.
-    this.say(authorId, statusGrantedNotice(def.name));
+    const outcome = this.grantStatus(actor, { id: def.id });
+    // The only way a grant is refused once the catalogue has answered: the body
+    // is authored immune to this one. Said rather than swallowed, because a
+    // debugging door that reads as silence is the failure this whole command is
+    // written against. @see BattlerDef.immuneTo
+    if (outcome === "refused") {
+      return {
+        kind: "immuneTarget",
+        name: this.bodyName(targetId) ?? targetId,
+        status: def.name,
+      };
+    }
+    if (targetId !== authorId) {
+      // Said to whoever typed it rather than to the body it landed on: this is a
+      // debugging acknowledgement, not something that happened in the world, and
+      // a deer announcing that it is on fire because somebody set it on fire
+      // from a console is a bubble the room should not see.
+      this.say(
+        authorId,
+        otherStatusNotice(this.bodyName(targetId) ?? targetId, def.name),
+      );
+    } else if (outcome === "refreshed") {
+      // Already under it, so the grant refreshed rather than arrived and
+      // nothing announced it. A command that shows as nothing occurring is
+      // indistinguishable from one that was dropped — which is the whole reason
+      // this door says anything at all — so it says what they are under now.
+      this.say(authorId, statusAcquiredNotice(def.name));
+    }
     return null;
   }
 

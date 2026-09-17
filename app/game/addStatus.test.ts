@@ -89,6 +89,28 @@ const tiles: TileDef[] = [
   tile({ id: "wall", height: 4 }),
   body("player", { affectedByGravity: true }),
   body("deer", { actor: true, affectedByGravity: true }),
+  // The one body nothing can burn, which is the only way a grant is turned down
+  // once the catalogue has answered for the id.
+  body("salamander", {
+    actor: true,
+    affectedByGravity: true,
+    interactions: {
+      battler: {
+        baseHp: PLAYER_BASE_HP,
+        masteries: { toughness: PLAYER_TOUGHNESS },
+        immuneTo: ["burned"],
+        naturalWeapon: {
+          type: "weapon",
+          damage: 5,
+          def: 0,
+          accuracy: 100,
+          variance: 0,
+          spd: 100,
+          mastery: "fist",
+        },
+      },
+    },
+  }),
   // A body somebody else can shove, which is what the authored player tile is.
   body("shovable", {
     actor: true,
@@ -467,5 +489,99 @@ describe("the flame, as authored", () => {
     expect(gesture?.trigger).toBe("step");
     expect(authored[gesture!.statusId]).toBeDefined();
     expect(authored.burned!.tone).toBe("bad");
+  });
+});
+
+/**
+ * What the arrival says, and — far more of the work — when it does not say it.
+ *
+ * A status is drawn: it is an icon in the strip for as long as it runs. What the
+ * strip cannot do is catch the eye at the moment the condition lands, which is
+ * the gap the sentence fills — see `./notices`' `statusAcquiredNotice`. That
+ * makes *acquisition* the event, not application, and this fire is the fixture
+ * that tells the two apart: it re-grants Burned on every standing period, so a
+ * line hung off the application would repeat once a second for as long as
+ * somebody stood in it.
+ */
+describe("what a condition coming on says", () => {
+  it("tells whoever walked into the fire", () => {
+    const play = session(world("fire"));
+    step(play, "e");
+    expect(play.drainNotices()).toEqual(["You are Burned"]);
+  });
+
+  it("says it for a brazier that was pressed, too — one door, one sentence", () => {
+    const play = session(world("brazier"));
+    expect(play.activateAddStatus({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(
+      true,
+    );
+    expect(play.drainNotices()).toEqual(["You are Burned"]);
+  });
+
+  it("has nothing to add while the same body goes on standing in it", () => {
+    const play = session(world("fire"));
+    step(play, "e");
+    expect(play.drainNotices()).toEqual(["You are Burned"]);
+
+    // Four standing periods, every one of them a real re-grant — the countdown
+    // climbing is what `keeps burning whoever stands in it` asserts. None of
+    // them is news.
+    run(play, TICKS_PER_SECOND * 4);
+    expect(play.drainNotices()).toEqual([]);
+  });
+
+  it("says it again when the condition comes back after running out", () => {
+    const play = session(world("fire"));
+    step(play, "e");
+    expect(play.drainNotices()).toEqual(["You are Burned"]);
+
+    step(play, "w");
+    // Past the four seconds one helping lasts, so the burn is off before the
+    // second arrival — which makes the second arrival an acquisition.
+    run(play, TICKS_PER_SECOND * 5);
+    expect(held(play)).not.toContain("burned");
+
+    step(play, "e");
+    expect(play.drainNotices()).toEqual(["You are Burned"]);
+  });
+
+  it("says nothing about a fire that named a condition nobody authored", () => {
+    const play = session(world("ghost-fire"));
+    step(play, "e");
+    expect(play.drainNotices()).toEqual([]);
+  });
+
+  it("says nothing to a player about a deer that caught fire", () => {
+    const play = session(world("fire", "deer"), { actorIds: ["local"] });
+    expect(play.requestStep("npc:0,0,0,1", "e")).toBe("started");
+    run(play, TICKS_PER_STEP);
+    expect(held(play, "npc:0,0,0,1")).toEqual(["burned"]);
+    // Said to the body it happened to, and a resident's line is queued for
+    // nobody — see `GameSession.say`. So it reaches no player at all.
+    expect(play.drainNotices()).toEqual([]);
+    expect(play.drainNotices("npc:0,0,0,1")).toEqual([]);
+  });
+});
+
+/**
+ * The one way a grant is turned down once the catalogue has answered for the
+ * id, and the only place anybody is told about it: `/status` is the sole door
+ * that reports what became of an application. Everything else — a fire, a
+ * brazier, a bite — simply does nothing to a body that cannot take it, which is
+ * what the two `leaves a body ... alone` cases above already assert.
+ */
+describe("a body authored immune", () => {
+  it("is refused by name, rather than refused in silence", () => {
+    const play = session(world("grass", "salamander"), { actorIds: ["local"] });
+    play.runCommand("/status burned npc:0,0,0,1");
+    expect(held(play, "npc:0,0,0,1")).toEqual([]);
+    expect(play.drainNotices()).toEqual(["salamander cannot be Burned"]);
+  });
+
+  it("takes nothing from a fire it stands in either", () => {
+    const play = session(world("fire", "salamander"), { actorIds: ["local"] });
+    expect(play.requestStep("npc:0,0,0,1", "e")).toBe("started");
+    run(play, TICKS_PER_STEP + TICKS_PER_SECOND * 2);
+    expect(held(play, "npc:0,0,0,1")).toEqual([]);
   });
 });

@@ -307,6 +307,12 @@ export function commandRefusalNotice(refusal: CommandRefusal): string {
       // body has no battler block" is a fact about the engine, and the player
       // asked a question about a crate.
       return `${refusal.name} has no health to change`;
+    case "immuneTarget":
+      // Named rather than explained, on `unteachableTarget`'s terms: the body's
+      // `immuneTo` list is a fact about the engine, and somebody who typed a
+      // status at a wolf asked a question about the wolf. Both names, because
+      // the refusal is about the pairing and neither alone identifies it.
+      return `${refusal.name} cannot be ${refusal.status}`;
     case "unknownStatus":
       // The known ids rather than a count, on the terms the mastery refusal is
       // written under: a player re-reading their own line to work out which word
@@ -419,7 +425,6 @@ export function noRouteNotice(why: PathRefusal): string {
   }
 }
 
-/** What a body is told when a status is put on it by hand. */
 /**
  * What `/time` says back to whoever typed it.
  *
@@ -431,8 +436,47 @@ export function timeNotice(minutes: MinutesOfDay): string {
   return `It is now ${formatClock(minutes)}`;
 }
 
-export function statusGrantedNotice(name: string): string {
-  return `${name}.`;
+/**
+ * What a body is told when a condition comes on.
+ *
+ * **The one notice for something that is already drawn**, which is the rule this
+ * module is otherwise written against, and the strip is why it is not enough. A
+ * status shows as an icon in a lane along the edge of the view — the right place
+ * for "what am I under", read at leisure, and the wrong place for "what just
+ * happened to me". A player walking into a fire is looking at the fire, and the
+ * only evidence that it did anything is a sixteenth of the screen they are not
+ * looking at going from four icons to five.
+ *
+ * So the sentence carries the *arrival* and the strip carries the state. That
+ * split is also why this is said once per acquisition and not once per
+ * application: standing in a fire re-grants Burned every second — see
+ * `GameSession.grantStatus` — and a line that repeated would pin itself to the
+ * bottom of the view for as long as the player stood there, holding one of the
+ * two slots against everything else the game has to say.
+ *
+ * "You are Burning" rather than "Burning": the status's own name is an adjective
+ * an author wrote for an icon's tooltip, and a bare one reads as a label rather
+ * than as something that has happened. The name is the def's, so what the strip
+ * calls the condition and what the sentence calls it are one string.
+ */
+export function statusAcquiredNotice(name: string): string {
+  return `You are ${name}`;
+}
+
+/**
+ * What somebody is told when they put a condition on a body that is not theirs.
+ *
+ * The sibling of {@link statusAcquiredNotice} on exactly the terms
+ * {@link otherMasteryNotice} is the sibling of {@link masteryNotice}: the body
+ * under it is told what *it* is now under, and whoever did it is told what *they*
+ * just did. Only a command reaches this — nothing else in the game puts a status
+ * on somebody at a distance and tells a third party about it.
+ *
+ * It names the body, because the line lands in the same log as the command that
+ * caused it and "Burning" alone leaves the author matching lines to targets.
+ */
+export function otherStatusNotice(name: string, status: string): string {
+  return `${name} is ${status}`;
 }
 
 /** What a body is told when everything running on it is taken off. */
