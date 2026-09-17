@@ -6052,6 +6052,25 @@ check would push a new object thirty times a second and re-render the panel with
 it. A field added to `Attributes` and not to `sameAttributes` is a reading that
 silently stops updating; the test walks the keys so that cannot happen quietly.
 
+**The panel's body is capped at 200px and scrolls, on a desktop only.** Four
+sections, two of which grow: ten masteries and a handful of statuses came to more
+than half a tall window, and the column it sits in gives its room up out of the
+list of what is in reach. The ⭐ heading stays outside the scroller so the panel
+keeps a line saying what it is.
+
+A fixed height rather than a share of the viewport, which is what it was first:
+at two fifths, a tall screen gave the panel most of the column whether or not it
+had anything to put there. What the panel is for is checking a number and going
+back to the world, so it takes a fixed slice — about eight rows, enough for
+health and the first few masteries — and everything past that is scrolled to on
+purpose. On a phone the cap is off,
+because the panels there already sit in a column that scrolls as one and a second
+scroller inside the first is a trap for a finger — a drag that starts on the
+stats catches the inner box, hits its end, and the column behind it never moves.
+The scrollbar is given layout width (`.scrolls-in-chrome`) rather than left as an
+overlay: a cut that lands between two rows and shows nothing reads as a panel
+that simply ends.
+
 ## A creature can read its own health, and only as a share
 
 `health` is the condition that makes "run when you are losing" authorable. Every
