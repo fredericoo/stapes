@@ -4828,7 +4828,7 @@ The lines `weaponDemand` produces are what the world's look label says, over the
 canvas, in the pixel font. Inspecting a slot gets the same facts plus the rest of
 the profile, as a card: `app/game/itemCard.ts` computes it and
 `app/components/ItemCard.tsx` draws it. Damage, the wait between blows, the
-chance of landing one, the reach, every requirement against what you have, how
+chance of landing one, the range, every requirement against what you have, how
 well you handle it, what a blow leaves behind, and for worn things the kinds of
 blow they turn aside.
 
@@ -4859,21 +4859,24 @@ Four rules keep it from becoming the requirements panel that was deleted:
   definition of what a weapon is worth would diverge the next time somebody
   changed the falloff. The mastery rebalance replaced every formula underneath
   and the card needed no arithmetic changed.
-- **A row is a caption and a figure, not a sentence.** `dmg 12`, `def 4`,
-  `hp +5`, `every 1.2s`. The rows used to read "Blocks — 1 a blow" and
-  "Restores — 5 health", which spend a verb and a noun getting one number
-  across; six of those are a paragraph the reader has to take apart before they
-  can compare two swords. A worn thing's kind line is the caption on the square
-  it goes in — "Armour", "Head", "Footwear" — matching
+- **A row is a caption and a figure, not a sentence.** `Damage 7–12`,
+  `Defence 4`, `Health +5`, `Swing 1.2s`. The rows used to read
+  "Blocks — 1 a blow" and "Restores — 5 health", which spend a verb and a noun
+  getting one number across; six of those are a paragraph the reader has to take
+  apart before they can compare two swords. A worn thing's kind line is the
+  caption on the square it goes in — "Armour", "Head", "Footwear" — matching
   `app/components/EquipmentPanel.tsx` exactly, rather than "Worn on your body",
   which made the reader match a sentence to a picture.
 
-  What a poison costs is signed rather than worded — `hp −6` against `hp +5` —
-  on the terms `damageNumbers`' mend sign is: colour alone leaves a reader who
-  cannot separate the two hues with a bare figure. The abbreviations do not
-  survive being read out, so `ItemCardStat.spoken` carries the word for the
-  route that speaks the card, and `speech` says "Damage: 12" where the drawing
-  says `dmg 12`.
+  What a poison costs is signed rather than worded — `Health −6` against
+  `Health +5` — on the terms `damageNumbers`' mend sign is: colour alone leaves
+  a reader who cannot separate the two hues with a bare figure.
+
+  **The captions used to be abbreviations** — `dmg`, `def`, `hp`, `every` —
+  which bought about four characters and cost every row a spoken override,
+  because `def` read out is not a word anybody says. They are whole words now;
+  see *One word for one measurement* below, which is also why they are the same
+  whole words the stats panel uses.
 
 Each item kind reports what it has and nothing else. A weapon has a profile, a
 gate and a share; armour has a defence figure and a resistance table but no
@@ -4923,6 +4926,43 @@ spread that is not there.
 It is still a field in the editor, with `describeDamageBand` under it: an author
 is tuning the shape and needs the handle, and the readout names the peak as well
 as the ends, which is the thing the shape decides.
+
+### One word for one measurement
+
+`app/lib/terms.ts` holds the name of every measurement a player-facing row
+reports, and both surfaces that report one take their caption from it — the item
+card via `ItemCardStat.term`, the stats panel via `Reading`'s `term`. Neither
+module spells a caption itself.
+
+They had drifted, which is what the module is for. The card said `dmg`, `hit`,
+`every`, `reach` and `def`; the panel said *Damage*, *Accuracy*, *Atk Spd*,
+*Range* and *Defence*. Five readings, ten spellings, and a reader comparing the
+sword in their hand against the body holding it was matching abbreviations by
+position. Worse, one pair was not even the same measurement: the panel's
+*Accuracy* is `hitChance`, the probability a swing lands, while `accuracy` is a
+weapon's own field and is also what a defender's evasion is contested against.
+It is *Hit* on both surfaces now, and *Accuracy* is left to name the field —
+which is what the handling bar's *Accuracy & swing rate* has always meant by it.
+
+A term is named for what it measures, never for the surface it is drawn on, and
+**a label has to fit the narrowest surface that draws it**. That is the stats
+panel's grid: two columns inside a 224px chrome column, so a caption past about
+eight characters comes back as "Hit chan…". *Hit chance* and *Swing every* both
+read well on a card and both truncated there, which is the drift this module
+exists to stop, arriving by a different road. Where a word will not fit, shorten
+the word for everybody.
+
+The **value** is each surface's own, because a figure has nothing to drift
+against: a reader matching two surfaces up matches the captions. `attributes`'
+`shortReach` says "2–8c" under a *Range* the card heads "2–8 cells, fired".
+
+Dropping the abbreviations is what makes `Term.spoken` rare rather than
+mandatory: it now carries only the two captions that do not parse read aloud —
+"Swing: 1.2s" is not a sentence and "a blow every 1.2s" is.
+
+`HEADINGS` beside them holds what a block of rows is headed with, for the same
+reason: a section that meant one thing in two spellings is the same drift one row
+over.
 
 ### A notice is a sentence with nowhere else to go
 

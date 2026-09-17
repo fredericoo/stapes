@@ -7,6 +7,7 @@ import type {
   ItemCardStat,
 } from "../game/itemCard";
 import { MASTERY_LABELS } from "../lib/mastery";
+import { HEADINGS, termLabel } from "../lib/terms";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { SpritePreview, TilePreview } from "./TilePreview";
 
@@ -133,13 +134,13 @@ export function ItemCard({
       {card.stats.length > 0 ? (
         <dl className="flex flex-col gap-0.5">
           {card.stats.map((stat) => (
-            <StatRow key={stat.key} stat={stat} />
+            <StatRow key={stat.term} stat={stat} />
           ))}
         </dl>
       ) : null}
 
       {card.resists.length > 0 ? (
-        <Section title="Resists">
+        <Section title={HEADINGS.resists}>
           <ul className="flex flex-col gap-0.5">
             {card.resists.map((row) => (
               <ResistRow key={row.mastery} row={row} />
@@ -149,7 +150,7 @@ export function ItemCard({
       ) : null}
 
       {card.requirements.length > 0 ? (
-        <Section title="Requires">
+        <Section title={HEADINGS.requires}>
           <ul className="flex flex-col gap-0.5">
             {card.requirements.map((row) => (
               <RequirementRow key={row.mastery} row={row} />
@@ -191,17 +192,21 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /**
- * One figure: the label on the left, the value on the right.
+ * One figure: the caption on the left, the value on the right.
  *
  * The item's own number appears beside it whenever the two differ. That
  * comparison is the main reason the card carries numbers: "Damage 6" says
  * nothing a sentence could not, while "Damage 6, and this sword does 17" says
  * what is wrong and what fixing it is worth.
+ *
+ * The caption comes out of `../lib/terms` rather than off the row, so the word
+ * this card uses for a measurement and the word the stats panel uses for the
+ * same one cannot come apart.
  */
 function StatRow({ stat }: { stat: ItemCardStat }) {
   return (
     <div className="flex items-baseline gap-2 text-[11px] leading-tight">
-      <dt className="shrink-0 text-ink/70">{stat.label}</dt>
+      <dt className="shrink-0 text-ink/70">{termLabel(stat.term)}</dt>
       {/* The leader lives inside the value rather than between the pair: a `dl`
           takes `dt` and `dd` and nothing else, and a loose span between them is
           markup no parser is obliged to keep where it was put. */}
@@ -310,7 +315,7 @@ function Handling({ percent }: { percent: number }) {
     <section className="flex flex-col gap-1 border-t-2 border-ink/15 pt-1">
       <div className="flex items-baseline gap-2">
         <h4 className="text-[9px] font-bold uppercase tracking-widest text-ink/60">
-          Accuracy &amp; swing rate
+          {HEADINGS.handling}
         </h4>
         <span
           className={`ml-auto text-sm font-bold tabular-nums ${met ? "text-accent" : "text-danger"}`}
