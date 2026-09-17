@@ -158,31 +158,85 @@ export function swingIntervalMs(attacker: FightingStats): number {
  * Sets the steepness of {@link dodgeChance}'s curve. At twenty, a defender forty
  * behind still gets out of the way about one time in seven, and one twenty ahead
  * is favoured without being untouchable — which is the width the authored
- * evasions and accuracies actually span.
+ * Agilities actually span.
  */
 export const CONTEST_SCALE = 20;
 
 /**
+ * How far ahead of the swinger a defender has to be before a dodge is even
+ * money.
+ *
+ * **A dodge is the exception, and this is the number that says so.** Both sides
+ * of the contest now come off the same faculty — see {@link reflex} — so without
+ * it, two bodies of equal Agility would dodge half of each other's blows, and
+ * two bodies of equal anything is the overwhelmingly common case. The swinger
+ * has the initiative: they choose the moment, and the defender is reacting to
+ * it.
+ *
+ * Fifty-five, which is roughly the gap the old rule had by accident. It
+ * contested `flee` against an *accuracy* — a number sitting near 85 on anything
+ * worth swinging, against evasions running 26 to 65 — and the distance between
+ * those two scales was doing this job silently. Naming it is most of the point:
+ * how often anybody dodges is now one constant somebody can move, rather than a
+ * side effect of how weapon accuracies happen to be authored.
+ */
+export const REFLEX_EDGE = 55;
+
+/**
  * The chance a blow is avoided entirely, as a fraction of 1.
  *
- * A contest between the defender's evasion and the attacker's accuracy, resolved
- * on a logistic curve: level pegging is a coin toss, and every point either way
- * bends it smoothly rather than in a straight line. Clamped to the band above,
- * so no amount of accuracy erases a nimble defender and no amount of evasion
- * makes anybody untouchable.
+ * A contest between the defender's evasion and the swinger's reflexes, resolved
+ * on a logistic curve: every point either way bends it smoothly rather than in a
+ * straight line. Clamped to the band above, so no amount of Agility erases a
+ * nimble defender and no amount of evasion makes anybody untouchable.
  *
- * **This used to be `flee - accuracy / 2`, and the halving was a bodge.** It was
- * there to stop accuracy being the only stat worth having, which it had to be
- * because accuracy was also the only thing deciding whether a blow landed. Once
- * landing became its own question, the linear form collapsed: pushing weapon
- * accuracy up far enough to make hit chances sane drove every dodge in the game
- * to about two percent, and Agility stopped being worth training. A curve with
- * floors at both ends has no such cliff — it is asymptotic where the old one hit
- * zero and stayed there.
+ * **Both sides are Agility, and the attacker's weapon has no say.** It used to
+ * be contested against the attacker's accuracy, which made accuracy answer two
+ * questions at once: whether the swing went where it was aimed, *and* whether
+ * its target could get out of the way. Those are different questions about
+ * different bodies. Whether you execute the attack is a fact about you and the
+ * thing in your hand; whether somebody twists away from it is a race between
+ * their reflexes and yours. A sharper sword does not make you quicker.
+ *
+ * What that cost while the two were fused: a weapon authored inaccurate was
+ * charged for it twice — once in the swings that went nowhere, and again in
+ * losing the contest against everything nimble. The bows were the case that made
+ * it visible. An archer with 50 accuracy missed half their shots and had two
+ * thirds of the rest dodged by a bat, which is a fifth of what the authored
+ * number said.
+ *
+ * **This used to be `flee - accuracy / 2` before that**, and the halving was a
+ * bodge with the same root: accuracy was load-bearing in two places, and the
+ * halving was there to stop it being the only stat worth having. A logistic with
+ * floors at both ends has no such cliff.
  */
-export function dodgeChance(flee: number, attackerAccuracy: number): number {
-  const contest = (flee - attackerAccuracy) / CONTEST_SCALE;
+export function dodgeChance(flee: number, attackerReflex: number): number {
+  const contest = (flee - attackerReflex - REFLEX_EDGE) / CONTEST_SCALE;
   return clampChance(1 / (1 + Math.exp(-contest)));
+}
+
+/**
+ * How well this body follows somebody trying not to be hit.
+ *
+ * **The same number as its own evasion, read the other way round.** Getting out
+ * of the way and staying with something that does are one faculty, and a body
+ * that has trained Agility has trained both — so this is a field read rather
+ * than a second stat, for the reason {@link landChance} is: what it names is the
+ * rule. "Whether a blow is dodged is Agility against Agility, and the weapon has
+ * no say in it." Two things read that rule — {@link rollAttack} and
+ * `./combatMetrics` — and a rule with two expressions is a rule that will be
+ * changed in one of them.
+ *
+ * A separate `reflex` on {@link FightingStats} would be the same number stored
+ * twice, and the day somebody put a status on one of them they would have two
+ * answers to one question.
+ *
+ * Not scaled by {@link underPressure}, and that asymmetry is deliberate: being
+ * surrounded is what makes *you* easier to hit, not what makes you worse at
+ * catching the one body you are swinging at.
+ */
+export function reflex(attacker: FightingStats): number {
+  return attacker.flee;
 }
 
 /**
@@ -632,7 +686,7 @@ export function rollAttack(
   // avoided still knows what it was worth. See {@link AttackOutcome.potentialDamage}.
   const potentialDamage = potentialDamageFrom(attacker, damageRoll);
 
-  if (dodgeRoll < dodgeChance(defender.flee, attacker.accuracy)) {
+  if (dodgeRoll < dodgeChance(defender.flee, reflex(attacker))) {
     return {
       missed: false,
       dodged: true,

@@ -8,6 +8,7 @@ import {
   guardRolled,
   landChance,
   potentialDamageFrom,
+  reflex,
   swingIntervalMs,
 } from "./combat";
 
@@ -239,9 +240,10 @@ export type SwingOdds = {
    * defender who dodges six aimed blows in seven reads as dodging half of
    * everything thrown at them, which is the wrong number to tune a stat on.
    *
-   * Contested against the attacker's accuracy, so it is a fact about the pair
-   * and not about the defender — the same evasion is worth less against a
-   * precise weapon.
+   * Contested against the attacker's own Agility — see `./combat`'s
+   * {@link reflex} — so it is a fact about the pair and not about the defender:
+   * the same evasion is worth less against something quick. What the attacker is
+   * holding has no say in it.
    */
   dodgeWhenAimed: number;
   /** Share of swings that reached a body. */
@@ -311,7 +313,7 @@ export function swingOdds(
   // that exactly that often. Both halves read off `./combat` rather than off the
   // stat block, so a rule that grows a term grows it in one place.
   const lands = landChance(attacker);
-  const dodgeGivenAim = dodgeChance(defender.flee, attacker.accuracy);
+  const dodgeGivenAim = dodgeChance(defender.flee, reflex(attacker));
 
   const missed = 1 - lands;
   const dodged = lands * dodgeGivenAim;

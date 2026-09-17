@@ -22,6 +22,8 @@ import {
   guardShare,
   inAttackRange,
   MIN_GUARD_SHARE,
+  REFLEX_EDGE,
+  reflex,
   rollAttack,
   underPressure,
 } from "./combat";
@@ -144,20 +146,50 @@ describe("the damage band", () => {
 /**
  * A contest on a logistic curve, floored and capped.
  *
- * This replaced `flee - accuracy / 2`, which was linear and hit zero and stayed
- * there. Once accuracy also decided whether a blow landed at all, weapon
- * accuracies had to rise, and the linear rule drove every dodge in the game to
- * about two percent — Agility stopped being worth a single point.
+ * **Agility against Agility, with the swinger favoured by `REFLEX_EDGE`.** Both
+ * sides read the same faculty — see `./combat`'s `reflex` — so without the edge,
+ * two bodies with the same Agility would dodge half of each other's blows, and
+ * two bodies with the same anything is the common case rather than the corner.
+ *
+ * Before that it was contested against the attacker's *accuracy*, which made a
+ * weapon's accuracy answer both "did the swing go where it was aimed" and "could
+ * its target get out of the way" — and charged an inaccurate weapon for the same
+ * failing twice. Before *that* it was `flee - accuracy / 2`, which was linear
+ * and hit zero and stayed there.
  */
 describe("dodging", () => {
-  it("is a coin toss when evasion and accuracy are level", () => {
-    expect(dodgeChance(50, 50)).toBeCloseTo(0.5, 10);
-    expect(dodgeChance(100, 100)).toBeCloseTo(0.5, 10);
+  it("favours the swinger when the two are level", () => {
+    // The initiative is worth exactly REFLEX_EDGE, whatever the two bodies are
+    // standing at: it is a shift along the curve, not a share of it.
+    expect(dodgeChance(50, 50)).toBeCloseTo(dodgeChance(100, 100), 10);
+    expect(dodgeChance(50, 50)).toBeLessThan(0.5);
   });
 
-  it("favours whichever side is ahead", () => {
-    expect(dodgeChance(70, 50)).toBeGreaterThan(0.5);
-    expect(dodgeChance(30, 50)).toBeLessThan(0.5);
+  it("is a coin toss once the defender is ahead by the swinger's edge", () => {
+    expect(dodgeChance(50 + REFLEX_EDGE, 50)).toBeCloseTo(0.5, 10);
+    expect(dodgeChance(100 + REFLEX_EDGE, 100)).toBeCloseTo(0.5, 10);
+  });
+
+  it("favours whichever side is ahead, from that point", () => {
+    expect(dodgeChance(70 + REFLEX_EDGE, 50)).toBeGreaterThan(0.5);
+    expect(dodgeChance(30 + REFLEX_EDGE, 50)).toBeLessThan(0.5);
+  });
+
+  /**
+   * **A weapon has no say in it.** The whole point of moving the contest off
+   * accuracy: a body swinging something it can barely hit with is no easier to
+   * dodge than the same body swinging a masterwork blade, because getting out of
+   * the way is a race against their reflexes rather than against their sword.
+   */
+  it("is unmoved by what the swinger is holding", () => {
+    const quick = battler({ flee: 60 });
+    const clumsyWeapon = { ...quick, accuracy: 5, hitChance: 0.05 };
+    const fineWeapon = { ...quick, accuracy: 100, hitChance: 0.95 };
+    const defender = battler({ flee: 80 });
+
+    expect(dodgeChance(defender.flee, reflex(clumsyWeapon))).toBe(
+      dodgeChance(defender.flee, reflex(fineWeapon)),
+    );
   });
 
   /**
@@ -171,9 +203,9 @@ describe("dodging", () => {
 
   /** Smooth: every point of evasion is worth something, with no cliff anywhere. */
   it("rises without a step, all the way along", () => {
-    let previous = dodgeChance(0, 85);
+    let previous = dodgeChance(0, 30);
     for (let flee = 1; flee <= 200; flee++) {
-      const here = dodgeChance(flee, 85);
+      const here = dodgeChance(flee, 30);
       expect(here).toBeGreaterThanOrEqual(previous);
       expect(here - previous).toBeLessThan(0.05);
       previous = here;
@@ -186,12 +218,29 @@ describe("dodging", () => {
    * got wrong in the other direction.
    */
   it("keeps paying from an untrained body to a fully trained one", () => {
-    const untrained = dodgeChance(fleeFrom(0), 85);
-    const halfway = dodgeChance(fleeFrom(50), 85);
-    const mastered = dodgeChance(fleeFrom(100), 85);
+    // Against a swinger of the player's own Agility, which is the fight the
+    // stat is actually trained for.
+    const swinger = fleeFrom(10);
+    const untrained = dodgeChance(fleeFrom(0), swinger);
+    const halfway = dodgeChance(fleeFrom(50), swinger);
+    const mastered = dodgeChance(fleeFrom(100), swinger);
 
     expect(halfway).toBeGreaterThan(untrained * 3);
     expect(mastered).toBeGreaterThan(halfway * 1.5);
+  });
+
+  /**
+   * And it pays on the attacking side too, which is what the stat bought by
+   * taking this contest off accuracy: training Agility is now the answer to
+   * "the bats keep getting out of the way", where before it did nothing for you
+   * unless you were the one being swung at.
+   */
+  it("pays the swinger for training it as well as the defender", () => {
+    const bat = fleeFrom(45);
+    const novice = dodgeChance(bat, fleeFrom(10));
+    const trained = dodgeChance(bat, fleeFrom(50));
+
+    expect(trained).toBeLessThan(novice / 2);
   });
 });
 
@@ -435,9 +484,11 @@ describe("swinging", () => {
 
   it("always dodges a defender nothing can touch", () => {
     // Certain to connect, so what is asserted is the dodge rather than the
-    // whiff — the two are distinguished in their own describe below.
-    const attacker = battler({ accuracy: 0, hitChance: 1 });
-    const defender = battler({ flee: 100 });
+    // whiff — the two are distinguished in their own describe below. The
+    // swinger is hopeless at *following* rather than at aiming, which since the
+    // contest moved off accuracy is their own `flee`.
+    const attacker = battler({ flee: 0, hitChance: 1 });
+    const defender = battler({ flee: 1000 });
     for (let seed = 0; seed < 20; seed++) {
       expect(rollAttack(attacker, defender, new Rng(seed)).dodged).toBe(true);
     }
@@ -617,13 +668,13 @@ describe("statuses a weapon inflicts", () => {
   it("leaves nothing on a miss or on a dodge", () => {
     const missing = battler({ hitChance: 0, statuses: [certain] });
     const dodgeable = battler({
-      accuracy: 0,
+      flee: 0,
       hitChance: 1,
       statuses: [certain],
     });
     for (let seed = 0; seed < 20; seed++) {
       const missed = rollAttack(missing, battler({ flee: 0 }), new Rng(seed));
-      const dodged = rollAttack(dodgeable, battler({ flee: 100 }), new Rng(seed));
+      const dodged = rollAttack(dodgeable, battler({ flee: 1000 }), new Rng(seed));
       if (missed.missed) expect(missed.inflicted).toEqual([]);
       expect(dodged.dodged).toBe(true);
       expect(dodged.inflicted).toEqual([]);
@@ -770,8 +821,8 @@ describe("missing, as distinct from being dodged", () => {
    * agility for standing still.
    */
   it("reads as missed rather than dodged when both would have fired", () => {
-    const attacker = battler({ hitChance: 0, accuracy: 0 });
-    const defender = battler({ flee: 100 });
+    const attacker = battler({ hitChance: 0, flee: 0 });
+    const defender = battler({ flee: 1000 });
     for (let seed = 0; seed < 20; seed++) {
       const outcome = rollAttack(attacker, defender, new Rng(seed));
       expect(outcome.missed).toBe(true);
@@ -780,8 +831,8 @@ describe("missing, as distinct from being dodged", () => {
   });
 
   it("still dodges normally once the swing does connect", () => {
-    const attacker = battler({ hitChance: 1, accuracy: 0 });
-    const defender = battler({ flee: 100 });
+    const attacker = battler({ hitChance: 1, flee: 0 });
+    const defender = battler({ flee: 1000 });
     for (let seed = 0; seed < 20; seed++) {
       const outcome = rollAttack(attacker, defender, new Rng(seed));
       expect(outcome.missed).toBe(false);
