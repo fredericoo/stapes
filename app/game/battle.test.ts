@@ -889,6 +889,17 @@ describe("the authored creatures", () => {
     });
 
     /**
+     * The hold moves no health at all, which is the whole of what keeps it fair
+     * on a creature you meet early: what it costs you is the seconds, and the
+     * bite it interrupts is the snake's only damage. A bolt with a status and
+     * no damage is the documented shape for exactly this.
+     */
+    it("takes nothing off the body it holds", () => {
+      const [hold] = resolveBattler(byId.snake!)!.spells!;
+      expect(hold!.effect.kind === "bolt" && hold!.effect.damage).toBeUndefined();
+    });
+
+    /**
      * The floor exists so that no authored content can stop a body walking at
      * all — a lock nothing in the game could free. Paralysis is the strongest
      * thing that may be said about a pair of legs, and it still is not that.

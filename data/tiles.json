@@ -26584,8 +26584,6 @@
             "effect": {
               "kind": "bolt",
               "on": "target",
-              "damage": 5,
-              "variance": 25,
               "statuses": [
                 {
                   "id": "paralysed",

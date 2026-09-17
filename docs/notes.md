@@ -5470,12 +5470,17 @@ It is a fire spell because its *requirements* name Fire, which is the only place
 a spell's element is written down — and the troll was given the Arcane and Fire
 to meet them, since an unmet requirement refuses the cast outright.
 
-**The snake constricts.** `Constrict` is a hold at arm's length: five points and
-`paralysed`, which takes a body to a tenth of its walking pace for two to three
-and a half seconds. The damage is the smaller half of it. What the spell is
-*for* is that the snake is the slowest body in the world — it crawled, and you
-walked away — so what it needs is not reach but a moment where you cannot use
-yours.
+**The snake constricts.** `Constrict` is a hold at arm's length, and it moves no
+health at all: what it leaves is `paralysed`, which takes a body to a tenth of
+its walking pace for two to three and a half seconds. A bolt with a status and no
+damage is the documented shape for exactly this. What the spell is *for* is that
+the snake is the slowest body in the world — it crawled, and you walked away — so
+what it needs is not reach but a moment where you cannot use yours.
+
+**Zero damage is what keeps it fair on a creature you meet early.** A hold that
+also hit for five stacked a real blow on top of losing your legs, on a twelve
+second clock, at the start of the game. What it costs you now is the seconds, and
+the snake's only damage is the bite the cast interrupts.
 
 **It asks for nothing, and that is what keeps it a grip rather than a rune.** A
 natural spell with no `requirements` is always castable, casts at exactly its
