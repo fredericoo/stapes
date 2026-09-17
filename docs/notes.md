@@ -2846,6 +2846,73 @@ rat that picks up a bow shoots as far as the bow carries — a body has no reach
 its own, because bare hands are a weapon and a bite is a weapon and each carries
 the distance it works at. A `range` left on a tile parses fine and is dropped.
 
+**The disc may have a hole in it.** `Reach.min` is a third test, and it exists
+because without one a bow is strictly the better weapon everywhere: a ranged
+weapon's disc contains a melee one's entirely, so there is no distance at which
+the sword is the answer. The only thing that had ever kept an archer out of a
+melee was `twoHanded` taking the other hand away, and that is a rule about hands
+rather than about range.
+
+- **On the plan alone**, which matters more than it does for the ceiling.
+  Somebody a storey below you is nought cells away, so a floor measured in three
+  dimensions would let a bow shoot straight down through a floor and refuse the
+  wolf standing beside them. The lid already refuses the floor below; the hole is
+  about the yard.
+- **Squared and inclusive on both ends**, like `cells`. The diagonal neighbour is
+  exactly 2 and the cell two along exactly 4, so a `min` of 2 keeps the cell two
+  along and drops the diagonal — the same boundary care a radius wants, from the
+  other side.
+- **Absent, not zero, for everything without one.** A `min: 0` written on every
+  sword in `tiles.json` is a key that says what its absence says, so
+  `reachForSave` drops it. The editor's number field can only say zero, and that
+  is where the two meet.
+- **It is shared with a spell**, because `Reach` is, and a stone that cannot be
+  cast at point-blank range is authorable for free. Nothing ships with one.
+- **`duel.ts` has no distance in it at all** — it is two bodies "in reach of each
+  other" — so no balance measurement sees a minimum. That is the cost of the
+  change: the Arena reports a bow's rate at a range the bow can no longer fire
+  at, and `two weapons on one rung` keeps passing while meaning less. Anything a
+  minimum is supposed to fix has to be checked by playing it.
+
+### Which hand swings is a question about where the target is standing
+
+`handToSwing` used to ask one thing: does this hand hold something I would
+swing? That is enough while every weapon works at every distance it is allowed
+to reach, and it stops being enough the moment a weapon can be held and be no
+use — a bow inside its `Reach.min`, a dagger across a courtyard. It takes an
+optional `usable` predicate now, and skips a hand whose weapon has no answer to
+this fight exactly as it skips an empty fist. `GameSession.tryAttack` hands it
+`canReach` with the real board and the real positions in it.
+
+**The rotation stalled without it, silently.** The turn only advances on a swing
+that is actually spent, and the reach check sits above that line:
+
+```
+if (!canReach(…, attackerStats.reach)) return false;   // returns here
+…
+attacker.nextHand = swung ? otherHand(swung) : attacker.nextHand;
+```
+
+So a body that picked a hand it could not use failed, returned, and offered the
+same hand again next tick and every tick after. A bow and a knife, standing on
+top of the thing it was fighting, did nothing at all.
+
+**A null hand means two things now, and only one of them is fists.** A held
+weapon *replaces* the natural one — `weaponInHand` reads a null hand as "swing
+what you were born with" — and that fallback is for a body with nothing in
+either fist, not for an archer who has let something get too close. Reading a
+skipped hand as an empty one would hand every archer a free melee weapon.
+`fightsWithAHand` is the unfiltered half of the question and is what tells the
+two apart; it is also what `natureDefence` was already asking inline.
+
+**What a panel draws is still the rotation**, not the choice. `battlerOf` takes
+the hand as an argument and defaults to `handOf` — the body's own turn, with no
+target in it — so a health bar can be asked sixty times a second without a fight
+in scope. Only the swing passes a hand it worked out, which means the stat panel
+can show a bow while the knife lands. That is honest rather than a bug: which
+weapon you use is now a fact about where the wolf is standing, and the panel has
+no wolf.
+
 ### A ranged weapon is one with a projectile, and the arrow is only a picture
 
 There is no `ranged` flag and there must not be one: a weapon is ranged exactly
@@ -3040,6 +3107,45 @@ every ten seconds — and `automatic`, `automaticFires`, `StoneHolder` and the
 the charm square takes stones on exactly a hand's terms, and it takes charms
 because nothing else will have them. The squares differ in what they *cost* and
 in nothing else.
+
+**On screen the square is called Accessory, and in the code it is still
+`charm`.** The key was named when a charm was the only thing that went in it,
+and it now takes four kinds — armour authored for it, an arcane stone, a
+`CharmItem`, and a light. Naming the square after one of its four made the other
+three look misplaced. The key does not move for the reason `ARMOR_SLOTS` gives
+for keeping the chest square as `armor`: it is on the wire, in `data/tiles.json`
+on every ring and amulet, and in every saved kit, so renaming it would take the
+amulet off everybody wearing one. The word is `SLOT_LABELS` and
+`EquipmentPanel`'s caption, and the *item type* stays "Charm" — a charm is one
+of the things you put in the accessory square.
+
+##### A torch goes in the accessory square, and the off hand stops being the price of light
+
+`carriedLightTileIds` has always walked every worn square — all seven, bag
+included — so a torch in the accessory square lit the room the day the square
+existed, and `takesEffect` already drew it as a square doing something. The one
+thing in the way was `wornAccepts`, which took armour, a stone and a charm and
+stopped. It takes a light now.
+
+**What it buys is a hand.** The off hand exists because a lantern authored as a
+weapon meant fighting at a twentieth of your bare hands to see in the dark, and
+it solved that by making light cost the *other* fist instead — so "see in the
+dark" and "hold a shield" were one choice, and a two-handed weapon settled it
+for you. A lamp on a belt loop is worth more than that. It is also the half of
+one-handed bows that makes them interesting: a bow, a knife and a torch is a
+loadout, and it was not expressible in two squares.
+
+Read off the light rather than off `ArtifactItem`, for the reason `takesEffect`
+reads it that way: a lamp that is also an amulet is still a lamp, and a rule
+about the kind would have to be extended every time a new kind learned to glow.
+Armour still goes only in the square it names — a helmet that glows is a helmet
+— because `armorForSlot` answers first and the light arm is about this square
+alone.
+
+**Nothing dims it for being worn rather than held.** A light's radius is on the
+sprite's frame, not on the square, so there is no per-square falloff to reach
+for and inventing one would be a second place a torch's brightness is decided.
+This is a straight buff, and it is meant to be one.
 
 **`hp` is unsigned, unlike a consumable's.** A consumable is something you chose
 to swallow, so a poisoned apple is fair. A charm acts on its wearer without being
@@ -4361,6 +4467,43 @@ worse at everything; a bow that misses is a gamble, which is what a shot from
 across a courtyard should be. It also keeps the thing an archer is buying legible
 in one number — the arrow is still worth what it always was, and what you are
 risking is the arrow.
+
+#### A bow takes one hand and has a hole in the middle
+
+The three bows are one-handed now, with `reach.min: 2`. Two changes, and they
+are one change: a bow that frees a hand and still worked in your face would be
+strictly better than the sword on its rung at every distance, so the hole is
+what pays for the hand.
+
+**Two cells is exactly the melee box, and it is the same on all three.**
+`MELEE_REACH` is 1.5 — the eight cells around you and nothing else, because 1.5
+squared sits between the diagonal's 2 and the cell two along's 4. A minimum of 2
+kills exactly those eight and keeps the cell two along, landing on the other side
+of the same boundary. So a knife covers precisely what the bow cannot, with no
+dead ring between them. A bigger minimum on the bigger bows reads as a design —
+a war bow is harder to use up close — and opens a band at two or three cells
+that nothing in a player's kit can close, which is a worse thing than an
+uninteresting number.
+
+**What it is for is a loadout rather than a weapon.** A bow and a knife, a bow
+and a torch, a bow and an arcane stone: the first needs `handToSwing` to pick
+the hand that works here (see *Which hand swings is a question about where the
+target is standing*), and the other two need nothing at all, because
+`weaponSwungBy` refuses a non-weapon a turn and the rotation is over weapons.
+
+**The 45% above was measured on an archer who steps back, and this changes
+that.** `damagePerSecond` starts both bodies in contact, which is the fight an
+archer never picks — that is the whole argument for pricing a bow at 45% of the
+sword rather than 85%. An archer with a knife does not have to step back, so the
+reach is worth less than it was and the bow is worth more than 45% of a sword
+over a whole fight. The minimum is the counterweight and is not obviously the
+right size for it.
+
+`duel.test.ts`'s `two weapons on one rung` keeps passing and means less: it
+measures one weapon against one weapon, so it never sees a loadout, and
+`duel.ts` has no distance in it to see a minimum with. **Whether this is
+balanced has to be found out by playing it**, and the two dials are the
+minimum and the accuracy — not the damage, for the reason above.
 
 ### Nothing is taken off a weapon for being one you have outgrown
 

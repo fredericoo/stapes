@@ -14,6 +14,7 @@ import {
   maxHpFrom,
   resolveBattler,
 } from "../lib/battler";
+import type { WeaponItem } from "../lib/item";
 import {
   ARMOR_SLOTS,
   armorSlotOf,
@@ -33,6 +34,7 @@ import {
   armorDefence,
   armorResistances,
   bodyElements,
+  fightsWithAHand,
   fightsWithBothHands,
   HANDS,
   handClaimedByTwoHander,
@@ -50,6 +52,7 @@ import {
   takesEffect,
   weaponInHand,
   weaponSwungBy,
+  wornAccepts,
   wornDefence,
 } from "./equipment";
 
@@ -936,6 +939,91 @@ describe("taking turns between two hands", () => {
   });
 
   /**
+   * **A weapon that cannot be used here is skipped exactly as an empty fist
+   * is**, which is the whole of "a bow and a knife is one loadout". The filter
+   * is how far each hand's weapon reaches against where the target is standing;
+   * everything else about the rotation is untouched.
+   *
+   * Written against a predicate rather than against a bow, because that is what
+   * the function takes: `GameSession` hands it `canReach` with the real board
+   * and the real positions in it, and a fixture map here would be testing the
+   * fixture. The fight's own cases are the session suite's.
+   */
+  describe("when a weapon has no answer to this fight", () => {
+    /** Stands in for a bow inside its minimum: the off hand is no use here. */
+    const onlyTheMainHand = (_weapon: WeaponItem, hand: Hand) =>
+      hand === "weapon";
+    const neither = () => false;
+
+    it("takes the turn of a hand whose weapon cannot be used", () => {
+      const both = held("sword", "rusty-sword");
+      // Whosever turn it nominally is, the hand that works answers.
+      for (const preferred of HANDS) {
+        expect(handToSwing(both, tiles, preferred, onlyTheMainHand)).toBe(
+          "weapon",
+        );
+      }
+    });
+
+    /**
+     * **The stall this exists to prevent.** The rotation only advances on a
+     * swing that is actually spent, so a body that kept offering a hand it
+     * could not use would offer it again next tick, and every tick after.
+     */
+    it("does not simply refuse when the preferred hand is the useless one", () => {
+      const both = held("sword", "rusty-sword");
+      expect(handToSwing(both, tiles, "offhand", onlyTheMainHand)).toBe(
+        "weapon",
+      );
+    });
+
+    /**
+     * Null, and the caller must not read it as bare hands: a held weapon
+     * replaces the natural one, so an archer with somebody in their face does
+     * not start punching. @see `fightsWithAHand`, which is how the two nulls
+     * are told apart.
+     */
+    it("answers null when no hand's weapon works, and still counts as armed", () => {
+      const both = held("sword", "rusty-sword");
+      expect(handToSwing(both, tiles, "weapon", neither)).toBeNull();
+      expect(fightsWithAHand(both, tiles)).toBe(true);
+    });
+
+    it("is not asked of a hand with nothing to swing in it", () => {
+      const kit = held("sword", "hand-lantern");
+      const asked: Hand[] = [];
+      handToSwing(kit, tiles, "offhand", (_weapon, hand) => {
+        asked.push(hand);
+        return true;
+      });
+      expect(asked).toEqual(["weapon"]);
+    });
+
+    it("leaves a body with no filter exactly as it was", () => {
+      const both = held("sword", "rusty-sword");
+      expect(handToSwing(both, tiles, "offhand")).toBe("offhand");
+    });
+  });
+
+  /**
+   * The unfiltered half of the question, and what tells an unarmed body from an
+   * armed one whose weapons all fall short.
+   */
+  describe("fightsWithAHand", () => {
+    it("is true for one weapon and for two", () => {
+      expect(fightsWithAHand(held("sword", null), tiles)).toBe(true);
+      expect(fightsWithAHand(held(null, "sword"), tiles)).toBe(true);
+      expect(fightsWithAHand(held("sword", "rusty-sword"), tiles)).toBe(true);
+    });
+
+    it("is false for empty hands and for hands holding things nobody swings", () => {
+      expect(fightsWithAHand(emptyEquipment(), tiles)).toBe(false);
+      expect(fightsWithAHand(held("shield", "hand-lantern"), tiles)).toBe(false);
+      expect(fightsWithAHand(null, tiles)).toBe(false);
+    });
+  });
+
+  /**
    * Each hand brings its own everything, which is what "the appropriate damage"
    * has to mean: a body alternating a blade and a hammer strikes as a blade and
    * then as a hammer, and armour keyed by kind sees both.
@@ -1091,6 +1179,53 @@ describe("a weapon that needs both hands", () => {
       .filter((weapon): weapon is NonNullable<typeof weapon> => weapon != null)
       .filter((weapon) => weapon.twoHanded);
     expect(both.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * What the three shipped bows are now, and the pair of decisions behind it.
+ *
+ * A design rather than a tuning figure, which is why it is asserted rather than
+ * left to be noticed: a bow that quietly went back to needing both hands, or
+ * lost its minimum, would be a strictly better weapon than the sword on its rung
+ * and nothing would say so. The damage and accuracy numbers are deliberately not
+ * here — those are `duel.test.ts`'s, where they are measured rather than named.
+ */
+describe("the bows we ship", () => {
+  const shipped = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]));
+  const BOWS = ["simple-bow", "hunting-bow", "war-bow"];
+
+  const bowOf = (id: string) => resolveWeapon(shipped[id]!)!;
+
+  it("leaves a hand free for a knife, a torch or a stone", () => {
+    for (const id of BOWS) expect(bowOf(id).twoHanded, id).toBeFalsy();
+  });
+
+  /**
+   * **Two cells is exactly the melee box**, which is the whole reason it is two
+   * and the same on all three. `MELEE_REACH` covers the eight cells around you
+   * and stops; a minimum of 2 kills those eight and keeps the cell two along —
+   * both land on the squared boundaries either side of the value. So a knife
+   * covers precisely what the bow cannot, with no dead ring between them. A
+   * bigger minimum on the bigger bows would open one, and nothing in a player's
+   * kit could close it.
+   */
+  it("is dead over exactly the cells a knife covers", () => {
+    for (const id of BOWS) {
+      expect(bowOf(id).reach.min, id).toBe(2);
+      // The far wall of the melee box and the near wall of the bow's, with the
+      // diagonal neighbour between them and inside neither.
+      expect(MELEE_REACH.cells * MELEE_REACH.cells).toBeGreaterThan(2);
+      expect(MELEE_REACH.cells * MELEE_REACH.cells).toBeLessThan(4);
+      expect(bowOf(id).reach.min! * bowOf(id).reach.min!).toBe(4);
+    }
+  });
+
+  it("still reaches further than anything swung, and still fires", () => {
+    for (const id of BOWS) {
+      expect(bowOf(id).reach.cells, id).toBeGreaterThan(MELEE_REACH.cells);
+      expect(bowOf(id).projectile, id).toBeDefined();
+    }
   });
 });
 
@@ -1589,5 +1724,127 @@ describe("takesEffect", () => {
   it("does not count one they have not", () => {
     expect(takesEffect("weapon", held("spark"), tiles, NOVICE)).toBe(false);
     expect(takesEffect("charm", held("spark"), tiles, NOVICE)).toBe(false);
+  });
+});
+
+/**
+ * What the accessory square will take.
+ *
+ * `charm` in the model and "Accessory" on screen — see `../lib/kit`'s
+ * `SLOT_LABELS`. It is the only worn square that takes more than armour, and the
+ * whole of what it takes is here so that the four kinds cannot quietly become
+ * three: the move rules, the equip button and `restoredEquipment` all ask this
+ * one function.
+ *
+ * The last case is the reason the light arm exists at all. Light has always been
+ * read off every worn square alike — `carriedLightTileIds` walks all seven — so
+ * a torch here lit the room the day the square did. Only `wornAccepts` was in
+ * the way.
+ */
+describe("wornAccepts", () => {
+  const tiles = tilesByIdFromList([
+    itemTile("helm", { type: "armor", slot: "head", def: 2 }),
+    itemTile("ring", { type: "armor", slot: "charm", def: 1 }),
+    itemTile("trinket", { type: "charm", everyMs: 10_000, hp: 1 }),
+    itemTile("spark", {
+      type: "stone",
+      cooldownMs: 4_000,
+      effect: { kind: "bolt", on: "target", damage: 3 },
+    }),
+    itemTile("sword", DEFAULT_WEAPON),
+    itemTile("bread", { type: "consumable", label: "Eat", hp: 1 }),
+    itemTile("torch", { type: "artifact" }, LIT),
+    // A light that is also armour for another square, so the two arms cannot be
+    // read as one: this belongs on a head and lights a room from either.
+    itemTile("lit-helm", { type: "armor", slot: "head", def: 2 }, LIT),
+  ]);
+
+  it("takes armour authored for this square and no other", () => {
+    expect(wornAccepts("charm", tiles.ring!)).toBe(true);
+    expect(wornAccepts("head", tiles.ring!)).toBe(false);
+    expect(wornAccepts("head", tiles.helm!)).toBe(true);
+    expect(wornAccepts("charm", tiles.helm!)).toBe(false);
+  });
+
+  it("takes a charm, which no other square will have", () => {
+    expect(wornAccepts("charm", tiles.trinket!)).toBe(true);
+    for (const slot of ["head", "armor", "footwear"] as const) {
+      expect(wornAccepts(slot, tiles.trinket!), slot).toBe(false);
+    }
+  });
+
+  it("takes a stone, on a hand's terms and without the swing", () => {
+    expect(wornAccepts("charm", tiles.spark!)).toBe(true);
+    expect(wornAccepts("armor", tiles.spark!)).toBe(false);
+  });
+
+  /**
+   * **What this buys is a hand.** The choice used to be "see in the dark or
+   * hold a shield", because the off hand was the only square a torch could go
+   * in; a lamp on a belt loop is worth more than that, and it is what makes a
+   * bow and a light a loadout rather than an impossibility.
+   */
+  it("takes a light, and only in this square", () => {
+    expect(wornAccepts("charm", tiles.torch!)).toBe(true);
+    for (const slot of ["head", "armor", "footwear"] as const) {
+      expect(wornAccepts(slot, tiles.torch!), slot).toBe(false);
+    }
+  });
+
+  /**
+   * Read off the light rather than off the kind, so a lamp that is also an
+   * amulet is still a lamp. A helmet that glows still belongs on a head and is
+   * still refused by every square its `slot` does not name — the light arm is
+   * about this square alone.
+   */
+  it("does not let a light override the square its armour names", () => {
+    expect(wornAccepts("head", tiles["lit-helm"]!)).toBe(true);
+    expect(wornAccepts("armor", tiles["lit-helm"]!)).toBe(false);
+    // And it may be worn as an accessory, because it is a light.
+    expect(wornAccepts("charm", tiles["lit-helm"]!)).toBe(true);
+  });
+
+  it("refuses a sword and a loaf everywhere worn", () => {
+    for (const slot of ARMOR_SLOTS) {
+      expect(wornAccepts(slot, tiles.sword!), slot).toBe(false);
+      expect(wornAccepts(slot, tiles.bread!), slot).toBe(false);
+    }
+  });
+});
+
+/**
+ * The shipped torch, in the square this change opened to it.
+ *
+ * Against the catalogue rather than a fixture, on the terms the off hand's cases
+ * are: what matters is that an author's `hand-lantern` actually reaches the
+ * square, and a fixture with an invented light would only test the fixture.
+ */
+describe("the shipped torch, worn as an accessory", () => {
+  const shipped = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]));
+
+  const wearing = (tileId: string): Equipment => ({
+    ...emptyEquipment(),
+    charm: { id: `itm_${tileId}`, tileId },
+  });
+
+  it("goes in the accessory square", () => {
+    expect(wornAccepts("charm", shipped["hand-lantern"]!)).toBe(true);
+  });
+
+  it("lights the room from there, with both hands still free", () => {
+    const kit = wearing("hand-lantern");
+    expect(carriedLightTileIds(kit, shipped)).toContain("hand-lantern");
+    expect(kit.weapon).toBeNull();
+    expect(kit.offhand).toBeNull();
+  });
+
+  it("is drawn as a square that is doing something", () => {
+    const kit = wearing("hand-lantern");
+    expect(takesEffect("charm", kit.charm, shipped, {})).toBe(true);
+  });
+
+  /** Still a thing you can simply hold, which is where it goes when nobody says. */
+  it("has not stopped being something to carry in a hand", () => {
+    expect(handAccepts(shipped["hand-lantern"]!)).toBe(true);
   });
 });

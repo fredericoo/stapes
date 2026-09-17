@@ -110,6 +110,24 @@ export function describeReachCells(cells: number): string {
 }
 
 /**
+ * What a floor on the reach takes away, said in cells.
+ *
+ * Counted rather than given back as a radius, on the terms
+ * {@link describeReachCells} counts: what an author needs to see is which cells
+ * stop working, and "2" is not that. Zero is spelled out as "none" rather than
+ * left blank, because a number field cannot say "none" and an author who typed
+ * a zero should be told that is what it means.
+ */
+export function describeReachMin(min: number, cells: number): string {
+  if (min <= 0) return "No minimum — works in somebody's face.";
+  if (min > cells) return "Beyond the reach — this weapon can hit nothing.";
+  const whole = Math.floor(min);
+  if (whole < 1) return "Cannot be used on your own cell.";
+  const corners = min * min > whole * whole * 2 ? ", corners included" : "";
+  return `Dead inside ${whole} cell${whole === 1 ? "" : "s"}${corners}.`;
+}
+
+/**
  * What this height allowance covers, said in levels.
  *
  * Height units are the honest unit — half a level is a real distance and a crate
@@ -248,6 +266,16 @@ export function WeaponFields({
           step={0.5}
           onChange={(cells) => patchReach({ cells })}
           readout={describeReachCells(reach.cells)}
+        />
+        <StatField
+          label="Minimum"
+          info="How close is too close, in cells. Zero is no minimum. On the plan only — somebody a floor below you is nought cells away, and the Height lid is what refuses them. A bow with one of these needs a second weapon for the gap."
+          value={reach.min ?? 0}
+          min={0}
+          max={MAX_REACH_CELLS}
+          step={0.5}
+          onChange={(min) => patchReach({ min })}
+          readout={describeReachMin(reach.min ?? 0, reach.cells)}
         />
         <StatField
           label="Height"

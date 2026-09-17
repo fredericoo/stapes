@@ -336,15 +336,25 @@ function durationOf(grant: StatusGrant, def: StatusDef): string {
  * — and every melee weapon in the game shares the one figure. Anything longer
  * says how far, and says whether it throws something, because a six-cell reach
  * that fires an arrow and a six-cell reach that does not are different weapons.
+ *
+ * **A floor is stated as a span**, because it is the one number on the card that
+ * says what a weapon *cannot* do. A bow reading "8 cells, fired" and a bow
+ * reading "2–8 cells, fired" are the same weapon everywhere except the fight
+ * you are about to lose, and a player who has to discover the hole by standing
+ * in it has been told nothing. @see `../lib/item`'s `Reach.min`
  */
 function reachLine(thing: {
   reach?: Reach;
   projectile?: ProjectileDef;
 }): string {
   const reach = reachOf(thing);
-  if (isRanged(thing)) return `${reach.cells} cells, fired`;
-  if (reach.cells <= MELEE_REACH.cells) return "Melee";
-  return `${reach.cells} cells`;
+  const far = reach.min ? `${reach.min}–${reach.cells}` : `${reach.cells}`;
+  if (isRanged(thing)) return `${far} cells, fired`;
+  // The floor decides before the ceiling does: a weapon you cannot use in
+  // somebody's face is not "Melee" however short its reach, and saying so would
+  // be the card contradicting the one thing it is there to warn about.
+  if (!reach.min && reach.cells <= MELEE_REACH.cells) return "Melee";
+  return `${far} cells`;
 }
 
 /**
@@ -682,7 +692,9 @@ const ARMOR_SLOT_LABELS: Record<ArmorSlot, string> = {
   head: "Head",
   armor: "Armour",
   footwear: "Footwear",
-  charm: "Charm",
+  // The square, not the kind. A {@link CharmItem} is a "Charm" — see
+  // {@link kindOf} — and the square it goes in takes three other kinds besides.
+  charm: "Accessory",
 };
 
 /** What the list of statuses an item hands over should be called. */

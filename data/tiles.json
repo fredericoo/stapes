@@ -14298,7 +14298,7 @@
                 "then": [
                   {
                     "kind": "say",
-                    "text": "I string them, I don't shoot them. Reach is what you're paying for."
+                    "text": "I string them, I don't shoot them. Reach is what you're paying for — and none of them'll draw with somebody on top of you. Keep a knife in your other hand."
                   },
                   {
                     "kind": "anchor",
@@ -14312,7 +14312,7 @@
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Six cells and a prayer. Ranged 5."
+                            "text": "Two cells out to six, and a prayer. Ranged 5."
                           },
                           {
                             "kind": "request_trade",
@@ -14359,7 +14359,7 @@
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Eight cells. Where the arrow ends up is your business, not mine. Ranged 18."
+                            "text": "Two out to eight. Where the arrow ends up is your business, not mine. Ranged 18."
                           },
                           {
                             "kind": "request_trade",
@@ -14406,7 +14406,7 @@
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Ten cells, and a heavier arrow at the end of them. Ranged 32."
+                            "text": "Two out to ten, and a heavier arrow at the end of them. Ranged 32."
                           },
                           {
                             "kind": "request_trade",
@@ -23287,13 +23287,13 @@
         },
         "reach": {
           "cells": 6,
-          "height": 4
+          "height": 4,
+          "min": 2
         },
         "projectile": {
           "tileId": "arrow",
           "cellsPerSecond": 20
-        },
-        "twoHanded": true
+        }
       }
     },
     "sprite": {
@@ -23743,13 +23743,13 @@
         },
         "reach": {
           "cells": 8,
-          "height": 5
+          "height": 5,
+          "min": 2
         },
         "projectile": {
           "tileId": "arrow",
           "cellsPerSecond": 20
-        },
-        "twoHanded": true
+        }
       }
     },
     "sprite": {
@@ -23801,13 +23801,13 @@
         },
         "reach": {
           "cells": 10,
-          "height": 6
+          "height": 6,
+          "min": 2
         },
         "projectile": {
           "tileId": "arrow",
           "cellsPerSecond": 24
-        },
-        "twoHanded": true
+        }
       }
     },
     "sprite": {

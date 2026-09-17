@@ -150,8 +150,12 @@ const SQUARES: readonly Square[] = [
   },
   {
     slot: { kind: "charm" },
-    label: "Charm",
-    emptyHint: "Charm — nothing worn",
+    // `charm` on the wire and in every saved kit, and "Accessory" here: the key
+    // was named when a charm was the only thing that went in the square, and it
+    // now takes a ring, an arcane stone and a torch as well. See `../lib/kit`'s
+    // `SLOT_LABELS`, which says the same thing for the editor.
+    label: "Accessory",
+    emptyHint: "Accessory — nothing worn",
     icon: IconDiamond,
     column: LEFT_COLUMN,
     row: 4,

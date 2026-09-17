@@ -935,4 +935,51 @@ describe("reach", () => {
     expect(inAttackRange(here, at(3, 0, 0), flat)).toBe(true);
     expect(inAttackRange(here, at(3, 0, 1), flat)).toBe(false);
   });
+
+  /**
+   * **The hole in the middle**, which is what stops a bow being strictly better
+   * than a sword. Without it the bow's disc contains the sword's entirely, so
+   * there is no distance at which the sword is the answer and the archer's only
+   * cost is accuracy. @see `../lib/item`'s `Reach.min`
+   */
+  describe("a minimum", () => {
+    const bow: Reach = { cells: 8, min: 2, height: HEIGHT_PER_LEVEL };
+
+    it("refuses what is too close and keeps what is far enough", () => {
+      expect(inAttackRange(here, at(0, 0, 0), bow)).toBe(false);
+      expect(inAttackRange(here, at(1, 0, 0), bow)).toBe(false);
+      expect(inAttackRange(here, at(1, 1, 0), bow)).toBe(false);
+      expect(inAttackRange(here, at(2, 0, 0), bow)).toBe(true);
+      expect(inAttackRange(here, at(8, 0, 0), bow)).toBe(true);
+    });
+
+    /**
+     * Squared and inclusive on both ends, like the ceiling. The diagonal
+     * neighbour is exactly 2 and the cell two along exactly 4, so a `min` of 2
+     * lands on the far wall and takes the nearer one out — the same boundary
+     * care `cells` wants, from the other side.
+     */
+    it("keeps the cell it names, and drops the diagonal below it", () => {
+      expect(planDistanceSq(here, at(2, 0, 0))).toBe(4);
+      expect(planDistanceSq(here, at(1, 1, 0))).toBe(2);
+      expect(inAttackRange(here, at(2, 0, 0), bow)).toBe(true);
+      expect(inAttackRange(here, at(1, 1, 0), bow)).toBe(false);
+    });
+
+    /**
+     * **On the plan alone.** Somebody a storey below you is nought cells away,
+     * so a floor that counted height would let the bow shoot straight down at
+     * them and refuse the wolf beside them. The lid is what refuses a floor.
+     */
+    it("measures the floor on the plan and never on the height", () => {
+      expect(inAttackRange(here, at(0, 0, HEIGHT_PER_LEVEL), bow)).toBe(false);
+      expect(inAttackRange(here, at(3, 0, HEIGHT_PER_LEVEL), bow)).toBe(true);
+    });
+
+    it("leaves a weapon with no minimum exactly as it was", () => {
+      const open: Reach = { cells: 8, height: HEIGHT_PER_LEVEL };
+      expect(inAttackRange(here, at(0, 0, 0), open)).toBe(true);
+      expect(inAttackRange(here, at(1, 0, 0), open)).toBe(true);
+    });
+  });
 });
