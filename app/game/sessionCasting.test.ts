@@ -307,6 +307,22 @@ const props: TileDef[] = [
     effect: { kind: "bolt", damage: -MEND_HP, on: "caster" },
     cooldownMs: MEND_COOLDOWN_MS,
   }),
+  // A plain bolt that takes health, and one that takes none at all — the two
+  // halves of "what a bolt tells the body it lands on".
+  stoneTile("bolt-stone", {
+    effect: { kind: "bolt", on: "target", damage: 4 },
+    cooldownMs: 10_000,
+    reach: { cells: 3, height: 2 },
+  }),
+  stoneTile("hold-stone", {
+    effect: {
+      kind: "bolt",
+      on: "target",
+      statuses: [{ id: "burned", chance: 100 }],
+    },
+    cooldownMs: 10_000,
+    reach: { cells: 3, height: 2 },
+  }),
   stoneTile("flame-stone", {
     effect: { kind: "conjure", tileId: "conjured-flame" },
     cooldownMs: 10_000,
@@ -2563,6 +2579,103 @@ describe("a spell a body has of its own", () => {
   it("is not a battler at all when a spell has no name", () => {
     const play = withSpells([{ ...BREATH, name: "" }]);
     expect(play.spells()).toEqual([]);
+  });
+});
+
+/**
+ * Being cast at is being attacked.
+ *
+ * The `attacked` condition was written when a swing was the only way to hurt
+ * anybody, and a spell that took no health at all — a hold, a chill — went
+ * unnoticed by the body it landed on. These drive a fixture creature rather
+ * than anything in `data/`, because what is under test is the rule and not the
+ * roster.
+ */
+describe("what a bolt tells the body it lands on", () => {
+  /** Something that runs the moment anybody lays a finger on it. */
+  function skittishTile(): TileDef {
+    const tile = body("skittish", RAT_TOUGHNESS, { actor: true });
+    tile.interactions!.brain = {
+      initial: "grazing",
+      states: {
+        grazing: { do: [{ action: "hold" }] },
+        fleeing: {
+          do: [
+            {
+              action: "step_away_from",
+              of: { type: "slot", data: { name: "spooked" } },
+            },
+            { action: "hold" },
+          ],
+        },
+      },
+      transitions: [
+        {
+          from: "any",
+          if: { cond: "attacked" },
+          bind: { spooked: { type: "attacker" } },
+          to: "fleeing",
+        },
+      ],
+    };
+    return tile;
+  }
+
+  /** The player holding one stone, with something skittish beside them. */
+  function beside(stoneId: string): GameSession {
+    const map = replaceStack(world(), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "skittish", direction: "w" },
+    ]);
+    return new GameSession(map, [...props, playerTile([{ slot: "charm", tileId: stoneId }]), skittishTile()], {
+      statuses: catalogue,
+    });
+  }
+
+  const skittish = (play: GameSession) =>
+    play.actorSnapshots().find((actor) => actor.tileId === "skittish")!;
+
+  it("sends it running from a bolt that hurts", () => {
+    const play = beside("bolt-stone");
+    const before = skittish(play).x;
+
+    play.setTarget(skittish(play).id);
+    play.cast(squareSlot("charm"));
+    run(play, TICKS_PER_SECOND * 2);
+
+    expect(skittish(play).x).toBeGreaterThan(before);
+  });
+
+  /**
+   * The case the swing-only rule got wrong, and the reason this exists: a spell
+   * whose whole effect is what it leaves behind moves no health at all, so
+   * nothing about the damage could have told the body it had been attacked.
+   */
+  it("sends it running from a bolt that only leaves a status", () => {
+    const play = beside("hold-stone");
+    const before = skittish(play).x;
+
+    play.setTarget(skittish(play).id);
+    play.cast(squareSlot("charm"));
+    run(play, TICKS_PER_SECOND * 2);
+
+    expect(skittish(play).x).toBeGreaterThan(before);
+  });
+
+  /** Nobody is provoked by a spell its caster threw at themselves. */
+  it("says nothing to anybody when the bolt lands on its caster", () => {
+    const play = beside("mend-stone");
+    const before = skittish(play).x;
+
+    // Pointed at them and cast anyway: a mend names its own caster, so who the
+    // player happens to be looking at has no say in where it lands.
+    play.setTarget(skittish(play).id);
+    play.runCommand("/health -5");
+    play.drainNotices();
+    play.cast(squareSlot("charm"));
+    run(play, TICKS_PER_SECOND * 2);
+
+    expect(skittish(play).x).toBe(before);
   });
 });
 

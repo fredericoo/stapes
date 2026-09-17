@@ -5572,6 +5572,26 @@ thing said about the same caster to the same socket — what this body can press
 right now — and the two change at the same moment. Nobody else's is sent, on
 exactly the grounds nobody else's inventory is.
 
+### Being cast at is being attacked
+
+`attacked` was written when a swing was the only way to hurt anybody, and
+`notePendingHurt` was called from `tryAttack` and nowhere else. A body could
+therefore be held, chilled or burned by a spell and notice nothing — a rabbit
+stood still while a snake wound round it, because the hold takes no health and
+there was no swing to read.
+
+`castBolt` notes it too now, on the swing's own terms: before anything lands, so
+a killing bolt still tells whoever was hit who did it, and only for a bolt at
+somebody *other* than its caster.
+
+**Any bolt, rather than only one that takes health.** A spell whose whole effect
+is the status it leaves is exactly the case this exists for, so "did it hurt" is
+the wrong test. Asking instead whether the status is a *bad* one would put an
+opinion about what counts as friendly in the engine — `tone` is authored for the
+strip's colour and sort order, not for deciding who to be angry at. A mend thrown
+at somebody else is authorable, reads as provocation, and is a strange enough
+thing to author that being glared at for it is fair.
+
 ### A brain aims by pointing
 
 The `cast` action resolves its selector to a body, sets the creature's

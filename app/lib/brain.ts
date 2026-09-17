@@ -433,6 +433,13 @@ export type BrainConditionDef =
    * No distance and no sight test, deliberately. Whoever hit you was by
    * definition close enough to, and a creature that had to *see* its attacker to
    * react would stand there placidly while something behind it kept swinging.
+   *
+   * **A swing and a bolt both count.** It used to be swings alone, which was
+   * the whole of the game when it was written and stopped being so the moment a
+   * body could cast: a creature held by a spell that took no health at all
+   * noticed nothing, and a rabbit stood still while a snake wound round it.
+   * What a creature reacts to is being *attacked*, and which hand it came out
+   * of is not its business. @see ../game/GameSession's `castBolt`
    */
   | { cond: "attacked" }
   /**

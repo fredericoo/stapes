@@ -5837,6 +5837,20 @@ export class GameSession implements PlaySession {
       const at = this.tryLocate(actor);
       const on = this.tryLocate(subject);
       if (at && on) this.turnToward(actor, at, on);
+      // **And the room hears about it**, on exactly the terms a swing is noted:
+      // before anything lands, so a killing bolt still tells whoever was hit
+      // who did it. This was missing, and what it cost was every creature's
+      // reaction to magic — a rabbit stood still while a snake held it, because
+      // `attacked` had only ever been written by {@link tryAttack}. Being cast
+      // at *is* being attacked; the `attacked` condition says so now.
+      //
+      // Any bolt at somebody else, rather than only one that takes health: a
+      // spell whose whole effect is a status it leaves — a hold, a chill — is
+      // the case this exists for, and asking whether the status is a *bad* one
+      // would put an opinion about what is friendly in the engine. A mend
+      // thrown at somebody is authorable and reads as provocation here, which
+      // is a strange thing to author and a fair thing to be glared at for.
+      this.notePendingHurt(subject.id, actor.id);
     }
 
     // The spell as it is called. A carried one is read off the square rather
