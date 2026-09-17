@@ -223,6 +223,46 @@ export const DEFAULT_PARTICLES: ParticleEmitterDef = {
 };
 
 /**
+ * What an editor opens a fresh burst on: a short spray of sparks.
+ *
+ * A second default rather than {@link DEFAULT_PARTICLES} with different
+ * numbers, because the two are opposite shapes and an author starting from the
+ * wrong one has to undo every field. A plume is slow, thin and continuous; a
+ * burst is everything at once and gone — a high rate spent inside a tenth of a
+ * second, a lifetime under a fifth of one, and a rise that gravity takes
+ * straight back so the sparks fall away from the blow rather than drifting up
+ * out of it.
+ *
+ * Unlit, on the terms the type's own resting state is: what comes off a struck
+ * body is a spark rather than matter, and a hit in a dark room should still
+ * read as a hit.
+ */
+export const DEFAULT_IMPACT: ParticleEmitterDef = {
+  ratePerSecond: 140,
+  ttlFromMs: 120,
+  ttlToMs: 280,
+  spawnRadiusCells: 0.15,
+  spawnElevFrom: 1,
+  spawnElevTo: 3,
+  riseFrom: 2,
+  riseTo: 8,
+  driftCellsPerSecond: 1.6,
+  gravity: -20,
+  windX: 0,
+  windY: 0,
+  lit: false,
+  radiusFromPx: 1,
+  radiusToPx: 1,
+  alphaFrom: 1,
+  alphaTo: 0,
+  ramp: [
+    { at: 0, color: "#ffffff" },
+    { at: 0.35, color: "#e83b3b" },
+    { at: 1, color: "#6e2727" },
+  ],
+};
+
+/**
  * The two atoms every vfx block is made of.
  *
  * Exported from here rather than kept private because `./statusVfx` is built out

@@ -535,7 +535,7 @@ describe("itemForSave", () => {
         damage: 12,
         on: "target",
         variance: 0,
-        projectile: { tileId: "  ", cellsPerSecond: 20 },
+        projectile: "  ",
       },
       cooldownMs: 10_000,
     } as const;
@@ -556,7 +556,7 @@ describe("itemForSave", () => {
         damage: -12,
         on: "caster",
         variance: 25,
-        projectile: { tileId: " mote ", cellsPerSecond: 14 },
+        projectile: " mote ",
       },
       cooldownMs: 10_000,
     } as const;
@@ -568,7 +568,7 @@ describe("itemForSave", () => {
         damage: -12,
         on: "caster",
         variance: 25,
-        projectile: { tileId: "mote", cellsPerSecond: 14 },
+        projectile: "mote",
       },
       cooldownMs: 10_000,
     });

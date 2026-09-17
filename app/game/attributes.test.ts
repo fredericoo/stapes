@@ -75,7 +75,7 @@ function bowWith(over: Partial<Reach> = {}): WeaponItem {
   return {
     ...FANG,
     reach: { cells: 6, height: 2, ...over },
-    projectile: { tileId: "arrow", cellsPerSecond: 12 },
+    projectile: "arrow",
   };
 }
 

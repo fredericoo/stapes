@@ -2916,9 +2916,9 @@ no wolf.
 ### A ranged weapon is one with a projectile, and the arrow is only a picture
 
 There is no `ranged` flag and there must not be one: a weapon is ranged exactly
-when it authors a `projectile` block (`isRanged`). Two fields saying the same
-thing is a bow authored to fire nothing, or a sword that lunges *and* puts an
-arrow in the air.
+when it names a `projectile` (`isRanged`). Two fields saying the same thing is a
+bow authored to fire nothing, or a sword that lunges *and* puts an arrow in the
+air.
 
 - **What a bow pays for its reach is accuracy.** The three of them are authored
   at `accuracy` 35/40/45 against a sword's 86–92, so an archer standing on the
@@ -2942,18 +2942,78 @@ arrow in the air.
 - **`canReach` is where a wall costs something, and only there.** Picking a target
   asks neither range nor line, deliberately: you can read a name and a health bar
   through a window you cannot shoot through, and the shot simply does not go.
-- **The speed is authored in cells per second, not pixels per millisecond.** The
+- **The speed is authored on the projectile, in cells per second.** It was on
+  the weapon, which meant a war bow firing the same `arrow` at 24 while two
+  other bows fired it at 20 was three blocks only a reader comparing them could
+  tell apart — a twentieth of a second over a six-cell shot. One arrow, one
+  speed, one place to change it.
+- **Cells per second, not pixels per millisecond.** The
   first arrows floated across the yard because `0.03 px/ms` is three and three
   quarter cells a second — slower than the five a body walks at — and no reader
   of that number could tell. A speed is only authorable in the unit the map is
   drawn in. `DEFAULT_PROJECTILE_SPEED` is twenty, four times walking pace, which
   puts a six-cell shot at about the length of one melee swing.
-- **A flight is one event and never touched again** — two fixed points and a
-  duration, on the terms a walk is announced once. No position stream, and no
+- **A projectile is a kind of tile — the fourth, beside prop, battler and
+  item.** `interactions.projectile` holds the speed and the hit effect, and
+  `resolveProjectile` gates on the kind exactly as `resolveBattler` and
+  `resolveItem` do, so a block left on a tile somebody re-kinded is inert. It
+  used to be a block inlined on whatever fired it, which meant three bows
+  carried three copies of the same arrow and thirteen stones carried thirteen
+  of the same bolt — sixteen call sites for two actual projectiles, and
+  anything authored on one of them was something the other twelve did not have.
+  A tile rather than a catalogue of its own, because a projectile is art before
+  it is anything else: the eight bearings, the frames, the anchor, the height
+  and `tileCanEmitLight` are all what a tile already is, and a second home for
+  them would be the second art pipeline this repo does not grow.
+- **The kind is what keeps the editor honest.** A speed and a hit effect belong
+  only to a thing that flies, so only `kind: "projectile"` opens the Projectile
+  tab — the arrangement that already shows Battle and Item by the kind rather
+  than by the block. No wall or crate grows a field it can never use, which is
+  the whole reason this is not a block on every tile.
+- **Exclusive with `item`, and the arcane shard is why.** The shard is the coin
+  the shopkeeper trades in — an artifact that piles to 99 — so it cannot also
+  be ammunition. What a stone throws is `arcane-bolt`, which looks like a shard
+  and is not one. That is `TileDef.kind`'s mutual exclusivity doing its job
+  rather than something to work around.
+- **A flight is one event and never touched again** — an id, two fixed points
+  and a flag, on the terms a walk is announced once. No position stream, and no
   actor id at either end, because by the time it is drawn there may be nobody
-  there. `GameSession` holds the live flights (aged on the tick clock) and
+  there. The duration used to be on the wire because the speed lived on a weapon
+  the shooter could drop mid-flight; the speed is on the tile now, and the
+  catalogue is resolved once per load, so both sides derive it from the same
+  `flightDurationMs` and there is no third number to disagree with.
+  `GameSession` holds the live flights (aged on the tick clock) and
   `RemoteSession` holds its own (aged on the render loop), exactly as damage
   numbers are split.
+- **A flight plays three sides, and `hit` is the only one that is a claim about
+  the fight.** `appear` when it is loosed, and where it stops either `hit` or
+  `disappear` — mutually exclusive, because a flight ends exactly once and ends
+  one of two ways. The first two are the tile's own `transitions`, authored on
+  the Effects tab every tile already has and meaning there exactly what they
+  mean here; only `hit` is new, and it is a `Transition` too, so a projectile
+  gets the dissolve, the pose and the burst budget for free. `hit` falls back
+  to `disappear` when it is absent, which is what makes it an addition rather
+  than a rearrangement: one block dissolves a fireball
+  wherever it stops, and the second is written only by an author who wants the
+  landing that *connected* to differ. Nothing falls the other way — a miss that
+  borrowed the hit's sparks would be the picture saying a shot landed that did
+  not.
+- **Which side a landing plays is the one thing a shot is told about the fight**,
+  and it is why `fireProjectile` runs *after* `rollAttack` rather than before it.
+  The arrow is drawn identically either way, because it was loosed either way; a
+  shot simply cannot be told whether it connected before anything has asked. A
+  bolt passes `true` outright, because nothing dodges one.
+- **A landing is not a flight that has ended.** The two are over at different
+  moments — the arrow is gone the instant it arrives, and what it leaves stands
+  still and keeps emitting for the length its author wrote — so `ageFlights`
+  hands landings to a separate `flightEffects` list on the snapshot, which
+  `GameRenderer` turns into emitter specs standing exactly where the arrow was.
+  Keeping the landed flight around instead would park an arrow on its target for
+  the length of the spray. Both clocks call the same `ageFlights`, because "a
+  landing plays a side" written twice is one rule that can disagree with itself.
+  Only the *particles* half of an effect is played today: a dissolve and a scale
+  are things done to a mesh, and a flight's mesh is not a placement — see
+  `attachTransition`, which wants a cell and a depth box.
 - **An arrow in the air holds the world awake**, on the same terms a lean does:
   this loop is the only clock it has, and a slow shot across a courtyard is a
   visible second of somebody's screen.

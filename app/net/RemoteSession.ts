@@ -12,7 +12,16 @@ import {
   type StatusInstance,
   walkSpeedPercentFrom,
 } from "../game/statuses";
-import type { ProjectileFlight } from "../game/projectile";
+import {
+  ageEffects,
+  ageFlights,
+  beginEffect,
+  type FlightEffect,
+  flightDurationMs,
+  type ProjectileFlight,
+} from "../game/projectile";
+import { resolveProjectile } from "../lib/projectile";
+
 import {
   MAX_HELD_TRANSITIONS,
   MAX_TRANSITION_MS,
@@ -396,6 +405,15 @@ export class RemoteSession implements PlaySession {
    */
   private projectiles: ProjectileFlight[] = [];
   /**
+   * The effects those flights are playing, aged on the same clock.
+   *
+   * Never heard, always worked out: nothing on the wire announces one, because
+   * the event that announced the shot named a catalogue entry that says what to
+   * play, and the moments it plays at are arithmetic both ends agree on.
+   * @see `../game/projectile`
+   */
+  private flightEffects: FlightEffect[] = [];
+  /**
    * Tile transitions heard but not yet taken by the renderer, with when.
    *
    * Stamped against a clock that keeps running while the tab is hidden —
@@ -650,8 +668,10 @@ export class RemoteSession implements PlaySession {
       this.chats = [];
       this.damage = [];
       // And every arrow is measured between two cells in a world that no longer
-      // exists, on the same terms the bubbles above are.
+      // exists, on the same terms the bubbles above are — as is every effect
+      // one of them is playing.
       this.projectiles = [];
+      this.flightEffects = [];
       // And every transition names a slot in a world that no longer exists.
       this.transitions = [];
       // A target in the old world names nobody in this one, and the server has
@@ -1231,14 +1251,28 @@ export class RemoteSession implements PlaySession {
     // nor contradict a step this client is holding a guess about. It carries no
     // actor id at all, which is the shortest way of saying the same thing.
     if (event.kind === "projectileFired") {
-      this.projectiles.push({
+      // An id the catalogue has lost, or one naming a tile that is not a
+      // projectile, is a shot nobody can draw — so nothing goes in the air: a
+      // flight with no speed has no duration. The blow it was a receipt for
+      // landed in this same frame, which is the part that mattered.
+      const def = this.tilesById[event.tileId];
+      const flies = resolveProjectile(def);
+      if (!flies) return;
+      const flight: ProjectileFlight = {
         id: event.id,
         tileId: event.tileId,
         from: event.from,
         to: event.to,
-        durationMs: event.durationMs,
+        // Derived rather than heard, which is the whole of what the catalogue
+        // bought: both sides run the same `flightDurationMs` over the same two
+        // points and the same entry, so there is no third number to disagree
+        // with. @see `./protocol`
+        durationMs: flightDurationMs(event.from, event.to, flies),
         elapsedMs: 0,
-      });
+        hit: event.hit,
+      };
+      this.projectiles.push(flight);
+      beginEffect(flight, "appear", flight.from, def, this.flightEffects);
       return;
     }
 
@@ -1495,27 +1529,33 @@ export class RemoteSession implements PlaySession {
   }
 
   /**
-   * Land the arrows that have arrived.
+   * Land the arrows that have arrived, and play what their landings owe.
    *
    * Timed off the render loop's delta exactly as the numbers above are — and,
-   * exactly as they are, dropped with nothing to commit: there was never
-   * anything for the arrow to do on arrival, since the blow it depicts was
-   * settled on the tick it was loosed. @see `../game/projectile`
+   * exactly as they are, with nothing to commit: there was never anything for
+   * the arrow to *do* on arrival, since the blow it depicts was settled on the
+   * tick it was loosed. What it leaves is the same receipt drawn where it
+   * stopped, and which side that is was decided by the server.
+   * @see `../game/projectile`
+   *
+   * The arithmetic is shared with the simulation's own aging rather than
+   * repeated here: the clocks differ — a tick there, a frame here — but the
+   * rule that a landing plays a side is one rule.
    *
    * Each flight carries its own duration rather than sharing a constant, unlike
    * every other motion here: how long a shot takes depends on how far it went.
    */
   private expireProjectiles(dtMs: number) {
-    if (this.projectiles.length === 0) return;
-    let arrived = false;
-    for (const flight of this.projectiles) {
-      flight.elapsedMs += dtMs;
-      if (flight.elapsedMs >= flight.durationMs) arrived = true;
-    }
-    if (arrived) {
-      this.projectiles = this.projectiles.filter(
-        (flight) => flight.elapsedMs < flight.durationMs,
+    if (this.projectiles.length > 0) {
+      this.projectiles = ageFlights(
+        this.projectiles,
+        dtMs,
+        this.tilesById,
+        this.flightEffects,
       );
+    }
+    if (this.flightEffects.length > 0) {
+      this.flightEffects = ageEffects(this.flightEffects, dtMs);
     }
   }
 
@@ -2137,6 +2177,7 @@ export class RemoteSession implements PlaySession {
       noises: this.noises,
       damage: this.damage,
       projectiles: this.projectiles,
+      flightEffects: this.flightEffects,
     };
   }
 

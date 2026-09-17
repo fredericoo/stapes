@@ -210,10 +210,24 @@ export function parseTileTransitions(raw: unknown): TileTransitions | undefined 
   if (!block.success) return undefined;
   const out: TileTransitions = {};
   for (const side of TRANSITION_SIDES) {
-    const parsed = v.safeParse(transitionSchema, block.output[side]);
-    if (parsed.success) out[side] = parsed.output;
+    const parsed = resolveTransition(block.output[side]);
+    if (parsed) out[side] = parsed;
   }
   return out.appear || out.disappear ? out : undefined;
+}
+
+/**
+ * One effect, parsed on its own, or null.
+ *
+ * Exported because a tile's two sides are no longer the only things made of
+ * these: `./projectile` gives a flight three, and a second copy of "what an
+ * effect may say" is the first place the two could disagree about what a
+ * dissolve is. Null rather than a throw, on the terms above — one author's own
+ * content, dropped rather than refused.
+ */
+export function resolveTransition(raw: unknown): Transition | null {
+  const parsed = v.safeParse(transitionSchema, raw);
+  return parsed.success ? parsed.output : null;
 }
 
 /** The side a tile has authored, or undefined — the whole of what "opt-in" is. */

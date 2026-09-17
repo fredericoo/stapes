@@ -336,7 +336,7 @@ const props: TileDef[] = [
       kind: "bolt",
       damage: BOLT_DAMAGE,
       on: "target",
-      projectile: { tileId: "arcane-mote", cellsPerSecond: 14 },
+      projectile: "arcane-mote",
     },
     cooldownMs: 10_000,
     reach: { cells: 3, height: 2 },
@@ -386,8 +386,10 @@ const props: TileDef[] = [
   tile({
     id: "arcane-mote",
     type: "directional8",
+    kind: "projectile",
     lightPassing: true,
     intangible: true,
+    interactions: { projectile: { cellsPerSecond: 14 } },
   }),
   tile({
     id: "walling-mail",

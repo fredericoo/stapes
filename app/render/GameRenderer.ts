@@ -42,7 +42,7 @@ import { WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
 import { slideTileMotions } from "./slideMotion";
-import { projectileViews } from "./projectileMotion";
+import { flightEmitter, projectileViews } from "./projectileMotion";
 import { strikeOffset } from "./strikeMotion";
 import { isCellVisible } from "./cameraSight";
 import { labelHeadroomPx } from "./labelHeadroom";
@@ -2623,12 +2623,12 @@ export class GameRenderer {
       // — the same shape `tileMotions` above takes, and `spriteStates` below.
       projectiles:
         snap.projectiles.length > 0
-          ? projectileViews(snap.projectiles)
+          ? projectileViews(snap.projectiles, this.tilesById)
           : undefined,
       spriteStates: spriteStatesFor(snap.actors),
       emitterOverrides: this.emitterOverridesFor(snap),
       spriteTints: vfx.tints,
-      particleEmitters: vfx.emitters,
+      particleEmitters: this.withFlightEffects(snap, vfx.emitters),
       roofCut: cut,
       transitions: transitions.length > 0 ? transitions : undefined,
       // Absent unless the camera has been pulled off the play square, which is
@@ -3022,6 +3022,32 @@ export class GameRenderer {
       stackBias: depthStackBias(actor.z, actor.stackIndex + 1),
       taper,
     };
+  }
+
+  /**
+   * The plumes bodies are wearing, plus whatever this frame's flights are
+   * playing.
+   *
+   * Appended to the status list rather than handed over separately, because the
+   * renderer takes one list and a plume is a plume however it got there — the
+   * particle system reconciles by id, so an effect that appears for a few frames
+   * and stops being handed over retires exactly as an ended status does.
+   *
+   * Only the particles half of an effect is played here. A dissolve and a scale
+   * are things done to a *mesh*, and a flight's mesh is not a placement — see
+   * `./WorldRenderer`'s `attachTransition`, which wants a cell and a depth box.
+   */
+  private withFlightEffects(
+    snap: GameSnapshot,
+    emitters: ParticleEmitterSpec[] | undefined,
+  ): ParticleEmitterSpec[] | undefined {
+    if (snap.flightEffects.length === 0) return emitters;
+    let out = emitters;
+    for (const effect of snap.flightEffects) {
+      const spec = flightEmitter(effect);
+      if (spec) (out ??= []).push(spec);
+    }
+    return out;
   }
 
   private emitterOverridesFor(

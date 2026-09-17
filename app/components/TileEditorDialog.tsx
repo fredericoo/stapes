@@ -24,6 +24,7 @@ import {
   type ParticleEmitterDef,
 } from "../lib/particleVfx";
 import { ParticleFields } from "./ParticleFields";
+import { ProjectileTab } from "./ProjectileTab";
 import { VfxPreview } from "./VfxPreview";
 import { NO_VFX } from "../lib/statusVfx";
 import {
@@ -494,6 +495,7 @@ const TAB_DIALOG = "dialog";
 const TAB_BATTLE = "battle";
 const TAB_SPELLS = "spells";
 const TAB_ITEM = "item";
+const TAB_PROJECTILE = "projectile";
 const TAB_RESPAWN = "respawn";
 const TAB_EFFECTS = "effects";
 
@@ -1924,6 +1926,12 @@ export function TileEditorDialog({
             ...(draft.kind === "item"
               ? [{ value: TAB_ITEM, label: "Item" }]
               : []),
+            // On the same answer and the same terms as the two above: the tab
+            // being there at all says this tile is a projectile, so it carries
+            // no "•" either.
+            ...(draft.kind === "projectile"
+              ? [{ value: TAB_PROJECTILE, label: "Projectile" }]
+              : []),
             {
               value: TAB_RESPAWN,
               label: draft.interactions?.respawn ? "Respawn •" : "Respawn",
@@ -1993,6 +2001,10 @@ export function TileEditorDialog({
               statusDefs={statusDefs}
               tiles={tiles}
             />
+          </TabPanel>
+
+          <TabPanel value={TAB_PROJECTILE}>
+            <ProjectileTab draft={draft} onChange={setDraft} />
           </TabPanel>
 
           <TabPanel value={TAB_RESPAWN}>

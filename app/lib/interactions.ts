@@ -13,6 +13,7 @@ import {
   weaponForSave,
 } from "./item";
 import { MASTERIES } from "./mastery";
+import type { ProjectileBlock } from "./projectile";
 import type { Coord, PlacedTile, SpriteState, TileDef } from "./types";
 import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL, resolveActor } from "./types";
 
@@ -717,6 +718,20 @@ export type TileInteractions = {
    * a stale block is inert rather than in charge.
    */
   item?: ItemDef;
+  /**
+   * How fast it flies and what it does where it lands. See `./projectile`,
+   * which owns the shape and the parsing.
+   *
+   * Read only on a tile whose {@link TileDef.kind} is `projectile`, on exactly
+   * the terms {@link item} and {@link battler} are — and exclusive with both
+   * for a reason worth knowing: the arcane shard is the coin the shopkeeper
+   * trades in, so what a stone throws is a different tile that merely looks
+   * like one.
+   *
+   * The other two thirds of what a flight plays are the tile's own
+   * `TileDef.transitions`, which every tile has already.
+   */
+  projectile?: ProjectileBlock;
   push?: PushInteraction;
   switch?: SwitchInteraction;
   reward?: RewardInteraction;

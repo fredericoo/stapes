@@ -1,10 +1,19 @@
 import {
+  type FlightEffect,
   flightLevel,
   flightPosition,
   flightScreenDelta,
   type ProjectileFlight,
 } from "../game/projectile";
-import { OCTANTS, type Octant } from "../lib/types";
+import { CELL_CENTRE, depthBox, depthStackBias } from "../lib/geometry";
+import { resolveProjectile } from "../lib/projectile";
+import type { ParticleEmitterSpec } from "./particles";
+import {
+  HEIGHT_PER_LEVEL,
+  OCTANTS,
+  type Octant,
+  type TileDef,
+} from "../lib/types";
 
 /**
  * Where an arrow is and which way it is pointing, this frame.
@@ -91,10 +100,17 @@ export type ProjectileView = {
  */
 export function projectileViews(
   flights: readonly ProjectileFlight[],
+  tilesById: Record<string, TileDef>,
 ): ProjectileView[] {
-  return flights.map((flight) => {
+  const views: ProjectileView[] = [];
+  for (const flight of flights) {
+    // A flight whose tile has gone, or whose tile has stopped being a
+    // projectile, is skipped rather than drawn as something else: guessing
+    // would put the wrong sprite in the air. Its blow landed regardless — see
+    // `../game/projectile`.
+    if (!resolveProjectile(tilesById[flight.tileId])) continue;
     const at = flightPosition(flight, flight.elapsedMs / flight.durationMs);
-    return {
+    views.push({
       id: flight.id,
       tileId: flight.tileId,
       direction: projectileOctant(flight),
@@ -102,6 +118,54 @@ export function projectileViews(
       y: at.y,
       elevAbs: at.elevAbs,
       z: flightLevel(at),
-    };
-  });
+    });
+  }
+  return views;
+}
+
+/**
+ * Where an effect sorts within its level: above anything standing in the cell.
+ *
+ * The same number an arrow is drawn with — `WorldRenderer`'s own — because what
+ * a flight leaves behind belongs exactly where the arrow that left it was, and
+ * a second number derived for it would be two answers to one question. Above
+ * anything a real stack reaches, since stacks are single digits and the band is
+ * 64 wide. @see depthStackBias
+ */
+const FLIGHT_STACK_BIAS = 32;
+
+/**
+ * One of a flight's effects, as an emitter the renderer can hand over.
+ *
+ * **Stood exactly where the arrow was at that moment** — the same cell, the same
+ * absolute height, the same level derived the same way — so sparks coming off a
+ * struck body sit in front of it rather than behind.
+ *
+ * The level comes from the height rather than from either end of the flight, on
+ * the terms {@link flightLevel} sets: a shot down a stairwell plays its landing
+ * under the lighting of the floor it lands on.
+ *
+ * Null for an effect with no plume, which is every dissolve and every scale: a
+ * flight's mesh is not a placement, and those are things done to a mesh — see
+ * `./WorldRenderer`'s `attachTransition`, which wants a cell and a depth box.
+ *
+ * No taper. A taper is a status winding down over seconds; an effect runs for
+ * the length its author wrote and then stops being handed over at all.
+ */
+export function flightEmitter(effect: FlightEffect): ParticleEmitterSpec | null {
+  const particles = effect.transition.particles;
+  if (!particles) return null;
+  const { x, y, elevAbs } = effect.at;
+  const z = flightLevel(effect.at);
+  return {
+    id: effect.id,
+    config: particles,
+    cx: x + CELL_CENTRE,
+    cy: y + CELL_CENTRE,
+    footElev: elevAbs,
+    z,
+    box: depthBox(x, y, elevAbs, elevAbs + HEIGHT_PER_LEVEL),
+    stackBias: depthStackBias(z, FLIGHT_STACK_BIAS),
+    taper: 1,
+  };
 }

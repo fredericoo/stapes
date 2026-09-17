@@ -207,7 +207,7 @@ describe("itemCard", () => {
       ...SWORD,
       mastery: "ranged",
       reach: { cells: 6, height: 2 },
-      projectile: { tileId: "arrow", cellsPerSecond: 20 },
+      projectile: "arrow",
     };
     expect(statAt(itemCard(tileWith(bow), null, NOTHING_LEARNT)!.stats, "reach").value).toBe(
       "6 cells, fired",
@@ -224,7 +224,7 @@ describe("itemCard", () => {
       ...SWORD,
       mastery: "ranged",
       reach: { cells: 8, min: 2, height: 2 },
-      projectile: { tileId: "arrow", cellsPerSecond: 20 },
+      projectile: "arrow",
     };
     expect(statAt(itemCard(tileWith(bow), null, NOTHING_LEARNT)!.stats, "reach").value).toBe(
       "2–8 cells, fired",

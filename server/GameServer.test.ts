@@ -4196,7 +4196,7 @@ describe("casting", () => {
             kind: "bolt",
             damage: BOLT_DAMAGE,
             on: "target",
-            projectile: { tileId: "arrow", cellsPerSecond: 20 },
+            projectile: "arrow",
           },
           cooldownMs: STONE_COOLDOWN_MS,
           reach: { cells: 8, height: 4 },

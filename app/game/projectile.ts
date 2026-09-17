@@ -33,8 +33,14 @@
  */
 
 import { PX_PER_HEIGHT } from "../lib/geometry";
-import type { ProjectileDef } from "../lib/item";
-import { CELL_SIZE, HEIGHT_PER_LEVEL } from "../lib/types";
+import {
+  landingSide,
+  type ProjectileBlock,
+  projectileEffect,
+  type ProjectileSide,
+} from "../lib/projectile";
+import type { Transition } from "../lib/tileTransition";
+import { CELL_SIZE, HEIGHT_PER_LEVEL, type TileDef } from "../lib/types";
 import type { ReachPoint } from "./distance";
 
 /**
@@ -63,10 +69,16 @@ export type ProjectileFlight = {
   /** Stable for the life of the flight; the renderer's mesh is keyed on it. */
   id: string;
   /**
-   * The tile drawn in flight — a `directional8` one, by convention rather than
-   * by check. A four-way arrow is not wrong, only blunt: it points at the
-   * nearest cardinal instead of where it is actually going. See
-   * `../lib/tileResolve`.
+   * Which projectile this is — the id of a `projectile` tile.
+   *
+   * An id and not the block itself, unlike the two endpoints below, and the
+   * difference is what a catalogue *is*: both ends of the wire hold the same
+   * tiles, resolved once per load, so naming one says everything the whole
+   * entry would and cannot go stale against it. The endpoints are readings of a
+   * board that is about to move, which is why those are copied.
+   *
+   * An id the catalogue has lost, or one that names something which is not a
+   * projectile, draws nothing and plays nothing — see `../lib/projectile`.
    */
   tileId: string;
   from: FlightPoint;
@@ -74,11 +86,45 @@ export type ProjectileFlight = {
   /**
    * How long the whole flight takes, decided once when it is loosed.
    *
-   * Stored rather than recomputed from the speed each frame, because the speed
-   * lives on a weapon that can be dropped, swapped or unauthored while the arrow
-   * is still in the air. What is in flight owes nothing to what fired it.
+   * Stored rather than recomputed per frame, because a flight has to keep its
+   * own answer: it is the one number every frame of the drawing is a fraction
+   * of, and re-deriving it from a tile an editor can change mid-flight would
+   * make the arrow jump.
    */
   durationMs: number;
+  elapsedMs: number;
+  /**
+   * Whether the blow this is a receipt for connected.
+   *
+   * **The one thing a flight is told about the fight it came out of**, and it
+   * buys exactly one thing: which side plays where it lands — see
+   * `../lib/projectile`'s {@link ProjectileSide}. The flight is drawn
+   * identically either way, because the arrow was loosed either way.
+   *
+   * Decided by whoever fired it, never here: only they have read the dice, and
+   * a bolt has no dice to read.
+   */
+  hit: boolean;
+};
+
+/**
+ * One of a flight's three effects, playing on the board.
+ *
+ * **Its own thing rather than a phase of the flight**, because the two are over
+ * at different moments: an arrow is a sprite following a line and is gone the
+ * instant it arrives, and what it leaves behind stands still and keeps emitting
+ * for the length its author wrote. Keeping the landed flight around instead
+ * would park an arrow on its target for the length of the spray.
+ *
+ * Client-side and amnesiac on exactly the terms every other particle is — see
+ * `../lib/particleVfx`. Nothing downstream of one changes a hit point.
+ */
+export type FlightEffect = {
+  /** `${flight.id}:${side}`, so a plume is as unique as the moment that threw it. */
+  id: string;
+  /** Where it plays: the near end of the flight, or the far one. */
+  at: FlightPoint;
+  transition: Transition;
   elapsedMs: number;
 };
 
@@ -127,7 +173,7 @@ export function flightScreenDelta(
 export function flightDurationMs(
   from: FlightPoint,
   to: FlightPoint,
-  projectile: ProjectileDef,
+  projectile: ProjectileBlock,
 ): number {
   const { dx, dy } = flightScreenDelta(from, to);
   const pxPerMs = (projectile.cellsPerSecond * CELL_SIZE) / MS_PER_SECOND;
@@ -174,4 +220,94 @@ export function flightPosition(
  */
 export function flightLevel(point: FlightPoint): number {
   return Math.floor(point.elevAbs / HEIGHT_PER_LEVEL);
+}
+
+/**
+ * Start one of a flight's effects, if the projectile authored that side.
+ *
+ * Silently nothing for a side nobody wrote, and for an id the catalogue has
+ * lost — which between them are the overwhelming majority and are not a case
+ * anybody had to write: there is simply nothing to play.
+ *
+ * The point is copied rather than shared with the flight, because an effect
+ * outlives the flight that threw it and nothing that outlives its source should
+ * hold a reference into it.
+ */
+export function beginEffect(
+  flight: ProjectileFlight,
+  side: ProjectileSide,
+  at: FlightPoint,
+  def: TileDef | undefined,
+  into: FlightEffect[],
+) {
+  const transition = projectileEffect(def, side);
+  if (!transition) return;
+  into.push({
+    id: `${flight.id}:${side}`,
+    at: { x: at.x, y: at.y, elevAbs: at.elevAbs },
+    transition,
+    elapsedMs: 0,
+  });
+}
+
+/**
+ * Wind every flight forward, and start what the landings owe.
+ *
+ * Shared by the two things that age flights — the simulation on its tick clock
+ * and `../net/RemoteSession` on the render loop's — because the rule that a
+ * landing plays a side is one rule, and written twice it is one rule that can
+ * disagree with itself. The clocks differ and that is fine: a flight is a
+ * fraction of a fixed line either way.
+ *
+ * Mutates each flight's elapsed time in place, on the terms every other motion
+ * here is aged, and hands back the list of those still in the air — **the same
+ * array when nothing landed**, so the common frame allocates nothing.
+ */
+export function ageFlights(
+  flights: ProjectileFlight[],
+  dtMs: number,
+  tilesById: Record<string, TileDef>,
+  into: FlightEffect[],
+): ProjectileFlight[] {
+  let landed = false;
+  for (const flight of flights) {
+    flight.elapsedMs += dtMs;
+    if (flight.elapsedMs < flight.durationMs) continue;
+    landed = true;
+    beginEffect(
+      flight,
+      landingSide(flight.hit),
+      flight.to,
+      tilesById[flight.tileId],
+      into,
+    );
+  }
+  if (!landed) return flights;
+  return flights.filter((flight) => flight.elapsedMs < flight.durationMs);
+}
+
+/**
+ * Wind the effects forward, and drop the ones that have finished.
+ *
+ * Dropped rather than faded: the particle system retires an emitter it stops
+ * being handed and lets its live sparks finish, so an effect that leaves this
+ * list is still on screen for as long as its longest particle lives. Fading it
+ * out here as well would be the same taper applied twice.
+ *
+ * Returns the same array when nothing expired, on the terms {@link ageFlights}
+ * does.
+ */
+export function ageEffects(
+  effects: FlightEffect[],
+  dtMs: number,
+): FlightEffect[] {
+  let expired = false;
+  for (const effect of effects) {
+    effect.elapsedMs += dtMs;
+    if (effect.elapsedMs >= effect.transition.durationMs) expired = true;
+  }
+  if (!expired) return effects;
+  return effects.filter(
+    (effect) => effect.elapsedMs < effect.transition.durationMs,
+  );
 }
