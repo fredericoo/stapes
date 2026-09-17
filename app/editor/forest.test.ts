@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
-import tilesRaw from "../../data/tiles.json";
+import { fixtureTilesById as tilesById } from "../lib/fixtureTiles";
 import { emptyMap, getStack, setStacks } from "../lib/mapData";
-import type { MapFile, TileDef } from "../lib/types";
-import { normalizeTiles } from "../lib/types";
-import { tilesByIdFromList } from "../lib/validation";
+import type { MapFile } from "../lib/types";
 import {
   MIN_FOREST_FOOTPRINT,
   MIN_GLADE_CELLS,
@@ -20,9 +18,6 @@ import {
   type CellGrid,
   type Rect,
 } from "./generator";
-
-const tiles: TileDef[] = normalizeTiles(tilesRaw as unknown[]);
-const tilesById = tilesByIdFromList(tiles);
 
 const BASE: ForestConfig = {
   generator: "forest",

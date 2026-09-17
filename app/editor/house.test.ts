@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
-import tilesRaw from "../../data/tiles.json";
+import { fixtureTilesById as tilesById } from "../lib/fixtureTiles";
 import { emptyMap, getStack, setStacks } from "../lib/mapData";
-import type { MapFile, PlacedTile, TileDef } from "../lib/types";
-import { normalizeTiles } from "../lib/types";
-import { tilesByIdFromList } from "../lib/validation";
+import type { MapFile, PlacedTile } from "../lib/types";
 import {
   MIN_FOOTPRINT,
   doorSpotFor,
@@ -13,9 +11,6 @@ import {
   windowsAlong,
   type HouseConfig,
 } from "./house";
-
-const tiles: TileDef[] = normalizeTiles(tilesRaw as unknown[]);
-const tilesById = tilesByIdFromList(tiles);
 
 const BASE: HouseConfig = {
   generator: "house",

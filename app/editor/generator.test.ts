@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import tilesRaw from "../../data/tiles.json";
+import { fixtureTilesById as tilesById } from "../lib/fixtureTiles";
 import { emptyMap, setStacks } from "../lib/mapData";
-import type { TileDef } from "../lib/types";
-import { normalizeTiles } from "../lib/types";
-import { tilesByIdFromList } from "../lib/validation";
 import {
   columnOf,
   connectionsAlongBorder,
@@ -20,9 +17,6 @@ import {
   widenToTwo,
   type CellGrid,
 } from "./generator";
-
-const tiles: TileDef[] = normalizeTiles(tilesRaw as unknown[]);
-const tilesById = tilesByIdFromList(tiles);
 
 /** A grid from rows of text: `.` is open, anything else is not. */
 function gridOf(rows: string[]): CellGrid {
