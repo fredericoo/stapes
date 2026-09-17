@@ -2853,6 +2853,11 @@ when it authors a `projectile` block (`isRanged`). Two fields saying the same
 thing is a bow authored to fire nothing, or a sword that lunges *and* puts an
 arrow in the air.
 
+- **What a bow pays for its reach is accuracy.** The three of them are authored
+  at `accuracy` 35/40/45 against a sword's 86–92, so an archer standing on the
+  rung a bow opens misses more shots than they land — see *Two weapons on one
+  rung are a choice, not a tier*, which is where the number comes from and why
+  it is not damage.
 - **A ranged weapon never leans.** `swingToward` asks the weapon before it asks
   the distance. The half-tile lunge claims a *contact*, and an archer with
   somebody in their face still looses an arrow — gating it on distance alone read
@@ -4268,7 +4273,7 @@ ladder itself. Every slow weapon in the world sat at 47–78% of the sword stand
 on its rung:
 
 ```
-  rung                         was    now
+  rung                         was   after   (the bows have since moved again)
    5  simple-hammer            78%   100%   of the sword on the same rung
    5  simple-bow               54%    80%
   10  simple-axe               62%    98%
@@ -4292,11 +4297,38 @@ handling penalty bites a low-accuracy weapon harder, because its hit chance is
 nearer the floor. Sixty-four rather than sixty buys the headroom and costs five
 percent of sideways parity.
 
-**Bows are held to 85% rather than parity, deliberately.** A bow has six cells of
-reach against a sword's one and a half, so anything closing on an archer eats a
-shot or two on the way in — worth roughly a fifth of an engagement, and invisible
-to `damagePerSecond`, which starts both bodies in contact. Paying a bow parity
-*and* the reach would make it the only sane thing to carry.
+**Bows were held to 85%, and are now held to about 45%.** The 85% above was
+arrived at by treating the reach as worth roughly a fifth of an engagement — the
+shot or two an archer gets in while something closes on them — and pricing the
+bow at what was left. Played, that was wrong in one direction the measure cannot
+see: `damagePerSecond` starts both bodies in contact, and a fight an archer picks
+never does. The archer chooses the range, shoots first, and steps back when the
+range closes, so the fifth was not a fifth — it was most of the fight, and a bow
+priced at 85% of the sword *inside* contact was strictly the better weapon
+everywhere outside it.
+
+What pays for the reach now is accuracy, which is the only cost a shot at ten
+cells and a shot at one both carry. The three bows were re-authored from
+`accuracy` 62/72/80 down to 35/40/45, which leaves a player standing on the rung
+each one opens landing:
+
+```
+  simple-bow    ranged   5   36%   of shots     49% at ranged 100
+  hunting-bow   ranged  15   42%                55%
+  war-bow       ranged  33   50%                61%
+```
+
+— against 63%, 75% and 88% before, and a mastered archer who used to sit on the
+95% ceiling with either of the top two. Measured sideways against the sword on
+the same rung, that is 44%, 44% and 47%, and `duel.test.ts`'s
+`two weapons on one rung` holds ranged weapons in a 30–55% band where melee stays
+near parity.
+
+**Damage was deliberately left alone.** A bow that hits for less is a bow that is
+worse at everything; a bow that misses is a gamble, which is what a shot from
+across a courtyard should be. It also keeps the thing an archer is buying legible
+in one number — the arrow is still worth what it always was, and what you are
+risking is the arrow.
 
 ### Nothing is taken off a weapon for being one you have outgrown
 
@@ -4401,8 +4433,8 @@ against the rung already earned:
   sharp 31   tempered-longsword  1.32x knights-sword
   blunt 13   iron-mace           1.07x simple-hammer
   blunt 31   war-maul            1.06x iron-mace
-  ranged 13  hunting-bow         1.42x simple-bow
-  ranged 31  war-bow             1.09x hunting-bow
+  ranged 13  hunting-bow         1.81x simple-bow
+  ranged 31  war-bow             1.04x hunting-bow
 ```
 
 and at mastery 8, the weapon two rungs up: 0.75x for the knight's sword, and 0.06x

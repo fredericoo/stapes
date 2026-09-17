@@ -363,11 +363,14 @@ describe("the weapon ladder", () => {
  * supposed to have. Nothing else about any of them moved: they are still slower,
  * still less accurate, still ask for Toughness the sword does not.
  *
- * **Bows are held to 85% rather than parity, deliberately.** A bow has six cells
- * of reach against a sword's one and a half, so anything closing on an archer
- * eats a shot or two on the way in — worth roughly a fifth of an engagement, and
- * invisible to a duel that starts both bodies in contact. Paying them parity
- * *and* the reach would make a bow the only sane thing to carry.
+ * **Bows sit at about two fifths of the sword, and that is a floor with a
+ * ceiling under it rather than near-parity.** A bow reaches six to ten cells
+ * against a sword's one and a half, and what it pays for that is accuracy: an
+ * archer misses more shots than they land until the mastery is well past what
+ * the bow asks. A duel that starts both bodies in contact sees only the cost, so
+ * the band here is deliberately low — the reach it buys is real and is not
+ * measurable from here. The upper end is what stops the bow being the only sane
+ * thing to carry; the lower end is what stops it being an ornament.
  */
 describe("two weapons on one rung", () => {
   /** What each rung offers, sword first — the sword is the yardstick. */
@@ -397,19 +400,31 @@ describe("two weapons on one rung", () => {
     };
   }
 
-  /** Something that shoots is paid in reach for the damage it gives up. */
-  const floorFor = (id: string) => (isRanged(weaponOf(id)) ? 0.75 : 0.9);
+  /**
+   * The band a weapon has to sit in against the sword on its rung.
+   *
+   * A melee weapon is near parity: whatever it trades away in speed it is given
+   * back in damage, and the question "axe or sword" has to have two answers.
+   *
+   * A bow is held well under it, because a bow is paid in reach and charged in
+   * accuracy. In contact — which is the only fight this measure runs — that is
+   * all cost and no benefit, so a band at parity would be asking for a weapon
+   * that shoots ten cells *and* trades blows with a longsword.
+   */
+  const bandFor = (id: string): [number, number] =>
+    isRanged(weaponOf(id)) ? [0.3, 0.55] : [0.9, 1.15];
 
   for (const [rung, ids] of ROWS) {
     const sword = ids[0]!;
     for (const id of ids.slice(1)) {
-      it(`makes ${id} worth carrying beside ${sword} at ${rung}`, () => {
+      it(`prices ${id} against ${sword} at ${rung}`, () => {
         const theirs = damagePerSecond(armed(onRung(rung, id), id));
         const swords = damagePerSecond(armed(onRung(rung, sword), sword));
+        const [floor, ceiling] = bandFor(id);
 
-        expect(theirs / swords).toBeGreaterThan(floorFor(id));
+        expect(theirs / swords).toBeGreaterThan(floor);
         // And never so far past it that the sword stops being a choice either.
-        expect(theirs / swords).toBeLessThan(1.15);
+        expect(theirs / swords).toBeLessThan(ceiling);
       });
     }
   }

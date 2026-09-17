@@ -14359,7 +14359,7 @@
                         "then": [
                           {
                             "kind": "say",
-                            "text": "Eight cells, and it goes where you point it. Ranged 18."
+                            "text": "Eight cells. Where the arrow ends up is your business, not mine. Ranged 18."
                           },
                           {
                             "kind": "request_trade",
@@ -23278,7 +23278,7 @@
         "type": "weapon",
         "damage": 13,
         "def": 0,
-        "accuracy": 62,
+        "accuracy": 35,
         "variance": 75,
         "spd": 44,
         "mastery": "ranged",
@@ -23734,7 +23734,7 @@
         "type": "weapon",
         "damage": 28,
         "def": 0,
-        "accuracy": 72,
+        "accuracy": 40,
         "variance": 60,
         "spd": 40,
         "mastery": "ranged",
@@ -23792,7 +23792,7 @@
         "type": "weapon",
         "damage": 40,
         "def": 0,
-        "accuracy": 80,
+        "accuracy": 45,
         "variance": 50,
         "spd": 34,
         "mastery": "ranged",
