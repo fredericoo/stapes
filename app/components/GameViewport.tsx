@@ -5,7 +5,7 @@ import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import { emptyEquipment } from "../game/equipment";
 import type { InteractionOption } from "../game/interactionOptions";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
-import type { CastSquare, SpellButton } from "../game/casting";
+import type { CastSlot, SpellButton } from "../game/casting";
 import { itemUseFor } from "../game/itemUse";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { MasteryXp } from "../lib/mastery";
@@ -242,7 +242,7 @@ export function GameViewport({
    */
   spells?: SpellButton[];
   /** Cast the stone in this square. Absent on a route with no session to ask. */
-  onCast?: (square: CastSquare) => void;
+  onCast?: (slot: CastSlot) => void;
   /** Stop the cast being made, by pressing its stone again. @see `./SpellBar` */
   onStopCast?: () => void;
   /** Catalogue behind the list's sprites. */
@@ -268,7 +268,7 @@ export function GameViewport({
     [onMoveItem],
   );
   const cast = useCallback(
-    (square: CastSquare) => onCast?.(square),
+    (slot: CastSlot) => onCast?.(slot),
     [onCast],
   );
   const stopCast = useCallback(() => onStopCast?.(), [onStopCast]);

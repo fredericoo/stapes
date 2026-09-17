@@ -10,6 +10,7 @@ import {
 import {
   UNKNOWN_REMAINING_MS,
   type StatusInstance,
+  walkSpeedPercentFrom,
 } from "../game/statuses";
 import type { ProjectileFlight } from "../game/projectile";
 import {
@@ -49,16 +50,18 @@ import { gravityPullOn } from "../game/gravity";
 import { type Equipment, emptyEquipment } from "../game/equipment";
 import {
   castability,
-  castableStones,
+  castableSpells,
   type CastContext,
   type CasterPoint,
   type CastPoint,
   type CastProgress,
-  type CastSquare,
+  type CastSlot,
   type SpellButton,
 } from "../game/casting";
 import { castRefusalNotice } from "../game/notices";
 import { masteriesFromXp, type MasteryXp } from "../lib/mastery";
+import { type NaturalSpell, resolveBattler } from "../lib/battler";
+import type { StatusDef } from "../lib/status";
 import { canMoveItem, itemInSlot, type SlotRef } from "../game/itemMoves";
 import type { ConsumeSource } from "../game/itemUse";
 import { canTransmuteFrom } from "../game/transmute";
@@ -76,7 +79,11 @@ import type {
   PlaySession,
   WalkState,
 } from "../game/GameSession";
-import { resolveWalkDurationMs, standingAbs } from "../game/movement";
+import {
+  groundWalkSpeedPercent,
+  standingAbs,
+  walkDurationMsFor,
+} from "../game/movement";
 import { STRIKE_RECOVERY_STEPS, strikeRecoveryMs } from "../game/combat";
 import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
 import {
@@ -153,8 +160,16 @@ type PredictedStep = {
   to: Coord;
   direction: Direction;
   landed: boolean;
-  /** Time since it was sent, for {@link STEP_CONFIRM_TIMEOUT_MS}. */
+  /** Time since it was sent, for {@link STEP_CONFIRM_GRACE_MS}. */
   waitedMs: number;
+  /**
+   * How long this step takes to walk, as this side drew it.
+   *
+   * Recorded rather than re-derived, because the answer moves: a status wears
+   * off and the ground changes underfoot, and what the backstop has to wait for
+   * is the walk that was actually *started*. @see STEP_CONFIRM_GRACE_MS
+   */
+  durationMs: number;
 };
 
 /**
@@ -164,19 +179,29 @@ type PredictedStep = {
  * are legitimately outstanding at once on exactly the slow link this prediction
  * exists for — a tight cap here would reinstate the stall it is meant to
  * remove. Eight covers a round trip well past a second. Past that something is
- * wrong rather than slow, and {@link STEP_CONFIRM_TIMEOUT_MS} is what notices.
+ * wrong rather than slow, and {@link STEP_CONFIRM_GRACE_MS} is what notices.
  */
 const MAX_PREDICTED_STEPS = 8;
 
 /**
- * How long the oldest unconfirmed step waits before this client gives up on it.
+ * How long the oldest unconfirmed step waits **past its own walk** before this
+ * client gives up on it.
  *
  * The backstop, not the mechanism: a refused step normally comes back as its own
  * message and is rolled back at once. This catches only the cases where no
  * answer arrives at all, and sits well past the round trip a confirmation takes
  * so an ordinary slow link never trips it.
+ *
+ * **On top of the step's own duration, not instead of it**, because what a
+ * confirmation waits for is the walk: the patch that commits the move *is* the
+ * acknowledgement — see {@link dropConfirmedSteps} — and the server does not
+ * send it until the body lands. A flat figure was fine while every step took
+ * 200ms and became a bug the moment a status could slow one: a body at the
+ * floor of {@link MIN_WALK_SPEED_PERCENT} walks a cell in two seconds, which
+ * *is* this figure, so every paralysed step was abandoned at 99% of the way
+ * across and snapped back to where it started.
  */
-export const STEP_CONFIRM_TIMEOUT_MS = 2_000;
+export const STEP_CONFIRM_GRACE_MS = 2_000;
 
 /**
  * The world as this browser sees it.
@@ -307,6 +332,16 @@ export class RemoteSession implements PlaySession {
    */
   private equipment: Equipment = emptyEquipment();
   /**
+   * How long each of this body's own spells has left, as the server last said.
+   *
+   * Beside the kit because it arrives with it and is the same kind of thing:
+   * what this caster can press right now. Not wound here — the server sends a
+   * fresh record every second a spell is cooling, on exactly the terms a
+   * stone's cooldown rides the kit. @see `../game/GameSession`'s
+   * `ActorRuntime.spellCooldownMs`
+   */
+  private spellCooldowns: Readonly<Record<string, number>> = {};
+  /**
    * Sentences the server has addressed to this player, waiting for a frame.
    *
    * Never seeded and never restored, unlike everything else held here, which is
@@ -418,6 +453,14 @@ export class RemoteSession implements PlaySession {
   constructor(
     private readonly socket: WebSocket,
     tiles: TileDef[],
+    /**
+     * The status catalogue, for the one thing this side has to work out about
+     * somebody else's condition: how fast it makes them walk. Constructor-shaped
+     * like the tiles rather than a setter, because a session that had it a
+     * moment later would time the first steps it ever drew at the wrong pace.
+     * @see walkSpeedPercentOf
+     */
+    private readonly statusDefs: Record<string, StatusDef> = {},
     /** Milliseconds on a clock that keeps running while the tab is hidden. */
     private readonly now: () => number = () => performance.now(),
   ) {
@@ -629,6 +672,12 @@ export class RemoteSession implements PlaySession {
       // fresh one, and what it is carrying is whatever the server just said —
       // not what the body in the previous world had on it.
       this.equipment = message.equipment;
+      // Emptied rather than carried or asked for, and it is the *right* answer
+      // rather than a convenient one: a body's own spell cooldowns are not
+      // durable, so the fresh body at the other end has none. Carrying the old
+      // record across would dim a button on a spell nothing is cooling.
+      // @see `../game/GameSession`'s `ActorRuntime.spellCooldownMs`
+      this.spellCooldowns = {};
       // Same rule, and it matters more here: a fresh body in a replaced world
       // still belongs to the same person, and dropping their tags would hand
       // them every reward in the map a second time.
@@ -744,6 +793,10 @@ export class RemoteSession implements PlaySession {
       // protocol's note. Normally empty: everything is on the floor where the
       // patch just before this put it.
       this.equipment = message.equipment;
+      // And nothing of this body's own is cooling, because there is no longer a
+      // body — the row is gone with the screen that replaces it, and what comes
+      // back is a fresh one. @see the `hello` above.
+      this.spellCooldowns = {};
       // Dropped before the flag rather than left to {@link setInput}'s gate:
       // that gate stops anything *new* arriving, and this is what a key already
       // down when the blow landed leaves behind. A step still pending is in the
@@ -771,6 +824,10 @@ export class RemoteSession implements PlaySession {
       // and for the same reason: an inventory rebuilt from a stream of adds and
       // removes drifts the moment one is missed and never recovers.
       this.equipment = message.equipment;
+      // And the body's own spells' cooldowns beside it, which arrive on this
+      // message because they are the same fact about the same caster. @see
+      // spellCooldowns
+      this.spellCooldowns = message.spellCooldowns;
       return;
     }
 
@@ -908,17 +965,53 @@ export class RemoteSession implements PlaySession {
   }
 
   /**
-   * How fast whatever is standing at `at` walks.
+   * How fast the body at `at` walks, with whatever is slowing or hurrying it.
    *
    * Taken from the top of the stack, which is where a body sits. A cell that
    * has already been patched out from under the event falls back to the
    * player's pace — the wrong answer for one step of one creature, and better
    * than refusing to animate it.
+   *
+   * **Derived here rather than sent, which is what constrains what may move a
+   * pace.** The statuses are the ids the broadcast carries, and the percentage
+   * each one is worth is a plain number in the catalogue — so this side reaches
+   * the same answer the simulation did without a countdown it does not have for
+   * anybody but its viewer. @see `../lib/status`'s `StatusDef.walkSpeedPercent`
    */
-  private walkDurationAt(at: { x: number; y: number; z: number }): number {
+  private walkDurationAt(
+    actorId: string,
+    at: { x: number; y: number; z: number },
+  ): number {
     const stack = getStack(this.map, at.x, at.y, at.z);
     const def = this.tilesById[stack[stack.length - 1]?.tileId ?? ""];
-    return def ? resolveWalkDurationMs(def) : WALK_DURATION_MS;
+    if (!def) return WALK_DURATION_MS;
+    return walkDurationMsFor(
+      def,
+      this.walkSpeedPercentOf(actorId) +
+        groundWalkSpeedPercent(
+          this.map,
+          // The body is the top of the stack, which is what the def above was
+          // read off — so the ground it is standing on is everything under it.
+          { ...at, stackIndex: stack.length - 1 },
+          this.tilesById,
+        ),
+    );
+  }
+
+  /**
+   * How much quicker or slower everything on one body makes it walk.
+   *
+   * The viewer's own list where there is one and the broadcast ids otherwise,
+   * which is the same split {@link getSnapshot} draws statuses by — and here it
+   * costs nothing, because the percentage a status is worth does not depend on
+   * how long it has left.
+   */
+  private walkSpeedPercentOf(actorId: string): number {
+    const statuses =
+      actorId === this.selfId
+        ? this.statuses
+        : (this.statusesById.get(actorId) ?? NO_STATUSES);
+    return walkSpeedPercentFrom(statuses, this.statusDefs);
   }
 
   /**
@@ -1194,7 +1287,7 @@ export class RemoteSession implements PlaySession {
         // Read off the body rather than sent with the event: this side already
         // knows which tile is walking, so deriving the pace here cannot
         // disagree with the server and costs nothing on the wire.
-        durationMs: this.walkDurationAt(event.from),
+        durationMs: this.walkDurationAt(event.actorId, event.from),
       };
     } else if (event.kind === "fallStarted") {
       motion.fall = {
@@ -1441,7 +1534,9 @@ export class RemoteSession implements PlaySession {
     const oldest = this.pending[0];
     if (!oldest) return;
     oldest.waitedMs += dtMs;
-    if (oldest.waitedMs >= STEP_CONFIRM_TIMEOUT_MS) this.abandonPrediction();
+    if (oldest.waitedMs >= oldest.durationMs + STEP_CONFIRM_GRACE_MS) {
+      this.abandonPrediction();
+    }
   }
 
   /**
@@ -1547,13 +1642,21 @@ export class RemoteSession implements PlaySession {
     if (this.castingsById.get(this.selfId)) return;
 
     const seq = this.nextStepSeq++;
+    // Our own body, so its pace is the one the server will time us by — whatever
+    // we are under and whatever we are standing on included. Read once and used
+    // twice: it times the lerp, and it is what the backstop below has to wait
+    // out before a missing confirmation means anything.
+    const durationMs = walkDurationMsFor(
+      def,
+      this.walkSpeedPercentOf(this.selfId) +
+        groundWalkSpeedPercent(this.map, loc, this.tilesById),
+    );
     motion.walk = {
       from: { x: loc.x, y: loc.y, z: loc.z },
       to: choice.step.to,
       direction: choice.step.direction,
       elapsedMs,
-      // Our own body, so its pace is the one the server will time us by.
-      durationMs: resolveWalkDurationMs(def),
+      durationMs,
     };
     this.pending.push({
       seq,
@@ -1561,6 +1664,7 @@ export class RemoteSession implements PlaySession {
       direction: choice.step.direction,
       landed: false,
       waitedMs: 0,
+      durationMs,
     });
     this.send({
       type: "step",
@@ -2036,7 +2140,7 @@ export class RemoteSession implements PlaySession {
    */
   spells(): SpellButton[] {
     const context = this.castContext();
-    return context ? castableStones(context) : [];
+    return context ? castableSpells(context) : [];
   }
 
   /**
@@ -2053,11 +2157,11 @@ export class RemoteSession implements PlaySession {
    * a button that flickered back to lit is worse than one that dims a round trip
    * late.
    */
-  cast(square: CastSquare): boolean {
+  cast(slot: CastSlot): boolean {
     const context = this.castContext();
     if (!context) return false;
 
-    const verdict = castability(context, square);
+    const verdict = castability(context, slot);
     if (!verdict.ok) {
       // Composed here rather than fetched, and it is the one sentence this side
       // writes for itself. The refusal genuinely happened here — the message was
@@ -2069,7 +2173,7 @@ export class RemoteSession implements PlaySession {
       return false;
     }
 
-    this.send({ type: "cast", square });
+    this.send({ type: "cast", slot });
     return true;
   }
 
@@ -2097,6 +2201,19 @@ export class RemoteSession implements PlaySession {
    * one difference is where they come from — patches and an equipment message
    * rather than a simulation — which is the whole point of the module being pure.
    */
+  /**
+   * The spells the body on this tile has of its own.
+   *
+   * Read out of the tile catalogue exactly as the simulation reads them —
+   * authored content both sides hold, on the terms a tile's walking pace is.
+   * `resolveBattler` memoises on def identity, so asking per press costs a map
+   * lookup.
+   */
+  private naturalSpells(tileId: string): readonly NaturalSpell[] {
+    const def = this.tilesById[tileId];
+    return (def ? resolveBattler(def)?.spells : null) ?? NO_SPELLS;
+  }
+
   private castContext(): CastContext | null {
     const motion = this.motions.get(this.selfId);
     if (!motion) return null;
@@ -2124,6 +2241,12 @@ export class RemoteSession implements PlaySession {
       // the cast is the server's clock, and a bar this side started would dim
       // the row for a cast the far end never began. @see castingsById
       casting: this.castingsById.get(this.selfId) ?? null,
+      // The body's own spells, read out of the tile catalogue exactly as the
+      // simulation reads them — authored content both sides hold, on the terms
+      // a tile's walking pace is. Their cooldowns are not broadcast and are
+      // wound here, which is what {@link spellCooldownMs} is.
+      spells: this.naturalSpells(from.placed.tileId),
+      spellCooldownsMs: this.spellCooldowns,
       target: to ? this.castPoint(to) : null,
     };
   }
@@ -2542,6 +2665,9 @@ const NO_TAGS: readonly string[] = [];
 
 /** Shared empty list, since no remote body ever carries statuses. */
 const NO_STATUSES: readonly StatusInstance[] = [];
+
+/** Shared empty list, on those terms: almost no body has spells of its own. */
+const NO_SPELLS: readonly NaturalSpell[] = [];
 
 /**
  * Shared empty list for the overwhelmingly common patch: one where every body

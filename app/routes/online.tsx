@@ -24,7 +24,7 @@ import { useGameAssets } from "../lib/gameAssets";
 import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
 import type { ObjectRef } from "../game/affordances";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
-import { type CastSquare, type SpellButton, spellPress } from "../game/casting";
+import { type CastSlot, type SpellButton, spellPress } from "../game/casting";
 import type { Direction } from "../lib/types";
 import {
   CLOSE_OUTDATED_CLIENT,
@@ -199,8 +199,8 @@ export default function OnlinePage() {
   // Asked of the session, which asks the same question the server will and then
   // sends the message. Nothing is predicted: the button dims when the equipment
   // message comes back with a cooldown on the stone.
-  const cast = useCallback((square: CastSquare) => {
-    sessionRef.current?.cast(square);
+  const cast = useCallback((slot: CastSlot) => {
+    sessionRef.current?.cast(slot);
   }, []);
   const stopCast = useCallback(() => {
     sessionRef.current?.cancelCast();
@@ -294,7 +294,7 @@ export default function OnlinePage() {
       // The same question the button asks, so `1` on the stone being cast
       // stops it exactly as a tap on it does. @see `../game/casting`'s `spellPress`
       if (spellPress(spell.castability) === "stop") sessionRef.current?.cancelCast();
-      else sessionRef.current?.cast(spell.square);
+      else sessionRef.current?.cast(spell.slot);
     });
 
     const teardownRenderer = () => {
@@ -333,7 +333,9 @@ export default function OnlinePage() {
       url.searchParams.set(PROTOCOL_VERSION_PARAM, String(PROTOCOL_VERSION));
       socket = new WebSocket(url);
 
-      const remote = new RemoteSession(socket, tiles);
+      // The status catalogue goes in with the tiles: both are authored data the
+      // session derives a walking pace from, and a pace never travels.
+      const remote = new RemoteSession(socket, tiles, statusDefsRef.current);
       // Read in the close handler below, which is where the difference between
       // "the world went away" and "the world is being replaced" is acted on.
       restarting = false;

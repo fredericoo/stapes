@@ -17,6 +17,7 @@ import {
   resolveClimbFrom,
   resolveWalkable,
 } from "../lib/types";
+import { walkDurationFrom } from "../lib/walkSpeed";
 import type { FitOpts } from "../lib/validation";
 import { fitsAtElevation, fitsTile } from "../lib/validation";
 import {
@@ -46,18 +47,73 @@ export function sceneryStack(
 }
 
 /**
- * How long one step takes this body, in milliseconds.
+ * How long one step takes this body when nothing is in its way, in
+ * milliseconds. The pace it is authored at, before a status or the ground has
+ * moved it — see {@link walkDurationMsFor}, which is what times an actual step.
  *
  * Lives beside the movement rules rather than in the tile module because both
  * ends of the wire need it and neither should have to guess: the simulation
  * times the step with it, and the client divides by it to place the sprite. It
  * never travels — a client already knows which tile an actor is, so deriving it
  * on both sides is cheaper than a field on every walk event, and cannot
- * disagree.
+ * disagree. **That bargain is the constraint on everything allowed to move a
+ * pace**: a source the browser cannot read for itself would have to travel, and
+ * it is why a status's share of this is a plain number rather than a formula.
  */
 export function resolveWalkDurationMs(def: TileDef): number {
   const authored = def.walkDurationMs;
   return authored != null && authored > 0 ? authored : WALK_DURATION_MS;
+}
+
+/**
+ * How long one step actually takes, with everything slowing or hurrying this
+ * body counted in.
+ *
+ * {@link resolveWalkDurationMs} is what the body is authored at; this is what
+ * it is walking at now. The split is worth keeping because the two have
+ * different readers: a pace that must not change with circumstance reads the
+ * first — see `./combat`'s `strikeRecoveryMs`, where how long a blow plants you
+ * is a fact about the swing — and everything that times an actual step reads
+ * this.
+ *
+ * The percentage is passed in rather than gathered here, because the sources
+ * are not this module's to know: one is the statuses on the body and one is the
+ * ground under it, and only the caller holds both. @see `../lib/walkSpeed`
+ */
+export function walkDurationMsFor(def: TileDef, speedPercent: number): number {
+  return walkDurationFrom(resolveWalkDurationMs(def), speedPercent);
+}
+
+/**
+ * How much quicker or slower the ground under this body makes it walk.
+ *
+ * **The surface its feet are on, and never the cell it is stepping into.** Both
+ * ends of the wire have to reach the same figure, and the cell being *left* is
+ * the one they agree about: the browser is told a step has started and holds
+ * the board it started from, where the destination may be a cell it is about to
+ * be patched. It also reads better than the alternative — wading out of a bog
+ * is slow, and the step that gets you clear of it is the last slow one.
+ *
+ * The body is excluded from its own stack, on {@link standingAbs}'s terms: what
+ * is being asked about is what it is standing on, and a body is not its own
+ * ground.
+ *
+ * Zero for open air, for a tile nobody authored a figure onto, and for a
+ * placement of something the catalogue no longer holds — the same reading every
+ * other absent field takes.
+ */
+export function groundWalkSpeedPercent(
+  map: MapFile,
+  at: Coord & { stackIndex: number },
+  tilesById: Record<string, TileDef>,
+): number {
+  const abs = standingAbs(map, at.x, at.y, at.z, at.stackIndex, tilesById);
+  const surface = surfaceTileAt(map, at.x, at.y, abs, tilesById, {
+    z: at.z,
+    stackIndex: at.stackIndex,
+  });
+  if (!surface) return 0;
+  return tilesById[surface.tileId]?.walkSpeedPercent ?? 0;
 }
 
 export function standingAbs(

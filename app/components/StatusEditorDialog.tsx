@@ -9,6 +9,10 @@ import {
   STATUS_TONES,
   type StatusSource,
 } from "../lib/status";
+import {
+  MAX_WALK_SPEED_PERCENT,
+  MIN_WALK_SPEED_PERCENT,
+} from "../lib/walkSpeed";
 import { snapToTick } from "../game/statuses";
 import type { StatusVfx } from "../lib/statusVfx";
 import {
@@ -403,6 +407,20 @@ export function StatusEditorDialog({
               }}
             />
           ))}
+        </div>
+
+        <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
+          <FieldLabel info="How much quicker or slower this makes the bearer walk. Zero is their own pace, -50 is half speed, 100 is twice it. Several sources add up before anything is divided, and the total is held between -90 and 400 — nothing may stop a body walking out of what it is under. A plain number rather than a formula: the browser times every step it draws and has no countdown for anybody but its viewer.">
+            Walk speed %
+          </FieldLabel>
+          <NumberInput
+            value={status.walkSpeedPercent ?? 0}
+            min={MIN_WALK_SPEED_PERCENT}
+            max={MAX_WALK_SPEED_PERCENT}
+            onChange={(walkSpeedPercent) => patch({ walkSpeedPercent })}
+            className="w-24"
+            aria-label="Walk speed percent"
+          />
         </div>
 
         <div className="border-t-2 border-border pt-3">

@@ -586,3 +586,31 @@ export function withStatusModifiers(
     flee: atLeast(stats.flee + (deltas.flee ?? 0), 0),
   };
 }
+
+/**
+ * How much quicker or slower everything on this body makes it walk, summed.
+ *
+ * **Not part of {@link withStatusModifiers}, and deliberately reachable
+ * without it.** That function answers with `FightingStats`, which the browser
+ * never builds — it does not know what anybody is wearing, or what their
+ * masteries are. Walking pace it does have to know, for every body it draws
+ * taking a step, and all this needs is the ids it is broadcast and the
+ * catalogue it loaded. @see `../lib/status`'s `StatusDef.walkSpeedPercent`
+ *
+ * Summed rather than multiplied, so two chills are twice one chill, and left
+ * unclamped here: the band belongs to the arithmetic that spends it, where the
+ * ground a body is standing on has been added too. @see `../lib/walkSpeed`
+ *
+ * Zero is the overwhelmingly common answer, and it costs a loop over an empty
+ * list.
+ */
+export function walkSpeedPercentFrom(
+  statuses: readonly StatusInstance[],
+  catalogue: Record<string, StatusDef>,
+): number {
+  let percent = 0;
+  for (const instance of statuses) {
+    percent += catalogue[instance.defId]?.walkSpeedPercent ?? 0;
+  }
+  return percent;
+}

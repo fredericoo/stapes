@@ -5551,6 +5551,269 @@ moment a brain could pick a bush — a hedge and a herd would grow `pendingNotic
 without bound for the life of the world. `GameSession.say` drops them at the
 door.
 
+## What the roster does with all of it
+
+The three mechanisms above were added for creatures, so three creatures use
+them. Nothing new was placed — these are the same bodies doing things they could
+not do before.
+
+**The cave troll breathes.** `Ember breath` is a bolt with a cast time, so the
+fight opens with a bar over its head that a player can walk out of the way of.
+It is a fire spell because its *requirements* name Fire, which is the only place
+a spell's element is written down — and the troll was given the Arcane and Fire
+to meet them, since an unmet requirement refuses the cast outright.
+
+**The snake constricts.** `Constrict` is a hold at arm's length, and it moves no
+health at all: what it leaves is `paralysed`, which takes a body to a tenth of
+its walking pace for two to three and a half seconds. A bolt with a status and no
+damage is the documented shape for exactly this. What the spell is *for* is that
+the snake is the slowest body in the world — it crawled, and you walked away — so
+what it needs is not reach but a moment where you cannot use yours.
+
+**Zero damage is what keeps it fair on a creature you meet early.** A hold that
+also hit for five stacked a real blow on top of losing your legs, on a twelve
+second clock, at the start of the game. What it costs you now is the seconds, and
+the snake's only damage is the bite the cast interrupts.
+
+**It asks for nothing, and that is what keeps it a grip rather than a rune.** A
+natural spell with no `requirements` is always castable, casts at exactly its
+authored time, and — since a spell's elements are read off its requirements and
+nowhere else — is made of nothing. So the snake needs no Arcane to do it, which
+is the right answer for an animal: the spell block is the only way a creature
+gets a special move, and a special move is not necessarily magic.
+
+It is **first** in `striking`, unlike the troll's: the hold is the special move
+and the bite is the filler, so the snake takes it whenever it is off cooldown
+and goes back to biting for the twelve seconds in between.
+
+**A wounded wolf breaks off.** Three rows and a state:
+
+- The row that sends it to `slinking` is **first in the table** and `from: any`.
+  That position is the whole of what makes it work — the row above it used to be
+  "whoever hit you is your prey", so a wolf that had decided to leave was dragged
+  back into the fight by the next blow.
+- It re-fires every round while it holds, and that is free: a transition into the
+  state you are already in is a no-op — no `onEnter`, no reset — and it keeps
+  every row below it quiet until the wolf is clear. It is also why there is no
+  `stuck` row for a cornered wolf: nothing below the slink row gets a turn, so a
+  wolf with a wall behind it backs into it and holds. That is what the rabbit's
+  `cornered` amounts to anyway.
+- Two ways out, and it takes whichever comes first: out of range, or healed. The
+  second is what makes the loop worth having, because the wolf already had a
+  `feeding` state — hurt, break off, find a carcass, `fed` puts the health back,
+  come back. Feeding is deliberately **not** gated on being unhurt, for exactly
+  that reason; the two hunt-entry rows are, so a hurt wolf does not pick a new
+  fight on the way.
+
+**`paralysed` is the strongest thing a status may say about a pair of legs, and
+it is deliberately not a stun.** `-90` is the floor `../lib/walkSpeed` clamps to,
+and the floor exists so that no authored content can stop a body walking at all:
+a lock nothing in the game could free is worse than any creature it would make
+interesting. It does not stack, so a second grip refreshes the hold rather than
+adding to it, and it leaves `spd` alone — a held body still swings at whatever
+is holding it.
+
+**These are driven in a test rather than read.** `battle.test.ts` builds a board
+by hand and runs the real bodies on it, because what makes the wolf work is the
+*order* of its transition rows, and a table read for its contents would pass
+with the rows either way round.
+
+## A body can have spells as well as hold them
+
+`BattlerDef.spells` is the natural weapon's opposite number: what a body can cast
+with nothing in its hands. Before it, a caster had to be *given* a stone, a hand
+to hold it in and a kit roll that produced it — so a troll that breathes fire was
+three pieces of content and a chance of arming whoever killed it.
+
+**They are `ArcaneStoneItem`s, not a second vocabulary.** Everything a stone
+already says — a bolt, a conjure, a cooldown, a cast time, requirements, reach,
+what it leaves behind — is what a natural spell needs to say, and the editor's
+Spells tab is `StoneFields`, the very component the Item tab uses. What is added
+is the two things a carried stone gets from its tile and this has none of: a
+**name** and an **icon**.
+
+**A brain names one by its position, not by its name.** `cast` carries the number
+beside the spell on the Spells tab, counting from one, and `castForBrain` is the
+single place that turns it back into the name everything downstream uses. That is
+a trade rather than a free win: renaming a spell can no longer break the line
+that casts it, and *removing* one above it now can, because everything below
+slides up. The list is short, authored on one tile and edited in one place, which
+is what makes that the better of the two failures — a stack index is refused
+elsewhere in this codebase precisely because a stack has neither property. The
+editor's picker offers the spells by name and writes the number, so an author
+never types either.
+
+### The cast path grew a slot, not a second path
+
+`castability`, the cooldown, the experience and the effect are all the one
+function they were. What changed is that a cast is named by a `CastSlot` —
+`{from: "square", square}` or `{from: "natural", name}` — instead of a bare
+square, all the way out to the wire and back. A tagged pair rather than a widened
+string, because a spell somebody called "charm" must not be the charm square.
+
+**The cooldown is the one place the two genuinely differ.** A stone's rides its
+`ItemInstance`, because a stone is picked up, put down and stored. A body's own
+spell has no instance, so it goes on the actor, beside the swing cooldown — and
+it is **not durable**, where a stone's is. The difference is what is being kept:
+a stone survives a reconnection and coming back holding a cooled one would make
+reconnecting the cheapest spell in the game; everything about a *body* that is
+mid-swing or mid-recovery is dropped on the way in, and a body's spell is part of
+the body.
+
+It rides the **equipment message** to its owner, because it is the same kind of
+thing said about the same caster to the same socket — what this body can press
+right now — and the two change at the same moment. Nobody else's is sent, on
+exactly the grounds nobody else's inventory is.
+
+### Being cast at is being attacked
+
+`attacked` was written when a swing was the only way to hurt anybody, and
+`notePendingHurt` was called from `tryAttack` and nowhere else. A body could
+therefore be held, chilled or burned by a spell and notice nothing — a rabbit
+stood still while a snake wound round it, because the hold takes no health and
+there was no swing to read.
+
+`castBolt` notes it too now, on the swing's own terms: before anything lands, so
+a killing bolt still tells whoever was hit who did it, and only for a bolt at
+somebody *other* than its caster.
+
+**Any bolt, rather than only one that takes health.** A spell whose whole effect
+is the status it leaves is exactly the case this exists for, so "did it hurt" is
+the wrong test. Asking instead whether the status is a *bad* one would put an
+opinion about what counts as friendly in the engine — `tone` is authored for the
+strip's colour and sort order, not for deciding who to be angry at. A mend thrown
+at somebody else is authorable, reads as provocation, and is a strange enough
+thing to author that being glared at for it is fair.
+
+### A brain aims by pointing
+
+The `cast` action resolves its selector to a body, sets the creature's
+`targetId`, and presses. Pointing rather than threading a target through the cast
+path is what keeps there being *one* cast path: `castBolt` reads the target off
+the body as it always has, for the press and for the bar that finishes a beat
+later alike. It is not an attack — `runAutoAttacks` swings only for a body in
+attack mode, and a brain never sets that.
+
+The verb answers three ways rather than two, and the middle one is what holds a
+priority list still: `cast` for a spell that landed, `casting` for a bar that is
+running, `no` for every refusal. `casting` maps to `running`, on `extract`'s
+terms — a cast plants the caster, so a lower line that stepped would be asking
+for a step the simulation refuses anyway. A creature reads as "burn them if you
+can, otherwise close in, otherwise hold" straight down the list.
+
+A brain that asked for the same spell twice in two ticks must not cancel its own
+cast, so `castForBrain` reports a run already going for that name rather than
+pressing again: pressing a stone that is casting *stops* it.
+
+### A confirmation waits for the walk, not for a constant
+
+A predicted step is acknowledged by the patch that commits the move — see
+`RemoteSession`'s `dropConfirmedSteps` — and the server does not send one until
+the body *lands*. So the backstop that gives up on an unanswered step has to
+allow for the walk it is waiting on, and it did not: `STEP_CONFIRM_TIMEOUT_MS`
+was a flat two seconds, which was ample while every step took 200ms.
+
+A status may now slow a body to a tenth of its pace, and a tenth of 200ms is two
+seconds exactly. Every paralysed step therefore ran out its whole allowance
+before the walk finished, so the client abandoned a step that was perfectly
+legal and dragged the body back to where it set off from — a rubber-band that
+got worse the slower you were, which is the opposite of what a prediction is
+for.
+
+It is `STEP_CONFIRM_GRACE_MS` now, granted **on top of** the step's own duration,
+and the duration is recorded on the `PredictedStep` rather than re-derived: what
+the backstop has to wait out is the walk that was actually started, and a status
+that wore off mid-step would otherwise change the answer underneath it.
+
+**The prediction itself was never wrong.** Both halves derive the moved pace, and
+a round trip through the real client and the real world shows a chilled player
+walking at a chilled player's pace. What was broken was only the thing watching
+for an answer that had not come yet.
+
+## A pace is a percentage, and it never travels
+
+`walkDurationMs` on a tile is how fast a body walks when nothing is touching it.
+A status can now move that, as a **percentage of speed**: `-50` is half the pace
+and therefore twice the milliseconds, and sources sum before anything divides, so
+two chills at `-30` come to `-60` rather than to `-51`.
+
+**The constraint that shaped it is that a pace is derived on both sides of the
+wire and never sent.** `walkStarted` carries no duration — the browser knows
+which tile is walking and works it out for itself, which is cheaper than a field
+on every step and cannot disagree. Anything allowed to move a pace therefore has
+to be something the browser can read too, and that is the whole reason the
+percentage is a plain number rather than a formula like every other status
+modifier:
+
+- A modifier is evaluated against a scope that includes how long the status has
+  left to run. The browser is broadcast other bodies' status **ids** and nothing
+  else — `applyStatusIds` builds every instance at `UNKNOWN_REMAINING_MS` — so a
+  pace that varied with the remainder would have the two sides drawing the same
+  step at two different speeds.
+- Modifiers are deltas to `FightingStats`, applied where those are read. The
+  browser never builds `FightingStats` at all: it does not know what anybody is
+  wearing or what they have practised. Walking pace it has to know, for every
+  body it draws taking a step.
+
+So `walkSpeedPercent` sits beside `modifiers` rather than in it, and
+`walkSpeedPercentFrom` is reachable without going through `withStatusModifiers`.
+`RemoteSession` takes the status catalogue in its constructor for this one
+purpose, alongside the tiles — both are authored data a pace is derived from.
+`spd`, which is still a modifier, is how fast you **swing**.
+
+**The band is `-90` to `400`, and the floor is the load-bearing end.** The
+duration is a divisor, so `-100` is a body that never finishes a step, and
+nothing in the game clears a condition that stopped you walking out of it. A
+tenth of the pace is a bog everybody escapes.
+
+**The ground has the other half of the figure.** `TileDef.walkSpeedPercent` is
+the same percentage said about a tile rather than about a body, and the two sum
+before anything divides — a chilled body wading through mud is slower than
+either alone, where multiplying them would make each source worth less the more
+of them there were.
+
+It is read off **the surface under the feet when a step begins**, never the cell
+being entered, and that follows from the wire again: the browser is told a step
+has started and holds the board it started from, where the destination may be a
+cell it is about to be patched. It reads correctly too — wading out of a bog is
+slow, and the step that gets you clear of it is the last slow one.
+`groundWalkSpeedPercent` excludes the walking body from its own stack, because a
+raft is not its own ground.
+
+**A blow still plants you for the pace you are authored at.** `strikeRecoveryMs`
+reads `resolveWalkDurationMs` and not the moved figure: how long a swing costs is
+a fact about the swing, both ends already derive it from the tile alone, and
+tying it to whatever the swinger happened to be standing in would make the
+recovery depend on state the client may not hold at the moment of the blow.
+
+## A creature can read its own health, and only as a share
+
+`health` is the condition that makes "run when you are losing" authorable. Every
+condition beside it that was about this body — `status`, `carrying`, `attacked` —
+asks a yes-or-no question, and a creature deciding whether to keep fighting is
+reading a bar.
+
+**It is a percentage, not a number of points, and that is the reason it can be
+authored at all.** Hit points are not a figure anybody types: they come off
+`baseHp` and Toughness, so a threshold written in points means one fight on a rat
+and a different one on a troll, and has to be re-tuned every time somebody moves
+a mastery. A third is a third on both.
+
+**It is a ceiling where `status` is a floor**, because the wounded half is what
+the condition exists for. `not` gives back the other side, and that is the row an
+author writes for a creature that only picks fights while it is fresh.
+
+**The maximum comes off `battlerOf`, not off the tile.** That is the figure the
+health bar is drawn against — armour, whatever the body is wearing, and a status
+that moved the maximum have all had their say — so a creature that decides to run
+is reading the same bar the player is. It is also why the share is clamped to
+one: `hpOf` stands above the maximum for as long as a status that raised it is
+wearing off, and a body on more than a full bar is not more than unwounded.
+
+**A body with no hit points has no share, and the condition never holds for it.**
+A brain is not owed a battler block — `health` on a signpost answers no, and its
+`not` answers yes, which is the reading that leaves a signpost standing still.
+
 ## A status can be a gamble, and a body can be immune to one
 
 Two changes to how a condition is handed over, both forced by one item.

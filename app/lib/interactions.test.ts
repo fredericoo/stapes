@@ -363,6 +363,68 @@ describe("interactionsForSave", () => {
   });
 
   /**
+   * The same standing cost again, and the sharpest case of it: a save that
+   * dropped these would open the troll's dialog, press save, and take its fire
+   * away — with the Spells tab on screen still showing the spell.
+   */
+  it("carries a body's own spells through a save", () => {
+    const saved = interactionsForSave({
+      battler: {
+        ...DEFAULT_BATTLER,
+        spells: [
+          {
+            type: "stone",
+            name: "  Ember breath  ",
+            effect: { kind: "bolt", on: "target", damage: 15 },
+            cooldownMs: 12_000,
+            castTimeMs: 1_500,
+            requirements: { arcane: 20, fire: 10 },
+            icon: {
+              tilesetId: "animals",
+              rect: { x: 0, y: 0, w: 1, h: 1 },
+              base: { x: 0, y: 0 },
+            },
+          },
+        ],
+      },
+    })?.battler?.spells;
+
+    expect(saved).toHaveLength(1);
+    // Trimmed, on the terms every authored string here is written.
+    expect(saved?.[0]?.name).toBe("Ember breath");
+    expect(saved?.[0]?.effect).toEqual({
+      kind: "bolt",
+      on: "target",
+      damage: 15,
+    });
+    expect(saved?.[0]?.requirements).toEqual({ arcane: 20, fire: 10 });
+    expect(saved?.[0]?.icon?.tilesetId).toBe("animals");
+  });
+
+  /**
+   * A spell with no name is a row somebody started and did not finish — and a
+   * blank one would fail the schema on the way back in, taking the whole
+   * battler block with it.
+   */
+  it("drops a spell nobody has named", () => {
+    expect(
+      interactionsForSave({
+        battler: {
+          ...DEFAULT_BATTLER,
+          spells: [
+            {
+              type: "stone",
+              name: "   ",
+              effect: { kind: "bolt", on: "caster", damage: -5 },
+              cooldownMs: 1_000,
+            },
+          ],
+        },
+      })?.battler,
+    ).not.toHaveProperty("spells");
+  });
+
+  /**
    * Unlike `range` and `sight`, which have a default worth writing down: an
    * empty kit on every creature in the file would be a line saying nothing.
    */

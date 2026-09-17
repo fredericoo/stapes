@@ -1,4 +1,5 @@
 import {
+  MAX_HEALTH_PERCENT,
   nearest,
   thing,
   type BrainActionDef,
@@ -26,7 +27,12 @@ import { PLAYER_TILE_ID } from "../game/constants";
 
 /** How the editor renders and edits one field of a condition/action/effect. */
 export type ParamSpec =
-  | { key: string; kind: "number"; label: string; min?: number }
+  /**
+   * A number box. `max` is authored wherever the schema has a ceiling — a
+   * percentage, and nothing else so far — so the editor refuses what the file
+   * would refuse rather than saving a creature that then fails to parse.
+   */
+  | { key: string; kind: "number"; label: string; min?: number; max?: number }
   | { key: string; kind: "boolean"; label: string }
   | { key: string; kind: "selector"; label: string }
   /**
@@ -63,6 +69,18 @@ export type ParamSpec =
    * one. The same collapse a speaker filter's "anybody" makes.
    */
   | { key: string; kind: "ground"; label: string }
+  /**
+   * One of the spells on this body's own battler block, picked rather than
+   * typed — and written down as its **position**, counting from one.
+   *
+   * Its own kind rather than a number box, on the {@link tile} field's grounds
+   * and more sharply: the spells it may point at are authored two tabs away on
+   * the very same tile, so the editor can offer exactly the ones that exist,
+   * by name, and write the number. A typed position is a line that can only
+   * ever fail, which is indistinguishable from a line somebody switched off
+   * deliberately.
+   */
+  | { key: string; kind: "spell"; label: string }
   /**
    * A tile from the library, picked rather than typed.
    *
@@ -219,6 +237,24 @@ export const CONDITIONS: Record<
     ],
     make: () => ({ cond: "status", id: "fed" }),
   },
+  health: {
+    label: "health",
+    hint: "This body is down to this share of its hit points or below. A share rather than a number of points, so half is half on a rat and on a troll. Its `not` is a creature that only fights while it is fresh.",
+    params: [
+      {
+        key: "atMostPercent",
+        kind: "number",
+        label: "at most %",
+        min: 0,
+        max: MAX_HEALTH_PERCENT,
+      },
+    ],
+    // A third, which is the threshold a creature that runs when it is losing
+    // is overwhelmingly authored at. Not half: half a health bar is a fight
+    // still worth having, and a default that fired there would make every
+    // freshly picked row read as cowardice.
+    make: () => ({ cond: "health", atMostPercent: 33 }),
+  },
   carrying: {
     label: "carrying",
     hint: "There is something in this body's bag. Leave the tile empty for anything at all. A body with no bag carries nothing.",
@@ -289,6 +325,19 @@ export const ACTIONS: Record<
     hint: "Swing at a target in an adjacent cell. Fails when out of reach, still recovering, or aimed at something with no hit points.",
     params: [{ key: "of", kind: "selector", label: "of" }],
     make: () => ({ action: "attack", of: DEFAULT_SELECTOR }),
+  },
+  cast: {
+    label: "cast",
+    hint: "Cast one of this body's own spells, by its position on the Spells tab. Holds the line for as long as the bar takes. Fails on a position it has no spell at, one still cooling, a caster short of what it asks, or a target out of reach. A spell that lands on its caster ignores the target.",
+    params: [
+      { key: "spell", kind: "spell", label: "spell" },
+      { key: "of", kind: "selector", label: "at" },
+    ],
+    // The first spell, which is a position every body with any spells at all
+    // has — and one the schema accepts whatever the body turns out to carry,
+    // since the catalog cannot see the tile this is being authored onto. The
+    // selector starts on the player, on `DEFAULT_SELECTOR`'s grounds.
+    make: () => ({ action: "cast", spell: 1, of: DEFAULT_SELECTOR }),
   },
   extract: {
     label: "extract",

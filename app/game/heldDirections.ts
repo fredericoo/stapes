@@ -289,9 +289,17 @@ export function bindAttackKey(onToggle: () => void): () => void {
  *
  * The digit row rather than letters, because casting is a *list* and a list
  * wants an index — one, two, three is the one keyboard idiom that says "the
- * first of these" without anybody having to be told. Three of them and no more,
- * because three is the whole of a caster's loadout: two hands and a charm. See
+ * first of these" without anybody having to be told. Three of them, because
+ * three is the whole of a caster's *loadout*: two hands and a charm. See
  * `./casting`'s `CAST_SQUARES`.
+ *
+ * **The row can be longer than this, and that is not a mismatch to fix here.**
+ * A body's own spells come after the squares — see `../lib/battler`'s
+ * `BattlerDef.spells` — so a creature authored three of them has six buttons.
+ * Three is what a hand reaching for the digit row can find without looking, and
+ * everything past it is pressed the way a phone presses all of them. What a
+ * position with no key looks like is {@link castKeyLabel}'s empty string, which
+ * the button already draws as nothing rather than as a gap.
  *
  * `Digit1`–`Digit3` rather than the characters, on the terms the direction keys
  * are bound by code: a French keyboard types `&` where a British one types `1`,
@@ -334,8 +342,9 @@ export function bindCastKeys(onCast: (index: number) => void): () => void {
  *
  * Here rather than in the component, so the label and the binding are one list:
  * a fourth key added above would be a fourth label without anybody remembering.
- * Empty past the end, which is a position with no key rather than a bug — a body
- * cannot carry a fourth stone, and the row would simply not draw one.
+ * Empty past the end, which is a position with no key rather than a bug: a body
+ * carries three stones at most, and everything after them in the row is a spell
+ * it *has* rather than holds. @see CAST_CODES
  */
 export function castKeyLabel(index: number): string {
   return index < CAST_CODES.length ? String(index + 1) : "";

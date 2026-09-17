@@ -1,5 +1,6 @@
 import {
   ANY_STATE,
+  MAX_HEALTH_PERCENT,
   type BrainCondition,
   type BrainActionDef,
   type BrainConditionDef,
@@ -385,6 +386,22 @@ export type BrainContext = {
    */
   attack(actorId: string): boolean;
   /**
+   * Cast one of this body's own spells, at somebody or at nobody.
+   *
+   * `spell` is its position on the body's own list, counting from one — the
+   * number beside it on the Spells tab. @see ../lib/brain's `cast`
+   *
+   * Three answers rather than two, and the middle one is what holds a priority
+   * list still: `"cast"` for a spell that has landed, `"casting"` for one with
+   * a bar running — started on this turn or already going from an earlier one —
+   * and `"no"` for every refusal there is, a position this body has no spell at
+   * included.
+   *
+   * A null target is a spell aimed at nobody, which a mend at its own caster
+   * wants and a bolt at somebody else is refused for.
+   */
+  cast(spell: number, targetId: string | null): "cast" | "casting" | "no";
+  /**
    * Work a thing for what it is made of, and keep working it.
    *
    * True while a pull is being made — started on this turn, or already running
@@ -432,6 +449,19 @@ export type BrainContext = {
    * @see ../lib/brain's `status`
    */
   hasStatus(id: string, atLeastMs: number | undefined): boolean;
+  /**
+   * What share of its hit points this body has left, from 0 to 1, or null for
+   * one that has no hit points at all. What the `health` condition reads.
+   *
+   * A share rather than the two numbers, because the share is the whole of the
+   * question and handing over a maximum would invite a second opinion about
+   * what full health is — the session's `battlerOf` already folds in armour, a
+   * status that moves the maximum, and whatever the body is wearing.
+   *
+   * Null rather than zero for a body with no hit points, and the difference
+   * matters: zero is a corpse and null is a signpost. @see ../lib/brain
+   */
+  health(): number | null;
   /**
    * What to call somebody out loud, or null once they are off the board.
    *
@@ -874,6 +904,12 @@ function leafHolds(
       return ctx.carrying(condition.tileId);
     case "status":
       return ctx.hasStatus(condition.id, condition.atLeastMs);
+    case "health": {
+      const share = ctx.health();
+      // A body with nothing to lose is never wounded. @see BrainContext.health
+      if (share === null) return false;
+      return share * MAX_HEALTH_PERCENT <= condition.atMostPercent;
+    }
   }
 }
 
@@ -1006,6 +1042,18 @@ function runAction(
       // read "hit them, else chase them, else hold" straight down the list.
       if (id === null) return "failure";
       return ctx.attack(id) ? "success" : "failure";
+    }
+    case "cast": {
+      // Nobody is not a refusal here, unlike `attack`'s: a spell that lands on
+      // its own caster has nobody to aim at, and the session refuses the ones
+      // that do need somebody. A thing answers nobody, on `attack`'s terms.
+      const id = boundBody(identify(action.of, memory, ctx));
+      const verdict = ctx.cast(action.spell, id);
+      // Running rather than success while a bar is up, on `extract`'s terms: a
+      // cast is something this creature is part-way through, and a lower line
+      // that stepped would be asking for a step the simulation refuses anyway.
+      if (verdict === "casting") return "running";
+      return verdict === "cast" ? "success" : "failure";
     }
     case "extract": {
       const bound = identify(action.of, memory, ctx);

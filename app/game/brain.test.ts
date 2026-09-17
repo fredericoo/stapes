@@ -307,11 +307,15 @@ describe("deciding", () => {
       talking: () => false,
       hurtBy: () => [],
       attack: vi.fn(() => false),
+      cast: vi.fn((): "cast" | "casting" | "no" => "no"),
       extract: vi.fn(() => false),
       consume: vi.fn(() => false),
       consumeOn: vi.fn(() => false),
       carrying: () => false,
       hasStatus: () => false,
+      // Untouched, unless a test says otherwise: a creature deciding anything
+      // about its own health is deciding it from a full bar.
+      health: () => 1,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -1092,11 +1096,15 @@ describe("giving up", () => {
       talking: () => false,
       hurtBy: () => [],
       attack: () => false,
+      cast: (): "cast" | "casting" | "no" => "no",
       extract: () => false,
       consume: () => false,
       consumeOn: () => false,
       carrying: () => false,
       hasStatus: () => false,
+      // Untouched, unless a test says otherwise: a creature deciding anything
+      // about its own health is deciding it from a full bar.
+      health: () => 1,
       nameOf: (id: string) => id,
     };
 
@@ -1438,11 +1446,15 @@ describe("actions that take time", () => {
       talking: () => false,
       hurtBy: () => [],
       attack: vi.fn(() => false),
+      cast: vi.fn((): "cast" | "casting" | "no" => "no"),
       extract: vi.fn(() => false),
       consume: vi.fn(() => false),
       consumeOn: vi.fn(() => false),
       carrying: () => false,
       hasStatus: () => false,
+      // Untouched, unless a test says otherwise: a creature deciding anything
+      // about its own health is deciding it from a full bar.
+      health: () => 1,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -1879,11 +1891,15 @@ describe("a deer that yelps", () => {
       talking: () => false,
       hurtBy: () => [],
       attack: () => false,
+      cast: (): "cast" | "casting" | "no" => "no",
       extract: () => false,
       consume: () => false,
       consumeOn: () => false,
       carrying: () => false,
       hasStatus: () => false,
+      // Untouched, unless a test says otherwise: a creature deciding anything
+      // about its own health is deciding it from a full bar.
+      health: () => 1,
       nameOf: (id: string) => id,
     };
 
@@ -1964,11 +1980,15 @@ describe("a deer that yelps", () => {
       talking: () => false,
       hurtBy: () => [],
       attack: () => false,
+      cast: (): "cast" | "casting" | "no" => "no",
       extract: () => false,
       consume: () => false,
       consumeOn: () => false,
       carrying: () => false,
       hasStatus: () => false,
+      // Untouched, unless a test says otherwise: a creature deciding anything
+      // about its own health is deciding it from a full bar.
+      health: () => 1,
       nameOf: (id: string) => id,
     };
 
@@ -2625,11 +2645,15 @@ describe("composing conditions", () => {
       talking: () => false,
       hurtBy: () => [],
       attack: vi.fn(() => false),
+      cast: vi.fn((): "cast" | "casting" | "no" => "no"),
       extract: vi.fn(() => false),
       consume: vi.fn(() => false),
       consumeOn: vi.fn(() => false),
       carrying: () => false,
       hasStatus: () => false,
+      // Untouched, unless a test says otherwise: a creature deciding anything
+      // about its own health is deciding it from a full bar.
+      health: () => 1,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -3329,11 +3353,15 @@ describe("knowing where it belongs", () => {
       talking: () => false,
       hurtBy: () => [],
       attack: vi.fn(() => false),
+      cast: vi.fn((): "cast" | "casting" | "no" => "no"),
       extract: vi.fn(() => false),
       consume: vi.fn(() => false),
       consumeOn: vi.fn(() => false),
       carrying: () => false,
       hasStatus: () => false,
+      // Untouched, unless a test says otherwise: a creature deciding anything
+      // about its own health is deciding it from a full bar.
+      health: () => 1,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -4515,11 +4543,15 @@ describe("naming a thing", () => {
       talking: () => false,
       hurtBy: () => [],
       attack: vi.fn(() => false),
+      cast: vi.fn((): "cast" | "casting" | "no" => "no"),
       extract: vi.fn(() => true),
       consume: vi.fn(() => false),
       consumeOn: vi.fn(() => false),
       carrying: () => false,
       hasStatus: () => false,
+      // Untouched, unless a test says otherwise: a creature deciding anything
+      // about its own health is deciding it from a full bar.
+      health: () => 1,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -4689,11 +4721,13 @@ describe("asking what a body is under", () => {
       talking: () => false,
       hurtBy: () => [],
       attack: vi.fn(() => false),
+      cast: vi.fn((): "cast" | "casting" | "no" => "no"),
       extract: vi.fn(() => false),
       consume: vi.fn(() => false),
       consumeOn: vi.fn(() => true),
       carrying: () => false,
       hasStatus: vi.fn(() => false),
+      health: vi.fn((): number | null => 1),
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -4795,5 +4829,156 @@ describe("asking what a body is under", () => {
 
     expect(c.consumeOn).not.toHaveBeenCalled();
     expect(c.consume).not.toHaveBeenCalled();
+  });
+
+  /**
+   * What the condition is for: a creature that runs once it is losing. The
+   * threshold is a ceiling, so the cases worth pinning are the two sides of it,
+   * the boundary itself, and the body that has no bar to read.
+   */
+  describe("asking how hurt it is", () => {
+    const wounded = watching({ cond: "health", atMostPercent: 30 });
+
+    it("holds below the threshold and not above it", () => {
+      expect(ran(wounded, ctx({ health: () => 0.2 }))).toBe("alert");
+      expect(ran(wounded, ctx({ health: () => 0.5 }))).toBe("idle");
+    });
+
+    /**
+     * Inclusive, like every other threshold in the vocabulary: `in_range` at
+     * exactly `cells` holds, and a creature authored to run at a third that
+     * stood at exactly a third would otherwise wait for one more blow.
+     */
+    it("holds at exactly the threshold", () => {
+      expect(ran(wounded, ctx({ health: () => 0.3 }))).toBe("alert");
+    });
+
+    /**
+     * A brain on a tile that is not a battler. Answering "wounded" for a body
+     * with nothing to lose would send every signpost with a flee state running.
+     */
+    it("never holds for a body with no hit points", () => {
+      expect(ran(watching({ cond: "health", atMostPercent: 100 }), ctx({ health: () => null }))).toBe("idle");
+    });
+
+    /**
+     * The other half of the pair, and the one an author writes for a creature
+     * that only picks fights while it is fresh.
+     */
+    it("reads its `not` as unhurt", () => {
+      const fresh = watching(
+        group<BrainConditionDef>("and", [{ cond: "health", atMostPercent: 30 }], true),
+      );
+      expect(ran(fresh, ctx({ health: () => 1 }))).toBe("alert");
+      expect(ran(fresh, ctx({ health: () => 0.1 }))).toBe("idle");
+    });
+  });
+});
+
+/**
+ * Casting, from a brain's side of the line.
+ *
+ * What the session does with the press is `./sessionCasting`'s business. What
+ * these are about is the three answers the verb can get back and what each one
+ * does to a priority list — which is the whole of why it is a tri-state rather
+ * than a boolean.
+ */
+describe("casting a spell of its own", () => {
+  function ctx(overrides: Partial<Parameters<typeof stepBrain>[3]> = {}) {
+    const built = {
+      busy: false,
+      rng: new Rng(1),
+      self: { x: 0, y: 0, z: 0 },
+      home: null,
+      nearestOnTile: () => "player",
+      nearestThing: () => null,
+      thingStillThere: () => true,
+      positionOf: () => ({ x: 2, y: 0, z: 0 }),
+      wouldDrop: () => false,
+      wouldStepIntoHazard: () => false,
+      walkTo: vi.fn((): WalkOrderState => "walking"),
+      fleeFrom: (): WalkOrderState => "walking",
+      step: () => true,
+      say: vi.fn(),
+      noise: vi.fn(),
+      canSee: () => true,
+      sight: { up: 0, down: 0 },
+      heard: () => [],
+      heardNoise: () => [],
+      talking: () => false,
+      hurtBy: () => [],
+      attack: vi.fn(() => false),
+      cast: vi.fn((): "cast" | "casting" | "no" => "cast"),
+      extract: vi.fn(() => false),
+      consume: vi.fn(() => false),
+      consumeOn: vi.fn(() => false),
+      carrying: () => false,
+      hasStatus: () => false,
+      health: () => 1,
+      nameOf: (id: string) => id,
+      ...overrides,
+    } satisfies Parameters<typeof stepBrain>[3];
+    return built;
+  }
+
+  /** Burn them if you can, otherwise close in. The list a caster is authored as. */
+  const casting: BrainDef = {
+    initial: "hunting",
+    states: {
+      hunting: {
+        do: [
+          // The second spell on the body, counting from one — which is what
+          // makes this a position rather than an index, and the number an
+          // author is looking at on the Spells tab.
+          { action: "cast", spell: 2, of: nearest("player") },
+          { action: "step_toward", of: nearest("player") },
+        ],
+      },
+    },
+    transitions: [],
+  };
+
+  it("names the spell's position and whom it is aimed at", () => {
+    const c = ctx();
+    stepBrain(casting, initialMemory(casting), BRAIN_TICK_MS, c);
+    expect(c.cast).toHaveBeenCalledWith(2, "player");
+  });
+
+  it("stops the list where it lands", () => {
+    const c = ctx();
+    stepBrain(casting, initialMemory(casting), BRAIN_TICK_MS, c);
+    expect(c.walkTo).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The refusal every line in a priority list is written against: a spell still
+   * cooling is a line that did nothing, and the creature closes instead.
+   */
+  it("falls through to the next line when it is refused", () => {
+    const c = ctx({ cast: vi.fn((): "cast" | "casting" | "no" => "no") });
+    stepBrain(casting, initialMemory(casting), BRAIN_TICK_MS, c);
+    expect(c.walkTo).toHaveBeenCalled();
+  });
+
+  /**
+   * `extract`'s rule: a bar that is running is something this creature is
+   * part-way through, and a lower line that stepped would be asking for a step
+   * the simulation refuses anyway — a cast plants the caster.
+   */
+  it("holds the line while a bar is running", () => {
+    const c = ctx({ cast: vi.fn((): "cast" | "casting" | "no" => "casting") });
+    stepBrain(casting, initialMemory(casting), BRAIN_TICK_MS, c);
+    expect(c.walkTo).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Unlike `attack`'s, which has nothing to swing at. A mend on its own caster
+   * needs nobody, and what needs somebody is refused by the session rather than
+   * here.
+   */
+  it("casts at nobody rather than failing", () => {
+    const c = ctx({ nearestOnTile: () => null });
+    stepBrain(casting, initialMemory(casting), BRAIN_TICK_MS, c);
+    expect(c.cast).toHaveBeenCalledWith(2, null);
   });
 });

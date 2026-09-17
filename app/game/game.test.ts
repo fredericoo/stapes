@@ -18,12 +18,19 @@ import {
 import {
   FALL_MS_PER_HEIGHT,
   PUSH_STEP_MS,
+  TICK_MS,
   WALK_DURATION_MS,
 } from "./constants";
+import { resolveStatus } from "../lib/status";
 import { GameSession } from "./GameSession";
 import { findLandingAbs, isSupported } from "./gravity";
-import { canWalk, standingAbs } from "./movement";
+import { canWalk, groundWalkSpeedPercent, standingAbs } from "./movement";
 import { findPlayers, requireSinglePlayer } from "./player";
+
+/** Run a session for `ms`, a tick at a time, the way a server does. */
+function advance(session: GameSession, ms: number) {
+  for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) session.tick(TICK_MS);
+}
 
 function tile(
   partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
@@ -51,6 +58,8 @@ function tile(
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
   tile({ id: "dirt", height: 0 }),
+  /** Ground that is half the speed to walk on. @see TileDef.walkSpeedPercent */
+  tile({ id: "mud", height: 0, walkSpeedPercent: -50 }),
   tile({ id: "slab", height: 2 }),
   tile({ id: "plaster", height: 2 }),
   tile({ id: "wall", height: 4 }),
@@ -937,6 +946,145 @@ describe("GameSession walk", () => {
     expect(getStack(snap.map, 0, 0, 0).some((p) => p.tileId === "player")).toBe(
       false,
     );
+  });
+
+  /**
+   * A status that says the bearer is slower, from one end of the feature to the
+   * other: the catalogue, the command that puts it on, and the step it times.
+   * The unit tests underneath assert the arithmetic; this asserts that the pace
+   * a body actually walks at reads it.
+   */
+  it("walks a slowed body at the slowed pace", () => {
+    const mired = resolveStatus({
+      id: "mired",
+      name: "Mired",
+      description: "Wading.",
+      tone: "bad",
+      fromMs: 60_000,
+      toMs: 60_000,
+      walkSpeedPercent: -50,
+    })!;
+    let map = mapWithPlayer({ x: 0, y: 0 });
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
+    const session = new GameSession(map, tiles, {
+      statuses: { mired: mired },
+    });
+    session.runCommand("/status mired");
+    session.setInput({ directions: ["e"] });
+
+    session.tick(TICK_MS);
+    // Half the speed, so twice the milliseconds — and still walking at the
+    // moment an unslowed body would have arrived.
+    advance(session, WALK_DURATION_MS);
+    expect(session.getSnapshot().self.x).toBe(0);
+
+    advance(session, WALK_DURATION_MS + TICK_MS * 2);
+    expect(session.getSnapshot().self.x).toBe(1);
+  });
+
+  /**
+   * The ground's half of the same figure. The mud is the cell being *left*,
+   * because that is the surface under the feet when a step starts and the one
+   * both sides of the wire can agree about.
+   */
+  it("walks a body out of slow ground at the slow pace", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "mud" },
+      { tileId: "player", direction: "e" },
+    ]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
+    const session = new GameSession(map, tiles);
+    session.setInput({ directions: ["e"] });
+
+    session.tick(TICK_MS);
+    advance(session, WALK_DURATION_MS);
+    expect(session.getSnapshot().self.x).toBe(0);
+
+    advance(session, WALK_DURATION_MS + TICK_MS * 2);
+    expect(session.getSnapshot().self.x).toBe(1);
+  });
+
+  /**
+   * The two sources are one figure: a chilled body wading through mud is
+   * slower than either alone, because the percentages sum before anything is
+   * divided rather than multiplying one another.
+   */
+  it("adds what a body is under to what it is standing on", () => {
+    const mired = resolveStatus({
+      id: "mired",
+      name: "Mired",
+      description: "Wading.",
+      tone: "bad",
+      fromMs: 60_000,
+      toMs: 60_000,
+      walkSpeedPercent: -25,
+    })!;
+    let map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "mud" },
+      { tileId: "player", direction: "e" },
+    ]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
+    const session = new GameSession(map, tiles, { statuses: { mired } });
+    session.runCommand("/status mired");
+    session.setInput({ directions: ["e"] });
+
+    // -75 in total: four times the milliseconds, so three walks' worth of time
+    // still leaves the body where it started.
+    session.tick(TICK_MS);
+    advance(session, WALK_DURATION_MS * 3);
+    expect(session.getSnapshot().self.x).toBe(0);
+
+    advance(session, WALK_DURATION_MS + TICK_MS * 2);
+    expect(session.getSnapshot().self.x).toBe(1);
+  });
+});
+
+describe("the ground's say in a pace", () => {
+  const at = (x: number, y: number, z: number, stackIndex: number) => ({
+    x,
+    y,
+    z,
+    stackIndex,
+  });
+  const by = tilesByIdFromList(tiles);
+
+  it("reads the surface the body is standing on", () => {
+    const map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "mud" },
+      { tileId: "player", direction: "e" },
+    ]);
+    expect(groundWalkSpeedPercent(map, at(0, 0, 0, 1), by)).toBe(-50);
+  });
+
+  it("is nothing on ground nobody authored a figure onto", () => {
+    const map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "player", direction: "e" },
+    ]);
+    expect(groundWalkSpeedPercent(map, at(0, 0, 0, 1), by)).toBe(0);
+  });
+
+  it("is nothing in open air", () => {
+    const map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "player", direction: "e" },
+    ]);
+    expect(groundWalkSpeedPercent(map, at(0, 0, 0, 0), by)).toBe(0);
+  });
+
+  /**
+   * A body is not its own ground. Without the exclusion, a slow tile that is
+   * also a body would read its own figure and a raft would slow whatever is
+   * standing on it *and* itself, twice.
+   */
+  it("never reads the walking body's own tile", () => {
+    const boggy = [...tiles, tile({ id: "slug", height: 2, actor: true, walkSpeedPercent: -90 })];
+    const map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "slug" },
+    ]);
+    expect(
+      groundWalkSpeedPercent(map, at(0, 0, 0, 1), tilesByIdFromList(boggy)),
+    ).toBe(0);
   });
 });
 

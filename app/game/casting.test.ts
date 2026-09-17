@@ -20,7 +20,8 @@ import { tilesByIdFromList } from "../lib/validation";
 import {
   CAST_SQUARES,
   castability,
-  castableStones,
+  castableSpells,
+  squareSlot,
   castDurationMs,
   type CastContext,
   type CasterPoint,
@@ -235,6 +236,8 @@ function context(
     masteries: {},
     caster: HERE,
     casting: null,
+    spells: [],
+    spellCooldownsMs: {},
     target: null,
     ...extra,
   };
@@ -242,7 +245,7 @@ function context(
 
 describe("why a stone cannot be cast", () => {
   it("refuses an empty square", () => {
-    expect(castability(context({}), "weapon")).toEqual({
+    expect(castability(context({}), squareSlot("weapon"))).toEqual({
       ok: false,
       reason: "empty",
     });
@@ -254,7 +257,7 @@ describe("why a stone cannot be cast", () => {
    * there is no stone there.
    */
   it("refuses a square holding something that is not a stone", () => {
-    expect(castability(context({ weapon: instance("sword") }), "weapon")).toEqual(
+    expect(castability(context({ weapon: instance("sword") }), squareSlot("weapon"))).toEqual(
       { ok: false, reason: "empty" },
     );
   });
@@ -269,14 +272,14 @@ describe("why a stone cannot be cast", () => {
   it("refuses every square while a cast is running, naming the one it came from", () => {
     const casting = context(
       { weapon: instance("mend-stone"), offhand: instance("ward-stone") },
-      { casting: { remainingMs: 1_500, durationMs: 3_000, square: "weapon" } },
+      { casting: { remainingMs: 1_500, durationMs: 3_000, slot: squareSlot("weapon") } },
     );
 
-    expect(castability(casting, "weapon")).toEqual({
+    expect(castability(casting, squareSlot("weapon"))).toEqual({
       ok: false,
       reason: "underway",
     });
-    expect(castability(casting, "offhand")).toEqual({
+    expect(castability(casting, squareSlot("offhand"))).toEqual({
       ok: false,
       reason: "casting",
     });
@@ -284,7 +287,7 @@ describe("why a stone cannot be cast", () => {
 
   it("refuses a stone that is still cooling", () => {
     expect(
-      castability(context({ weapon: instance("mend-stone", 4_000) }), "weapon"),
+      castability(context({ weapon: instance("mend-stone", 4_000) }), squareSlot("weapon")),
     ).toEqual({ ok: false, reason: "cooling" });
   });
 
@@ -298,7 +301,7 @@ describe("why a stone cannot be cast", () => {
       { weapon: instance("curse-stone", 4_000) },
       { target: point(6) },
     );
-    expect(castability(state, "weapon")).toEqual({
+    expect(castability(state, squareSlot("weapon"))).toEqual({
       ok: false,
       reason: "cooling",
     });
@@ -308,7 +311,7 @@ describe("why a stone cannot be cast", () => {
     expect(
       castability(
         context({ weapon: instance("adept-stone") }, { masteries: { arcane: 9 } }),
-        "weapon",
+        squareSlot("weapon"),
       ),
     ).toEqual({ ok: false, reason: "mastery" });
   });
@@ -320,14 +323,30 @@ describe("why a stone cannot be cast", () => {
           { weapon: instance("adept-stone") },
           { masteries: { arcane: 10 } },
         ),
-        "weapon",
+        squareSlot("weapon"),
+      ),
+    ).toEqual({ ok: true });
+  });
+
+  /**
+   * A spell that asks for nothing is castable by a body that has learnt
+   * nothing, and that is not a degenerate case — it is what a creature's own
+   * special move is. Asking nothing is not the same as asking zero of
+   * everything; it means there is no gate here at all, so nothing about the
+   * caster can close it. @see `../lib/mastery`'s `meetsRequirements`
+   */
+  it("allows one that asks for nothing, of a caster who has nothing", () => {
+    expect(
+      castability(
+        context({ weapon: instance("mend-stone") }, { masteries: {} }),
+        squareSlot("weapon"),
       ),
     ).toEqual({ ok: true });
   });
 
   it("refuses a stone that acts on a target when nobody is targeted", () => {
     expect(
-      castability(context({ weapon: instance("curse-stone") }), "weapon"),
+      castability(context({ weapon: instance("curse-stone") }), squareSlot("weapon")),
     ).toEqual({ ok: false, reason: "noTarget" });
   });
 
@@ -336,7 +355,7 @@ describe("why a stone cannot be cast", () => {
       { weapon: instance("curse-stone") },
       { target: point(5) },
     );
-    expect(castability(state, "weapon")).toEqual({
+    expect(castability(state, squareSlot("weapon"))).toEqual({
       ok: false,
       reason: "outOfRange",
     });
@@ -354,7 +373,7 @@ describe("why a stone cannot be cast", () => {
       { weapon: instance("curse-stone") },
       { map, target: point(2) },
     );
-    expect(castability(state, "weapon")).toEqual({
+    expect(castability(state, squareSlot("weapon"))).toEqual({
       ok: false,
       reason: "outOfRange",
     });
@@ -365,7 +384,7 @@ describe("why a stone cannot be cast", () => {
       { weapon: instance("curse-stone") },
       { target: point(2) },
     );
-    expect(castability(state, "weapon")).toEqual({ ok: true });
+    expect(castability(state, squareSlot("weapon"))).toEqual({ ok: true });
   });
 });
 
@@ -377,18 +396,18 @@ describe("a stone that acts on its caster", () => {
    */
   it("works with no target and ignores one entirely", () => {
     const alone = context({ weapon: instance("mend-stone") });
-    expect(castability(alone, "weapon")).toEqual({ ok: true });
+    expect(castability(alone, squareSlot("weapon"))).toEqual({ ok: true });
 
     const aiming = context(
       { weapon: instance("mend-stone") },
       { target: point(6) },
     );
-    expect(castability(aiming, "weapon")).toEqual({ ok: true });
+    expect(castability(aiming, squareSlot("weapon"))).toEqual({ ok: true });
   });
 
   it("does the same for a status the stone puts on its caster", () => {
     expect(
-      castability(context({ weapon: instance("ward-stone") }), "weapon"),
+      castability(context({ weapon: instance("ward-stone") }), squareSlot("weapon")),
     ).toEqual({ ok: true });
   });
 });
@@ -400,7 +419,7 @@ describe("a conjuring stone", () => {
    */
   it("can be cast with nothing targeted", () => {
     expect(
-      castability(context({ weapon: instance("flame-stone") }), "weapon"),
+      castability(context({ weapon: instance("flame-stone") }), squareSlot("weapon")),
     ).toEqual({ ok: true });
   });
 
@@ -409,13 +428,13 @@ describe("a conjuring stone", () => {
       { weapon: instance("flame-stone") },
       { target: point(2) },
     );
-    expect(castability(near, "weapon")).toEqual({ ok: true });
+    expect(castability(near, squareSlot("weapon"))).toEqual({ ok: true });
 
     const far = context(
       { weapon: instance("flame-stone") },
       { target: point(5) },
     );
-    expect(castability(far, "weapon")).toEqual({
+    expect(castability(far, squareSlot("weapon"))).toEqual({
       ok: false,
       reason: "outOfRange",
     });
@@ -467,7 +486,7 @@ describe("a conjuring stone", () => {
         { weapon: instance("flame-stone") },
         { map: tileId === "water" ? waterInFront() : inFront(tileId) },
       );
-      expect(castability(state, "weapon")).toEqual({
+      expect(castability(state, squareSlot("weapon"))).toEqual({
         ok: false,
         reason: "blocked",
       });
@@ -496,11 +515,11 @@ describe("the charm square", () => {
       charm: instance("curse-stone"),
       weapon: instance("curse-stone"),
     });
-    expect(castability(nobodyTargeted, "charm")).toEqual({
+    expect(castability(nobodyTargeted, squareSlot("charm"))).toEqual({
       ok: false,
       reason: "noTarget",
     });
-    expect(castability(nobodyTargeted, "weapon")).toEqual({
+    expect(castability(nobodyTargeted, squareSlot("weapon"))).toEqual({
       ok: false,
       reason: "noTarget",
     });
@@ -512,18 +531,18 @@ describe("the charm square", () => {
       { charm: instance("curse-stone"), weapon: instance("curse-stone") },
       { target: point(2) },
     );
-    expect(castability(near, "charm")).toEqual({ ok: true });
-    expect(castability(near, "weapon")).toEqual({ ok: true });
+    expect(castability(near, squareSlot("charm"))).toEqual({ ok: true });
+    expect(castability(near, squareSlot("weapon"))).toEqual({ ok: true });
 
     const far = context(
       { charm: instance("curse-stone"), weapon: instance("curse-stone") },
       { target: point(6) },
     );
-    expect(castability(far, "charm")).toEqual({
+    expect(castability(far, squareSlot("charm"))).toEqual({
       ok: false,
       reason: "outOfRange",
     });
-    expect(castability(far, "weapon")).toEqual({
+    expect(castability(far, squareSlot("weapon"))).toEqual({
       ok: false,
       reason: "outOfRange",
     });
@@ -620,18 +639,21 @@ describe("the row of buttons", () => {
    * none.
    */
   it("is empty for a body carrying no stones", () => {
-    expect(castableStones(context({ weapon: instance("sword") }))).toEqual([]);
+    expect(castableSpells(context({ weapon: instance("sword") }))).toEqual([]);
   });
 
   it("has one button per stone, in square order", () => {
-    const buttons = castableStones(
+    const buttons = castableSpells(
       context({
         weapon: instance("mend-stone"),
         offhand: instance("sword"),
         charm: instance("ward-stone"),
       }),
     );
-    expect(buttons.map((button) => button.square)).toEqual(["weapon", "charm"]);
+    expect(buttons.map((button) => button.slot)).toEqual([
+      squareSlot("weapon"),
+      squareSlot("charm"),
+    ]);
   });
 
   /**
@@ -641,14 +663,14 @@ describe("the row of buttons", () => {
    */
   it("leaves out a stone the caster has not earned", () => {
     expect(
-      castableStones(
+      castableSpells(
         context({ weapon: instance("adept-stone") }, { masteries: { arcane: 9 } }),
       ),
     ).toEqual([]);
   });
 
   it("offers it as soon as the mastery is met", () => {
-    const buttons = castableStones(
+    const buttons = castableSpells(
       context({ weapon: instance("adept-stone") }, { masteries: { arcane: 10 } }),
     );
     expect(buttons.map((button) => button.tileId)).toEqual(["adept-stone"]);
@@ -660,20 +682,20 @@ describe("the row of buttons", () => {
    * unearned stone would blink into the row for as long as the bar runs.
    */
   it("leaves it out while the caster is part-way through another cast", () => {
-    const buttons = castableStones(
+    const buttons = castableSpells(
       context(
         { weapon: instance("mend-stone"), charm: instance("adept-stone") },
         {
           masteries: { arcane: 9 },
-          casting: { remainingMs: 1_500, durationMs: 3_000, square: "weapon" },
+          casting: { remainingMs: 1_500, durationMs: 3_000, slot: squareSlot("weapon") },
         },
       ),
     );
-    expect(buttons.map((button) => button.square)).toEqual(["weapon"]);
+    expect(buttons.map((button) => button.slot)).toEqual([squareSlot("weapon")]);
   });
 
   it("carries the stone's own sprite and its cooldown", () => {
-    const [button] = castableStones(
+    const [button] = castableSpells(
       context({ weapon: instance("mend-stone", 4_000) }),
     );
     expect(button).toMatchObject({
@@ -696,7 +718,7 @@ describe("what a row of buttons says", () => {
    */
   it("reads the same across one second of cooling", () => {
     const at = (cooldownMs: number) =>
-      spellReading(castableStones(context({ weapon: instance("mend-stone", cooldownMs) })));
+      spellReading(castableSpells(context({ weapon: instance("mend-stone", cooldownMs) })));
     // Two different instances, so only the *reading* can make these agree.
     expect(at(4_400).replace(/itm_\d+/, "x")).toBe(
       at(4_001).replace(/itm_\d+/, "x"),

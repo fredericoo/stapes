@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef } from "react";
 import {
   CAST_REFUSAL_NOTES,
   type Castability,
-  type CastSquare,
+  type CastSlot,
   COOLDOWN_STEP_MS,
   type SpellButton,
   spellPress,
@@ -11,7 +11,7 @@ import { castKeyLabel } from "../game/heldDirections";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { Tooltip } from "../ui/Tooltip";
 import { useTap } from "./useTap";
-import { TilePreview } from "./TilePreview";
+import { SpritePreview, TilePreview } from "./TilePreview";
 
 /**
  * The stones a body is carrying, as a row of things to press.
@@ -101,11 +101,17 @@ const SPRITE_SIZE_PX = 44;
  * What the whole row is worth in width, as a share of a phone's control column.
  *
  * The row sits directly above the direction pad and shares its column, so a
- * button is a third of the pad's width and the three of them come out exactly as
+ * button is a third of the pad's width and three of them come out exactly as
  * wide as the thing they sit on. That is what makes them read as one cluster
  * with the pad rather than as a strip that happens to be near it — and it is
  * what keeps them under the thumb that is *not* steering, since the pad is on
  * the walking side and a spell is pressed with the other hand.
+ *
+ * **A ceiling rather than a count.** Three is a loadout, and a body with spells
+ * of its own has more than a loadout — see `../lib/battler`'s
+ * `BattlerDef.spells`. A longer row shares the same width rather than running
+ * past it, because each disc flexes and this only caps how wide one may get: it
+ * is what stops one or two buttons from growing into the pad's whole width.
  */
 const BUTTONS_PER_ROW = 3;
 
@@ -205,7 +211,7 @@ export function SpellBar({
    * same function the server honours a cast with.
    */
   spells: SpellButton[];
-  onCast: (square: CastSquare) => void;
+  onCast: (slot: CastSlot) => void;
   /**
    * Stop the cast this body is making. No square, because a body makes one cast
    * at a time and the session knows which — the button that offers this is the
@@ -239,15 +245,15 @@ export function SpellBar({
     >
       {spells.map((spell, index) => (
         <SpellSquare
-          // By the stone rather than by position: a player who swaps their two
+          // By the spell rather than by position: a player who swaps their two
           // stones between hands has the same two buttons holding different
           // things, and a list keyed by square would animate one into the other.
-          key={spell.itemId}
+          key={spell.key}
           spell={spell}
           index={index}
           onCast={onCast}
           onStopCast={onStopCast}
-          tile={tilesById[spell.tileId]}
+          tile={spell.tileId ? tilesById[spell.tileId] : undefined}
           tilesets={tilesets}
         />
       ))}
@@ -265,7 +271,7 @@ function SpellSquare({
 }: {
   spell: SpellButton;
   index: number;
-  onCast: (square: CastSquare) => void;
+  onCast: (slot: CastSlot) => void;
   onStopCast: () => void;
   tile: TileDef | undefined;
   tilesets: TilesetDef[];
@@ -285,7 +291,7 @@ function SpellSquare({
     // nobody targeted is the exception and goes through, and the stone being
     // cast asks for the opposite thing — see `../game/casting`'s `spellPress`.
     if (press === "stop") onStopCast();
-    else if (press === "cast") onCast(spell.square);
+    else if (press === "cast") onCast(spell.slot);
   });
 
   // What it is, then whether it can be used and why not — in that order, because
@@ -341,6 +347,16 @@ function SpellSquare({
             still
             chrome={false}
             background={null}
+          />
+        ) : spell.icon ? (
+          // A body's own spell has no tile to borrow a picture from, so it
+          // carries one. A spell nobody has drawn yet falls through both arms
+          // and leaves a bare disc with its key on it, which is what an
+          // undrawn status icon does in its lane.
+          <SpritePreview
+            sprite={spell.icon}
+            tilesets={tilesets}
+            size={Math.round(SPRITE_SIZE_PX * SPRITE_SHARE)}
           />
         ) : null}
 

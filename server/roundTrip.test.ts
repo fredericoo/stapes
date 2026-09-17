@@ -17,6 +17,7 @@ import type { ActorPosition } from "../app/game/GameSession";
 import type { FlatMapFile, TileDef } from "../app/lib/types";
 import { PLAYER_TILE_ID, TICK_MS, WALK_DURATION_MS } from "../app/game/constants";
 import { CHUNK_SIZE } from "../app/lib/types";
+import { statusesById } from "../app/lib/status";
 import type { GameServer } from "./GameServer";
 
 /**
@@ -37,6 +38,11 @@ import type { GameServer } from "./GameServer";
 
 const JSON_TYPE = "application/json";
 const tiles: TileDef[] = (tilesJson as TileDef[]).map(normalizeTileDef);
+/**
+ * The same catalogue the world is loaded with, so the client times a step the
+ * way the simulation does — a pace is derived on both sides and never sent.
+ */
+const statuses = statusesById(statusesJson as unknown[]);
 
 /** Where the player starts, one chunk in so it can walk either way. */
 const SPAWN_X = CHUNK_SIZE;
@@ -86,7 +92,12 @@ async function play(actorId: string) {
     void harness.server.webSocketClose(pair.server);
   };
   let clock = 0;
-  const remote = new RemoteSession(socket as unknown as WebSocket, tiles, () => clock);
+  const remote = new RemoteSession(
+    socket as unknown as WebSocket,
+    tiles,
+    statuses,
+    () => clock,
+  );
   await harness.server.join(pair.server, actorId);
   // The `hello` is sent inside `join`, so by here the client has a world.
   expect(remote.isReady()).toBe(true);
@@ -232,6 +243,29 @@ function divergence(remote: RemoteSession, actorId: string): string[] {
   return out;
 }
 
+/**
+ * How long a test that walks the player across a chunk boundary is allowed.
+ *
+ * **This is a budget for simulated work, not for waiting on anything.** `play`'s
+ * `advance` steps a clock in 16ms frames, and every frame updates the client,
+ * ticks the world and flushes the socket twice — so a test's wall clock is
+ * however many frames it simulates, divided by how fast the machine is. The two
+ * walks it is applied to cover a chunk and more in each direction, which is a
+ * few hundred frames apiece.
+ *
+ * They run in about 3s and 4s on a developer's machine, and came in at 4.07s and
+ * 5.01s on CI, where the second crossed the 5000ms default and failed. It failed
+ * *as a timeout*, and the assertion that landed after the deadline then reported
+ * a half-finished walk as a divergence between client and world — which reads
+ * exactly like the scoping bug this file exists to catch. A test that cries wolf
+ * on a loaded runner is worse than no test.
+ *
+ * Fifteen seconds is three times the slowest run seen: room for a runner under
+ * load, and still short enough that something genuinely hung fails rather than
+ * hanging the suite.
+ */
+const WALKING_TEST_MS = 15_000;
+
 /** Walk one way, a step at a time, letting both clocks run. */
 async function walk(
   play: { remote: RemoteSession; advance: (ms: number) => Promise<void> },
@@ -296,7 +330,7 @@ describe("walking about with a creature in the world", () => {
     await session.advance(1000);
 
     expect(divergence(session.remote, "alice")).toEqual([]);
-  });
+  }, WALKING_TEST_MS);
 
   /**
    * The case the scoping is *for*, which is also the case nothing exercises by
@@ -330,7 +364,7 @@ describe("walking about with a creature in the world", () => {
     await session.advance(1000);
 
     expect(divergence(session.remote, "alice")).toEqual([]);
-  });
+  }, WALKING_TEST_MS);
 
   /**
    * The other way across the boundary: the creature walks and the player does

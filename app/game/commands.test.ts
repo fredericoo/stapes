@@ -424,6 +424,7 @@ const BURN: StatusDef = {
   everyMs: constantFormula(0),
   effects: {},
   modifiers: {},
+  walkSpeedPercent: 0,
   vfx: NO_VFX,
 };
 

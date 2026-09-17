@@ -80,6 +80,12 @@ type Props = {
   tiles: TileDef[];
   /** The status catalogue, for the `status` condition's picker. */
   statusDefs: Record<string, StatusDef>;
+  /**
+   * The spells on this very tile's battler block, for the `cast` action's
+   * picker. Handed down rather than read off the brain, because a brain does
+   * not know what body it is on — the dialog holding both tabs does.
+   */
+  spells?: readonly { name: string }[];
   onChange: (next: BrainDef | undefined) => void;
 };
 
@@ -219,6 +225,20 @@ export type Vocabulary = {
   tiles: Record<TileFilter, TileOption[]>;
   /** The whole status catalogue, for a `status` field. */
   statuses: Array<{ value: string; label: string }>;
+  /**
+   * The spells on the body this brain drives, for a `cast` field.
+   *
+   * The body's own rather than the library's, unlike every other picker here: a
+   * natural spell belongs to one tile, and offering another creature's would be
+   * offering a line that can only fail. Empty on a tile with none, where the
+   * row says so rather than showing a dropdown with nothing in it.
+   *
+   * **Named to read and numbered to write.** What is authored is the position —
+   * see `../lib/brain`'s `cast` — and what an author picks from is a list of
+   * names, because nobody knows a spell by its index. The label carries both,
+   * so the row says the same thing the Spells tab does.
+   */
+  spells: Array<{ value: string; label: string }>;
   describe(selector: Selector): SelectorNames | null;
 };
 
@@ -264,6 +284,7 @@ export function selectorVocabulary(
   brain: BrainDef,
   tiles: TileDef[],
   statusDefs: Record<string, StatusDef> = {},
+  spells: readonly { name: string }[] = [],
 ): Vocabulary {
   const named = new Map(tiles.map((tile) => [tile.id, tile.name || tile.id]));
   const nameOf = (tileId: string) => named.get(tileId) ?? tileId;
@@ -334,6 +355,15 @@ export function selectorVocabulary(
       value: def.id,
       label: def.name,
     })),
+    // Positions, counting from one, off the list as it is authored — so the
+    // number a row writes is the number beside the spell on the Spells tab.
+    // Unnamed rows are kept rather than filtered, because dropping one would
+    // shift every position below it and the picker would then disagree with
+    // the file about what "the second spell" is.
+    spells: spells.map((spell, index) => ({
+      value: String(index + 1),
+      label: `${index + 1} — ${spell.name.trim() || "unnamed"}`,
+    })),
     describe,
   };
 }
@@ -395,7 +425,13 @@ export function renamedState(brain: BrainDef, oldName: string, newName: string):
   };
 }
 
-export function BrainEditor({ brain, tiles, statusDefs, onChange }: Props) {
+export function BrainEditor({
+  brain,
+  tiles,
+  statusDefs,
+  spells = [],
+  onChange,
+}: Props) {
   if (!brain) {
     return (
       <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
@@ -411,7 +447,7 @@ export function BrainEditor({ brain, tiles, statusDefs, onChange }: Props) {
   }
 
   const stateNames = Object.keys(brain.states);
-  const vocab = selectorVocabulary(brain, tiles, statusDefs);
+  const vocab = selectorVocabulary(brain, tiles, statusDefs, spells);
   const issues = validateBrain(brain);
 
   const setState = (name: string, next: BrainStateDef) => {
@@ -1199,6 +1235,33 @@ function ParamField({
       </label>
     );
   }
+  if (spec.kind === "spell") {
+    // Says so rather than offering an empty dropdown, on the terms the immunity
+    // toggles do when nothing is authored: a picker with nothing in it looks
+    // like a picker that has not loaded.
+    if (vocab.spells.length === 0) {
+      return (
+        <span className="text-[10px] uppercase text-muted">
+          no spells on this body
+        </span>
+      );
+    }
+    return (
+      <label className="flex items-center gap-1 text-[10px] uppercase text-muted">
+        {spec.label}
+        <Select
+          value={typeof value === "number" ? String(value) : null}
+          // Never cleared to nothing: the schema wants a position of at least
+          // one, and a refused action takes the whole brain down rather than
+          // leaving one row inert. Picking another spell re-points the row.
+          onValueChange={(position) => position && onChange(Number(position))}
+          options={vocab.spells}
+          className="min-w-[7rem]"
+          placeholder="Pick one…"
+        />
+      </label>
+    );
+  }
   if (spec.kind === "ground") {
     return (
       <GroundField
@@ -1225,6 +1288,7 @@ function ParamField({
         {spec.label}
         <NumberInput
           min={spec.min}
+          max={spec.max}
           value={typeof value === "number" ? value : 0}
           onChange={onChange}
           className="w-20"

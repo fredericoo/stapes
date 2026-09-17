@@ -1,3 +1,4 @@
+import type { NaturalSpell } from "../lib/battler";
 import type { ArcaneStoneItem } from "../lib/item";
 import { reachOf, resolveStone } from "../lib/item";
 import {
@@ -7,7 +8,14 @@ import {
   REQUIREMENTS_MET,
 } from "../lib/mastery";
 import { getStack, isBodyPlacement } from "../lib/mapData";
-import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
+import type {
+  AnchoredSprite,
+  Coord,
+  Direction,
+  MapFile,
+  PlacedTile,
+  TileDef,
+} from "../lib/types";
 import { canPlace } from "../lib/validation";
 import { canReach } from "./combat";
 import type { ReachPoint } from "./distance";
@@ -66,6 +74,44 @@ export type CastSquare = (typeof CAST_SQUARES)[number];
  * middle of a cast.
  */
 const _everyCastSquareIsWorn: readonly (keyof Equipment)[] = CAST_SQUARES;
+
+/**
+ * Where one cast comes from: a square on the body, or the body itself.
+ *
+ * **A tagged pair rather than a widened square**, because the two are not the
+ * same kind of thing and the difference is load-bearing in three places: what
+ * the stone is read off, where the cooldown is kept, and what a name collision
+ * would mean. A body's own spells are named by their author — see
+ * `../lib/battler`'s {@link NaturalSpell} — and a spell somebody called
+ * "charm" must not be the charm square.
+ *
+ * It is carried all the way out to the wire and back, because a caster mid-cast
+ * has one button that can still be pressed and it is the one that started the
+ * cast. @see CastProgress
+ */
+export type CastSlot =
+  | { from: "square"; square: CastSquare }
+  | { from: "natural"; name: string };
+
+/** A cast out of one of the three worn squares. */
+export const squareSlot = (square: CastSquare): CastSlot => ({
+  from: "square",
+  square,
+});
+
+/** A cast out of the body's own spells, named. */
+export const naturalSlot = (name: string): CastSlot => ({
+  from: "natural",
+  name,
+});
+
+/** Do these two name the same button? What "the cast I started" is asked with. */
+export function sameSlot(a: CastSlot, b: CastSlot): boolean {
+  if (a.from === "square") {
+    return b.from === "square" && a.square === b.square;
+  }
+  return b.from === "natural" && a.name === b.name;
+}
 
 /**
  * Why a stone cannot be cast, or that it can.
@@ -163,16 +209,16 @@ export type CasterPoint = CastPoint & {
 };
 
 /**
- * The clock of a cast in progress, and which square it came out of.
+ * The clock of a cast in progress, and which button it came out of.
  *
- * {@link Progress} with one word added, and the word is what lets the button
- * that started a cast be the one that stops it: every other square reads the
- * clock alone and dims, this one reads its own name and offers to stop. The
+ * {@link Progress} with one field added, and that field is what lets the button
+ * that started a cast be the one that stops it: every other button reads the
+ * clock alone and dims, this one recognises itself and offers to stop. The
  * same object the session winds in place and the wire carries — see
  * `./GameSession`'s `ActorSnapshot.casting` and `../net/protocol`'s
  * `CastingPatch` — so there is one shape for a cast in progress everywhere.
  */
-export type CastProgress = Progress & { square: CastSquare };
+export type CastProgress = Progress & { slot: CastSlot };
 
 /** Everything a cast is decided against, beside the stone itself. */
 export type CastContext = {
@@ -206,6 +252,28 @@ export type CastContext = {
    */
   casting: CastProgress | null;
   /**
+   * The spells this body has of its own, with nothing in its hands.
+   *
+   * Handed in rather than resolved here, on the terms the equipment is: this
+   * module resolves nothing about a world. `../lib/battler`'s `resolveBattler`
+   * is what turns a tile into these, and both sides of the wire run it.
+   */
+  spells: readonly NaturalSpell[];
+  /**
+   * How long each of those has left before it may be cast again, by name.
+   *
+   * **A body's own clock rather than an item's**, which is the one place a
+   * natural spell genuinely differs from a carried stone. A stone's cooldown
+   * lives on the {@link ItemInstance} because a stone is a thing that gets
+   * picked up, put down and stored; a body's spell is part of the body, and is
+   * kept where the swing cooldown is kept — see `./GameSession`'s
+   * `ActorRuntime.spellCooldownMs`.
+   *
+   * An absent name is a spell that is ready, which is what every spell nobody
+   * has cast yet says.
+   */
+  spellCooldownsMs: Readonly<Record<string, number>>;
+  /**
    * Where the caster's target is standing, or null for a body pointing at
    * nobody.
    *
@@ -226,29 +294,56 @@ export type CastContext = {
  */
 export function castability(
   context: CastContext,
-  square: CastSquare,
+  slot: CastSlot,
 ): Castability {
-  const stone = stoneInSquare(context, square);
+  const stone = spellIn(context, slot);
+  // A square with nothing in it, and a name this body has no spell for — the
+  // same refusal, because both are a button pointing at no spell. A `cast`
+  // action naming a spell somebody renamed is the second case, and it falls
+  // through to the brain's next line rather than stalling the creature.
   if (!stone) return refused("empty");
 
   // Before the cooldown, because it is the fact that will still be true when
   // the cooldown has run out: a body mid-cast cannot start another whatever
-  // else is ready. The square the cast came out of is told so in its own word,
-  // because it is the one button a caster can still press. @see CastContext.casting
+  // else is ready. The button the cast came out of is told so in its own word,
+  // because it is the one a caster can still press. @see CastContext.casting
   if (context.casting) {
-    return refused(context.casting.square === square ? "underway" : "casting");
+    return refused(sameSlot(context.casting.slot, slot) ? "underway" : "casting");
   }
 
-  const instance = context.equipment[square];
-  // Read off the instance rather than off the def, because two identical stones
-  // in two hands cool independently — see `../lib/itemInstance`.
-  if (instance?.cooldownMs) return refused("cooling");
+  if (cooldownOf(context, slot) > 0) return refused("cooling");
 
   if (!meetsRequirements(context.masteries, stone.requirements)) {
     return refused("mastery");
   }
 
-  return reachability(context, square, stone);
+  return reachability(context, stone);
+}
+
+/**
+ * The spell one slot names, or null when it names none.
+ *
+ * Read off the instance for a square and off the body for a natural spell,
+ * which is the whole of what the two arms differ in here.
+ */
+export function spellIn(
+  context: CastContext,
+  slot: CastSlot,
+): ArcaneStoneItem | null {
+  if (slot.from === "square") return stoneInSquare(context, slot.square);
+  return context.spells.find((spell) => spell.name === slot.name) ?? null;
+}
+
+/**
+ * Milliseconds left before this slot may be cast again.
+ *
+ * A square reads the instance rather than the def, because two identical stones
+ * in two hands cool independently — see `../lib/itemInstance`. A natural spell
+ * reads the body's own clock, because there is no instance to hang one on.
+ */
+function cooldownOf(context: CastContext, slot: CastSlot): number {
+  if (slot.from === "natural") return context.spellCooldownsMs[slot.name] ?? 0;
+  return context.equipment[slot.square]?.cooldownMs ?? 0;
 }
 
 /**
@@ -265,10 +360,9 @@ export function castability(
  */
 function reachability(
   context: CastContext,
-  square: CastSquare,
   stone: ArcaneStoneItem,
 ): Castability {
-  if (!needsTarget(square, stone)) return CASTABLE;
+  if (!needsTarget(stone)) return CASTABLE;
 
   const target = context.target;
   // A conjure with nobody targeted lands in front of the caster, which is the
@@ -422,7 +516,7 @@ function lowestBodyIn(
  * be a caller free to stop passing one, and the next rule that genuinely is
  * about the square would have to thread it back through four call sites.
  */
-function needsTarget(_square: CastSquare, stone: ArcaneStoneItem): boolean {
+function needsTarget(stone: ArcaneStoneItem): boolean {
   if (stone.effect.kind === "conjure") return true;
   return stone.effect.on === "target";
 }
@@ -486,18 +580,28 @@ function stoneInSquare(
  * *whole* time, and only one of those is on the instance.
  */
 export type SpellButton = {
-  square: CastSquare;
+  slot: CastSlot;
   /**
-   * Which particular stone, so a list re-rendered mid-cast keys stably.
+   * Which particular spell, so a list re-rendered mid-cast keys stably.
    *
-   * The id rather than the square, because a player who swaps stones between
-   * hands has the same two buttons in the same order holding different things,
-   * and a list keyed by position would animate one into the other.
+   * The stone's instance id rather than the square, because a player who swaps
+   * stones between hands has the same two buttons in the same order holding
+   * different things, and a list keyed by position would animate one into the
+   * other. A natural spell has no instance to name, so it is keyed by its own
+   * name — which is what a body's spell is identified by everywhere else.
    */
-  itemId: string;
-  /** What to draw on the button. The stone's own sprite, so the hand and the
-   * button are recognisably one thing. */
-  tileId: string;
+  key: string;
+  /**
+   * The stone's tile, to draw on the button — so what is in your hand and what
+   * is on the button are recognisably one thing. Null for a natural spell,
+   * which has no tile and carries {@link icon} instead.
+   */
+  tileId: string | null;
+  /**
+   * A natural spell's own picture, or null for a carried stone and for a spell
+   * nobody has drawn yet. @see `../lib/battler`'s `NaturalSpell.icon`
+   */
+  icon: AnchoredSprite | null;
   /** What it is called, for the accessible name. */
   name: string;
   /** Milliseconds left before it is ready, or zero for a stone that is. */
@@ -547,7 +651,7 @@ export type SpellButton = {
  * everything else that names a carried thing does: a stone somebody has written
  * on is still the stone that says what it says.
  */
-export function castableStones(context: CastContext): SpellButton[] {
+export function castableSpells(context: CastContext): SpellButton[] {
   const buttons: SpellButton[] = [];
   for (const square of CAST_SQUARES) {
     const instance = context.equipment[square];
@@ -561,15 +665,37 @@ export function castableStones(context: CastContext): SpellButton[] {
     // a cast runs. @see meetsRequirements
     if (!meetsRequirements(context.masteries, stone.requirements)) continue;
 
+    const slot = squareSlot(square);
     buttons.push({
-      square,
-      itemId: instance.id,
+      slot,
+      key: instance.id,
       tileId: instance.tileId,
+      icon: null,
       name: instance.inscription?.trim() || def?.name || instance.tileId,
       cooldownMs: instance.cooldownMs ?? 0,
       cooldownTotalMs: stone.cooldownMs,
       castTimeMs: castDurationMs(stone, context.masteries),
-      castability: castability(context, square),
+      castability: castability(context, slot),
+    });
+  }
+
+  // After the squares, because the squares are the loadout a player chose and
+  // these are what the body came with — and because the order is the order the
+  // number keys are bound in, so picking up a stone must not renumber what a
+  // body could already do.
+  for (const spell of context.spells) {
+    if (!meetsRequirements(context.masteries, spell.requirements)) continue;
+    const slot = naturalSlot(spell.name);
+    buttons.push({
+      slot,
+      key: spell.name,
+      tileId: null,
+      icon: spell.icon ?? null,
+      name: spell.name,
+      cooldownMs: context.spellCooldownsMs[spell.name] ?? 0,
+      cooldownTotalMs: spell.cooldownMs,
+      castTimeMs: castDurationMs(spell, context.masteries),
+      castability: castability(context, slot),
     });
   }
   return buttons;
@@ -598,7 +724,7 @@ export function spellReading(buttons: readonly SpellButton[]): string {
       // The cast time moves only when a level does, and it is on the tooltip —
       // so it is compared here for the reason everything else is: a figure the
       // button can show and never re-renders for is a figure that goes stale.
-      return `${button.square}:${button.itemId}:${seconds}:${button.castTimeMs}:${refusal}`;
+      return `${button.key}:${seconds}:${button.castTimeMs}:${refusal}`;
     })
     .join("|");
 }

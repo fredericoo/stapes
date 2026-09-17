@@ -26387,6 +26387,16 @@
             ],
             "do": [
               {
+                "action": "cast",
+                "spell": 1,
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
                 "action": "attack",
                 "of": {
                   "type": "slot",
@@ -26566,6 +26576,27 @@
         },
         "elements": [
           "nature"
+        ],
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Constrict",
+            "effect": {
+              "kind": "bolt",
+              "on": "target",
+              "statuses": [
+                {
+                  "id": "paralysed",
+                  "chance": 100,
+                  "fromMs": 2000,
+                  "toMs": 3500
+                }
+              ]
+            },
+            "cooldownMs": 12000,
+            "castTimeMs": 500,
+            "sound": "*sssk*"
+          }
         ]
       },
       "respawn": {
@@ -27016,6 +27047,29 @@
               }
             ]
           },
+          "slinking": {
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "*whine*"
+              }
+            ],
+            "do": [
+              {
+                "action": "step_away_from",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                },
+                "allowDrops": true
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
           "casting": {
             "do": [
               {
@@ -27099,6 +27153,29 @@
           {
             "from": "any",
             "if": {
+              "combinator": "and",
+              "rules": [
+                {
+                  "cond": "health",
+                  "atMostPercent": 35
+                },
+                {
+                  "cond": "in_range",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "prey"
+                    }
+                  },
+                  "cells": 12
+                }
+              ]
+            },
+            "to": "slinking"
+          },
+          {
+            "from": "any",
+            "if": {
               "cond": "attacked"
             },
             "bind": {
@@ -27179,6 +27256,16 @@
                       "atLeastMs": 120000
                     }
                   ]
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "health",
+                      "atMostPercent": 35
+                    }
+                  ]
                 }
               ]
             },
@@ -27220,6 +27307,16 @@
                       "cond": "status",
                       "id": "fed",
                       "atLeastMs": 120000
+                    }
+                  ]
+                },
+                {
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "health",
+                      "atMostPercent": 35
                     }
                   ]
                 }
@@ -27441,6 +27538,34 @@
               "cond": "stuck"
             },
             "to": "casting"
+          },
+          {
+            "from": "slinking",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "prey"
+                }
+              },
+              "cells": 12
+            },
+            "to": "prowling"
+          },
+          {
+            "from": "slinking",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "health",
+                  "atMostPercent": 35
+                }
+              ]
+            },
+            "to": "hunting"
           }
         ]
       },
@@ -28300,6 +28425,16 @@
             ],
             "do": [
               {
+                "action": "cast",
+                "spell": 1,
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
                 "action": "attack",
                 "of": {
                   "type": "slot",
@@ -28526,7 +28661,9 @@
         "masteries": {
           "blunt": 60,
           "toughness": 66,
-          "agility": 6
+          "agility": 6,
+          "arcane": 24,
+          "fire": 20
         },
         "naturalWeapon": {
           "type": "weapon",
@@ -28580,7 +28717,42 @@
         "elements": [
           "fire"
         ],
-        "remains": "skull-troll"
+        "remains": "skull-troll",
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Ember breath",
+            "effect": {
+              "kind": "bolt",
+              "on": "target",
+              "damage": 15,
+              "variance": 40,
+              "projectile": {
+                "tileId": "arcane-shard",
+                "cellsPerSecond": 8
+              },
+              "statuses": [
+                {
+                  "id": "burned",
+                  "chance": 50,
+                  "fromMs": 3000,
+                  "toMs": 6000
+                }
+              ]
+            },
+            "cooldownMs": 12000,
+            "castTimeMs": 1500,
+            "sound": "*hhhaaa*",
+            "requirements": {
+              "arcane": 20,
+              "fire": 10
+            },
+            "reach": {
+              "cells": 5.5,
+              "height": 3
+            }
+          }
+        ]
       },
       "respawn": {
         "fromMs": 180000,
@@ -32605,6 +32777,7 @@
     "type": "autotile",
     "kind": "prop",
     "attributes": {},
+    "walkSpeedPercent": -35,
     "anchor": {
       "tilesetId": "floors",
       "x": 8,

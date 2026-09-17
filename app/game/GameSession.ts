@@ -155,6 +155,7 @@ import {
 } from "./constants";
 import {
   type BattlerDef,
+  type NaturalSpell,
   DEFAULT_BATTLER,
   resolveBattler,
   type FightingStats,
@@ -207,16 +208,18 @@ import {
 import {
   CAST_SQUARES,
   castability,
-  castableStones,
+  castableSpells,
   castDurationMs,
   COOLDOWN_STEP_MS,
   type CastContext,
   type CasterPoint,
   type CastPoint,
   type CastProgress,
-  type CastSquare,
+  type CastSlot,
   conjureLanding,
   coolingNotice,
+  naturalSlot,
+  spellIn,
   type SpellButton,
 } from "./casting";
 import type { Progress } from "./progress";
@@ -283,10 +286,11 @@ import {
 import {
   canWalk,
   DIR_DELTA,
+  groundWalkSpeedPercent,
   listStandingSurfaces,
-  resolveWalkDurationMs,
   standingAbs,
   surfacesInClimbBand,
+  walkDurationMsFor,
 } from "./movement";
 import {
   dropLanding,
@@ -368,6 +372,7 @@ import {
   NO_STATUSES,
   type StatusInstance,
   statusReading,
+  walkSpeedPercentFrom,
   withStatusModifiers,
 } from "./statuses";
 import { sanitizeChatText } from "../net/chat";
@@ -841,6 +846,13 @@ export type Vitals = {
 export const LOCAL_ACTOR_ID = "local";
 
 /**
+ * What a body with no spells of its own has, shared so the overwhelmingly
+ * common answer costs no allocation — one frozen empty list rather than one per
+ * body per cast question. @see `../lib/battler`'s `BattlerDef.spells`
+ */
+const NO_SPELLS: readonly NaturalSpell[] = [];
+
+/**
  * Shared empty list for the overwhelmingly common "nobody hit me" answer, so
  * asking costs a map lookup rather than an allocation per creature per tick.
  */
@@ -953,11 +965,13 @@ export interface PlaySession {
    */
   spells(): SpellButton[];
   /**
-   * Cast the stone in this square, or refuse.
+   * Cast what this slot names, or refuse.
    *
-   * **The square, never an id**, on the same grounds every other slot reference
-   * in this game names a square: a client naming an instance would be naming
-   * something the far end has to go looking for. Server-authoritative with no
+   * **A square or a spell's name, never an instance id**, on the same grounds
+   * every other slot reference in this game names a square: a client naming an
+   * instance would be naming something the far end has to go looking for. A
+   * body's own spells have no instance at all and are named by their author —
+   * see `./casting`'s {@link CastSlot}. Server-authoritative with no
    * prediction, exactly as attacking is — a browser says "cast the stone in my
    * off hand" and is told what came of it by the equipment message that follows.
    *
@@ -965,7 +979,7 @@ export interface PlaySession {
    * client asked {@link spells} before it offered the button, so a cast arriving
    * that cannot be honoured is a race or a client making things up.
    */
-  cast(square: CastSquare): boolean;
+  cast(slot: CastSlot): boolean;
   /**
    * Stop the cast this body is making, or do nothing if it is making none.
    *
@@ -1152,8 +1166,8 @@ type CastingRun = {
   /**
    * The half that goes out on the snapshot and the wire, wound in place.
    *
-   * Which square the stone is being cast from travels inside it rather than
-   * beside it, because the caster's own buttons need to know — see `./casting`'s
+   * Which button the spell is being cast from travels inside it rather than
+   * beside it, because the caster's own row needs to know — see `./casting`'s
    * `CastProgress` — and one object is what the broadcast is diffed on.
    */
   progress: CastProgress;
@@ -1164,8 +1178,12 @@ type CastingRun = {
    * The instance id rather than the tile, on {@link extractKey}'s reasoning: two
    * identical stones in two hands are two stones, and the one that spends its
    * cooldown has to be the one that was pressed.
+   *
+   * Null for a body casting one of its own spells, which is the whole of what
+   * there is to check: a natural spell cannot be swapped out of a hand, and the
+   * name in {@link progress} is already what identifies it.
    */
-  itemId: string;
+  itemId: string | null;
   /**
    * Whether a blow leaves it running, read off the stone when it started.
    *
@@ -1595,6 +1613,24 @@ type ActorRuntime = {
    * standing between two of them.
    */
   attackRecoveryMs: number;
+  /**
+   * Milliseconds until each of this body's **own** spells may be cast again, by
+   * name. Absent is ready. @see `../lib/battler`'s `BattlerDef.spells`
+   *
+   * **On the body rather than on an item, which is the one place a natural
+   * spell differs from a carried stone.** A stone's cooldown rides its
+   * {@link ItemInstance} because a stone is picked up, put down and stored; a
+   * body's own spell has no instance to hang one on, so it is kept where the
+   * swing cooldown is kept.
+   *
+   * **Not durable**, like {@link attackCooldownMs} and unlike a stone's — and
+   * the difference is what is being kept. A stone's cooldown is durable because
+   * a stone survives a reconnection and coming back holding a cooled one would
+   * make reconnecting the cheapest spell in the game. Everything about a *body*
+   * that is mid-swing or mid-recovery is dropped on the way in, and a body's
+   * spell is part of the body.
+   */
+  spellCooldownMs: Record<string, number>;
   /** Who this actor is set on, for a body driven by somebody pointing at things. */
   targetId: string | null;
   /**
@@ -2349,6 +2385,9 @@ export class GameSession implements PlaySession {
       standingStatusMs: 0,
       attackCooldownMs: 0,
       attackRecoveryMs: 0,
+      // Every spell ready, on the terms the swing cooldown above starts at
+      // zero: a body arriving in the world is a body that has not cast yet.
+      spellCooldownMs: {},
       extraction: null,
       casting: null,
       targetId: null,
@@ -2643,6 +2682,22 @@ export class GameSession implements PlaySession {
    */
   equipmentOf(id: string): Equipment | null {
     return this.actors.get(id)?.equipment ?? null;
+  }
+
+  /**
+   * How long each of this body's own spells has left before it may be cast
+   * again, or null for nobody by that name.
+   *
+   * Sent beside the kit and for the kit's reason — see {@link setEquipment}'s
+   * queue: both are "what this caster can press right now", both are addressed
+   * to one socket, and only the owner's row draws either. Nobody else's spell
+   * cooldowns are drawn, on exactly the grounds nobody else's inventory is.
+   *
+   * The live record rather than a copy, on {@link equipmentOf}'s terms: the one
+   * consumer serializes it immediately.
+   */
+  spellCooldownsOf(id: string): Readonly<Record<string, number>> | null {
+    return this.actors.get(id)?.spellCooldownMs ?? null;
   }
 
   /**
@@ -3504,11 +3559,13 @@ export class GameSession implements PlaySession {
       heardNoise: () => soundsHeardBy(sounds, actor.id),
       hurtBy: () => this.pendingHurt.get(actor.id) ?? EMPTY_ATTACKERS,
       attack: (id) => this.tryAttack(actor, id),
+      cast: (spell, targetId) => this.castForBrain(actor, spell, targetId),
       extract: (at, tileId) => this.extractForBrain(actor, at, tileId),
       consume: (tileId) => this.consumeForBrain(actor, tileId),
       consumeOn: (at, tileId) => this.consumeOnGround(actor, at, tileId),
       carrying: (tileId) => this.carryingInBag(actor, tileId),
       hasStatus: (id, atLeastMs) => this.hasStatus(actor, id, atLeastMs),
+      health: () => this.healthShare(actor),
       nameOf: (id) => this.bodyName(id),
     });
   }
@@ -3967,12 +4024,44 @@ export class GameSession implements PlaySession {
     const spent = steps * COOLDOWN_STEP_MS;
 
     for (const actor of this.actors.values()) {
+      this.coolSpells(actor, spent);
       const next = cooledEquipment(actor.equipment, spent);
       // The same object back whenever nothing was cooling, which is almost every
       // body almost always: no allocation, no message, no re-render.
       if (next === actor.equipment) continue;
       this.setEquipment(actor, next);
     }
+  }
+
+  /**
+   * Wind this body's own spells on, at the same grain a stone's cooldown is.
+   *
+   * **Written in place rather than rebuilt**, which is the whole difference from
+   * `cooledEquipment` above: a kit's identity is what tells the renderer and the
+   * wire that something changed, and this record is neither drawn nor sent —
+   * the browser holds the body's spells from the catalogue and winds the same
+   * clock for itself. Nothing downstream is watching for a new object, so
+   * mutating one costs no message and no re-render.
+   *
+   * A spell that has finished cooling has its key **deleted** rather than set to
+   * zero, on `cooledEquipment`'s terms: "ready" is the absence of a cooldown
+   * everywhere, which is one fewer state for anything reading this to tell
+   * apart, and it keeps the record empty for the overwhelming majority of bodies.
+   */
+  private coolSpells(actor: ActorRuntime, spentMs: number) {
+    let changed = false;
+    for (const name of Object.keys(actor.spellCooldownMs)) {
+      const remaining = (actor.spellCooldownMs[name] ?? 0) - spentMs;
+      if (remaining > 0) actor.spellCooldownMs[name] = remaining;
+      else delete actor.spellCooldownMs[name];
+      changed = true;
+    }
+    // Announced on the kit's queue, because it goes out on the kit's message —
+    // both are "what this caster can press right now", both are addressed to
+    // one socket, and a second queue for a fact that changes at the same moment
+    // would be two things to keep in step. A body with nothing cooling marks
+    // nothing, which is almost every body.
+    if (changed) this.equipmentChanged.add(actor.id);
   }
 
   /**
@@ -5327,9 +5416,20 @@ export class GameSession implements PlaySession {
       // caller that must *not* see it — {@link finishCasting} — arranges that by
       // clearing the run before it asks. @see `./casting`'s `CastContext`
       casting: actor.casting?.progress ?? null,
+      // Read off the tile rather than stored on the actor, on the terms the
+      // natural weapon is: what a body can do is a fact about what it is, and
+      // an authored change to a creature reaches every one of them at once.
+      spells: this.spellsOf(actor),
+      spellCooldownsMs: actor.spellCooldownMs,
       target: to ? this.castPointOf(to) : null,
     };
   }
+
+  /** This body's own spells, or none for a tile that is not a battler. */
+  private spellsOf(actor: ActorRuntime): readonly NaturalSpell[] {
+    return resolveBattler(this.defFor(actor))?.spells ?? NO_SPELLS;
+  }
+
 
   private castPointOf(loc: ActorLocation): CastPoint {
     return { ...this.reachPointOf(loc), stackIndex: loc.stackIndex };
@@ -5376,7 +5476,7 @@ export class GameSession implements PlaySession {
   spells(id: string = LOCAL_ACTOR_ID): SpellButton[] {
     const actor = this.actors.get(id);
     const context = actor ? this.castContextFor(actor) : null;
-    return context ? castableStones(context) : [];
+    return context ? castableSpells(context) : [];
   }
 
   /**
@@ -5406,18 +5506,21 @@ export class GameSession implements PlaySession {
    * this square" and finds out what came of it from the equipment message and
    * the patches that follow, which is the same arrangement attacking is under.
    */
-  cast(square: CastSquare, id: string = LOCAL_ACTOR_ID): boolean {
+  cast(slot: CastSlot, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actors.get(id);
     if (!actor) return false;
 
     const context = this.castContextFor(actor);
     if (!context) return false;
 
-    const held = actor.equipment[square];
-    const stone = stoneIn(actor.equipment, this.tilesById, square);
-    if (!held || !stone) return false;
+    const stone = spellIn(context, slot);
+    if (!stone) return false;
+    // The instance, so a caster who swaps hands mid-cast finishes nothing. A
+    // body's own spell has none, and needs none. @see CastingRun.itemId
+    const held = slot.from === "square" ? actor.equipment[slot.square] : null;
+    if (slot.from === "square" && !held) return false;
 
-    const verdict = castability(context, square);
+    const verdict = castability(context, slot);
     if (!verdict.ok) {
       // Said where the refusal happened, on the terms every other notice is —
       // and only for the refusals the button does not draw, which today is
@@ -5431,7 +5534,7 @@ export class GameSession implements PlaySession {
     // how long this takes. @see `./casting`'s `castDurationMs`
     const durationMs = castDurationMs(stone, context.masteries);
     if (durationMs <= 0) {
-      this.resolveCast(actor, square, stone, context);
+      this.resolveCast(actor, slot, stone, context);
       return true;
     }
 
@@ -5439,9 +5542,9 @@ export class GameSession implements PlaySession {
     // @see extract
     this.cancelExtraction(actor);
     actor.casting = {
-      itemId: held.id,
+      itemId: held?.id ?? null,
       uninterruptible: stone.uninterruptible === true,
-      progress: { remainingMs: durationMs, durationMs, square },
+      progress: { remainingMs: durationMs, durationMs, slot },
     };
     return true;
   }
@@ -5521,20 +5624,24 @@ export class GameSession implements PlaySession {
   private finishCasting(actor: ActorRuntime, run: CastingRun) {
     actor.casting = null;
 
-    const square = run.progress.square;
-    const held = actor.equipment[square];
-    // The same stone, not merely a stone: two identical stones in two hands are
-    // two stones, and the one that pays is the one that was pressed.
-    if (!held || held.id !== run.itemId) return;
-
-    const stone = stoneIn(actor.equipment, this.tilesById, square);
-    if (!stone) return;
+    const slot = run.progress.slot;
+    if (slot.from === "square") {
+      const held = actor.equipment[slot.square];
+      // The same stone, not merely a stone: two identical stones in two hands
+      // are two stones, and the one that pays is the one that was pressed.
+      if (!held || held.id !== run.itemId) return;
+    }
 
     const context = this.castContextFor(actor);
     if (!context) return;
-    if (!castability(context, square).ok) return;
+    // Asked of the context rather than the kit, so a body's own spell is found
+    // the same way a held one is — and so a spell an author has since renamed
+    // out from under a running cast simply comes to nothing.
+    const stone = spellIn(context, slot);
+    if (!stone) return;
+    if (!castability(context, slot).ok) return;
 
-    this.resolveCast(actor, square, stone, context);
+    this.resolveCast(actor, slot, stone, context);
   }
 
   /**
@@ -5549,7 +5656,7 @@ export class GameSession implements PlaySession {
    */
   private resolveCast(
     actor: ActorRuntime,
-    square: CastSquare,
+    slot: CastSlot,
     stone: ArcaneStoneItem,
     context: CastContext,
   ) {
@@ -5560,7 +5667,7 @@ export class GameSession implements PlaySession {
     const elements = spellElements(stone.requirements);
 
     // Before the effect, so nothing below can return early out of paying for it.
-    this.spendCooldown(actor, square, stone);
+    this.spendCooldown(actor, slot, stone);
     // And beside the cooldown rather than after the effect, on exactly the same
     // grounds: what casting teaches you for its own sake is owed for the cast,
     // not for what came of it. A light that lands on nobody is still a spell you
@@ -5568,7 +5675,7 @@ export class GameSession implements PlaySession {
     this.grantExperience(actor, practiceEarnings(elements));
 
     if (stone.effect.kind === "bolt") {
-      this.castBolt(actor, square, stone, stone.effect, elements);
+      this.castBolt(actor, slot, stone, stone.effect, elements);
     } else this.castConjure(actor, context, stone.effect.tileId, elements);
 
     // After the effect rather than before it, so the noise is the sound of
@@ -5576,6 +5683,21 @@ export class GameSession implements PlaySession {
     // the one place both shapes of cast come through — and a cast that never
     // gets here made nothing, so it makes no sound.
     this.recordCastSound(actor, stone);
+  }
+
+  /**
+   * What to call the spell that came out of this slot, for a skull to say.
+   *
+   * A carried stone is named by its tile and a body's own spell by itself.
+   * {@link UNNAMED_SPELL} is unreachable in practice from either arm — a square
+   * with nothing in it never reaches a cast — and is what stops a blame line
+   * from being written with a blank in it.
+   */
+  private spellName(actor: ActorRuntime, slot: CastSlot): string {
+    if (slot.from === "natural") return slot.name;
+    const held = actor.equipment[slot.square];
+    if (!held) return UNNAMED_SPELL;
+    return this.tilesById[held.tileId]?.name ?? held.tileId;
   }
 
   /**
@@ -5622,14 +5744,24 @@ export class GameSession implements PlaySession {
    */
   private spendCooldown(
     actor: ActorRuntime,
-    square: CastSquare,
+    slot: CastSlot,
     stone: ArcaneStoneItem,
   ) {
-    const held = actor.equipment[square];
+    // A body's own spell has no instance to write a cooldown onto, so it goes
+    // on the body — which is also why it is written in place rather than
+    // through `setEquipment`: nothing is watching this record for a new object,
+    // because nothing draws it but the caster's own row and nothing sends it.
+    // @see ActorRuntime.spellCooldownMs
+    if (slot.from === "natural") {
+      actor.spellCooldownMs[slot.name] = stone.cooldownMs;
+      this.equipmentChanged.add(actor.id);
+      return;
+    }
+    const held = actor.equipment[slot.square];
     if (!held) return;
     this.setEquipment(actor, {
       ...actor.equipment,
-      [square]: { ...held, cooldownMs: stone.cooldownMs },
+      [slot.square]: { ...held, cooldownMs: stone.cooldownMs },
     });
   }
 
@@ -5662,7 +5794,7 @@ export class GameSession implements PlaySession {
    */
   private castBolt(
     actor: ActorRuntime,
-    square: CastSquare,
+    slot: CastSlot,
     stone: ArcaneStoneItem,
     effect: Extract<StoneEffect, { kind: "bolt" }>,
     elements: readonly Element[],
@@ -5705,15 +5837,29 @@ export class GameSession implements PlaySession {
       const at = this.tryLocate(actor);
       const on = this.tryLocate(subject);
       if (at && on) this.turnToward(actor, at, on);
+      // **And the room hears about it**, on exactly the terms a swing is noted:
+      // before anything lands, so a killing bolt still tells whoever was hit
+      // who did it. This was missing, and what it cost was every creature's
+      // reaction to magic — a rabbit stood still while a snake held it, because
+      // `attacked` had only ever been written by {@link tryAttack}. Being cast
+      // at *is* being attacked; the `attacked` condition says so now.
+      //
+      // Any bolt at somebody else, rather than only one that takes health: a
+      // spell whose whole effect is a status it leaves — a hold, a chill — is
+      // the case this exists for, and asking whether the status is a *bad* one
+      // would put an opinion about what is friendly in the engine. A mend
+      // thrown at somebody is authorable and reads as provocation here, which
+      // is a strange thing to author and a fair thing to be glared at for.
+      this.notePendingHurt(subject.id, actor.id);
     }
 
-    // The stone as it is called. Read off the square rather than off the block,
-    // because an {@link ArcaneStoneItem} has no name — a stone is a tile, and
-    // the tile is what a death by it has to say.
-    const held = actor.equipment[square];
-    const spell = held
-      ? (this.tilesById[held.tileId]?.name ?? held.tileId)
-      : UNNAMED_SPELL;
+    // The spell as it is called. A carried one is read off the square rather
+    // than off the block, because an {@link ArcaneStoneItem} has no name — a
+    // stone is a tile, and the tile is what a death by it has to say. A body's
+    // own spell is the one case where the block *does* carry one, and it is the
+    // whole reason `NaturalSpell` has a name: "killed by A spell" is not a
+    // skull anybody wants to read.
+    const spell = this.spellName(actor, slot);
     const caster = this.bodyName(actor.id);
 
     this.moveHealth(actor, subject, stone, effect, elements, {
@@ -6747,6 +6893,27 @@ export class GameSession implements PlaySession {
   }
 
   /**
+   * How long this body's next step takes, with everything that has a say in it.
+   *
+   * The one place the sources are gathered, so a step begun by held input, by a
+   * creature's legs and by a slide off a ledge are all timed the same way. The
+   * browser gathers the same two for itself — see `../net/RemoteSession`'s
+   * `walkDurationAt` — which is the arrangement a pace that never travels is
+   * under. @see `./movement`'s `walkDurationMsFor`
+   *
+   * `from` is where the step begins, and is passed rather than looked up
+   * because every caller is already holding it: the ground that has a say is
+   * the one being left. @see `./movement`'s `groundWalkSpeedPercent`
+   */
+  private walkDurationOf(actor: ActorRuntime, from: ActorLocation): number {
+    return walkDurationMsFor(
+      this.defFor(actor),
+      walkSpeedPercentFrom(actor.statuses, this.statusDefs) +
+        groundWalkSpeedPercent(this.map, from, this.tilesById),
+    );
+  }
+
+  /**
    * Is a status running on this body, with at least this long left?
    *
    * Read off the live instances rather than through `battlerOf`, which is where
@@ -6763,6 +6930,76 @@ export class GameSession implements PlaySession {
         instance.defId === id &&
         (atLeastMs === undefined || instance.remainingMs >= atLeastMs),
     );
+  }
+
+  /**
+   * Cast one of this body's own spells, because its brain asked.
+   *
+   * **The same path a player's press takes**, which is the whole of why this is
+   * six lines: `cast` already asks `castability`, spends the cooldown, pays for
+   * the practice and lands the effect, and a second route into any of that
+   * would be a second set of rules about what a spell costs.
+   *
+   * **Aiming is pointing.** A creature casting at somebody is set on them, on
+   * exactly the terms a player pointing at a rat is — which is what lets the
+   * cast path read the target off the body as it already does, for the press
+   * and for the bar that finishes a beat later alike. It is not an attack:
+   * {@link runAutoAttacks} swings only for a body in attack mode, and a brain
+   * never sets that. Its own aggression is the `attack` action.
+   *
+   * A cast already running for this very spell is reported rather than
+   * restarted: pressing a stone that is casting *stops* it, and a brain that
+   * asked for the same spell twice in two ticks would otherwise cancel its own
+   * cast. @see ./brainRuntime's `BrainContext.cast`
+   *
+   * **A position in, a name out.** A brain names the spell by where it sits on
+   * the body's list — see `../lib/brain`'s `cast` — and everything downstream
+   * of here names it the way the player's own row does. So the one place the
+   * two ever meet is this lookup, and a position nothing sits at is a refusal
+   * rather than a slot naming a spell that is not there.
+   */
+  private castForBrain(
+    actor: ActorRuntime,
+    position: number,
+    targetId: string | null,
+  ): "cast" | "casting" | "no" {
+    // Counting from one, because that is the number the editor shows an author
+    // beside the spell. @see ../lib/brain's `cast`
+    const spell = this.spellsOf(actor)[position - 1]?.name;
+    if (spell === undefined) return "no";
+
+    const running = actor.casting?.progress.slot;
+    if (running?.from === "natural" && running.name === spell) return "casting";
+
+    actor.targetId = targetId;
+    // Refusals are not said out loud on a creature's behalf, and nothing here
+    // has to arrange that: `say` drops a notice addressed to a resident, which
+    // every brain-driven body is. "Select a target first" is nonsense told to a
+    // wolf, and a queue nobody drains is the reason that gate exists.
+    if (!this.cast(naturalSlot(spell), actor.id)) return "no";
+    // A bar rather than a spell that has landed: `cast` starts one when the
+    // stone has a time on it, and resolves on the spot when it does not.
+    return actor.casting ? "casting" : "cast";
+  }
+
+  /**
+   * What share of its hit points this body has left, or null for a body that
+   * has none. What the brain's `health` condition reads.
+   *
+   * The maximum comes off {@link battlerOf} rather than off the authored block,
+   * so it is the same figure the health bar is drawn against: armour, a status
+   * that moves the maximum and whatever the body is wearing have all had their
+   * say. A creature deciding to run is looking at the bar, not at its tile.
+   *
+   * Clamped to one above, because {@link hpOf} can stand above the maximum for
+   * as long as a status that raised it is wearing off — and a body on more than
+   * a full bar is not *more* than unwounded.
+   */
+  private healthShare(actor: ActorRuntime): number | null {
+    const stats = this.battlerOf(actor);
+    const hp = this.hpOf(actor);
+    if (!stats || hp === null || stats.maxHp <= 0) return null;
+    return Math.min(1, hp / stats.maxHp);
   }
 
   /**
@@ -9133,17 +9370,22 @@ export class GameSession implements PlaySession {
   }
 
   /**
-   * Is anybody in the world carrying a stone that has not finished cooling?
+   * Is anybody in the world holding — or simply *being* — a spell that has not
+   * finished cooling?
    *
    * Walked rather than counted, because a count would be a second piece of state
    * that every equip, drop, death and cast had to remember to keep in step — and
    * because there are three squares per body and the answer is almost always
-   * found on the first one that is empty.
+   * found on the first one that is empty. A body's own spells are asked after
+   * on the same terms, and the record is empty on every body that has not cast.
    */
   private anyStoneCooling(): boolean {
     for (const actor of this.actors.values()) {
       for (const square of CAST_SQUARES) {
         if (actor.equipment[square]?.cooldownMs) return true;
+      }
+      for (const name in actor.spellCooldownMs) {
+        if (actor.spellCooldownMs[name]) return true;
       }
     }
     return false;
@@ -9307,7 +9549,7 @@ export class GameSession implements PlaySession {
       to: choice.step.to,
       direction: choice.step.direction,
       elapsedMs: 0,
-      durationMs: resolveWalkDurationMs(this.defFor(actor)),
+      durationMs: this.walkDurationOf(actor, loc),
     };
     return true;
   }
@@ -9496,7 +9738,7 @@ export class GameSession implements PlaySession {
           to: slide.to,
           direction: facing,
           elapsedMs: 0,
-          durationMs: resolveWalkDurationMs(this.defFor(actor)),
+          durationMs: this.walkDurationOf(actor, after),
         };
         return;
       }

@@ -504,6 +504,7 @@ describe("itemCard", () => {
         everyMs: constantFormula(1_000),
         effects: {},
         modifiers: {},
+        walkSpeedPercent: 0,
         vfx: { tint: null, particles: null, light: null, taperMs: 0 },
       };
       const card = itemCard(
@@ -612,6 +613,7 @@ describe("itemCard", () => {
         everyMs: constantFormula(1_000),
         effects: {},
         modifiers: {},
+        walkSpeedPercent: 0,
         vfx: { tint: null, particles: null, light: null, taperMs: 0 },
       };
       const card = itemCard(
@@ -687,6 +689,7 @@ describe("itemCard", () => {
       everyMs: constantFormula(1_000),
       effects: {},
       modifiers: {},
+      walkSpeedPercent: 0,
       vfx: { tint: null, particles: null, light: null, taperMs: 0 },
     };
 

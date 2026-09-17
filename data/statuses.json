@@ -296,7 +296,8 @@
       "spd": "-10",
       "def": "-10",
       "flee": "-10"
-    }
+    },
+    "walkSpeedPercent": -30
   },
   {
     "id": "luminous",
@@ -332,6 +333,45 @@
         "color": "#ffffff"
       },
       "taperMs": 5000
+    }
+  },
+  {
+    "id": "paralysed",
+    "name": "Paralysed",
+    "description": "Something has hold of you. You can barely move.",
+    "tone": "bad",
+    "icon": {
+      "tilesetId": "ultima-vi",
+      "rect": {
+        "x": 50,
+        "y": 21,
+        "w": 1,
+        "h": 1
+      },
+      "base": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    "fromMs": 2000,
+    "toMs": 3500,
+    "stacks": false,
+    "maxMs": 3500,
+    "everyMs": 0,
+    "effects": {},
+    "modifiers": {
+      "flee": "-20"
+    },
+    "walkSpeedPercent": -90,
+    "vfx": {
+      "tint": {
+        "color": "#6b7fa0",
+        "strength": 0.5,
+        "keepLuma": 1
+      },
+      "particles": null,
+      "light": null,
+      "taperMs": 1500
     }
   }
 ]

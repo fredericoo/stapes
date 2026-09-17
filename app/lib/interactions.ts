@@ -7,6 +7,7 @@ import type { ItemDef } from "./item";
 import { kitForSave } from "./kit";
 import {
   itemForSave,
+  stoneForSave,
   MAX_CONTAINER_SIZE,
   resolveItem,
   weaponForSave,
@@ -1874,6 +1875,19 @@ export function interactionsForSave(
   const savedImmunities = (battler?.immuneTo ?? [])
     .map((id) => id.trim())
     .filter(Boolean);
+  // A spell with no name is one nothing could ever point at — a row somebody
+  // started and did not finish — so it is dropped rather than written out to
+  // fail the schema on the way back in.
+  const savedSpells = (battler?.spells ?? []).flatMap((spell) => {
+    const name = spell.name?.trim();
+    return name
+      ? [{
+          ...stoneForSave(spell),
+          name,
+          ...(spell.icon ? { icon: { ...spell.icon } } : {}),
+        }]
+      : [];
+  });
   const savedBattler = battler
     ? {
         // Written unconditionally, and never dropped when it matches the
@@ -1918,6 +1932,12 @@ export function interactionsForSave(
         // authored string here is written: a field somebody opened and cleared
         // is a body that leaves nothing, which is what its absence says.
         ...(battler.remains?.trim() ? { remains: battler.remains.trim() } : {}),
+        // Rebuilt spell by spell through the module that owns a stone's fields,
+        // for the reason `naturalWeapon` goes through `weaponForSave`: a draft
+        // that has been through the editor carries whatever the last effect arm
+        // left behind. Dropped when it comes to nothing, on `kit`'s terms — a
+        // body that casts nothing is the overwhelming majority.
+        ...(savedSpells.length ? { spells: savedSpells } : {}),
       }
     : undefined;
   // Rebuilt field by field too, by the module that owns the union's arms —

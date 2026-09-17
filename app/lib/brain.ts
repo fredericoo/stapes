@@ -433,6 +433,13 @@ export type BrainConditionDef =
    * No distance and no sight test, deliberately. Whoever hit you was by
    * definition close enough to, and a creature that had to *see* its attacker to
    * react would stand there placidly while something behind it kept swinging.
+   *
+   * **A swing and a bolt both count.** It used to be swings alone, which was
+   * the whole of the game when it was written and stopped being so the moment a
+   * body could cast: a creature held by a spell that took no health at all
+   * noticed nothing, and a rabbit stood still while a snake wound round it.
+   * What a creature reacts to is being *attacked*, and which hand it came out
+   * of is not its business. @see ../game/GameSession's `castBolt`
    */
   | { cond: "attacked" }
   /**
@@ -494,7 +501,33 @@ export type BrainConditionDef =
    * the whole question for a condition with no useful duration — poisoned, on
    * fire, glowing.
    */
-  | { cond: "status"; id: string; atLeastMs?: number };
+  | { cond: "status"; id: string; atLeastMs?: number }
+  /**
+   * This body is down to `atMostPercent` of its hit points or below.
+   *
+   * **A share rather than a number of points, and that is the whole of why it
+   * is authorable at all.** Hit points are not a figure an author types — they
+   * come off `baseHp` and Toughness — so a threshold written in points would
+   * mean a different fight on every creature and would have to be re-tuned
+   * whenever anybody moved a mastery. Half is half on a rat and on a troll.
+   *
+   * **A ceiling, unlike {@link status}'s floor**, because what this exists for
+   * is the wounded half: "run when you are down to a third" is the sentence,
+   * and `not` gives the other side of it for a creature that only fights while
+   * it is fresh. At 100 it holds for every body that can be hurt at all, which
+   * is the honest reading of "at most all of it" and not a case worth refusing.
+   *
+   * **About this body and nobody else.** Every condition that names somebody
+   * takes a {@link Selector}; this one is in the group that does not — `status`,
+   * `carrying`, `attacked` — because what a creature knows about its own state
+   * it knows without looking. Whether a wolf can tell that a *deer* is limping
+   * is a different question, and one that needs a way to see it.
+   *
+   * A body with no hit points at all — a brain on a tile that is not a battler
+   * — has no share to be under, so this never holds for one. Its `not` does,
+   * which reads correctly: a signpost is not wounded.
+   */
+  | { cond: "health"; atMostPercent: number };
 
 /**
  * What a transition fires on: one question, or several joined together.
@@ -587,6 +620,44 @@ export type BrainActionDef =
    * but will not chase.
    */
   | { action: "attack"; of: Selector }
+  /**
+   * Cast one of this body's own spells at somebody.
+   *
+   * **The spell is named by its position on the body's own list**, counting
+   * from one — the number beside it on the Spells tab. See `./battler`'s
+   * {@link BattlerDef.spells}. A carried stone is not castable from here: what
+   * a creature has in its hands is a loadout, and a brain that could press it
+   * would be authoring a second, invisible kit on every creature that picks
+   * something up.
+   *
+   * **A position rather than the name, so renaming a spell cannot break the
+   * line that casts it** — and that is a trade rather than a free win. What it
+   * gives up is the other half: *removing* a spell above this one slides
+   * everything below it up, and a line pointing at the third of three now casts
+   * the second. The list is short, authored on one tile and edited in one
+   * place, which is what makes that the better of the two failures; a stack
+   * index is refused elsewhere in this codebase precisely because a stack has
+   * neither of those properties. @see ../game/brainRuntime's `Bound`
+   *
+   * Fails, rather than erroring, at every way this can be the wrong thing to
+   * ask for, on `attack`'s terms: a position this body has no spell at, one
+   * still cooling, a caster short of what it asks, nobody targeted for a spell
+   * that needs somebody, or a target out of range. A spell somebody deleted is
+   * the first of those, and it falls through to the next line rather than
+   * stalling the creature.
+   *
+   * **It holds the line while a bar is running**, which is `extract`'s rule and
+   * is here for its reason: a cast with a time on it is something this creature
+   * is part-way through, and a lower line that stepped would be a step the
+   * simulation refuses anyway — a cast plants the caster. So a state reads as
+   * "burn them if you can, otherwise close in, otherwise hold" straight down.
+   *
+   * `of` is who it is aimed at, and a spell that lands on its own caster
+   * ignores it — a mend is at arm's length in every square. Aiming also points
+   * the creature at them, exactly as a player pointing at somebody does; it is
+   * not an attack, and nothing swings because of it.
+   */
+  | { action: "cast"; spell: number; of: Selector }
   /**
    * Work a thing for what it is made of — pick a bush, chip a crystal.
    *
@@ -763,6 +834,16 @@ const cells = v.pipe(v.number(), v.integer(), v.minValue(0));
 
 const durationMs = v.pipe(v.number(), v.integer(), v.minValue(0));
 
+/**
+ * A whole health bar, in the unit the `health` condition is authored in.
+ *
+ * Exported because the editor's number box takes the same ceiling, and a
+ * picker that let somebody type a threshold the schema then refused would
+ * author a creature that goes inert for what looks like a valid number.
+ * @see BrainConditionDef
+ */
+export const MAX_HEALTH_PERCENT = 100;
+
 const speakerFilterSchema = v.object({
   match: v.picklist(["is", "not"]),
   of: selectorSchema,
@@ -809,6 +890,20 @@ const leafSchema = v.variant("cond", [
     // status should cost.
     id: v.pipe(v.string(), v.minLength(1)),
     atLeastMs: v.optional(durationMs),
+  }),
+  v.object({
+    cond: v.literal("health"),
+    // Whole percent, and bounded at both ends: a share below zero is a body
+    // that cannot exist and one above a hundred is a threshold nothing can
+    // fail, and both are more likely a typed extra digit than an author's
+    // meaning. Integer for the reason `cells` is one — a tenth of a percent is
+    // a distinction nobody watching a fight could see.
+    atMostPercent: v.pipe(
+      v.number(),
+      v.integer(),
+      v.minValue(0),
+      v.maxValue(MAX_HEALTH_PERCENT),
+    ),
   }),
 ]);
 
@@ -862,6 +957,17 @@ const actionSchema = v.variant("action", [
     allowDrops,
   }),
   v.object({ action: v.literal("attack"), of: selectorSchema }),
+  v.object({
+    action: v.literal("cast"),
+    // Counting from one, because that is the number an author is looking at:
+    // the editor numbers a `do` list's rows from one and the Spells tab does
+    // the same. No ceiling — how many spells a body has is a fact about that
+    // body, which this module has never seen — so a position past the end is a
+    // line that never fires, on the terms a `nearest` naming a tile nothing
+    // stands on is.
+    spell: v.pipe(v.number(), v.integer(), v.minValue(1)),
+    of: selectorSchema,
+  }),
   v.object({ action: v.literal("extract"), of: selectorSchema }),
   v.object({
     action: v.literal("consume"),
