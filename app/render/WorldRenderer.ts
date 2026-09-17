@@ -1081,8 +1081,8 @@ export class WorldRenderer {
    * @see renderOnce.
    */
   private assetsReady = false;
-  /** Fired once, after the first frame that actually reached the canvas. */
-  private onFirstFrame: (() => void) | null = null;
+  /** Fired once, after the next frame that actually reaches the canvas. */
+  private onNextFrame: (() => void) | null = null;
   private view: WorldView | null = null;
   private looping = false;
   private raf = 0;
@@ -1823,12 +1823,17 @@ export class WorldRenderer {
   }
 
   /**
-   * Called the first time a frame reaches the canvas, so whoever owns the page
-   * can take its loading screen down against the world appearing rather than
-   * against a guess at when it will.
+   * Called once, after the next frame reaches the canvas, so whoever owns the
+   * page can take a screen down against the world appearing rather than against
+   * a guess at when it will.
+   *
+   * It fires once and clears itself, so asking again is how a page waits for a
+   * second world: the first paint takes the loading screen down, and a rebirth
+   * re-arms it to take the waiting screen down against the world the `hello`
+   * brought rather than against the message that promised it.
    */
-  setOnFirstFrame(cb: (() => void) | null) {
-    this.onFirstFrame = cb;
+  setOnNextFrame(cb: (() => void) | null) {
+    this.onNextFrame = cb;
   }
 
   renderOnce() {
@@ -1870,9 +1875,9 @@ export class WorldRenderer {
 
     // After the draw, never before: the callback's whole job is to say that
     // there is something on the canvas now.
-    const first = this.onFirstFrame;
-    this.onFirstFrame = null;
-    first?.();
+    const painted = this.onNextFrame;
+    this.onNextFrame = null;
+    painted?.();
   }
 
   isReady(): boolean {

@@ -398,7 +398,7 @@ export default function OnlinePage() {
         renderer.setOnMasteries(setMasteryXp);
         renderer.setOnVitals(setVitals);
         renderer.setOnOpenedContainer(setOpenedContainer);
-        renderer.setOnFirstFrame(() => setPainted(true));
+        renderer.setOnNextFrame(() => setPainted(true));
         // The keys, the on-screen pad and a click on the world all press the
         // same list, which is what settles between them: taking the keys back
         // ends a clicked walk, and neither has to know the other exists. The
