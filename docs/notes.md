@@ -2562,18 +2562,22 @@ anything on the board having moved.
 
 The formulas live in `app/game/combat.ts`, kept pure so they can be asserted:
 
-- **`acc` widens a band downward; it never raises the ceiling.** Full damage is
-  always `atk`. Within the band the roll is triangular, so a middling blow is
-  common and both a glancing and a shattering one are rare.
+- **`variance` widens a band downward; it never raises the ceiling.** Full
+  damage is always `damage`. Within the band the roll is triangular, so a
+  middling blow is common and both a glancing and a shattering one are rare.
+  This was accuracy's job once, and the two were split so that a weapon which
+  lands often and hits unpredictably could be authored at all.
 - **`flee` is contested against the *other body's* `flee` on a logistic curve**,
   with a flat `REFLEX_EDGE` to the swinger — see *A dodge is Agility against
   Agility* below. Nothing the attacker is holding bears on it.
 - **`spd` is geometric between 6 and 600 ticks.** Linear would make the whole
   lower half of the stat indistinguishable from zero; on this curve 50 is twenty
   ticks.
-- **A swing always costs three draws**, whatever the stats. The dice are seeded so
-  a world is reproducible, and a draw count that varied with accuracy would make
-  one creature's stats change what every creature after it rolled.
+- **A swing costs the same draws whatever happens in it.** Four — miss, dodge,
+  two for the damage band — plus one for the guard and one per status the weapon
+  authors, all taken before any is read. The dice are seeded so a world is
+  reproducible, and a draw count that varied with the *outcome* would make one
+  creature's luck change what every creature after it rolled.
 
 ### A dodge is Agility against Agility, and the weapon has no say
 
