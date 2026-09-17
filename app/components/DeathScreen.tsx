@@ -1,3 +1,4 @@
+import { LoadingScreen } from "./LoadingScreen";
 import { Button } from "../ui";
 
 /**
@@ -20,8 +21,39 @@ import { Button } from "../ui";
  * response to something that happened, which is the whole distinction between
  * the two — anything reading the page aloud should say so on the spot rather
  * than waiting to be asked.
+ *
+ * @param pending whether Rebirth has been pressed and the body has not arrived.
+ *   See the loading screen below for why that is a state this screen has rather
+ *   than something the button shows.
  */
-export function DeathScreen({ onRebirth }: { onRebirth: () => void }) {
+export function DeathScreen({
+  onRebirth,
+  pending,
+}: {
+  onRebirth: () => void;
+  pending: boolean;
+}) {
+  // A press is answered by the server with a whole `hello`, which is a round
+  // trip plus a fresh map plus the frame that rebuilds every chunk of it — long
+  // enough that a button which merely stopped responding reads as a button that
+  // did not take. So the wait is the wait this page already has: the same
+  // loading screen the tab opened on, which is what the player is owed anyway,
+  // since what is behind this screen is about to be replaced outright.
+  //
+  // Full-page like the screen it replaces rather than over the canvas alone,
+  // for the reason the death screen covers the chrome: the clock and the
+  // headcount are still not this player's business until they have a body. It
+  // also has to be *here* rather than beside the game, because the page marks
+  // everything under this screen `inert` — and an inert live region is one
+  // nothing reads aloud.
+  if (pending) {
+    return (
+      <div className="fixed inset-0 z-50">
+        <LoadingScreen />
+      </div>
+    );
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-ink/75 p-6"
