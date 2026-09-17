@@ -4436,6 +4436,43 @@ across a courtyard should be. It also keeps the thing an archer is buying legibl
 in one number — the arrow is still worth what it always was, and what you are
 risking is the arrow.
 
+#### A bow takes one hand and has a hole in the middle
+
+The three bows are one-handed now, with `reach.min: 2`. Two changes, and they
+are one change: a bow that frees a hand and still worked in your face would be
+strictly better than the sword on its rung at every distance, so the hole is
+what pays for the hand.
+
+**Two cells is exactly the melee box, and it is the same on all three.**
+`MELEE_REACH` is 1.5 — the eight cells around you and nothing else, because 1.5
+squared sits between the diagonal's 2 and the cell two along's 4. A minimum of 2
+kills exactly those eight and keeps the cell two along, landing on the other side
+of the same boundary. So a knife covers precisely what the bow cannot, with no
+dead ring between them. A bigger minimum on the bigger bows reads as a design —
+a war bow is harder to use up close — and opens a band at two or three cells
+that nothing in a player's kit can close, which is a worse thing than an
+uninteresting number.
+
+**What it is for is a loadout rather than a weapon.** A bow and a knife, a bow
+and a torch, a bow and an arcane stone: the first needs `handToSwing` to pick
+the hand that works here (see *Which hand swings is a question about where the
+target is standing*), and the other two need nothing at all, because
+`weaponSwungBy` refuses a non-weapon a turn and the rotation is over weapons.
+
+**The 45% above was measured on an archer who steps back, and this changes
+that.** `damagePerSecond` starts both bodies in contact, which is the fight an
+archer never picks — that is the whole argument for pricing a bow at 45% of the
+sword rather than 85%. An archer with a knife does not have to step back, so the
+reach is worth less than it was and the bow is worth more than 45% of a sword
+over a whole fight. The minimum is the counterweight and is not obviously the
+right size for it.
+
+`duel.test.ts`'s `two weapons on one rung` keeps passing and means less: it
+measures one weapon against one weapon, so it never sees a loadout, and
+`duel.ts` has no distance in it to see a minimum with. **Whether this is
+balanced has to be found out by playing it**, and the two dials are the
+minimum and the accuracy — not the damage, for the reason above.
+
 ### Nothing is taken off a weapon for being one you have outgrown
 
 Two separate penalties used to land on the same choice, and between them they

@@ -1183,6 +1183,53 @@ describe("a weapon that needs both hands", () => {
 });
 
 /**
+ * What the three shipped bows are now, and the pair of decisions behind it.
+ *
+ * A design rather than a tuning figure, which is why it is asserted rather than
+ * left to be noticed: a bow that quietly went back to needing both hands, or
+ * lost its minimum, would be a strictly better weapon than the sword on its rung
+ * and nothing would say so. The damage and accuracy numbers are deliberately not
+ * here — those are `duel.test.ts`'s, where they are measured rather than named.
+ */
+describe("the bows we ship", () => {
+  const shipped = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]));
+  const BOWS = ["simple-bow", "hunting-bow", "war-bow"];
+
+  const bowOf = (id: string) => resolveWeapon(shipped[id]!)!;
+
+  it("leaves a hand free for a knife, a torch or a stone", () => {
+    for (const id of BOWS) expect(bowOf(id).twoHanded, id).toBeFalsy();
+  });
+
+  /**
+   * **Two cells is exactly the melee box**, which is the whole reason it is two
+   * and the same on all three. `MELEE_REACH` covers the eight cells around you
+   * and stops; a minimum of 2 kills those eight and keeps the cell two along —
+   * both land on the squared boundaries either side of the value. So a knife
+   * covers precisely what the bow cannot, with no dead ring between them. A
+   * bigger minimum on the bigger bows would open one, and nothing in a player's
+   * kit could close it.
+   */
+  it("is dead over exactly the cells a knife covers", () => {
+    for (const id of BOWS) {
+      expect(bowOf(id).reach.min, id).toBe(2);
+      // The far wall of the melee box and the near wall of the bow's, with the
+      // diagonal neighbour between them and inside neither.
+      expect(MELEE_REACH.cells * MELEE_REACH.cells).toBeGreaterThan(2);
+      expect(MELEE_REACH.cells * MELEE_REACH.cells).toBeLessThan(4);
+      expect(bowOf(id).reach.min! * bowOf(id).reach.min!).toBe(4);
+    }
+  });
+
+  it("still reaches further than anything swung, and still fires", () => {
+    for (const id of BOWS) {
+      expect(bowOf(id).reach.cells, id).toBeGreaterThan(MELEE_REACH.cells);
+      expect(bowOf(id).projectile, id).toBeDefined();
+    }
+  });
+});
+
+/**
  * The head, the charm and the feet.
  *
  * **The claim is that they are one mechanism, not three.** A helmet is a `def`
