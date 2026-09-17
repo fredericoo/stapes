@@ -3052,6 +3052,34 @@ amulet off everybody wearing one. The word is `SLOT_LABELS` and
 `EquipmentPanel`'s caption, and the *item type* stays "Charm" — a charm is one
 of the things you put in the accessory square.
 
+##### A torch goes in the accessory square, and the off hand stops being the price of light
+
+`carriedLightTileIds` has always walked every worn square — all seven, bag
+included — so a torch in the accessory square lit the room the day the square
+existed, and `takesEffect` already drew it as a square doing something. The one
+thing in the way was `wornAccepts`, which took armour, a stone and a charm and
+stopped. It takes a light now.
+
+**What it buys is a hand.** The off hand exists because a lantern authored as a
+weapon meant fighting at a twentieth of your bare hands to see in the dark, and
+it solved that by making light cost the *other* fist instead — so "see in the
+dark" and "hold a shield" were one choice, and a two-handed weapon settled it
+for you. A lamp on a belt loop is worth more than that. It is also the half of
+one-handed bows that makes them interesting: a bow, a knife and a torch is a
+loadout, and it was not expressible in two squares.
+
+Read off the light rather than off `ArtifactItem`, for the reason `takesEffect`
+reads it that way: a lamp that is also an amulet is still a lamp, and a rule
+about the kind would have to be extended every time a new kind learned to glow.
+Armour still goes only in the square it names — a helmet that glows is a helmet
+— because `armorForSlot` answers first and the light arm is about this square
+alone.
+
+**Nothing dims it for being worn rather than held.** A light's radius is on the
+sprite's frame, not on the square, so there is no per-square falloff to reach
+for and inventing one would be a second place a torch's brightness is decided.
+This is a straight buff, and it is meant to be one.
+
 **`hp` is unsigned, unlike a consumable's.** A consumable is something you chose
 to swallow, so a poisoned apple is fair. A charm acts on its wearer without being
 asked and on a clock they cannot see, and a trinket taking hit points off

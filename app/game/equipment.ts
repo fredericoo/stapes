@@ -102,13 +102,20 @@ export type Equipment = {
    */
   head: ItemInstance | null;
   /**
-   * What is round the neck or on a finger — a ring, an amulet, a charm.
+   * What is round the neck, on a finger or on a belt loop — a ring, an amulet, a
+   * charm, an arcane stone, a torch. **"Accessory" on screen**, and `charm` here
+   * and on the wire because a charm was the only thing that went in it when it
+   * was named; see `../lib/kit`'s {@link SLOT_LABELS} for why the key does not
+   * move.
    *
    * Armour, on the same terms a helmet is, and the fact that it is not obviously
    * *armour* is the point of having a square for it: a thing that turns a blow
    * aside without being a plate is how an author writes a warding trinket, and
    * the alternative — a fifth kind of item with its own arithmetic — would be a
    * second answer to the question `def` already answers.
+   *
+   * **The one worn square that takes more than armour**, and what else it takes
+   * is {@link wornAccepts} rather than anything here.
    */
   charm: ItemInstance | null;
   /**
@@ -1006,19 +1013,31 @@ export function handAccepts(def: TileDef): boolean {
 /**
  * Whether this worn square can take this thing.
  *
- * **The charm is the one square that takes three kinds**, and this is where that
- * is written down. Everywhere else a worn square asks {@link armorForSlot} and
- * nothing else — a helm on a head, boots on feet — but a charm is already the
- * square for "a thing round your neck that is not a plate", and both an arcane
- * stone on a strap and a {@link CharmItem} are exactly that. Giving either a
- * square of its own would have been an eighth slot that one profession fills.
+ * **The accessory square is the one that takes four kinds**, and this is where
+ * that is written down. Everywhere else a worn square asks
+ * {@link armorForSlot} and nothing else — a helm on a head, boots on feet — but
+ * this one is already the square for "a thing round your neck that is not a
+ * plate", and an arcane stone on a strap, a {@link CharmItem} and a torch on a
+ * belt loop are all exactly that. Giving any of them a square of its own would
+ * have been an eighth slot that one profession fills. It is `charm` in the
+ * model and "Accessory" on screen — see `../lib/kit`'s `SLOT_LABELS`.
  *
- * The two are here for opposite reasons, which is worth saying because it is the
- * whole of what the square is now for. A **stone** is welcome because a stone is
- * welcome everywhere — every square casts the same spell at the same range, and
- * the charm is simply the one that costs no swing. A **charm** is here because
- * this is the only square that will have it: {@link handAccepts} refuses one,
- * since a hand is a thing you act *with*.
+ * The three are here for different reasons, which is worth saying because it is
+ * the whole of what the square is now for:
+ *
+ * - A **stone** is welcome because a stone is welcome everywhere — every square
+ *   casts the same spell at the same range, and this is simply the one that
+ *   costs no swing.
+ * - A **charm** is here because this is the only square that will have it:
+ *   {@link handAccepts} refuses one, since a hand is a thing you act *with*.
+ * - A **light** is here because the square already lit things and nothing said
+ *   so. {@link carriedLightTileIds} reads every worn square alike, so a torch
+ *   dropped in here would have worked the day the square existed; the refusal
+ *   was the only thing in the way. What it buys is a hand — the choice used to
+ *   be "see in the dark or hold a shield", and an off hand is worth more than
+ *   that. Read off the light rather than off {@link ArtifactItem}, because a
+ *   lamp that is also an amulet is still a lamp, and it is the same question
+ *   {@link takesEffect} asks of a square to decide whether it is doing anything.
  *
  * Here rather than in `./itemMoves` for the reason {@link handAccepts} is: it is
  * a fact about the squares, and the squares are defined by this module. The move
@@ -1029,7 +1048,12 @@ export function handAccepts(def: TileDef): boolean {
 export function wornAccepts(slot: ArmorSlot, def: TileDef): boolean {
   if (armorForSlot(slot, def)) return true;
   if (slot !== "charm") return false;
-  return resolveStone(def) != null || resolveCharm(def) != null;
+  if (resolveStone(def) != null || resolveCharm(def) != null) return true;
+  // No direction to give it, because there is no placement yet — a drag is
+  // somebody asking whether the square will have it at all. A directional tile
+  // answers for its south face, which is what every other question asked of a
+  // tile without a placement gets. @see resolveTileSprite
+  return resolveLight(def) != null;
 }
 
 /**

@@ -50,6 +50,7 @@ import {
   takesEffect,
   weaponInHand,
   weaponSwungBy,
+  wornAccepts,
   wornDefence,
 } from "./equipment";
 
@@ -1589,5 +1590,127 @@ describe("takesEffect", () => {
   it("does not count one they have not", () => {
     expect(takesEffect("weapon", held("spark"), tiles, NOVICE)).toBe(false);
     expect(takesEffect("charm", held("spark"), tiles, NOVICE)).toBe(false);
+  });
+});
+
+/**
+ * What the accessory square will take.
+ *
+ * `charm` in the model and "Accessory" on screen — see `../lib/kit`'s
+ * `SLOT_LABELS`. It is the only worn square that takes more than armour, and the
+ * whole of what it takes is here so that the four kinds cannot quietly become
+ * three: the move rules, the equip button and `restoredEquipment` all ask this
+ * one function.
+ *
+ * The last case is the reason the light arm exists at all. Light has always been
+ * read off every worn square alike — `carriedLightTileIds` walks all seven — so
+ * a torch here lit the room the day the square did. Only `wornAccepts` was in
+ * the way.
+ */
+describe("wornAccepts", () => {
+  const tiles = tilesByIdFromList([
+    itemTile("helm", { type: "armor", slot: "head", def: 2 }),
+    itemTile("ring", { type: "armor", slot: "charm", def: 1 }),
+    itemTile("trinket", { type: "charm", everyMs: 10_000, hp: 1 }),
+    itemTile("spark", {
+      type: "stone",
+      cooldownMs: 4_000,
+      effect: { kind: "bolt", on: "target", damage: 3 },
+    }),
+    itemTile("sword", DEFAULT_WEAPON),
+    itemTile("bread", { type: "consumable", label: "Eat", hp: 1 }),
+    itemTile("torch", { type: "artifact" }, LIT),
+    // A light that is also armour for another square, so the two arms cannot be
+    // read as one: this belongs on a head and lights a room from either.
+    itemTile("lit-helm", { type: "armor", slot: "head", def: 2 }, LIT),
+  ]);
+
+  it("takes armour authored for this square and no other", () => {
+    expect(wornAccepts("charm", tiles.ring!)).toBe(true);
+    expect(wornAccepts("head", tiles.ring!)).toBe(false);
+    expect(wornAccepts("head", tiles.helm!)).toBe(true);
+    expect(wornAccepts("charm", tiles.helm!)).toBe(false);
+  });
+
+  it("takes a charm, which no other square will have", () => {
+    expect(wornAccepts("charm", tiles.trinket!)).toBe(true);
+    for (const slot of ["head", "armor", "footwear"] as const) {
+      expect(wornAccepts(slot, tiles.trinket!), slot).toBe(false);
+    }
+  });
+
+  it("takes a stone, on a hand's terms and without the swing", () => {
+    expect(wornAccepts("charm", tiles.spark!)).toBe(true);
+    expect(wornAccepts("armor", tiles.spark!)).toBe(false);
+  });
+
+  /**
+   * **What this buys is a hand.** The choice used to be "see in the dark or
+   * hold a shield", because the off hand was the only square a torch could go
+   * in; a lamp on a belt loop is worth more than that, and it is what makes a
+   * bow and a light a loadout rather than an impossibility.
+   */
+  it("takes a light, and only in this square", () => {
+    expect(wornAccepts("charm", tiles.torch!)).toBe(true);
+    for (const slot of ["head", "armor", "footwear"] as const) {
+      expect(wornAccepts(slot, tiles.torch!), slot).toBe(false);
+    }
+  });
+
+  /**
+   * Read off the light rather than off the kind, so a lamp that is also an
+   * amulet is still a lamp. A helmet that glows still belongs on a head and is
+   * still refused by every square its `slot` does not name — the light arm is
+   * about this square alone.
+   */
+  it("does not let a light override the square its armour names", () => {
+    expect(wornAccepts("head", tiles["lit-helm"]!)).toBe(true);
+    expect(wornAccepts("armor", tiles["lit-helm"]!)).toBe(false);
+    // And it may be worn as an accessory, because it is a light.
+    expect(wornAccepts("charm", tiles["lit-helm"]!)).toBe(true);
+  });
+
+  it("refuses a sword and a loaf everywhere worn", () => {
+    for (const slot of ARMOR_SLOTS) {
+      expect(wornAccepts(slot, tiles.sword!), slot).toBe(false);
+      expect(wornAccepts(slot, tiles.bread!), slot).toBe(false);
+    }
+  });
+});
+
+/**
+ * The shipped torch, in the square this change opened to it.
+ *
+ * Against the catalogue rather than a fixture, on the terms the off hand's cases
+ * are: what matters is that an author's `hand-lantern` actually reaches the
+ * square, and a fixture with an invented light would only test the fixture.
+ */
+describe("the shipped torch, worn as an accessory", () => {
+  const shipped = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]));
+
+  const wearing = (tileId: string): Equipment => ({
+    ...emptyEquipment(),
+    charm: { id: `itm_${tileId}`, tileId },
+  });
+
+  it("goes in the accessory square", () => {
+    expect(wornAccepts("charm", shipped["hand-lantern"]!)).toBe(true);
+  });
+
+  it("lights the room from there, with both hands still free", () => {
+    const kit = wearing("hand-lantern");
+    expect(carriedLightTileIds(kit, shipped)).toContain("hand-lantern");
+    expect(kit.weapon).toBeNull();
+    expect(kit.offhand).toBeNull();
+  });
+
+  it("is drawn as a square that is doing something", () => {
+    const kit = wearing("hand-lantern");
+    expect(takesEffect("charm", kit.charm, shipped, {})).toBe(true);
+  });
+
+  /** Still a thing you can simply hold, which is where it goes when nobody says. */
+  it("has not stopped being something to carry in a hand", () => {
+    expect(handAccepts(shipped["hand-lantern"]!)).toBe(true);
   });
 });
