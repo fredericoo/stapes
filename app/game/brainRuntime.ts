@@ -1,5 +1,6 @@
 import {
   ANY_STATE,
+  MAX_HEALTH_PERCENT,
   type BrainCondition,
   type BrainActionDef,
   type BrainConditionDef,
@@ -432,6 +433,19 @@ export type BrainContext = {
    * @see ../lib/brain's `status`
    */
   hasStatus(id: string, atLeastMs: number | undefined): boolean;
+  /**
+   * What share of its hit points this body has left, from 0 to 1, or null for
+   * one that has no hit points at all. What the `health` condition reads.
+   *
+   * A share rather than the two numbers, because the share is the whole of the
+   * question and handing over a maximum would invite a second opinion about
+   * what full health is — the session's `battlerOf` already folds in armour, a
+   * status that moves the maximum, and whatever the body is wearing.
+   *
+   * Null rather than zero for a body with no hit points, and the difference
+   * matters: zero is a corpse and null is a signpost. @see ../lib/brain
+   */
+  health(): number | null;
   /**
    * What to call somebody out loud, or null once they are off the board.
    *
@@ -874,6 +888,12 @@ function leafHolds(
       return ctx.carrying(condition.tileId);
     case "status":
       return ctx.hasStatus(condition.id, condition.atLeastMs);
+    case "health": {
+      const share = ctx.health();
+      // A body with nothing to lose is never wounded. @see BrainContext.health
+      if (share === null) return false;
+      return share * MAX_HEALTH_PERCENT <= condition.atMostPercent;
+    }
   }
 }
 

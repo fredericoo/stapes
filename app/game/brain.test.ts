@@ -312,6 +312,9 @@ describe("deciding", () => {
       consumeOn: vi.fn(() => false),
       carrying: () => false,
       hasStatus: () => false,
+      // Untouched, unless a test says otherwise: a creature deciding anything
+      // about its own health is deciding it from a full bar.
+      health: () => 1,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -1097,6 +1100,9 @@ describe("giving up", () => {
       consumeOn: () => false,
       carrying: () => false,
       hasStatus: () => false,
+      // Untouched, unless a test says otherwise: a creature deciding anything
+      // about its own health is deciding it from a full bar.
+      health: () => 1,
       nameOf: (id: string) => id,
     };
 
@@ -1443,6 +1449,9 @@ describe("actions that take time", () => {
       consumeOn: vi.fn(() => false),
       carrying: () => false,
       hasStatus: () => false,
+      // Untouched, unless a test says otherwise: a creature deciding anything
+      // about its own health is deciding it from a full bar.
+      health: () => 1,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -1884,6 +1893,9 @@ describe("a deer that yelps", () => {
       consumeOn: () => false,
       carrying: () => false,
       hasStatus: () => false,
+      // Untouched, unless a test says otherwise: a creature deciding anything
+      // about its own health is deciding it from a full bar.
+      health: () => 1,
       nameOf: (id: string) => id,
     };
 
@@ -1969,6 +1981,9 @@ describe("a deer that yelps", () => {
       consumeOn: () => false,
       carrying: () => false,
       hasStatus: () => false,
+      // Untouched, unless a test says otherwise: a creature deciding anything
+      // about its own health is deciding it from a full bar.
+      health: () => 1,
       nameOf: (id: string) => id,
     };
 
@@ -2630,6 +2645,9 @@ describe("composing conditions", () => {
       consumeOn: vi.fn(() => false),
       carrying: () => false,
       hasStatus: () => false,
+      // Untouched, unless a test says otherwise: a creature deciding anything
+      // about its own health is deciding it from a full bar.
+      health: () => 1,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -3334,6 +3352,9 @@ describe("knowing where it belongs", () => {
       consumeOn: vi.fn(() => false),
       carrying: () => false,
       hasStatus: () => false,
+      // Untouched, unless a test says otherwise: a creature deciding anything
+      // about its own health is deciding it from a full bar.
+      health: () => 1,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -4520,6 +4541,9 @@ describe("naming a thing", () => {
       consumeOn: vi.fn(() => false),
       carrying: () => false,
       hasStatus: () => false,
+      // Untouched, unless a test says otherwise: a creature deciding anything
+      // about its own health is deciding it from a full bar.
+      health: () => 1,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -4694,6 +4718,7 @@ describe("asking what a body is under", () => {
       consumeOn: vi.fn(() => true),
       carrying: () => false,
       hasStatus: vi.fn(() => false),
+      health: vi.fn((): number | null => 1),
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -4795,5 +4820,48 @@ describe("asking what a body is under", () => {
 
     expect(c.consumeOn).not.toHaveBeenCalled();
     expect(c.consume).not.toHaveBeenCalled();
+  });
+
+  /**
+   * What the condition is for: a creature that runs once it is losing. The
+   * threshold is a ceiling, so the cases worth pinning are the two sides of it,
+   * the boundary itself, and the body that has no bar to read.
+   */
+  describe("asking how hurt it is", () => {
+    const wounded = watching({ cond: "health", atMostPercent: 30 });
+
+    it("holds below the threshold and not above it", () => {
+      expect(ran(wounded, ctx({ health: () => 0.2 }))).toBe("alert");
+      expect(ran(wounded, ctx({ health: () => 0.5 }))).toBe("idle");
+    });
+
+    /**
+     * Inclusive, like every other threshold in the vocabulary: `in_range` at
+     * exactly `cells` holds, and a creature authored to run at a third that
+     * stood at exactly a third would otherwise wait for one more blow.
+     */
+    it("holds at exactly the threshold", () => {
+      expect(ran(wounded, ctx({ health: () => 0.3 }))).toBe("alert");
+    });
+
+    /**
+     * A brain on a tile that is not a battler. Answering "wounded" for a body
+     * with nothing to lose would send every signpost with a flee state running.
+     */
+    it("never holds for a body with no hit points", () => {
+      expect(ran(watching({ cond: "health", atMostPercent: 100 }), ctx({ health: () => null }))).toBe("idle");
+    });
+
+    /**
+     * The other half of the pair, and the one an author writes for a creature
+     * that only picks fights while it is fresh.
+     */
+    it("reads its `not` as unhurt", () => {
+      const fresh = watching(
+        group<BrainConditionDef>("and", [{ cond: "health", atMostPercent: 30 }], true),
+      );
+      expect(ran(fresh, ctx({ health: () => 1 }))).toBe("alert");
+      expect(ran(fresh, ctx({ health: () => 0.1 }))).toBe("idle");
+    });
   });
 });

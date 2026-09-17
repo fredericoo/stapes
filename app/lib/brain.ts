@@ -494,7 +494,33 @@ export type BrainConditionDef =
    * the whole question for a condition with no useful duration — poisoned, on
    * fire, glowing.
    */
-  | { cond: "status"; id: string; atLeastMs?: number };
+  | { cond: "status"; id: string; atLeastMs?: number }
+  /**
+   * This body is down to `atMostPercent` of its hit points or below.
+   *
+   * **A share rather than a number of points, and that is the whole of why it
+   * is authorable at all.** Hit points are not a figure an author types — they
+   * come off `baseHp` and Toughness — so a threshold written in points would
+   * mean a different fight on every creature and would have to be re-tuned
+   * whenever anybody moved a mastery. Half is half on a rat and on a troll.
+   *
+   * **A ceiling, unlike {@link status}'s floor**, because what this exists for
+   * is the wounded half: "run when you are down to a third" is the sentence,
+   * and `not` gives the other side of it for a creature that only fights while
+   * it is fresh. At 100 it holds for every body that can be hurt at all, which
+   * is the honest reading of "at most all of it" and not a case worth refusing.
+   *
+   * **About this body and nobody else.** Every condition that names somebody
+   * takes a {@link Selector}; this one is in the group that does not — `status`,
+   * `carrying`, `attacked` — because what a creature knows about its own state
+   * it knows without looking. Whether a wolf can tell that a *deer* is limping
+   * is a different question, and one that needs a way to see it.
+   *
+   * A body with no hit points at all — a brain on a tile that is not a battler
+   * — has no share to be under, so this never holds for one. Its `not` does,
+   * which reads correctly: a signpost is not wounded.
+   */
+  | { cond: "health"; atMostPercent: number };
 
 /**
  * What a transition fires on: one question, or several joined together.
@@ -763,6 +789,16 @@ const cells = v.pipe(v.number(), v.integer(), v.minValue(0));
 
 const durationMs = v.pipe(v.number(), v.integer(), v.minValue(0));
 
+/**
+ * A whole health bar, in the unit the `health` condition is authored in.
+ *
+ * Exported because the editor's number box takes the same ceiling, and a
+ * picker that let somebody type a threshold the schema then refused would
+ * author a creature that goes inert for what looks like a valid number.
+ * @see BrainConditionDef
+ */
+export const MAX_HEALTH_PERCENT = 100;
+
 const speakerFilterSchema = v.object({
   match: v.picklist(["is", "not"]),
   of: selectorSchema,
@@ -809,6 +845,20 @@ const leafSchema = v.variant("cond", [
     // status should cost.
     id: v.pipe(v.string(), v.minLength(1)),
     atLeastMs: v.optional(durationMs),
+  }),
+  v.object({
+    cond: v.literal("health"),
+    // Whole percent, and bounded at both ends: a share below zero is a body
+    // that cannot exist and one above a hundred is a threshold nothing can
+    // fail, and both are more likely a typed extra digit than an author's
+    // meaning. Integer for the reason `cells` is one — a tenth of a percent is
+    // a distinction nobody watching a fight could see.
+    atMostPercent: v.pipe(
+      v.number(),
+      v.integer(),
+      v.minValue(0),
+      v.maxValue(MAX_HEALTH_PERCENT),
+    ),
   }),
 ]);
 

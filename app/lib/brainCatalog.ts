@@ -1,4 +1,5 @@
 import {
+  MAX_HEALTH_PERCENT,
   nearest,
   thing,
   type BrainActionDef,
@@ -26,7 +27,12 @@ import { PLAYER_TILE_ID } from "../game/constants";
 
 /** How the editor renders and edits one field of a condition/action/effect. */
 export type ParamSpec =
-  | { key: string; kind: "number"; label: string; min?: number }
+  /**
+   * A number box. `max` is authored wherever the schema has a ceiling — a
+   * percentage, and nothing else so far — so the editor refuses what the file
+   * would refuse rather than saving a creature that then fails to parse.
+   */
+  | { key: string; kind: "number"; label: string; min?: number; max?: number }
   | { key: string; kind: "boolean"; label: string }
   | { key: string; kind: "selector"; label: string }
   /**
@@ -218,6 +224,24 @@ export const CONDITIONS: Record<
       { key: "atLeastMs", kind: "number", label: "at least ms", min: 0 },
     ],
     make: () => ({ cond: "status", id: "fed" }),
+  },
+  health: {
+    label: "health",
+    hint: "This body is down to this share of its hit points or below. A share rather than a number of points, so half is half on a rat and on a troll. Its `not` is a creature that only fights while it is fresh.",
+    params: [
+      {
+        key: "atMostPercent",
+        kind: "number",
+        label: "at most %",
+        min: 0,
+        max: MAX_HEALTH_PERCENT,
+      },
+    ],
+    // A third, which is the threshold a creature that runs when it is losing
+    // is overwhelmingly authored at. Not half: half a health bar is a fight
+    // still worth having, and a default that fired there would make every
+    // freshly picked row read as cowardice.
+    make: () => ({ cond: "health", atMostPercent: 33 }),
   },
   carrying: {
     label: "carrying",

@@ -5458,6 +5458,34 @@ moment a brain could pick a bush — a hedge and a herd would grow `pendingNotic
 without bound for the life of the world. `GameSession.say` drops them at the
 door.
 
+## A creature can read its own health, and only as a share
+
+`health` is the condition that makes "run when you are losing" authorable. Every
+condition beside it that was about this body — `status`, `carrying`, `attacked` —
+asks a yes-or-no question, and a creature deciding whether to keep fighting is
+reading a bar.
+
+**It is a percentage, not a number of points, and that is the reason it can be
+authored at all.** Hit points are not a figure anybody types: they come off
+`baseHp` and Toughness, so a threshold written in points means one fight on a rat
+and a different one on a troll, and has to be re-tuned every time somebody moves
+a mastery. A third is a third on both.
+
+**It is a ceiling where `status` is a floor**, because the wounded half is what
+the condition exists for. `not` gives back the other side, and that is the row an
+author writes for a creature that only picks fights while it is fresh.
+
+**The maximum comes off `battlerOf`, not off the tile.** That is the figure the
+health bar is drawn against — armour, whatever the body is wearing, and a status
+that moved the maximum have all had their say — so a creature that decides to run
+is reading the same bar the player is. It is also why the share is clamped to
+one: `hpOf` stands above the maximum for as long as a status that raised it is
+wearing off, and a body on more than a full bar is not more than unwounded.
+
+**A body with no hit points has no share, and the condition never holds for it.**
+A brain is not owed a battler block — `health` on a signpost answers no, and its
+`not` answers yes, which is the reading that leaves a signpost standing still.
+
 ## A status can be a gamble, and a body can be immune to one
 
 Two changes to how a condition is handed over, both forced by one item.

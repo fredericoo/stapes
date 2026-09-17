@@ -1225,6 +1225,7 @@ function ParamField({
         {spec.label}
         <NumberInput
           min={spec.min}
+          max={spec.max}
           value={typeof value === "number" ? value : 0}
           onChange={onChange}
           className="w-20"

@@ -3509,6 +3509,7 @@ export class GameSession implements PlaySession {
       consumeOn: (at, tileId) => this.consumeOnGround(actor, at, tileId),
       carrying: (tileId) => this.carryingInBag(actor, tileId),
       hasStatus: (id, atLeastMs) => this.hasStatus(actor, id, atLeastMs),
+      health: () => this.healthShare(actor),
       nameOf: (id) => this.bodyName(id),
     });
   }
@@ -6763,6 +6764,26 @@ export class GameSession implements PlaySession {
         instance.defId === id &&
         (atLeastMs === undefined || instance.remainingMs >= atLeastMs),
     );
+  }
+
+  /**
+   * What share of its hit points this body has left, or null for a body that
+   * has none. What the brain's `health` condition reads.
+   *
+   * The maximum comes off {@link battlerOf} rather than off the authored block,
+   * so it is the same figure the health bar is drawn against: armour, a status
+   * that moves the maximum and whatever the body is wearing have all had their
+   * say. A creature deciding to run is looking at the bar, not at its tile.
+   *
+   * Clamped to one above, because {@link hpOf} can stand above the maximum for
+   * as long as a status that raised it is wearing off — and a body on more than
+   * a full bar is not *more* than unwounded.
+   */
+  private healthShare(actor: ActorRuntime): number | null {
+    const stats = this.battlerOf(actor);
+    const hp = this.hpOf(actor);
+    if (!stats || hp === null || stats.maxHp <= 0) return null;
+    return Math.min(1, hp / stats.maxHp);
   }
 
   /**
