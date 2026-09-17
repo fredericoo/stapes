@@ -23291,7 +23291,40 @@
         },
         "projectile": {
           "tileId": "arrow",
-          "cellsPerSecond": 20
+          "cellsPerSecond": 20,
+          "impact": {
+            "ratePerSecond": 140,
+            "ttlFromMs": 120,
+            "ttlToMs": 280,
+            "spawnRadiusCells": 0.15,
+            "spawnElevFrom": 1,
+            "spawnElevTo": 3,
+            "riseFrom": 2,
+            "riseTo": 8,
+            "driftCellsPerSecond": 1.6,
+            "lit": false,
+            "gravity": -20,
+            "windX": 0,
+            "windY": 0,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.35,
+                "color": "#e83b3b"
+              },
+              {
+                "at": 1,
+                "color": "#6e2727"
+              }
+            ]
+          }
         },
         "twoHanded": true
       }
@@ -23747,7 +23780,40 @@
         },
         "projectile": {
           "tileId": "arrow",
-          "cellsPerSecond": 20
+          "cellsPerSecond": 20,
+          "impact": {
+            "ratePerSecond": 140,
+            "ttlFromMs": 120,
+            "ttlToMs": 280,
+            "spawnRadiusCells": 0.15,
+            "spawnElevFrom": 1,
+            "spawnElevTo": 3,
+            "riseFrom": 2,
+            "riseTo": 8,
+            "driftCellsPerSecond": 1.6,
+            "lit": false,
+            "gravity": -20,
+            "windX": 0,
+            "windY": 0,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.35,
+                "color": "#e83b3b"
+              },
+              {
+                "at": 1,
+                "color": "#6e2727"
+              }
+            ]
+          }
         },
         "twoHanded": true
       }
@@ -23805,7 +23871,40 @@
         },
         "projectile": {
           "tileId": "arrow",
-          "cellsPerSecond": 24
+          "cellsPerSecond": 24,
+          "impact": {
+            "ratePerSecond": 180,
+            "ttlFromMs": 120,
+            "ttlToMs": 280,
+            "spawnRadiusCells": 0.15,
+            "spawnElevFrom": 1,
+            "spawnElevTo": 3,
+            "riseFrom": 2,
+            "riseTo": 9,
+            "driftCellsPerSecond": 2.0,
+            "lit": false,
+            "gravity": -20,
+            "windX": 0,
+            "windY": 0,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.35,
+                "color": "#e83b3b"
+              },
+              {
+                "at": 1,
+                "color": "#6e2727"
+              }
+            ]
+          }
         },
         "twoHanded": true
       }
