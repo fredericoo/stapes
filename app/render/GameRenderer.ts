@@ -42,6 +42,7 @@ import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
 import { slideTileMotions } from "./slideMotion";
 import { projectileViews } from "./projectileMotion";
+import { flightLevel, type ProjectileImpact } from "../game/projectile";
 import { strikeOffset } from "./strikeMotion";
 import { isCellVisible } from "./cameraSight";
 import { labelHeadroomPx } from "./labelHeadroom";
@@ -87,6 +88,7 @@ import { resolveLight } from "../lib/tileResolve";
 import { tilesByIdFromList } from "../lib/validation";
 import {
   type OverlaySpec,
+  PROJECTILE_STACK_BIAS,
   type TileMotion,
   tileInstanceKey,
   WorldRenderer,
@@ -316,6 +318,39 @@ function healthSignature(actors: readonly ActorSnapshot[]): number {
     signature = (signature * 31 + actor.hp) | 0;
   }
   return signature;
+}
+
+/**
+ * One burst, where a shot landed.
+ *
+ * **Stood exactly where the arrow was on the frame it arrived**, which is the
+ * whole of the placement: the same cell, the same absolute height, the same
+ * level derived the same way, and `PROJECTILE_STACK_BIAS` so it sorts in front
+ * of the body it came off rather than behind it. Anything else would be a
+ * second answer to "where is the arrow" that could disagree with the first.
+ *
+ * The level is derived from the height rather than carried from the flight's
+ * far end, on the terms `../game/projectile`'s `flightLevel` sets: a shot down
+ * a stairwell lands under the lighting of the floor it lands on.
+ *
+ * No taper. A taper is a status winding down over seconds, and a burst has
+ * nothing to wind down: it emits for `IMPACT_BURST_MS` at the rate the author
+ * wrote and then stops being handed over at all.
+ */
+function burstFor(impact: ProjectileImpact): ParticleEmitterSpec {
+  const { x, y, elevAbs } = impact.at;
+  const z = flightLevel(impact.at);
+  return {
+    id: impact.id,
+    config: impact.particles,
+    cx: x + CELL_CENTRE,
+    cy: y + CELL_CENTRE,
+    footElev: elevAbs,
+    z,
+    box: depthBox(x, y, elevAbs, elevAbs + HEIGHT_PER_LEVEL),
+    stackBias: depthStackBias(z, PROJECTILE_STACK_BIAS),
+    taper: 1,
+  };
 }
 
 /**
@@ -2616,7 +2651,7 @@ export class GameRenderer {
       spriteStates: spriteStatesFor(snap.actors),
       emitterOverrides: this.emitterOverridesFor(snap),
       spriteTints: vfx.tints,
-      particleEmitters: vfx.emitters,
+      particleEmitters: this.withImpactBursts(snap, vfx.emitters),
       roofCut: cut,
       transitions: transitions.length > 0 ? transitions : undefined,
       // Absent unless the camera has been pulled off the play square, which is
@@ -3010,6 +3045,28 @@ export class GameRenderer {
       stackBias: depthStackBias(actor.z, actor.stackIndex + 1),
       taper,
     };
+  }
+
+  /**
+   * The plumes bodies are wearing, plus the bursts this frame's landings threw.
+   *
+   * Appended to the status list rather than handed over separately, because the
+   * renderer takes one list and a plume is a plume however it got there — the
+   * particle system already reconciles by id, so a burst that appears for a few
+   * frames and stops being handed over retires exactly as an ended status does.
+   *
+   * The status list is this frame's own, so appending to it is free; the
+   * undefined it may be is the shape the common frame takes, and a world where
+   * nothing is burning and nothing has just been shot still costs nothing.
+   */
+  private withImpactBursts(
+    snap: GameSnapshot,
+    emitters: ParticleEmitterSpec[] | undefined,
+  ): ParticleEmitterSpec[] | undefined {
+    if (snap.impacts.length === 0) return emitters;
+    const out = emitters ?? [];
+    for (const impact of snap.impacts) out.push(burstFor(impact));
+    return out;
   }
 
   private emitterOverridesFor(

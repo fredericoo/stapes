@@ -7,6 +7,10 @@ import {
   WEAPON_MASTERIES,
   type WeaponMastery,
 } from "./mastery";
+import {
+  type ParticleEmitterDef,
+  particleEmitterSchema,
+} from "./particleVfx";
 import { CELL_SIZE, HEIGHT_PER_LEVEL, type TileDef } from "./types";
 
 /**
@@ -157,6 +161,24 @@ export type ProjectileDef = {
    * at. See {@link DEFAULT_PROJECTILE_SPEED}.
    */
   cellsPerSecond: number;
+  /**
+   * What it throws off where it lands, on a shot that connected.
+   *
+   * **The one thing about a flight that is not decided when it is loosed.** The
+   * arrow is a receipt and cannot miss in the air, but the blow it is a receipt
+   * *for* can — and a burst that played on a miss would be the picture saying a
+   * shot landed that did not. So the emitter is carried onto the flight only
+   * once the dice have been read: a flight with one connected, and a flight
+   * without one either missed, was dodged, or had nothing authored here.
+   *
+   * Absent is the common case and draws nothing, on the terms the whole block
+   * is optional: an arrow that simply arrives is what every weapon did before
+   * this existed.
+   *
+   * See `../game/projectile`'s `ProjectileImpact` for what becomes of it, and
+   * `./particleVfx` for what a plume is.
+   */
+  impact?: ParticleEmitterDef;
 };
 
 export type WeaponItem = {
@@ -1696,6 +1718,10 @@ const projectileSchema = v.object({
     v.minValue(MIN_PROJECTILE_SPEED),
     v.maxValue(MAX_PROJECTILE_SPEED),
   ),
+  // Optional rather than defaulted, unlike the plume fields inside it: every
+  // shot authored before this existed landed silently, and a default burst
+  // would put sparks on every arrow in the file without anybody asking.
+  impact: v.optional(particleEmitterSchema),
 });
 
 /**
@@ -2277,6 +2303,12 @@ export function weaponForSave(weapon: WeaponItem): WeaponItem {
           projectile: {
             tileId: weapon.projectile.tileId.trim(),
             cellsPerSecond: weapon.projectile.cellsPerSecond,
+            // Named here like every other optional, and dropped when there is
+            // none: a burst nobody authored should not leave a block in the
+            // file saying somebody thought about it.
+            ...(weapon.projectile.impact
+              ? { impact: weapon.projectile.impact }
+              : {}),
           },
         }
       : {}),
@@ -2501,6 +2533,9 @@ function stoneEffectForSave(effect: StoneEffect): StoneEffect {
           projectile: {
             tileId: effect.projectile.tileId.trim(),
             cellsPerSecond: effect.projectile.cellsPerSecond,
+            ...(effect.projectile.impact
+              ? { impact: effect.projectile.impact }
+              : {}),
           },
         }
       : {}),

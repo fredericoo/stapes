@@ -12,7 +12,12 @@ import {
   type StatusInstance,
   walkSpeedPercentFrom,
 } from "../game/statuses";
-import type { ProjectileFlight } from "../game/projectile";
+import {
+  ageFlights,
+  ageImpacts,
+  type ProjectileFlight,
+  type ProjectileImpact,
+} from "../game/projectile";
 import {
   MAX_HELD_TRANSITIONS,
   MAX_TRANSITION_MS,
@@ -395,6 +400,15 @@ export class RemoteSession implements PlaySession {
    */
   private projectiles: ProjectileFlight[] = [];
   /**
+   * Bursts going off where shots landed, aged on the same clock.
+   *
+   * Never heard, always worked out: nothing on the wire announces a landing,
+   * because the event that announced the shot already carried everything the
+   * landing needs and the moment it happens is arithmetic both ends agree on.
+   * @see `../game/projectile`
+   */
+  private impacts: ProjectileImpact[] = [];
+  /**
    * Tile transitions heard but not yet taken by the renderer, with when.
    *
    * Stamped against a clock that keeps running while the tab is hidden —
@@ -649,8 +663,10 @@ export class RemoteSession implements PlaySession {
       this.chats = [];
       this.damage = [];
       // And every arrow is measured between two cells in a world that no longer
-      // exists, on the same terms the bubbles above are.
+      // exists, on the same terms the bubbles above are — as is every burst one
+      // of them left behind.
       this.projectiles = [];
+      this.impacts = [];
       // And every transition names a slot in a world that no longer exists.
       this.transitions = [];
       // A target in the old world names nobody in this one, and the server has
@@ -1193,6 +1209,10 @@ export class RemoteSession implements PlaySession {
         from: event.from,
         to: event.to,
         durationMs: event.durationMs,
+        // Absent unless the blow landed, which is the whole of what this side
+        // is told about the outcome and all it needs: the burst plays where the
+        // arrow arrives, and a shot that missed simply has nothing to leave.
+        ...(event.impact ? { impact: event.impact } : {}),
         elapsedMs: 0,
       });
       return;
@@ -1451,27 +1471,27 @@ export class RemoteSession implements PlaySession {
   }
 
   /**
-   * Land the arrows that have arrived.
+   * Land the arrows that have arrived, and start the bursts they owe.
    *
    * Timed off the render loop's delta exactly as the numbers above are — and,
-   * exactly as they are, dropped with nothing to commit: there was never
-   * anything for the arrow to do on arrival, since the blow it depicts was
-   * settled on the tick it was loosed. @see `../game/projectile`
+   * exactly as they are, with nothing to commit: there was never anything for
+   * the arrow to *do* on arrival, since the blow it depicts was settled on the
+   * tick it was loosed. A burst is the same receipt drawn where it landed, and
+   * plays only for a shot the server said connected. @see `../game/projectile`
+   *
+   * The arithmetic is shared with the simulation's own aging rather than
+   * repeated here: the clocks differ — a tick there, a frame here — but the
+   * rule that a landing becomes a burst is one rule.
    *
    * Each flight carries its own duration rather than sharing a constant, unlike
    * every other motion here: how long a shot takes depends on how far it went.
    */
   private expireProjectiles(dtMs: number) {
-    if (this.projectiles.length === 0) return;
-    let arrived = false;
-    for (const flight of this.projectiles) {
-      flight.elapsedMs += dtMs;
-      if (flight.elapsedMs >= flight.durationMs) arrived = true;
+    if (this.projectiles.length > 0) {
+      this.projectiles = ageFlights(this.projectiles, dtMs, this.impacts);
     }
-    if (arrived) {
-      this.projectiles = this.projectiles.filter(
-        (flight) => flight.elapsedMs < flight.durationMs,
-      );
+    if (this.impacts.length > 0) {
+      this.impacts = ageImpacts(this.impacts, dtMs);
     }
   }
 
@@ -2087,6 +2107,7 @@ export class RemoteSession implements PlaySession {
       noises: this.noises,
       damage: this.damage,
       projectiles: this.projectiles,
+      impacts: this.impacts,
     };
   }
 

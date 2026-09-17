@@ -2889,7 +2889,31 @@ arrow in the air.
   numbers are split.
 - **An arrow in the air holds the world awake**, on the same terms a lean does:
   this loop is the only clock it has, and a slow shot across a courtyard is a
-  visible second of somebody's screen.
+  visible second of somebody's screen. So does the burst it leaves, for the few
+  ticks that lasts.
+- **The burst a shot leaves where it lands is the one thing about a flight that
+  waits for the dice.** `ProjectileDef.impact` is an ordinary
+  `ParticleEmitterDef`, authored beside the tile and the speed, and it is copied
+  onto the flight only when the blow connected — so a miss and a dodge are drawn
+  in full and leave nothing. That is why `fireProjectile` is called *after*
+  `rollAttack` rather than before it: everything else about a flight is
+  identical either way, and a shot cannot be told whether it connected before
+  anything has asked. A bolt passes `true` outright, because nothing dodges one.
+- **The emitter travels on the wire, where a status's plume travels as an id.**
+  A status is resolved against a catalogue both ends hold; a shot's burst lives
+  on the *weapon*, and `projectileFired` deliberately carries no way to name the
+  weapon — the same reason it carries no actor id. Rather than invent a
+  projectile catalogue for one field, the block rides along. A shot is rare
+  enough on the wire to afford it; a per-frame emitter would not be.
+- **A landing is not a flight that has ended.** The two are over at different
+  moments: the arrow is gone the instant it arrives, and the burst has to keep
+  emitting for `IMPACT_BURST_MS` to be a burst at all. So `ageFlights` hands
+  landings to a separate `impacts` list on the snapshot, which `GameRenderer`
+  turns into emitter specs standing exactly where the arrow was. Keeping the
+  landed flight around instead would park an arrow on its target for the length
+  of the spray. Both halves of the split — tick clock and render loop — call
+  the same `ageFlights`, because "a landing becomes a burst" written twice is
+  one rule that can disagree with itself.
 
 Drawing is `WorldRenderer.applyProjectiles`: one mesh per flight, made once and
 moved ever after, in a group under `world` rather than in a level group — a level

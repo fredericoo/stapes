@@ -38,8 +38,17 @@ import {
   ELEMENTS,
 } from "../lib/element";
 import type { StatusDef } from "../lib/status";
+import { DEFAULT_IMPACT } from "../lib/particleVfx";
 import type { TileDef } from "../lib/types";
-import { FieldLabel, Input, Segmented, Select, SwitchField } from "../ui";
+import {
+  FieldLabel,
+  Input,
+  Segmented,
+  Select,
+  Switch,
+  SwitchField,
+} from "../ui";
+import { ParticleFields } from "./ParticleFields";
 import { StatusGrants } from "./StatusGrants";
 import { StatField } from "./StatField";
 import {
@@ -292,6 +301,48 @@ export function StoneFields({
                 />
               ) : null}
             </div>
+            {effect.projectile ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <FieldLabel info="Thrown where the bolt arrives. A bolt has no accuracy and nothing dodges one, so a bolt that flies is a bolt that lands — unlike a bow's, this burst always plays.">
+                    Impact burst
+                  </FieldLabel>
+                  <Switch
+                    checked={effect.projectile.impact != null}
+                    onCheckedChange={(on) =>
+                      onChange({
+                        effect: {
+                          ...effect,
+                          projectile: {
+                            ...effect.projectile!,
+                            impact: on
+                              ? {
+                                  ...DEFAULT_IMPACT,
+                                  ramp: [...DEFAULT_IMPACT.ramp],
+                                }
+                              : undefined,
+                          },
+                        },
+                      })
+                    }
+                    ariaLabel="Impact burst"
+                  />
+                </div>
+                {effect.projectile.impact ? (
+                  <ParticleFields
+                    particles={effect.projectile.impact}
+                    onChange={(impact) =>
+                      onChange({
+                        effect: {
+                          ...effect,
+                          projectile: { ...effect.projectile!, impact },
+                        },
+                      })
+                    }
+                  />
+                ) : null}
+              </>
+            ) : null}
           </div>
 
           <StatusGrants

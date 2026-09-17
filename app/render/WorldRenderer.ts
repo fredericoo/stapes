@@ -197,8 +197,13 @@ type AnimatedInstance = {
  * 64 wide — because an arrow drawn at exactly a floor's height is over that
  * floor rather than inside it. Well under the band, so it can never bleed into
  * the level above's. @see depthStackBias
+ *
+ * Exported because the burst a shot leaves behind takes the same place — see
+ * `./GameRenderer`'s `burstFor`. Sparks coming off a struck body belong exactly
+ * where the arrow that caused them was, and a second number derived for them
+ * would be two answers to one question.
  */
-const PROJECTILE_STACK_BIAS = 32;
+export const PROJECTILE_STACK_BIAS = 32;
 
 /** One arrow's mesh and everything needed to keep drawing it. */
 type ProjectileMesh = {

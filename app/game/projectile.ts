@@ -34,6 +34,7 @@
 
 import { PX_PER_HEIGHT } from "../lib/geometry";
 import type { ProjectileDef } from "../lib/item";
+import type { ParticleEmitterDef } from "../lib/particleVfx";
 import { CELL_SIZE, HEIGHT_PER_LEVEL } from "../lib/types";
 import type { ReachPoint } from "./distance";
 
@@ -80,6 +81,22 @@ export type ProjectileFlight = {
    */
   durationMs: number;
   elapsedMs: number;
+  /**
+   * The burst to leave where it lands, on a shot that connected.
+   *
+   * **Present only when the blow it depicts landed.** A miss and a dodge are
+   * still drawn — the arrow was loosed, and the whole of this module's argument
+   * is that the picture may lag the truth — but neither leaves anything behind,
+   * because nothing was struck. So this is written after the dice rather than
+   * when the flight is built, and its presence is the whole of what the flight
+   * says about the outcome. See `../lib/item`'s {@link ProjectileDef.impact}.
+   *
+   * Copied onto the flight rather than looked up on arrival, on exactly the
+   * terms the two endpoints are: the bow can be dropped, unauthored or carried
+   * out of view while the arrow is still in the air, and what is in flight owes
+   * nothing to what fired it.
+   */
+  impact?: ParticleEmitterDef;
 };
 
 /**
@@ -174,4 +191,110 @@ export function flightPosition(
  */
 export function flightLevel(point: FlightPoint): number {
   return Math.floor(point.elevAbs / HEIGHT_PER_LEVEL);
+}
+
+/**
+ * A burst on the board, where a shot connected.
+ *
+ * **Its own thing rather than a flight that has landed**, because the two are
+ * over at different moments and are drawn by different machinery: an arrow is a
+ * sprite following a line and is gone the instant it arrives, and a burst is an
+ * emitter standing still that has to keep emitting for long enough to be a
+ * burst. Keeping the landed flight around instead would mean an arrow parked on
+ * its target for the length of the spray, which is the one picture this is not.
+ *
+ * Client-side and amnesiac on exactly the terms every other particle is — see
+ * `../lib/particleVfx`. Nothing downstream of one changes a hit point; the blow
+ * it stands for was settled long before the arrow got there.
+ */
+export type ProjectileImpact = {
+  /** Derived from the flight's, so a burst is as unique as the shot was. */
+  id: string;
+  /** Where the arrow arrived: the far end of the flight. */
+  at: FlightPoint;
+  particles: ParticleEmitterDef;
+  elapsedMs: number;
+};
+
+/**
+ * How long an impact keeps emitting.
+ *
+ * Not how long it is *visible*: the particle system lets a retired emitter's
+ * last sparks finish their own lifetimes, so what a player sees is this plus the
+ * longest ttl the author wrote. This is only the window particles are born in,
+ * and it is short because a burst is a single event — an emitter left open
+ * longer reads as a fire someone lit on the target.
+ *
+ * Four ticks. Long enough that a plausible rate produces a handful of sparks
+ * rather than the one or two a single frame would buy, short enough that two
+ * shots landing in quick succession are two bursts rather than one continuous
+ * one.
+ */
+export const IMPACT_BURST_MS = 4 * MIN_FLIGHT_MS;
+
+/**
+ * Wind every flight forward, and collect what the landings owe.
+ *
+ * Shared by the two things that age flights — the simulation on its tick clock
+ * and `../net/RemoteSession` on the render loop's — because the rule that a
+ * landing becomes a burst is one rule, and written twice it is one rule that
+ * can disagree with itself. The clocks differ and that is fine: a flight is a
+ * fraction of a fixed line either way.
+ *
+ * Mutates each flight's elapsed time in place, on the terms every other motion
+ * here is aged, and hands back the list of those still in the air — **the same
+ * array when nothing landed**, so the common frame allocates nothing.
+ */
+export function ageFlights(
+  flights: ProjectileFlight[],
+  dtMs: number,
+  into: ProjectileImpact[],
+): ProjectileFlight[] {
+  let landed = false;
+  for (const flight of flights) {
+    flight.elapsedMs += dtMs;
+    if (flight.elapsedMs < flight.durationMs) continue;
+    landed = true;
+    // No emitter is the overwhelming majority — every melee weapon, every shot
+    // that missed, and every bow nobody authored a burst for — and it is not a
+    // case anybody had to write: there is simply nothing to leave behind.
+    if (flight.impact) {
+      into.push({
+        id: `${flight.id}:impact`,
+        // Copied rather than shared with the flight that is about to be
+        // dropped, for the reason the flight copied it off the board: the burst
+        // outlives the arrow, and nothing that outlives its source should hold
+        // a reference into it.
+        at: { x: flight.to.x, y: flight.to.y, elevAbs: flight.to.elevAbs },
+        particles: flight.impact,
+        elapsedMs: 0,
+      });
+    }
+  }
+  if (!landed) return flights;
+  return flights.filter((flight) => flight.elapsedMs < flight.durationMs);
+}
+
+/**
+ * Wind the bursts forward, and drop the ones that have finished emitting.
+ *
+ * Dropped rather than faded: the particle system retires an emitter it stops
+ * being handed and lets its live sparks finish, so a burst that leaves this
+ * list is still on screen for as long as its longest particle lives. Fading it
+ * out here as well would be the same taper applied twice.
+ *
+ * Returns the same array when nothing expired, on the terms {@link ageFlights}
+ * does.
+ */
+export function ageImpacts(
+  impacts: ProjectileImpact[],
+  dtMs: number,
+): ProjectileImpact[] {
+  let expired = false;
+  for (const impact of impacts) {
+    impact.elapsedMs += dtMs;
+    if (impact.elapsedMs >= IMPACT_BURST_MS) expired = true;
+  }
+  if (!expired) return impacts;
+  return impacts.filter((impact) => impact.elapsedMs < IMPACT_BURST_MS);
 }

@@ -1,13 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { ProjectileDef } from "../lib/item";
 import { CELL_SIZE, HEIGHT_PER_LEVEL } from "../lib/types";
+import { DEFAULT_IMPACT } from "../lib/particleVfx";
 import {
+  ageFlights,
+  ageImpacts,
   flightDurationMs,
   flightLevel,
   flightPosition,
   flightScreenDelta,
+  IMPACT_BURST_MS,
   MIN_FLIGHT_MS,
   type ProjectileFlight,
+  type ProjectileImpact,
 } from "./projectile";
 
 /**
@@ -151,5 +156,119 @@ describe("which floor an arrow is over", () => {
     };
     expect(flightLevel(flightPosition(descent, 0))).toBe(1);
     expect(flightLevel(flightPosition(descent, 0.9))).toBe(0);
+  });
+});
+
+/**
+ * What a landing leaves behind.
+ *
+ * The one thing in this module that is a claim about a fight rather than about
+ * arithmetic: a burst says a blow connected, so a burst thrown by a shot that
+ * missed is the picture contradicting the truth it is a receipt for. Asserted
+ * here rather than left to the eye because the two cases look identical for the
+ * whole of the flight and differ only on the frame it ends.
+ */
+function flying(fields: Partial<ProjectileFlight> = {}): ProjectileFlight {
+  return {
+    id: "shot-1",
+    tileId: "arrow",
+    from: at(0, 0),
+    to: at(4, 2, HEIGHT_PER_LEVEL),
+    durationMs: 200,
+    elapsedMs: 0,
+    ...fields,
+  };
+}
+
+describe("landing a flight", () => {
+  it("keeps a flight that is still in the air, and the array it came in", () => {
+    const flights = [flying()];
+    const impacts: ProjectileImpact[] = [];
+
+    expect(ageFlights(flights, 50, impacts)).toBe(flights);
+    expect(flights[0]!.elapsedMs).toBe(50);
+    expect(impacts).toEqual([]);
+  });
+
+  it("drops a flight that has arrived", () => {
+    const impacts: ProjectileImpact[] = [];
+    expect(ageFlights([flying()], 200, impacts)).toEqual([]);
+  });
+
+  it("leaves a burst where a shot that connected landed", () => {
+    const impacts: ProjectileImpact[] = [];
+    ageFlights([flying({ impact: DEFAULT_IMPACT })], 200, impacts);
+
+    expect(impacts).toEqual([
+      {
+        id: "shot-1:impact",
+        at: at(4, 2, HEIGHT_PER_LEVEL),
+        particles: DEFAULT_IMPACT,
+        elapsedMs: 0,
+      },
+    ]);
+  });
+
+  /** A miss and a dodge are drawn in full and leave nothing. */
+  it("leaves nothing where a shot that did not connect landed", () => {
+    const impacts: ProjectileImpact[] = [];
+    ageFlights([flying()], 200, impacts);
+
+    expect(impacts).toEqual([]);
+  });
+
+  /** The burst outlives the flight, so it may not hold a reference into it. */
+  it("copies the point rather than sharing the flight's own", () => {
+    const flight = flying({ impact: DEFAULT_IMPACT });
+    const impacts: ProjectileImpact[] = [];
+    ageFlights([flight], 200, impacts);
+
+    expect(impacts[0]!.at).not.toBe(flight.to);
+    expect(impacts[0]!.at).toEqual(flight.to);
+  });
+
+  /** Two shots landing together are two bursts, not one shared by both. */
+  it("gives every landing its own burst", () => {
+    const impacts: ProjectileImpact[] = [];
+    ageFlights(
+      [
+        flying({ id: "shot-1", impact: DEFAULT_IMPACT }),
+        flying({ id: "shot-2", impact: DEFAULT_IMPACT }),
+      ],
+      200,
+      impacts,
+    );
+
+    expect(impacts.map((impact) => impact.id)).toEqual([
+      "shot-1:impact",
+      "shot-2:impact",
+    ]);
+  });
+});
+
+describe("ageing a burst out", () => {
+  function burst(elapsedMs = 0): ProjectileImpact {
+    return {
+      id: "shot-1:impact",
+      at: at(4, 2),
+      particles: DEFAULT_IMPACT,
+      elapsedMs,
+    };
+  }
+
+  it("keeps one that is still emitting, and the array it came in", () => {
+    const impacts = [burst()];
+
+    expect(ageImpacts(impacts, IMPACT_BURST_MS / 2)).toBe(impacts);
+    expect(impacts[0]!.elapsedMs).toBe(IMPACT_BURST_MS / 2);
+  });
+
+  it("drops one that has spent its window", () => {
+    expect(ageImpacts([burst()], IMPACT_BURST_MS)).toEqual([]);
+  });
+
+  /** One frame's dt can be longer than the whole window on a slow machine. */
+  it("drops one the clock jumped clean past", () => {
+    expect(ageImpacts([burst()], IMPACT_BURST_MS * 10)).toEqual([]);
   });
 });

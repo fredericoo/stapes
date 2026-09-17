@@ -19,6 +19,7 @@ import {
   MIN_GUARD_SHARE,
   STRIKE_RECOVERY_STEPS,
 } from "./combat";
+import { DEFAULT_IMPACT } from "../lib/particleVfx";
 import { STRIKE_DURATION_MS, TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
 
@@ -830,25 +831,64 @@ const bow = claws({
   projectile: { tileId: "arrow", cellsPerSecond: 20 },
 });
 
-const archerTiles: TileDef[] = tiles.map((t) =>
-  t.id === "player"
-    ? tile({
-        ...t,
-        interactions: {
-          battler: {
-            baseHp: FIXTURE_BASE_HP,
-            // No Ranged mastery, deliberately: the bow asks for none, so the
-            // level would buy nothing but the flat skill bonus — and these
-            // tests are about reach and arrows, not about how hard an archer
-            // hits. With it, the dummy died mid-test and the assertions started
-            // reading a body that was no longer there.
-            masteries: { toughness: PLAYER_TOUGHNESS },
-            naturalWeapon: bow,
+/** The catalogue with the player holding this bow rather than their fists. */
+function archerTilesArmedWith(weapon: typeof bow): TileDef[] {
+  return tiles.map((t) =>
+    t.id === "player"
+      ? tile({
+          ...t,
+          interactions: {
+            battler: {
+              baseHp: FIXTURE_BASE_HP,
+              // No Ranged mastery, deliberately: the bow asks for none, so the
+              // level would buy nothing but the flat skill bonus — and these
+              // tests are about reach and arrows, not about how hard an archer
+              // hits. With it, the dummy died mid-test and the assertions
+              // started reading a body that was no longer there.
+              masteries: { toughness: PLAYER_TOUGHNESS },
+              naturalWeapon: weapon,
+            },
           },
-        },
-      })
-    : t,
-);
+        })
+      : t,
+  );
+}
+
+const archerTiles: TileDef[] = archerTilesArmedWith(bow);
+
+/**
+ * The same bow, authored to throw something off where its arrows connect.
+ *
+ * Deliberately unreliable, where every other fixture here is {@link CERTAIN}:
+ * the burst is the one thing about a shot that differs between landing and not,
+ * so a weapon that lands everything can only ever assert half the rule. Fifty
+ * accuracy gets both outcomes inside one fight. The swing rate stays at the cap
+ * so that fight is short.
+ */
+const burstBow = claws({
+  damage: feltBy(DUMMY_TOUGHNESS),
+  accuracy: 50,
+  spd: 100,
+  mastery: "ranged" as const,
+  reach: { cells: 6, height: HEIGHT_PER_LEVEL },
+  projectile: {
+    tileId: "arrow",
+    cellsPerSecond: 20,
+    impact: DEFAULT_IMPACT,
+  },
+});
+
+const burstArcherTiles: TileDef[] = archerTilesArmedWith(burstBow);
+
+/**
+ * Long enough that both outcomes turn up, at the cap's one swing per
+ * {@link MIN_ATTACK_TICKS}.
+ *
+ * Far longer than {@link ENOUGH_SWINGS_MS}, which is sized for "hit points
+ * moved at all": this one needs a run in which a fifty-accuracy bow both lands
+ * and misses, and six swings can be six of either.
+ */
+const ENOUGH_SHOTS_MS = TICK_MS * MIN_ATTACK_TICKS * 40;
 
 /** A wall that stops a look, and therefore a shot. Full height, opaque. */
 const WALL = "wall";
@@ -920,6 +960,70 @@ describe("shooting at somebody", () => {
       arrows(session)[0]!.durationMs,
     );
     expect(bodyOf(session, "dummy")!.hp).toBeLessThan(DUMMY_MAX_HP);
+  });
+
+  /**
+   * **A burst is the one thing an arrow says about the fight it came out of**,
+   * so it may not outrun the dice. The flight is drawn whatever the blow came
+   * to — a shot that missed is a shot somebody saw taken — but only a shot
+   * that connected leaves anything where it lands.
+   *
+   * Asserted as an invariant over a whole fight rather than as one arranged
+   * shot, because nothing in a fight is certain — a blow is drawn for, never
+   * decided. The bow is the unreliable one so that both outcomes turn up, the
+   * seed is what makes the run repeatable, and the anvil is what lets it run to
+   * the end: it is armoured past anything the player can do to it.
+   *
+   * The pairing is per tick and the archer swings alone, so exactly one thing
+   * is drained against each shot: a `hit` receipt for a blow that landed —
+   * including one armour ate entirely — a `miss` receipt for a shot that went
+   * wide, and nothing at all for a dodge, which says what it has to say by
+   * hopping.
+   */
+  it("leaves a burst on the shots that connected and on no others", () => {
+    const session = new GameSession(
+      withBody(field(6), 4, 0, "anvil"),
+      burstArcherTiles,
+      { seed: 7 },
+    );
+    fight(session, bodyOf(session, "anvil")!.id);
+
+    let connected = 0;
+    let missedOrDodged = 0;
+    for (let elapsed = 0; elapsed < ENOUGH_SHOTS_MS; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      const loosed = session.drainProjectiles();
+      const landed = session
+        .drainDamage()
+        .some((receipt) => receipt.outcome === "hit");
+      for (const flight of loosed) {
+        if (flight.impact) connected++;
+        else missedOrDodged++;
+        expect(flight.impact != null).toBe(landed);
+      }
+    }
+
+    // Neither count may be zero, or the assertion above held vacuously over a
+    // fight in which only one thing ever happened.
+    expect(connected).toBeGreaterThan(0);
+    expect(missedOrDodged).toBeGreaterThan(0);
+  });
+
+  /**
+   * A bow nobody authored a burst for leaves nothing, on the terms every other
+   * optional block here is absent: the shot is drawn exactly as it was before
+   * any of this existed.
+   */
+  it("leaves nothing for a bow with no burst authored", () => {
+    const session = new GameSession(
+      withBody(field(6), 4, 0, "dummy"),
+      archerTiles,
+    );
+    fight(session, bodyOf(session, "dummy")!.id);
+
+    advanceUntil(session, () => arrows(session).length > 0);
+
+    expect(arrows(session)[0]!.impact).toBeUndefined();
   });
 
   /**

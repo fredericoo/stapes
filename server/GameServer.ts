@@ -3940,6 +3940,10 @@ export class GameServer {
         from: flight.from,
         to: flight.to,
         durationMs: flight.durationMs,
+        // Absent on a miss, on a dodge and on every weapon nobody authored one
+        // for — which is the overwhelming majority, so the common shot pays
+        // nothing for this. @see `../app/game/projectile`
+        ...(flight.impact ? { impact: flight.impact } : {}),
       });
     }
   }

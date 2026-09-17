@@ -12,6 +12,10 @@ import { STRIKE_KINDS, type StrikeKind } from "../game/strike";
 import type { ConsumeSource } from "../game/itemUse";
 import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import { masteryXpBlockSchema, type MasteryXp } from "../lib/mastery";
+import {
+  type ParticleEmitterDef,
+  particleEmitterSchema,
+} from "../lib/particleVfx";
 import type { Extraction, ExtractionProgress } from "../game/extract";
 import type { Progress } from "../game/progress";
 import type { PlacedTile } from "../lib/types";
@@ -650,6 +654,22 @@ export type MotionEvent =
        * fired it.
        */
       durationMs: number;
+      /**
+       * The burst to leave where it lands — **present only if it connected.**
+       *
+       * The one thing this event says about the fight, and it is here rather
+       * than as a `hit` flag because a flag is a fact nothing would read: what
+       * the client does with a shot that landed is play this, and a landed shot
+       * with nothing authored and a shot that missed are drawn identically.
+       *
+       * Sent whole rather than as an id, unlike a status's plume, because there
+       * is nothing on this side to resolve an id against: the block lives on
+       * the weapon, and this event deliberately carries no way to name the
+       * weapon — see the note above about carrying no actor id. A shot is rare
+       * enough on the wire for the emitter to be cheaper than the lookup would
+       * be to make possible. @see `../game/projectile`
+       */
+      impact?: ParticleEmitterDef;
     }
   /**
    * A tile formed or dissolved for a reason worth playing.
@@ -1564,6 +1584,10 @@ const serverMessageSchema = v.variant("type", [
           from: flightPointSchema,
           to: flightPointSchema,
           durationMs: v.number(),
+          // The catalogue's own schema, so a burst that would be refused in
+          // `data/tiles.json` is refused here too rather than arriving as a
+          // rate nothing bounds.
+          impact: v.optional(particleEmitterSchema),
         }),
         v.object({
           kind: v.literal("tileTransition"),

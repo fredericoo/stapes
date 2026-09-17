@@ -31,7 +31,9 @@ import {
   type WeaponMastery,
 } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
-import { FieldLabel, Segmented, Select } from "../ui";
+import { DEFAULT_IMPACT } from "../lib/particleVfx";
+import { FieldLabel, Segmented, Select, Switch } from "../ui";
+import { ParticleFields } from "./ParticleFields";
 import { StatField } from "./StatField";
 import { StatusGrants } from "./StatusGrants";
 
@@ -312,6 +314,35 @@ export function WeaponFields({
             />
           ) : null}
         </div>
+        {projectile ? (
+          <>
+            <div className="flex items-center gap-2">
+              <FieldLabel info="Thrown where the arrow arrives, and only on a blow that connected — a miss and a dodge land nothing, so neither leaves anything behind. Armour eating the damage still counts as a hit.">
+                Impact burst
+              </FieldLabel>
+              <Switch
+                checked={projectile.impact != null}
+                onCheckedChange={(on) =>
+                  patchProjectile({
+                    // The burst preset rather than the plume one, and its ramp
+                    // copied rather than shared — the same care every other
+                    // fresh emitter in the editor is opened with.
+                    impact: on
+                      ? { ...DEFAULT_IMPACT, ramp: [...DEFAULT_IMPACT.ramp] }
+                      : undefined,
+                  })
+                }
+                ariaLabel="Impact burst"
+              />
+            </div>
+            {projectile.impact ? (
+              <ParticleFields
+                particles={projectile.impact}
+                onChange={(impact) => patchProjectile({ impact })}
+              />
+            ) : null}
+          </>
+        ) : null}
       </div>
       <StatusGrants
         statuses={weapon.statuses ?? []}

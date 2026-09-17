@@ -7,6 +7,7 @@ import {
 } from "./protocol";
 import { SWING_OUTCOMES } from "../game/GameSession";
 import { MAX_COMMAND_LENGTH } from "../game/commands";
+import { DEFAULT_IMPACT, MAX_PARTICLE_RATE } from "../lib/particleVfx";
 
 /**
  * What a browser is allowed to say.
@@ -629,5 +630,65 @@ describe("nothing is quietly dropped in transit", () => {
       );
       expect(message?.type === "patch" && message.events[0]).toEqual(event);
     }
+  });
+
+  /**
+   * The burst a shot leaves where it connected.
+   *
+   * Not in the sweep above, because it is the one optional field on an event
+   * there and a table of one-of-each cannot say "and also without it". Both
+   * shapes are the shipped ones: absent on every melee weapon, every miss and
+   * every bow nobody authored one for, and present on a shot that landed.
+   */
+  describe("a shot's impact burst", () => {
+    function shot(impact?: unknown) {
+      return parseServerMessage(
+        JSON.stringify({
+          type: "patch",
+          cells: [],
+          events: [
+            {
+              kind: "projectileFired",
+              id: "shot-1",
+              tileId: "arrow",
+              from: { x: 0, y: 0, elevAbs: 2 },
+              to: { x: 3, y: 0, elevAbs: 2 },
+              durationMs: 300,
+              ...(impact === undefined ? {} : { impact }),
+            },
+          ],
+          hps: [],
+          carriedLights: [],
+        }),
+      );
+    }
+
+    it("carries a whole emitter through", () => {
+      const message = shot(DEFAULT_IMPACT);
+
+      expect(
+        message?.type === "patch" && message.events[0],
+      ).toMatchObject({ impact: DEFAULT_IMPACT });
+    });
+
+    /** A shot that missed, and every weapon authored before bursts existed. */
+    it("takes a shot with none, and leaves the field off", () => {
+      const message = shot();
+
+      expect(message?.type === "patch" && message.events[0]).not.toHaveProperty(
+        "impact",
+      );
+    });
+
+    /**
+     * The catalogue's own bounds, applied to the wire: a rate past
+     * {@link MAX_PARTICLE_RATE} is refused here exactly as it would be in
+     * `data/tiles.json`, rather than arriving as an emitter nothing bounds.
+     */
+    it("refuses one the catalogue would refuse", () => {
+      expect(
+        shot({ ...DEFAULT_IMPACT, ratePerSecond: MAX_PARTICLE_RATE + 1 }),
+      ).toBeNull();
+    });
   });
 });

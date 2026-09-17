@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_IMPACT } from "./particleVfx";
 import {
   CONSUME_FALLBACK_VERB,
   DEFAULT_ARMOR,
@@ -317,6 +318,71 @@ describe("itemForSave", () => {
   it("keeps a reach the author did name", () => {
     const bow = { ...DEFAULT_WEAPON, reach: { cells: 6, height: 4 } };
     expect(weaponForSave(bow).reach).toEqual({ cells: 6, height: 4 });
+  });
+
+  /**
+   * The burst a shot leaves where it connects, through the same trip every
+   * other optional takes: written when it says something, and the key absent
+   * when the author never opened the panel. A `false`-shaped emitter does not
+   * exist, so absence is the only way to say "no burst".
+   */
+  it("keeps a shot's impact burst, and drops it when there is none", () => {
+    const bow = {
+      ...DEFAULT_WEAPON,
+      projectile: {
+        tileId: " arrow ",
+        cellsPerSecond: 20,
+        impact: DEFAULT_IMPACT,
+      },
+    };
+    expect(weaponForSave(bow).projectile).toEqual({
+      tileId: "arrow",
+      cellsPerSecond: 20,
+      impact: DEFAULT_IMPACT,
+    });
+
+    const quiet = {
+      ...DEFAULT_WEAPON,
+      projectile: { tileId: "arrow", cellsPerSecond: 20 },
+    };
+    expect(weaponForSave(quiet).projectile).not.toHaveProperty("impact");
+  });
+
+  /** A bolt's flight is a bow's, and is saved through the same block. */
+  it("keeps a bolt's impact burst", () => {
+    const draft = {
+      type: "stone",
+      effect: {
+        kind: "bolt",
+        damage: 12,
+        on: "target",
+        projectile: {
+          tileId: "mote",
+          cellsPerSecond: 14,
+          impact: DEFAULT_IMPACT,
+        },
+      },
+      cooldownMs: 10_000,
+    } as const;
+    const saved = itemForSave(draft);
+
+    expect(saved).toEqual({
+      type: "stone",
+      effect: {
+        kind: "bolt",
+        damage: 12,
+        on: "target",
+        projectile: {
+          tileId: "mote",
+          cellsPerSecond: 14,
+          impact: DEFAULT_IMPACT,
+        },
+      },
+      cooldownMs: 10_000,
+    });
+    // And back off a tile, so the schema takes what the save wrote rather than
+    // only the type agreeing with itself.
+    expect(resolveItem(tile("item", { item: saved }))).toEqual(saved);
   });
 
   it("keeps armour's defence, and drops the resistances that say nothing", () => {
