@@ -328,6 +328,22 @@ describe("why a stone cannot be cast", () => {
     ).toEqual({ ok: true });
   });
 
+  /**
+   * A spell that asks for nothing is castable by a body that has learnt
+   * nothing, and that is not a degenerate case — it is what a creature's own
+   * special move is. Asking nothing is not the same as asking zero of
+   * everything; it means there is no gate here at all, so nothing about the
+   * caster can close it. @see `../lib/mastery`'s `meetsRequirements`
+   */
+  it("allows one that asks for nothing, of a caster who has nothing", () => {
+    expect(
+      castability(
+        context({ weapon: instance("mend-stone") }, { masteries: {} }),
+        squareSlot("weapon"),
+      ),
+    ).toEqual({ ok: true });
+  });
+
   it("refuses a stone that acts on a target when nobody is targeted", () => {
     expect(
       castability(context({ weapon: instance("curse-stone") }), squareSlot("weapon")),
