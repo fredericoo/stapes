@@ -298,7 +298,9 @@ export type CommandRefusal =
   | { kind: "badHealth"; typed: string }
   | { kind: "badTime"; typed: string }
   /** A body with no hit points to move — a crate, a sign, a tuft of grass. */
-  | { kind: "unharmableTarget"; name: string };
+  | { kind: "unharmableTarget"; name: string }
+  /** A body authored immune to the very thing that was asked for. */
+  | { kind: "immuneTarget"; name: string; status: string };
 
 export type CommandParse =
   | { ok: true; command: Command }

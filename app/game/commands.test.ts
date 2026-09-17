@@ -759,7 +759,38 @@ describe("putting a status on by hand", () => {
     // Rolled from the def's own range rather than set to some debug constant,
     // which is what makes this the same event a flame produces.
     expect(running?.durationMs).toBe(BURN.fromMs);
-    expect(session.drainNotices("me")).toEqual(["Burned."]);
+    // The sentence a flame produces, because it is the same application: what
+    // the player has to be told is what they are now under, whatever put it
+    // there. @see ./notices' `statusAcquiredNotice`
+    expect(session.drainNotices("me")).toEqual(["You are Burned"]);
+  });
+
+  it("says it again on a second helping, having nothing else to report", () => {
+    const session = statusWorld();
+    session.runCommand("/status burned", "me");
+    session.drainNotices("me");
+
+    // The grant refreshed rather than arrived, so nothing announced it — and a
+    // debugging door that reads as silence is indistinguishable from one whose
+    // line was dropped, which is the whole reason this command says anything.
+    session.runCommand("/status burned", "me");
+    expect(session.drainNotices("me")).toEqual(["You are Burned"]);
+  });
+
+  it("names the body when the condition landed on somebody else", () => {
+    const session = new GameSession(field(), tiles, {
+      actorIds: ["me"],
+      seed: 1,
+      statuses: { burned: BURN },
+    });
+    const deer = session.actorIds().find((id) => id !== "me")!;
+    session.runCommand(`/status burned ${deer}`, "me");
+
+    // Said to whoever typed it and not to the deer: a creature announcing that
+    // it is on fire because somebody set it on fire from a console is a bubble
+    // the room should not see.
+    expect(session.drainNotices("me")).toEqual(["Deer is Burned"]);
+    expect(session.drainNotices(deer)).toEqual([]);
   });
 
   it("takes everything off again", () => {

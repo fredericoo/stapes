@@ -4666,16 +4666,20 @@ shifts it into whatever space exists on both axes.
 The bottom of the view carries at most two lines of white text — "Your sharp
 mastery is now 10", "You open Quest Chest and receive 1 Hand Lantern, 1 Rusty
 Sword" — and they are prose for a fact
-that has no picture. Three kinds qualify. Something crossed a threshold you were
+that has no picture. Four kinds qualify. Something crossed a threshold you were
 not watching, so the mastery bars mattered for one frame while you were looking
 at a rat. Something happened that the board deliberately does not show — a reward
 leaves the chest full and the map untouched, so the only evidence is a line item
-in a bag you may not have open. Or something you asked for did not happen — "You
-cannot fit there", "Your inventory is full", "Select a target first" — and a
-refusal that shows as *nothing occurring* is indistinguishable from the input
-being dropped. Everything else already has a better telling: a blow is a number
-off a head, a status is an icon in the strip. Reach for a notice when there is no
-picture, not when a picture would be work.
+in a bag you may not have open. A condition came on, and the picture that exists
+draws the *state* rather than the *arrival*: the strip answers "what am I under"
+at leisure, and somebody walking into a fire is looking at the fire rather than
+at a lane along the edge going from four icons to five. Or something you asked
+for did not happen — "You cannot fit there", "Your inventory is full", "Select a
+target first" — and a refusal that shows as *nothing occurring* is
+indistinguishable from the input being dropped. Everything else already has a
+better telling: a blow is a number off a head, and everything about a status
+other than the moment it landed is the strip's. Reach for a notice when there is
+no picture, not when a picture would be work.
 
 That last one is the rule stated as a decision rather than a principle.
 `castRefusalNotice` says a sentence for exactly one of the six ways a cast can be
@@ -4740,6 +4744,23 @@ These are load-bearing:
   giver and the items are named by `TileDef.name`; and items are grouped by tile,
   because a reward is a recipe and "1 Bread, 1 Bread, 1 Bread" reads as a
   rendering fault.
+- **A status announces its acquisition, not its application.** "You are Burning"
+  is said by `GameSession.grantStatus` — the one door every status in the world
+  goes through, so a bite, a bolt, a berry and a floor of flame all produce the
+  same sentence — and only when the body was not already under it. That
+  distinction is the whole of why the line is bearable: a fire re-grants its burn
+  on every standing period and a second berry is a longer helping of Fed, so a
+  line hung off the *application* would repeat once a second for as long as
+  somebody stood in the fire, holding one of the two slots against everything
+  else the game has to say. The check reads the list before `applyStatus` touches
+  it, because afterwards there is nothing to compare against: stacking and
+  refreshing both leave one instance, and a body that was already burning is
+  indistinguishable from one that has just caught fire.
+
+  It is said to the *body*, not to whatever did it, which is what makes it one
+  sentence about the player's own condition rather than one per source. `say`
+  drops a resident's line, so a deer walking through a fire queues nothing —
+  see the notes on `say` above.
 
 ## A command is typed where speech goes, and never said out loud
 
@@ -4774,6 +4795,15 @@ is the line a player is shown when they get one wrong.
 - **A body that does not learn is refused by name.** A creature's masteries are
   authored and there is no runtime block to write to, so `/mastery` on a deer
   says "Deer does not learn" rather than explaining the engine.
+- **`/status` is the only door that reports what became of a grant.** Everywhere
+  else a status is applied, being turned down is a thing that happens silently:
+  a fire does nothing to a salamander and there is nobody to tell. Here somebody
+  typed it, so `grantStatus` answers `"acquired" | "refreshed" | "refused"` and
+  the command says something for each — the arrival sentence when it landed,
+  the same sentence again when it merely refreshed (silence there would read as
+  a dropped line), "Deer is Burned" when it landed on somebody else, and
+  "Salamander cannot be Burned" for a body whose `immuneTo` list holds it. Every
+  other caller discards the answer.
 
 ### `/goto` is absolute, `/move` is relative, and that is why they are two
 
@@ -5848,6 +5878,11 @@ spell alike without any of them knowing about it.
 Read off the *body's* authored block rather than through `battlerOf`, which is
 where statuses feed into the numbers: reading it there would let a status decide
 whether a status may be applied.
+
+An immune body takes nothing and is told nothing: `grantStatus` answers
+`"refused"` and returns, so no arrival sentence goes out and the strip does not
+move. The one exception is `/status`, where somebody typed the thing that was
+refused and gets told why — see the command notes.
 
 ## Standing in a fire keeps burning you, once a second
 
