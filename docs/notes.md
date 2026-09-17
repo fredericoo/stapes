@@ -4828,9 +4828,9 @@ The lines `weaponDemand` produces are what the world's look label says, over the
 canvas, in the pixel font. Inspecting a slot gets the same facts plus the rest of
 the profile, as a card: `app/game/itemCard.ts` computes it and
 `app/components/ItemCard.tsx` draws it. Damage, the wait between blows, the
-chance of landing one, the spread, the reach, every requirement against what you
-have, how well you handle it, what a blow leaves behind, and for worn things the
-kinds of blow they turn aside.
+chance of landing one, the reach, every requirement against what you have, how
+well you handle it, what a blow leaves behind, and for worn things the kinds of
+blow they turn aside.
 
 **"How well you handle it" is the accuracy and the swing rate, and the card says
 so** — headed *Accuracy & swing rate* rather than the *In your hands* it used to
@@ -4895,6 +4895,34 @@ makes `overflow-x` non-visible too, so a card anchored on the leftmost square wa
 clipped at the panel edge. Measuring the rect and nudging it back fixed that
 horizontally; a portal has no clipping ancestor at all, and Base UI flips and
 shifts it into whatever space exists on both axes.
+
+### Damage is a band, and a variance is not a reading
+
+A weapon is authored as a `damage` and a `variance` — 12 and 40 — and a blow is
+worth `damage × damageFraction(variance, roll)`, rounded. The card used to print
+both fields as they were written: `dmg 12` on one row and `spread ±40%` three
+rows down. Neither is a number any blow is ever worth. A reader wanting to know
+what the sword does had to find the two rows, read one as a percentage of the
+other, and subtract — and the answer they were working towards, 7–12, is a thing
+the game already knows exactly.
+
+So both surfaces that report damage to a player report the band. `damageBand` in
+`app/game/combat.ts` hands `potentialDamageFrom` the two ends of its own draw,
+which is where the rounding is, so the ends on screen are ends that can actually
+land rather than the edges of a continuous band. The stats panel had been doing
+this for a body all along and computing it itself; it calls `damageBand` now, and
+so do the item card, the stone's bolt row, and the editor's damage readout. Four
+copies of "what are the ends of the draw" was four chances to round the sword in
+your hand differently from the body holding it.
+
+The variance has no row of its own anywhere a player can see. Where the ends
+agree — a weapon authored with no variance at all — the row is one figure, not
+"12–12", which is a range with nothing in it and an invitation to look for a
+spread that is not there.
+
+It is still a field in the editor, with `describeDamageBand` under it: an author
+is tuning the shape and needs the handle, and the readout names the peak as well
+as the ends, which is the thing the shape decides.
 
 ### A notice is a sentence with nowhere else to go
 

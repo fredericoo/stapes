@@ -40,7 +40,7 @@ import {
 import type { StatusDef } from "../lib/status";
 import type { AnchoredSprite } from "../lib/types";
 import type { TileDef } from "../lib/types";
-import { swingIntervalMs } from "./combat";
+import { damageBand, damageBandOf, swingIntervalMs, type DamageBand } from "./combat";
 
 /**
  * Everything an inspected item has to say, as data rather than as a drawing.
@@ -109,8 +109,8 @@ export type ItemCardStat = {
   /**
    * {@link label} as a word, for the route that reads the card aloud.
    *
-   * Absent wherever the label is already one, which is most rows — "reach" and
-   * "spread" survive being spoken. It exists for the abbreviations that do not:
+   * Absent wherever the label is already one, which is most rows — "reach"
+   * survives being spoken. It exists for the abbreviations that do not:
    * "def" read out is not the word anybody says, and "every" on its own is not
    * a clause. See {@link ItemCard.speech}.
    */
@@ -428,15 +428,27 @@ function weaponStats(
   const ownIntervalMs = swingIntervalMs(own);
   const yourHit = percent(yours.hitChance);
   const ownHit = percent(own.hitChance);
+  const yourDamage = damageBand(yours);
+  const ownDamage = damageBand(own);
+  const yourDamageLabel = bandLabel(yourDamage);
+  const ownDamageLabel = bandLabel(ownDamage);
 
   const stats: ItemCardStat[] = [
     {
+      // **The band, and there is no spread row underneath it.** The card used to
+      // print `dmg 12` and `spread ±35%`, which is a face value nobody ever
+      // takes and a percentage of it to subtract — two rows asking the reader to
+      // multiply before they know what the weapon does. "8–12" is the same fact
+      // as the answer, and it is also how a player thinks about the fight: what
+      // it takes to kill the thing in front of you is worked out from both ends
+      // at once. The stats panel has reported a body's damage this way all
+      // along; this is the weapon agreeing with it. @see `./combat`'s `damageBand`
       key: "damage",
       label: "dmg",
       spoken: "damage",
-      value: `${yours.damage}`,
-      ...(yours.damage === own.damage ? {} : { base: `${own.damage}` }),
-      tone: toneOf(yours.damage, own.damage),
+      value: yourDamageLabel,
+      ...(yourDamageLabel === ownDamageLabel ? {} : { base: ownDamageLabel }),
+      tone: bandTone(yourDamage, ownDamage),
     },
     {
       key: "speed",
@@ -464,14 +476,6 @@ function weaponStats(
       ...(yourHit === ownHit ? {} : { base: `${ownHit}%` }),
       tone: toneOf(yourHit, ownHit),
     },
-    {
-      key: "spread",
-      label: "spread",
-      // Untouched by mastery — how erratic a weapon is belongs to the weapon,
-      // so there is never a second figure to compare against.
-      value: `±${weapon.variance}%`,
-      tone: "plain",
-    },
     { key: "reach", label: "reach", value: reachLine(weapon), tone: "plain" },
   ];
 
@@ -492,6 +496,30 @@ function weaponStats(
   }
 
   return stats;
+}
+
+/**
+ * A band of whole numbers, as the one reading it is.
+ *
+ * **One figure where the ends agree**, because "6–6" is a range with nothing in
+ * it and invites the reader to look for a spread that is not there. That case is
+ * real: a weapon may be authored with no variance at all.
+ */
+function bandLabel(band: DamageBand): string {
+  return band.min === band.max ? `${band.min}` : `${band.min}\u2013${band.max}`;
+}
+
+/**
+ * Which way a band leans against the item's own.
+ *
+ * The top end decides, and the floor only breaks a tie. Mastery scales `damage`
+ * and leaves `variance` alone, so both ends move together and the top is the one
+ * that always moves: a point of damage raises the ceiling by a point and may
+ * leave the rounded floor exactly where it was.
+ */
+function bandTone(yours: DamageBand, own: DamageBand): ItemCardTone {
+  const ceiling = toneOf(yours.max, own.max);
+  return ceiling === "plain" ? toneOf(yours.min, own.min) : ceiling;
 }
 
 /** Better than the item's own reads well; worse reads badly; equal is silent. */
@@ -803,6 +831,10 @@ function stoneStats(stone: ArcaneStoneItem): ItemCardStat[] {
   if (stone.effect.kind === "bolt") {
     const { damage = 0, on, variance = 0 } = stone.effect;
     if (damage !== 0) {
+      // A band, on the terms `weaponStats` states at length: a bolt rolls the
+      // same `damageFraction` a blow does, so it had the same face value and the
+      // same percentage to subtract underneath it.
+      const band = damageBandOf(Math.abs(damage), variance);
       // The sign is the difference between a stone of embers and a stone of
       // life. See `../lib/item`'s `StoneEffect`, which is one signed number
       // rather than two arms for that reason.
@@ -811,7 +843,7 @@ function stoneStats(stone: ArcaneStoneItem): ItemCardStat[] {
         key: "power",
         label: mending ? "heal" : "dmg",
         ...(mending ? {} : { spoken: "damage" }),
-        value: `${Math.abs(damage)}`,
+        value: bandLabel(band),
         tone: mending ? "good" : "plain",
       });
     }
@@ -821,14 +853,6 @@ function stoneStats(stone: ArcaneStoneItem): ItemCardStat[] {
       value: on === "caster" ? "You" : "Your target",
       tone: "plain",
     });
-    if (variance > 0) {
-      stats.push({
-        key: "spread",
-        label: "spread",
-        value: `±${variance}%`,
-        tone: "plain",
-      });
-    }
   } else {
     stats.push({
       key: "conjure",

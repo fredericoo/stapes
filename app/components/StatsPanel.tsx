@@ -228,7 +228,9 @@ function Combat({ attributes }: { attributes: Attributes | null }) {
         {/* A band rather than a face value and a variance, because a range is
             one reading: what it takes to kill the thing in front of you is
             worked out from both ends at once. One figure for a weapon with no
-            variance, where "6–6" would be a range with nothing in it. */}
+            variance, where "6–6" would be a range with nothing in it. The item
+            card reports a weapon's damage the same way now — see
+            `../game/combat`'s `damageBand`, which both take their ends from. */}
         <Reading
           label="Damage"
           value={

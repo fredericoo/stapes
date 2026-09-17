@@ -12,7 +12,12 @@ import { constantFormula } from "../lib/formula";
 import type { StatusDef } from "../lib/status";
 import { weaponDemandFor } from "../lib/weaponDemand";
 import type { TileDef } from "../lib/types";
-import { attackIntervalMs, swingIntervalMs } from "./combat";
+import {
+  attackIntervalMs,
+  damageBand,
+  damageBandOf,
+  swingIntervalMs,
+} from "./combat";
 import { itemCard, type ItemCardStat } from "./itemCard";
 
 /**
@@ -129,8 +134,13 @@ describe("itemCard", () => {
     expect(statAt(card!.stats, "hit").tone).toBe("bad");
     expect(yours.hitChance * 100).toBeLessThan(SWORD.accuracy);
 
-    expect(statAt(card!.stats, "damage").value).toBe(`${yours.damage}`);
-    expect(statAt(card!.stats, "damage").base).toBe(`${SWORD.damage}`);
+    // The band rather than the face value, through the same `damageBand` the
+    // stats panel reports a body's blow with — a card that quoted `damage` on
+    // its own would be quoting a number no blow is ever worth.
+    const band = damageBand(yours);
+    expect(statAt(card!.stats, "damage").value).toBe(`${band.min}\u2013${band.max}`);
+    const own = damageBandOf(SWORD.damage, SWORD.variance);
+    expect(statAt(card!.stats, "damage").base).toBe(`${own.min}\u2013${own.max}`);
     expect(yours.damage).toBeGreaterThanOrEqual(SWORD.damage);
   });
 
@@ -167,12 +177,38 @@ describe("itemCard", () => {
     const plain: WeaponItem = { ...SWORD, requirements: undefined };
     const card = itemCard(tileWith(plain), null, NOTHING_LEARNT)!;
 
-    expect(statAt(card.stats, "damage").value).toBe(`${plain.damage}`);
+    const own = damageBandOf(plain.damage, plain.variance);
+    expect(statAt(card.stats, "damage").value).toBe(`${own.min}\u2013${own.max}`);
     expect(statAt(card.stats, "damage").base).toBeUndefined();
     expect(statAt(card.stats, "damage").tone).toBe("plain");
-    // Variance is never scaled by anything, so this row has no second figure to
-    // compare against whoever is holding it.
-    expect(statAt(card.stats, "spread").base).toBeUndefined();
+  });
+
+  /**
+   * **A band, and no spread row under it.** The card used to print the face
+   * value and `spread ±40%` beneath it, which is a number no blow is ever worth
+   * and a percentage of it to subtract. The reader does that arithmetic to find
+   * out what the weapon does, so the card does it instead.
+   */
+  it("reports damage as the band a blow can land in, and never as a spread", () => {
+    const card = itemCard(tileWith(SWORD), null, NOTHING_LEARNT)!;
+    const band = damageBand(fightingStats(bodyWith(NOTHING_LEARNT), SWORD));
+
+    expect(band.min).toBeLessThan(band.max);
+    expect(statAt(card.stats, "damage").value).toBe(`${band.min}\u2013${band.max}`);
+    expect(card.stats.map((row) => row.key)).not.toContain("spread");
+    expect(card.speech).not.toContain("\u00b1");
+  });
+
+  /**
+   * A weapon authored with no variance is always worth exactly its damage, and
+   * "12–12" is a range with nothing in it — an invitation to look for a spread
+   * that is not there.
+   */
+  it("gives a weapon with no variance one figure rather than a range", () => {
+    const flat: WeaponItem = { ...SWORD, variance: 0, requirements: undefined };
+    const card = itemCard(tileWith(flat), null, NOTHING_LEARNT)!;
+
+    expect(statAt(card.stats, "damage").value).toBe(`${flat.damage}`);
   });
 
   /**
@@ -188,9 +224,11 @@ describe("itemCard", () => {
     const yours = fightingStats(bodyWith(master), SWORD);
 
     expect(yours.damage).toBeGreaterThan(SWORD.damage);
+    const band = damageBand(yours);
+    const own = damageBandOf(SWORD.damage, SWORD.variance);
     expect(statAt(card.stats, "damage")).toMatchObject({
-      value: `${yours.damage}`,
-      base: `${SWORD.damage}`,
+      value: `${band.min}\u2013${band.max}`,
+      base: `${own.min}\u2013${own.max}`,
       tone: "good",
     });
     // And handling still reads a flat hundred, because the gate is open and
@@ -577,7 +615,14 @@ describe("itemCard", () => {
       )!;
 
       expect(card.kind).toBe("Arcane stone");
-      expect(statAt(card.stats, "power")).toMatchObject({ label: "dmg", value: "9" });
+      // A band, on the same terms a weapon's is: a bolt rolls the same
+      // `damageFraction` a blow does, so it had the same face value and the
+      // same percentage underneath it.
+      const bolt = damageBandOf(9, 20);
+      expect(statAt(card.stats, "power")).toMatchObject({
+        label: "dmg",
+        value: `${bolt.min}\u2013${bolt.max}`,
+      });
       expect(statAt(card.stats, "subject").value).toBe("Your target");
       expect(statAt(card.stats, "cooldown").value).toBe("8s");
       // The requirements are reported because they decide whether it fires at
@@ -847,6 +892,9 @@ describe("itemCard", () => {
     expect(card.speech).not.toContain("dmg");
     // The item's own figure as a clause, because a screen reader reads "(12)" as
     // "twelve" and the comparison disappears.
-    expect(card.speech).toContain("where the item's own is 12");
+    const own = damageBandOf(SWORD.damage, SWORD.variance);
+    expect(card.speech).toContain(
+      `where the item's own is ${own.min}\u2013${own.max}`,
+    );
   });
 });

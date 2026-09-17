@@ -1,4 +1,4 @@
-import { attackIntervalMs, damageFraction } from "../game/combat";
+import { attackIntervalMs, damageBandOf, damageWorth } from "../game/combat";
 import {
   ACCURACY_AT_MAX_MASTERY,
   DAMAGE_AT_MAX_MASTERY,
@@ -71,9 +71,13 @@ export function describeDamageBand(weapon: {
   if (weapon.variance <= MIN_PERCENT_STAT) {
     return `Always ${weapon.damage} damage.`;
   }
-  const at = (roll: [number, number]) =>
-    Math.round(weapon.damage * damageFraction(weapon.variance, roll));
-  return `Damage ${at([0, 0])}–${at([1, 1])}, usually near ${at([0.5, 0.5])}.`;
+  // The same ends the card and the stats panel report, through the same
+  // function — an author tuning `variance` has to see the band a player will be
+  // shown, not a second reading of it. The peak has no such home: it is what
+  // this readout adds over the band, and it is the thing being tuned.
+  const { min, max } = damageBandOf(weapon.damage, weapon.variance);
+  const usual = damageWorth(weapon.damage, weapon.variance, [0.5, 0.5]);
+  return `Damage ${min}–${max}, usually near ${usual}.`;
 }
 
 /**

@@ -2,7 +2,7 @@ import type { BattlerDef } from "../lib/battler";
 import { MELEE_REACH, type Reach } from "../lib/item";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
-import { potentialDamageFrom, swingIntervalMs } from "./combat";
+import { damageBand, swingIntervalMs } from "./combat";
 import {
   type Equipment,
   effectiveBattler,
@@ -41,10 +41,10 @@ export type Attributes = {
    * The narrowest and widest one blow is worth, before the defender's guard.
    *
    * Two numbers rather than `FightingStats.damage` and a variance, because a
-   * variance is not a reading: "12, spread 35" is a sum a player has to do, and
-   * the sum they would do is this. The ends come out of the same function a real
-   * blow does — rounding included, which is the whole reason it is a function —
-   * so the band on screen is exactly the band that can happen.
+   * variance is not a reading — see `./combat`'s `damageBand`, which is where
+   * that argument lives and where both ends come from. Flattened to a pair of
+   * primitives here rather than carried as the band it came back as, for the
+   * reason every other field of this block is one.
    */
   minDamage: number;
   maxDamage: number;
@@ -145,13 +145,15 @@ export function attributesOf({
     hp ?? base.maxHp,
   );
 
-  // The ends of the damage band, found by handing the real function the ends of
-  // its own draw. Both draws at zero is the floor `damageFraction` puts at
-  // `1 - variance`, both at one is full damage — the same two probes
-  // `./combatMetrics`'s `potentialDamages` bisects between.
+  // Through `damageBand` rather than probing the roll here, because an item's
+  // card reports the same band for a weapon on the floor — see `./itemCard` —
+  // and two copies of "what are the ends of the draw" is two chances to round
+  // the sword in your hand differently from the body holding it.
+  const damage = damageBand(stats);
+
   return {
-    minDamage: potentialDamageFrom(stats, [0, 0]),
-    maxDamage: potentialDamageFrom(stats, [1, 1]),
+    minDamage: damage.min,
+    maxDamage: damage.max,
     swingMs: swingIntervalMs(stats),
     hitChance: stats.hitChance,
     def: stats.def,
