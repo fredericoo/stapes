@@ -29971,19 +29971,19 @@
       "projectile": {
         "cellsPerSecond": 20,
         "hit": {
-          "durationMs": 140,
+          "durationMs": 100,
           "particles": {
-            "ratePerSecond": 140,
-            "ttlFromMs": 120,
-            "ttlToMs": 280,
-            "spawnRadiusCells": 0.15,
+            "ratePerSecond": 60,
+            "ttlFromMs": 90,
+            "ttlToMs": 180,
+            "spawnRadiusCells": 0.1,
             "spawnElevFrom": 1,
             "spawnElevTo": 3,
-            "riseFrom": 2,
-            "riseTo": 8,
-            "driftCellsPerSecond": 1.6,
+            "riseFrom": 1,
+            "riseTo": 5,
+            "driftCellsPerSecond": 0.9,
             "lit": false,
-            "gravity": -20,
+            "gravity": -18,
             "windX": 0,
             "windY": 0,
             "radiusFromPx": 1,
@@ -29996,12 +29996,8 @@
                 "color": "#ffffff"
               },
               {
-                "at": 0.35,
-                "color": "#e83b3b"
-              },
-              {
                 "at": 1,
-                "color": "#6e2727"
+                "color": "#c7dcd0"
               }
             ]
           }

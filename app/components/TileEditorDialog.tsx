@@ -2004,7 +2004,12 @@ export function TileEditorDialog({
           </TabPanel>
 
           <TabPanel value={TAB_PROJECTILE}>
-            <ProjectileTab draft={draft} onChange={setDraft} />
+            <ProjectileTab
+              draft={draft}
+              onChange={setDraft}
+              tiles={tiles}
+              tilesets={tilesets}
+            />
           </TabPanel>
 
           <TabPanel value={TAB_RESPAWN}>

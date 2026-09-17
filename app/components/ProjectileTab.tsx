@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   DEFAULT_PROJECTILE_SPEED,
   MAX_PROJECTILE_SPEED,
@@ -5,11 +6,13 @@ import {
   type ProjectileBlock,
 } from "../lib/projectile";
 import { DEFAULT_IMPACT } from "../lib/particleVfx";
+import { NO_VFX } from "../lib/statusVfx";
 import type { Transition } from "../lib/tileTransition";
-import type { TileDef } from "../lib/types";
-import { FieldLabel, Switch } from "../ui";
+import type { TileDef, TilesetDef } from "../lib/types";
+import { Button, FieldLabel, Switch } from "../ui";
 import { ParticleFields } from "./ParticleFields";
 import { StatField } from "./StatField";
+import { type TransitionPlay, VfxPreview } from "./VfxPreview";
 
 /**
  * How a projectile flies, and what it leaves where it connects.
@@ -31,6 +34,20 @@ import { StatField } from "./StatField";
  * Only `hit` is here, because only `hit` is a claim about the *fight*: it plays
  * where a shot that connected lands, and a miss or a dodge leaves nothing. That
  * is the one thing about a projectile the rest of the editor cannot express.
+ *
+ * ## The preview draws on somebody else
+ *
+ * Every other caller of `./VfxPreview` either *is* the subject — the tile
+ * editor — or has none at all. This one is the third case: a hit effect plays
+ * on **whatever was struck**, which is never the projectile, so the subject
+ * picker is not the status editor's compromise here but the right question.
+ * It opens on the player, because a body is what an author has in their head
+ * when they decide whether a spray reads as a hit.
+ *
+ * Played on demand rather than looped, on the terms a transition is: a burst
+ * that ran forever would be a fire, and what is being judged is a single event.
+ * It plays as a `disappear`, because that is the side whose shown fraction falls
+ * from whole to nothing — which is what a projectile does when it lands.
  */
 
 const SPEED_INFO =
@@ -42,10 +59,16 @@ const HIT_INFO =
 export function ProjectileTab({
   draft,
   onChange,
+  tiles,
+  tilesets,
 }: {
   draft: TileDef;
   onChange: (next: TileDef) => void;
+  /** The catalogue the preview's subject is picked from. */
+  tiles: TileDef[];
+  tilesets: TilesetDef[];
 }) {
+  const [play, setPlay] = useState<TransitionPlay | null>(null);
   // Read off the draft rather than through `resolveProjectile`, because the
   // draft is the *authored* block and the resolver gates on a kind the author
   // may be in the middle of choosing. The tab is only open for a projectile
@@ -92,14 +115,43 @@ export function ProjectileTab({
             }
             ariaLabel="Hit effect"
           />
+          {block.hit ? (
+            <Button
+              onClick={() =>
+                setPlay((last) => ({
+                  transition: block.hit!,
+                  side: "disappear",
+                  token: (last?.token ?? 0) + 1,
+                }))
+              }
+              aria-label="Play hit effect"
+            >
+              Play
+            </Button>
+          ) : null}
         </div>
         {block.hit ? (
-          <ParticleFields
-            particles={block.hit.particles ?? DEFAULT_IMPACT}
-            onChange={(particles) =>
-              patch({ hit: { ...block.hit!, particles } })
-            }
-          />
+          // Beside the controls rather than under them, for the reason the tile
+          // editor puts its own there: what an author is deciding is whether a
+          // spray reads as a hit, and sixteen numbers do not answer that.
+          <div className="flex flex-wrap items-start gap-4">
+            <VfxPreview
+              vfx={NO_VFX}
+              tiles={tiles}
+              tilesets={tilesets}
+              transitionPlay={play}
+            />
+            {/* Basis zero rather than content width, so the controls take what
+                the canvas leaves and reflow inside it. */}
+            <div className="min-w-0 flex-1 basis-80">
+              <ParticleFields
+                particles={block.hit.particles ?? DEFAULT_IMPACT}
+                onChange={(particles) =>
+                  patch({ hit: { ...block.hit!, particles } })
+                }
+              />
+            </div>
+          </div>
         ) : null}
       </div>
     </div>
@@ -111,11 +163,12 @@ export function ProjectileTab({
  *
  * Long enough to be a burst rather than a frame, and short enough to read as
  * one event: the emitter is handed over for this long and then stops, and the
- * particles already in the air finish their own lifetimes on top of it.
+ * particles already in the air finish their own lifetimes on top of it. At
+ * {@link DEFAULT_IMPACT}'s rate that is half a dozen sparks.
  */
 function starterHit(): Transition {
   return {
-    durationMs: 140,
+    durationMs: 100,
     particles: { ...DEFAULT_IMPACT, ramp: [...DEFAULT_IMPACT.ramp] },
   };
 }

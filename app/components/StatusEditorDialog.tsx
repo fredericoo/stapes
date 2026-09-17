@@ -433,7 +433,7 @@ export function StatusEditorDialog({
             vfx={vfx}
             onChange={(next) => patch({ vfx: next })}
           />
-          <VfxPreview vfx={vfx} tiles={tiles} tilesets={tilesets} />
+          <VfxPreview vfx={vfx} tiles={tiles} tilesets={tilesets} winds />
         </div>
 
         {valid ? null : (

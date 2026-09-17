@@ -74,6 +74,7 @@ export function VfxPreview({
   tiles = NO_TILES,
   tilesets,
   subject: fixedSubject,
+  winds = false,
   transitionPlay = null,
 }: {
   vfx: StatusVfx;
@@ -94,6 +95,17 @@ export function VfxPreview({
    * that has no sprite authored yet.
    */
   subject?: TileDef | null;
+  /**
+   * Whether what is being previewed can wind down, which turns the scrubber on.
+   *
+   * A status does and nothing else does, so this is the status editor's alone.
+   * It used to ride on {@link fixedSubject} being absent, which held only
+   * because the two callers happened to differ in both ways at once — and
+   * stopped holding the moment a third wanted the picker without the scrubber.
+   * See `./ProjectileTab`, whose hit effect lands on somebody else and has no
+   * wind-down at all.
+   */
+  winds?: boolean;
   /** Play one side of a transition on the subject. @see TransitionPlay */
   transitionPlay?: TransitionPlay | null;
 }) {
@@ -174,21 +186,25 @@ export function VfxPreview({
         aria-label={`Preview of the effect on ${subject?.name ?? "bare ground"}`}
         role="img"
       />
-      {/* Both belong to the status editor: one picks a subject the status does
-          not have, the other scrubs a wind-down a tile does not have. A caller
-          that brought its own subject gets neither. */}
+      {/* The picker is for a caller that does not know what it is drawn on: a
+          status, and a projectile's hit effect, which lands on whatever was
+          struck. A caller that brought its own subject gets none. */}
       {fixedSubject === undefined ? (
+        <label className="flex flex-col gap-0.5">
+          <span className="text-[11px] font-bold uppercase text-muted">
+            Drawn on
+          </span>
+          <Select
+            value={subjectId}
+            onValueChange={(id) => setSubjectId(id ?? PLAYER_TILE_ID)}
+            options={options}
+          />
+        </label>
+      ) : null}
+      {/* The scrubber is for a thing that winds down, which is a status and
+          nothing else. @see winds */}
+      {winds ? (
         <>
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[11px] font-bold uppercase text-muted">
-              Drawn on
-            </span>
-            <Select
-              value={subjectId}
-              onValueChange={(id) => setSubjectId(id ?? PLAYER_TILE_ID)}
-              options={options}
-            />
-          </label>
           <label className="flex flex-col gap-0.5">
             <span className="text-[11px] font-bold uppercase text-muted">
               {vfx.taperMs > 0
