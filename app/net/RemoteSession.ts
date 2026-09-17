@@ -160,8 +160,16 @@ type PredictedStep = {
   to: Coord;
   direction: Direction;
   landed: boolean;
-  /** Time since it was sent, for {@link STEP_CONFIRM_TIMEOUT_MS}. */
+  /** Time since it was sent, for {@link STEP_CONFIRM_GRACE_MS}. */
   waitedMs: number;
+  /**
+   * How long this step takes to walk, as this side drew it.
+   *
+   * Recorded rather than re-derived, because the answer moves: a status wears
+   * off and the ground changes underfoot, and what the backstop has to wait for
+   * is the walk that was actually *started*. @see STEP_CONFIRM_GRACE_MS
+   */
+  durationMs: number;
 };
 
 /**
@@ -171,19 +179,29 @@ type PredictedStep = {
  * are legitimately outstanding at once on exactly the slow link this prediction
  * exists for — a tight cap here would reinstate the stall it is meant to
  * remove. Eight covers a round trip well past a second. Past that something is
- * wrong rather than slow, and {@link STEP_CONFIRM_TIMEOUT_MS} is what notices.
+ * wrong rather than slow, and {@link STEP_CONFIRM_GRACE_MS} is what notices.
  */
 const MAX_PREDICTED_STEPS = 8;
 
 /**
- * How long the oldest unconfirmed step waits before this client gives up on it.
+ * How long the oldest unconfirmed step waits **past its own walk** before this
+ * client gives up on it.
  *
  * The backstop, not the mechanism: a refused step normally comes back as its own
  * message and is rolled back at once. This catches only the cases where no
  * answer arrives at all, and sits well past the round trip a confirmation takes
  * so an ordinary slow link never trips it.
+ *
+ * **On top of the step's own duration, not instead of it**, because what a
+ * confirmation waits for is the walk: the patch that commits the move *is* the
+ * acknowledgement — see {@link dropConfirmedSteps} — and the server does not
+ * send it until the body lands. A flat figure was fine while every step took
+ * 200ms and became a bug the moment a status could slow one: a body at the
+ * floor of {@link MIN_WALK_SPEED_PERCENT} walks a cell in two seconds, which
+ * *is* this figure, so every paralysed step was abandoned at 99% of the way
+ * across and snapped back to where it started.
  */
-export const STEP_CONFIRM_TIMEOUT_MS = 2_000;
+export const STEP_CONFIRM_GRACE_MS = 2_000;
 
 /**
  * The world as this browser sees it.
@@ -1516,7 +1534,9 @@ export class RemoteSession implements PlaySession {
     const oldest = this.pending[0];
     if (!oldest) return;
     oldest.waitedMs += dtMs;
-    if (oldest.waitedMs >= STEP_CONFIRM_TIMEOUT_MS) this.abandonPrediction();
+    if (oldest.waitedMs >= oldest.durationMs + STEP_CONFIRM_GRACE_MS) {
+      this.abandonPrediction();
+    }
   }
 
   /**
@@ -1622,18 +1642,21 @@ export class RemoteSession implements PlaySession {
     if (this.castingsById.get(this.selfId)) return;
 
     const seq = this.nextStepSeq++;
+    // Our own body, so its pace is the one the server will time us by — whatever
+    // we are under and whatever we are standing on included. Read once and used
+    // twice: it times the lerp, and it is what the backstop below has to wait
+    // out before a missing confirmation means anything.
+    const durationMs = walkDurationMsFor(
+      def,
+      this.walkSpeedPercentOf(this.selfId) +
+        groundWalkSpeedPercent(this.map, loc, this.tilesById),
+    );
     motion.walk = {
       from: { x: loc.x, y: loc.y, z: loc.z },
       to: choice.step.to,
       direction: choice.step.direction,
       elapsedMs,
-      // Our own body, so its pace is the one the server will time us by —
-      // whatever we are under and whatever we are standing on included.
-      durationMs: walkDurationMsFor(
-        def,
-        this.walkSpeedPercentOf(this.selfId) +
-          groundWalkSpeedPercent(this.map, loc, this.tilesById),
-      ),
+      durationMs,
     };
     this.pending.push({
       seq,
@@ -1641,6 +1664,7 @@ export class RemoteSession implements PlaySession {
       direction: choice.step.direction,
       landed: false,
       waitedMs: 0,
+      durationMs,
     });
     this.send({
       type: "step",

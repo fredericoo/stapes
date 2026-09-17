@@ -5612,6 +5612,31 @@ A brain that asked for the same spell twice in two ticks must not cancel its own
 cast, so `castForBrain` reports a run already going for that name rather than
 pressing again: pressing a stone that is casting *stops* it.
 
+### A confirmation waits for the walk, not for a constant
+
+A predicted step is acknowledged by the patch that commits the move — see
+`RemoteSession`'s `dropConfirmedSteps` — and the server does not send one until
+the body *lands*. So the backstop that gives up on an unanswered step has to
+allow for the walk it is waiting on, and it did not: `STEP_CONFIRM_TIMEOUT_MS`
+was a flat two seconds, which was ample while every step took 200ms.
+
+A status may now slow a body to a tenth of its pace, and a tenth of 200ms is two
+seconds exactly. Every paralysed step therefore ran out its whole allowance
+before the walk finished, so the client abandoned a step that was perfectly
+legal and dragged the body back to where it set off from — a rubber-band that
+got worse the slower you were, which is the opposite of what a prediction is
+for.
+
+It is `STEP_CONFIRM_GRACE_MS` now, granted **on top of** the step's own duration,
+and the duration is recorded on the `PredictedStep` rather than re-derived: what
+the backstop has to wait out is the walk that was actually started, and a status
+that wore off mid-step would otherwise change the answer underneath it.
+
+**The prediction itself was never wrong.** Both halves derive the moved pace, and
+a round trip through the real client and the real world shows a chilled player
+walking at a chilled player's pace. What was broken was only the thing watching
+for an answer that had not come yet.
+
 ## A pace is a percentage, and it never travels
 
 `walkDurationMs` on a tile is how fast a body walks when nothing is touching it.

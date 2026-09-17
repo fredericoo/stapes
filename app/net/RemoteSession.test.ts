@@ -11,10 +11,10 @@ import { normalizeTileDef } from "../lib/types";
 import { emptyEquipment } from "../game/equipment";
 import { STRIKE_RECOVERY_STEPS } from "../game/combat";
 import { CHAT_LIFETIME_MS } from "./chat";
-import { RemoteSession, STEP_CONFIRM_TIMEOUT_MS } from "./RemoteSession";
+import { RemoteSession, STEP_CONFIRM_GRACE_MS } from "./RemoteSession";
 import type { CellPatch, HpPatch, MotionEvent } from "./protocol";
 import { UNKNOWN_REMAINING_MS } from "../game/statuses";
-import type { StatusDef } from "../lib/status";
+import { resolveStatus, type StatusDef } from "../lib/status";
 import { MAX_HELD_TRANSITIONS, MAX_TRANSITION_MS } from "../lib/tileTransition";
 
 /**
@@ -130,6 +130,21 @@ class FakeSocket {
 }
 
 const SERVER_MINUTES = 7 * 60 + 30;
+
+/** A status whose whole job is to move the bearer's walking pace. */
+function slowing(id: string, walkSpeedPercent: number): StatusDef {
+  const def = resolveStatus({
+    id,
+    name: id,
+    description: "Slow.",
+    tone: "bad",
+    fromMs: 60_000,
+    toMs: 60_000,
+    walkSpeedPercent,
+  });
+  if (!def) throw new Error("fixture did not resolve");
+  return def;
+}
 
 function connected(
   now?: () => number,
@@ -982,9 +997,46 @@ describe("RemoteSession prediction", () => {
     session.update(WALK_DURATION_MS);
     session.setInput({ directions: [] });
 
-    for (let t = 0; t < STEP_CONFIRM_TIMEOUT_MS; t += 16) session.update(16);
+    // Past the grace *and* the walk it is granted on top of, which for a player
+    // at their own pace is one ordinary step. @see STEP_CONFIRM_GRACE_MS
+    const giveUpMs = STEP_CONFIRM_GRACE_MS + WALK_DURATION_MS;
+    for (let t = 0; t < giveUpMs + 32; t += 16) session.update(16);
 
     expect(session.getSnapshot().self.x).toBe(0);
+  });
+
+  /**
+   * The backstop is granted *on top of* the walk it is waiting for, because a
+   * confirmation is the patch that commits the move and the server does not
+   * send one until the body lands. A flat figure was fine while every step took
+   * 200ms: a body at the floor of the walk-speed band takes two seconds to
+   * cross a cell, which was the whole of the old allowance, so every slowed
+   * step was abandoned on a link with any latency at all — and abandoning it
+   * drags the body back to where it set off from.
+   */
+  it("waits out a slow step before giving up on it", () => {
+    const { socket, session } = connected(undefined, {
+      slow: slowing("slow", -90),
+    });
+    socket.deliver({
+      type: "statuses",
+      statuses: [{ defId: "slow", remainingMs: 60_000, durationMs: 60_000 }],
+    });
+
+    session.setInput({ directions: ["e"] });
+    session.update(16);
+    session.setInput({ directions: [] });
+
+    // A tenth of the pace, so the walk itself is worth the whole of the old
+    // flat allowance. Nothing confirms it — this socket answers nothing — so
+    // what is under test is how long the step is given before the client
+    // decides it never happened.
+    const walkMs = WALK_DURATION_MS * 10;
+    for (let t = 0; t < walkMs + 320; t += 16) session.update(16);
+
+    // Landed and standing, where the flat allowance would have dragged it back
+    // to where it set off from on the very frame the walk finished.
+    expect(session.getSnapshot().self.x).toBe(1);
   });
 
   it("hands the board back to the server when it says we are falling", () => {
