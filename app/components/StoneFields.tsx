@@ -227,7 +227,7 @@ export function StoneFields({
             />
 
             <div className="flex flex-col gap-1 text-xs">
-              <FieldLabel info="Caster: needs nothing targeted and never misfires. Target: needs somebody targeted, in range. The same in every square — the charm reaches as far as a hand.">
+              <FieldLabel info="Caster: needs nothing targeted and never misfires. Target: needs somebody targeted, in range. The same in every square — the accessory square reaches as far as a hand.">
                 Subject
               </FieldLabel>
               <div>

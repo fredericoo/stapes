@@ -100,9 +100,9 @@ const TYPE_INFO: Record<ItemType, string> = {
   container: "Holds other items. Containers never nest.",
   artifact:
     "Carried only: goes in the off hand, has no stats and cannot be used. A torch — its light is on the sprite's frames.",
-  stone: "Held or worn on the charm, and cast on a cooldown. Every square casts the same spell at the same range.",
+  stone: "Held or worn on the accessory square, and cast on a cooldown. Every square casts the same spell at the same range.",
   charm:
-    "Worn on the charm square, never held and never pressed. Does its thing on its own clock for as long as it is worn.",
+    "Worn on the accessory square, never held and never pressed. Does its thing on its own clock for as long as it is worn.",
 };
 
 /**

@@ -3041,6 +3041,17 @@ the charm square takes stones on exactly a hand's terms, and it takes charms
 because nothing else will have them. The squares differ in what they *cost* and
 in nothing else.
 
+**On screen the square is called Accessory, and in the code it is still
+`charm`.** The key was named when a charm was the only thing that went in it,
+and it now takes four kinds — armour authored for it, an arcane stone, a
+`CharmItem`, and a light. Naming the square after one of its four made the other
+three look misplaced. The key does not move for the reason `ARMOR_SLOTS` gives
+for keeping the chest square as `armor`: it is on the wire, in `data/tiles.json`
+on every ring and amulet, and in every saved kit, so renaming it would take the
+amulet off everybody wearing one. The word is `SLOT_LABELS` and
+`EquipmentPanel`'s caption, and the *item type* stays "Charm" — a charm is one
+of the things you put in the accessory square.
+
 **`hp` is unsigned, unlike a consumable's.** A consumable is something you chose
 to swallow, so a poisoned apple is fair. A charm acts on its wearer without being
 asked and on a clock they cannot see, and a trinket taking hit points off

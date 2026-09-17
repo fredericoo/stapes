@@ -86,13 +86,22 @@ const _everyArmorSlotIsWorn: readonly EquipSlot[] = ARMOR_SLOTS;
  * Physical rather than mechanical: an author places things on a body, so the
  * words are parts of a body. The game's own panel captions nothing at all — see
  * `../components/EquipmentPanel`, where the arrangement says it instead.
+ *
+ * **The stored key and the word are allowed to differ, and twice they do.** The
+ * chest square is `armor` because it was the only worn square when it was named,
+ * and the neck square is `charm` because a charm was the only thing that went in
+ * it. Neither key may move — see `../lib/item`'s {@link ARMOR_SLOTS}, which is
+ * the same argument written out — so the word moves instead.
  */
 export const SLOT_LABELS: Record<EquipSlot, string> = {
   head: "Head",
   weapon: "Weapon hand",
   offhand: "Off hand",
   armor: "Body",
-  charm: "Charm",
+  // Not "Charm", which is one of the four kinds the square takes rather than
+  // the square. A charm, a ring, an arcane stone and a torch all go here, and
+  // naming the square after one of them made the other three look misplaced.
+  charm: "Accessory",
   footwear: "Feet",
   bag: "Back",
 };

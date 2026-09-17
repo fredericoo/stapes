@@ -682,7 +682,9 @@ const ARMOR_SLOT_LABELS: Record<ArmorSlot, string> = {
   head: "Head",
   armor: "Armour",
   footwear: "Footwear",
-  charm: "Charm",
+  // The square, not the kind. A {@link CharmItem} is a "Charm" — see
+  // {@link kindOf} — and the square it goes in takes three other kinds besides.
+  charm: "Accessory",
 };
 
 /** What the list of statuses an item hands over should be called. */
