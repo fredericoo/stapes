@@ -283,6 +283,7 @@ import {
 import {
   canWalk,
   DIR_DELTA,
+  groundWalkSpeedPercent,
   listStandingSurfaces,
   standingAbs,
   surfacesInClimbBand,
@@ -6756,11 +6757,16 @@ export class GameSession implements PlaySession {
    * browser gathers the same two for itself — see `../net/RemoteSession`'s
    * `walkDurationAt` — which is the arrangement a pace that never travels is
    * under. @see `./movement`'s `walkDurationMsFor`
+   *
+   * `from` is where the step begins, and is passed rather than looked up
+   * because every caller is already holding it: the ground that has a say is
+   * the one being left. @see `./movement`'s `groundWalkSpeedPercent`
    */
-  private walkDurationOf(actor: ActorRuntime): number {
+  private walkDurationOf(actor: ActorRuntime, from: ActorLocation): number {
     return walkDurationMsFor(
       this.defFor(actor),
-      walkSpeedPercentFrom(actor.statuses, this.statusDefs),
+      walkSpeedPercentFrom(actor.statuses, this.statusDefs) +
+        groundWalkSpeedPercent(this.map, from, this.tilesById),
     );
   }
 
@@ -9345,7 +9351,7 @@ export class GameSession implements PlaySession {
       to: choice.step.to,
       direction: choice.step.direction,
       elapsedMs: 0,
-      durationMs: this.walkDurationOf(actor),
+      durationMs: this.walkDurationOf(actor, loc),
     };
     return true;
   }
@@ -9534,7 +9540,7 @@ export class GameSession implements PlaySession {
           to: slide.to,
           direction: facing,
           elapsedMs: 0,
-          durationMs: this.walkDurationOf(actor),
+          durationMs: this.walkDurationOf(actor, after),
         };
         return;
       }

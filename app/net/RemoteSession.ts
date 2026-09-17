@@ -78,7 +78,11 @@ import type {
   PlaySession,
   WalkState,
 } from "../game/GameSession";
-import { standingAbs, walkDurationMsFor } from "../game/movement";
+import {
+  groundWalkSpeedPercent,
+  standingAbs,
+  walkDurationMsFor,
+} from "../game/movement";
 import { STRIKE_RECOVERY_STEPS, strikeRecoveryMs } from "../game/combat";
 import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
 import {
@@ -938,7 +942,17 @@ export class RemoteSession implements PlaySession {
     const stack = getStack(this.map, at.x, at.y, at.z);
     const def = this.tilesById[stack[stack.length - 1]?.tileId ?? ""];
     if (!def) return WALK_DURATION_MS;
-    return walkDurationMsFor(def, this.walkSpeedPercentOf(actorId));
+    return walkDurationMsFor(
+      def,
+      this.walkSpeedPercentOf(actorId) +
+        groundWalkSpeedPercent(
+          this.map,
+          // The body is the top of the stack, which is what the def above was
+          // read off — so the ground it is standing on is everything under it.
+          { ...at, stackIndex: stack.length - 1 },
+          this.tilesById,
+        ),
+    );
   }
 
   /**
@@ -1590,7 +1604,11 @@ export class RemoteSession implements PlaySession {
       elapsedMs,
       // Our own body, so its pace is the one the server will time us by —
       // whatever we are under and whatever we are standing on included.
-      durationMs: walkDurationMsFor(def, this.walkSpeedPercentOf(this.selfId)),
+      durationMs: walkDurationMsFor(
+        def,
+        this.walkSpeedPercentOf(this.selfId) +
+          groundWalkSpeedPercent(this.map, loc, this.tilesById),
+      ),
     };
     this.pending.push({
       seq,

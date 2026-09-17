@@ -84,6 +84,38 @@ export function walkDurationMsFor(def: TileDef, speedPercent: number): number {
   return walkDurationFrom(resolveWalkDurationMs(def), speedPercent);
 }
 
+/**
+ * How much quicker or slower the ground under this body makes it walk.
+ *
+ * **The surface its feet are on, and never the cell it is stepping into.** Both
+ * ends of the wire have to reach the same figure, and the cell being *left* is
+ * the one they agree about: the browser is told a step has started and holds
+ * the board it started from, where the destination may be a cell it is about to
+ * be patched. It also reads better than the alternative — wading out of a bog
+ * is slow, and the step that gets you clear of it is the last slow one.
+ *
+ * The body is excluded from its own stack, on {@link standingAbs}'s terms: what
+ * is being asked about is what it is standing on, and a body is not its own
+ * ground.
+ *
+ * Zero for open air, for a tile nobody authored a figure onto, and for a
+ * placement of something the catalogue no longer holds — the same reading every
+ * other absent field takes.
+ */
+export function groundWalkSpeedPercent(
+  map: MapFile,
+  at: Coord & { stackIndex: number },
+  tilesById: Record<string, TileDef>,
+): number {
+  const abs = standingAbs(map, at.x, at.y, at.z, at.stackIndex, tilesById);
+  const surface = surfaceTileAt(map, at.x, at.y, abs, tilesById, {
+    z: at.z,
+    stackIndex: at.stackIndex,
+  });
+  if (!surface) return 0;
+  return tilesById[surface.tileId]?.walkSpeedPercent ?? 0;
+}
+
 export function standingAbs(
   map: MapFile,
   x: number,

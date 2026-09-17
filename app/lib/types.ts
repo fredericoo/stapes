@@ -500,6 +500,28 @@ export type TileDef = StateSprites & {
    */
   walkDurationMs?: number;
   /**
+   * How much quicker or slower this tile is to walk *on*, as a percentage.
+   *
+   * {@link walkDurationMs}'s opposite number and the other half of one
+   * question: that is a fact about the body taking the step, this is a fact
+   * about the ground it is taking it from. Mud, a bog, ice, a road. Absent or
+   * zero is ordinary ground, which is every tile in the world until somebody
+   * says otherwise.
+   *
+   * **Read off the surface under a body's feet when a step begins**, and not
+   * off the cell it is stepping into: a pace is derived on both sides of the
+   * wire rather than sent, and the cell being left is the one the browser is
+   * holding when the walk event arrives. Summed with whatever the body is under
+   * before anything is divided — see `./walkSpeed`, which owns the arithmetic
+   * and the band — so a chilled body wading through a bog is slower than either
+   * alone and neither can bring it to a stop.
+   *
+   * On any tile rather than only on scenery, because "what is under the feet"
+   * is decided by what the stack is standing on and an author may perfectly
+   * well want a body that is slow to walk across — a raft, a pile of rubble.
+   */
+  walkSpeedPercent?: number;
+  /**
    * World-side dirs you may climb UP toward, keyed by facing.
    * Simple / autotile use `"default"`; directional use `n`/`e`/`s`/`w`
    * for each placement facing. Missing dirs default to true.

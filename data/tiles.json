@@ -32605,6 +32605,7 @@
     "type": "autotile",
     "kind": "prop",
     "attributes": {},
+    "walkSpeedPercent": -35,
     "anchor": {
       "tilesetId": "floors",
       "x": 8,

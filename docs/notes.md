@@ -5494,6 +5494,20 @@ duration is a divisor, so `-100` is a body that never finishes a step, and
 nothing in the game clears a condition that stopped you walking out of it. A
 tenth of the pace is a bog everybody escapes.
 
+**The ground has the other half of the figure.** `TileDef.walkSpeedPercent` is
+the same percentage said about a tile rather than about a body, and the two sum
+before anything divides — a chilled body wading through mud is slower than
+either alone, where multiplying them would make each source worth less the more
+of them there were.
+
+It is read off **the surface under the feet when a step begins**, never the cell
+being entered, and that follows from the wire again: the browser is told a step
+has started and holds the board it started from, where the destination may be a
+cell it is about to be patched. It reads correctly too — wading out of a bog is
+slow, and the step that gets you clear of it is the last slow one.
+`groundWalkSpeedPercent` excludes the walking body from its own stack, because a
+raft is not its own ground.
+
 **A blow still plants you for the pace you are authored at.** `strikeRecoveryMs`
 reads `resolveWalkDurationMs` and not the moved figure: how long a swing costs is
 a fact about the swing, both ends already derive it from the tile alone, and
