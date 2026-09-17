@@ -21,6 +21,7 @@ import {
 } from "./combat";
 import { STRIKE_DURATION_MS, TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
+import type { Transition } from "../lib/tileTransition";
 
 /**
  * Fighting, on a board.
@@ -827,28 +828,120 @@ const bow = claws({
   ...CERTAIN,
   mastery: "ranged" as const,
   reach: { cells: 6, height: HEIGHT_PER_LEVEL },
-  projectile: { tileId: "arrow", cellsPerSecond: 20 },
+  projectile: "arrow",
 });
 
-const archerTiles: TileDef[] = tiles.map((t) =>
-  t.id === "player"
-    ? tile({
-        ...t,
-        interactions: {
-          battler: {
-            baseHp: FIXTURE_BASE_HP,
-            // No Ranged mastery, deliberately: the bow asks for none, so the
-            // level would buy nothing but the flat skill bonus — and these
-            // tests are about reach and arrows, not about how hard an archer
-            // hits. With it, the dummy died mid-test and the assertions started
-            // reading a body that was no longer there.
-            masteries: { toughness: PLAYER_TOUGHNESS },
-            naturalWeapon: bow,
+/**
+ * The catalogue every archer here fires out of.
+ *
+ * Built by hand rather than read off `data/projectiles.json`, on the terms
+ * every other fixture in this file is built: what is being tested is that a
+ * shot names an entry and plays its sides, not what the shipped arrow happens
+ * to be authored as. @see `../lib/projectile`
+ */
+const SPARK: Transition = {
+  durationMs: 150,
+  particles: {
+    ratePerSecond: 60,
+    ttlFromMs: 100,
+    ttlToMs: 200,
+    spawnRadiusCells: 0.2,
+    spawnElevFrom: 0,
+    spawnElevTo: 2,
+    riseFrom: 1,
+    riseTo: 4,
+    driftCellsPerSecond: 1,
+    lit: false,
+    gravity: -10,
+    windX: 0,
+    windY: 0,
+    radiusFromPx: 1,
+    radiusToPx: 1,
+    alphaFrom: 1,
+    alphaTo: 0,
+    ramp: [{ at: 0, color: "#ffffff" }],
+  },
+};
+
+/**
+ * The arrow every archer here fires, as a `projectile` tile.
+ *
+ * Built by hand rather than read off `data/tiles.json`, on the terms every
+ * other fixture in this file is: what is tested is that a shot names a
+ * projectile and plays its sides, not what the shipped arrow is authored as.
+ */
+function arrowTile(hit?: Transition): TileDef {
+  return tile({
+    id: "arrow",
+    height: 0,
+    type: "directional8",
+    kind: "projectile",
+    intangible: true,
+    interactions: {
+      projectile: { cellsPerSecond: 20, ...(hit ? { hit } : {}) },
+    },
+  });
+}
+
+/**
+ * The catalogue with the player holding this bow, and the arrow it fires in it.
+ *
+ * The arrow is a tile like any other now, so it has to be *in* the list the
+ * session is built from — a weapon naming one the catalogue does not hold
+ * looses nothing, which is the behaviour and would make every assertion here
+ * pass by never happening.
+ */
+function archerTilesArmedWith(weapon: typeof bow, hit?: Transition): TileDef[] {
+  return [arrowTile(hit), ...tiles].map((t) =>
+    t.id === "player"
+      ? tile({
+          ...t,
+          interactions: {
+            battler: {
+              baseHp: FIXTURE_BASE_HP,
+              // No Ranged mastery, deliberately: the bow asks for none, so the
+              // level would buy nothing but the flat skill bonus — and these
+              // tests are about reach and arrows, not about how hard an archer
+              // hits. With it, the dummy died mid-test and the assertions
+              // started reading a body that was no longer there.
+              masteries: { toughness: PLAYER_TOUGHNESS },
+              naturalWeapon: weapon,
+            },
           },
-        },
-      })
-    : t,
-);
+        })
+      : t,
+  );
+}
+
+const archerTiles: TileDef[] = archerTilesArmedWith(bow);
+
+/**
+ * The same bow, deliberately unreliable where every other fixture here is
+ * {@link CERTAIN}.
+ *
+ * Which side a landing plays is the one thing about a shot that differs between
+ * connecting and not, so a weapon that lands everything can only ever assert
+ * half the rule. Fifty accuracy gets both outcomes inside one fight; the swing
+ * rate stays at the cap so that fight is short.
+ */
+const unreliableBow = claws({
+  damage: feltBy(DUMMY_TOUGHNESS),
+  accuracy: 50,
+  spd: 100,
+  mastery: "ranged" as const,
+  reach: { cells: 6, height: HEIGHT_PER_LEVEL },
+  projectile: "arrow",
+});
+
+/**
+ * Long enough that both outcomes turn up, at the cap's one swing per
+ * {@link MIN_ATTACK_TICKS}.
+ *
+ * Far longer than {@link ENOUGH_SWINGS_MS}, which is sized for "hit points
+ * moved at all": this one needs a run in which a fifty-accuracy bow both lands
+ * and misses, and six swings can be six of either.
+ */
+const ENOUGH_SHOTS_MS = TICK_MS * MIN_ATTACK_TICKS * 40;
 
 /** A wall that stops a look, and therefore a shot. Full height, opaque. */
 const WALL = "wall";
@@ -923,6 +1016,85 @@ describe("shooting at somebody", () => {
   });
 
   /**
+   * **Which side a landing plays is the one claim a flight makes about the
+   * fight**, so it may not outrun the dice. The arrow is drawn whatever the
+   * blow came to — a shot that missed is a shot somebody saw taken — and only a
+   * shot that connected plays the `hit`.
+   *
+   * Asserted as an invariant over a whole fight rather than as one arranged
+   * shot, because nothing in a fight is certain: hit chance is clamped at both
+   * ends, so even a weapon of perfect accuracy misses now and then. The bow is
+   * the unreliable one so that both outcomes turn up, the seed is what makes
+   * the run repeatable, and the anvil is what lets it run to the end — it is
+   * armoured past anything the player can do to it.
+   *
+   * The pairing is per tick and the archer swings alone, so exactly one thing is
+   * drained against each shot: a `hit` receipt for a blow that landed —
+   * including one armour ate entirely — a `miss` receipt for a shot that went
+   * wide, and nothing at all for a dodge, which says what it has to say by
+   * hopping.
+   */
+  it("marks a shot hit only when the blow connected", () => {
+    const session = new GameSession(
+      withBody(field(6), 4, 0, "anvil"),
+      archerTilesArmedWith(unreliableBow, SPARK),
+      { seed: 7 },
+    );
+    fight(session, bodyOf(session, "anvil")!.id);
+
+    let connected = 0;
+    let missedOrDodged = 0;
+    for (let elapsed = 0; elapsed < ENOUGH_SHOTS_MS; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      const loosed = session.drainProjectiles();
+      const landed = session
+        .drainDamage()
+        .some((receipt) => receipt.outcome === "hit");
+      for (const flight of loosed) {
+        if (flight.hit) connected++;
+        else missedOrDodged++;
+        expect(flight.hit).toBe(landed);
+      }
+    }
+
+    // Neither count may be zero, or the assertion above held vacuously over a
+    // fight in which only one thing ever happened.
+    expect(connected).toBeGreaterThan(0);
+    expect(missedOrDodged).toBeGreaterThan(0);
+  });
+
+  /**
+   * And what that mark buys: the `hit` side plays where a shot that connected
+   * lands, and nothing plays where one that did not does. The effects are the
+   * session's own list rather than anything on the wire — see
+   * `./projectile`'s {@link FlightEffect}.
+   */
+  it("plays the hit side only where a shot that connected landed", () => {
+    const session = new GameSession(
+      withBody(field(6), 4, 0, "anvil"),
+      archerTilesArmedWith(unreliableBow, SPARK),
+      { seed: 7 },
+    );
+    fight(session, bodyOf(session, "anvil")!.id);
+
+    const played = new Set<string>();
+    let shots = 0;
+    for (let elapsed = 0; elapsed < ENOUGH_SHOTS_MS; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      shots += session.drainProjectiles().length;
+      for (const effect of session.getSnapshot().flightEffects) {
+        played.add(effect.id);
+      }
+    }
+
+    // Every effect that ever played is a hit, and there are fewer of them than
+    // there were shots: the misses in between played nothing at all.
+    expect(played.size).toBeGreaterThan(0);
+    expect([...played].every((id) => id.endsWith(":hit"))).toBe(true);
+    expect(played.size).toBeLessThan(shots);
+  });
+
+  /**
    * **A wall does not stop you pointing, only shooting.** The target stays
    * targeted — its name and its health bar are readable through a window you
    * cannot shoot through — and no blow lands and no arrow flies while the line
@@ -979,6 +1151,8 @@ describe("a bow and a knife", () => {
   const KNIFE = "belt-knife";
 
   const duellistTiles: TileDef[] = [
+    // The belt bow fires this, so it has to be in the catalogue beside it.
+    arrowTile(),
     ...tiles.map((t) =>
       t.id === "player"
         ? tile({
@@ -1018,7 +1192,7 @@ describe("a bow and a knife", () => {
           spd: 100,
           mastery: "ranged",
           reach: { cells: 6, min: 2, height: HEIGHT_PER_LEVEL },
-          projectile: { tileId: "arrow", cellsPerSecond: 20 },
+          projectile: "arrow",
         },
       },
     }),

@@ -636,20 +636,36 @@ export type MotionEvent =
   | {
       kind: "projectileFired";
       id: string;
-      /** The tile drawn in flight — a `directional8` one. */
+      /**
+       * Which projectile — the id of a `projectile` tile.
+       *
+       * **A tile id, and it used to come with a duration.** That had to be sent
+       * because the speed lived on a weapon the shooter could drop in the same
+       * frame; the speed is on the tile now, and the catalogue is resolved once
+       * per load and cannot be dropped, so the receiver derives the flight time
+       * itself from the two points below and the tile this names. See
+       * `../lib/projectile`.
+       *
+       * An id the catalogue has lost draws nothing, and so does one naming a
+       * tile that is not a projectile.
+       */
       tileId: string;
       /** Cell on the plan and absolute height, at each end. */
       from: { x: number; y: number; elevAbs: number };
       to: { x: number; y: number; elevAbs: number };
       /**
-       * How long the whole flight takes.
+       * Whether the blow this is a receipt for connected.
        *
-       * Sent rather than re-derived from the weapon's speed, because the
-       * receiver may not be able to: the shooter can drop the bow, or die, in
-       * the same frame this arrives. What is in the air owes nothing to what
-       * fired it.
+       * **The one thing this event says about the fight**, and it buys exactly
+       * one thing: which side plays where the shot lands — `hit` or
+       * `disappear`. The flight is drawn identically either way, because the
+       * arrow was loosed either way.
+       *
+       * A flag rather than the effect itself, which is the whole difference a
+       * catalogue makes: what to play is on the tile both ends already hold,
+       * and only *which* of it can come from the fight.
        */
-      durationMs: number;
+      hit: boolean;
     }
   /**
    * A tile formed or dissolved for a reason worth playing.
@@ -1563,7 +1579,7 @@ const serverMessageSchema = v.variant("type", [
           tileId: v.string(),
           from: flightPointSchema,
           to: flightPointSchema,
-          durationMs: v.number(),
+          hit: v.boolean(),
         }),
         v.object({
           kind: v.literal("tileTransition"),

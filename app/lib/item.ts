@@ -139,56 +139,6 @@ export type Reach = {
  */
 export const MELEE_REACH: Reach = { cells: 1.5, height: HEIGHT_PER_LEVEL / 2 };
 
-/**
- * The thing a ranged weapon puts in the air.
- *
- * **Entirely a drawing, and deliberately so.** It collides with nothing, it can
- * be walked through, and it cannot miss on the way — the whole fight was already
- * settled on the tick it was loosed, and the arrow is a receipt in flight rather
- * than the blow itself. That is not a shortcut taken to avoid the physics: a
- * blow that lands when the arrow arrives is a blow whose outcome depends on
- * frames, and two clients drawing at different rates would disagree about
- * whether somebody died. Damage now and the arrow after is the one arrangement
- * where the picture can lag the truth without ever contradicting it.
- *
- * Which also means a shot at a body that dies before the arrow lands still
- * finishes its flight, and should: the arrow was loosed, and taking it back out
- * of the air would be the picture editing itself after the fact.
- */
-export type ProjectileDef = {
-  /**
-   * The tile drawn in flight.
-   *
-   * A tile id rather than sprites inlined here, so an arrow is an ordinary thing
-   * in the catalogue: it animates, it can carry a light, and it is authored with
-   * the same picker as everything else. A `directional8` tile — see
-   * `./types` — because a shot travels on any of eight bearings and a four-way
-   * facing would make half of them point somewhere the arrow is not going.
-   *
-   * A tile the catalogue has lost draws nothing, on the terms every other id in
-   * a kit is honoured: the fact is out of date, not corrupt, and a fight is not
-   * worth refusing over the art.
-   */
-  tileId: string;
-  /**
-   * How fast it travels, in cells per second.
-   *
-   * A speed rather than a duration, so a long shot takes longer than a short one
-   * — which is the only thing in the animation carrying any information about
-   * distance. A fixed duration would make an arrow crossing six cells look
-   * exactly like one crossing two, at wildly different apparent speeds.
-   *
-   * **Cells per second, and it was world pixels per millisecond.** That unit is
-   * the reason the first arrows in this game floated: `0.03` is three and three
-   * quarter cells a second — slower than a person walks — and nothing about the
-   * number says so. A speed is only authorable in the unit the map is drawn in,
-   * where "twenty" is plainly an arrow and "four" is plainly a thrown pebble,
-   * and where anybody can check it against the five cells a second a body walks
-   * at. See {@link DEFAULT_PROJECTILE_SPEED}.
-   */
-  cellsPerSecond: number;
-};
-
 export type WeaponItem = {
   type: "weapon";
   /**
@@ -326,9 +276,17 @@ export type WeaponItem = {
    *
    * Purely a drawing. Nothing here collides, and the damage is settled on the
    * tick the shot is loosed rather than when the arrow arrives; see
-   * {@link ProjectileDef}.
+   * `../game/projectile`.
+   *
+   * **An id into `./projectile`'s catalogue, and it used to be the block
+   * itself.** Three bows carried three copies of the same arrow and thirteen
+   * stones carried thirteen of the same shard, so how a shard flew was thirteen
+   * edits and an effect authored on one of them was an effect the other twelve
+   * did not have. This module resolves nothing — whether the id names anything
+   * is asked where the shot is drawn, on exactly the terms a consumable's
+   * status ids are left alone here.
    */
-  projectile?: ProjectileDef;
+  projectile?: string;
   /**
    * What this asks of whoever swings it, mastery by mastery.
    *
@@ -883,7 +841,7 @@ export type StoneEffect =
        * What it puts in the air on its way, or absent for a spell that simply
        * arrives.
        *
-       * The same block and the same flight a bow's
+       * The same catalogue and the same flight a bow's
        * {@link WeaponItem.projectile} is, drawn by the same renderer — and just
        * as purely a picture: the health has already moved by the time the first
        * frame is drawn. See `../game/projectile` for why the receipt is allowed
@@ -893,7 +851,7 @@ export type StoneEffect =
        * own thrower has no distance to cross, and an arrow from a body to itself
        * is a frame of art sitting on somebody's head.
        */
-      projectile?: ProjectileDef;
+      projectile?: string;
       /**
        * What it may leave on whoever it landed on, each with its own chance.
        *
@@ -1237,38 +1195,6 @@ export const MAX_WEAPON_DAMAGE = 999;
  */
 export const MAX_REACH_CELLS = 64;
 export const MAX_REACH_HEIGHT = 20;
-
-/**
- * How fast a projectile may travel, in cells per second.
- *
- * The floor is not zero: a speed of zero is an arrow that never arrives and a
- * flight that never ends, which is a hang rather than a slow shot. One cell a
- * second is as slow as anything could want to be and still be going somewhere —
- * and it is slow enough to be a real cost, since a flight holds the world's tick
- * loop open for as long as it lasts.
- *
- * The ceiling is a thousand, which crosses the widest authorable reach inside a
- * single tick. Anything past that is a shot nobody sees at all and may as well
- * have no projectile authored.
- */
-export const MIN_PROJECTILE_SPEED = 1;
-export const MAX_PROJECTILE_SPEED = 1000;
-
-/**
- * What a fresh projectile travels at, in cells per second.
- *
- * **Read against the two speeds already in the game.** A body walks a cell every
- * `WALK_DURATION_MS`, which is five cells a second, and a melee lean is out and
- * back in 150ms. Twenty is four times walking pace and crosses a six-cell reach
- * in about three hundred milliseconds — near enough to the length of one swing
- * that a shot reads as a blow struck rather than as an object drifting across
- * the yard.
- *
- * The first value here was three and three quarter cells a second, written in a
- * unit that hid it. An arrow slower than the archer could walk is the failure
- * this constant exists to make impossible to write by accident.
- */
-export const DEFAULT_PROJECTILE_SPEED = 20;
 
 /**
  * What a status a weapon has just been given happens at, until somebody says.
@@ -1723,23 +1649,16 @@ const reachEntries = v.pipe(
 /**
  * What a thing puts in the air, shared by a bow and by a bolt.
  *
- * Shared for the reason {@link reachEntries} is: a spell's flight *is* a
- * weapon's, timed by the same `../game/projectile` and drawn by the same
- * renderer, so a second copy here would be the first place the two could
- * disagree about what twenty cells a second means.
+ * An id into `./projectile`'s catalogue, shared for the reason
+ * {@link reachEntries} is: a spell's flight *is* a weapon's, timed by the same
+ * `../game/projectile` and drawn by the same renderer, so a second spelling
+ * here would be the first place the two could disagree.
  *
- * Whether the tile id names anything is the catalogue's question and is asked
- * where the arrow is drawn — this module resolves no tiles, on exactly the terms
- * a consumable's status ids are left alone here.
+ * Whether the id names anything is that catalogue's question and is asked where
+ * the shot is drawn — this module resolves nothing, on exactly the terms a
+ * consumable's status ids are left alone here.
  */
-const projectileSchema = v.object({
-  tileId: v.pipe(v.string(), v.trim(), v.minLength(1)),
-  cellsPerSecond: v.pipe(
-    v.number(),
-    v.minValue(MIN_PROJECTILE_SPEED),
-    v.maxValue(MAX_PROJECTILE_SPEED),
-  ),
-});
+const projectileSchema = v.pipe(v.string(), v.trim(), v.minLength(1));
 
 /**
  * Exported because a body's natural weapon is validated by it too.
@@ -2228,7 +2147,7 @@ export const NO_ELEMENTS: readonly Element[] = [];
  * exactly the disagreement the paragraph above is about.
  */
 export function isRanged(weapon: {
-  projectile?: ProjectileDef | null;
+  projectile?: string | null;
 }): boolean {
   return weapon.projectile != null;
 }
@@ -2329,13 +2248,10 @@ export function weaponForSave(weapon: WeaponItem): WeaponItem {
     // authored block, never parsed — so the schema's default has not run on it.
     reach: reachForSave(reachOf(weapon)),
     mastery: weapon.mastery,
-    ...(weapon.projectile
-      ? {
-          projectile: {
-            tileId: weapon.projectile.tileId.trim(),
-            cellsPerSecond: weapon.projectile.cellsPerSecond,
-          },
-        }
+    // An id, trimmed, and dropped when it says nothing: a picker somebody
+    // opened and closed again is not a projectile.
+    ...(weapon.projectile?.trim()
+      ? { projectile: weapon.projectile.trim() }
       : {}),
     // Written only when true, on the same terms the requirements block is: an
     // explicit `false` on every weapon in the file is a field to skim past that
@@ -2548,18 +2464,13 @@ function stoneEffectForSave(effect: StoneEffect): StoneEffect {
     // Every optional drops when it says nothing, on the terms every other
     // absent-means-the-default field here does: a `variance: 0` written to disk
     // claims an author decided the spell was reliable, where absent says nobody
-    // thought about it and it does what it says. A projectile with no tile
-    // picked is a picker somebody opened and closed again, and a damage of zero
-    // is a number somebody emptied.
+    // thought about it and it does what it says. A projectile nobody picked is
+    // a picker somebody opened and closed again, and a damage of zero is a
+    // number somebody emptied.
     ...(effect.damage ? { damage: Math.round(effect.damage) } : {}),
     ...(effect.variance ? { variance: Math.round(effect.variance) } : {}),
-    ...(effect.projectile?.tileId.trim()
-      ? {
-          projectile: {
-            tileId: effect.projectile.tileId.trim(),
-            cellsPerSecond: effect.projectile.cellsPerSecond,
-          },
-        }
+    ...(effect.projectile?.trim()
+      ? { projectile: effect.projectile.trim() }
       : {}),
     ...(statuses ? { statuses } : {}),
   };

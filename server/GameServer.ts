@@ -3928,8 +3928,8 @@ export class GameServer {
    *
    * The whole flight is sent in one event and never touched again. There is no
    * per-tick position stream for the same reason a walk has none: the receiver
-   * has two fixed points and a duration, which is enough to draw every frame of
-   * it without being told any of them.
+   * has two fixed points and a tile naming the speed, which is enough to draw
+   * every frame of it without being told any of them.
    */
   private collectProjectileEvents(session: GameSession) {
     for (const flight of session.drainProjectiles()) {
@@ -3939,7 +3939,7 @@ export class GameServer {
         tileId: flight.tileId,
         from: flight.from,
         to: flight.to,
-        durationMs: flight.durationMs,
+        hit: flight.hit,
       });
     }
   }

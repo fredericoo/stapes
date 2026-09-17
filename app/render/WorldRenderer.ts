@@ -197,6 +197,10 @@ type AnimatedInstance = {
  * 64 wide — because an arrow drawn at exactly a floor's height is over that
  * floor rather than inside it. Well under the band, so it can never bleed into
  * the level above's. @see depthStackBias
+ *
+ * `./projectileMotion` holds the same number for what a flight *plays*, which
+ * belongs exactly where the arrow that played it was. Two constants rather than
+ * one import, because this file is THREE and that one is deliberately not.
  */
 const PROJECTILE_STACK_BIAS = 32;
 

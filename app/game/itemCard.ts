@@ -14,7 +14,6 @@ import {
   type ConsumableItem,
   type ContainerItem,
   type ItemDef,
-  type ProjectileDef,
   type Reach,
   type ShieldItem,
   type StatusGrant,
@@ -331,7 +330,7 @@ function durationOf(grant: StatusGrant, def: StatusDef): string {
  */
 function reachLine(thing: {
   reach?: Reach;
-  projectile?: ProjectileDef;
+  projectile?: string;
 }): string {
   const reach = reachOf(thing);
   const far = reach.min ? `${reach.min}–${reach.cells}` : `${reach.cells}`;

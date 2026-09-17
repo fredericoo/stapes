@@ -130,6 +130,7 @@ const KIND_OPTIONS: Array<{ value: TileKind; label: string }> = [
   { value: "prop", label: "Prop" },
   { value: "battler", label: "Battler" },
   { value: "item", label: "Item" },
+  { value: "projectile", label: "Projectile" },
 ];
 
 /**

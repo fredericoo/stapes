@@ -1,16 +1,13 @@
 import type {
   ArcaneStoneItem,
-  ProjectileDef,
   Reach,
   StoneEffect,
   StoneEffectKind,
   StoneSubject,
 } from "../lib/item";
 import {
-  DEFAULT_PROJECTILE_SPEED,
   MAX_CAST_TIME_MS,
   MAX_PERCENT_STAT,
-  MAX_PROJECTILE_SPEED,
   MAX_REACH_CELLS,
   MAX_REACH_HEIGHT,
   MAX_SOUND_LENGTH,
@@ -19,7 +16,6 @@ import {
   MELEE_REACH,
   MIN_CAST_TIME_MS,
   MIN_PERCENT_STAT,
-  MIN_PROJECTILE_SPEED,
   MIN_STONE_COOLDOWN_MS,
   reachOf,
 } from "../lib/item";
@@ -38,6 +34,7 @@ import {
   ELEMENTS,
 } from "../lib/element";
 import type { StatusDef } from "../lib/status";
+import { projectileTiles, resolveProjectile } from "../lib/projectile";
 import type { TileDef } from "../lib/types";
 import { FieldLabel, Input, Segmented, Select, SwitchField } from "../ui";
 import { StatusGrants } from "./StatusGrants";
@@ -89,12 +86,6 @@ const BLANK_EFFECTS: Record<StoneEffectKind, StoneEffect> = {
   // standing alone in a room.
   bolt: { kind: "bolt", damage: -10, on: "caster" },
   conjure: { kind: "conjure", tileId: "" },
-};
-
-/** What a bolt with no projectile authored is offered when it grows one. */
-const STARTER_PROJECTILE: ProjectileDef = {
-  tileId: "",
-  cellsPerSecond: DEFAULT_PROJECTILE_SPEED,
 };
 
 /**
@@ -169,9 +160,22 @@ export function StoneFields({
   // dropped out from under an author — the same tolerance `WeaponFields` shows.
   const boltProjectile =
     stone.effect.kind === "bolt" ? stone.effect.projectile : undefined;
-  const projectileTiles = tiles.filter(
-    (tile) => tile.type === "directional8" || tile.id === boltProjectile?.tileId,
+  const thrown = resolveProjectile(
+    tiles.find((tile) => tile.id === boltProjectile),
   );
+  // Every projectile tile, plus whatever this stone already names even if the
+  // catalogue has since changed its mind about it — an id silently dropped from
+  // the picker is an author being told their bolt does not exist while it sits
+  // in the file doing nothing.
+  const projectileOptions = [
+    ...projectileTiles(tiles).map((tile) => ({
+      value: tile.id,
+      label: tile.name,
+    })),
+    ...(boltProjectile && !thrown
+      ? [{ value: boltProjectile, label: `${boltProjectile} (not a projectile)` }]
+      : []),
+  ];
 
   return (
     <div className="flex flex-col gap-3">
@@ -249,48 +253,24 @@ export function StoneFields({
             </FieldLabel>
             <div className="flex flex-wrap items-end gap-4">
               <label className="flex flex-col gap-1 text-xs">
-                <FieldLabel info="8-way tiles only, so it points where it is going.">
-                  Tile
+                <FieldLabel info="What this throws. A bolt and a bow's arrow are the same kind of thing and come out of the same list: tiles of the Projectile kind.">
+                  Throws
                 </FieldLabel>
                 <Select
                   className="w-56"
-                  value={effect.projectile?.tileId ?? ""}
-                  onValueChange={(tileId) =>
+                  value={effect.projectile ?? ""}
+                  onValueChange={(id) =>
                     onChange({
-                      effect: {
-                        ...effect,
-                        projectile: tileId
-                          ? { ...(effect.projectile ?? STARTER_PROJECTILE), tileId }
-                          : undefined,
-                      },
+                      effect: { ...effect, projectile: id ? id : undefined },
                     })
                   }
-                  options={[
-                    { value: "", label: "None" },
-                    ...projectileTiles.map((tile) => ({
-                      value: tile.id,
-                      label: tile.name,
-                    })),
-                  ]}
+                  options={[{ value: "", label: "Nothing" }, ...projectileOptions]}
                 />
               </label>
-              {effect.projectile ? (
-                <StatField
-                  label="Speed"
-                  info="Cells per second. A body walks at five."
-                  value={effect.projectile.cellsPerSecond}
-                  min={MIN_PROJECTILE_SPEED}
-                  max={MAX_PROJECTILE_SPEED}
-                  onChange={(cellsPerSecond) =>
-                    onChange({
-                      effect: {
-                        ...effect,
-                        projectile: { ...effect.projectile!, cellsPerSecond },
-                      },
-                    })
-                  }
-                  readout={describeFlight(reach, effect.projectile)}
-                />
+              {thrown ? (
+                <span className="self-end text-[11px] text-muted">
+                  {describeFlight(reach, thrown)}
+                </span>
               ) : null}
             </div>
           </div>

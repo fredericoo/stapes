@@ -163,7 +163,7 @@ describe("events of a patch", () => {
       tileId: "arrow",
       from: { x: 1, y: 0, elevAbs: 2 },
       to: { x: 3, y: 0, elevAbs: 2 },
-      durationMs: 300,
+      hit: true,
     };
     const hit: MotionEvent = {
       kind: "damage",

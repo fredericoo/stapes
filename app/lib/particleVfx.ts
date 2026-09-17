@@ -223,6 +223,51 @@ export const DEFAULT_PARTICLES: ParticleEmitterDef = {
 };
 
 /**
+ * What an editor opens a fresh burst on: a few white sparks.
+ *
+ * A second default rather than {@link DEFAULT_PARTICLES} with different
+ * numbers, because the two are opposite shapes and an author starting from the
+ * wrong one has to undo every field. A plume is slow, thin and continuous; a
+ * burst is brief and then gone.
+ *
+ * **Half a dozen, not twenty.** The first version of this spent twenty
+ * particles over a seventh of a second and ramped white through red, and what
+ * it read as was a detonation — which is a fine thing for a spell to do and
+ * quite wrong for an arrow going into somebody. A hit is a puncture: a handful
+ * of sparks, a tenth of a second, and a gravity that takes them straight back
+ * down rather than letting them bloom outwards. An author who wants the
+ * explosion builds up to it from here; one who wants a hit is already done.
+ *
+ * Unlit, on the terms the type's own resting state is: a spark is its own
+ * light, and a hit in a dark room should still read as a hit.
+ */
+export const DEFAULT_IMPACT: ParticleEmitterDef = {
+  ratePerSecond: 60,
+  ttlFromMs: 90,
+  ttlToMs: 180,
+  spawnRadiusCells: 0.1,
+  spawnElevFrom: 1,
+  spawnElevTo: 3,
+  riseFrom: 1,
+  riseTo: 5,
+  driftCellsPerSecond: 0.9,
+  gravity: -18,
+  windX: 0,
+  windY: 0,
+  lit: false,
+  radiusFromPx: 1,
+  radiusToPx: 1,
+  alphaFrom: 1,
+  alphaTo: 0,
+  // Barely a ramp: white, cooling to the palest thing on the wheel, with the
+  // alpha doing the rest. Colour is what a *spell* says; a spark says none.
+  ramp: [
+    { at: 0, color: "#ffffff" },
+    { at: 1, color: "#c7dcd0" },
+  ],
+};
+
+/**
  * The two atoms every vfx block is made of.
  *
  * Exported from here rather than kept private because `./statusVfx` is built out

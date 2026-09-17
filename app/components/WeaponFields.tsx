@@ -7,17 +7,18 @@ import {
   weaponHandling,
 } from "../lib/battler";
 import { TICK_MS } from "../game/constants";
-import type { ProjectileDef, Reach, WeaponItem } from "../lib/item";
+import type { Reach, WeaponItem } from "../lib/item";
 import {
-  DEFAULT_PROJECTILE_SPEED,
+  projectileTiles,
+  resolveProjectile,
+} from "../lib/projectile";
+import {
   DEFAULT_WEAPON_STATUS_CHANCE,
   MAX_PERCENT_STAT,
-  MAX_PROJECTILE_SPEED,
   MAX_REACH_CELLS,
   MAX_REACH_HEIGHT,
   MAX_WEAPON_DAMAGE,
   MIN_PERCENT_STAT,
-  MIN_PROJECTILE_SPEED,
   reachOf,
 } from "../lib/item";
 import { flightDurationMs } from "../game/projectile";
@@ -149,7 +150,10 @@ export function describeReachHeight(height: number): string {
  * choosing a speed for. A readout that could disagree with the formula is worse
  * than none.
  */
-export function describeFlight(reach: Reach, projectile: ProjectileDef): string {
+export function describeFlight(
+  reach: Reach,
+  projectile: { cellsPerSecond: number },
+): string {
   const ms = flightDurationMs(
     { x: 0, y: 0, elevAbs: 0 },
     { x: reach.cells, y: 0, elevAbs: 0 },
@@ -157,12 +161,6 @@ export function describeFlight(reach: Reach, projectile: ProjectileDef): string 
   );
   return `Longest shot: ${(ms / 1000).toFixed(2)}s in the air.`;
 }
-
-/** What a weapon with no projectile authored is offered when it grows one. */
-const STARTER_PROJECTILE: ProjectileDef = {
-  tileId: "",
-  cellsPerSecond: DEFAULT_PROJECTILE_SPEED,
-};
 
 /** The one paragraph of arithmetic behind the requirements grid, as a tooltip. */
 const REQUIREMENTS_INFO = `Zero asks nothing. Requirements are pooled, and falling short costs accuracy and swing rate only — damage is never scaled by them. Handling runs straight from ${Math.round(MIN_HANDLING * 100)}% at nothing brought to 100% at everything brought, so 90% brought handles at ${Math.round(weaponHandling(0.9) * 100)}% and half brought at ${Math.round(weaponHandling(0.5) * 100)}%. Meeting a requirement is worth full handling and exceeding it is worth nothing more. Nothing here scales the experience the weapon earns.`;
@@ -179,9 +177,9 @@ export function WeaponFields({
   /** What answering to this mastery means here — it differs by tab. */
   masteryInfo: string;
   /**
-   * The whole library, so the projectile picker can offer the tiles that can
-   * actually be one. Handed in rather than looked up, on the terms the kit
-   * table's is: this component resolves nothing about the world.
+   * The whole library, so the picker can offer the tiles that can actually be
+   * fired. Handed in rather than looked up, on the terms the kit table's is:
+   * this component resolves nothing about the world.
    */
   tiles: TileDef[];
   /**
@@ -199,18 +197,21 @@ export function WeaponFields({
   const reach = reachOf(weapon);
   const patchReach = (fields: Partial<Reach>) =>
     onChange({ reach: { ...reach, ...fields } });
-  const patchProjectile = (fields: Partial<ProjectileDef>) =>
-    onChange({
-      projectile: { ...(projectile ?? STARTER_PROJECTILE), ...fields },
-    });
-
-  // Eight-way tiles, plus whatever this weapon already names even if the
+  // Every projectile tile, plus whatever this weapon already names even if the
   // catalogue has since changed its mind about it — an id silently dropped from
   // the picker is an author being told their arrow does not exist while it sits
   // in the file doing nothing.
-  const projectileTiles = tiles.filter(
-    (tile) => tile.type === "directional8" || tile.id === projectile?.tileId,
-  );
+  const fired = tiles.find((tile) => tile.id === projectile);
+  const flies = resolveProjectile(fired);
+  const projectileOptions = [
+    ...projectileTiles(tiles).map((tile) => ({
+      value: tile.id,
+      label: tile.name,
+    })),
+    ...(projectile && !flies
+      ? [{ value: projectile, label: `${projectile} (not a projectile)` }]
+      : []),
+  ];
 
   return (
     <div className="flex flex-col gap-3">
@@ -308,36 +309,22 @@ export function WeaponFields({
         </FieldLabel>
         <div className="flex flex-wrap items-end gap-4">
           <label className="flex flex-col gap-1 text-xs">
-            <FieldLabel info="8-way tiles only, so the arrow points where it is going.">
-              Tile
+            <FieldLabel info="What this fires. Only tiles of the Projectile kind can be — their art, their speed and what they play at each end belong to them, so two weapons firing one are two weapons that agree.">
+              Fires
             </FieldLabel>
             <Select
               className="w-56"
-              value={projectile?.tileId ?? ""}
-              onValueChange={(tileId) =>
-                tileId
-                  ? patchProjectile({ tileId })
-                  : onChange({ projectile: undefined })
+              value={projectile ?? ""}
+              onValueChange={(id) =>
+                onChange({ projectile: id ? id : undefined })
               }
-              options={[
-                { value: "", label: "None (melee)" },
-                ...projectileTiles.map((tile) => ({
-                  value: tile.id,
-                  label: tile.name,
-                })),
-              ]}
+              options={[{ value: "", label: "Nothing (melee)" }, ...projectileOptions]}
             />
           </label>
-          {projectile ? (
-            <StatField
-              label="Speed"
-              info="Cells per second. A body walks at five."
-              value={projectile.cellsPerSecond}
-              min={MIN_PROJECTILE_SPEED}
-              max={MAX_PROJECTILE_SPEED}
-              onChange={(cellsPerSecond) => patchProjectile({ cellsPerSecond })}
-              readout={describeFlight(reach, projectile)}
-            />
+          {flies ? (
+            <span className="self-end text-[11px] text-muted">
+              {describeFlight(reach, flies)}
+            </span>
           ) : null}
         </div>
       </div>

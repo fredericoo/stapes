@@ -29,7 +29,6 @@ import {
   isItem,
   isRanged,
   NO_ELEMENTS,
-  type ProjectileDef,
   type StatusGrant,
   type StoneEffect,
   UNNAMED_SPELL,
@@ -244,6 +243,10 @@ import {
 } from "./strike";
 import type { ReachPoint } from "./distance";
 import {
+  ageEffects,
+  ageFlights,
+  beginEffect,
+  type FlightEffect,
   flightDurationMs,
   type ProjectileFlight,
 } from "./projectile";
@@ -367,6 +370,7 @@ import {
   COMBAT_STATUS_ID,
   type StatusDef,
 } from "../lib/status";
+import { resolveProjectile } from "../lib/projectile";
 import {
   advanceStatuses,
   applyStatus,
@@ -741,6 +745,20 @@ export type GameSnapshot = {
    * fired in `/play` puts an arrow in the air with nobody to broadcast it to.
    */
   projectiles: ProjectileFlight[];
+  /**
+   * The effects those flights are playing, oldest first.
+   *
+   * Beside {@link projectiles} rather than derived from them by whoever is
+   * drawing, because a landing happens once and a renderer only ever sees before
+   * and after: a flight is in this frame's list and gone from the next one, and
+   * nothing in that pair says whether it arrived or whether the session simply
+   * dropped it.
+   *
+   * Present in every session on the terms {@link projectiles} is, and for one
+   * more: nothing announces an effect over the wire, so a client that could not
+   * work one out for itself would never see any. @see `./projectile`
+   */
+  flightEffects: FlightEffect[];
   /**
    * What the viewer is carrying.
    *
@@ -2135,6 +2153,16 @@ export class GameSession implements PlaySession {
    * however long it takes to arrive.
    */
   private liveProjectiles: ProjectileFlight[] = [];
+  /**
+   * The effects flights are playing — a muzzle, a landing — aged by the same
+   * loop.
+   *
+   * No pending twin, unlike {@link liveProjectiles}: nothing announces one,
+   * because nothing has to. The flight was announced when it was loosed and
+   * names the projectile it came out of, so every client works the effects out
+   * for itself from what it was already told. @see `./projectile`
+   */
+  private liveFlightEffects: FlightEffect[] = [];
   /** Ticks up per shot, so two arrows in one tick are two flights. */
   private nextProjectileId = 0;
   /**
@@ -4367,14 +4395,6 @@ export class GameSession implements PlaySession {
       );
     }
 
-    // Beside the lean rather than instead of it, and on the same terms: the two
-    // are the same announcement — *this body attacked that one* — made by
-    // whichever half of the pair the weapon has. Loosed before the dice, so a
-    // shot that misses is a shot somebody saw taken; an arrow that only appeared
-    // on the blows that landed would be a fight where half the traffic came from
-    // nowhere.
-    this.fireProjectile(attackerStats.projectile, fromPoint, toPoint);
-
     // Turning into the blow, so a body that swings at something is looking at
     // it — and on the same terms everything above happens on, which is to say
     // whatever the blow comes to. A miss, a dodge and a blow that armour ate are
@@ -4401,6 +4421,26 @@ export class GameSession implements PlaySession {
       rollAttack(attackerStats, underPressure(targetStats, assailants), this.rng),
       this.hpOf(target) ?? 0,
     );
+    // Beside the lean rather than instead of it, and on the same terms: the two
+    // are the same announcement — *this body attacked that one* — made by
+    // whichever half of the pair the weapon has. Loosed whatever the dice said,
+    // so a shot that misses is a shot somebody saw taken; an arrow that only
+    // appeared on the blows that landed would be a fight where half the traffic
+    // came from nowhere.
+    //
+    // **After the roll rather than before it, and only for the landing.** The
+    // flight is drawn identically either way, but which side plays where it
+    // stops is a claim about the outcome, and a shot cannot be told whether it
+    // connected before anything has asked. Nothing between the roll and here
+    // can stop the arrow: the early returns for a miss and a dodge are below.
+    // @see fireProjectile
+    this.fireProjectile(
+      attackerStats.projectile,
+      fromPoint,
+      toPoint,
+      !outcome.missed && !outcome.dodged,
+    );
+
     // Noted even on a dodge: what a creature reacts to is being swung at, and a
     // cat that only fought back when a blow landed would stand there being
     // missed. Before the damage, so a killing blow still tells the room.
@@ -4452,11 +4492,19 @@ export class GameSession implements PlaySession {
    * That is the same shape the lean above has in reverse, and between them every
    * weapon says exactly one thing about itself.
    *
-   * **The block is passed in rather than read off a `FightingStats`**, which is
-   * what lets a spell use this at all: a bolt has a projectile and no fighting
-   * stats to hang it on — it is not swung, and resolving one for a caster would
-   * be inventing a weapon nobody is holding. What is in the air owes nothing to
-   * what threw it, which was already this module's own note.
+   * Silently nothing for an id the catalogue has lost, and for one naming a
+   * tile that is not a projectile — on the terms every other renamed id in this
+   * file is honoured: the fact is out of date rather than corrupt, and a fight
+   * is not worth refusing over the art.
+   *
+   * **The id is passed in rather than read off a `FightingStats`**, which is
+   * what lets a spell use this at all: a bolt names a projectile and has no
+   * fighting stats to hang it on — it is not swung, and resolving one for a
+   * caster would be inventing a weapon nobody is holding.
+   *
+   * **`connected` is the one thing a flight is told about the fight**, and it
+   * buys exactly one thing: which side plays where it lands. Passed in because
+   * only the caller has read the dice, and because a bolt has no dice to read.
    *
    * The flight is queued twice for the reason a damage number is — see
    * {@link pendingDamage} and {@link liveDamage}. One list is "what happened in
@@ -4464,25 +4512,34 @@ export class GameSession implements PlaySession {
    * should still be able to see", which outlives it by the length of the flight.
    */
   private fireProjectile(
-    projectile: ProjectileDef | null | undefined,
+    tileId: string | null | undefined,
     from: ReachPoint,
     to: ReachPoint,
+    connected: boolean,
   ) {
-    if (!projectile) return;
+    if (!tileId) return;
+    const def = this.tilesById[tileId];
+    const flies = resolveProjectile(def);
+    if (!flies) return;
 
     const flight: ProjectileFlight = {
       id: `shot-${this.nextProjectileId++}`,
-      tileId: projectile.tileId,
+      tileId,
       // Copied rather than handed over, because both ends are `reachPointOf`
       // results measured against a board that is about to move: the arrow owes
       // nothing to where either body ends up while it is in the air.
       from: { x: from.x, y: from.y, elevAbs: from.elevAbs },
       to: { x: to.x, y: to.y, elevAbs: to.elevAbs },
-      durationMs: flightDurationMs(from, to, projectile),
+      durationMs: flightDurationMs(from, to, flies),
       elapsedMs: 0,
+      hit: connected,
     };
     this.pendingProjectiles.push(flight);
     this.liveProjectiles.push(flight);
+    // The near end plays now rather than on the next tick, so the muzzle and
+    // the arrow leave together — a frame of daylight between them reads as the
+    // shot being fired by something a step behind the bow.
+    beginEffect(flight, "appear", flight.from, def, this.liveFlightEffects);
   }
 
   /**
@@ -5130,21 +5187,27 @@ export class GameSession implements PlaySession {
   /**
    * Age the arrows out, on the tick clock like every other timer.
    *
-   * A flight that has arrived is simply dropped: there is nothing to commit
-   * because there was never anything to commit — the blow it depicts was settled
-   * on the tick it was loosed. @see `./projectile`
+   * A flight that has arrived is dropped, and plays whichever side its landing
+   * owes: there is still nothing to *commit* — the blow it depicts was settled
+   * on the tick it was loosed — and what it leaves behind is the same receipt,
+   * drawn where it arrived. @see `./projectile`
+   *
+   * The arithmetic is `./projectile`'s rather than this loop's, because
+   * `../net/RemoteSession` ages the same flights on the render loop's clock, and
+   * two copies of "a landing plays a side" is one rule that can disagree with
+   * itself.
    */
   private ageProjectiles(tickMs: number) {
-    if (this.liveProjectiles.length === 0) return;
-    let arrived = false;
-    for (const flight of this.liveProjectiles) {
-      flight.elapsedMs += tickMs;
-      if (flight.elapsedMs >= flight.durationMs) arrived = true;
-    }
-    if (arrived) {
-      this.liveProjectiles = this.liveProjectiles.filter(
-        (flight) => flight.elapsedMs < flight.durationMs,
+    if (this.liveProjectiles.length > 0) {
+      this.liveProjectiles = ageFlights(
+        this.liveProjectiles,
+        tickMs,
+        this.tilesById,
+        this.liveFlightEffects,
       );
+    }
+    if (this.liveFlightEffects.length > 0) {
+      this.liveFlightEffects = ageEffects(this.liveFlightEffects, tickMs);
     }
   }
 
@@ -6180,18 +6243,23 @@ export class GameSession implements PlaySession {
    * answer — a flight has to start and end somewhere.
    */
   private fireBolt(
-    projectile: ProjectileDef | undefined,
+    projectileTileId: string | undefined,
     from: ActorRuntime,
     to: ActorRuntime,
   ) {
-    if (!projectile) return;
+    if (!projectileTileId) return;
     const start = this.tryLocate(from);
     const end = this.tryLocate(to);
     if (!start || !end) return;
+    // Always connected, and not as a simplification: a bolt has no accuracy and
+    // nothing dodges one — {@link castBolt} lands whatever it carries the
+    // moment it is cast. A spell that could miss would ask its own dice here,
+    // exactly as a swing does. @see fireProjectile
     this.fireProjectile(
-      projectile,
+      projectileTileId,
       this.reachPointOf(start),
       this.reachPointOf(end),
+      true,
     );
   }
 
@@ -9424,6 +9492,7 @@ export class GameSession implements PlaySession {
       // the same object the tick loop is winding forward, exactly as a walk or a
       // strike is handed over live.
       projectiles: this.liveProjectiles,
+      flightEffects: this.liveFlightEffects,
     };
   }
 
@@ -9463,6 +9532,11 @@ export class GameSession implements PlaySession {
     // somebody's screen. The cost is bounded by what an author wrote, which is
     // the same bargain decay lifetimes are under.
     if (this.liveProjectiles.length > 0) return false;
+    // And whatever one is playing, on precisely those terms: it is the same
+    // clock and the same shot, a moment further on. Bounded by what an author
+    // wrote, which is the same bargain a decay lifetime is under — and by
+    // `MAX_TRANSITION_MS`, which is five seconds rather than an hour.
+    if (this.liveFlightEffects.length > 0) return false;
     // A stone counting down is a clock this loop is the only thing winding, on
     // exactly the terms decay is: falling asleep on one would leave a caster
     // waiting for a cooldown that only resumes the next time somebody moves,

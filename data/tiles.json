@@ -23290,10 +23290,7 @@
           "height": 4,
           "min": 2
         },
-        "projectile": {
-          "tileId": "arrow",
-          "cellsPerSecond": 20
-        }
+        "projectile": "arrow"
       }
     },
     "sprite": {
@@ -23746,10 +23743,7 @@
           "height": 5,
           "min": 2
         },
-        "projectile": {
-          "tileId": "arrow",
-          "cellsPerSecond": 20
-        }
+        "projectile": "arrow"
       }
     },
     "sprite": {
@@ -23804,10 +23798,7 @@
           "height": 6,
           "min": 2
         },
-        "projectile": {
-          "tileId": "arrow",
-          "cellsPerSecond": 24
-        }
+        "projectile": "arrow"
       }
     },
     "sprite": {
@@ -24786,10 +24777,7 @@
           "on": "target",
           "damage": 10,
           "variance": 60,
-          "projectile": {
-            "tileId": "arcane-shard",
-            "cellsPerSecond": 8
-          },
+          "projectile": "arcane-bolt",
           "statuses": [
             {
               "id": "burned",
@@ -24853,10 +24841,7 @@
           "on": "target",
           "damage": 10,
           "variance": 25,
-          "projectile": {
-            "tileId": "arcane-shard",
-            "cellsPerSecond": 8
-          },
+          "projectile": "arcane-bolt",
           "statuses": [
             {
               "id": "chilled",
@@ -24920,10 +24905,7 @@
           "on": "target",
           "damage": 12,
           "variance": 25,
-          "projectile": {
-            "tileId": "arcane-shard",
-            "cellsPerSecond": 8
-          },
+          "projectile": "arcane-bolt",
           "statuses": [
             {
               "id": "poison",
@@ -24987,10 +24969,7 @@
           "on": "target",
           "damage": 15,
           "variance": 60,
-          "projectile": {
-            "tileId": "arcane-shard",
-            "cellsPerSecond": 8
-          },
+          "projectile": "arcane-bolt",
           "statuses": [
             {
               "id": "burned",
@@ -25052,10 +25031,7 @@
           "on": "target",
           "damage": 15,
           "variance": 25,
-          "projectile": {
-            "tileId": "arcane-shard",
-            "cellsPerSecond": 8
-          },
+          "projectile": "arcane-bolt",
           "statuses": [
             {
               "id": "chilled",
@@ -25117,10 +25093,7 @@
           "on": "target",
           "damage": 18,
           "variance": 25,
-          "projectile": {
-            "tileId": "arcane-shard",
-            "cellsPerSecond": 8
-          },
+          "projectile": "arcane-bolt",
           "statuses": [
             {
               "id": "poison",
@@ -25233,10 +25206,7 @@
           "on": "target",
           "damage": 5,
           "variance": 60,
-          "projectile": {
-            "tileId": "arcane-shard",
-            "cellsPerSecond": 8
-          }
+          "projectile": "arcane-bolt"
         },
         "cooldownMs": 4000,
         "requirements": {
@@ -25292,10 +25262,7 @@
           "on": "target",
           "damage": 5,
           "variance": 25,
-          "projectile": {
-            "tileId": "arcane-shard",
-            "cellsPerSecond": 8
-          }
+          "projectile": "arcane-bolt"
         },
         "cooldownMs": 5000,
         "requirements": {
@@ -25351,10 +25318,7 @@
           "on": "target",
           "damage": 6,
           "variance": 25,
-          "projectile": {
-            "tileId": "arcane-shard",
-            "cellsPerSecond": 8
-          }
+          "projectile": "arcane-bolt"
         },
         "cooldownMs": 6000,
         "requirements": {
@@ -25410,10 +25374,7 @@
           "on": "target",
           "damage": 4,
           "variance": 25,
-          "projectile": {
-            "tileId": "arcane-shard",
-            "cellsPerSecond": 8
-          }
+          "projectile": "arcane-bolt"
         },
         "cooldownMs": 5000,
         "requirements": {
@@ -25468,10 +25429,7 @@
           "on": "target",
           "damage": 8,
           "variance": 25,
-          "projectile": {
-            "tileId": "arcane-shard",
-            "cellsPerSecond": 8
-          }
+          "projectile": "arcane-bolt"
         },
         "cooldownMs": 7000,
         "requirements": {
@@ -25526,10 +25484,7 @@
           "on": "target",
           "damage": 12,
           "variance": 25,
-          "projectile": {
-            "tileId": "arcane-shard",
-            "cellsPerSecond": 8
-          }
+          "projectile": "arcane-bolt"
         },
         "cooldownMs": 10000,
         "requirements": {
@@ -28727,10 +28682,7 @@
               "on": "target",
               "damage": 15,
               "variance": 40,
-              "projectile": {
-                "tileId": "arcane-shard",
-                "cellsPerSecond": 8
-              },
+              "projectile": "arcane-bolt",
               "statuses": [
                 {
                   "id": "burned",
@@ -29852,7 +29804,7 @@
     "name": "Arrow",
     "height": 0,
     "type": "directional8",
-    "kind": "prop",
+    "kind": "projectile",
     "attributes": {},
     "anchor": {
       "tilesetId": "projectiles",
@@ -30013,6 +29965,43 @@
             "durationMs": 200
           }
         ]
+      }
+    },
+    "interactions": {
+      "projectile": {
+        "cellsPerSecond": 20,
+        "hit": {
+          "durationMs": 100,
+          "particles": {
+            "ratePerSecond": 60,
+            "ttlFromMs": 90,
+            "ttlToMs": 180,
+            "spawnRadiusCells": 0.1,
+            "spawnElevFrom": 1,
+            "spawnElevTo": 3,
+            "riseFrom": 1,
+            "riseTo": 5,
+            "driftCellsPerSecond": 0.9,
+            "lit": false,
+            "gravity": -18,
+            "windX": 0,
+            "windY": 0,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 1,
+                "color": "#c7dcd0"
+              }
+            ]
+          }
+        }
       }
     }
   },
@@ -30807,6 +30796,85 @@
       "item": {
         "type": "artifact",
         "pile": 99
+      }
+    }
+  },
+  {
+    "id": "arcane-bolt",
+    "name": "Arcane Bolt",
+    "height": 0,
+    "type": "simple",
+    "kind": "projectile",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 10,
+      "y": 14
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 1,
+            "intensity": 0.3,
+            "color": "#8ad8ff"
+          }
+        }
+      ]
+    },
+    "lightPassing": true,
+    "interactions": {
+      "projectile": {
+        "cellsPerSecond": 8,
+        "hit": {
+          "durationMs": 220,
+          "particles": {
+            "ratePerSecond": 120,
+            "ttlFromMs": 180,
+            "ttlToMs": 420,
+            "spawnRadiusCells": 0.2,
+            "spawnElevFrom": 1,
+            "spawnElevTo": 3,
+            "riseFrom": 1,
+            "riseTo": 5,
+            "driftCellsPerSecond": 1.1,
+            "lit": false,
+            "gravity": -9,
+            "windX": 0,
+            "windY": 0,
+            "radiusFromPx": 1,
+            "radiusToPx": 2,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.3,
+                "color": "#a884f3"
+              },
+              {
+                "at": 1,
+                "color": "#362281"
+              }
+            ]
+          }
+        }
       }
     }
   },

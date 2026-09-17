@@ -5,7 +5,6 @@ import {
   DEFAULT_WEAPON,
   MAX_PERCENT_STAT,
   MELEE_REACH,
-  type ProjectileDef,
   type Reach,
   stoneSchema,
   weaponSchema,
@@ -385,7 +384,7 @@ export type FightingStats = {
    * catalogue twice is how the lean and the arrow come to disagree about whether
    * a blow was a shot.
    */
-  projectile: ProjectileDef | null;
+  projectile: string | null;
   sight: { up: number; down: number };
   /**
    * What a connecting blow may leave on whoever it lands on.

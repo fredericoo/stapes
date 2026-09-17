@@ -272,12 +272,23 @@ export const TILE_TYPES: TileType[] = [
  * - `prop` — scenery and machinery. Everything the world is made of: a wall, a
  *   crate, a door, a deer with a brain. Being a prop says nothing about whether
  *   it moves or thinks; see {@link TileDef.actor}, which is orthogonal.
+ * - `projectile` — a thing that is only ever in the air. It is never placed,
+ *   never stacked and never picked up; a weapon or a bolt names it and it is
+ *   drawn between two bodies. Exclusive with `item` for a reason worth knowing:
+ *   the arcane shard is the coin the shopkeeper trades in, so what a stone
+ *   throws is a different tile that happens to look like one. See
+ *   `./projectile`.
  * - `battler` — has hit points. See `./battler`.
  * - `item` — can be carried. See `./item`.
  */
-export type TileKind = "prop" | "battler" | "item";
+export type TileKind = "prop" | "battler" | "item" | "projectile";
 
-export const TILE_KINDS: TileKind[] = ["prop", "battler", "item"];
+export const TILE_KINDS: TileKind[] = [
+  "prop",
+  "battler",
+  "item",
+  "projectile",
+];
 
 /**
  * Which facing a per-facing table is keyed by: non-directional tiles use

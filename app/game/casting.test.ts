@@ -9,6 +9,7 @@ import {
 } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { spellElements } from "../lib/mastery";
+import { resolveProjectile } from "../lib/projectile";
 import { statusesById } from "../lib/status";
 import { resolveBattler } from "../lib/battler";
 import { type Masteries, MAX_MASTERY, meetsRequirements } from "../lib/mastery";
@@ -890,9 +891,12 @@ describe("the stones we ship", () => {
     const first = bolt("fire", 0);
     expect(first.on).toBe("target");
     expect(first.damage).toBeGreaterThan(0);
-    // The whole reason a bolt has a projectile block: what it throws has to be a
-    // tile the world actually holds, on the terms a conjure's is checked below.
-    expect(shipped[first.projectile!.tileId]).toBeDefined();
+    // What the kind made checkable: the id names a tile the world holds *and*
+    // that tile is a projectile. A bolt pointed at a missing tile throws
+    // nothing, and one pointed at the arcane shard — which is the coin the
+    // shopkeeper trades in, not ammunition — would throw nothing either.
+    // Neither would fail anything but the eye.
+    expect(resolveProjectile(shipped[first.projectile!])).not.toBeNull();
   });
 
   /**
