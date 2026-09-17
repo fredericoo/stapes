@@ -29969,7 +29969,43 @@
     },
     "interactions": {
       "projectile": {
-        "cellsPerSecond": 20
+        "cellsPerSecond": 20,
+        "hit": {
+          "durationMs": 140,
+          "particles": {
+            "ratePerSecond": 140,
+            "ttlFromMs": 120,
+            "ttlToMs": 280,
+            "spawnRadiusCells": 0.15,
+            "spawnElevFrom": 1,
+            "spawnElevTo": 3,
+            "riseFrom": 2,
+            "riseTo": 8,
+            "driftCellsPerSecond": 1.6,
+            "lit": false,
+            "gravity": -20,
+            "windX": 0,
+            "windY": 0,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.35,
+                "color": "#e83b3b"
+              },
+              {
+                "at": 1,
+                "color": "#6e2727"
+              }
+            ]
+          }
+        }
       }
     }
   },
@@ -30806,7 +30842,43 @@
     "lightPassing": true,
     "interactions": {
       "projectile": {
-        "cellsPerSecond": 8
+        "cellsPerSecond": 8,
+        "hit": {
+          "durationMs": 220,
+          "particles": {
+            "ratePerSecond": 120,
+            "ttlFromMs": 180,
+            "ttlToMs": 420,
+            "spawnRadiusCells": 0.2,
+            "spawnElevFrom": 1,
+            "spawnElevTo": 3,
+            "riseFrom": 1,
+            "riseTo": 5,
+            "driftCellsPerSecond": 1.1,
+            "lit": false,
+            "gravity": -9,
+            "windX": 0,
+            "windY": 0,
+            "radiusFromPx": 1,
+            "radiusToPx": 2,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 0.3,
+                "color": "#a884f3"
+              },
+              {
+                "at": 1,
+                "color": "#362281"
+              }
+            ]
+          }
+        }
       }
     }
   },
