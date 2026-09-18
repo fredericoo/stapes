@@ -198,6 +198,37 @@ const MS_PER_SECOND = 1000;
  */
 export const MIN_FLIGHT_MS = 1000 / 30;
 
+/**
+ * How far up a body a flight leaves from and lands on, as a share of its height.
+ *
+ * **A flight used to run foot to foot**, because both ends came straight from
+ * `GameSession.reachPointOf` — which answers the surface a body is *standing
+ * on*, and is exactly right for measuring reach. Drawn, it put the arrow on the
+ * floor: at the bottom of a three-high player sprite, at ground level, with a
+ * depth box the same zero thickness as the tile it was crossing. The shot was
+ * cut and revealed by every tuft and step it passed over, which reads as a
+ * bolt bobbing over the terrain rather than flying across it.
+ *
+ * Half, so the line is drawn between the two bodies' middles: the chest of a
+ * player, the flank of a rat. Both ends take the same share, which is what
+ * keeps a shot across flat ground level — a launch height that came from the
+ * shooter alone would tilt every shot by the difference between the two bodies.
+ *
+ * **The picture only.** Reach is still measured foot to foot, because how far
+ * you can hit is a fact about where the two of you are standing and not about
+ * how tall you are — see `GameSession.reachPointOf`, which this never touches.
+ */
+export const FLIGHT_BODY_SHARE = 0.5;
+
+/**
+ * Where on a body a flight starts or ends, given the surface it stands on.
+ *
+ * @see FLIGHT_BODY_SHARE
+ */
+export function flightElevation(footElevAbs: number, bodyHeight: number): number {
+  return footElevAbs + bodyHeight * FLIGHT_BODY_SHARE;
+}
+
 /** Where the arrow is, as a fraction of the way along. */
 export function flightPosition(
   flight: ProjectileFlight,

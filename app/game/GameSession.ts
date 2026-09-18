@@ -54,7 +54,13 @@ import type {
   PlacedTile,
   TileDef,
 } from "../lib/types";
-import { MAX_LEVEL, MIN_LEVEL, isDirectional, resolveActor } from "../lib/types";
+import {
+  HEIGHT_PER_LEVEL,
+  MAX_LEVEL,
+  MIN_LEVEL,
+  isDirectional,
+  resolveActor,
+} from "../lib/types";
 import {
   canPlace,
   canReplaceStack,
@@ -248,6 +254,8 @@ import {
   beginEffect,
   type FlightEffect,
   flightDurationMs,
+  flightElevation,
+  type FlightPoint,
   type ProjectileFlight,
 } from "./projectile";
 import { pushedColumn } from "./push";
@@ -3045,6 +3053,29 @@ export class GameSession implements PlaySession {
     };
   }
 
+  /**
+   * Where a body's shots leave from and land, in the terms a flight is drawn in.
+   *
+   * {@link reachPointOf} with the body's own height folded in — see
+   * `./projectile`'s {@link FLIGHT_BODY_SHARE}. Its own method rather than a
+   * flag on that one, because the two answer different questions and only one
+   * of them is a claim about the fight: reach is measured between the surfaces
+   * two bodies stand on, and nothing here may move it.
+   *
+   * The height falls back to a whole level for a body whose tile the catalogue
+   * has lost, on the terms `../render/GameRenderer` picks one for a status
+   * plume: a flight still has to leave from somewhere.
+   */
+  private flightPointOf(loc: ActorLocation): FlightPoint {
+    const point = this.reachPointOf(loc);
+    const body = this.tilesById[loc.placed.tileId];
+    return {
+      x: point.x,
+      y: point.y,
+      elevAbs: flightElevation(point.elevAbs, body?.height ?? HEIGHT_PER_LEVEL),
+    };
+  }
+
   setInput(input: GameInput, id: string = LOCAL_ACTOR_ID) {
     this.actor(id).input = input;
   }
@@ -4512,8 +4543,8 @@ export class GameSession implements PlaySession {
     // @see fireProjectile
     const flightMs = this.fireProjectile(
       attackerStats.projectile,
-      fromPoint,
-      toPoint,
+      from,
+      to,
       !rolled.missed && !rolled.dodged,
     );
 
@@ -4667,8 +4698,8 @@ export class GameSession implements PlaySession {
    */
   private fireProjectile(
     tileId: string | null | undefined,
-    from: ReachPoint,
-    to: ReachPoint,
+    fromBody: ActorLocation,
+    toBody: ActorLocation,
     connected: boolean,
   ): number {
     if (!tileId) return 0;
@@ -4676,12 +4707,19 @@ export class GameSession implements PlaySession {
     const flies = resolveProjectile(def);
     if (!flies) return 0;
 
+    // **Locations rather than the points the caller already measured**, because
+    // a flight is drawn between two bodies' middles and reach is measured
+    // between the surfaces they stand on — see {@link flightPointOf}. Handing
+    // the reach points in is what put every shot on the floor.
+    const from = this.flightPointOf(fromBody);
+    const to = this.flightPointOf(toBody);
+
     const flight: ProjectileFlight = {
       id: `shot-${this.nextProjectileId++}`,
       tileId,
-      // Copied rather than handed over, because both ends are `reachPointOf`
-      // results measured against a board that is about to move: the arrow owes
-      // nothing to where either body ends up while it is in the air.
+      // Fresh objects rather than the ones above, because both ends are
+      // readings of a board that is about to move: the arrow owes nothing to
+      // where either body ends up while it is in the air.
       from: { x: from.x, y: from.y, elevAbs: from.elevAbs },
       to: { x: to.x, y: to.y, elevAbs: to.elevAbs },
       durationMs: flightDurationMs(from, to, flies),
@@ -6567,12 +6605,7 @@ export class GameSession implements PlaySession {
     // nothing dodges one — {@link castBolt} lands whatever it carries the
     // moment it is cast. A spell that could miss would ask its own dice here,
     // exactly as a swing does. @see fireProjectile
-    return this.fireProjectile(
-      projectileTileId,
-      this.reachPointOf(start),
-      this.reachPointOf(end),
-      true,
-    );
+    return this.fireProjectile(projectileTileId, start, end, true);
   }
 
 
