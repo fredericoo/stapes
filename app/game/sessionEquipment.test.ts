@@ -87,6 +87,33 @@ const GUARD_SPREAD = DUMMY_GUARD.highest - DUMMY_GUARD.lowest;
  * the ceiling is only there to catch a blow that got through more than the
  * dummy's whole guard, which would mean the armour was not consulted at all.
  */
+/**
+ * What the first blow of a fight took off, however long the approach was.
+ *
+ * Stops on the tick the damage lands, so it is one blow by construction —
+ * which is what a window of three ticks bought back when a fight opened with a
+ * swing. A fight now opens with an approach half the weapon's own interval
+ * long (see `./combat`'s {@link SWING_WINDUP_SHARE}), and a fixed window would
+ * have to be re-derived for every weapon these tests arm.
+ */
+function firstBlow(session: GameSession): number {
+  const hp = () =>
+    session.actorSnapshots().find((a) => a.tileId === "dummy")!.hp!;
+  const before = hp();
+  for (let elapsed = 0; elapsed < A_WHOLE_FIGHT_MS; elapsed += TICK_MS) {
+    session.tick(TICK_MS);
+    const dealt = before - hp();
+    if (dealt > 0) return dealt;
+  }
+  throw new Error("nothing landed");
+}
+
+/**
+ * Long enough for any weapon in these fixtures to get a blow out, and short
+ * enough that a weapon that cannot fails as a test rather than as a hang.
+ */
+const A_WHOLE_FIGHT_MS = 30_000;
+
 function expectWorth(dealt: number, floor: number): void {
   expect(dealt).toBeGreaterThanOrEqual(floor);
   expect(dealt).toBeLessThanOrEqual(floor + GUARD_SPREAD);
@@ -424,8 +451,8 @@ describe("a weapon reaches the blow", () => {
     const armed = fightingSession();
     arm(armed, "light-sword");
 
-    expectWorth(damageOver(bare, TICK_MS * 3), BARE_DAMAGE);
-    expectWorth(damageOver(armed, TICK_MS * 3), SWORD_DAMAGE);
+    expectWorth(firstBlow(bare), BARE_DAMAGE);
+    expectWorth(firstBlow(armed), SWORD_DAMAGE);
   });
 
   /**
@@ -440,7 +467,7 @@ describe("a weapon reaches the blow", () => {
   it("blunts its own damage by being inaccurate", () => {
     const heavy = fightingSession();
     arm(heavy, "heavy-sword");
-    const hit = damageOver(heavy, TICK_MS * 3);
+    const hit = firstBlow(heavy);
 
     expect(hit).toBeGreaterThanOrEqual(4);
     expect(hit).toBeLessThanOrEqual(10 + GUARD_SPREAD);
@@ -462,7 +489,7 @@ describe("a weapon reaches the blow", () => {
 
   it("leaves an empty-handed body fighting with its natural weapon", () => {
     const session = fightingSession();
-    expectWorth(damageOver(session, TICK_MS * 3), BARE_DAMAGE);
+    expectWorth(firstBlow(session), BARE_DAMAGE);
   });
 
   /**
@@ -996,18 +1023,10 @@ index: 0 }, { kind: "weapon" });
     const dummy = session.actorSnapshots().find((a) => a.tileId === "dummy")!;
     session.setTarget(dummy.id);
     session.setAttackMode(true);
-    const before = session
-      .actorSnapshots()
-      .find((a) => a.tileId === "dummy")!.hp!;
-    advance(session, TICK_MS * 3);
-    const after = session
-      .actorSnapshots()
-      .find((a) => a.tileId === "dummy")!.hp!;
-
     // The sword's damage, not the sword's on top of the body's: drawing a
     // weapon out of the bag has to reach the blow by the same replacement every
     // other path uses.
-    expectWorth(before - after, SWORD_DAMAGE);
+    expectWorth(firstBlow(session), SWORD_DAMAGE);
   });
 
   it("loots a chest on the floor, rewriting the placement it came out of", () => {

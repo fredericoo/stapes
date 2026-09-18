@@ -13,7 +13,14 @@ import { COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import { normalizeTiles } from "../lib/types";
 import { attackIntervalMs, MIN_ATTACK_TICKS, rollAttack, swingIntervalMs } from "./combat";
 import { TICK_MS } from "./constants";
-import { Duel, type DuelResult, MAX_DUEL_TICKS, runDuel } from "./duel";
+import {
+  Duel,
+  type DuelEvent,
+  type DuelResult,
+  MAX_DUEL_TICKS,
+  runDuel,
+  type Side,
+} from "./duel";
 import { Rng } from "./rng";
 
 /**
@@ -57,12 +64,15 @@ function playerAt(mastery: Mastery, level: number): BattlerDef {
 }
 
 /**
- * How long a body has to wait for its first swing.
+ * How long a body has to wait for its first swing, here.
  *
- * Both sides start ready, so the faster one lands first — which is what makes
- * speed worth having beyond the long-run rate. `./duel` seats its fighters on
- * the same terms; this is here for {@link damagePerSecond}, which swings at a
- * dummy rather than fighting anybody.
+ * Nothing, and deliberately not what `./duel` seats its fighters on: a fight
+ * opens with an approach — half an interval before the first blow, see
+ * `./combat`'s {@link SWING_WINDUP_SHARE} — and {@link damagePerSecond} is not a
+ * fight. It swings at a dummy for twenty seconds to measure a *rate*, and the
+ * windup is a shift in the start rather than a change in the rate: folding it in
+ * would dock every weapon one opening blow's worth of a figure that is supposed
+ * to be about the long run.
  */
 const READY = 0;
 
@@ -136,6 +146,22 @@ function damagePerSecond(attacker: FightingStats, fights = 400): number {
   }
 
   return total / fights / seconds;
+}
+
+/**
+ * Run a fight until somebody swings, and hand back what that tick came to.
+ *
+ * The approach, spent: a duel's first blow lands half an interval in rather than
+ * on the first tick, and almost nothing here is a test about that wait. Bounded
+ * by `MAX_DUEL_TICKS` so a pair that cannot reach each other fails as a test
+ * rather than as a hung one.
+ */
+function tickUntilSwing(duel: Duel): readonly DuelEvent[] {
+  for (let tick = 0; tick < MAX_DUEL_TICKS; tick++) {
+    const events = duel.tick();
+    if (events.some((event) => event.kind === "swing")) return events;
+  }
+  throw new Error("nobody swung");
 }
 
 const fists = (body: BattlerDef) => fightingStats(body, body.naturalWeapon);
@@ -671,13 +697,18 @@ describe("what a fight feels like", () => {
    * bare-handed player inside two seconds, which is not long enough to read what
    * is happening and choose to run. What is being asserted is still "fast enough
    * to be a signal", and five seconds stopped being that number.
+   *
+   * **Nine rather than eight**, for a smaller reason: a fight now opens with an
+   * approach — half an interval before either side's first blow, see `./combat`'s
+   * {@link SWING_WINDUP_SHARE} — so every fight in the game is that much longer
+   * than it was. It is a shift in the start, not a change in the rate.
    */
   it("ends a fight nobody should have picked quickly", () => {
     const player = fists(bodyOf("player"));
     for (const id of ["snake", "wolf"]) {
       const result = duel(player, fists(bodyOf(id)), new Rng(3));
       expect(result.winner).toBe("b");
-      expect((result.ticks * TICK_MS) / 1000).toBeLessThan(8);
+      expect((result.ticks * TICK_MS) / 1000).toBeLessThan(9);
     }
   });
 });
@@ -722,27 +753,35 @@ describe("the duel loop", () => {
   });
 
   /**
-   * Both sides start ready, which is what makes speed worth having beyond the
-   * long-run rate — and what makes the opening blow the fast one's.
+   * Both sides start half an interval short of ready, and the opening blow is
+   * still the fast one's: half of a shorter interval is shorter. That is what
+   * makes speed worth having beyond the long-run rate, and what stops the
+   * heaviest weapon in the game getting its first blow for nothing — see
+   * `./combat`'s {@link SWING_WINDUP_SHARE}.
    */
   it("lets the faster body land the opening blow", () => {
     const quick = dummy({ spd: 100, hitChance: 1, damage: 1, variance: 0 });
     const slow = dummy({ spd: 1, hitChance: 1, damage: 1, variance: 0 });
-    const duel = new Duel({ swings: [quick] }, { swings: [slow] }, new Rng(1));
-    const swings = duel.tick().filter((event) => event.kind === "swing");
-    expect(swings.map((event) => event.by)).toEqual(["a", "b"]);
+    // Nothing at all on the first tick, whichever pair it is: a fight opens with
+    // an approach, and the shortest one in the game is half of MIN_ATTACK_TICKS.
+    expect(
+      new Duel({ swings: [quick] }, { swings: [slow] }, new Rng(1)).tick(),
+    ).toEqual([]);
 
-    const second = new Duel({ swings: [slow] }, { swings: [quick] }, new Rng(1));
-    second.tick();
     // A whole cooldown on — `MIN_ATTACK_TICKS`, the floor between two blows —
-    // and only the quick one has come round again, wherever it is sitting.
-    const next: string[] = [];
-    for (let tick = 0; tick < MIN_ATTACK_TICKS; tick++) {
-      for (const event of second.tick()) {
-        if (event.kind === "swing") next.push(event.by);
+    // and only the quick one has come round at all, wherever it is sitting.
+    const opening = (a: FightingStats, b: FightingStats) => {
+      const duel = new Duel({ swings: [a] }, { swings: [b] }, new Rng(1));
+      const swung: Side[] = [];
+      for (let tick = 0; tick <= MIN_ATTACK_TICKS; tick++) {
+        for (const event of duel.tick()) {
+          if (event.kind === "swing") swung.push(event.by);
+        }
       }
-    }
-    expect(next).toEqual(["b"]);
+      return swung;
+    };
+    expect(opening(quick, slow)).toEqual(["a"]);
+    expect(opening(slow, quick)).toEqual(["b"]);
   });
 
   /**
@@ -843,7 +882,9 @@ describe("the duel loop", () => {
       new Rng(1),
       { statusDefs },
     );
-    withStatuses.tick();
+    // Through the approach, since the flag goes on with the swing rather than
+    // with the fight being picked. @see `./combat`'s {@link SWING_WINDUP_SHARE}
+    tickUntilSwing(withStatuses);
     expect(withStatuses.a.statuses.map((s) => s.defId)).toEqual([COMBAT_STATUS_ID]);
     expect(withStatuses.b.statuses.map((s) => s.defId)).toEqual([COMBAT_STATUS_ID]);
 
@@ -852,7 +893,7 @@ describe("the duel loop", () => {
       { swings: [dummy({ hitChance: 1, maxHp: 500 })] },
       new Rng(1),
     );
-    without.tick();
+    tickUntilSwing(without);
     expect(without.a.statuses).toEqual([]);
     expect(without.b.statuses).toEqual([]);
   });
