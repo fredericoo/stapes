@@ -64,8 +64,9 @@ import { damageBand, damageBandOf, swingIntervalMs, type DamageBand } from "./co
  * same `fightingStats` a swing is resolved with. A greataxe you are short of
  * reports its full damage and a blow every 3.2s rather than every 2.4s, because
  * slow is what being short of it costs you. {@link ItemCardStat.base} carries
- * the item's own number alongside, so the gap is visible rather than something
- * the reader has to already know about.
+ * what a **just-qualified** wielder gets alongside, so the gap is visible rather
+ * than something the reader has to already know about — and meeting a
+ * requirement exactly closes it, because at that point you are that wielder.
  *
  * That is also why this module computes nothing itself. Restating the combat
  * arithmetic here would be a second definition of what a weapon is worth, and
@@ -98,11 +99,17 @@ export type ItemCardStat = {
   /** What the body asking gets. */
   value: string;
   /**
-   * What is written on the item, where that differs from {@link value}.
+   * What somebody who has **just earned** this item gets, where that differs
+   * from {@link value}.
    *
-   * Absent when the two agree, which is the common case: a figure the mastery
-   * ratio does not touch has nothing to compare against, and printing "8 (8)"
-   * would invite the reader to look for a difference that is not there.
+   * Not the authored figure, which is a number nobody is ever dealt — see the
+   * `own` profile in {@link itemCard}. A fresh owner is a real body, so the pair
+   * answers a question a player has: am I getting more out of this than
+   * somebody who has only just qualified for it.
+   *
+   * Absent when the two agree, which is what meeting a requirement exactly now
+   * looks like: you *are* the fresh owner, there is no gap, and printing
+   * "76 (76)" would invite the reader to look for one.
    */
   base?: string;
   tone: ItemCardTone;
@@ -402,13 +409,24 @@ function weaponStats(
   // profiles come out of the same function so the comparison cannot be between
   // two different definitions of what a weapon is worth.
   const yours = fightingStats(bodyWith(masteries, weapon), weapon);
-  // The weapon as authored: a body that has learnt nothing, holding a copy with
-  // its requirements removed. Handling comes out at one, the skill terms at
-  // zero and haste at one, which is the profile the editor's fields describe —
-  // see `../components/WeaponFields`. It has to be computed rather than read off
-  // the block, because `damage` and `accuracy` stop being the authored figures
-  // as soon as somebody is holding the weapon.
-  const own = fightingStats(bodyWith({}, weapon), { ...weapon, requirements: undefined });
+  // **The weapon in the hands of somebody who has just earned it**, which is the
+  // only body it can honestly be compared against.
+  //
+  // This used to be a body that had learnt *nothing*, holding a copy with its
+  // requirements stripped — the profile the editor's Damage box holds. That
+  // number is nobody's: `../lib/battler`'s `damageAtMastery` scales its terms by
+  // the absolute level of the weapon's mastery, so the authored figure belongs
+  // to a wielder at mastery zero, and for any weapon asking anything at all such
+  // a wielder cannot pick it up. A battleaxe written as 64 struck through
+  // against your 76 was inviting you to compare yourself with a hand that has
+  // never held one.
+  //
+  // Against a just-qualified wielder the row answers a question a player has —
+  // "am I getting more out of this than somebody who just picked it up" — and,
+  // at exactly the requirement, the two agree and the comparison disappears,
+  // which is the honest reading of having only just earned the thing. See
+  // {@link ItemCardStat.base}, which is dropped wherever the pair matches.
+  const own = fightingStats(bodyWith(weapon.requirements ?? {}, weapon), weapon);
 
   // Through `swingIntervalMs` rather than the weapon's curve alone, because
   // Agility is now a multiplier on the rate that `spd` has no room to carry —
@@ -495,7 +513,7 @@ function bandTone(yours: DamageBand, own: DamageBand): ItemCardTone {
   return ceiling === "plain" ? toneOf(yours.min, own.min) : ceiling;
 }
 
-/** Better than the item's own reads well; worse reads badly; equal is silent. */
+/** Better than a fresh owner reads well; worse reads badly; equal is silent. */
 function toneOf(yours: number, own: number): ItemCardTone {
   if (yours > own) return "good";
   if (yours < own) return "bad";
@@ -922,11 +940,13 @@ function speak(card: ItemCard): string {
     // form, which is what whole words bought over the abbreviations the rows
     // used to carry. @see `../lib/terms`'s `termSpoken`
     const said = sentenceCase(termSpoken(stat.term));
-    // The item's own figure spoken as a clause rather than as a bracket, since
-    // a screen reader reads "(8)" as "eight" and the comparison disappears.
+    // The other figure spoken as a clause rather than as a bracket, since a
+    // screen reader reads "(8)" as "eight" and the comparison disappears. The
+    // body it belongs to is named, because "the item's own" was the old
+    // baseline's wording and this one is somebody rather than something.
     lines.push(
       stat.base
-        ? `${said}: ${stat.value}, where the item's own is ${stat.base}`
+        ? `${said}: ${stat.value}, where somebody who has just earned it gets ${stat.base}`
         : `${said}: ${stat.value}`,
     );
   }

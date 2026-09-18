@@ -4608,6 +4608,28 @@ the box is worth: see `describeMasteryReach` in `app/components/WeaponFields.tsx
 which prints the figure at the weapon's own rung and at `MAX_MASTERY` under the
 Damage field.
 
+**The item card had the same problem and the same fix.** Its second column — the
+struck-through figure beside yours — was that same authored number, so a
+battleaxe at exactly Sharp 33 read `32–64` struck through against `38–76`, and
+the 32–64 was what a body at Sharp 0 would roll if one could lift it. The card
+was asking a player to measure themselves against a hand that has never held the
+thing.
+
+The baseline is now **a wielder who has just earned the weapon**: `itemCard`
+builds the comparison body out of the weapon's own requirements rather than out
+of nothing. That is a real body, so the pair answers a question a player has —
+am I getting more out of this than somebody who only just qualified — and at
+exactly the requirement the two agree and the strikethrough disappears, which is
+the honest reading of having only just earned it.
+
+One consequence is worth naming because it looks like a contradiction. Below the
+gate the **damage** row now leans red, and falling short still does not take
+damage away: the row is lower because the fresh owner has more *mastery*, not
+because the shortfall docked anything. `Swing` and `Hit` lean red for both
+reasons at once and the card does not separate them. The engine's rule is
+unchanged and is pinned in `battler.test.ts`, which is where a fact about the
+engine belongs.
+
 That readout is worth having for a second reason, visible the moment it was
 added. The flat term pays the same to every weapon, so a ladder's rungs converge
 as mastery climbs: broad-axe and battleaxe are authored 34 and 64, are 38 and 76
