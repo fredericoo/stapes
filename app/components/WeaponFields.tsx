@@ -96,26 +96,32 @@ export function describeMasteryReach(weapon: WeaponItem): string {
 }
 
 /**
- * What this accuracy does to the damage a blow is worth.
+ * How wide this variance makes a blow, for the same wielder the Damage field's
+ * readout names.
  *
- * Read out of the same function the simulation rolls with, at the two ends and
- * the peak of the triangle, rather than re-derived here — a readout that could
- * disagree with the formula is worse than none.
+ * **At the weapon's own rung, not at mastery zero**, which is the one thing this
+ * readout used to get wrong and the reason it contradicted its neighbour. It
+ * spread the *authored* figure, so a Rusty Sword read "Damage 4–6" while
+ * {@link describeMasteryReach} eighteen pixels to the left read "Sharp 5 does
+ * 7" — two readouts about one weapon, describing two different bodies, and only
+ * one of them a body that can hold it. A player at Sharp 5 rolls 4–7.
+ *
+ * Both ends through the same functions the fight rolls with, so an author tuning
+ * `variance` sees the band a player will be shown rather than a second reading
+ * of it. The peak is what this adds over the band, and it is the thing being
+ * tuned: `variance` decides how much of the band is below full worth, and the
+ * hump is where a blow usually lands inside it.
  */
-export function describeDamageBand(weapon: {
-  damage: number;
-  variance: number;
-}): string {
+export function describeDamageBand(weapon: WeaponItem): string {
+  const gate = weapon.requirements?.[weapon.mastery] ?? 0;
+  const worth = Math.round(damageAtMastery(weapon, gate));
+  const at = `${MASTERY_LABELS[weapon.mastery]} ${gate}`;
   if (weapon.variance <= MIN_PERCENT_STAT) {
-    return `Always ${weapon.damage} damage.`;
+    return `Always ${worth} damage at ${at}.`;
   }
-  // The same ends the card and the stats panel report, through the same
-  // function — an author tuning `variance` has to see the band a player will be
-  // shown, not a second reading of it. The peak has no such home: it is what
-  // this readout adds over the band, and it is the thing being tuned.
-  const { min, max } = damageBandOf(weapon.damage, weapon.variance);
-  const usual = damageWorth(weapon.damage, weapon.variance, [0.5, 0.5]);
-  return `Damage ${min}–${max}, usually near ${usual}.`;
+  const { min, max } = damageBandOf(worth, weapon.variance);
+  const usual = damageWorth(worth, weapon.variance, [0.5, 0.5]);
+  return `At ${at}, a blow lands ${min}–${max}, usually near ${usual}.`;
 }
 
 /**
