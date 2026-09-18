@@ -2932,13 +2932,55 @@ air.
 - **The dodge hop is gated on neither**, which is the asymmetry: it is the only
   account of a dodge anybody gets, so an arrow avoided at five cells has to show
   something or the shot vanishes.
-- **The damage is settled on the tick the shot is loosed**, and the arrow arrives
-  later carrying nothing. This is not a shortcut around the physics: a blow that
-  lands when the arrow *arrives* depends on a flight drawn on a clock every
-  client runs differently, so two people would disagree about when somebody died.
-  Damage now and the arrow after is the one arrangement where the picture may lag
-  the truth and can never contradict it. A shot at somebody who dies first still
-  finishes its flight; taking it back would be the picture editing itself.
+- **The dice are read on the tick the shot is loosed; what they came to waits
+  for the arrow.** The outcome cannot wait: a blow decided when the arrow
+  *arrives* depends on a flight drawn on a clock every client runs differently,
+  so two people would disagree about when somebody died. But the *consequences*
+  can, and they are held on the server's own tick clock in
+  `GameSession.blowsInFlight` — so a slow projectile hurts later than a fast one
+  and the receipt floats off a body at the moment the arrow reaches it. Before
+  this, health dropped while the arrow explaining it was still halfway across
+  the yard, and the two things a player saw contradicted each other.
+- **A blow in flight is a closure, not a record of itself.** What is deferred is
+  the tail of `tryAttack` and the tail of `castBolt` — moving health, granting
+  statuses, paying both sides, starting a dodge — and a data description of all
+  that, written beside the code that does it, is a second description free to
+  disagree with the first. It holds no `ActorRuntime`: every one outlives at
+  least one tick of a board that can kill either end, so it re-asks `actors` for
+  the bodies it needs and does nothing when they have gone.
+- **The blow and the picture count down together.** `landArrivedBlows` winds a
+  blow down by the same `tickMs` `ageProjectiles` winds the flights down by, and
+  a blow is queued for its flight's own `durationMs`, so neither drifts ahead of
+  the other. It is deliberately not driven off the flight list — a flight is
+  dropped the moment it lands and a blow would then have nothing to watch.
+- **It lands after the leans and before the brains**, which is the one window in
+  the tick that owes nothing back: a dodge started there gets its whole hop
+  rather than being aged on the tick it began, a creature told it has been hit
+  still answers on this tick, and a venom that arrives waits a tick before it
+  bites exactly as one from a melee blow does.
+- **A melee blow is the same path with a delay of zero.** `fireProjectile` hands
+  back the flight time, and `queueBlow` lands a delay of zero on the spot — so a
+  fist, a blade, a projectile tile the catalogue has lost and a bow are one code
+  path, and the delay is the only thing that differs between them.
+- **The health cap moved to where the blow lands, and that is not cosmetic.**
+  `cappedToHealth` used to sit beside the dice, which was the same tick and so
+  could not be wrong. It can be wrong now: an arrow crossing a yard gives
+  everything else in the world time to take that health first. Capping against
+  what the target had when the bow was drawn is a receipt for hit points
+  somebody else already collected *and* an experience payout for them — two
+  archers on one dying wolf would both be paid for killing it. A bolt never had
+  the cap at all, which was the same bug arrived at from the other side; it has
+  one now.
+- **Every draw a cast makes is taken when the stone is pressed.** A bolt's
+  statuses used to be rolled at the point of use, on the grounds that a cast
+  cannot miss and so had no early return to protect. A bolt that travels is that
+  early return — a subject who dies mid-flight takes no status — and dice drawn
+  only when somebody survived would make the world's stream depend on the
+  outcome, and on how fast the art was authored. `rollHealthMove` and
+  `boltInflicts` both run at cast time now; only spending them waits.
+- **A shot at somebody who dies first still finishes its flight**, and now
+  arrives at nobody and does nothing. Taking the arrow back would be the picture
+  editing itself.
 - **`canReach` is where a wall costs something, and only there.** Picking a target
   asks neither range nor line, deliberately: you can read a name and a health bar
   through a window you cannot shoot through, and the shot simply does not go.

@@ -3,24 +3,30 @@
  * at.
  *
  * **Entirely a picture.** Nothing here collides, nothing here can miss, and
- * nothing downstream of it changes a hit point. The whole fight — whether the
- * shot connected, what it took off, whether it killed — was settled on the tick
- * the arrow left the bow, by exactly the same `rollAttack` a fist goes through.
- * What travels is a receipt, arriving late.
+ * nothing in this file changes a hit point. The whole fight — whether the shot
+ * connected, what it took off, whether it killed — was settled on the tick the
+ * arrow left the bow, by exactly the same `rollAttack` a fist goes through.
  *
- * That is not a corner cut to avoid writing the physics. A blow that lands when
- * the arrow *arrives* is a blow whose outcome depends on a flight, and a flight
- * is drawn on a clock that every client runs slightly differently — so two
- * people watching one fight would disagree about the moment somebody died, and
- * the server would have to hold a shot open across ticks to arbitrate. Damage
- * now and the arrow after is the one arrangement where the picture is allowed to
- * lag the truth and can never contradict it.
+ * That is not a corner cut to avoid writing the physics. A blow whose *outcome*
+ * is decided when the arrow arrives is an outcome that depends on a flight, and
+ * a flight is drawn on a clock that every client runs slightly differently — so
+ * two people watching one fight would disagree about the moment somebody died.
+ * The dice are read once, on the server, on the tick the string is let go.
+ *
+ * **What the flight does buy is the moment.** How long a shot takes is how long
+ * its blow waits: {@link flightDurationMs} is the countdown
+ * `GameSession.blowsInFlight` holds the settled blow on, so the health comes off
+ * and the receipt floats when the arrow gets there, and a slow projectile hurts
+ * later than a fast one. That is not the same thing as deciding the outcome
+ * late — the picture may lag the truth, and still cannot contradict it. Nothing
+ * here does the holding; this file only says how long.
  *
  * Two things follow, and both are correct rather than tolerated:
  *
- * - **A shot at somebody who dies before it lands still finishes its flight.**
- *   The arrow was loosed. Deleting it in mid-air would be the picture editing
- *   itself after the fact, and it would look like the shot was never taken.
+ * - **A shot at somebody who dies before it lands still finishes its flight**,
+ *   and arrives at nobody. The arrow was loosed. Deleting it in mid-air would be
+ *   the picture editing itself after the fact, and it would look like the shot
+ *   was never taken.
  * - **A wall that grows between the two ends does not stop it.** Nothing can
  *   grow there in the two hundred milliseconds this takes, and a flight that
  *   re-asked the board every frame would be the collision test this deliberately

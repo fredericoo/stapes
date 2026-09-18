@@ -1273,6 +1273,44 @@ const EXTRACT_INTERRUPTED_NOTICE = "You are interrupted";
  */
 type StatusGrantOutcome = "acquired" | "refreshed" | "refused";
 
+/**
+ * What a bolt's dice came to: health to take, or health to put back.
+ *
+ * **One number and a direction, rather than a signed one.** The sign is how the
+ * arithmetic says it — `damageFraction` on a stone authored to mend comes out
+ * negative — but the sign is a fact about the formula, and what the two arms
+ * actually differ in is who has a say: armour and the elemental wheel weigh a
+ * harm, a full health bar stops a mend, and nobody has ever worn armour against
+ * being healed. Naming the direction is what keeps the arm that reads none of
+ * those from having to explain itself.
+ *
+ * Always positive, on both arms, for the same reason: a reader of the mend arm
+ * should not have to negate anything to know how much went in.
+ *
+ * @see GameSession.rollHealthMove
+ */
+type HealthMove = { kind: "harm" | "mend"; amount: number };
+
+/**
+ * One blow, settled, waiting out the flight of the thing that depicts it.
+ *
+ * Two fields and no more, because everything a blow *is* stayed in the method
+ * that rolled it. @see GameSession.blowsInFlight
+ */
+type BlowInFlight = {
+  /**
+   * How much longer, in milliseconds.
+   *
+   * A countdown rather than an elapsed time and a duration, because nothing
+   * ever asks how far along one of these is: a blow is invisible until it
+   * lands. The flight beside it counts the other way for the opposite reason —
+   * an arrow is drawn at a fraction of the way along, every frame.
+   */
+  remainingMs: number;
+  /** The tail of the swing or the cast that rolled it. */
+  land: () => void;
+};
+
 type ActorRuntime = {
   readonly id: string;
   /**
@@ -2166,6 +2204,32 @@ export class GameSession implements PlaySession {
   /** Ticks up per shot, so two arrows in one tick are two flights. */
   private nextProjectileId = 0;
   /**
+   * Blows already rolled, waiting for the thing that depicts them to arrive.
+   *
+   * **This is where a slow arrow costs its target time rather than nothing.**
+   * The dice are still read on the tick the shot is loosed — see `./projectile`
+   * for why the outcome cannot wait for a flight drawn on somebody's render
+   * loop — but what the dice *came to* is held here until the arrow lands, so
+   * the receipt floats off a body at the moment the arrow reaches it, and a
+   * lobbed stone hurts later than a loosed arrow.
+   *
+   * A closure rather than a record of the blow, and the two are not close: what
+   * is deferred is the tail of {@link tryAttack} and the tail of
+   * {@link castBolt}, which between them move health, grant statuses, pay both
+   * sides of a fight and start a dodge. A record would be a second description
+   * of all of that, written beside the first and free to disagree with it.
+   *
+   * **Nothing here holds an `ActorRuntime`.** Every one of these outlives at
+   * least one tick of a board that can kill either end, so a closure re-asks
+   * {@link actors} for the bodies it needs and does nothing when they have gone.
+   *
+   * Wound down at the top of the tick by the same `tickMs` {@link ageProjectiles}
+   * winds the flights down by, which is what keeps the two in step: a blow
+   * queued for a flight's own `durationMs` lands on the tick that flight lands
+   * on, and neither can drift ahead of the other.
+   */
+  private blowsInFlight: BlowInFlight[] = [];
+  /**
    * Sentences waiting to be told to the people they are about.
    *
    * Addressed rather than broadcast, and that is what makes it a list of pairs
@@ -3033,6 +3097,13 @@ export class GameSession implements PlaySession {
     // this tick has to be gone before a body is given the chance to start
     // another one.
     this.tickStrikes(tickMs);
+    // And straight after them, which is the one place in the tick a blow held
+    // behind an arrow can land without owing anything back: the leans have just
+    // been aged, so a dodge this starts gets its whole hop; the brains have not
+    // run, so a body told it was hit still answers on this tick; and the
+    // statuses above have had their turn, so a venom that arrives here waits a
+    // tick before it bites, exactly as one from a melee blow does.
+    this.landArrivedBlows(tickMs);
     // Beside the cooldowns, because it is the same kind of thing: a countdown
     // somebody spent by swinging, winding back down while they do not.
     this.recoverDefensiveDecay(tickMs);
@@ -4414,12 +4485,18 @@ export class GameSession implements PlaySession {
     // assailant of one and `underPressure` hands the stats straight back. Its own
     // interval is what buys it a place in the count — see `ASSAILANT_GRACE_MS`.
     const assailants = this.noteAssailant(target, attacker.id, interval);
-    // Trimmed to what the target is standing up with before anybody is told
-    // about it, so the experience, the floating receipt and the health all read
-    // one figure — see `./combat`'s {@link cappedToHealth}.
-    const outcome = cappedToHealth(
-      rollAttack(attackerStats, underPressure(targetStats, assailants), this.rng),
-      this.hpOf(target) ?? 0,
+    // **Not trimmed to the target's health here, which is the one thing that
+    // moved when a blow learned to travel.** The trim belongs wherever the blow
+    // actually lands — see {@link landSwing} — because an arrow crossing a yard
+    // gives everything else in the world time to take that health first, and a
+    // figure capped against what the target had when the bow was drawn is a
+    // receipt for hit points somebody else already collected. Paid out as well
+    // as floated, so an archer loosing three arrows at a body with four left
+    // would have been paid for three kills. @see `./combat`'s `cappedToHealth`
+    const rolled = rollAttack(
+      attackerStats,
+      underPressure(targetStats, assailants),
+      this.rng,
     );
     // Beside the lean rather than instead of it, and on the same terms: the two
     // are the same announcement — *this body attacked that one* — made by
@@ -4431,40 +4508,112 @@ export class GameSession implements PlaySession {
     // **After the roll rather than before it, and only for the landing.** The
     // flight is drawn identically either way, but which side plays where it
     // stops is a claim about the outcome, and a shot cannot be told whether it
-    // connected before anything has asked. Nothing between the roll and here
-    // can stop the arrow: the early returns for a miss and a dodge are below.
+    // connected before anything has asked.
     // @see fireProjectile
-    this.fireProjectile(
+    const flightMs = this.fireProjectile(
       attackerStats.projectile,
       fromPoint,
       toPoint,
-      !outcome.missed && !outcome.dodged,
+      !rolled.missed && !rolled.dodged,
     );
+
+    // Read here rather than in {@link landSwing}, because blame is a fact about
+    // the swing and the swing has already happened: an archer who is killed
+    // while their arrow is in the air is still the one who shot you, and asking
+    // the board for their name on the landing tick would get nothing.
+    const blame = this.blameForSwing(attacker, swung);
+    // Ids rather than the runtimes, on {@link blowsInFlight}'s terms: either
+    // body may be off the board by the time this runs.
+    const attackerId = attacker.id;
+    const struckId = target.id;
+    const targetMaxHp = targetStats.maxHp;
+    this.queueBlow(flightMs, () =>
+      this.landSwing({
+        attackerId,
+        targetId: struckId,
+        rolled,
+        swung,
+        targetMaxHp,
+        blame,
+        fromPoint,
+        toPoint,
+      }),
+    );
+    return true;
+  }
+
+  /**
+   * Everything one swing comes to, once whatever depicts it has arrived.
+   *
+   * **The tail of {@link tryAttack}, moved behind the flight rather than
+   * changed.** A melee blow reaches it on the tick it was swung, because a fist
+   * puts nothing in the air and {@link queueBlow} lands a delay of zero on the
+   * spot; an arrow reaches it when the arrow does. Nothing here re-reads the
+   * dice — the outcome was settled the moment the weapon was swung, which is
+   * what keeps two clients agreeing about when somebody died. @see `./projectile`
+   *
+   * **Both bodies are looked up again**, because up to a second of world can
+   * have happened since: either end may have died, logged off or rotted away,
+   * and a blow that arrives at nobody simply does nothing. That is the honest
+   * answer rather than a gap — the arrow still finishes its flight and still
+   * plays whichever side it was told to play, which is the picture saying a
+   * shot was taken, and it was.
+   */
+  private landSwing(blow: {
+    attackerId: string;
+    targetId: string;
+    /** Straight off the dice, untrimmed. @see cappedToHealth */
+    rolled: AttackOutcome;
+    swung: Hand | null;
+    targetMaxHp: number;
+    blame: Blame;
+    fromPoint: ReachPoint;
+    toPoint: ReachPoint;
+  }): void {
+    const target = this.actors.get(blow.targetId);
+    if (!target) return;
+
+    // **Trimmed against what the target has left *now*.** The whole reason the
+    // trim lives here rather than beside the roll: the experience, the floating
+    // receipt and the health all have to read one figure, and the only moment
+    // all three are about is this one.
+    const outcome = cappedToHealth(blow.rolled, this.hpOf(target) ?? 0);
 
     // Noted even on a dodge: what a creature reacts to is being swung at, and a
     // cat that only fought back when a blow landed would stand there being
     // missed. Before the damage, so a killing blow still tells the room.
-    this.notePendingHurt(target.id, attacker.id);
-    // Before the damage too, so the killing blow pays for itself — a body that
-    // has already left the board has no experience to be given.
-    this.awardExperience(attacker, target, outcome, swung, targetStats.maxHp);
+    //
+    // On arrival rather than on release, which is the one behaviour a slow shot
+    // changes here: a wolf shot from across a courtyard turns when the arrow
+    // reaches it, not when the string is let go — it had no way to know before.
+    this.notePendingHurt(target.id, blow.attackerId);
+
+    // Only for an attacker still on the board. A body that died mid-flight has
+    // no experience to be given, which is the same rule the killing blow is
+    // already under one line further on.
+    const attacker = this.actors.get(blow.attackerId);
+    if (attacker) {
+      this.awardExperience(
+        attacker,
+        target,
+        outcome,
+        blow.swung,
+        blow.targetMaxHp,
+      );
+    }
 
     if (outcome.missed) {
       this.floatSwing(target, "miss", 0);
-      return true;
+      return;
     }
     if (outcome.dodged) {
       // The whole of what a dodge says now. No receipt floats: the hop is the
       // account, and a word beside it would be the same event told twice.
-      target.strike = dodgeAway(toPoint, fromPoint);
-      return true;
+      target.strike = dodgeAway(blow.toPoint, blow.fromPoint);
+      return;
     }
 
-    // Read before the damage lands, because the damage can kill and a dead
-    // attacker is still the one who swung — but more simply because the blame
-    // is about this swing, and the swing has already happened.
-    const blame = this.blameForSwing(attacker, swung);
-    this.applyDamage(target, outcome.damage, blame);
+    this.applyDamage(target, outcome.damage, blow.blame);
     // After the damage, and only for a body still standing: a status is a
     // condition you are *in*, and a corpse is not in one. Putting venom on
     // something the same blow killed would queue an announcement about a body
@@ -4476,11 +4625,10 @@ export class GameSession implements PlaySession {
         // who bit you. That split is the whole reason `blame` is not `causedBy`.
         this.grantStatus(target, grant, undefined, undefined, {
           source: this.statusName(grant.id),
-          ...(blame.by ? { by: blame.by } : {}),
+          ...(blow.blame.by ? { by: blow.blame.by } : {}),
         });
       }
     }
-    return true;
   }
 
   /**
@@ -4510,17 +4658,23 @@ export class GameSession implements PlaySession {
    * {@link pendingDamage} and {@link liveDamage}. One list is "what happened in
    * the last tick", which the wire drains once; the other is "what a viewer
    * should still be able to see", which outlives it by the length of the flight.
+   *
+   * **Hands back how long the flight takes, which is how long its blow waits.**
+   * Zero for every case that puts nothing in the air — a melee weapon, a bolt
+   * that simply arrives, an id the catalogue has lost — so a caller reads it as
+   * "land it now" without asking a second question, and a weapon whose art has
+   * gone still deals its damage on the tick it was swung. @see queueBlow
    */
   private fireProjectile(
     tileId: string | null | undefined,
     from: ReachPoint,
     to: ReachPoint,
     connected: boolean,
-  ) {
-    if (!tileId) return;
+  ): number {
+    if (!tileId) return 0;
     const def = this.tilesById[tileId];
     const flies = resolveProjectile(def);
-    if (!flies) return;
+    if (!flies) return 0;
 
     const flight: ProjectileFlight = {
       id: `shot-${this.nextProjectileId++}`,
@@ -4540,6 +4694,7 @@ export class GameSession implements PlaySession {
     // the arrow leave together — a frame of daylight between them reads as the
     // shot being fired by something a step behind the bow.
     beginEffect(flight, "appear", flight.from, def, this.liveFlightEffects);
+    return flight.durationMs;
   }
 
   /**
@@ -5188,9 +5343,11 @@ export class GameSession implements PlaySession {
    * Age the arrows out, on the tick clock like every other timer.
    *
    * A flight that has arrived is dropped, and plays whichever side its landing
-   * owes: there is still nothing to *commit* — the blow it depicts was settled
-   * on the tick it was loosed — and what it leaves behind is the same receipt,
-   * drawn where it arrived. @see `./projectile`
+   * owes. Nothing is *decided* here — the blow it depicts was settled on the
+   * tick it was loosed — but the blow itself comes off a body a few lines later
+   * on this same tick: {@link landArrivedBlows} winds its countdown by the same
+   * `tickMs` this winds the flights by, which is what keeps the picture and the
+   * health bar on one moment. @see `./projectile`
    *
    * The arithmetic is `./projectile`'s rather than this loop's, because
    * `../net/RemoteSession` ages the same flights on the render loop's clock, and
@@ -5209,6 +5366,56 @@ export class GameSession implements PlaySession {
     if (this.liveFlightEffects.length > 0) {
       this.liveFlightEffects = ageEffects(this.liveFlightEffects, tickMs);
     }
+  }
+
+  /**
+   * Hold a blow for the length of a flight, or land it now.
+   *
+   * **The one door between "a shot was fired" and "somebody was hit".** Every
+   * caller hands it whatever {@link fireProjectile} said the flight was worth,
+   * so a melee swing and a bow swing are the same three lines and the delay is
+   * the only thing that differs between them. A weapon that put nothing in the
+   * air reports zero and lands here and now, which is what keeps a fist, a
+   * blade and a projectile tile the catalogue has lost on one path.
+   */
+  private queueBlow(delayMs: number, land: () => void) {
+    if (delayMs <= 0) {
+      land();
+      return;
+    }
+    this.blowsInFlight.push({ remainingMs: delayMs, land });
+  }
+
+  /**
+   * Land every blow whose flight has arrived.
+   *
+   * Wound down by the same `tickMs` {@link ageProjectiles} winds the arrows
+   * down by, so the blow and the picture of it are over on the same tick. It is
+   * deliberately *not* driven off the flight list — a flight is dropped the
+   * moment it lands and a blow would then have nothing to watch, and matching
+   * them up by id would be a second answer to a question two counters already
+   * agree on.
+   *
+   * **After the leans and before the brains**, which is the only window in the
+   * tick that owes nothing back: a dodge started here gets its full hop rather
+   * than being aged on the tick it began, and a creature told it has been hit
+   * still gets its turn to answer this tick. @see tick
+   *
+   * Landing can queue nothing new — a blow does not fire a weapon — so the list
+   * is safe to walk and rebuild in one pass.
+   */
+  private landArrivedBlows(tickMs: number) {
+    if (this.blowsInFlight.length === 0) return;
+    const waiting: BlowInFlight[] = [];
+    const arrived: BlowInFlight[] = [];
+    for (const blow of this.blowsInFlight) {
+      blow.remainingMs -= tickMs;
+      (blow.remainingMs <= 0 ? arrived : waiting).push(blow);
+    }
+    // Swapped before anything lands rather than after, so a blow that kills
+    // somebody cannot be walked over twice by a re-entrant tick.
+    this.blowsInFlight = waiting;
+    for (const blow of arrived) blow.land();
   }
 
   /** Age the floating numbers out, on the tick clock like every other timer. */
@@ -6027,30 +6234,26 @@ export class GameSession implements PlaySession {
     // Loosed before anything lands, on the terms an arrow is: a shot somebody
     // saw taken, whatever came of it. Never at yourself — a flight from a body
     // to itself is a frame of art sitting on somebody's head.
+    //
+    // **And how long it takes is what the rest of this waits for.** A bolt
+    // crossing a yard takes its target's health when it gets there, exactly as
+    // an arrow does — see {@link blowsInFlight}. A bolt with no projectile
+    // authored reports zero and everything below happens on this tick, which is
+    // every cast at yourself and every stone whose art nobody wrote.
+    let flightMs = 0;
     if (atSomebodyElse) {
-      this.fireBolt(effect.projectile, actor, subject);
+      flightMs = this.fireBolt(effect.projectile, actor, subject);
       // And the caster turns into it, on exactly the terms a swing does: a bolt
       // at somebody is this body attacking that one, and the only difference
       // between it and an arrow is which hand it left. Nothing plants a caster
       // afterwards — what a cast costs is the bar and the cooldown — so this is
       // a turn they can undo with the next step they take. @see turnToward
+      //
+      // On the tick it is cast rather than behind the flight: turning to face
+      // somebody is the act of aiming, not something the bolt does on arrival.
       const at = this.tryLocate(actor);
       const on = this.tryLocate(subject);
       if (at && on) this.turnToward(actor, at, on);
-      // **And the room hears about it**, on exactly the terms a swing is noted:
-      // before anything lands, so a killing bolt still tells whoever was hit
-      // who did it. This was missing, and what it cost was every creature's
-      // reaction to magic — a rabbit stood still while a snake held it, because
-      // `attacked` had only ever been written by {@link tryAttack}. Being cast
-      // at *is* being attacked; the `attacked` condition says so now.
-      //
-      // Any bolt at somebody else, rather than only one that takes health: a
-      // spell whose whole effect is a status it leaves — a hold, a chill — is
-      // the case this exists for, and asking whether the status is a *bad* one
-      // would put an opinion about what is friendly in the engine. A mend
-      // thrown at somebody is authorable and reads as provocation here, which
-      // is a strange thing to author and a fair thing to be glared at for.
-      this.notePendingHurt(subject.id, actor.id);
     }
 
     // The spell as it is called. A carried one is read off the square rather
@@ -6059,18 +6262,93 @@ export class GameSession implements PlaySession {
     // own spell is the one case where the block *does* carry one, and it is the
     // whole reason `NaturalSpell` has a name: "killed by A spell" is not a
     // skull anybody wants to read.
+    //
+    // Read while the caster is certainly still here, on {@link landBolt}'s
+    // terms: a caster killed while their bolt is in the air is still the one
+    // who threw it.
     const spell = this.spellName(actor, slot);
     const caster = this.bodyName(actor.id);
 
-    this.moveHealth(actor, subject, stone, effect, elements, {
-      atSomebodyElse,
+    // **Every draw this cast makes, taken now.** The bolt may not arrive for
+    // most of a second, and dice that waited for it would make the world's
+    // stream depend on how fast somebody authored a piece of art — see
+    // {@link blowsInFlight}, and `rollAttack`, which takes all of its draws up
+    // front for the same reason.
+    const move = this.rollHealthMove(subject, stone, effect, elements, {
       stats,
-      before,
       masteries: body.masteries,
-      // Exactly a swing's shape — the thing that did it, and who swung it —
-      // because that is what it is: a bolt is a blow thrown from a hand.
-      blame: { source: spell, ...(caster ? { by: caster } : {}) },
     });
+    const grants = this.boltInflicts(effect.statuses);
+
+    // Before the flight rather than behind it, on the terms a swing flags on
+    // the swing: a harmful bolt at somebody is an attack whether or not mail
+    // eats it, and a caster who could close the tab while their own bolt was
+    // still crossing the yard would be out of the fight they started.
+    if (atSomebodyElse && move?.kind === "harm") {
+      this.flagCombat(actor);
+      this.flagCombat(subject);
+    }
+
+    const casterId = actor.id;
+    const subjectId = subject.id;
+    this.queueBlow(flightMs, () =>
+      this.landBolt({
+        casterId,
+        subjectId,
+        atSomebodyElse,
+        move,
+        grants,
+        elements,
+        spell,
+        caster,
+        // Exactly a swing's shape — the thing that did it, and who swung it —
+        // because that is what it is: a bolt is a blow thrown from a hand.
+        blame: { source: spell, ...(caster ? { by: caster } : {}) },
+      }),
+    );
+  }
+
+  /**
+   * Everything one bolt comes to, once the bolt has arrived.
+   *
+   * The tail of {@link castBolt}, moved behind the flight rather than changed —
+   * {@link landSwing}'s twin, and under the same two rules. The dice were read
+   * when the stone was pressed, and both bodies are looked up again because
+   * either may have left the board since.
+   */
+  private landBolt(bolt: {
+    casterId: string;
+    subjectId: string;
+    atSomebodyElse: boolean;
+    move: HealthMove | null;
+    grants: readonly StatusGrant[];
+    elements: readonly Element[];
+    spell: string;
+    caster: string | null;
+    blame: Blame;
+  }): void {
+    const subject = this.actors.get(bolt.subjectId);
+    if (!subject) return;
+    const actor = this.actors.get(bolt.casterId);
+
+    // **And the room hears about it**, on exactly the terms a swing is noted:
+    // before anything lands, so a killing bolt still tells whoever was hit who
+    // did it. This was missing, and what it cost was every creature's reaction
+    // to magic — a rabbit stood still while a snake held it, because `attacked`
+    // had only ever been written by {@link tryAttack}. Being cast at *is* being
+    // attacked; the `attacked` condition says so now.
+    //
+    // Any bolt at somebody else, rather than only one that takes health: a
+    // spell whose whole effect is a status it leaves — a hold, a chill — is the
+    // case this exists for, and asking whether the status is a *bad* one would
+    // put an opinion about what is friendly in the engine. A mend thrown at
+    // somebody is authorable and reads as provocation here, which is a strange
+    // thing to author and a fair thing to be glared at for.
+    if (bolt.atSomebodyElse) this.notePendingHurt(subject.id, bolt.casterId);
+
+    if (bolt.move) {
+      this.applyHealthMove(bolt.move, subject, actor, bolt);
+    }
 
     // **After the health and only onto a body still standing**, which is the
     // rule a weapon's statuses are already under: a status is a condition you
@@ -6079,47 +6357,43 @@ export class GameSession implements PlaySession {
     // the payout is refused for being self-inflicted rather than by never being
     // recorded. @see awardCausedDamage
     if ((this.hpOf(subject) ?? 0) <= 0) return;
-    for (const grant of this.boltInflicts(effect.statuses)) {
+    for (const grant of bolt.grants) {
       // The spell rather than the caster, on the conjured flame's terms: what
       // is burning you is somebody's fire, and naming only the person loses
       // which of their stones it came out of.
-      this.grantStatus(subject, grant, actor.id, elements, {
+      this.grantStatus(subject, grant, bolt.casterId, bolt.elements, {
         source: this.statusName(grant.id),
-        by: possessive(caster, spell),
+        by: possessive(bolt.caster, bolt.spell),
       });
     }
   }
 
   /**
-   * The half of a bolt that moves a health bar, or nothing for one that does
-   * not.
+   * What a bolt's dice come to, or nothing for a bolt that moves no health.
    *
-   * Split out of {@link castBolt} because it is the half with two directions and
-   * four steps in it, and leaving it inline put the status grant below three
-   * branches deep — where the one thing that has to be obvious is that a status
-   * lands whichever way the health went, and whether it went at all.
+   * **The half of {@link castBolt} that reads the dice, split from the half
+   * that spends them** — because a bolt may be most of a second in the air and
+   * the world's stream must not wait for it. @see blowsInFlight
    *
-   * Silent for a bolt with no damage authored, which is every pure ward and
-   * every pure curse. It still draws no dice: a spell that moves no health has
-   * no band to roll inside, and drawing one would make the world's dice depend
-   * on how a stone happened to be written.
+   * Split out of {@link castBolt} to begin with because it is the half with two
+   * directions and four steps in it, and leaving it inline put the status grant
+   * below three branches deep — where the one thing that has to be obvious is
+   * that a status lands whichever way the health went, and whether it went at
+   * all.
+   *
+   * Null for a bolt with no damage authored, which is every pure ward and every
+   * pure curse. It still draws no dice: a spell that moves no health has no band
+   * to roll inside, and drawing one would make the world's dice depend on how a
+   * stone happened to be written.
    */
-  private moveHealth(
-    actor: ActorRuntime,
+  private rollHealthMove(
     subject: ActorRuntime,
     stone: ArcaneStoneItem,
     effect: Extract<StoneEffect, { kind: "bolt" }>,
     elements: readonly Element[],
-    context: {
-      atSomebodyElse: boolean;
-      stats: FightingStats;
-      before: number;
-      masteries: Masteries;
-      /** What a skull this bolt makes says — see {@link castBolt}. */
-      blame: Blame;
-    },
-  ) {
-    if (!effect.damage) return;
+    context: { stats: FightingStats; masteries: Masteries },
+  ): HealthMove | null {
+    if (!effect.damage) return null;
 
     // What the stone is worth in *these* hands, off Arcane and off the elements
     // the stone asks for. @see `../lib/battler`'s {@link spellPower}
@@ -6135,33 +6409,59 @@ export class GameSession implements PlaySession {
       power * damageFraction(effect.variance ?? 0, roll),
     );
 
-    if (rolled > 0) {
-      // Before armour has its say, on the terms a swing flags on the swing: a
-      // harmful bolt at somebody is an attack whether or not mail eats it.
-      if (context.atSomebodyElse) {
-        this.flagCombat(actor);
-        this.flagCombat(subject);
-      }
-      // Armour first and the wheel second, which is the order a conjured flame's
-      // burn already goes through: what the fire is worth against this body is
-      // decided after what got through the mail. Read as an arcane blow, because
-      // that is what it is — a stone answers to Arcane, so a breastplate warded
-      // against magic turns one aside. @see `./combat`'s `defenceAgainst`
-      const through = damageAfterDefence(
-        rolled,
-        context.stats,
-        ARCANE_BLOW,
-        guardRoll,
-      );
-      const dealt = this.elementalDamage(subject, through, elements);
+    // A mend, and the sign is the whole of what says so. @see HealthMove
+    if (rolled <= 0) return { kind: "mend", amount: -rolled };
+
+    // Armour first and the wheel second, which is the order a conjured flame's
+    // burn already goes through: what the fire is worth against this body is
+    // decided after what got through the mail. Read as an arcane blow, because
+    // that is what it is — a stone answers to Arcane, so a breastplate warded
+    // against magic turns one aside. @see `./combat`'s `defenceAgainst`
+    const through = damageAfterDefence(
+      rolled,
+      context.stats,
+      ARCANE_BLOW,
+      guardRoll,
+    );
+    return {
+      kind: "harm",
+      amount: this.elementalDamage(subject, through, elements),
+    };
+  }
+
+  /**
+   * Spend what {@link rollHealthMove} rolled, on the tick the bolt arrives.
+   *
+   * A caster who has died in the meantime is paid nothing and blamed anyway —
+   * the blame was written down when the stone was pressed, and a skull naming a
+   * dead arcanist is the correct skull.
+   */
+  private applyHealthMove(
+    move: HealthMove,
+    subject: ActorRuntime,
+    actor: ActorRuntime | undefined,
+    context: {
+      atSomebodyElse: boolean;
+      elements: readonly Element[];
+      /** What a skull this bolt makes says — see {@link castBolt}. */
+      blame: Blame;
+    },
+  ) {
+    if (move.kind === "harm") {
+      // **Trimmed to what the subject has left, on {@link landSwing}'s
+      // grounds**: what the wheel made of the blow is what the formula said,
+      // and a body with three points left can only lose three of them. It is
+      // also what is paid for — without the trim, a caster holding a bolt over
+      // a dying body would be paid for hit points that were never there.
+      const dealt = Math.min(move.amount, this.hpOf(subject) ?? 0);
       if (dealt <= 0) return;
       this.applyDamage(subject, dealt, context.blame);
       // Damage to yourself pays nothing, which is the rule `awardCausedDamage`
       // states and the reason training is not something you do in a corner. Paid
       // on what the wheel made of the blow rather than on what the formula said,
       // so picking the right element is worth picking.
-      if (context.atSomebodyElse) {
-        this.awardCastDamage(actor, subject, dealt, elements);
+      if (context.atSomebodyElse && actor) {
+        this.awardCastDamage(actor, subject, dealt, context.elements);
       }
       return;
     }
@@ -6172,15 +6472,20 @@ export class GameSession implements PlaySession {
     // out of a stone that says ten. The clamp is `applyHealing`'s now, which is
     // also what floats the figure — it used to be written out here, and a mend
     // was the one thing in the game that moved a health bar and showed nothing.
-    const restored = this.applyHealing(subject, -rolled);
-    if (restored <= 0) return;
+    const restored = this.applyHealing(subject, move.amount);
+    if (restored <= 0 || !actor) return;
     // **The wheel never touches a mend**, and the multiplier is flat for the
     // same reason: what `experienceMultiplier` weighs is how far above or below
     // you the other body is, and mending is not an exchange with anybody. A
     // caster who has mended a troll has mended somebody, not beaten them.
     // Flat, because a mend is not an exchange with anybody: there is no second
     // body whose Rating could say how far above or below this was.
-    this.grantCasting(actor, restored, elements, () => SELF_SPELL_MULTIPLIER);
+    this.grantCasting(
+      actor,
+      restored,
+      context.elements,
+      () => SELF_SPELL_MULTIPLIER,
+    );
   }
 
   /**
@@ -6191,10 +6496,14 @@ export class GameSession implements PlaySession {
    * authored percentage directly, never through the band a contest lives in. An
    * author who writes 100 means a brand that always burns.
    *
-   * The draws are taken here rather than up in {@link castBolt} because they are
-   * only ever read here — unlike a swing, where they are taken before the miss
-   * is decided so that the world's dice advance by the same amount whatever
-   * happened. A cast cannot miss, so there is no early return to protect.
+   * **Drawn when the stone is pressed, and read when the bolt arrives.** They
+   * used to be drawn here, at the point of use, on the grounds that a cast
+   * cannot miss and so had no early return to protect. A bolt that travels is
+   * that early return: a subject who dies mid-flight takes no status, and dice
+   * that were only drawn when somebody survived would make the world's stream
+   * depend on the outcome — and on how fast the art was authored. Every draw a
+   * cast makes is now taken up front, which is the property `rollAttack` has
+   * protected all along. @see GameSession.blowsInFlight
    */
   private boltInflicts(
     statuses: readonly WeaponStatus[] | undefined,
@@ -6241,21 +6550,24 @@ export class GameSession implements PlaySession {
    * reach between them a moment earlier; a cast has two actors and has to locate
    * them. A body that cannot be located throws nothing, which is the honest
    * answer — a flight has to start and end somewhere.
+   *
+   * Hands back the flight time on {@link fireProjectile}'s terms, so a bolt's
+   * effect waits for its bolt exactly as a shot's waits for its arrow.
    */
   private fireBolt(
     projectileTileId: string | undefined,
     from: ActorRuntime,
     to: ActorRuntime,
-  ) {
-    if (!projectileTileId) return;
+  ): number {
+    if (!projectileTileId) return 0;
     const start = this.tryLocate(from);
     const end = this.tryLocate(to);
-    if (!start || !end) return;
+    if (!start || !end) return 0;
     // Always connected, and not as a simplification: a bolt has no accuracy and
     // nothing dodges one — {@link castBolt} lands whatever it carries the
     // moment it is cast. A spell that could miss would ask its own dice here,
     // exactly as a swing does. @see fireProjectile
-    this.fireProjectile(
+    return this.fireProjectile(
       projectileTileId,
       this.reachPointOf(start),
       this.reachPointOf(end),
@@ -9537,6 +9849,12 @@ export class GameSession implements PlaySession {
     // wrote, which is the same bargain a decay lifetime is under — and by
     // `MAX_TRANSITION_MS`, which is five seconds rather than an hour.
     if (this.liveFlightEffects.length > 0) return false;
+    // And a blow riding one of those arrows, which today is always covered by
+    // the clause above — a blow only ever waits on a flight, and the two count
+    // down together. Stated anyway, because the cost of the invariant quietly
+    // ceasing to hold is a body that never takes a hit somebody already paid
+    // for, waiting on a clock nobody is winding. @see blowsInFlight
+    if (this.blowsInFlight.length > 0) return false;
     // A stone counting down is a clock this loop is the only thing winding, on
     // exactly the terms decay is: falling asleep on one would leave a caster
     // waiting for a cooldown that only resumes the next time somebody moves,
