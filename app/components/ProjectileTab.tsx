@@ -35,6 +35,11 @@ import { type TransitionPlay, VfxPreview } from "./VfxPreview";
  * where a shot that connected lands, and a miss or a dodge leaves nothing. That
  * is the one thing about a projectile the rest of the editor cannot express.
  *
+ * It plays *alongside* the Disappear rather than instead of it. A landing is
+ * one moment that two sides describe — the projectile went, and the blow landed
+ * — so an author who wants both writes both. See `../lib/projectile`'s
+ * `landingPlays`.
+ *
  * ## The preview draws on somebody else
  *
  * Every other caller of `./VfxPreview` either *is* the subject — the tile
@@ -54,7 +59,7 @@ const SPEED_INFO =
   "Cells per second. A body walks at five, so twenty is four times walking pace and crosses six cells in about a third of a second. Everything that fires this flies it at this speed — that is the point of the projectile being its own tile.";
 
 const HIT_INFO =
-  "Thrown where it lands, and only on a blow that connected: a miss and a dodge land nothing, so neither leaves anything behind. Armour eating the damage still counts as a hit. Leave it off and a landing plays the Effects tab's Disappear instead, whatever the blow came to.";
+  "Thrown where it lands, and only on a blow that connected: a miss and a dodge land nothing, so neither leaves anything behind. Armour eating the damage still counts as a hit. It plays on top of the Effects tab's Disappear, which every landing plays whatever the blow came to — so this is what a shot that connected does *extra*, not instead.";
 
 export function ProjectileTab({
   draft,

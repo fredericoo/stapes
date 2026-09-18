@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import tilesJson from "../../data/tiles.json";
 import { hasAnyInteraction, interactionsForSave } from "./interactions";
 import {
-  landingSide,
+  landingPlays,
   MAX_PROJECTILE_SPEED,
   MIN_PROJECTILE_SPEED,
   projectileEffect,
@@ -194,9 +194,14 @@ describe("which side a landing plays", () => {
   const SPARK = burst();
   const FIZZLE = burst({ ratePerSecond: 10 });
 
-  it("names the side from whether the blow connected", () => {
-    expect(landingSide(true)).toBe("hit");
-    expect(landingSide(false)).toBe("disappear");
+  /**
+   * **Both, when the blow connected.** `disappear` is the projectile going,
+   * which it does however the fight went; `hit` is the blow landing, which is a
+   * separate claim about the same instant.
+   */
+  it("plays the disappear on every landing and the hit as well on a blow", () => {
+    expect(landingPlays(true)).toEqual(["disappear", "hit"]);
+    expect(landingPlays(false)).toEqual(["disappear"]);
   });
 
   /** `appear` and `disappear` are the tile's own, off the Effects tab. */
@@ -217,14 +222,15 @@ describe("which side a landing plays", () => {
   });
 
   /**
-   * The fallback is what makes `hit` an addition rather than a rearrangement:
-   * one block gets a fireball dissolving wherever it stops, and the second is
-   * written only by an author who wants the landing that connected to differ.
+   * **No fallback any more.** `hit` used to borrow `disappear` when nothing was
+   * authored, because a landing played exactly one side and the fallback was
+   * what stopped a connected shot ending in silence. A landing plays both now,
+   * so borrowing would draw the same effect twice on every blow that lands.
    */
-  it("falls back to the disappear when no hit is authored", () => {
+  it("plays nothing for a hit nobody authored, rather than the disappear", () => {
     const def = tile({ transitions: { disappear: FIZZLE } });
 
-    expect(projectileEffect(def, "hit")?.particles?.ratePerSecond).toBe(10);
+    expect(projectileEffect(def, "hit")).toBeUndefined();
   });
 
   /** And never the other way: a miss may not borrow the hit's sparks. */
