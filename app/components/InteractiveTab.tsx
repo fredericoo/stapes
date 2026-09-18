@@ -44,6 +44,7 @@ import {
 } from "../lib/interactions";
 import { DEFAULT_BATTLER } from "../lib/battler";
 import { DEFAULT_WEAPON, resolveContainer, resolveItem } from "../lib/item";
+import { DEFAULT_PROJECTILE_SPEED } from "../lib/projectile";
 import type { StatusDef } from "../lib/status";
 import type { TileDef, TileKind, TilesetDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL } from "../lib/types";
@@ -246,13 +247,23 @@ export function InteractiveTab({
    *
    * Seeding is the other half of the Battler switch going away: the tab is now
    * shown *because* the tile is a battler, so it must never open onto nothing.
+   *
+   * A projectile is seeded for a second reason on top of that one: its tab
+   * shows the default speed without writing it, so a tile switched to
+   * `projectile` and saved without touching the Speed field carried a kind no
+   * block backed — and `resolveProjectile` refuses that, which is a tile the
+   * pickers offer and nothing ever fires.
    */
   const setKind = (kind: TileKind) => {
     const merged: TileInteractions = { ...draft.interactions };
     delete merged.battler;
     delete merged.item;
+    delete merged.projectile;
     if (kind === "battler") merged.battler = { ...DEFAULT_BATTLER };
     if (kind === "item") merged.item = { ...DEFAULT_WEAPON };
+    if (kind === "projectile") {
+      merged.projectile = { cellsPerSecond: DEFAULT_PROJECTILE_SPEED };
+    }
     onChange({
       ...draft,
       kind,

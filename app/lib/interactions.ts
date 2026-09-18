@@ -13,7 +13,11 @@ import {
   weaponForSave,
 } from "./item";
 import { MASTERIES } from "./mastery";
-import type { ProjectileBlock } from "./projectile";
+import {
+  MAX_PROJECTILE_SPEED,
+  MIN_PROJECTILE_SPEED,
+  type ProjectileBlock,
+} from "./projectile";
 import type { Coord, PlacedTile, SpriteState, TileDef } from "./types";
 import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL, resolveActor } from "./types";
 
@@ -1685,6 +1689,7 @@ export function hasAnyInteraction(
       interactions?.dialog ||
       interactions?.battler ||
       interactions?.item ||
+      interactions?.projectile ||
       interactions?.push ||
       interactions?.switch ||
       interactions?.reward ||
@@ -1959,11 +1964,34 @@ export function interactionsForSave(
   // switching a weapon to a container and back leaves the draft carrying both
   // sets of fields, and only `itemForSave` knows which ones belong.
   const savedItem = itemForSave(interactions?.item);
+  // Written on the block's presence, on the terms the reward and teleport
+  // blocks are: a projectile has nothing that could be blank enough to mean
+  // unauthored, because the tab seeds a speed the moment the kind is chosen.
+  //
+  // Missing entirely until now, which meant every save through the tile dialog
+  // dropped the block and left a `kind: "projectile"` tile that `resolveProjectile`
+  // refuses — a tile the pickers still offer, and that fires nothing when it is
+  // named. The speed is clamped rather than trusted because the field is the
+  // only thing enforcing the range, and a number outside it is a block that
+  // will not parse on the way back in.
+  const projectile = interactions?.projectile;
+  const savedProjectile = projectile
+    ? {
+        cellsPerSecond: Math.min(
+          MAX_PROJECTILE_SPEED,
+          Math.max(MIN_PROJECTILE_SPEED, projectile.cellsPerSecond),
+        ),
+        // Passed through rather than rebuilt, exactly as a tile's own
+        // transitions are: the shape is `./tileTransition`'s to know.
+        ...(projectile.hit ? { hit: projectile.hit } : {}),
+      }
+    : undefined;
   if (
     !savedBrain &&
     !savedDialog &&
     !savedBattler &&
     !savedItem &&
+    !savedProjectile &&
     !savedPush &&
     !savedSwitch &&
     !savedReward &&
@@ -1984,6 +2012,7 @@ export function interactionsForSave(
     ...(savedDialog ? { dialog: savedDialog } : {}),
     ...(savedBattler ? { battler: savedBattler } : {}),
     ...(savedItem ? { item: savedItem } : {}),
+    ...(savedProjectile ? { projectile: savedProjectile } : {}),
     ...(savedPush ? { push: savedPush } : {}),
     ...(savedSwitch ? { switch: savedSwitch } : {}),
     ...(savedReward ? { reward: savedReward } : {}),

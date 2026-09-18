@@ -25206,7 +25206,7 @@
           "on": "target",
           "damage": 5,
           "variance": 60,
-          "projectile": "arcane-bolt"
+          "projectile": "fireball"
         },
         "cooldownMs": 4000,
         "requirements": {
@@ -33947,6 +33947,229 @@
             "rect": {
               "x": 0,
               "y": 12,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "fireball",
+    "name": "Fireball",
+    "height": 0,
+    "type": "simple",
+    "kind": "projectile",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 0,
+      "y": 0
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 20,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 3,
+            "intensity": 1,
+            "color": "#ffcc88"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 3,
+              "y": 20,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 3,
+            "intensity": 1,
+            "color": "#ffcc88"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 20,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 2,
+              "y": 2
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 3,
+            "intensity": 1,
+            "color": "#ffcc88"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 9,
+              "y": 20,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 3,
+            "intensity": 1,
+            "color": "#ffcc88"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 12,
+              "y": 20,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 3,
+            "intensity": 1,
+            "color": "#ffcc88"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 15,
+              "y": 20,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 3,
+            "intensity": 1,
+            "color": "#ffcc88"
+          }
+        }
+      ]
+    },
+    "interactions": {
+      "projectile": {
+        "cellsPerSecond": 20
+      }
+    }
+  },
+  {
+    "id": "training-dummy",
+    "name": "Training Dummy",
+    "height": 3,
+    "type": "simple",
+    "kind": "battler",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 12,
+      "y": 10
+    },
+    "lightPassing": true,
+    "walkable": false,
+    "interactions": {
+      "brain": {
+        "initial": "idle",
+        "states": {
+          "idle": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": []
+      },
+      "battler": {
+        "baseHp": 10000,
+        "masteries": {
+          "fist": 1,
+          "sharp": 1,
+          "blunt": 1,
+          "ranged": 1,
+          "arcane": 1,
+          "toughness": 1,
+          "agility": 1,
+          "fire": 1,
+          "water": 1
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "name": "Nothing",
+          "damage": 0,
+          "def": 0,
+          "accuracy": 0,
+          "variance": 0,
+          "spd": 0,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
+          "mastery": "fist"
+        },
+        "sight": {
+          "up": 0,
+          "down": 0
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
               "w": 2,
               "h": 2
             },
