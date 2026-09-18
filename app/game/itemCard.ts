@@ -1,5 +1,5 @@
 import type { BattlerDef } from "../lib/battler";
-import { DEFAULT_BASE_HP, fightingStats, weaponHandling } from "../lib/battler";
+import { DEFAULT_BASE_HP, fightingStats } from "../lib/battler";
 import {
   armorSlotOf,
   consumeVerb,
@@ -32,15 +32,14 @@ import {
   type Masteries,
   type Mastery,
   type MasteryXp,
-  requirementShare,
-  requirementShortfall,
   WEAPON_MASTERIES,
   type WeaponMastery,
 } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
+import { bandLabel, HEADINGS, termSpoken, type TermKey } from "../lib/terms";
 import type { AnchoredSprite } from "../lib/types";
 import type { TileDef } from "../lib/types";
-import { swingIntervalMs } from "./combat";
+import { damageBand, damageBandOf, swingIntervalMs, type DamageBand } from "./combat";
 
 /**
  * Everything an inspected item has to say, as data rather than as a drawing.
@@ -84,18 +83,18 @@ export type ItemCardTone = "plain" | "good" | "bad";
 
 /** One line of the profile: what it is, what it comes to, how that reads. */
 export type ItemCardStat = {
-  /** Stable across renders and across items, so a list can key on it. */
-  key: string;
   /**
-   * The attribute, in as few characters as it reads in — "dmg", "def", "hit".
+   * Which measurement this row reports, and so what it is called.
    *
-   * Short because the value beside it already carries the answer. A row reading
-   * "Blocks — 1 a blow" spends a verb and a noun getting one number across, and
-   * six rows written that way are a paragraph the reader has to take apart
-   * before they can compare two swords. The pair is a stat block, not a
-   * sentence. {@link spoken} is where the sentence went.
+   * The wording is not here. `../lib/terms` holds it, because the stats panel
+   * heads the same measurements for a *body* and the two surfaces have to meet
+   * the reader with the same word — see that module for what the abbreviations
+   * this used to carry cost. It doubles as the row's identity: stable across
+   * renders and across items, so a list keys on it and a test looks a row up by
+   * it. One item never reports one measurement twice, which is what makes a
+   * separate key unnecessary.
    */
-  label: string;
+  term: TermKey;
   /** What the body asking gets. */
   value: string;
   /**
@@ -106,15 +105,6 @@ export type ItemCardStat = {
    * would invite the reader to look for a difference that is not there.
    */
   base?: string;
-  /**
-   * {@link label} as a word, for the route that reads the card aloud.
-   *
-   * Absent wherever the label is already one, which is most rows — "reach" and
-   * "spread" survive being spoken. It exists for the abbreviations that do not:
-   * "def" read out is not the word anybody says, and "every" on its own is not
-   * a clause. See {@link ItemCard.speech}.
-   */
-  spoken?: string;
   tone: ItemCardTone;
 };
 
@@ -224,25 +214,25 @@ export type ItemCard = {
    */
   description: string | null;
   stats: ItemCardStat[];
-  requirements: ItemCardRequirement[];
   /**
-   * How well the reader handles this weapon, as a percentage — its accuracy and
-   * its swing rate, and never its damage.
+   * What this asks, and what the reader has.
    *
-   * `weaponHandling` of the pooled `requirementShortfall`, in the unit a player
-   * can read — and the same number `../lib/weaponDemand` prints over the canvas, so
-   * the sword on the floor and the sword in your bag cannot disagree about it.
+   * **There is no handling figure beside it, and that is deliberate.** The card
+   * used to end on a bar reading "Accuracy & swing rate — 50%", which is
+   * `weaponHandling` of the pooled shortfall. Everything it said, the card
+   * already says twice over and in better units: {@link requirements} names
+   * which mastery is short and by how many points, which is the half a player
+   * can act on, and the {@link stats} rows carry what the shortfall costs as
+   * `Swing 2.9s → 5.2s` and `Hit 90% → 46%` — the figures themselves, struck
+   * through against the weapon's own. A pooled percentage is the one form of it
+   * nobody can work back to a mastery.
    *
-   * Runs from a hundred down to `MIN_HANDLING` and never above a hundred.
-   * Requirements gate rather than scale: meeting them is worth full handling and
-   * exceeding them is worth nothing more. Skill with the weapon is paid
-   * separately and shows up in the figures above — see `../lib/battler`'s
-   * `MASTERY_DAMAGE_BONUS`, which is why a master's damage can exceed the number
-   * on the blade while this reads 100%.
-   *
-   * Null for anything that is not a weapon, which has no such question.
+   * `../lib/weaponDemand` still prints that sentence over the canvas, and the
+   * two do not disagree: a look label has no room for a profile, so the summary
+   * is all the cost it can carry. This has the profile, so it does not need the
+   * summary. @see `../lib/battler`'s `weaponHandling`
    */
-  handling: number | null;
+  requirements: ItemCardRequirement[];
   effects: ItemCardEffect[];
   /**
    * What to head the effects list with.
@@ -428,20 +418,28 @@ function weaponStats(
   const ownIntervalMs = swingIntervalMs(own);
   const yourHit = percent(yours.hitChance);
   const ownHit = percent(own.hitChance);
+  const yourDamage = damageBand(yours);
+  const ownDamage = damageBand(own);
+  const yourDamageLabel = bandLabel(yourDamage.min, yourDamage.max);
+  const ownDamageLabel = bandLabel(ownDamage.min, ownDamage.max);
 
   const stats: ItemCardStat[] = [
     {
-      key: "damage",
-      label: "dmg",
-      spoken: "damage",
-      value: `${yours.damage}`,
-      ...(yours.damage === own.damage ? {} : { base: `${own.damage}` }),
-      tone: toneOf(yours.damage, own.damage),
+      // **The band, and there is no variance row underneath it.** The card used
+      // to print `dmg 12` and `spread ±35%`, which is a face value nobody ever
+      // takes and a percentage of it to subtract — two rows asking the reader to
+      // multiply before they know what the weapon does. "8–12" is the same fact
+      // as the answer, and it is also how a player thinks about the fight: what
+      // it takes to kill the thing in front of you is worked out from both ends
+      // at once. The panel has reported a body's damage this way all along; this
+      // is the weapon agreeing with it. @see `./combat`'s `damageBand`
+      term: "damage",
+      value: yourDamageLabel,
+      ...(yourDamageLabel === ownDamageLabel ? {} : { base: ownDamageLabel }),
+      tone: bandTone(yourDamage, ownDamage),
     },
     {
-      key: "speed",
-      label: "every",
-      spoken: "a blow every",
+      term: "swing",
       value: seconds(yourIntervalMs),
       ...(yourIntervalMs === ownIntervalMs ? {} : { base: seconds(ownIntervalMs) }),
       // Inverted against every other row: a shorter wait is the better
@@ -450,29 +448,21 @@ function weaponStats(
       tone: toneOf(ownIntervalMs, yourIntervalMs),
     },
     {
-      key: "hit",
       // The probability rather than the accuracy behind it, and the choice is
       // worth recording because accuracy does two jobs: it sets this, and it is
       // what a defender's evasion is contested against. Only the first depends
       // on nothing but you and the weapon; the second needs an opponent, which
       // is what the Arena is for. This figure is clamped to the band every
       // chance in a fight is held to, so a master and a grandmaster both read
-      // 95% here and differ only against a real defender.
-      label: "hit",
-      spoken: "chance to land",
+      // 95% here and differ only against a real defender. It is "Hit" rather
+      // than "Accuracy" on both surfaces for exactly that reason — see
+      // `../lib/terms`.
+      term: "hit",
       value: `${yourHit}%`,
       ...(yourHit === ownHit ? {} : { base: `${ownHit}%` }),
       tone: toneOf(yourHit, ownHit),
     },
-    {
-      key: "spread",
-      label: "spread",
-      // Untouched by mastery — how erratic a weapon is belongs to the weapon,
-      // so there is never a second figure to compare against.
-      value: `±${weapon.variance}%`,
-      tone: "plain",
-    },
-    { key: "reach", label: "reach", value: reachLine(weapon), tone: "plain" },
+    { term: "range", value: reachLine(weapon), tone: "plain" },
   ];
 
   // Only where there is any. Defence is the one number most weapons leave at
@@ -480,9 +470,7 @@ function weaponStats(
   // that have something to say here.
   if (weapon.def > 0) {
     stats.push({
-      key: "def",
-      label: "def",
-      spoken: "defence",
+      term: "defence",
       // The weapon's own, never `yours.def` — which now carries the body's
       // Toughness as well (see `../lib/battler`'s `defFrom`) and would have a
       // sword in a veteran's hand claiming credit for their ribs.
@@ -492,6 +480,19 @@ function weaponStats(
   }
 
   return stats;
+}
+
+/**
+ * Which way a band leans against the item's own.
+ *
+ * The top end decides, and the floor only breaks a tie. Mastery scales `damage`
+ * and leaves `variance` alone, so both ends move together and the top is the one
+ * that always moves: a point of damage raises the ceiling by a point and may
+ * leave the rounded floor exactly where it was.
+ */
+function bandTone(yours: DamageBand, own: DamageBand): ItemCardTone {
+  const ceiling = toneOf(yours.max, own.max);
+  return ceiling === "plain" ? toneOf(yours.min, own.min) : ceiling;
 }
 
 /** Better than the item's own reads well; worse reads badly; equal is silent. */
@@ -511,12 +512,11 @@ function toneOf(yours: number, own: number): ItemCardTone {
 function armorStats(armor: ArmorItem): ItemCardStat[] {
   return [
     {
-      key: "def",
       // The same word a shield's row uses, so a thing you hold and a thing you
       // wear read alike — they are the same field and they add up. See
-      // `./equipment`'s `wornDefence`, which is where the adding happens.
-      label: "def",
-      spoken: "defence",
+      // `./equipment`'s `wornDefence`, which is where the adding happens. One
+      // term, so that cannot come apart. @see `../lib/terms`
+      term: "defence",
       value: `${armor.def}`,
       tone: "good",
     },
@@ -559,9 +559,7 @@ function consumableStats(consumable: ConsumableItem): ItemCardStat[] {
   const healing = consumable.hp > 0;
   return [
     {
-      key: "hp",
-      label: "hp",
-      spoken: "health",
+      term: "health",
       value: `${healing ? "+" : MINUS}${Math.abs(consumable.hp)}`,
       tone: healing ? "good" : "bad",
     },
@@ -588,17 +586,13 @@ function charmStats(charm: CharmItem): ItemCardStat[] {
     // the two rows sit under the same heading on a body's worth of kit, and one
     // of them wearing its sign would read as the other having lost it.
     stats.push({
-      key: "hp",
-      label: "hp",
-      spoken: "health",
+      term: "health",
       value: `+${charm.hp}`,
       tone: "good",
     });
   }
   stats.push({
-    key: "every",
-    label: "every",
-    spoken: "acts every",
+    term: "cadence",
     value: seconds(charm.everyMs),
     tone: "plain",
   });
@@ -612,8 +606,7 @@ function containerStats(
   const used = instance?.contents?.length ?? 0;
   return [
     {
-      key: "slots",
-      label: "slots",
+      term: "slots",
       // What is in *this* one against what it takes, because a four-slot bag
       // with one thing in it and a one-slot bag that is full are the same
       // contents and completely different situations to be in — the same fact
@@ -622,8 +615,7 @@ function containerStats(
       tone: "plain",
     },
     {
-      key: "worn",
-      label: "worn",
+      term: "worn",
       // The square it goes in, or nothing — which is the whole answer for a
       // crate: a container that cannot be worn is opened where it lies, and
       // saying so was the row explaining its own empty half.
@@ -684,9 +676,9 @@ const ARMOR_SLOT_LABELS: Record<ArmorSlot, string> = {
 
 /** What the list of statuses an item hands over should be called. */
 function effectsTitleFor(item: ItemDef): string {
-  if (item.type === "weapon") return "On hit";
-  if (item.type === "stone") return "On cast";
-  return "Grants";
+  if (item.type === "weapon") return HEADINGS.onHit;
+  if (item.type === "stone") return HEADINGS.onCast;
+  return HEADINGS.grants;
 }
 
 /**
@@ -774,9 +766,7 @@ function statsFor(
 function shieldStats(shield: ShieldItem): ItemCardStat[] {
   return [
     {
-      key: "def",
-      label: "def",
-      spoken: "defence",
+      term: "defence",
       value: `${shield.def}`,
       tone: "good",
     },
@@ -803,36 +793,28 @@ function stoneStats(stone: ArcaneStoneItem): ItemCardStat[] {
   if (stone.effect.kind === "bolt") {
     const { damage = 0, on, variance = 0 } = stone.effect;
     if (damage !== 0) {
+      // A band, on the terms `weaponStats` states at length: a bolt rolls the
+      // same `damageFraction` a blow does, so it had the same face value and the
+      // same percentage to subtract underneath it.
+      const band = damageBandOf(Math.abs(damage), variance);
       // The sign is the difference between a stone of embers and a stone of
       // life. See `../lib/item`'s `StoneEffect`, which is one signed number
       // rather than two arms for that reason.
       const mending = damage < 0;
       stats.push({
-        key: "power",
-        label: mending ? "heal" : "dmg",
-        ...(mending ? {} : { spoken: "damage" }),
-        value: `${Math.abs(damage)}`,
+        term: mending ? "heal" : "damage",
+        value: bandLabel(band.min, band.max),
         tone: mending ? "good" : "plain",
       });
     }
     stats.push({
-      key: "subject",
-      label: "hits",
+      term: "subject",
       value: on === "caster" ? "You" : "Your target",
       tone: "plain",
     });
-    if (variance > 0) {
-      stats.push({
-        key: "spread",
-        label: "spread",
-        value: `±${variance}%`,
-        tone: "plain",
-      });
-    }
   } else {
     stats.push({
-      key: "conjure",
-      label: "puts",
+      term: "conjure",
       // Not which tile: that is an authoring detail, and the player finds out
       // by casting.
       value: "A tile",
@@ -841,14 +823,12 @@ function stoneStats(stone: ArcaneStoneItem): ItemCardStat[] {
   }
 
   stats.push({
-    key: "cooldown",
-    label: "cooldown",
+    term: "cooldown",
     value: seconds(stone.cooldownMs),
     tone: "plain",
   });
   stats.push({
-    key: "reach",
-    label: "reach",
+    term: "range",
     value: reachLine(stone),
     tone: "plain",
   });
@@ -877,7 +857,6 @@ export function itemCard(
   if (!item) return null;
 
   const masteries = masteriesFromXp(masteryXp);
-  const weapon = item.type === "weapon" ? item : null;
 
   const count = instance ? countOf(instance) : 1;
 
@@ -894,9 +873,6 @@ export function itemCard(
     description: instance?.description?.trim() || null,
     stats: statsFor(item, instance, masteries),
     requirements: requirementsFrom(demandsOf(item), masteries),
-    handling: weapon
-      ? percent(weaponHandling(requirementShortfall(masteries, weapon.requirements)))
-      : null,
     effects: effectsFrom(grantsOn(item), statusDefs),
     resists: item.type === "armor" ? resistsFrom(item) : [],
     effectsTitle: effectsTitleFor(item),
@@ -919,11 +895,11 @@ function clause(line: string): string {
 }
 
 /**
- * A label written for a column, at the start of a sentence.
+ * A caption written for a column, at the start of a sentence.
  *
- * The stat rows are captions — lower case, abbreviated — because they are read
- * against the figure beside them. {@link speak} joins its clauses with full
- * stops, so each one begins a sentence and has to look like it.
+ * A term's spoken form is a clause written to sit mid-sentence — "a blow every"
+ * — because that is what it is read against. {@link speak} joins its clauses
+ * with full stops, so each one begins a sentence and has to look like it.
  */
 function sentenceCase(label: string): string {
   return label.charAt(0).toUpperCase() + label.slice(1);
@@ -941,9 +917,11 @@ function speak(card: ItemCard): string {
   if (card.inscription) lines.push(card.inscription);
   if (card.description) lines.push(card.description);
   for (const stat of card.stats) {
-    // The word rather than the abbreviation on the card: "def" is a column
-    // heading, and a column heading read out loud is not the word anybody says.
-    const said = sentenceCase(stat.spoken ?? stat.label);
+    // The clause where the caption is not one — "Swing: 1.2s" read out is not
+    // a sentence and "A blow every: 1.2s" is. Most terms need no second
+    // form, which is what whole words bought over the abbreviations the rows
+    // used to carry. @see `../lib/terms`'s `termSpoken`
+    const said = sentenceCase(termSpoken(stat.term));
     // The item's own figure spoken as a clause rather than as a bracket, since
     // a screen reader reads "(8)" as "eight" and the comparison disappears.
     lines.push(
@@ -962,13 +940,6 @@ function speak(card: ItemCard): string {
   for (const row of card.requirements) {
     lines.push(
       `Requires ${MASTERY_LABELS[row.mastery]} ${row.required}, you have ${row.have}`,
-    );
-  }
-  if (card.handling !== null && card.requirements.length > 0) {
-    lines.push(
-      card.handling >= 100
-        ? "Full accuracy and swing rate"
-        : `${card.handling}% accuracy and swing rate; full damage`,
     );
   }
   for (const effect of card.effects) {

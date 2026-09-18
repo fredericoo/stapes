@@ -7,6 +7,7 @@ import type {
   ItemCardStat,
 } from "../game/itemCard";
 import { MASTERY_LABELS } from "../lib/mastery";
+import { HEADINGS, termLabel } from "../lib/terms";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { SpritePreview, TilePreview } from "./TilePreview";
 
@@ -18,8 +19,8 @@ import { SpritePreview, TilePreview } from "./TilePreview";
  * The order is the one RPG item tooltips have used for decades, and it works
  * for the same reason: a player comparing two swords reads top-down and stops
  * once they have their answer. Picture and name, kind, what is written on this
- * copy, the profile, what it resists, what it asks, how well you handle it, and
- * what a blow leaves behind. The order never varies with the item.
+ * copy, the profile, what it resists, what it asks, and what a blow leaves
+ * behind. The order never varies with the item.
  *
  * Sections with nothing to say are omitted, and the ones that remain keep their
  * positions. A weapon shows a profile and requirements; a breastplate shows a
@@ -45,16 +46,6 @@ const CARD_SPRITE_SIZE_PX = 32;
 
 /** A mark beside a name, the size the strip and the panels use for one. */
 const EFFECT_ICON_SIZE_PX = 14;
-
-/**
- * Where meeting everything a weapon asks falls on the bar, and also its top.
- *
- * The same figure twice. Requirements gate rather than scale, so meeting them
- * is worth full handling and there is nothing past that to draw. The bar ran
- * to 125 with a mark at 100 while exceeding a requirement still paid something
- * extra; see `../lib/mastery`'s `REQUIREMENTS_MET`.
- */
-const BAR_MET_PERCENT = 100;
 
 export function ItemCard({
   card,
@@ -133,13 +124,13 @@ export function ItemCard({
       {card.stats.length > 0 ? (
         <dl className="flex flex-col gap-0.5">
           {card.stats.map((stat) => (
-            <StatRow key={stat.key} stat={stat} />
+            <StatRow key={stat.term} stat={stat} />
           ))}
         </dl>
       ) : null}
 
       {card.resists.length > 0 ? (
-        <Section title="Resists">
+        <Section title={HEADINGS.resists}>
           <ul className="flex flex-col gap-0.5">
             {card.resists.map((row) => (
               <ResistRow key={row.mastery} row={row} />
@@ -149,7 +140,7 @@ export function ItemCard({
       ) : null}
 
       {card.requirements.length > 0 ? (
-        <Section title="Requires">
+        <Section title={HEADINGS.requires}>
           <ul className="flex flex-col gap-0.5">
             {card.requirements.map((row) => (
               <RequirementRow key={row.mastery} row={row} />
@@ -157,8 +148,6 @@ export function ItemCard({
           </ul>
         </Section>
       ) : null}
-
-      {card.handling !== null ? <Handling percent={card.handling} /> : null}
 
       {card.effects.length > 0 ? (
         <Section title={card.effectsTitle}>
@@ -191,17 +180,21 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /**
- * One figure: the label on the left, the value on the right.
+ * One figure: the caption on the left, the value on the right.
  *
  * The item's own number appears beside it whenever the two differ. That
  * comparison is the main reason the card carries numbers: "Damage 6" says
  * nothing a sentence could not, while "Damage 6, and this sword does 17" says
  * what is wrong and what fixing it is worth.
+ *
+ * The caption comes out of `../lib/terms` rather than off the row, so the word
+ * this card uses for a measurement and the word the stats panel uses for the
+ * same one cannot come apart.
  */
 function StatRow({ stat }: { stat: ItemCardStat }) {
   return (
     <div className="flex items-baseline gap-2 text-[11px] leading-tight">
-      <dt className="shrink-0 text-ink/70">{stat.label}</dt>
+      <dt className="shrink-0 text-ink/70">{termLabel(stat.term)}</dt>
       {/* The leader lives inside the value rather than between the pair: a `dl`
           takes `dt` and `dd` and nothing else, and a loose span between them is
           markup no parser is obliged to keep where it was put. */}
@@ -233,11 +226,18 @@ const TONE_TEXT = {
  *
  * Both numbers, and this is the one place the old "spreadsheet" objection has
  * real force — `../lib/weaponFeel` argues at length that a figure is a thing to
- * compute against where a sentence is a thing to act on. The sentence is still
- * here, under the bar below. What the pair of numbers adds is *which* mastery
- * and *how far*: a player short on Toughness for an axe they have been training
- * Blunt with cannot act on "you can hardly wield it" at all, because it does not
- * say where to go.
+ * compute against where a sentence is a thing to act on. What the pair of
+ * numbers adds is *which* mastery and *how far*: a player short on Toughness for
+ * an axe they have been training Blunt with cannot act on "you can hardly wield
+ * it" at all, because it does not say where to go.
+ *
+ * **This block is the whole of what the card says about the gate now.** It used
+ * to be followed by a bar reading "Accuracy & swing rate — 50%", and that bar
+ * was the third telling of one fact: the red here says the gate is shut, the
+ * struck-through `Swing` and `Hit` rows above say what it costs in the units a
+ * blow is actually fought in, and the bar restated the cost as a pooled
+ * percentage — the one form of it a player cannot work back to a mastery. See
+ * `../game/itemCard`'s {@link ItemCardData.requirements}.
  */
 function RequirementRow({ row }: { row: ItemCardRequirement }) {
   return (
@@ -279,52 +279,6 @@ function ResistRow({ row }: { row: ItemCardResist }) {
         {row.total}
       </span>
     </li>
-  );
-}
-
-/**
- * How well the reader handles the weapon — what its accuracy and swing rate come
- * to, and never its damage.
- *
- * **The headline of the card**, which is why it is the one row set in a size
- * anybody can read across a table: it is the single number the "hit" and "every"
- * rows above have both been scaled through.
- *
- * **It stops short of nothing, and it moves in a straight line**, which is what
- * the bar exists to make visible: every point of a requirement buys the same
- * slice of the bar back. A weapon you are a couple of points short of is barely
- * clumsier and still hits for everything it is written to hit for, so reaching
- * for the next rung early is a real choice. See `../lib/battler`'s
- * `MIN_HANDLING`.
- *
- * A full bar means every requirement met and nothing left to earn *on this
- * weapon* — which is not the same as nothing left to earn. Being good with a
- * blade goes on paying after the gate opens, and it shows up above rather than
- * here: a master's damage can run past the number stamped on the blade while
- * this reads a flat hundred. See `../lib/battler`'s `MASTERY_DAMAGE_BONUS`.
- */
-function Handling({ percent }: { percent: number }) {
-  const met = percent >= BAR_MET_PERCENT;
-
-  return (
-    <section className="flex flex-col gap-1 border-t-2 border-ink/15 pt-1">
-      <div className="flex items-baseline gap-2">
-        <h4 className="text-[9px] font-bold uppercase tracking-widest text-ink/60">
-          Accuracy &amp; swing rate
-        </h4>
-        <span
-          className={`ml-auto text-sm font-bold tabular-nums ${met ? "text-accent" : "text-danger"}`}
-        >
-          {percent}%
-        </span>
-      </div>
-      <span className="flex h-1.5 w-full border border-ink/40 bg-ink/10">
-        <span
-          className={met ? "bg-accent" : "bg-danger"}
-          style={{ width: `${Math.max(0, Math.min(100, percent))}%` }}
-        />
-      </span>
-    </section>
   );
 }
 

@@ -4828,15 +4828,13 @@ The lines `weaponDemand` produces are what the world's look label says, over the
 canvas, in the pixel font. Inspecting a slot gets the same facts plus the rest of
 the profile, as a card: `app/game/itemCard.ts` computes it and
 `app/components/ItemCard.tsx` draws it. Damage, the wait between blows, the
-chance of landing one, the spread, the reach, every requirement against what you
-have, how well you handle it, what a blow leaves behind, and for worn things the
-kinds of blow they turn aside.
+chance of landing one, the range, every requirement against what you have, what a
+blow leaves behind, and for worn things the kinds of blow they turn aside.
 
-**"How well you handle it" is the accuracy and the swing rate, and the card says
-so** — headed *Accuracy & swing rate* rather than the *In your hands* it used to
-be. It stopped being a share of the whole weapon when the shortfall stopped
-touching damage, and a bar that still read as one would be telling a player their
-greatsword hits softer than it does.
+**The card does not report handling, and the look label does.** That is the one
+place the two diverge, and it is a consequence of how much room each has rather
+than a disagreement — see *The gate is said once on a card and summarised on a
+label* below.
 
 The card exists because the gate is not the only question. Somebody holding two
 swords wants to know the difference between them — not which is better, which is
@@ -4859,21 +4857,24 @@ Four rules keep it from becoming the requirements panel that was deleted:
   definition of what a weapon is worth would diverge the next time somebody
   changed the falloff. The mastery rebalance replaced every formula underneath
   and the card needed no arithmetic changed.
-- **A row is a caption and a figure, not a sentence.** `dmg 12`, `def 4`,
-  `hp +5`, `every 1.2s`. The rows used to read "Blocks — 1 a blow" and
-  "Restores — 5 health", which spend a verb and a noun getting one number
-  across; six of those are a paragraph the reader has to take apart before they
-  can compare two swords. A worn thing's kind line is the caption on the square
-  it goes in — "Armour", "Head", "Footwear" — matching
+- **A row is a caption and a figure, not a sentence.** `Damage 7–12`,
+  `Defence 4`, `Health +5`, `Swing 1.2s`. The rows used to read
+  "Blocks — 1 a blow" and "Restores — 5 health", which spend a verb and a noun
+  getting one number across; six of those are a paragraph the reader has to take
+  apart before they can compare two swords. A worn thing's kind line is the
+  caption on the square it goes in — "Armour", "Head", "Footwear" — matching
   `app/components/EquipmentPanel.tsx` exactly, rather than "Worn on your body",
   which made the reader match a sentence to a picture.
 
-  What a poison costs is signed rather than worded — `hp −6` against `hp +5` —
-  on the terms `damageNumbers`' mend sign is: colour alone leaves a reader who
-  cannot separate the two hues with a bare figure. The abbreviations do not
-  survive being read out, so `ItemCardStat.spoken` carries the word for the
-  route that speaks the card, and `speech` says "Damage: 12" where the drawing
-  says `dmg 12`.
+  What a poison costs is signed rather than worded — `Health −6` against
+  `Health +5` — on the terms `damageNumbers`' mend sign is: colour alone leaves
+  a reader who cannot separate the two hues with a bare figure.
+
+  **The captions used to be abbreviations** — `dmg`, `def`, `hp`, `every` —
+  which bought about four characters and cost every row a spoken override,
+  because `def` read out is not a word anybody says. They are whole words now;
+  see *One word for one measurement* below, which is also why they are the same
+  whole words the stats panel uses.
 
 Each item kind reports what it has and nothing else. A weapon has a profile, a
 gate and a share; armour has a defence figure and a resistance table but no
@@ -4895,6 +4896,107 @@ makes `overflow-x` non-visible too, so a card anchored on the leftmost square wa
 clipped at the panel edge. Measuring the rect and nudging it back fixed that
 horizontally; a portal has no clipping ancestor at all, and Base UI flips and
 shifts it into whatever space exists on both axes.
+
+### The gate is said once on a card and summarised on a label
+
+The card used to end on a bar: *Accuracy & swing rate — 50%*, `weaponHandling`
+of the pooled shortfall, drawn in red under a red requirement row. Three parts of
+one card were then saying one thing.
+
+- The **requirement row** — `× Sharp … 5 / 15` in red — says the gate is shut,
+  which mastery shut it, and how many points open it. That is the half a player
+  can act on.
+- The **profile rows** say what it costs, in the units a blow is actually fought
+  in: `Swing 2.9s → 5.2s`, `Hit 90% → 46%`, each struck through against the
+  weapon's own. Those two rows *are* the 50%, spent.
+- The **bar** restated the second of those as a pooled percentage — the one form
+  of it nobody can work back to a mastery, and the form that needs the other two
+  rows present before it means anything.
+
+So the bar is gone, and `ItemCard.handling` with it. The rows carry the cost and
+the requirements carry the remedy.
+
+**What made it redundant is the profile, not the red.** Worth stating plainly,
+because the obvious reading — "the red requirement already tells you" — is not
+quite the rule. A requirement of 5/15 says nothing about what being short costs:
+the falloff is a twentieth of your accuracy and swing rate per point, pooled, and
+no player arrives at that in their head. What says the cost is the struck-through
+`Swing` and `Hit`. If those ever stopped carrying the item's own figure beside
+yours, the summary would be load-bearing again.
+
+`app/lib/weaponDemand.ts` still prints the sentence, unchanged, and that is not
+the card contradicting the world. A look label is a few lines of pixel font over
+a tile: it has **only** the gate, so a pooled percentage is the only way it can
+say what falling short costs — and it names damage in the same breath, because a
+weapon you are short of still hits for everything it is written to hit for, and a
+player not told that will put it back down. The card has the figures, so it shows
+them instead. Saying less than the label is allowed; saying something else is not,
+which is what `itemCard.test.ts`'s look-label agreement pins.
+
+### Damage is a band, and a variance is not a reading
+
+A weapon is authored as a `damage` and a `variance` — 12 and 40 — and a blow is
+worth `damage × damageFraction(variance, roll)`, rounded. The card used to print
+both fields as they were written: `dmg 12` on one row and `spread ±40%` three
+rows down. Neither is a number any blow is ever worth. A reader wanting to know
+what the sword does had to find the two rows, read one as a percentage of the
+other, and subtract — and the answer they were working towards, 7–12, is a thing
+the game already knows exactly.
+
+So both surfaces that report damage to a player report the band. `damageBand` in
+`app/game/combat.ts` hands `potentialDamageFrom` the two ends of its own draw,
+which is where the rounding is, so the ends on screen are ends that can actually
+land rather than the edges of a continuous band. The stats panel had been doing
+this for a body all along and computing it itself; it calls `damageBand` now, and
+so do the item card, the stone's bolt row, and the editor's damage readout. Four
+copies of "what are the ends of the draw" was four chances to round the sword in
+your hand differently from the body holding it.
+
+The variance has no row of its own anywhere a player can see. Where the ends
+agree — a weapon authored with no variance at all — the row is one figure, not
+"12–12", which is a range with nothing in it and an invitation to look for a
+spread that is not there.
+
+It is still a field in the editor, with `describeDamageBand` under it: an author
+is tuning the shape and needs the handle, and the readout names the peak as well
+as the ends, which is the thing the shape decides.
+
+### One word for one measurement
+
+`app/lib/terms.ts` holds the name of every measurement a player-facing row
+reports, and both surfaces that report one take their caption from it — the item
+card via `ItemCardStat.term`, the stats panel via `Reading`'s `term`. Neither
+module spells a caption itself.
+
+They had drifted, which is what the module is for. The card said `dmg`, `hit`,
+`every`, `reach` and `def`; the panel said *Damage*, *Accuracy*, *Atk Spd*,
+*Range* and *Defence*. Five readings, ten spellings, and a reader comparing the
+sword in their hand against the body holding it was matching abbreviations by
+position. Worse, one pair was not even the same measurement: the panel's
+*Accuracy* is `hitChance`, the probability a swing lands, while `accuracy` is a
+weapon's own field and is also what a defender's evasion is contested against.
+It is *Hit* on both surfaces now, and *Accuracy* is left to name the field —
+which is what the handling bar's *Accuracy & swing rate* has always meant by it.
+
+A term is named for what it measures, never for the surface it is drawn on, and
+**a label has to fit the narrowest surface that draws it**. That is the stats
+panel's grid: two columns inside a 224px chrome column, so a caption past about
+eight characters comes back as "Hit chan…". *Hit chance* and *Swing every* both
+read well on a card and both truncated there, which is the drift this module
+exists to stop, arriving by a different road. Where a word will not fit, shorten
+the word for everybody.
+
+The **value** is each surface's own, because a figure has nothing to drift
+against: a reader matching two surfaces up matches the captions. `attributes`'
+`shortReach` says "2–8c" under a *Range* the card heads "2–8 cells, fired".
+
+Dropping the abbreviations is what makes `Term.spoken` rare rather than
+mandatory: it now carries only the two captions that do not parse read aloud —
+"Swing: 1.2s" is not a sentence and "a blow every 1.2s" is.
+
+`HEADINGS` beside them holds what a block of rows is headed with, for the same
+reason: a section that meant one thing in two spellings is the same drift one row
+over.
 
 ### A notice is a sentence with nowhere else to go
 

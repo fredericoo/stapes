@@ -394,7 +394,58 @@ export function potentialDamageFrom(
   attacker: FightingStats,
   roll: [number, number],
 ): number {
-  return Math.round(attacker.damage * damageFraction(attacker.variance, roll));
+  return damageWorth(attacker.damage, attacker.variance, roll);
+}
+
+/**
+ * The same thing for a pair of loose figures rather than for a body.
+ *
+ * A stone's bolt and the editor's damage field are a `damage` and a `variance`
+ * with no `FightingStats` around them — a conjured bolt has nobody swinging it —
+ * and both have to round exactly where a real blow rounds. Fabricating a whole
+ * battler to ask would be inventing five fields to read two.
+ */
+export function damageWorth(
+  damage: number,
+  variance: number,
+  roll: [number, number],
+): number {
+  return Math.round(damage * damageFraction(variance, roll));
+}
+
+/** The narrowest and widest a blow can be worth, before the defender's guard. */
+export type DamageBand = {
+  min: number;
+  max: number;
+};
+
+/**
+ * The ends of that band, found by handing the real function the ends of its
+ * own draw.
+ *
+ * **A band is the reading, and a variance is not.** "12, spread 35" is a sum the
+ * reader has to do before it means anything, and the sum they would do is this;
+ * what it takes to kill the thing in front of you is worked out from both ends
+ * at once. So the surfaces that report damage to a player report this — see
+ * `./attributes`'s `minDamage`, `./itemCard`'s damage row — and none of them
+ * quotes a variance at all.
+ *
+ * Both draws at zero is the floor {@link damageFraction} puts at `1 - variance`;
+ * both at one is full damage, because variance widens the band downward only.
+ * The rounding is `potentialDamageFrom`'s, so the ends on screen are ends that
+ * can actually land rather than a continuous band's edges. The same two probes
+ * `./combatMetrics`'s `potentialDamages` bisects between.
+ */
+export function damageBandOf(damage: number, variance: number): DamageBand {
+  return {
+    min: damageWorth(damage, variance, [0, 0]),
+    max: damageWorth(damage, variance, [1, 1]),
+  };
+}
+
+/** {@link damageBandOf} for a body that is about to swing something. */
+export function damageBand(attacker: FightingStats): DamageBand {
+  return damageBandOf(attacker.damage, attacker.variance);
 }
 
 /**

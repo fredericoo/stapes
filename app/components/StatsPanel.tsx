@@ -13,6 +13,7 @@ import type { Vitals } from "../game/GameSession";
 // Aliased because `EffectRow` below already has a `seconds` of its own, which is
 // a count and not a wording.
 import { seconds as inSeconds } from "../lib/duration";
+import { bandLabel, HEADINGS, termLabel, type TermKey } from "../lib/terms";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { healthBarColor, healthFraction } from "../render/healthBar";
 import { secondsLeft } from "../game/statuses";
@@ -100,7 +101,7 @@ export function StatsPanel({
       {/* Outside the scroller, so the panel keeps a line saying what it is
           however far down the masteries you have read. */}
       <h2 className="flex items-baseline gap-1 text-[11px] font-bold uppercase tracking-wide text-paper/50">
-        Stats
+        {HEADINGS.stats}
         <span className="ml-auto tabular-nums text-paper/70">
           {RATING_GLYPH}
           {stars}
@@ -125,7 +126,7 @@ export function StatsPanel({
         <Effects statuses={statuses} tilesets={tilesets} />
 
         <h3 className="mt-1 text-[11px] font-bold uppercase tracking-wide text-paper/50">
-          Masteries
+          {HEADINGS.masteries}
         </h3>
         {earned.length === 0 ? (
           <p className="px-1 py-1 text-xs text-paper/50">
@@ -187,10 +188,25 @@ const STATS_BODY_MAX_HEIGHT = 200;
  * they cost four rows, and the reader gets the two halves of a fight side by
  * side rather than having to hold one while scrolling to the other.
  *
- * Labels are abbreviated to fit a column of about fourteen characters, and
- * `../game/attributes` shortens the reach wording for the same reason. Units are
- * on the figures rather than in the labels — `c` is cells, `c/s` cells a second
- * — so "Range 6c" and "Move 5.0c/s" read against each other.
+ * ## The words are not this panel's to pick
+ *
+ * Every caption comes out of `../lib/terms`, which is also where the item card
+ * gets the caption for the same measurement — so the sword in your hand and the
+ * body holding it meet the reader with one word each. This panel used to say
+ * "Atk Spd" where the card said `every`, and "Accuracy" where the card said
+ * `hit`; the second of those was not even the same measurement, because
+ * `accuracy` is a weapon's own field and this row is `hitChance`.
+ *
+ * This grid is also the narrowest surface a caption has to fit, so it is what
+ * decides how long the words may be — about eight characters before a column
+ * truncates one. That is an argument for a shorter word everywhere, never for a
+ * short one here and a long one on the card.
+ *
+ * What the panel still owns is the *figure*, because that is where its fourteen
+ * characters bite: `../game/attributes` shortens the reach to "2–8c" where a
+ * card has room for "2–8 cells, fired". Units are on the figures rather than in
+ * the captions — `c` is cells, `c/s` cells a second — so "Range 6c" and "Move
+ * 5.0c/s" read against each other.
  *
  * ## Read, not explained
  *
@@ -219,7 +235,7 @@ function Combat({ attributes }: { attributes: Attributes | null }) {
   return (
     <>
       <h3 className="mt-1 text-[11px] font-bold uppercase tracking-wide text-paper/50">
-        Combat
+        {HEADINGS.combat}
       </h3>
       {/* Row-major, so the left column is items 1, 3, 5, 7 — see the ordering
           note above. The last cell is left empty rather than balanced, on the
@@ -227,46 +243,45 @@ function Combat({ attributes }: { attributes: Attributes | null }) {
       <dl className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px] tabular-nums">
         {/* A band rather than a face value and a variance, because a range is
             one reading: what it takes to kill the thing in front of you is
-            worked out from both ends at once. One figure for a weapon with no
-            variance, where "6–6" would be a range with nothing in it. */}
-        <Reading
-          label="Damage"
-          value={
-            minDamage === maxDamage ? `${minDamage}` : `${minDamage}–${maxDamage}`
-          }
-        />
-        <Reading label="Defence" value={`${def}`} />
-        <Reading label="Atk Spd" value={inSeconds(swingMs)} />
+            worked out from both ends at once. The item card reports a weapon's
+            damage the same way and through the same wording — see
+            `../lib/terms`'s `bandLabel`. */}
+        <Reading term="damage" value={bandLabel(minDamage, maxDamage)} />
+        <Reading term="defence" value={`${def}`} />
+        <Reading term="swing" value={inSeconds(swingMs)} />
         {/* Not a percentage, and deliberately not dressed as one: it is one side
             of a contest against whatever is swinging at you, so there is no
             number of blows it corresponds to on its own. @see `../game/combat`'s
             `dodgeChance` */}
-        <Reading label="Evasion" value={`${flee}`} />
-        <Reading label="Accuracy" value={`${Math.round(hitChance * 100)}%`} />
+        <Reading term="evasion" value={`${flee}`} />
+        <Reading term="hit" value={`${Math.round(hitChance * 100)}%`} />
         {/* A rate, unlike the swing above — see `../game/attributes`'s
             `walkPace` for why this one is not quoted as an interval. */}
-        <Reading label="Move" value={`${walkPace.toFixed(1)}c/s`} />
-        <Reading label="Range" value={reach} />
+        <Reading term="move" value={`${walkPace.toFixed(1)}c/s`} />
+        <Reading term="range" value={reach} />
       </dl>
     </>
   );
 }
 
 /**
- * One reading: what it is, and what it comes to.
+ * One reading: which measurement it is, and what it comes to.
  *
  * A `dt`/`dd` pair rather than two spans, because that is what the grid holds —
  * names and figures — and it is what lets a screen reader read each pair out
  * together instead of announcing seven labels and then seven numbers. The `div`
  * around them is what keeps a pair in one grid cell.
  *
+ * The term rather than a caption, so a row here cannot be given a word the item
+ * card does not use for the same thing. @see `../lib/terms`
+ *
  * Sized by the grid rather than here, so the two columns cannot come to be set
  * in different type.
  */
-function Reading({ label, value }: { label: string; value: string }) {
+function Reading({ term, value }: { term: TermKey; value: string }) {
   return (
     <div className="flex items-baseline gap-1">
-      <dt className="truncate text-paper/80">{label}</dt>
+      <dt className="truncate text-paper/80">{termLabel(term)}</dt>
       <dd className="ml-auto shrink-0 text-paper">{value}</dd>
     </div>
   );
@@ -306,7 +321,7 @@ function Effects({
   return (
     <>
       <h3 className="mt-1 text-[11px] font-bold uppercase tracking-wide text-paper/50">
-        Effects
+        {HEADINGS.effects}
       </h3>
       <ul className="flex flex-col gap-0.5">
         {ordered.map((status) => (
@@ -386,7 +401,7 @@ function Health({ vitals }: { vitals: Vitals }) {
   return (
     <div className="flex flex-col gap-0.5">
       <span className="flex items-baseline gap-1 text-xs">
-        <span className="text-paper/80">Health</span>
+        <span className="text-paper/80">{termLabel("health")}</span>
         <span className="ml-auto tabular-nums text-paper">
           {hp}
           <span className="text-paper/40">/{maxHp}</span>
