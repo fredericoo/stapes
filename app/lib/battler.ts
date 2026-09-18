@@ -746,6 +746,42 @@ export const MASTERY_ACCURACY_BONUS = 0.25;
 export const ACCURACY_AT_MAX_MASTERY = 5;
 
 /**
+ * What one blow is worth before a defender, in hands of this much mastery.
+ *
+ * Its own function so somebody other than a fight can ask it. The editor does —
+ * see `../components/WeaponFields`'s `describeMasteryReach`, which shows an
+ * author what the number in the Damage box comes to at the rung its requirement
+ * puts it on and at {@link MAX_MASTERY}. **A readout that restated this
+ * arithmetic would be a second definition of what a weapon is worth**, and the
+ * two would part company the first time somebody moved a term — which is the
+ * same argument `../game/itemCard` makes for computing nothing of its own.
+ *
+ * `level` is the absolute level of the mastery the weapon answers to, not a
+ * share of what it asks. Requirements are a gate on {@link weaponHandling} and
+ * are deliberately not an input here — see {@link MASTERY_DAMAGE_BONUS}, and
+ * *The authored damage is what mastery zero would do* in `docs/notes.md` for
+ * what that costs and why the alternative is worse.
+ *
+ * **A weapon authored at no damage does none, however skilled its wielder.** The
+ * flat term is what skill adds *to a weapon*, and a shield is not one — it is a
+ * `def` with a handle, and `../game/equipment` puts it in the main hand
+ * precisely so that taking one up costs you your swing. Without this, skill
+ * manufactured damage out of a thing whose author wrote zero, and a shielded
+ * body chipped away at whatever it was hiding from.
+ *
+ * Unrounded, so the variance roll happens on the real figure and the rounding
+ * happens once — the order `../game/combat`'s `potentialDamageFrom` puts a swing
+ * through.
+ */
+export function damageAtMastery(weapon: WeaponItem, level: number): number {
+  if (weapon.damage <= 0) return 0;
+  const skill = level / MAX_MASTERY;
+  return (
+    weapon.damage * (1 + skill * MASTERY_DAMAGE_BONUS) + skill * DAMAGE_AT_MAX_MASTERY
+  );
+}
+
+/**
  * The chance a swing connects at all.
  *
  * Now simply the wielder’s accuracy read as a probability, because the two
@@ -847,17 +883,13 @@ export function fightingStats(
   // for the next rung. What being short of it costs you is `accuracy` and
   // `haste` below.
   //
-  // **A weapon authored at no damage does none, however skilled its wielder.**
-  // The flat term is what skill adds *to a weapon*, and a shield is not one —
-  // it is a `def` with a handle, and `../game/equipment` puts it in the main
-  // hand precisely so that taking one up costs you your swing. Without this,
-  // skill manufactured damage out of a thing whose author wrote zero, and a
-  // shielded body chipped away at whatever it was hiding from.
-  const damage =
-    weapon.damage <= 0
-      ? 0
-      : weapon.damage * (1 + skill * MASTERY_DAMAGE_BONUS) +
-        skill * DAMAGE_AT_MAX_MASTERY;
+  // Through {@link damageAtMastery} rather than worked out here, because the
+  // editor shows an author the same figure and a readout it could disagree with
+  // is worse than none.
+  const damage = damageAtMastery(
+    weapon,
+    masteryLevel(battler.masteries, weapon.mastery),
+  );
   // **Handling gates the skill bonus too, flat part included.** It is the
   // outermost factor rather than something applied to the weapon's own accuracy
   // and then added to, and that placement is the whole rule: what mastery buys

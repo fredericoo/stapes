@@ -2,6 +2,7 @@ import { attackIntervalMs, damageBandOf, damageWorth } from "../game/combat";
 import {
   ACCURACY_AT_MAX_MASTERY,
   DAMAGE_AT_MAX_MASTERY,
+  damageAtMastery,
   hitChanceFrom,
   MIN_HANDLING,
   weaponHandling,
@@ -55,6 +56,43 @@ export function describeInterval(ms: number): string {
   const seconds = ms / 1000;
   const pace = seconds < 1 ? `${Math.round(ms)}ms` : `${seconds.toFixed(1)}s`;
   return `A blow every ${pace} (${Math.round(ms / TICK_MS)} ticks).`;
+}
+
+/**
+ * What the Damage box actually comes to, at the two levels that bound it.
+ *
+ * **The number in the box is nobody's**, and this readout exists to say so.
+ * `damageAtMastery` scales both of its terms by the *absolute* level of the
+ * weapon's mastery, so what is authored here is what a wielder at mastery zero
+ * would do — and for any weapon that asks anything at all, that wielder cannot
+ * pick it up. A Rusty Sword written as 6 is worth 7 to the weakest hand allowed
+ * to hold it and 28 to a master. An author tuning the middle number of three was
+ * working blind at both ends.
+ *
+ * So the readout gives the two ends that are real:
+ *
+ * - **At the weapon's own rung** — the level its requirement names — which is
+ *   the figure that makes a ladder comparable, because it is what the weapon is
+ *   worth to somebody who has just earned it.
+ * - **At {@link MAX_MASTERY}**, which is where the flat term has carried it.
+ *   That one is not guessable from the box at all: the flat term pays the same
+ *   to every weapon, so two rungs ten apart as authored are still ten apart at
+ *   the top while the *proportion* between them has collapsed.
+ *
+ * Through `damageAtMastery` rather than restated here, for the reason every
+ * other readout in this file goes through the real function: one an author tunes
+ * against has to be the figure the fight uses.
+ *
+ * The mastery is named because it is the one the weapon answers to — a
+ * greatsword asks Toughness as well, and Toughness is a gate on how well it
+ * handles rather than on what it hits for.
+ */
+export function describeMasteryReach(weapon: WeaponItem): string {
+  if (weapon.damage <= 0) return "No damage, at any mastery.";
+  const gate = weapon.requirements?.[weapon.mastery] ?? 0;
+  const at = (level: number) => Math.round(damageAtMastery(weapon, level));
+  const name = MASTERY_LABELS[weapon.mastery];
+  return `${name} ${gate} does ${at(gate)}. ${name} ${MAX_MASTERY} does ${at(MAX_MASTERY)}.`;
 }
 
 /**
@@ -222,11 +260,12 @@ export function WeaponFields({
       <div className="flex flex-wrap gap-4">
         <StatField
           label="Damage"
-          info="The most one blow takes off, before defence."
+          info="What one blow takes off before defence, at mastery zero. Every wielder who can hold the weapon has more than that, so read the line under the box for what it is really worth."
           value={weapon.damage}
           min={0}
           max={MAX_WEAPON_DAMAGE}
           onChange={(damage) => onChange({ damage })}
+          readout={describeMasteryReach(weapon)}
         />
         <StatField
           label="Def"
