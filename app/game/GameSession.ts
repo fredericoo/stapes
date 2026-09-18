@@ -231,7 +231,7 @@ import {
   spellIn,
   type SpellButton,
 } from "./casting";
-import type { Progress } from "./progress";
+import { type Progress, windProgress } from "./progress";
 import { type Attributes, attributesOf } from "./attributes";
 import { equipmentForBody } from "./battlerKit";
 import {
@@ -819,6 +819,22 @@ export type GameSnapshot = {
    * walking the list.
    */
   extracting: Extraction | null;
+  /**
+   * The wait before this viewer's next blow, or null when they are not engaged.
+   *
+   * Theirs alone, on exactly {@link targetId}'s terms: it is what the fight
+   * outline round their target is drawn from — see `../render/GameRenderer` —
+   * and a fight is an affordance for whoever is looking rather than a property
+   * of the board. Broadcasting everybody's would be fan-out for a ring only one
+   * person can see.
+   *
+   * Carries how much of the wait is left *and* what it is a wait out of, which
+   * is what lets the outline fill rather than merely go on and off. Replaced
+   * when the wait changes and wound in place in between, so identity is the
+   * change signal — the same contract {@link extracting} above has. @see
+   * {@link ActorRuntime.nextBlow}
+   */
+  nextBlow: Progress | null;
   /**
    * What the viewer has learnt, as raw experience.
    *
@@ -1729,6 +1745,28 @@ type ActorRuntime = {
    */
   windup: { targetId: string; msLeft: number; sinceSeenMs: number } | null;
   /**
+   * The wait before this body's next blow, as one clock something can be drawn
+   * from — or null for a body that is not engaged and has no next blow to
+   * predict.
+   *
+   * **A reading, not a rule.** Nothing is gated on it: {@link windup} and
+   * {@link attackCooldownMs} remain the two things a swing actually asks, and
+   * this is the longer of the two, measured against the swing interval. It
+   * exists because neither of those alone answers the
+   * question a fighter is asking — *when do I hit next* — and reading one of
+   * them would be right for half a fight and silent for the other half: the
+   * windup is what an approach costs and is spent the moment you stand still,
+   * while the cooldown is what a blow costs and says nothing about arriving.
+   *
+   * **Replaced when the wait changes and wound in place in between**, which is
+   * the contract {@link ActorSnapshot.extracting} has and for the same reason:
+   * identity is what the broadcast diffs on, so a fresh object per tick would
+   * be a message per tick for something that changes twice a swing. It is
+   * replaced on exactly two events — a windup armed against somebody new, and a
+   * cooldown spent — and nulled with the windup beside it. @see disengage
+   */
+  nextBlow: Progress | null;
+  /**
    * Milliseconds until this body may take a step again, having just swung.
    *
    * **Its own clock rather than a second reading of {@link attackCooldownMs},
@@ -2566,6 +2604,9 @@ export class GameSession implements PlaySession {
       // Nobody, so the first thing this body comes into reach of is an approach
       // it pays for — see {@link ActorRuntime.windup}.
       windup: null,
+      // And therefore nothing to say about a next blow: an unengaged body has no
+      // wait to report. @see {@link ActorRuntime.nextBlow}
+      nextBlow: null,
       // Every spell ready, on the terms the swing cooldown above starts at
       // zero: a body arriving in the world is a body that has not cast yet.
       spellCooldownMs: {},
@@ -2907,6 +2948,17 @@ export class GameSession implements PlaySession {
    */
   extractionOf(id: string): Extraction | null {
     return this.actors.get(id)?.extraction?.progress ?? null;
+  }
+
+  /**
+   * The wait before one actor's next blow, or null for a body with none.
+   *
+   * Beside {@link extractionOf} and handing back the live object for the same
+   * reason: identity is what the broadcast diffs on, so a copy made here would
+   * be a message every tick. @see {@link ActorRuntime.nextBlow}
+   */
+  nextBlowOf(id: string): Progress | null {
+    return this.actors.get(id)?.nextBlow ?? null;
   }
 
   /**
@@ -4106,6 +4158,12 @@ export class GameSession implements PlaySession {
       if (actor.attackRecoveryMs > 0) {
         actor.attackRecoveryMs = Math.max(0, actor.attackRecoveryMs - tickMs);
       }
+      // Above the windup rather than inside it, though the two are armed and
+      // dropped together today: the reading is a clock and this is where clocks
+      // are wound, and a version of it that ever outlived a windup would freeze
+      // rather than fail where anybody would look for it.
+      // @see {@link ActorRuntime.nextBlow}
+      if (actor.nextBlow) windProgress(actor.nextBlow, tickMs);
       // On the tick clock rather than on whoever is asking, which is what makes
       // an approach the same length for a player and for a creature thinking
       // once a round. @see {@link ActorRuntime.windup}
@@ -4116,7 +4174,7 @@ export class GameSession implements PlaySession {
       // the next reach that holds is a fresh approach. @see `./combat`'s
       // {@link WINDUP_LAPSE_MS}
       if (windup.sinceSeenMs > WINDUP_LAPSE_MS) {
-        actor.windup = null;
+        this.disengage(actor);
         continue;
       }
       if (windup.msLeft > 0) {
@@ -4471,6 +4529,23 @@ export class GameSession implements PlaySession {
   }
 
   /**
+   * Forget that this body was getting into a blow against anybody.
+   *
+   * One call rather than two assignments at each of the three places that do it,
+   * because {@link ActorRuntime.windup} and {@link ActorRuntime.nextBlow} are
+   * two readings of one fact — *this body is engaged* — and a site that dropped
+   * one of them would leave a ring counting down to a blow nobody is winding up
+   * for, or a wait with nothing to report it.
+   *
+   * The next reach that holds arms both again, at the full price. @see
+   * {@link ActorRuntime.windup}
+   */
+  private disengage(actor: ActorRuntime) {
+    actor.windup = null;
+    actor.nextBlow = null;
+  }
+
+  /**
    * One body swings at another, if every reason not to is absent.
    *
    * The single path from "somebody wants to attack" to a blow, whether the
@@ -4523,7 +4598,7 @@ export class GameSession implements PlaySession {
     // with" — and that fallback is for a body with nothing in either fist, not
     // for an archer who has let something get too close.
     if (hand === null && fightsWithAHand(attacker.equipment, this.tilesById)) {
-      attacker.windup = null;
+      this.disengage(attacker);
       return false;
     }
 
@@ -4547,9 +4622,15 @@ export class GameSession implements PlaySession {
       hand === null &&
       !canReach(this.map, this.tilesById, fromPoint, toPoint, attackerStats.reach)
     ) {
-      attacker.windup = null;
+      this.disengage(attacker);
       return false;
     }
+
+    // This hand's own, and read here rather than where it is spent below because
+    // the windup is measured against it too. A dagger's turn is a dagger's wait,
+    // so a body alternating a dagger and an axe keeps an uneven rhythm rather
+    // than averaging into one that belongs to neither.
+    const interval = swingIntervalMs(attackerStats);
 
     // **In reach is not yet a blow**, and everything above is what "in reach"
     // costs to establish — which is why the cooldown is asked below this rather
@@ -4563,6 +4644,14 @@ export class GameSession implements PlaySession {
         msLeft: swingWindupMs(attackerStats),
         sinceSeenMs: 0,
       };
+      // The longer of the two waits, not the windup alone: a body that turns on
+      // the rat beside the one it just killed is in reach immediately and still
+      // owes the rest of its cooldown, and a reading that forgot it would
+      // promise a blow that is not coming. @see {@link ActorRuntime.nextBlow}
+      attacker.nextBlow = {
+        remainingMs: Math.max(attacker.windup.msLeft, attacker.attackCooldownMs),
+        durationMs: interval,
+      };
     } else {
       attacker.windup.sinceSeenMs = 0;
     }
@@ -4572,11 +4661,12 @@ export class GameSession implements PlaySession {
 
     // Spent whether or not the blow connects: the swing happened, and a dodge
     // that cost the attacker nothing would let a fast creature flail for free.
-    // The interval is this hand's own — a dagger's turn is a dagger's wait, so a
-    // body alternating a dagger and an axe keeps an uneven rhythm rather than
-    // averaging into one that belongs to neither.
-    const interval = swingIntervalMs(attackerStats);
     attacker.attackCooldownMs = interval;
+    // The cooldown is now the whole of the wait: the windup beside it is spent,
+    // and stays spent for as long as this body is still in reach of this target.
+    // Replaced rather than wound down to the new figure, because identity is
+    // what says the wait changed. @see {@link ActorRuntime.nextBlow}
+    attacker.nextBlow = { remainingMs: interval, durationMs: interval };
 
     // The hand chosen above, carried down rather than asked again where the
     // experience is settled: that would be the *next* hand's weapon teaching the
@@ -9972,6 +10062,7 @@ export class GameSession implements PlaySession {
       tags: self.tags,
       conversation: self.conversation,
       extracting: this.extractionOf(self.id),
+      nextBlow: this.nextBlowOf(self.id),
       // Seeded by the line above rather than here: `actorSnapshots` asks every
       // body for its stats, which is what fills a fresh player's experience in
       // from their tile. The fallback is for the body that has none to give.

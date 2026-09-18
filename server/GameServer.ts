@@ -40,6 +40,7 @@ import {
 } from "../app/game/equipment";
 import { DEFAULT_FACING } from "../app/game/actors";
 import type { CastProgress, CastSlot } from "../app/game/casting";
+import type { Progress } from "../app/game/progress";
 import { resolveRespawn } from "../app/lib/interactions";
 import {
   minutesOfDayAt,
@@ -860,6 +861,16 @@ export class GameServer {
     string,
     NonNullable<ActorSnapshot["extracting"]>
   >();
+  /**
+   * The wait each attached player was last *addressed* about.
+   *
+   * Compared by identity on {@link sentExtractions}' terms and for its reason —
+   * the runtime winds one object in place and replaces it only when the wait
+   * changes. Unlike its neighbours this one is not a broadcast: a fight outline
+   * is drawn for one viewer, so the map holds only the players who have a
+   * socket, and an entry is dropped when theirs goes. @see flushNextBlow
+   */
+  private sentNextBlow = new Map<string, Progress | null>();
   /**
    * The cast each actor was last broadcast as making, compared by identity on
    * {@link sentExtractions}' terms and for its reason. @see diffCastings
@@ -2138,6 +2149,15 @@ export class GameServer {
       // the tab closed is still running, and a joiner without this would be
       // shown resources it is about to be refused at.
       extracting: session.extractionOf(actorId),
+      // Beside the pull and for its failure in a fight: the body at the far end
+      // is the one this player left, so a wait they were part-way through is
+      // still running, and a joiner without this would draw a breathing outline
+      // round something it is about to hit.
+      //
+      // Recorded as sent, on the terms the chunk subscription above is recorded:
+      // this *is* the first thing said about the wait, so a flush that did not
+      // know it had gone out would follow the hello with a message repeating it.
+      nextBlow: this.rememberNextBlow(actorId),
       // Theirs alone, beside the kit and the tags, and in full for the same
       // reason all three are: a joiner has nothing to patch against, and the
       // panel showing it is on screen before the first blow.
@@ -2292,6 +2312,7 @@ export class GameServer {
     this.flushTags();
     this.flushConversations();
     this.flushExtracting();
+    this.flushNextBlow();
     this.flushNotices();
     this.flushClock();
     this.flushMasteries();
@@ -2447,6 +2468,60 @@ export class GameServer {
           extracting: session.extractionOf(attachment.actorId),
         } satisfies ServerMessage),
       );
+    }
+  }
+
+  /**
+   * The wait to tell this player about, noted down as the thing they were last
+   * told. @see flushNextBlow
+   */
+  private rememberNextBlow(actorId: string): Progress | null {
+    const now = this.session?.nextBlowOf(actorId) ?? null;
+    this.sentNextBlow.set(actorId, now);
+    return now;
+  }
+
+  /**
+   * Tell each player how long until their own next blow, when it changed.
+   *
+   * No queue behind it, unlike {@link flushExtracting}: a wait is a fact about
+   * the *viewer* rather than about the world, so there is nobody to broadcast it
+   * to and nothing to diff for anybody without a socket. Comparing what each
+   * attached player was last told is the whole of it, and that comparison is an
+   * identity check per socket per flush — see {@link sentNextBlow}.
+   *
+   * Two messages a wait in practice, which is the point: one when a windup is
+   * armed or a blow is thrown, one when the body stops being engaged. What runs
+   * in between is the client's own clock. @see `../app/game/progress`
+   */
+  private flushNextBlow() {
+    const session = this.session;
+    if (!session) return;
+    const live = new Set<string>();
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (!attachment) continue;
+      const actorId = attachment.actorId;
+      live.add(actorId);
+      const now = session.nextBlowOf(actorId);
+      // `has` before the compare, so the first flush after a hello says nothing:
+      // the hello carried the wait, and an undefined that happened to match a
+      // null would otherwise read as a change on the tick a fight ended.
+      if (this.sentNextBlow.has(actorId) && this.sentNextBlow.get(actorId) === now) {
+        continue;
+      }
+      this.sentNextBlow.set(actorId, now);
+      ws.send(
+        JSON.stringify({
+          type: "nextBlow",
+          // Copied on the way out, on {@link progressOf}'s terms: the object is
+          // the runtime's own and it is about to be wound past what was sent.
+          nextBlow: now ? { ...now } : null,
+        } satisfies ServerMessage),
+      );
+    }
+    for (const id of this.sentNextBlow.keys()) {
+      if (!live.has(id)) this.sentNextBlow.delete(id);
     }
   }
 
@@ -3653,6 +3728,10 @@ export class GameServer {
     // walks out of reach, which is a thing the world notices, not a message.
     this.flushConversations();
     this.flushExtracting();
+    // The fight's own clock, on the tick above all: a wait runs down without
+    // anybody pressing anything, and the outline drawn from it is the one thing
+    // on a fighter's screen that has to keep up with it.
+    this.flushNextBlow();
     // Beside the tag, because it describes the same act — and on the tick as
     // well as on input for the same reason the kit is: nothing guarantees which
     // of the two got there first.
