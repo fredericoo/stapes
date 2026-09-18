@@ -42,7 +42,7 @@ import { WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
 import { slideTileMotions } from "./slideMotion";
-import { flightEmitter, projectileViews } from "./projectileMotion";
+import { flightEmitter, flightLight, projectileViews } from "./projectileMotion";
 import { strikeOffset } from "./strikeMotion";
 import { isCellVisible } from "./cameraSight";
 import { labelHeadroomPx } from "./labelHeadroom";
@@ -2626,7 +2626,7 @@ export class GameRenderer {
           ? projectileViews(snap.projectiles, this.tilesById)
           : undefined,
       spriteStates: spriteStatesFor(snap.actors),
-      emitterOverrides: this.emitterOverridesFor(snap),
+      emitterOverrides: this.withFlightLights(snap, this.emitterOverridesFor(snap)),
       spriteTints: vfx.tints,
       particleEmitters: this.withFlightEffects(snap, vfx.emitters),
       roofCut: cut,
@@ -3089,6 +3089,37 @@ export class GameRenderer {
       if (fromStatuses) overrides.push({ ...at, lights: fromStatuses });
     }
     return overrides.length > 0 ? overrides : undefined;
+  }
+
+  /**
+   * The actors' overrides, plus one per lit thing in the air.
+   *
+   * Its own pass rather than a branch inside {@link emitterOverridesFor},
+   * because that one is about *bodies* — it reads a stack, it adds a body's
+   * height, it asks what is in a bag — and none of that is true of an arrow.
+   * The shape is `./WorldRenderer`'s `withFadingLights`: take the list as it
+   * stands and add the lights that are not on the board.
+   *
+   * **This is the same door a torch goes through, and the same bill.** An
+   * override is already painted for every actor every frame at an interpolated
+   * position, so the overlay's cache key already changes on every frame anybody
+   * is walking; a flight adds one more entry to a list that is already being
+   * rebuilt. Nothing about the *static* bake changes — an arrow is never in the
+   * map, so there is no placement to omit from it.
+   */
+  private withFlightLights(
+    snap: GameSnapshot,
+    base: EmitterOverride[] | undefined,
+  ): EmitterOverride[] | undefined {
+    if (!this.lightingEnabled || snap.projectiles.length === 0) return base;
+    let out: EmitterOverride[] | undefined;
+    for (const flight of snap.projectiles) {
+      const light = flightLight(flight, this.tilesById[flight.tileId]);
+      if (!light) continue;
+      out ??= [...(base ?? [])];
+      out.push(light);
+    }
+    return out ?? base;
   }
 
   /**

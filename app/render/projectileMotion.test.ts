@@ -12,6 +12,7 @@ import { normalizeTiles } from "../lib/types";
 import { HEIGHT_PER_LEVEL, OCTANTS, type Octant } from "../lib/types";
 import {
   flightEmitter,
+  flightLight,
   projectileOctant,
   projectileViews,
   wearsFlightTransition,
@@ -56,6 +57,131 @@ const CATALOGUE: Record<string, TileDef> = {
  * stays real. What is asserted is a shape every projectile has to have, not a
  * number anybody authored.
  */
+describe("the light a flight casts", () => {
+  const GLOW = { radius: 3, intensity: 1, color: "#ffcc88" };
+
+  const lit = (over: Record<string, unknown> = {}): TileDef =>
+    normalizeTileDef({
+      id: "fireball",
+      name: "Fireball",
+      height: 0,
+      type: "simple",
+      kind: "projectile",
+      anchor: { tilesetId: "sheet", x: 0, y: 0 },
+      sprite: {
+        frames: [
+          {
+            sprite: { rect: { x: 0, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } },
+            durationMs: 200,
+            light: GLOW,
+          },
+        ],
+      },
+      interactions: { projectile: { cellsPerSecond: 10 } },
+      ...over,
+    });
+
+  const flight = (over: Partial<ProjectileFlight> = {}): ProjectileFlight => ({
+    id: "shot-1",
+    tileId: "fireball",
+    from: { x: 0, y: 0, elevAbs: 2 },
+    to: { x: 4, y: 0, elevAbs: 2 },
+    durationMs: 400,
+    elapsedMs: 200,
+    hit: true,
+    ...over,
+  });
+
+  /**
+   * The case this exists for: nothing lights an arrow's path, because the bake
+   * walks placements and an arrow is never in a stack.
+   */
+  it("casts the tile's own light from where the arrow is", () => {
+    const cast = flightLight(flight(), lit());
+
+    expect(cast?.lights).toEqual([GLOW]);
+    // Half way along a four-cell shot, at the centre of the cell it is over.
+    expect(cast?.fx).toBe(2.5);
+    expect(cast?.fy).toBe(0.5);
+    expect(cast?.x).toBe(2);
+    expect(cast?.y).toBe(0);
+  });
+
+  /** In levels, fractional — the unit an override's height is in. */
+  it("hangs it at the arrow's own height, in levels", () => {
+    expect(flightLight(flight(), lit())?.fz).toBe(2 / HEIGHT_PER_LEVEL);
+  });
+
+  it("casts nothing for a projectile carrying no light", () => {
+    const dark = normalizeTileDef({
+      id: "arrow",
+      name: "Arrow",
+      height: 0,
+      type: "simple",
+      kind: "projectile",
+      anchor: { tilesetId: "sheet", x: 0, y: 0 },
+      sprite: {
+        frames: [
+          {
+            sprite: { rect: { x: 0, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } },
+            durationMs: 200,
+          },
+        ],
+      },
+      interactions: { projectile: { cellsPerSecond: 10 } },
+    });
+
+    expect(flightLight(flight(), dark)).toBeNull();
+    expect(flightLight(flight(), undefined)).toBeNull();
+  });
+
+  /**
+   * A flight outlives its arrival by its landing side, and the light has to go
+   * out with the picture — a sprite dissolving to nothing under a light still
+   * at full strength is the two telling different stories.
+   */
+  it("fades with the landing it is playing", () => {
+    const def = lit({
+      transitions: {
+        disappear: {
+          durationMs: 400,
+          dissolve: {
+            pattern: "noise",
+            clumpPx: 3,
+            edgeColor: "#ffffff",
+            edgeWidth: 0.15,
+          },
+        },
+      },
+    });
+    const at = (elapsedMs: number) =>
+      flightLight(flight({ hit: false, elapsedMs }), def)?.lights?.[0]
+        ?.intensity;
+
+    expect(at(400)).toBe(1);
+    expect(at(600)).toBeLessThan(1);
+    expect(at(600)).toBeGreaterThan(0);
+    // Read at the last grid line, so it steps down rather than sliding — and so
+    // the last step is still lit when the flight's lifetime ends and it leaves
+    // the list. A dissolving tile's light goes out on exactly the same terms;
+    // see `./tileTransitions`'s `fadingLightScale`.
+    expect(at(750)).toBeLessThan(at(600)!);
+  });
+
+  /**
+   * Whole while it crosses, whatever the animation is doing: the override list
+   * is joined into the overlay's cache key, and a light read off a flickering
+   * sprite would add steps of its own to it.
+   */
+  it("holds one strength for the whole crossing", () => {
+    const def = lit();
+    for (const elapsedMs of [0, 100, 200, 399]) {
+      expect(flightLight(flight({ elapsedMs }), def)?.lights?.[0]?.intensity)
+        .toBe(1);
+    }
+  });
+});
+
 describe("the projectiles we ship are drawn on one quad", () => {
   const tiles = normalizeTiles(tilesJson as unknown[]);
 

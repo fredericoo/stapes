@@ -21,10 +21,16 @@ import type { TileDef } from "./types";
  * **A tile, because a projectile is art before it is anything else.** It needs
  * the eight bearings a flight is drawn on, the animation frames, the sheet and
  * anchor they are measured from, the height its depth box is built from, and
- * whether it carries a light — which is the whole of why an arcane bolt glows
- * on its way across the yard without anything here knowing what light is. Every
- * one of those is what a tile already is, and a second home for them would be
- * the second art pipeline `CLAUDE.md` says not to grow.
+ * whether it carries a light — which is the whole of why an arcane bolt lights
+ * the yard it crosses without anything here knowing what light is. Every one of
+ * those is what a tile already is, and a second home for them would be the
+ * second art pipeline `CLAUDE.md` says not to grow.
+ *
+ * The light took a second piece of work to be true, and the sentence above was
+ * written before it: a flight is not a placement and not an actor, so neither
+ * of the two things that make light ever saw one. It is painted now as an
+ * emitter override, through the door a torch in a bag goes through — see
+ * `../render/projectileMotion`'s `flightLight`.
  *
  * What the kind buys on top of that is the thing it is for: a `projectile` tile
  * is the only one whose editor offers a speed and a hit effect, and no wall or

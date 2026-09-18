@@ -3127,6 +3127,20 @@ air.
   Only the *particles* half of an effect is played today: a dissolve and a scale
   are things done to a mesh, and a flight's mesh is not a placement — see
   `attachTransition`, which wants a cell and a depth box.
+- **A flight's own light is painted as an emitter override.** A projectile
+  carrying one lit nothing: the bake walks placements in the map's stacks and an
+  arrow is never in one, and `emitterOverridesFor` paints one override per
+  *actor* and an arrow is not one either. It only *looked* lit, because
+  `tileCanEmitLight` makes any emitter draw `unlit` and so ignore the night.
+  `flightLight` pushes an `EmitterOverride` carrying its own lights — the door a
+  torch in a bag goes through, for the same reason: an emitter that is not on
+  the board has no cell to be looked up in. The bill is a torch's, not a bake's:
+  an override is already painted per actor per frame at an interpolated
+  position, so the overlay's key already changes whenever anybody walks, and the
+  *static* bake is untouched because an arrow is never in the map. Frame 0's
+  light rather than the live frame's, since that key would otherwise gain a step
+  per flicker, and the strength falls with the `disappear` on the shared
+  `LIGHT_FADE_STEP_MS` grid.
 - **An arrow in the air holds the world awake**, on the same terms a lean does:
   this loop is the only clock it has, and a slow shot across a courtyard is a
   visible second of somebody's screen.
