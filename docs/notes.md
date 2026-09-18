@@ -597,22 +597,26 @@ anyway — a map has one authored `player` marker. Now a `setSpawn` block on any
 tile is a place you can take as your own: press it and the row becomes the cell
 you are standing in. The block is deliberately the thinnest one in
 `interactions.ts` — an `ActivationTrigger` and an optional verb, and *no
-destination*. An author picks the gesture and the world picks the cell, because
-the honest answer to "where does this put them" is "where they were standing
-when they asked", which is the one cell already known to hold them.
+destination*. An author picks the gesture, and the cell is the placement's own.
 
-**The shipped marker makes those two answers the same cell.** `respawn-point` is
-flat, walkable and `interactOver`, so the only body that can press it is one
-standing on it — and then "where the presser is" and "where the marker is" are
-one coordinate and there is nothing to be surprised by. The rule still has to be
-stated the general way, because an author can put the block on a bed you press
-from beside, and a bed is solid: the mark lands beside it, because nobody is
-reborn inside the furniture. It is also the one tile in the catalogue that makes
-no pretence of being a thing in the world — it is called "Respawn Point" and its
-row says "Set respawn point", which is a label for the player rather than for
-the character. Its sheet is generated (`bun run generate:respawn`) rather than
-drawn, because eight by eight pixels of geometry is reviewable in a diff and a
-committed PNG is not.
+**The cell recorded is the marker's, never the presser's.** The marker *is* the
+place, which is the whole of what one is, so a marker two people press from two
+sides is one place and it is the place they can both point at. The presser's
+cell would make a respawn point mean something slightly different for everybody
+who used it. Whether a body can stand in that cell is deliberately not asked: a
+marker may be solid, and `findEntryCell` already bubbles outward from a
+remembered cell and takes the first with room. A mark has always been a *wish*
+rather than a promise, because the world keeps changing around it either way.
+
+For `respawn-point` the question does not arise — it is flat, walkable and
+`interactOver`, so the only body that can press it is one standing on it. The
+rule still has to be stated the general way, because an author can hang the
+block on a bed you press from beside. It is also the one tile in the catalogue
+that makes no pretence of being a thing in the world: it is called "Respawn
+Point" and its row says "Set respawn point", which is a label for the player
+rather than for the character. Its sheet is generated (`bun run
+generate:respawn`) rather than drawn, because eight by eight pixels of geometry
+is reviewable in a diff and a committed PNG is not.
 
 The chain is the status block's, one for one — `resolveSetSpawn`,
 `reachableSetSpawnAt`, `GameSession.activateSetSpawn`, and
@@ -628,7 +632,10 @@ claims you as you walk through it. Two things are its own:
   an *arrival* says nothing at all.
 - **The list says it before the press does.** A row on the marker you are
   already anchored to is drawn grey and *renamed*: "You respawn here" rather
-  than "Set respawn point". It is the one `OptionBlock` arm that replaces the
+  than "Set respawn point". `spawnBlock` asks the same question `markSpawn`
+  asks before refusing — is this marker's cell the mark — so the grey and the
+  refusal agree by being one question in two places rather than two questions
+  that happen to line up. It is the one `OptionBlock` arm that replaces the
   verb instead of putting a reason beside it, and the one label in
   `interactionOptions` that is a state rather than a verb — both exceptions
   earned by the same fact, that nothing lifts this block. Every other grey row

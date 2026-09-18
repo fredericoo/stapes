@@ -971,7 +971,7 @@ export function InteractiveTab({
             setSetSpawn(on ? { ...DEFAULT_SET_SPAWN } : undefined)
           }
           label="Set respawn"
-          info="Whoever triggers it comes back here when they die, instead of at the world's spawn. The cell recorded is the one they are standing in, not this tile's — so a marker you press from on top of is the one where the two are the same. Players only; a creature comes back where it was authored. Repeatable, and the row reads 'You respawn here' and goes grey on the marker somebody is already anchored to."
+          info="Whoever triggers it comes back to this placement's cell when they die, instead of to the world's spawn. Solid is fine — a rebirth bubbles outward to the nearest cell with room, the same way a remembered position does. Players only; a creature comes back where it was authored. Repeatable, and the row reads 'You respawn here' and goes grey on the marker somebody is already anchored to."
         />
 
         {setSpawn ? (

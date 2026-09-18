@@ -488,13 +488,13 @@ export function otherStatusNotice(name: string, status: string): string {
  * that said nothing would be indistinguishable from a press that was dropped —
  * which is the second of the two cases this module exists for.
  *
- * "Here" rather than the marker's name, and that is the honest word: what is
- * recorded is the cell the presser is standing in, not the tile they pressed.
- * Naming the tile would promise a place they may be standing beside rather than
- * on. "Respawn" rather than anything in the world's own voice, matching the
- * marker it is said by — see `data/tiles.json`'s `respawn-point`, which is a
- * label for the player and makes no pretence of being a thing in the world.
- * @see `SetSpawnInteraction`
+ * "Here" rather than the marker's name, because the player is looking straight
+ * at the thing they just pressed and a line naming it would be telling them
+ * what they can see. It is also the one word that stays true across every tile
+ * an author might hang the block on. "Respawn" rather than anything in the
+ * world's own voice, matching the marker it is said by — see `data/tiles.json`'s
+ * `respawn-point`, which is a label for the player and makes no pretence of
+ * being a thing in the world. @see `SetSpawnInteraction`
  */
 export function spawnMarkNotice(): string {
   return "You will respawn here.";

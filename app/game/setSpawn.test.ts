@@ -13,15 +13,16 @@ import { listInteractionOptions } from "./interactionOptions";
  * A tile that moves where somebody comes back to.
  *
  * The reach rules are the status block's and are tested as such. What is its
- * own here is the *cell*: the one recorded is the presser's, not the tile's,
- * which is the whole reason a marker can be a solid thing you stand beside. And
- * the refusal to move a mark that is already where it is asked to go — without
- * it, a `step` block is a durable write and a sentence per stride.
+ * own here is the *cell*: the one recorded is the marker's, never the presser's,
+ * so a marker two people press from two sides is one place. And the refusal to
+ * move a mark that is already on this marker — without it, a `step` block is a
+ * durable write and a sentence per stride.
  *
- * The row that says so is at the bottom: the shipped marker is pressed from on
- * top of it, so "where the presser is" and "where the marker is" are one cell,
- * and the list can tell the player they are already anchored before they press
- * anything.
+ * The row that says so is at the bottom, and it asks the same question
+ * `markSpawn` asks before refusing: is *this marker* the one you come back to.
+ * A bed pressed from beside is what keeps the two honest — it is the case where
+ * the marker's cell and the presser's are different, so a test that only ever
+ * stood on the thing would pass either way.
  */
 
 /** Ticks a started walk needs to reach its destination and commit. */
@@ -180,13 +181,15 @@ describe("reachableSetSpawnAt", () => {
 });
 
 describe("pressing something that moves where you come back", () => {
-  it("records the cell the presser is standing in, not the tile's", () => {
+  it("records the marker's cell, not the presser's", () => {
     const play = session(world("bed"));
     expect(play.activateSetSpawn(BED)).toBe(true);
-    // The bed is at 1,0. The player pressed it from 0,0 and that is the cell
-    // that comes back — nobody is reborn inside the furniture.
+    // The bed is at 1,0 and the player pressed it from 0,0. The bed wins: the
+    // marker *is* the place, and one pressed from two sides is one place.
+    // Whether a body fits in that cell is a rebirth's problem, not this one's —
+    // `findEntryCell` bubbles outward from it.
     expect(play.drainSpawnMarks()).toEqual([
-      { actorId: "local", at: { x: 0, y: 0, z: 0 } },
+      { actorId: "local", at: { x: 1, y: 0, z: 0 } },
     ]);
   });
 
@@ -214,9 +217,10 @@ describe("pressing something that moves where you come back", () => {
     step(play, "s");
     expect(play.activateSetSpawn({ x: 1, y: 1, z: 0, stackIndex: 1 })).toBe(true);
 
+    // Two markers, two cells — and neither is a cell the player stood in.
     expect(play.drainSpawnMarks()).toEqual([
-      { actorId: "local", at: { x: 0, y: 0, z: 0 } },
-      { actorId: "local", at: { x: 0, y: 1, z: 0 } },
+      { actorId: "local", at: { x: 1, y: 0, z: 0 } },
+      { actorId: "local", at: { x: 1, y: 1, z: 0 } },
     ]);
   });
 
@@ -274,25 +278,27 @@ describe("walking onto something that moves where you come back", () => {
 });
 
 describe("a mark the world already remembers", () => {
-  it("makes the first press a no-op, which is what seeding it is for", () => {
+  it("makes a press on the marker it names a no-op", () => {
     const play = session(world("bed"), { actorIds: [] });
     // What `GameServer.seatActor` hands over: the cell the `spawn:` row holds.
-    // The player is standing on it, so pressing the bed asks for what they
-    // already have.
-    play.spawn("local", { spawnAt: { x: 0, y: 0, z: 0 } });
+    // It is the bed's cell, so pressing the bed asks for what they already
+    // have — and the player standing somewhere else has no bearing on that.
+    play.spawn("local", { spawnAt: { x: 1, y: 0, z: 0 } });
 
     expect(play.activateSetSpawn(BED)).toBe(true);
     expect(play.drainSpawnMarks()).toEqual([]);
     expect(play.drainNotices()).toEqual(["You already respawn here."]);
   });
 
-  it("is still moved by a press from anywhere else", () => {
+  it("is still moved by a press on a marker it does not name", () => {
     const play = session(world("bed"), { actorIds: [] });
-    play.spawn("local", { spawnAt: { x: 5, y: 5, z: 0 } });
+    // Their mark is the cell they are standing in, which is *not* the bed's.
+    // Pressing the bed still moves it — the presser's cell is never the answer.
+    play.spawn("local", { spawnAt: { x: 0, y: 0, z: 0 } });
 
     expect(play.activateSetSpawn(BED)).toBe(true);
     expect(play.drainSpawnMarks()).toEqual([
-      { actorId: "local", at: { x: 0, y: 0, z: 0 } },
+      { actorId: "local", at: { x: 1, y: 0, z: 0 } },
     ]);
   });
 });
@@ -357,5 +363,49 @@ describe("the row on a respawn point", () => {
   it("reads the level too, so a marker one floor down is a different place", () => {
     const [row] = rowsFor({ x: 0, y: 0, z: -1 });
     expect(row?.blocked).toBeNull();
+  });
+
+  /**
+   * The pair that tells the two rules apart.
+   *
+   * Every case above stands on the marker, where "the marker's cell" and "the
+   * presser's cell" are one coordinate and either rule would pass. A bed is
+   * pressed from the square beside it, so the two part company — and the row
+   * has to follow the same one `markSpawn` does, or the grey and the refusal
+   * disagree about the same press.
+   */
+  describe("on a marker you press from beside", () => {
+    function bedRowsFor(spawnAt: Coord | null) {
+      const play = session(world("bed"));
+      const snap = play.getSnapshot();
+      return listInteractionOptions(
+        snap.map,
+        tilesById,
+        snap.self,
+        [snap.self],
+        null,
+        snap.equipment,
+        null,
+        snap.tags,
+        spawnAt,
+        false,
+      ).filter((option) => option.action === "setSpawn");
+    }
+
+    it("goes grey when the mark is the bed's cell", () => {
+      // The player stands at 0,0 and the bed is at 1,0. Pressing it would
+      // record 1,0, which is where they already come back — so the row says so.
+      const [row] = bedRowsFor({ x: 1, y: 0, z: 0 });
+      expect(row?.blocked).toEqual({ kind: "here" });
+      expect(row?.label).toBe("You respawn here");
+    });
+
+    it("stays live when the mark is the cell they are standing in", () => {
+      // The old rule would have greyed this: the presser is at 0,0 and so is
+      // the mark. Pressing still moves it, because the bed's cell is 1,0.
+      const [row] = bedRowsFor({ x: 0, y: 0, z: 0 });
+      expect(row?.blocked).toBeNull();
+      expect(row?.label).toBe("Sleep");
+    });
   });
 });

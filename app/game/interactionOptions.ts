@@ -1138,7 +1138,7 @@ function slotOptions(
       action === "extract"
         ? extractBlock(map, tilesById, self, equipment, ref, extracting)
         : action === "setSpawn"
-          ? spawnBlock(self, spawnAt)
+          ? spawnBlock(ref, spawnAt)
           : null;
     add(
       action,
@@ -1345,30 +1345,32 @@ function objectActionLabel(
  * row you can press says what pressing it does, and this is the one row in the
  * game that appears only in order to say that pressing it is unnecessary.
  *
- * Reads "You respawn here" rather than naming the marker, on
- * `spawnMarkNotice`'s own grounds: what the mark records is the cell, and the
- * player is standing in it.
+ * Reads "You respawn here" rather than naming the marker, because the marker's
+ * name is already the heading of the box this row sits in — see
+ * `../components/InteractionList`, which draws a subject once and its verbs
+ * under it. "Respawn Point / You respawn here" says it; "Respawn Point / You
+ * respawn at the Respawn Point" is the same sentence twice.
  */
 const SPAWN_HERE_LABEL = "You respawn here";
 
 /**
  * Is this the marker the viewer already comes back to?
  *
- * Compared against **where the viewer is standing**, not against the marker's
- * own cell, because that is what the mark records — see `SetSpawnInteraction`.
- * For the shipped `respawn-point` tile the two are the same cell anyway: it is
- * a flat plate with an `interactOver` trigger, so the row is only ever offered
- * to somebody standing on it. An author who puts the block on something you
- * press from beside gets the honest answer instead of a convenient one.
+ * Asked of **the marker's own cell**, which is what a press would record — see
+ * `SetSpawnInteraction`. That makes this the same comparison
+ * `GameSession.markSpawn` runs before refusing a move, which is the property
+ * worth having: the grey row and the refused press agree because they are one
+ * question asked in two places, rather than two questions that happen to line
+ * up.
  *
  * Null `spawnAt` is "nothing has told us yet" and never blocks. A grey button
  * that would have worked is a worse lie than a live one that turns out to be a
  * no-op, and the server answers the no-op in words.
  */
-function spawnBlock(self: ActorSnapshot, spawnAt: Coord | null): OptionBlock | null {
+function spawnBlock(ref: ObjectRef, spawnAt: Coord | null): OptionBlock | null {
   if (!spawnAt) return null;
   const here =
-    self.x === spawnAt.x && self.y === spawnAt.y && self.z === spawnAt.z;
+    ref.x === spawnAt.x && ref.y === spawnAt.y && ref.z === spawnAt.z;
   return here ? { kind: "here" } : null;
 }
 

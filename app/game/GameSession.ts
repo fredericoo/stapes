@@ -1670,7 +1670,7 @@ type ActorRuntime = {
    * player's door is chosen, movable and *durable* — it lives in `GameServer`'s
    * `spawn:` row, which is the record, and this is the session's copy of it.
    *
-   * Held here for one reason: so that a press on a bed can tell whether it
+   * Held here for one reason: so that a press on a marker can tell whether it
    * would change anything. Without it the session would have to queue a write
    * and a sentence on every press and let the server discard both, which makes
    * a `step` block you walk across say its line once a stride. So the server
@@ -2725,7 +2725,7 @@ export class GameSession implements PlaySession {
       /**
        * Where this player has asked to come back, if they have moved it. The
        * session's copy of the server's `spawn:` row, and the only thing it is
-       * ever read for is deciding whether a press on a bed would change
+       * ever read for is deciding whether a press on a marker would change
        * anything — see {@link ActorRuntime.spawnMark}. Omit for somebody the
        * world remembers nothing about.
        */
@@ -9703,14 +9703,20 @@ export class GameSession implements PlaySession {
     const loc = this.locate(actor);
     if (!reachableSetSpawnAt(this.map, this.tilesById, loc, ref)) return false;
 
+    // **The marker's cell, not the presser's.** For the shipped tile they are
+    // the same cell — it is pressed from on top of it — and where an author
+    // makes them differ, the marker is the honest answer: two people pressing
+    // one marker from two sides should come back to one place, and that place
+    // should be the thing they can see.
+    //
     // **Answered either way, and the tap is spent either way.** A press on the
-    // bed you are already anchored to is not a press that failed — nothing
+    // marker you are already anchored to is not a press that failed — nothing
     // about the board refused it — so it must not fall through to whatever else
     // the tile offers, and `canInteract` would disagree with this method if it
     // did. It gets the other sentence instead, on `./notices`'s second rule: a
     // refusal shows as nothing occurring, and a press on this block shows as
     // nothing occurring even when it works.
-    if (!this.markSpawn(actor, loc)) {
+    if (!this.markSpawn(actor, ref)) {
       this.say(actor.id, spawnMarkUnchangedNotice());
     }
     return true;
@@ -9719,12 +9725,18 @@ export class GameSession implements PlaySession {
   /**
    * Write this cell down as where the actor comes back, and say so.
    *
+   * **The cell handed in is always a marker's**, never a presser's, and that is
+   * what makes the mark a thing in the world rather than a footprint: a marker
+   * two people press from two sides is one place, and it is the place they can
+   * both see. Whether anybody can *stand* there is not asked — the marker may
+   * be solid, and a rebirth resolves that the way a remembered position already
+   * does, by bubbling outward from it. @see findEntryCell
+   *
    * **Refuses a move to where the mark already is**, and that refusal is what
    * makes the whole block safe to author on a floor: a `step` one is asked on
-   * every arrival, so without it walking back and forth across a temple
-   * doorway would be a storage write and a sentence per stride. It also makes
-   * pressing a bed twice read correctly — the second press is not a second
-   * thing happening.
+   * every arrival, so without it walking back and forth across a marker would
+   * be a storage write and a sentence per stride. It also makes pressing one
+   * twice read correctly — the second press is not a second thing happening.
    *
    * The cell only, with no facing. A door is not a footprint — the same reason
    * `GameServer.rememberSpawn` stamps a fresh body's own direction on the row
@@ -9782,7 +9794,10 @@ export class GameSession implements PlaySession {
       const def = this.tilesById[placed.tileId];
       const setSpawn = def ? resolveSetSpawn(def) : null;
       if (!setSpawn || setSpawn.trigger !== "step") continue;
-      this.markSpawn(actor, loc);
+      // The marker's cell, as everywhere — and on this path it is also the
+      // cell the body is standing in, because the only way to set a `step`
+      // block off is to be on top of it.
+      this.markSpawn(actor, { x: loc.x, y: loc.y, z: loc.z });
       return;
     }
   }

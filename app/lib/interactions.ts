@@ -437,39 +437,49 @@ export type AddStatusInteraction = {
  * them, which is the one thing about this that is never authored. See
  * {@link SetSpawnInteraction.trigger}.
  *
- * **The cell recorded is the presser's, not the tile's.** A bed is a solid
- * thing you stand beside and nobody is reborn inside one; where the player is
- * actually standing is by definition a cell that holds them, which is the
- * property the `spawn:` row needs and the only one the tile's own cell cannot
- * promise. It is the same fact `pos:` records, and it is honoured the same way
- * — `findEntryCell` bubbles out of it when the world has since filled it in.
+ * **The cell recorded is the tile's own.** The marker *is* the place — that is
+ * the whole of what one is — so a marker two people press from two sides is one
+ * place, and it is the place they can both see. Recording the presser's cell
+ * instead would make a respawn point mean something slightly different for
+ * everybody who used it, and a marker you cannot point at is not a landmark.
+ *
+ * Whether a body can stand in that cell is deliberately not asked. A marker may
+ * be solid, and a rebirth resolves that the way a remembered position already
+ * does — `findEntryCell` bubbles outward from the cell and takes the first that
+ * has room. The rule that a mark is a *wish* rather than a promise is one the
+ * `spawn:` row has always lived under, because the world keeps changing around
+ * it either way.
  *
  * Nothing is spent and nothing is consumed, exactly as nothing is for a
  * teleport: press it again after anchoring elsewhere and it takes the mark
- * back. What keeps that from being noise is that setting the mark *where it
- * already is* does nothing at all — see `GameSession.markSpawn` — so a `step`
- * one you walk over twice says its line once.
+ * back. What keeps that from being noise is that setting the mark *to the
+ * marker it is already on* does nothing at all — see `GameSession.markSpawn` —
+ * so a `step` one you walk over twice says its line once, and the row on one
+ * you are anchored to is drawn grey rather than offered.
  */
 export type SetSpawnInteraction = {
   /**
-   * What doing it is called — "Sleep" in a bed, "Pray" at a shrine.
+   * What doing it is called — "Set respawn point" on the shipped marker,
+   * "Sleep" in a bed, "Pray" at a shrine.
    *
    * Authored for the reason every other verb in this file is: nothing derivable
    * from a tile that changes where you wake up says whether you lay down in it
    * or knelt at it. Optional, and blank reads as "Mark".
    *
-   * Read only where the player has something to press. A {@link trigger} of
-   * `step` offers no row and never shows this.
+   * Read only where the player has something to press, and only while the press
+   * would *do* something: the row on the marker somebody is already anchored to
+   * is renamed — see `../game/interactionOptions`. A {@link trigger} of `step`
+   * offers no row and never shows this at all.
    */
   actionName?: string;
   /**
    * What sets it off. See {@link ActivationTrigger}.
    *
    * There is no second field beside it, and that absence is the design: an
-   * author picks the *gesture* and the world picks the cell. A destination here
-   * would be a second opinion about where somebody comes back, and the honest
-   * answer — where they were standing when they asked — is one the tile cannot
-   * know.
+   * author picks the *gesture*, and the cell is the placement's own. A
+   * destination here would let a marker point somewhere else, which is a
+   * teleport wearing this block's clothes — and the one thing a respawn point
+   * has to be is somewhere you can walk to and recognise.
    */
   trigger: ActivationTrigger;
 };
