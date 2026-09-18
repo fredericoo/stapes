@@ -596,9 +596,10 @@ type SavedMasteries = { masteries: MasteryXp; savedAt: number };
  *
  * Minted at their first sight of the world and moved from then on by whatever
  * they anchor themselves to — see `SetSpawnInteraction` and
- * {@link GameServer.flushSpawnMarks}. It was write-once until beds existed, and
- * the shape did not have to change for that: what the row has always held is
- * the answer to one question, and the question did not change either.
+ * {@link GameServer.flushSpawnMarks}. It was write-once until the respawn point
+ * existed, and the shape did not have to change for that: what the row has
+ * always held is the answer to one question, and the question did not change
+ * either.
  */
 type SavedSpawn = ActorPosition & { savedAt: number };
 

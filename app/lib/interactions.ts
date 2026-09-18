@@ -427,8 +427,8 @@ export type AddStatusInteraction = {
 };
 
 /**
- * Move whoever sets this off to *come back* here — a bed you sleep in, a shrine
- * you claim, a signpost you take your bearings from.
+ * Move whoever sets this off to *come back* here — the shipped `respawn-point`
+ * marker, or a bed you sleep in, or a shrine you claim.
  *
  * **Wholly on the tile, with no placement half at all**, on
  * {@link AddStatusInteraction}'s own terms: what a bed does to the person who

@@ -80,8 +80,9 @@ const tiles: TileDef[] = [
   tile({ id: "grass" }),
   body("player", { affectedByGravity: true }),
   body("deer", { actor: true, affectedByGravity: true }),
-  // The motivating tile: a solid thing you walk up to and press. Nobody is ever
-  // reborn inside it, which is what makes the presser's own cell the answer.
+  // The case that tells the two cell rules apart: a solid thing you stand
+  // *beside* and press, so the marker's cell and the presser's are different
+  // coordinates and a test can say which one the mark took.
   tile({
     id: "bed",
     height: 2,
@@ -94,9 +95,8 @@ const tiles: TileDef[] = [
     id: "mat",
     interactions: { setSpawn: { trigger: "interactOver" } },
   }),
-  // The silent half: a temple doorway that claims whoever walks through it.
-  // Flat, so it neither buries what is under it nor stops anybody standing in
-  // it.
+  // The silent half: a doorway that claims whoever walks through it. Flat, so
+  // it neither buries what is under it nor stops anybody standing in it.
   tile({ id: "threshold", interactions: { setSpawn: { trigger: "step" } } }),
 ];
 
