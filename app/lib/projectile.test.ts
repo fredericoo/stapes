@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import tilesJson from "../../data/tiles.json";
+import { hasAnyInteraction, interactionsForSave } from "./interactions";
 import {
   landingSide,
   MAX_PROJECTILE_SPEED,
+  MIN_PROJECTILE_SPEED,
   projectileEffect,
   projectileTiles,
   resolveProjectile,
@@ -136,6 +138,55 @@ describe("resolving a tile's projectile block", () => {
     });
 
     expect(resolveProjectile(def)?.hit).toBeUndefined();
+  });
+});
+
+/**
+ * What a save writes, which is the half that was missing: the kind decides
+ * whether a block is read, and a save that drops the block leaves a tile whose
+ * kind claims a projectile nothing backs. Every picker still offers it, every
+ * weapon pointed at it looses nothing, and `data/tiles.json` shows a
+ * `kind: "projectile"` tile that looks finished.
+ */
+describe("saving a projectile block", () => {
+  it("keeps the block, rather than dropping it on the way to disk", () => {
+    expect(interactionsForSave({ projectile: { cellsPerSecond: 8 } })?.projectile)
+      .toEqual({ cellsPerSecond: 8 });
+  });
+
+  it("keeps it on a tile that authored nothing else", () => {
+    expect(hasAnyInteraction({ projectile: { cellsPerSecond: 8 } })).toBe(true);
+  });
+
+  it("carries the hit through whole", () => {
+    const saved = interactionsForSave({
+      projectile: { cellsPerSecond: 8, hit: burst() },
+    });
+
+    expect(saved?.projectile?.hit).toMatchObject({ durationMs: 150 });
+  });
+
+  /**
+   * The Speed field is the only thing holding the range, so a draft that came
+   * in from a hand-edited file can carry anything. Clamped rather than dropped:
+   * a block refused on the way out is the same silent un-authoring this whole
+   * describe exists to stop.
+   */
+  it("clamps a speed no flight may take", () => {
+    const speedOf = (cellsPerSecond: number) =>
+      interactionsForSave({ projectile: { cellsPerSecond } })?.projectile
+        ?.cellsPerSecond;
+
+    expect(speedOf(0)).toBe(MIN_PROJECTILE_SPEED);
+    expect(speedOf(MAX_PROJECTILE_SPEED + 1)).toBe(MAX_PROJECTILE_SPEED);
+  });
+
+  it("survives the round trip the editor puts it through", () => {
+    const def = tile({
+      interactions: interactionsForSave({ projectile: { cellsPerSecond: 8 } }),
+    });
+
+    expect(resolveProjectile(def)).toEqual({ cellsPerSecond: 8 });
   });
 });
 
