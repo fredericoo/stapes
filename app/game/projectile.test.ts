@@ -354,12 +354,12 @@ describe("which side a landing plays", () => {
     return effects;
   }
 
-  it("plays the hit where a shot that connected lands", () => {
-    const effects = land(flying({ hit: true }), projectile({ hit: SPARK }));
+  it("plays the disappear wherever a shot stops", () => {
+    const effects = land(flying({ hit: true }), projectile({ disappear: SPARK }));
 
     expect(effects).toEqual([
       {
-        id: "shot-1:hit",
+        id: "shot-1:disappear",
         at: at(4, 2, HEIGHT_PER_LEVEL),
         transition: SPARK,
         elapsedMs: 0,
@@ -367,51 +367,33 @@ describe("which side a landing plays", () => {
     ]);
   });
 
-  /**
-   * A projectile with no `disappear` authored plays only the hit, because
-   * `beginEffect` is silently nothing for a side nobody wrote — which is what
-   * keeps "both sides" from meaning "both must exist".
-   */
-  it("plays only what was authored, of the two", () => {
-    expect(
-      land(flying({ hit: true }), projectile({ hit: SPARK })).map((e) => e.id),
-    ).toEqual(["shot-1:hit"]);
-  });
-
-  /** A miss and a dodge are drawn in full and leave the hit alone. */
-  it("plays nothing where a shot that did not connect lands", () => {
-    expect(land(flying({ hit: false }), projectile({ hit: SPARK }))).toEqual([]);
-  });
-
-  it("plays the disappear where a shot that did not connect lands", () => {
+  /** However the blow went: the projectile went either way. */
+  it("plays it on a shot that did not connect too", () => {
     const effects = land(flying({ hit: false }), projectile({ disappear: SPARK }));
 
     expect(effects.map((effect) => effect.id)).toEqual(["shot-1:disappear"]);
   });
 
   /**
-   * **Both, and in that order.** A flight ends once, and the two sides answer
-   * different questions about that ending: the projectile went, and the blow
-   * landed. An author who wants a fireball to dissolve as it stops *and* throw
-   * sparks where it connects writes both and gets both.
+   * **And never the hit, which is not the arrow's to play.** A landing plays
+   * two sides, and of the two only `disappear` happens to the projectile. The
+   * hit happens to whatever was struck, and is raised on that body by
+   * `GameSession.strikeBody` — raising it here as well would play the same
+   * effect twice, once in the air and once on the body.
    */
-  it("plays the disappear and the hit together where a blow lands", () => {
-    const effects = land(
-      flying({ hit: true }),
-      projectile({ disappear: FADE, hit: SPARK }),
-    );
+  it("leaves the hit to whoever knows what was struck", () => {
+    expect(land(flying({ hit: true }), projectile({ hit: SPARK }))).toEqual([]);
+  });
 
-    expect(effects.map((effect) => effect.id)).toEqual([
-      "shot-1:disappear",
-      "shot-1:hit",
-    ]);
+  it("plays nothing at all for a projectile that authored no disappear", () => {
+    expect(land(flying({ hit: false }), projectile({ hit: SPARK }))).toEqual([]);
   });
 
   /**
-   * **No fallback any more.** `hit` used to borrow `disappear` when nothing was
-   * authored, because a landing played one side and the fallback stopped a
-   * connected shot ending in silence. Borrowing now would draw the same effect
-   * twice on every blow that lands.
+   * **No fallback either way.** `hit` used to borrow `disappear` when nothing
+   * was authored, back when a landing played exactly one side. And a miss still
+   * never borrows the hit's sparks, which would be the picture saying a shot
+   * landed that did not.
    */
   it("plays the disappear once for a blow whose hit nobody authored", () => {
     const effects = land(flying({ hit: true }), projectile({ disappear: SPARK }));
@@ -420,11 +402,6 @@ describe("which side a landing plays", () => {
     // Equal rather than identical: the fixture goes through `normalizeTileDef`,
     // which parses the block rather than passing the object through.
     expect(effects[0]!.transition).toEqual(SPARK);
-  });
-
-  /** And never the other way: a miss may not borrow the hit's sparks. */
-  it("does not fall back the other way", () => {
-    expect(land(flying({ hit: false }), projectile({ hit: SPARK }))).toEqual([]);
   });
 
   it("plays nothing for a tile the catalogue has lost", () => {
@@ -440,7 +417,7 @@ describe("which side a landing plays", () => {
    */
   it("plays nothing for a tile that has stopped being a projectile", () => {
     const effects: FlightEffect[] = [];
-    const crate = { ...projectile({ hit: SPARK }), kind: "prop" as const };
+    const crate = { ...projectile({ disappear: SPARK }), kind: "prop" as const };
     ageFlights([flying()], 200, { arrow: crate }, effects);
 
     expect(effects).toEqual([]);
@@ -449,7 +426,7 @@ describe("which side a landing plays", () => {
   /** The effect outlives the flight, so it may not hold a reference into it. */
   it("copies the point rather than sharing the flight's own", () => {
     const flight = flying();
-    const effects = land(flight, projectile({ hit: SPARK }));
+    const effects = land(flight, projectile({ disappear: SPARK }));
 
     expect(effects[0]!.at).not.toBe(flight.to);
     expect(effects[0]!.at).toEqual(flight.to);

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import tilesJson from "../../data/tiles.json";
 import { hasAnyInteraction, interactionsForSave } from "./interactions";
 import {
-  landingPlays,
   MAX_PROJECTILE_SPEED,
   MIN_PROJECTILE_SPEED,
   projectileEffect,
@@ -193,16 +192,6 @@ describe("saving a projectile block", () => {
 describe("which side a landing plays", () => {
   const SPARK = burst();
   const FIZZLE = burst({ ratePerSecond: 10 });
-
-  /**
-   * **Both, when the blow connected.** `disappear` is the projectile going,
-   * which it does however the fight went; `hit` is the blow landing, which is a
-   * separate claim about the same instant.
-   */
-  it("plays the disappear on every landing and the hit as well on a blow", () => {
-    expect(landingPlays(true)).toEqual(["disappear", "hit"]);
-    expect(landingPlays(false)).toEqual(["disappear"]);
-  });
 
   /** `appear` and `disappear` are the tile's own, off the Effects tab. */
   it("reads appear and disappear off the tile's transitions", () => {

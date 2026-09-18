@@ -74,8 +74,19 @@ import type { TileDef } from "./types";
  * one.** A flight ends exactly once, and both of these describe that ending —
  * `disappear` is the projectile going, which it does however the fight went,
  * and `hit` is the blow landing, which is a separate claim about the same
- * instant. They are played together rather than chosen between; see
- * {@link landingPlays}.
+ * instant. They are played together rather than chosen between, and they used
+ * to be mutually exclusive: a landing picked one, which made an author choose
+ * between the two rather than describe both.
+ *
+ * **They are played by different halves of the game, because they happen to
+ * different things.** `disappear` is done to the arrow, so `../game/projectile`
+ * raises it as the flight lands. `hit` is done to whatever was struck, so
+ * `GameSession.strikeBody` raises it on that body — the only side of the world
+ * that knows who was hit, and where they have walked to since.
+ *
+ * Nothing falls either way. A `hit` authored alone leaves a miss with no
+ * sparks, which is correct: a miss that borrowed them would be the picture
+ * saying a shot landed that did not.
  */
 export type ProjectileSide = TransitionSide | "hit";
 
@@ -138,7 +149,7 @@ export type ProjectileBlock = {
    * The one thing a projectile says about the fight it came out of, and the
    * only side that is not already {@link TileDef.transitions}. Absent plays
    * nothing: `disappear` is already playing on every landing, so there is
-   * nothing for this to fall back to — see {@link landingPlays}.
+   * nothing for this to fall back to — see {@link ProjectileSide}.
    */
   hit?: Transition;
 };
@@ -185,7 +196,7 @@ export function resolveProjectile(
  * **Each side answers for itself, and `hit` no longer falls back.** It used to
  * borrow `disappear` when nothing was authored, because a landing played
  * exactly one side and the fallback was what stopped a connected shot ending
- * in silence. A landing plays both now — see {@link landingPlays} — so the
+ * in silence. A landing plays both now — see {@link ProjectileSide} — so the
  * fallback would draw the same effect twice on every blow that lands.
  *
  * `appear` and `disappear` are read off the tile's own transitions, so a
@@ -197,31 +208,15 @@ export function projectileEffect(
   def: TileDef | undefined,
   side: ProjectileSide,
 ): Transition | undefined {
-  if (!def) return undefined;
+  // **Gated on the kind for every side, not only for `hit`.** `hit` was gated
+  // by construction, because it is read through {@link resolveProjectile}; the
+  // other two were read straight off the tile, so a tile somebody re-kinded
+  // mid-flight went on playing its appear and its disappear as a projectile's
+  // while the arrow itself had already stopped being drawn — `projectileViews`
+  // skips a flight whose tile no longer resolves. One answer, both halves.
+  if (!resolveProjectile(def)) return undefined;
   if (side === "hit") return resolveProjectile(def)?.hit ?? undefined;
-  return def.transitions?.[side];
-}
-
-/**
- * The sides a landing plays, in the order they are begun.
- *
- * **`disappear` always, and `hit` as well when the blow connected.** A flight
- * ends exactly once, and the two sides answer different questions about that
- * moment: `disappear` is *the projectile going*, which it does however the
- * fight went, and `hit` is *the blow landing*, which is a thing that either
- * happened or did not.
- *
- * They used to be mutually exclusive — a landing picked one — and that made an
- * author choose between the two rather than describe both. A fireball that
- * dissolves as it stops and throws sparks where it connects had to be written
- * as one or the other, and a miss got whichever was left.
- *
- * Nothing falls the other way: a `hit` authored alone still leaves a miss with
- * no sparks, which is correct, because a miss that borrowed them would be the
- * picture saying a shot landed that did not.
- */
-export function landingPlays(connected: boolean): ProjectileSide[] {
-  return connected ? ["disappear", "hit"] : ["disappear"];
+  return def?.transitions?.[side];
 }
 
 /** Every tile that can be fired, for a picker to offer. */

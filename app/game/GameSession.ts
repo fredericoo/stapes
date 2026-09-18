@@ -380,7 +380,7 @@ import {
   COMBAT_STATUS_ID,
   type StatusDef,
 } from "../lib/status";
-import { resolveProjectile } from "../lib/projectile";
+import { projectileEffect, resolveProjectile } from "../lib/projectile";
 import {
   advanceStatuses,
   applyStatus,
@@ -3997,6 +3997,51 @@ export class GameSession implements PlaySession {
   }
 
   /**
+   * Play an arrow's hit on the body it struck.
+   *
+   * **The one effect that is not the placement's own.** A hit belongs to what
+   * was thrown and happens to what it hit, so the note names both: the body,
+   * because that is the placement being dressed and the slot is checked against
+   * it, and the arrow, because that is where the effect is written down.
+   *
+   * Raised here rather than in `./projectile`'s `ageFlights`, which raises the
+   * arrow's own `disappear`, because only this side of the world knows *who*
+   * was struck. It is also the only place that knows where they are by now: a
+   * blow waits out its flight, so the body may have walked since the shot was
+   * loosed, and a transition on a named placement goes on following them after
+   * that — see `../render/tileTransitions`'s `placementIdentity`.
+   *
+   * Silently nothing for a body that has left the board, which is the honest
+   * answer and the same one the blow itself gets: a shot at somebody who died
+   * mid-flight arrives at nobody, and there is nothing left to dress.
+   */
+  private strikeBody(targetId: string, projectileTileId: string | null | undefined) {
+    if (!projectileTileId) return;
+    if (!projectileEffect(this.tilesById[projectileTileId], "hit")) return;
+    const target = this.actors.get(targetId);
+    const loc = target ? this.tryLocate(target) : null;
+    if (!loc) return;
+
+    const note: TileTransitionNote = {
+      id: `transition-${this.nextTransitionId++}`,
+      // Always `appear`, because a struck body has to end whole — see
+      // `../lib/tileTransition`'s `TileTransitionNote.struckBy`.
+      side: "appear",
+      tileId: loc.placed.tileId,
+      x: loc.x,
+      y: loc.y,
+      z: loc.z,
+      stackIndex: loc.stackIndex,
+      struckBy: projectileTileId,
+    };
+    this.pendingTransitions.push(note);
+    this.heldForViewer.push(note);
+    if (this.heldForViewer.length > MAX_HELD_TRANSITIONS) {
+      this.heldForViewer.shift();
+    }
+  }
+
+  /**
    * Everybody who went through a teleport this tick, handed over and forgotten.
    *
    * The server's to call, right after {@link tick}, exactly as
@@ -4636,6 +4681,10 @@ export class GameSession implements PlaySession {
     const attackerId = attacker.id;
     const struckId = target.id;
     const targetMaxHp = targetStats.maxHp;
+    // Carried rather than re-read on arrival, on {@link blowsInFlight}'s terms:
+    // the weapon that threw it can be dropped, swapped or looted while the shot
+    // is still crossing, and what struck the body is what left the bow.
+    const projectile = attackerStats.projectile;
     this.queueBlow(flightMs, () =>
       this.landSwing({
         attackerId,
@@ -4646,6 +4695,7 @@ export class GameSession implements PlaySession {
         blame,
         fromPoint,
         toPoint,
+        projectile,
       }),
     );
     return true;
@@ -4678,9 +4728,19 @@ export class GameSession implements PlaySession {
     blame: Blame;
     fromPoint: ReachPoint;
     toPoint: ReachPoint;
+    /** What was thrown, so its hit can play on the body. @see strikeBody */
+    projectile: string | null | undefined;
   }): void {
     const target = this.actors.get(blow.targetId);
     if (!target) return;
+
+    // On the body rather than at the point the arrow stopped, and only on a
+    // blow that connected: a miss and a dodge land nothing, so neither leaves
+    // anything behind. Before the damage, so a killing blow still dresses the
+    // body it killed — the placement is still there on this tick.
+    if (!blow.rolled.missed && !blow.rolled.dodged) {
+      this.strikeBody(blow.targetId, blow.projectile);
+    }
 
     // **Trimmed against what the target has left *now*.** The whole reason the
     // trim lives here rather than beside the roll: the experience, the floating
@@ -4800,6 +4860,11 @@ export class GameSession implements PlaySession {
       // where either body ends up while it is in the air.
       from: { x: from.x, y: from.y, elevAbs: from.elevAbs },
       to: { x: to.x, y: to.y, elevAbs: to.elevAbs },
+      // The body rather than the cell, so the drawing can follow it — see
+      // `./projectile`'s {@link ProjectileFlight.targetId}. Absent for a
+      // placement that is not a body, which is every shot at a thing rather
+      // than at somebody.
+      ...(toBody.placed.owner ? { targetId: toBody.placed.owner } : {}),
       durationMs: flightDurationMs(from, to, flies),
       elapsedMs: 0,
       hit: connected,
@@ -6407,11 +6472,13 @@ export class GameSession implements PlaySession {
 
     const casterId = actor.id;
     const subjectId = subject.id;
+    const projectile = effect.projectile;
     this.queueBlow(flightMs, () =>
       this.landBolt({
         casterId,
         subjectId,
         atSomebodyElse,
+        projectile,
         move,
         grants,
         elements,
@@ -6436,6 +6503,8 @@ export class GameSession implements PlaySession {
     casterId: string;
     subjectId: string;
     atSomebodyElse: boolean;
+    /** What was thrown, so its hit can play on the body. @see strikeBody */
+    projectile: string | null | undefined;
     move: HealthMove | null;
     grants: readonly StatusGrant[];
     elements: readonly Element[];
@@ -6461,6 +6530,11 @@ export class GameSession implements PlaySession {
     // somebody is authorable and reads as provocation here, which is a strange
     // thing to author and a fair thing to be glared at for.
     if (bolt.atSomebodyElse) this.notePendingHurt(subject.id, bolt.casterId);
+
+    // Unconditionally, unlike a swing's: a bolt has no accuracy and nothing
+    // dodges one — it lands whatever it carries the moment it is cast. Before
+    // the health, so a killing bolt still dresses the body it killed.
+    this.strikeBody(bolt.subjectId, bolt.projectile);
 
     if (bolt.move) {
       this.applyHealthMove(bolt.move, subject, actor, bolt);

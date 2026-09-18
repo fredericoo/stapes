@@ -40,7 +40,6 @@
 
 import { PX_PER_HEIGHT } from "../lib/geometry";
 import {
-  landingPlays,
   type ProjectileBlock,
   projectileEffect,
   type ProjectileSide,
@@ -88,7 +87,34 @@ export type ProjectileFlight = {
    */
   tileId: string;
   from: FlightPoint;
+  /**
+   * Where it is going: the point it was aimed at when it was loosed.
+   *
+   * **A starting answer rather than a fixed one.** A shot is drawn at whoever
+   * it was aimed at *now* — see {@link targetId} — so this is what the drawing
+   * falls back to when there is nobody to ask about, and it is the point
+   * {@link flightDurationMs} was measured against once and for all.
+   */
   to: FlightPoint;
+  /**
+   * The body it was aimed at, if it was aimed at one.
+   *
+   * **So the picture can follow it.** Both ends used to be readings taken the
+   * instant the string was let go, which was right when a blow landed on that
+   * same instant. It does not any more — `GameSession.blowsInFlight` holds the
+   * blow for as long as the flight takes — so a slow shot gave its target a
+   * second of walking, and the arrow went to where they had been standing and
+   * burst on nobody.
+   *
+   * Following costs nothing the fight could notice, which is the whole reason
+   * it is allowed: the dice were read when the shot was loosed and the blow is
+   * already settled, so an arrow that curves after a stepping target is not
+   * chasing an outcome — it is drawing one that is already true.
+   *
+   * Absent for a shot at no body, and for every flight heard from a server that
+   * does not name one. The drawing then holds the end it started with.
+   */
+  targetId?: string;
   /**
    * How long the whole flight takes, decided once when it is loosed.
    *
@@ -229,17 +255,25 @@ export function flightElevation(footElevAbs: number, bodyHeight: number): number
   return footElevAbs + bodyHeight * FLIGHT_BODY_SHARE;
 }
 
-/** Where the arrow is, as a fraction of the way along. */
+/**
+ * Where the arrow is, as a fraction of the way along.
+ *
+ * **The far end is passed in rather than read off the flight**, because a shot
+ * follows its target: the caller is the one holding a live answer to "where is
+ * that body now", and a flight only remembers where it was aimed. Defaulting to
+ * the flight's own end is what a shot at no body gets, and what every caller
+ * with nothing to look up gets. @see ProjectileFlight.targetId
+ */
 export function flightPosition(
   flight: ProjectileFlight,
   progress: number,
+  to: FlightPoint = flight.to,
 ): FlightPoint {
   const t = Math.min(1, Math.max(0, progress));
   return {
-    x: flight.from.x + (flight.to.x - flight.from.x) * t,
-    y: flight.from.y + (flight.to.y - flight.from.y) * t,
-    elevAbs:
-      flight.from.elevAbs + (flight.to.elevAbs - flight.from.elevAbs) * t,
+    x: flight.from.x + (to.x - flight.from.x) * t,
+    y: flight.from.y + (to.y - flight.from.y) * t,
+    elevAbs: flight.from.elevAbs + (to.elevAbs - flight.from.elevAbs) * t,
   };
 }
 
@@ -404,13 +438,13 @@ export function ageFlights(
     const wasFlying = flight.elapsedMs < flight.durationMs;
     flight.elapsedMs += dtMs;
     if (wasFlying && flight.elapsedMs >= flight.durationMs) {
-      // Both sides of the landing, in order — see `../lib/projectile`'s
-      // {@link landingPlays}. A projectile that authored only one of them
-      // begins only that one, because `beginEffect` is silently nothing for a
-      // side nobody wrote.
-      for (const side of landingPlays(flight.hit)) {
-        beginEffect(flight, side, flight.to, def, into);
-      }
+      // **The arrow's own side, and only that one.** A landing plays two — see
+      // `../lib/projectile`'s {@link ProjectileSide} — but of the two only
+      // `disappear` is about the arrow. A `hit` is about the *blow*, and it
+      // plays on the body that was struck, raised by whoever knows who that
+      // was: `GameSession.strikeBody`. Raising it here as well would play the
+      // same effect twice, once in the air and once on the body.
+      beginEffect(flight, "disappear", flight.to, def, into);
     }
     if (flight.elapsedMs >= flightLifetimeMs(flight, def)) done = true;
   }

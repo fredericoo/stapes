@@ -42,7 +42,12 @@ import { WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
 import { slideTileMotions } from "./slideMotion";
-import { flightEmitter, flightLight, projectileViews } from "./projectileMotion";
+import {
+  type AimAt,
+  flightEmitter,
+  flightLight,
+  projectileViews,
+} from "./projectileMotion";
 import { strikeOffset } from "./strikeMotion";
 import { isCellVisible } from "./cameraSight";
 import { labelHeadroomPx } from "./labelHeadroom";
@@ -2623,7 +2628,7 @@ export class GameRenderer {
       // — the same shape `tileMotions` above takes, and `spriteStates` below.
       projectiles:
         snap.projectiles.length > 0
-          ? projectileViews(snap.projectiles, this.tilesById)
+          ? projectileViews(snap.projectiles, this.tilesById, this.aimAt(snap))
           : undefined,
       spriteStates: spriteStatesFor(snap.actors),
       emitterOverrides: this.withFlightLights(snap, this.emitterOverridesFor(snap)),
@@ -3112,9 +3117,10 @@ export class GameRenderer {
     base: EmitterOverride[] | undefined,
   ): EmitterOverride[] | undefined {
     if (!this.lightingEnabled || snap.projectiles.length === 0) return base;
+    const aimAt = this.aimAt(snap);
     let out: EmitterOverride[] | undefined;
     for (const flight of snap.projectiles) {
-      const light = flightLight(flight, this.tilesById[flight.tileId]);
+      const light = flightLight(flight, this.tilesById[flight.tileId], aimAt);
       if (!light) continue;
       out ??= [...(base ?? [])];
       out.push(light);
@@ -3186,6 +3192,41 @@ export class GameRenderer {
       if (light) lights.push(light);
     }
     return lights.length > 0 ? lights : undefined;
+  }
+
+  /**
+   * Where each body is *drawn* this frame, for the shots following them.
+   *
+   * **The renderer is the right place to ask, and the only one with the finest
+   * answer.** A tick commits a body to a cell; the drawing lerps it between two
+   * of them, and a shot aimed at the cell would step once per stride while the
+   * body it is chasing slides. Both sessions hand their snapshot here, so this
+   * is one implementation rather than one per clock.
+   *
+   * Built once per frame and closed over the snapshot, because a flight asks
+   * for its own target and nothing else — there is no list to walk, and almost
+   * every frame has nothing in the air at all.
+   *
+   * It leans on {@link actorEmitter}, which already lerps a walking body and
+   * already answers at half its height — the same share a flight leaves and
+   * lands at, so an arrow between two bodies' middles is aimed at exactly the
+   * point it would have been aimed at standing still. The units are a light's
+   * and a flight's is different: `fx`/`fy` are cell centres, and `fz` is in
+   * levels rather than height units.
+   */
+  private aimAt(snap: GameSnapshot): AimAt {
+    return (targetId) => {
+      const actor = snap.actors.find((a) => a.id === targetId);
+      if (!actor) return undefined;
+      const height =
+        this.tilesById[actor.tileId]?.height ?? HEIGHT_PER_LEVEL;
+      const at = this.actorEmitter(snap.map, actor, height);
+      return {
+        x: at.fx - CELL_CENTRE,
+        y: at.fy - CELL_CENTRE,
+        elevAbs: at.fz * HEIGHT_PER_LEVEL,
+      };
+    };
   }
 
   /**

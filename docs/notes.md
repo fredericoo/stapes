@@ -3112,13 +3112,47 @@ air.
   with both playing, borrowing would draw the same effect twice on every blow.
   And a miss still never borrows the hit's sparks, which would be the picture
   saying a shot landed that did not. See `landingPlays`.
-- **Of the two a landing plays, only `disappear` is worn by the arrow.** A
-  transition worn by a sprite is a thing done *to* that sprite, and a `hit`
-  plays on whatever was struck — which is never the projectile. So `flightPhase`
-  returns `disappear` and never `hit`, `flightLifetimeMs` measures the arrow's
-  life by `disappear` alone, and a long `hit` behind no `disappear` parks
-  nothing on screen. `wearsFlightTransition` asks only those two sides for the
-  same reason: a dissolve authored on a `hit` has nothing to dissolve.
+- **Of the two a landing plays, only `disappear` is the arrow's.** A transition
+  worn by a sprite is a thing done *to* that sprite, and a `hit` plays on
+  whatever was struck — which is never the projectile. So `flightPhase` returns
+  `disappear` and never `hit`, `flightLifetimeMs` measures the arrow's life by
+  `disappear` alone, and a long `hit` behind no `disappear` parks nothing on
+  screen. `wearsFlightTransition` asks only those two sides for the same reason:
+  a dissolve authored on a `hit` has nothing to dissolve.
+- **A `hit` is played on the body, by the half of the game that knows who was
+  struck.** `ageFlights` raises the arrow's `disappear` and nothing else;
+  `GameSession.strikeBody` raises the hit on the struck placement, from
+  `landSwing` (only on a blow that connected) and `landBolt` (always — nothing
+  dodges a bolt). It is the one `TileTransitionNote` whose effect is not the
+  placement's own, so it names both: `tileId` is the body, because that is what
+  is being dressed and what the slot is checked against, and `struckBy` is the
+  arrow, because that is where the effect is written down. Its side is always
+  `appear` — a struck body stays on the board and has to end drawn as itself, so
+  the blow scatters it and it resolves; a `disappear` would dissolve it away and
+  pop it back. Raising it in `ageFlights` as well would play the same effect
+  twice, once in the air and once on the body.
+- **`projectileEffect` gates every side on the kind**, not only `hit`. `hit` was
+  gated by construction, being read through `resolveProjectile`; the other two
+  were read straight off the tile, so a tile re-kinded mid-flight went on
+  playing its sides as a projectile's while `projectileViews` had already
+  stopped drawing the arrow.
+- **A shot follows the body it was aimed at.** Both ends used to be readings
+  taken the instant the string was let go, which was right back when the blow
+  landed on that same instant. It does not any more — `blowsInFlight` holds it
+  for the length of the flight — so a slow shot gave its target a second of
+  walking and the arrow went where they had been. The flight carries a
+  `targetId` and the wire carries it too; the far end is resolved per *frame*
+  rather than per tick, in `GameRenderer.aimAt`, because the drawing lerps a
+  walking body between two cells and a shot aimed at the cell would step once
+  per stride while the body it chases slides. Both sessions hand their snapshot
+  to the same renderer, so that is one implementation rather than one per clock.
+  Nothing about the fight turns on it: the dice were read when the shot was
+  loosed, so an arrow curving after a stepping target is drawing an outcome that
+  is already true rather than chasing one. A target that has gone leaves the
+  flight on the end it started with, which is what makes "the arrow still
+  finishes its flight" true rather than tolerated — it arrives at nobody. A
+  flight's bearing is therefore no longer fixed, and `placeProjectile`
+  re-resolves its frames when it turns.
 - **Whether the blow connected is the one thing a shot is told about the fight**,
   and it is why `fireProjectile` runs *after* `rollAttack` rather than before it.
   The arrow is drawn identically either way, because it was loosed either way; a

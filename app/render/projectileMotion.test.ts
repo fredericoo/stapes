@@ -11,6 +11,7 @@ import { projectileTiles } from "../lib/projectile";
 import { normalizeTiles } from "../lib/types";
 import { HEIGHT_PER_LEVEL, OCTANTS, type Octant } from "../lib/types";
 import {
+  aimedAt,
   flightEmitter,
   flightLight,
   projectileOctant,
@@ -57,6 +58,71 @@ const CATALOGUE: Record<string, TileDef> = {
  * stays real. What is asserted is a shape every projectile has to have, not a
  * number anybody authored.
  */
+/**
+ * A shot follows the body it was aimed at, because the blow it depicts waits
+ * out the flight — see `../game/projectile`'s `ProjectileFlight.targetId`. The
+ * dice were read when the string was let go, so nothing about the fight turns
+ * on where the picture goes.
+ */
+describe("a shot that follows its target", () => {
+  const shot = (over: Partial<ProjectileFlight> = {}): ProjectileFlight => ({
+    id: "shot-1",
+    tileId: "arrow",
+    from: { x: 0, y: 0, elevAbs: 0 },
+    to: { x: 4, y: 0, elevAbs: 0 },
+    durationMs: 400,
+    elapsedMs: 200,
+    hit: true,
+    targetId: "rat",
+    ...over,
+  });
+
+  const moved = { x: 4, y: 6, elevAbs: 0 };
+
+  it("aims where the body is now", () => {
+    expect(aimedAt(shot(), () => moved)).toBe(moved);
+  });
+
+  /**
+   * **A shot at somebody who died mid-flight keeps the end it started with**,
+   * which is what makes "the arrow still finishes its flight" true rather than
+   * merely tolerated: it arrives where they were standing, and at nobody.
+   */
+  it("keeps the end it was loosed at when the body has gone", () => {
+    const flight = shot();
+
+    expect(aimedAt(flight, () => undefined)).toBe(flight.to);
+  });
+
+  it("keeps it for a shot that never named a body, and with nobody to ask", () => {
+    const anonymous = shot({ targetId: undefined });
+    const aimed = shot();
+
+    expect(aimedAt(anonymous, () => moved)).toBe(anonymous.to);
+    expect(aimedAt(aimed, undefined)).toBe(aimed.to);
+  });
+
+  it("draws the arrow part way to where the body is now", () => {
+    const [view] = projectileViews([shot()], CATALOGUE, () => moved);
+
+    // Half way along, so half of the *live* line rather than the loosed one.
+    expect(view!.x).toBe(2);
+    expect(view!.y).toBe(3);
+  });
+
+  /**
+   * A flight's bearing used to be fixed because both its ends were. One
+   * chasing a body that steps sideways turns as it goes, so the renderer
+   * re-reads it rather than resolving the frames once.
+   */
+  it("turns as the body it is chasing moves", () => {
+    const flight = shot();
+
+    expect(projectileOctant(flight)).toBe("e");
+    expect(projectileOctant(flight, moved)).not.toBe("e");
+  });
+});
+
 describe("the light a flight casts", () => {
   const GLOW = { radius: 3, intensity: 1, color: "#ffcc88" };
 

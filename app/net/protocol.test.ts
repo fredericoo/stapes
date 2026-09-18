@@ -602,6 +602,7 @@ describe("nothing is quietly dropped in transit", () => {
         tileId: "arrow",
         from: { x: 0, y: 0, elevAbs: 2 },
         to: { x: 3, y: 0, elevAbs: 2 },
+        targetId: "rat",
         hit: true,
       },
       tileTransition: {
@@ -629,5 +630,37 @@ describe("nothing is quietly dropped in transit", () => {
       );
       expect(message?.type === "patch" && message.events[0]).toEqual(event);
     }
+  });
+
+  /**
+   * Not in the map above, because that one is exhaustive over event *kinds* and
+   * this is the same kind wearing an optional field. It is the field most
+   * worth a test of its own: a struck note that arrives without it looks up a
+   * side the body does not have and plays nothing, silently.
+   */
+  it("carries a struck body's borrowed effect through whole", () => {
+    const event = {
+      kind: "tileTransition" as const,
+      id: "transition-2",
+      side: "appear" as const,
+      tileId: "rat",
+      x: 1,
+      y: 0,
+      z: 0,
+      stackIndex: 1,
+      struckBy: "arrow",
+    };
+
+    const message = parseServerMessage(
+      JSON.stringify({
+        type: "patch",
+        cells: [],
+        events: [event],
+        hps: [],
+        carriedLights: [],
+      }),
+    );
+
+    expect(message?.type === "patch" && message.events[0]).toEqual(event);
   });
 });
