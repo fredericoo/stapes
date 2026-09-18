@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_BASE_HP, fightingStats, MIN_HANDLING, weaponHandling } from "../lib/battler";
+import { DEFAULT_BASE_HP, fightingStats } from "../lib/battler";
 import { MELEE_REACH, type ItemDef, type WeaponItem } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import {
@@ -26,8 +26,8 @@ import { itemCard, type ItemCardStat } from "./itemCard";
  *
  * The figures are asserted **against the engine that produces them** rather than
  * against hard-coded numbers wherever one exists — `fightingStats`,
- * `swingIntervalMs` and `weaponHandling` are re-run here and the card is
- * checked to agree with them.
+ * `swingIntervalMs` and `damageBand` are re-run here and the card is checked to
+ * agree with them.
  * Pinning literals instead would turn every balance change into a failing card
  * test, and worse, would let the card go on being confidently wrong the day
  * somebody tuned the handling rule without touching this file.
@@ -79,11 +79,6 @@ function bodyWith(masteryXp: MasteryXp) {
     naturalWeapon: SWORD,
     sight: { up: 0, down: 0 },
   };
-}
-
-/** The card's own rounding, so an expectation cannot disagree about a half. */
-function percentOf(fraction: number): number {
-  return Math.round(fraction * 100);
 }
 
 describe("itemCard", () => {
@@ -234,9 +229,9 @@ describe("itemCard", () => {
       base: bandLabel(own.min, own.max),
       tone: "good",
     });
-    // And handling still reads a flat hundred, because the gate is open and
-    // there is nothing further to open.
-    expect(card.handling).toBe(100);
+    // And no row leans the other way, because the gate is open: what is left is
+    // skill, and skill only ever pays.
+    expect(card.stats.every((row) => row.tone !== "bad")).toBe(true);
   });
 
   it("names an arm's length rather than measuring it, and says when something is fired", () => {
@@ -331,37 +326,44 @@ describe("itemCard", () => {
       NOTHING_LEARNT,
     )!;
     expect(card.requirements).toEqual([]);
-    expect(card.handling).toBe(100);
   });
 
   /**
-   * The number the requirements alone cannot tell you, and the reason it is
-   * worth printing: the points missing are pooled across every mastery a weapon
-   * asks for, so a player short on two of them has to add up their own gap
-   * before the rule applies.
+   * **The card has no handling figure, and does not need one.**
    *
-   * **A flat slice per point, floored short of nothing.** This sword asks Sharp
-   * 20, so every level below that costs the same twentieth of its accuracy and
-   * swing rate, and a body that has learnt nothing at all still handles it at
-   * {@link MIN_HANDLING} rather than not at all.
+   * It used to end on a bar reading "Accuracy & swing rate — 50%", which is
+   * `weaponHandling` of the pooled shortfall. Three parts of the card were then
+   * saying one thing: the requirement row in red, the rows the shortfall
+   * actually scales, and the bar restating those rows as a percentage.
+   *
+   * What is asserted here is the two that survived, because they are the two a
+   * player can act on. The rows say what it costs in the units a blow is fought
+   * in — a slower swing, a worse chance of landing, each struck through against
+   * the weapon's own — and they lean the way the shortfall pushed them. The
+   * requirement says which mastery to go and train, and by how many points,
+   * which no pooled percentage can be worked back to.
+   *
+   * The rule itself is `../lib/battler`'s `weaponHandling`, tested there and in
+   * `../lib/weaponDemand`, which still prints the sentence over the canvas —
+   * see the look-label agreement below for why that is not a disagreement.
    */
-  it("puts how well you handle the weapon in the unit the player asked for", () => {
-    const handling = (level: number) =>
-      itemCard(tileWith(SWORD), null, { sharp: xpForLevel(level) })!.handling;
+  it("shows what falling short costs in the rows rather than as a share", () => {
+    const short = { sharp: xpForLevel(10) };
+    const card = itemCard(tileWith(SWORD), null, short)!;
 
-    expect(handling(10)).toBe(percentOf(weaponHandling(10)));
-    expect(handling(10)).toBe(50);
-    expect(handling(16)).toBe(percentOf(weaponHandling(4)));
-    expect(handling(16)).toBe(80);
-    // Nothing learnt at all is the floor, never nothing.
-    expect(handling(0)).toBe(percentOf(MIN_HANDLING));
+    for (const term of ["swing", "hit"] as const) {
+      expect(statAt(card.stats, term).base).toBeDefined();
+      expect(statAt(card.stats, term).tone).toBe("bad");
+    }
+    // And the damage rows the other way, because the shortfall never touched it
+    // — see `../lib/battler`'s `MIN_HANDLING`.
+    expect(statAt(card.stats, "damage").tone).not.toBe("bad");
 
-    // **A gate, not a scaling term.** Meeting every requirement is worth full
-    // handling, and exceeding them is worth nothing more here — being good with
-    // a blade goes on paying through the figures above instead. See
-    // `../lib/mastery`'s `REQUIREMENTS_MET`.
-    expect(handling(20)).toBe(100);
-    expect(handling(99)).toBe(100);
+    expect(card.requirements).toEqual([
+      { mastery: "sharp", required: 20, have: 10, met: false },
+    ]);
+    // No percentage anywhere, drawn or spoken.
+    expect(card.speech).not.toMatch(/\d+% accuracy/);
   });
 
   it("has no such question about anything that is not a weapon", () => {
@@ -370,7 +372,6 @@ describe("itemCard", () => {
       null,
       NOTHING_LEARNT,
     )!;
-    expect(card.handling).toBeNull();
     expect(card.kind).toBe("Eat");
     expect(statAt(card.stats, "health")).toMatchObject({
       value: "+5",
@@ -415,7 +416,6 @@ describe("itemCard", () => {
         sharp: xpForLevel(60),
       })!;
       expect(card.requirements).toEqual([]);
-      expect(card.handling).toBeNull();
     });
 
     it("gives a resistance as the total, best first", () => {
@@ -531,8 +531,7 @@ describe("itemCard", () => {
       const card = itemCard(tileWith({ type: "shield", def: 4 }), null, NOTHING_LEARNT)!;
       expect(card.kind).toBe("Either hand");
       expect(statAt(card.stats, "defence")).toMatchObject({ value: "4" });
-      // No share and no requirements: a shield asks nothing and is not swung.
-      expect(card.handling).toBeNull();
+      // No requirements: a shield asks nothing and is not swung.
       expect(card.requirements).toEqual([]);
     });
 
@@ -556,7 +555,6 @@ describe("itemCard", () => {
       // Nothing is asked of a body wearing one, and there is no share of it to
       // get: a charm acts on its own.
       expect(card.requirements).toEqual([]);
-      expect(card.handling).toBeNull();
     });
 
     it("leaves the health row off a charm that only grants statuses", () => {
@@ -600,7 +598,6 @@ describe("itemCard", () => {
       const card = itemCard(tileWith({ type: "artifact" }), null, NOTHING_LEARNT)!;
       expect(card.kind).toBe("Carried");
       expect(card.stats).toEqual([]);
-      expect(card.handling).toBeNull();
     });
 
     it("says what a stone does, to whom, and when it is ready again", () => {
@@ -624,11 +621,11 @@ describe("itemCard", () => {
       expect(statAt(card.stats, "subject").value).toBe("Your target");
       expect(statAt(card.stats, "cooldown").value).toBe("8s");
       // The requirements are reported because they decide whether it fires at
-      // all, but there is no partial share: an unmet stone refuses the cast.
+      // all, and there is nothing partial about an unmet stone: it refuses the
+      // cast rather than weakening it.
       expect(card.requirements).toEqual([
         { mastery: "arcane", required: 12, have: 4, met: false },
       ]);
-      expect(card.handling).toBeNull();
     });
 
     it("reads a mending stone as mending rather than as negative damage", () => {
@@ -851,16 +848,29 @@ describe("itemCard", () => {
    * font and this answers it in a panel; they say a different *amount* — the
    * card has a whole profile around it — and they must not say a different
    * thing. Asserted against the other module's output rather than against
-   * literals, so a rebalance that moves the share moves both or fails here.
+   * literals, so a rebalance that moves the gate moves both or fails here.
+   *
+   * **The handling sentence is the one line the card does not echo, and that is
+   * the asymmetry rather than a hole in it.** A look label is a few lines of
+   * pixel font over a tile: it has no room for a profile, so a pooled percentage
+   * is the only way it can say what falling short costs. The card has the
+   * profile — a slower `Swing`, a worse `Hit`, each struck through against the
+   * weapon's own — so it says the cost in the units a blow is fought in and does
+   * not also summarise it. Saying less than the label is allowed; saying
+   * something else is not.
    */
   it("agrees with what the world's look label says", () => {
     const learnt = { sharp: xpForLevel(12) };
     const card = itemCard(tileWith(SWORD), null, learnt)!;
     const lines = weaponDemandFor(tileWith(SWORD), learnt);
 
-    expect(lines).toContain(
-      `${card.handling}% accuracy and swing rate; full damage`,
-    );
+    // The label carries the summary, because it has nothing else to carry the
+    // cost with. The card carries the figures instead — see below.
+    expect(lines.some((line) => /accuracy and swing rate/.test(line))).toBe(true);
+    expect(card.speech).not.toMatch(/accuracy and swing rate/);
+    expect(statAt(card.stats, "swing").base).toBeDefined();
+    expect(statAt(card.stats, "hit").base).toBeDefined();
+
     for (const row of card.requirements) {
       expect(lines).toContain(
         row.met
@@ -880,9 +890,6 @@ describe("itemCard", () => {
     expect(card.speech).toContain("Thing");
     expect(card.speech).toContain("One hand — Sharp");
     expect(card.speech).toContain("Requires Sharp 20, you have 5");
-    expect(card.speech).toContain(
-      `${card.handling}% accuracy and swing rate; full damage`,
-    );
     // The clause, not the caption the card is drawn with: "Swing: 1.2s" read
     // out is not a sentence, and "A blow every 1.2s" is. Most terms need no
     // second form, which is what whole words bought over the abbreviations the

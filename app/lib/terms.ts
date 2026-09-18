@@ -142,14 +142,6 @@ export const HEADINGS = {
   resists: "Resists",
   /** What an item asks of whoever uses it. */
   requires: "Requires",
-  /**
-   * How well the reader handles a weapon.
-   *
-   * The two stats the shortfall actually scales, named rather than described:
-   * it stopped being a share of the whole weapon when it stopped touching
-   * damage. @see `./battler`'s `weaponHandling`
-   */
-  handling: "Accuracy & swing rate",
   /** What a connecting blow leaves behind. */
   onHit: "On hit",
   /** What a cast leaves behind. */

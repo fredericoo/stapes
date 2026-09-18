@@ -4828,15 +4828,13 @@ The lines `weaponDemand` produces are what the world's look label says, over the
 canvas, in the pixel font. Inspecting a slot gets the same facts plus the rest of
 the profile, as a card: `app/game/itemCard.ts` computes it and
 `app/components/ItemCard.tsx` draws it. Damage, the wait between blows, the
-chance of landing one, the range, every requirement against what you have, how
-well you handle it, what a blow leaves behind, and for worn things the kinds of
-blow they turn aside.
+chance of landing one, the range, every requirement against what you have, what a
+blow leaves behind, and for worn things the kinds of blow they turn aside.
 
-**"How well you handle it" is the accuracy and the swing rate, and the card says
-so** — headed *Accuracy & swing rate* rather than the *In your hands* it used to
-be. It stopped being a share of the whole weapon when the shortfall stopped
-touching damage, and a bar that still read as one would be telling a player their
-greatsword hits softer than it does.
+**The card does not report handling, and the look label does.** That is the one
+place the two diverge, and it is a consequence of how much room each has rather
+than a disagreement — see *The gate is said once on a card and summarised on a
+label* below.
 
 The card exists because the gate is not the only question. Somebody holding two
 swords wants to know the difference between them — not which is better, which is
@@ -4898,6 +4896,42 @@ makes `overflow-x` non-visible too, so a card anchored on the leftmost square wa
 clipped at the panel edge. Measuring the rect and nudging it back fixed that
 horizontally; a portal has no clipping ancestor at all, and Base UI flips and
 shifts it into whatever space exists on both axes.
+
+### The gate is said once on a card and summarised on a label
+
+The card used to end on a bar: *Accuracy & swing rate — 50%*, `weaponHandling`
+of the pooled shortfall, drawn in red under a red requirement row. Three parts of
+one card were then saying one thing.
+
+- The **requirement row** — `× Sharp … 5 / 15` in red — says the gate is shut,
+  which mastery shut it, and how many points open it. That is the half a player
+  can act on.
+- The **profile rows** say what it costs, in the units a blow is actually fought
+  in: `Swing 2.9s → 5.2s`, `Hit 90% → 46%`, each struck through against the
+  weapon's own. Those two rows *are* the 50%, spent.
+- The **bar** restated the second of those as a pooled percentage — the one form
+  of it nobody can work back to a mastery, and the form that needs the other two
+  rows present before it means anything.
+
+So the bar is gone, and `ItemCard.handling` with it. The rows carry the cost and
+the requirements carry the remedy.
+
+**What made it redundant is the profile, not the red.** Worth stating plainly,
+because the obvious reading — "the red requirement already tells you" — is not
+quite the rule. A requirement of 5/15 says nothing about what being short costs:
+the falloff is a twentieth of your accuracy and swing rate per point, pooled, and
+no player arrives at that in their head. What says the cost is the struck-through
+`Swing` and `Hit`. If those ever stopped carrying the item's own figure beside
+yours, the summary would be load-bearing again.
+
+`app/lib/weaponDemand.ts` still prints the sentence, unchanged, and that is not
+the card contradicting the world. A look label is a few lines of pixel font over
+a tile: it has **only** the gate, so a pooled percentage is the only way it can
+say what falling short costs — and it names damage in the same breath, because a
+weapon you are short of still hits for everything it is written to hit for, and a
+player not told that will put it back down. The card has the figures, so it shows
+them instead. Saying less than the label is allowed; saying something else is not,
+which is what `itemCard.test.ts`'s look-label agreement pins.
 
 ### Damage is a band, and a variance is not a reading
 

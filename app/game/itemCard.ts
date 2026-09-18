@@ -1,5 +1,5 @@
 import type { BattlerDef } from "../lib/battler";
-import { DEFAULT_BASE_HP, fightingStats, weaponHandling } from "../lib/battler";
+import { DEFAULT_BASE_HP, fightingStats } from "../lib/battler";
 import {
   armorSlotOf,
   consumeVerb,
@@ -32,8 +32,6 @@ import {
   type Masteries,
   type Mastery,
   type MasteryXp,
-  requirementShare,
-  requirementShortfall,
   WEAPON_MASTERIES,
   type WeaponMastery,
 } from "../lib/mastery";
@@ -216,25 +214,25 @@ export type ItemCard = {
    */
   description: string | null;
   stats: ItemCardStat[];
-  requirements: ItemCardRequirement[];
   /**
-   * How well the reader handles this weapon, as a percentage — its accuracy and
-   * its swing rate, and never its damage.
+   * What this asks, and what the reader has.
    *
-   * `weaponHandling` of the pooled `requirementShortfall`, in the unit a player
-   * can read — and the same number `../lib/weaponDemand` prints over the canvas, so
-   * the sword on the floor and the sword in your bag cannot disagree about it.
+   * **There is no handling figure beside it, and that is deliberate.** The card
+   * used to end on a bar reading "Accuracy & swing rate — 50%", which is
+   * `weaponHandling` of the pooled shortfall. Everything it said, the card
+   * already says twice over and in better units: {@link requirements} names
+   * which mastery is short and by how many points, which is the half a player
+   * can act on, and the {@link stats} rows carry what the shortfall costs as
+   * `Swing 2.9s → 5.2s` and `Hit 90% → 46%` — the figures themselves, struck
+   * through against the weapon's own. A pooled percentage is the one form of it
+   * nobody can work back to a mastery.
    *
-   * Runs from a hundred down to `MIN_HANDLING` and never above a hundred.
-   * Requirements gate rather than scale: meeting them is worth full handling and
-   * exceeding them is worth nothing more. Skill with the weapon is paid
-   * separately and shows up in the figures above — see `../lib/battler`'s
-   * `MASTERY_DAMAGE_BONUS`, which is why a master's damage can exceed the number
-   * on the blade while this reads 100%.
-   *
-   * Null for anything that is not a weapon, which has no such question.
+   * `../lib/weaponDemand` still prints that sentence over the canvas, and the
+   * two do not disagree: a look label has no room for a profile, so the summary
+   * is all the cost it can carry. This has the profile, so it does not need the
+   * summary. @see `../lib/battler`'s `weaponHandling`
    */
-  handling: number | null;
+  requirements: ItemCardRequirement[];
   effects: ItemCardEffect[];
   /**
    * What to head the effects list with.
@@ -859,7 +857,6 @@ export function itemCard(
   if (!item) return null;
 
   const masteries = masteriesFromXp(masteryXp);
-  const weapon = item.type === "weapon" ? item : null;
 
   const count = instance ? countOf(instance) : 1;
 
@@ -876,9 +873,6 @@ export function itemCard(
     description: instance?.description?.trim() || null,
     stats: statsFor(item, instance, masteries),
     requirements: requirementsFrom(demandsOf(item), masteries),
-    handling: weapon
-      ? percent(weaponHandling(requirementShortfall(masteries, weapon.requirements)))
-      : null,
     effects: effectsFrom(grantsOn(item), statusDefs),
     resists: item.type === "armor" ? resistsFrom(item) : [],
     effectsTitle: effectsTitleFor(item),
@@ -946,13 +940,6 @@ function speak(card: ItemCard): string {
   for (const row of card.requirements) {
     lines.push(
       `Requires ${MASTERY_LABELS[row.mastery]} ${row.required}, you have ${row.have}`,
-    );
-  }
-  if (card.handling !== null && card.requirements.length > 0) {
-    lines.push(
-      card.handling >= 100
-        ? "Full accuracy and swing rate"
-        : `${card.handling}% accuracy and swing rate; full damage`,
     );
   }
   for (const effect of card.effects) {
