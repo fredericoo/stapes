@@ -23,6 +23,9 @@ a world in the way.
 - `bun run generate:water` — rebuild the water autotile from two masks: the wave
   frames in `scripts/wave-frames.png` and the green shapes in the `floors` sheet.
   Writes `data/tilesets/water.png` and the `water` tile's 47 slices together
+- `bun run generate:respawn` — redraw `data/tilesets/respawn.png`, the two-frame
+  marker the `respawn-point` tile wears. Geometry rather than pixel art, so the
+  shape and its palette entries live in the script where a diff can read them
 - `bun run generate:npcs` — recolour the one humanoid in `people.png` into a
   sheet per NPC, so nobody in town is the player's twin. Writes
   `data/tilesets/townsfolk.png`, `smith.png` and `armourer.png`

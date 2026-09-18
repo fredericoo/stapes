@@ -591,16 +591,28 @@ marker. `replaceWorld` drops the rows wholesale for exactly that reason: a save
 can move the marker, and a remembered door into a building that no longer stands
 is worse than no memory at all.
 
-**The row moves, and a tile is what moves it.** It was write-once until beds
-existed, on the grounds that every row held the same coordinates anyway — a map
-has one authored `player` marker. Now a `setSpawn` block on any tile is a place
-you can take as your own: press it and the row becomes the cell you are standing
-in. The block is deliberately the thinnest one in `interactions.ts` — an
-`ActivationTrigger` and an optional verb, and *no destination*. An author picks
-the gesture and the world picks the cell, because the honest answer to "where
-does this put them" is "where they were standing when they asked", which is the
-one cell already known to hold them. That is also why a bed can be solid: you
-stand beside it, and the mark lands beside it, not inside it.
+**The row moves, and a tile is what moves it.** It was write-once until the
+respawn point existed, on the grounds that every row held the same coordinates
+anyway — a map has one authored `player` marker. Now a `setSpawn` block on any
+tile is a place you can take as your own: press it and the row becomes the cell
+you are standing in. The block is deliberately the thinnest one in
+`interactions.ts` — an `ActivationTrigger` and an optional verb, and *no
+destination*. An author picks the gesture and the world picks the cell, because
+the honest answer to "where does this put them" is "where they were standing
+when they asked", which is the one cell already known to hold them.
+
+**The shipped marker makes those two answers the same cell.** `respawn-point` is
+flat, walkable and `interactOver`, so the only body that can press it is one
+standing on it — and then "where the presser is" and "where the marker is" are
+one coordinate and there is nothing to be surprised by. The rule still has to be
+stated the general way, because an author can put the block on a bed you press
+from beside, and a bed is solid: the mark lands beside it, because nobody is
+reborn inside the furniture. It is also the one tile in the catalogue that makes
+no pretence of being a thing in the world — it is called "Respawn Point" and its
+row says "Set respawn point", which is a label for the player rather than for
+the character. Its sheet is generated (`bun run generate:respawn`) rather than
+drawn, because eight by eight pixels of geometry is reviewable in a diff and a
+committed PNG is not.
 
 The chain is the status block's, one for one — `resolveSetSpawn`,
 `reachableSetSpawnAt`, `GameSession.activateSetSpawn`, and
@@ -610,10 +622,26 @@ claims you as you walk through it. Two things are its own:
 - **A mark that does not move costs nothing.** `markSpawn` refuses a cell that
   is already the mark. Without that a `step` block would be a durable write and
   a sentence per stride. The two callers want opposite things from the refusal
-  and both read it: a *press* says "You already come back here" and spends the
-  tap anyway — nothing about the board refused it, so falling through to
-  whatever else the tile offers would make `canInteract` disagree with
-  `interact` — while an *arrival* says nothing at all.
+  and both read it: a *press* says "You already respawn here" and spends the tap
+  anyway — nothing about the board refused it, so falling through to whatever
+  else the tile offers would make `canInteract` disagree with `interact` — while
+  an *arrival* says nothing at all.
+- **The list says it before the press does.** A row on the marker you are
+  already anchored to is drawn grey and *renamed*: "You respawn here" rather
+  than "Set respawn point". It is the one `OptionBlock` arm that replaces the
+  verb instead of putting a reason beside it, and the one label in
+  `interactionOptions` that is a state rather than a verb — both exceptions
+  earned by the same fact, that nothing lifts this block. Every other grey row
+  keeps its verb because the verb is still what pressing it will do once the
+  reason clears; this one says the press has already happened. The sentence
+  stays as the answer to a tap on the *world*, which the list never gated.
+- **The client is told the mark, and only so that row can go grey.**
+  `GameSnapshot.spawnAt` rides in on the `hello` and is moved by a `spawnPoint`
+  message, both addressed to the one socket they are about, on exactly the terms
+  a kit and a tag are: nobody else's respawn point is drawn anywhere. Sent after
+  the record has moved, never before. Null means "nothing has told us yet" and
+  leaves the row live — a grey button that would have worked is a worse lie than
+  a live one that turns out to be a no-op, and the no-op answers in words.
 - **The session holds a copy of the row, and only to answer that question.**
   `ActorRuntime.spawnMark` is seeded by `GameServer.seatActor` and drained by
   `flushSpawnMarks`; the record is still the storage row. Without the copy the

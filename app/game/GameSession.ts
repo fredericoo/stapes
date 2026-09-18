@@ -799,6 +799,21 @@ export type GameSnapshot = {
    */
   tags: readonly string[];
   /**
+   * Where the viewer comes back after a death, or null where nothing has said.
+   *
+   * Theirs alone on exactly the terms {@link tags} is, and for the same reason
+   * a kit is: nobody else's respawn point is drawn, and broadcasting everyone's
+   * would be fan-out for something no frame can show.
+   *
+   * **Here so a row can go grey**, and for nothing else. The mark is the
+   * server's — see `GameServer`'s `spawn:` rows — and the client is told it so
+   * that the respawn point it is already standing on can say so rather than
+   * offering a press that would change nothing. Null means "nothing has told us
+   * yet", which reads as a live row: a grey button that would have worked is a
+   * worse lie than a live one that turns out to be a no-op.
+   */
+  spawnAt: Coord | null;
+  /**
    * Where the viewer is in a conversation, or null when no panel is open.
    *
    * Theirs alone, on exactly the terms {@link tags} is, and replaced wholesale
@@ -10162,6 +10177,7 @@ export class GameSession implements PlaySession {
       attacking: self.attacking,
       equipment: self.equipment,
       tags: self.tags,
+      spawnAt: self.spawnMark,
       conversation: self.conversation,
       extracting: this.extractionOf(self.id),
       // Seeded by the line above rather than here: `actorSnapshots` asks every

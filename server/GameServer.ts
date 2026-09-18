@@ -2144,6 +2144,13 @@ export class GameServer {
       // a client with no tags offers every reward in the room, so a joiner
       // without this is shown chests it will be refused at.
       tags: [...(session.tagsOf(actorId) ?? [])],
+      // Read off this instance's own cache rather than the session, because
+      // this is the one fact on the wire the *server* owns outright — the
+      // `spawn:` row is the record, and the session holds a copy of it only so
+      // a press can tell whether it would change anything. Null only in the gap
+      // after a world replacement, which drops the rows; every ordinary joiner
+      // has been through {@link rememberSpawn} by now.
+      spawnAt: this.spawnCellOf(actorId),
       // Beside the tags and for the same failure one step along: the body at
       // the far end is the one this player left, so a wait they started before
       // the tab closed is still running, and a joiner without this would be
@@ -2576,7 +2583,26 @@ export class GameServer {
       this.ctx.storage
         .put(this.spawnKey(actorId), { ...spawn, savedAt: Date.now() })
         .catch(GameServer.reportWriteFailure("spawn write"));
+      // **After the record has moved, never before.** What the client does with
+      // this is draw one row grey, so a message that raced ahead of the write
+      // would be a button claiming a mark that storage had not taken yet.
+      // Addressed to the one socket it is about, on the terms a kit and a tag
+      // are: nobody else's respawn point is drawn anywhere.
+      this.sendTo(actorId, { type: "spawnPoint", at: { ...at } });
     }
+  }
+
+  /**
+   * The cell this player comes back to, without the facing the row also holds.
+   *
+   * The facing is a fact about the body a rebirth mints and has no reader on
+   * the client — see `SetSpawnInteraction`, where the same stripping happens on
+   * the way into the session. Null for somebody this instance has not minted a
+   * row for yet, which after a world replacement is everybody.
+   */
+  private spawnCellOf(actorId: string): { x: number; y: number; z: number } | null {
+    const spawn = this.spawns.get(actorId);
+    return spawn ? { x: spawn.x, y: spawn.y, z: spawn.z } : null;
   }
 
   /** The world's time of day right now: the wall clock, moved by `/time`. */

@@ -103,5 +103,12 @@
     "file": "water.png",
     "width": 112,
     "height": 376
+  },
+  {
+    "id": "respawn",
+    "name": "Respawn",
+    "file": "respawn.png",
+    "width": 16,
+    "height": 8
   }
 ]

@@ -1,21 +1,27 @@
 import { describe, expect, it } from "vitest";
 import { resolveSetSpawn } from "../lib/interactions";
 import { emptyMap, replaceStack } from "../lib/mapData";
-import type { Direction, MapFile, TileDef } from "../lib/types";
+import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { canSetSpawnFrom, reachableSetSpawnAt } from "./affordances";
 import { TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
+import { listInteractionOptions } from "./interactionOptions";
 
 /**
  * A tile that moves where somebody comes back to.
  *
  * The reach rules are the status block's and are tested as such. What is its
  * own here is the *cell*: the one recorded is the presser's, not the tile's,
- * which is the whole reason a bed can be a solid thing you stand beside. And
+ * which is the whole reason a marker can be a solid thing you stand beside. And
  * the refusal to move a mark that is already where it is asked to go — without
  * it, a `step` block is a durable write and a sentence per stride.
+ *
+ * The row that says so is at the bottom: the shipped marker is pressed from on
+ * top of it, so "where the presser is" and "where the marker is" are one cell,
+ * and the list can tell the player they are already anchored before they press
+ * anything.
  */
 
 /** Ticks a started walk needs to reach its destination and commit. */
@@ -187,7 +193,7 @@ describe("pressing something that moves where you come back", () => {
   it("says so, there being nothing in the view to show it", () => {
     const play = session(world("bed"));
     play.activateSetSpawn(BED);
-    expect(play.drainNotices()).toEqual(["You will come back here."]);
+    expect(play.drainNotices()).toEqual(["You will respawn here."]);
   });
 
   it("is what a plain tap on a bed runs", () => {
@@ -225,7 +231,7 @@ describe("pressing something that moves where you come back", () => {
     // disagree with `interact` if it did.
     expect(play.activateSetSpawn(BED)).toBe(true);
     expect(play.drainSpawnMarks()).toEqual([]);
-    expect(play.drainNotices()).toEqual(["You already come back here."]);
+    expect(play.drainNotices()).toEqual(["You already respawn here."]);
   });
 
   it("refuses a creature, which comes back where it was authored", () => {
@@ -242,7 +248,7 @@ describe("walking onto something that moves where you come back", () => {
     expect(play.drainSpawnMarks()).toEqual([
       { actorId: "local", at: { x: 1, y: 0, z: 0 } },
     ]);
-    expect(play.drainNotices()).toEqual(["You will come back here."]);
+    expect(play.drainNotices()).toEqual(["You will respawn here."]);
   });
 
   it("costs nothing to walk across twice", () => {
@@ -277,7 +283,7 @@ describe("a mark the world already remembers", () => {
 
     expect(play.activateSetSpawn(BED)).toBe(true);
     expect(play.drainSpawnMarks()).toEqual([]);
-    expect(play.drainNotices()).toEqual(["You already come back here."]);
+    expect(play.drainNotices()).toEqual(["You already respawn here."]);
   });
 
   it("is still moved by a press from anywhere else", () => {
@@ -288,5 +294,68 @@ describe("a mark the world already remembers", () => {
     expect(play.drainSpawnMarks()).toEqual([
       { actorId: "local", at: { x: 0, y: 0, z: 0 } },
     ]);
+  });
+});
+
+/**
+ * The row on a marker you are already anchored to.
+ *
+ * Read through `listInteractionOptions` rather than through `spawnBlock`
+ * directly, because what is under test is what the *player* is shown: the block
+ * and the renaming are two halves of one answer, and a test that asked only for
+ * the block would pass while the button still read "Set respawn point".
+ */
+describe("the row on a respawn point", () => {
+  /** The shipped shape: a flat marker you stand on top of and press. */
+  const MARKER = { x: 0, y: 0, z: 0, stackIndex: 1 };
+
+  function markerWorld(): MapFile {
+    return replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "mat" },
+      { tileId: "player", direction: "e" },
+    ]);
+  }
+
+  function rowsFor(spawnAt: Coord | null) {
+    const play = session(markerWorld());
+    const snap = play.getSnapshot();
+    return listInteractionOptions(
+      snap.map,
+      tilesById,
+      snap.self,
+      [snap.self],
+      null,
+      snap.equipment,
+      null,
+      snap.tags,
+      spawnAt,
+      false,
+    ).filter((option) => option.action === "setSpawn");
+  }
+
+  it("is live, and named for the press, where nothing has said otherwise", () => {
+    const [row] = rowsFor(null);
+    expect(row?.blocked).toBeNull();
+    // The fallback verb, this fixture's marker carrying no authored one.
+    expect(row?.label).toBe("Mark");
+  });
+
+  it("is live on a marker that is not the one you come back to", () => {
+    const [row] = rowsFor({ x: 5, y: 5, z: 0 });
+    expect(row?.blocked).toBeNull();
+  });
+
+  it("goes grey and says so on the one you do", () => {
+    const [row] = rowsFor({ x: 0, y: 0, z: 0 });
+    expect(row?.blocked).toEqual({ kind: "here" });
+    // Renamed rather than annotated: nothing lifts this block, so a row still
+    // reading "Mark" would be asking for something the player already has.
+    expect(row?.label).toBe("You respawn here");
+  });
+
+  it("reads the level too, so a marker one floor down is a different place", () => {
+    const [row] = rowsFor({ x: 0, y: 0, z: -1 });
+    expect(row?.blocked).toBeNull();
   });
 });

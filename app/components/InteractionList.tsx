@@ -398,12 +398,17 @@ function InteractionBox({
  * A pull in progress keeps its bar and needs no words on screen; the phrase
  * here is only what it is announced as. See {@link OptionBlock}.
  */
-function blockReason(blocked: OptionBlock): string {
+function blockReason(blocked: OptionBlock): string | null {
   if (blocked.kind === "working") return "working";
   // "In use" rather than "somebody is mining it": the column is eleven pixels
   // of type wide, and which of the people standing there is holding it is not
   // something the player can do anything with.
   if (blocked.kind === "taken") return "in use";
+  // Nothing, because the label already is the reason: the row reads "You
+  // respawn here", and a phrase beside it could only say the same thing again
+  // in less room. The one block whose verb was replaced rather than annotated —
+  // see `OptionBlock`'s `here` arm.
+  if (blocked.kind === "here") return null;
   return "no room";
 }
 
@@ -499,7 +504,7 @@ function ActionButton({
       // rest is its state. Spelled out rather than left to the grey, which a
       // screen reader cannot see and a bar cannot say.
       aria-label={
-        blocked
+        blocked && blockReason(blocked)
           ? `${interactionText(option)}, ${blockReason(blocked)}`
           : interactionText(option)
       }
@@ -568,7 +573,7 @@ function ActionButton({
           a row reading "Warm your h…" still says why it is grey, where one
           reading "Warm your hands · no r…" says neither thing. Absent for a
           pull in progress, which has a bar to say it with. */}
-      {blocked && blocked.kind !== "working" ? (
+      {blocked && blockReason(blocked) ? (
         <span
           aria-hidden="true"
           className="relative ml-auto shrink-0 text-[10px] leading-snug tracking-tight"

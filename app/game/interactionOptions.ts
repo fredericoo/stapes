@@ -16,7 +16,7 @@ import {
   equipVerb,
   resolveConsumable,
 } from "../lib/item";
-import type { MapFile, TileDef } from "../lib/types";
+import type { Coord, MapFile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import {
   canAddStatusFrom,
@@ -247,7 +247,19 @@ export type OptionBlock =
    * they finish or are knocked off, which is why it is ranked below
    * {@link noRoom}.
    */
-  | { kind: "taken" };
+  | { kind: "taken" }
+  /**
+   * This *is* where they come back — the one respawn point they are already
+   * anchored to.
+   *
+   * The odd one out here, and the difference is worth naming: the three above
+   * are reasons a row cannot do what it says, and this is a row that has
+   * already been done. Nothing resolves it but walking to another marker, which
+   * is why the row carrying it is also *renamed* — see {@link objectActionLabel}
+   * — rather than left reading "Set respawn point" with a grey reason beside
+   * it. A verb somebody cannot press should not still be asking them to.
+   */
+  | { kind: "here" };
 
 const LABELS: Record<InteractionAction, string> = {
   target: "Target",
@@ -573,6 +585,7 @@ export function listInteractionOptions(
   equipment: Equipment,
   openedRef: ObjectRef | null = null,
   tags: readonly string[] = [],
+  spawnAt: Coord | null = null,
   attacking: boolean = false,
   extracting: Extraction | null = NOTHING_EXTRACTING,
   conversation: Conversation | null = null,
@@ -592,6 +605,7 @@ export function listInteractionOptions(
       equipment,
       openedRef,
       tags,
+      spawnAt,
       extracting,
     ),
   ];
@@ -1000,6 +1014,7 @@ function objectOptions(
   equipment: Equipment,
   openedRef: ObjectRef | null,
   tags: readonly string[],
+  spawnAt: Coord | null,
   extracting: Extraction | null,
 ): InteractionOption[] {
   const out: InteractionOption[] = [];
@@ -1035,6 +1050,7 @@ function objectOptions(
               { x, y, z, stackIndex },
               openedRef,
               tags,
+              spawnAt,
               extracting,
             ),
           );
@@ -1056,6 +1072,7 @@ function slotOptions(
   ref: ObjectRef,
   openedRef: ObjectRef | null,
   tags: readonly string[],
+  spawnAt: Coord | null,
   extracting: Extraction | null,
 ): InteractionOption[] {
   const placed = getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex];
@@ -1120,8 +1137,23 @@ function slotOptions(
     const blocked =
       action === "extract"
         ? extractBlock(map, tilesById, self, equipment, ref, extracting)
-        : null;
-    add(action, objectActionLabel(action, tilesById[placed.tileId]), false, blocked);
+        : action === "setSpawn"
+          ? spawnBlock(self, spawnAt)
+          : null;
+    add(
+      action,
+      // **The block renames this one rather than annotating it.** Every other
+      // grey row keeps its verb and takes a reason beside it, because the verb
+      // is still what pressing it would do once the reason lifts. Nothing lifts
+      // this one — it says the press has already happened — so a row still
+      // reading "Set respawn point" would be asking for something the player
+      // has. @see OptionBlock's `here` arm.
+      blocked?.kind === "here"
+        ? SPAWN_HERE_LABEL
+        : objectActionLabel(action, tilesById[placed.tileId]),
+      false,
+      blocked,
+    );
   }
 
   // Beside a tap that would arm you, the row that merely puts the thing away:
@@ -1302,6 +1334,42 @@ function objectActionLabel(
     return resolveExtract(def)?.actionName?.trim() || LABELS.extract;
   }
   return LABELS[action];
+}
+
+/**
+ * What a row on a respawn point reads when it is *the* respawn point.
+ *
+ * A state rather than a verb, which every other label in this file refuses to
+ * be — see {@link LABELS}, where "Follow" is deliberately not "Following". The
+ * exception is earned by the row being unpressable: the rule exists so that a
+ * row you can press says what pressing it does, and this is the one row in the
+ * game that appears only in order to say that pressing it is unnecessary.
+ *
+ * Reads "You respawn here" rather than naming the marker, on
+ * `spawnMarkNotice`'s own grounds: what the mark records is the cell, and the
+ * player is standing in it.
+ */
+const SPAWN_HERE_LABEL = "You respawn here";
+
+/**
+ * Is this the marker the viewer already comes back to?
+ *
+ * Compared against **where the viewer is standing**, not against the marker's
+ * own cell, because that is what the mark records — see `SetSpawnInteraction`.
+ * For the shipped `respawn-point` tile the two are the same cell anyway: it is
+ * a flat plate with an `interactOver` trigger, so the row is only ever offered
+ * to somebody standing on it. An author who puts the block on something you
+ * press from beside gets the honest answer instead of a convenient one.
+ *
+ * Null `spawnAt` is "nothing has told us yet" and never blocks. A grey button
+ * that would have worked is a worse lie than a live one that turns out to be a
+ * no-op, and the server answers the no-op in words.
+ */
+function spawnBlock(self: ActorSnapshot, spawnAt: Coord | null): OptionBlock | null {
+  if (!spawnAt) return null;
+  const here =
+    self.x === spawnAt.x && self.y === spawnAt.y && self.z === spawnAt.z;
+  return here ? { kind: "here" } : null;
 }
 
 /**

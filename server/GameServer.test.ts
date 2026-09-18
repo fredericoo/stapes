@@ -3706,49 +3706,67 @@ describe("dying and coming back", () => {
   });
 
   /**
-   * A world in progress with a signpost beside alice, which is the authored
-   * tile that carries `setSpawn` — see `data/tiles.json`. She is standing away
-   * from the spawn cell, so "the mark moved" and "nothing happened" are
-   * different answers.
+   * A world in progress with a respawn point under alice's feet — the authored
+   * tile that carries `setSpawn` (see `data/tiles.json`), which is pressed from
+   * on top of it. She is standing away from the spawn cell, so "the mark moved"
+   * and "nothing happened" are different answers.
+   *
+   * Under the body rather than beside it, because the marker is flat: it is a
+   * plate you stand on, and a slot below a body is still reachable — a body is
+   * not a lid.
    */
-  function checkpointWithSign() {
+  function checkpointWithMarker() {
     const checkpoint = checkpointWith(["alice"]);
-    checkpoint.map.levels["0"]![`${AWAY_FROM_SPAWN + 1},0`] = [
+    const cell = `${AWAY_FROM_SPAWN},0`;
+    checkpoint.map.levels["0"]![cell] = [
       { tileId: "grass" },
-      { tileId: "sign", direction: "s" },
+      { tileId: MARKER },
+      ...checkpoint.map.levels["0"]![cell]!.slice(1),
     ];
     return checkpoint;
   }
 
-  /** Press the signpost next to alice and wait for the sentence it answers with. */
-  async function takeBearings(ws: TestSocket) {
-    send(ws, {
-      type: "interact",
-      ref: { x: AWAY_FROM_SPAWN + 1, y: 0, z: 0, stackIndex: 1 },
-    });
+  const MARKER = "respawn-point";
+  /** The marker's slot: under alice, above the grass she is standing on. */
+  const MARKER_REF = { x: AWAY_FROM_SPAWN, y: 0, z: 0, stackIndex: 1 };
+
+  /** Press the marker alice is standing on, and wait for its sentence. */
+  async function anchorHere(ws: TestSocket) {
+    send(ws, { type: "interact", ref: MARKER_REF });
     // The notice is the acknowledgement that the press was handled; asserting
     // on storage before it would be asserting on a race.
     return await nextMessageOfType(ws, "notice");
   }
 
   it("moves the stored spawn row when somebody anchors themselves", async () => {
-    await putCheckpoint(checkpointWithSign());
+    await putCheckpoint(checkpointWithMarker());
     const alice = await connect("alice");
 
-    const notice = await takeBearings(alice.ws);
-    expect(notice).toMatchObject({ text: "You will come back here." });
+    const notice = await anchorHere(alice.ws);
+    expect(notice).toMatchObject({ text: "You will respawn here." });
 
     const spawn = await runInDurableObject(stub(), async (_instance, state) =>
       state.storage.get<Record<string, unknown>>("spawn:alice"),
     );
-    // Her own cell, not the signpost's: nobody is reborn inside the furniture.
     expect(spawn).toMatchObject({ x: AWAY_FROM_SPAWN, y: 0, z: 0 });
   });
 
-  it("sends a death to the moved mark rather than to the authored one", async () => {
-    await putCheckpoint(checkpointWithSign());
+  it("tells that socket where it comes back now, so the row can go grey", async () => {
+    await putCheckpoint(checkpointWithMarker());
     const alice = await connect("alice");
-    await takeBearings(alice.ws);
+    // The authored marker, before anything moves it: a joiner has to know this
+    // or it offers a live row on the very cell it is anchored to.
+    expect(alice.hello.spawnAt).toMatchObject({ x: SPAWN_CELL, y: 0, z: 0 });
+
+    send(alice.ws, { type: "interact", ref: MARKER_REF });
+    const moved = await nextMessageOfType(alice.ws, "spawnPoint");
+    expect(moved).toMatchObject({ at: { x: AWAY_FROM_SPAWN, y: 0, z: 0 } });
+  });
+
+  it("sends a death to the moved mark rather than to the authored one", async () => {
+    await putCheckpoint(checkpointWithMarker());
+    const alice = await connect("alice");
+    await anchorHere(alice.ws);
 
     await killAndTick("alice");
 

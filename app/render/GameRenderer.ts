@@ -432,6 +432,15 @@ export class GameRenderer {
    */
   private interactionsTags: readonly string[] | null = null;
   /**
+   * The respawn point the last list was built against.
+   *
+   * In the gate beside the tags for the reason the opened box is: it is a state
+   * a row is *named* for — "Set respawn point" against "You respawn here" — so
+   * pressing a marker renames a row without anybody having moved. By identity,
+   * which both sessions honour: the cell is replaced rather than mutated.
+   */
+  private interactionsSpawnAt: Coord | null = null;
+  /**
    * The pull the viewer was part-way through when the list was last built.
    *
    * In the gate on exactly the tags' terms, and it is the one signal a resource
@@ -2729,12 +2738,14 @@ export class GameRenderer {
       health === this.interactionsHealth &&
       snap.equipment === this.interactionsEquipment &&
       snap.tags === this.interactionsTags &&
+      snap.spawnAt === this.interactionsSpawnAt &&
       snap.extracting === this.interactionsExtracting
     ) {
       return;
     }
     this.interactionsEquipment = snap.equipment;
     this.interactionsTags = snap.tags;
+    this.interactionsSpawnAt = snap.spawnAt;
     this.interactionsExtracting = snap.extracting;
     this.interactionsMap = snap.map;
     this.interactionsAt = at;
@@ -2749,6 +2760,7 @@ export class GameRenderer {
       snap.equipment,
       this.openedRef,
       snap.tags,
+      snap.spawnAt,
       snap.attacking,
       // Handed on as it arrived rather than copied, so the value the row's bar
       // is drawn from is the one the session winds in place.

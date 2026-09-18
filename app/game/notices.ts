@@ -488,17 +488,20 @@ export function otherStatusNotice(name: string, status: string): string {
  * that said nothing would be indistinguishable from a press that was dropped —
  * which is the second of the two cases this module exists for.
  *
- * "Here" rather than the tile's name, and that is the honest word: what is
- * recorded is the cell the presser is standing in, not the bed they pressed.
- * Naming the bed would promise a place they may be standing beside rather than
- * on. @see `SetSpawnInteraction`
+ * "Here" rather than the marker's name, and that is the honest word: what is
+ * recorded is the cell the presser is standing in, not the tile they pressed.
+ * Naming the tile would promise a place they may be standing beside rather than
+ * on. "Respawn" rather than anything in the world's own voice, matching the
+ * marker it is said by — see `data/tiles.json`'s `respawn-point`, which is a
+ * label for the player and makes no pretence of being a thing in the world.
+ * @see `SetSpawnInteraction`
  */
 export function spawnMarkNotice(): string {
-  return "You will come back here.";
+  return "You will respawn here.";
 }
 
 /**
- * What somebody is told when they press a bed they are already anchored to.
+ * What somebody is told when they press the marker they are already on.
  *
  * The other half of {@link spawnMarkNotice}, and it exists for the same reason
  * that one does: the press worked, nothing about the board refused it, and the
@@ -506,7 +509,7 @@ export function spawnMarkNotice(): string {
  * on a bed is indistinguishable from a dropped input.
  */
 export function spawnMarkUnchangedNotice(): string {
-  return "You already come back here.";
+  return "You already respawn here.";
 }
 
 /** What a body is told when everything running on it is taken off. */

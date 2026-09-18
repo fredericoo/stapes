@@ -20415,6 +20415,59 @@
     }
   },
   {
+    "id": "respawn-point",
+    "name": "Respawn Point",
+    "height": 0,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "respawn",
+      "x": 0,
+      "y": 0
+    },
+    "interactions": {
+      "setSpawn": {
+        "trigger": "interactOver",
+        "actionName": "Set respawn point"
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 700
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 1,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 700
+        }
+      ]
+    }
+  },
+  {
     "id": "pressure-plate",
     "name": "Pressure Plate",
     "height": 0,
@@ -22377,12 +22430,6 @@
       "y": 8
     },
     "walkable": false,
-    "interactions": {
-      "setSpawn": {
-        "trigger": "interact",
-        "actionName": "Take bearings"
-      }
-    },
     "sprites": {
       "n": {
         "frames": [
