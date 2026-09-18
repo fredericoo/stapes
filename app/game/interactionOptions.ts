@@ -18,6 +18,7 @@ import {
 } from "../lib/item";
 import type { Coord, MapFile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
+import type { Progress } from "./progress";
 import {
   canAddStatusFrom,
   canConsumeFrom,
@@ -212,6 +213,23 @@ export type InteractionOption = {
    * should add an arm here rather than inventing a second way to be grey.
    */
   blocked: OptionBlock | null;
+  /**
+   * The wait before the next blow of the fight this row *is*, or null — which
+   * is every row but one.
+   *
+   * **Only ever on the lit fight row**, because that is the only row that names
+   * a wait anybody is serving: a fight row on a body you have not picked is an
+   * offer, and drawing a clock on it would promise a blow nobody has asked for.
+   * See `../game/GameSession`'s `ActorRuntime.nextBlow` for what the figure is —
+   * the longer of the windup and the cooldown, measured against the swing
+   * interval, so a fight that has just opened starts the bar half full.
+   *
+   * Carried by reference rather than copied, exactly as {@link OptionBlock}'s
+   * extraction is: the session winds one object in place for the whole wait and
+   * replaces it only when the wait changes, so identity is what says a new blow
+   * is being waited on and a copy here would throw that away.
+   */
+  wait: Progress | null;
 };
 
 /**
@@ -575,6 +593,12 @@ const UNSEEN_SUBJECT_INDEX = Number.MAX_SAFE_INTEGER;
  *   keep their place inside their tier. Defaulted to none, which is the
  *   deterministic order a caller with no history — a test, a first frame —
  *   should get.
+ * @param nextBlow the wait before this viewer's next blow, if they are in a
+ *   fight — see `./GameSession`'s `GameSnapshot.nextBlow`. Theirs alone on
+ *   {@link extracting}'s terms, and handed on by reference for its reason: the
+ *   session winds one object in place, and the bar on the row is drawn from it.
+ *   Defaulted to none, so a caller with nothing to report gets a fight row with
+ *   no clock on it rather than having to invent one.
  */
 export function listInteractionOptions(
   map: MapFile,
@@ -591,11 +615,12 @@ export function listInteractionOptions(
   conversation: Conversation | null = null,
   followId: string | null = null,
   previous: readonly InteractionOption[] = [],
+  nextBlow: Progress | null = null,
 ): InteractionOption[] {
   const bodies = bodiesByCell(self, visibleActors);
 
   const options = [
-    ...battlerOptions(tilesById, bodies, targetId, followId, attacking),
+    ...battlerOptions(tilesById, bodies, targetId, followId, attacking, nextBlow),
     ...talkOptions(map, tilesById, self, bodies, conversation),
     ...objectOptions(
       map,
@@ -1115,6 +1140,7 @@ function slotOptions(
       actorId: body?.id ?? null,
       recipeIndex: null,
       blocked,
+      wait: null,
       tileId: placed.tileId,
       name,
       // A shove at a creature reports its health for the same reason the fight
@@ -1201,6 +1227,7 @@ function slotOptions(
       actorId: null,
       recipeIndex: index,
       blocked: null,
+      wait: null,
       tileId: recipe.fromTileId,
       name: input?.name ?? recipe.fromTileId,
       health: null,
@@ -1402,6 +1429,7 @@ function talkOptions(
       actorId: actor.id,
       recipeIndex: null,
       blocked: null,
+      wait: null,
       tileId: actor.tileId,
       name: bodyNameFor({ actorId: actor.id, tileId: actor.tileId }, tilesById),
       health: healthOf(actor),
@@ -1441,6 +1469,7 @@ function battlerOptions(
   targetId: string | null,
   followId: string | null,
   attacking: boolean,
+  nextBlow: Progress | null,
 ): InteractionOption[] {
   const out: InteractionOption[] = [];
 
@@ -1459,6 +1488,7 @@ function battlerOptions(
     );
     const health = healthOf(actor);
     const picked = actor.id === targetId;
+    const fighting = picked && attacking;
     out.push({
       id: `attack:${actor.id}`,
       action: "attack",
@@ -1467,10 +1497,14 @@ function battlerOptions(
       actorId: actor.id,
       recipeIndex: null,
       blocked: null,
+      // The lit fight row and no other: a fight row on a body nobody has picked
+      // is an offer, and a clock drawn on it would be counting down to a blow
+      // nobody has asked for. @see {@link InteractionOption.wait}
+      wait: fighting ? nextBlow : null,
       tileId: actor.tileId,
       name,
       health,
-      active: picked && attacking,
+      active: fighting,
     });
     out.push({
       id: `target:${actor.id}`,
@@ -1480,6 +1514,7 @@ function battlerOptions(
       actorId: actor.id,
       recipeIndex: null,
       blocked: null,
+      wait: null,
       tileId: actor.tileId,
       name,
       health,
@@ -1496,6 +1531,7 @@ function battlerOptions(
       actorId: actor.id,
       recipeIndex: null,
       blocked: null,
+      wait: null,
       tileId: actor.tileId,
       name,
       health,

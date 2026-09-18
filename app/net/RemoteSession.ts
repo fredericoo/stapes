@@ -396,6 +396,14 @@ export class RemoteSession implements PlaySession {
    */
   private extracting: Extraction | null = null;
   /**
+   * The wait before this viewer's next blow, or null when they are not engaged.
+   *
+   * Held beside {@link extracting} and wound like it: the wire carries it twice
+   * — once when it changes, once when the fight ends — and the countdown in
+   * between is this side's. @see windBars
+   */
+  private nextBlow: Progress | null = null;
+  /**
    * What this player has learnt, as the server last said.
    *
    * Never predicted, on the same terms the kit and the tags are not: what a
@@ -724,6 +732,9 @@ export class RemoteSession implements PlaySession {
       // but the pull they are half way through is a fact about the last few
       // seconds and the server is still counting it.
       this.setExtracting(message.extracting);
+      // And the fight they are half way into, on precisely that rule: the body
+      // beside the wolf is the one they left, so the wait is still running.
+      this.nextBlow = message.nextBlow ? { ...message.nextBlow } : null;
       // Same rule again: a fresh body in a replaced world is still the same
       // person, and what they have learnt came with them.
       this.masteryXp = message.masteryXp;
@@ -816,6 +827,15 @@ export class RemoteSession implements PlaySession {
     if (message.type === "extracting") {
       // Whole state, like everything else addressed to one socket here.
       this.setExtracting(message.extracting);
+      return;
+    }
+
+    if (message.type === "nextBlow") {
+      // Whole state on the terms above, and copied rather than held by
+      // reference: this side winds it down every frame, and the object the
+      // parser handed over is about to be the only record of what the server
+      // said. @see windBars
+      this.nextBlow = message.nextBlow ? { ...message.nextBlow } : null;
       return;
     }
 
@@ -1546,6 +1566,9 @@ export class RemoteSession implements PlaySession {
    */
   private windBars(dtMs: number) {
     if (this.extracting) windProgress(this.extracting, dtMs);
+    // The fight's own clock, on exactly the same bargain: the outline round a
+    // target fills from this, and the server says so twice a wait.
+    if (this.nextBlow) windProgress(this.nextBlow, dtMs);
     for (const running of this.extractionsById.values()) {
       windProgress(running, dtMs);
     }
@@ -2201,6 +2224,7 @@ export class RemoteSession implements PlaySession {
       spawnAt: this.spawnAt,
       conversation: this.conversation,
       extracting: this.extracting,
+      nextBlow: this.nextBlow,
       masteryXp: this.masteryXp,
       attributes: this.attributesOf(mine),
       chats: this.chats,

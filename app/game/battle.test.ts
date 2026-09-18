@@ -595,6 +595,88 @@ describe("swinging at a target", () => {
       expect(swingsOver(session, APPROACH_MS - TICK_MS)).toBe(0);
       expect(swingsOver(session, TICK_MS * 2)).toBe(1);
     });
+
+    /**
+     * What the fight outline is drawn from — see `../render/blowReadiness`.
+     *
+     * A reading rather than a rule: nothing above changes because of it, and the
+     * tests here are about it saying the same thing the swings do. It exists
+     * because neither clock alone answers *when do I hit next*: the windup is
+     * what arriving costs and is spent the moment you stand still, the cooldown
+     * is what a blow costs and says nothing about arriving, and a fighter
+     * watching only one of them would be told nothing for half of every fight.
+     */
+    describe("the wait it reports", () => {
+      /** How long until the next blow, or null for a body not in a fight. */
+      function waitMs(session: GameSession) {
+        return session.getSnapshot().nextBlow?.remainingMs ?? null;
+      }
+
+      it("says nothing at all until a fight is picked", () => {
+        const session = new GameSession(withBody(field(), 1, 0, "dummy"), slow);
+        advance(session, APPROACH_MS);
+
+        expect(session.getSnapshot().nextBlow).toBeNull();
+      });
+
+      it("counts the approach down to the first blow", () => {
+        const session = approaching();
+        // One tick, which is what it takes to notice the dummy is in reach.
+        advance(session, TICK_MS);
+
+        const wait = session.getSnapshot().nextBlow!;
+        expect(wait.remainingMs).toBeCloseTo(APPROACH_MS, 6);
+        // Against the interval rather than against the approach, so the ring is
+        // half full when a fight opens rather than empty. @see nextBlow
+        expect(wait.durationMs).toBe(INTERVAL_MS);
+
+        // And the figure is the truth: nothing swings inside it, and the blow
+        // comes on the tick it runs out.
+        expect(swingsOver(session, wait.remainingMs - TICK_MS)).toBe(0);
+        expect(swingsOver(session, TICK_MS)).toBe(1);
+      });
+
+      /**
+       * And then the *whole* interval, not the half: what gates the second blow
+       * is the cooldown, and a reading that went on tracking the windup would sit
+       * at "any moment now" for the rest of the fight.
+       */
+      it("counts the cooldown down to every blow after it", () => {
+        const session = approaching();
+        advance(session, TICK_MS);
+        expect(swingsOver(session, APPROACH_MS)).toBe(1);
+
+        // The interval, twice the approach that came before it.
+        const wait = session.getSnapshot().nextBlow!;
+        expect(wait.remainingMs).toBe(INTERVAL_MS);
+        expect(wait.durationMs).toBe(INTERVAL_MS);
+
+        // And winding down with the cooldown rather than sitting where the
+        // spent windup left it. A fraction rather than a figure, because the
+        // tick does not divide the interval and an exact one would be a test
+        // about rounding.
+        advance(session, INTERVAL_MS / 2);
+        const left = session.getSnapshot().nextBlow!.remainingMs;
+        expect(left / INTERVAL_MS).toBeCloseTo(0.5, 2);
+      });
+
+      /**
+       * Dropped with the windup it was armed beside, so the outline round
+       * something you have stepped away from stops promising a blow.
+       */
+      it("says nothing once the body has left reach", () => {
+        const session = approaching();
+        advance(session, TICK_MS);
+        expect(waitMs(session)).not.toBeNull();
+
+        session.setInput({ directions: ["w"] });
+        advanceUntil(session, () => self(session).x === -1);
+        session.setInput({ directions: [] });
+        advance(session, TICK_MS);
+
+        expect(session.getSnapshot().nextBlow).toBeNull();
+      });
+    });
   });
 
   it("turns to face what it is hitting", () => {

@@ -126,6 +126,18 @@ const extractionSchema = v.object({
   durationMs: v.number(),
 });
 
+/**
+ * The wait before this viewer's next blow, and how far through it they are.
+ *
+ * The shape `../game/progress` already holds it in, on {@link extractionSchema}'s
+ * terms and with one fewer field: a wait has no key, because there is only ever
+ * one of them and it belongs to the body being told about it.
+ */
+const nextBlowSchema = v.object({
+  remainingMs: v.number(),
+  durationMs: v.number(),
+});
+
 const carriedLightsPatchSchema = v.object({
   actorId: v.string(),
   tileIds: v.array(v.string()),
@@ -813,6 +825,15 @@ export type ServerMessage =
        */
       extracting: Extraction | null;
       /**
+       * The wait before this viewer's next blow, if they are in one.
+       *
+       * Sent on arrival on {@link extracting}'s terms and for the same failure:
+       * a reconnecting fighter is still standing beside whatever they were
+       * fighting, and a client that started blank would draw a breathing
+       * outline round a body it is about to hit. @see `../game/progress`
+       */
+      nextBlow: Progress | null;
+      /**
        * What this viewer has learnt, as raw experience.
        *
        * Theirs alone, beside the kit and sent in full on arrival for the same
@@ -917,6 +938,21 @@ export type ServerMessage =
    * second. Exactly the trade {@link StatusPatch} makes.
    */
   | { type: "extracting"; extracting: Extraction | null }
+  /**
+   * "Here is how long until you can hit the thing you are fighting."
+   *
+   * Addressed to one socket on `extracting`'s terms — it is the viewer's own
+   * fight and nobody else's frame can show it — and whole on them too. What it
+   * feeds is the fight outline, which fills as the wait runs down instead of
+   * breathing on a clock of its own: see `../render/overlayMeshes`'
+   * {@link readyAlphaAt}.
+   *
+   * **Two messages a wait, and none in between**, exactly as a pull is: one
+   * when the wait changes — a windup armed, a blow thrown — and one when the
+   * body stops being engaged. The `durationMs` beside the remainder is what
+   * buys that, the same trade {@link StatusPatch} makes.
+   */
+  | { type: "nextBlow"; nextBlow: Progress | null }
   /**
    * "Here is something to tell you."
    *
@@ -1526,6 +1562,10 @@ const serverMessageSchema = v.variant("type", [
     // should degrade to "you are not mining anything" — one refused tap —
     // rather than to a handshake that fails to parse.
     extracting: v.optional(v.nullable(extractionSchema), () => null),
+    // Optional with a null default, on `extracting`'s terms: a version skew
+    // should degrade to an outline that breathes rather than one that fills,
+    // which is exactly the outline every client drew before this existed.
+    nextBlow: v.optional(v.nullable(nextBlowSchema), () => null),
     masteryXp: tolerantMasteryXpSchema,
     statuses: v.array(statusPatchSchema),
   }),
@@ -1561,6 +1601,10 @@ const serverMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("extracting"),
     extracting: v.nullable(extractionSchema),
+  }),
+  v.object({
+    type: v.literal("nextBlow"),
+    nextBlow: v.nullable(nextBlowSchema),
   }),
   v.object({
     type: v.literal("notice"),

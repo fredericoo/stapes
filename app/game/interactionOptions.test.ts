@@ -599,6 +599,77 @@ describe("listInteractionOptions — battlers", () => {
     expect(targets[1]!.active).toBe(false);
   });
 
+  /**
+   * The clock on the fight row, which is what a player reads to know when their
+   * next blow lands. @see `../components/InteractionList`
+   */
+  describe("the wait on the fight row", () => {
+    const WAIT = { remainingMs: 600, durationMs: 1_200 };
+
+    /** Every row for a deer one cell away, with a fight optionally running. */
+    function rows(targetId: string | null, attacking: boolean) {
+      let map = field();
+      map = place(map, 1, 0, ["grass", "deer"]);
+      const me = playerAt(map);
+      const deer = actor("npc:deer", "deer", 1, 0, map, 10);
+      return listInteractionOptions(
+        map,
+        tilesById,
+        me,
+        [me, deer],
+        targetId,
+        KIT,
+        null,
+        [],
+        null,
+        attacking,
+        undefined,
+        null,
+        null,
+        [],
+        WAIT,
+      );
+    }
+
+    /**
+     * By reference, not by value: the session winds one object in place for the
+     * whole wait and replaces it when the wait changes, and that identity is
+     * what tells the row a *new* blow is being waited on. A copy made here would
+     * throw it away and leave the bar mounted for the first blow for ever.
+     */
+    it("hands the fight row the very object it was given", () => {
+      const fight = rows("npc:deer", true).find((o) => o.action === "attack")!;
+
+      expect(fight.active).toBe(true);
+      expect(fight.wait).toBe(WAIT);
+    });
+
+    it("leaves every other row without one", () => {
+      const all = rows("npc:deer", true);
+
+      expect(all.filter((o) => o.wait !== null)).toHaveLength(1);
+    });
+
+    /**
+     * Watching somebody is not waiting to hit them. The wait outlives attack
+     * mode on the simulation side — flicking it off is not a way to skip an
+     * approach — so a row that read the figure without the stance would draw a
+     * clock counting down to a blow nobody is going to throw.
+     */
+    it("draws no clock on a body being watched rather than fought", () => {
+      const fight = rows("npc:deer", false).find((o) => o.action === "attack")!;
+
+      expect(fight.wait).toBeNull();
+    });
+
+    /** And none on a body nobody has picked, whose fight row is only an offer. */
+    it("draws no clock on a body nobody has picked", () => {
+      const fight = rows(null, true).find((o) => o.action === "attack")!;
+
+      expect(fight.wait).toBeNull();
+    });
+  });
+
   it("ignores a body with no hit points to take", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "deer"]);
@@ -1663,6 +1734,7 @@ describe("groupInteractionOptions", () => {
       actorId: null,
       recipeIndex: null,
       blocked: null,
+      wait: null,
       tileId: "crate",
       name: "Crate",
       health: null,
