@@ -654,6 +654,22 @@ export type MotionEvent =
       from: { x: number; y: number; elevAbs: number };
       to: { x: number; y: number; elevAbs: number };
       /**
+       * The body it was aimed at, if it was aimed at one.
+       *
+       * **So the receiver can draw it following.** The blow this depicts waits
+       * out the flight, so a slow shot gives its target a second of walking,
+       * and an arrow held to the point it was aimed at bursts where they were
+       * rather than where they are. The dice were read when the string was let
+       * go, so nothing about the fight turns on this — see
+       * `../game/projectile`'s `ProjectileFlight.targetId`.
+       *
+       * An id rather than a live point, on the terms `tileId` is an id: the
+       * receiver already holds the board and can ask it where that body is on
+       * whatever frame it is drawing, which is finer than anything a tick could
+       * have sent.
+       */
+      targetId?: string;
+      /**
        * Whether the blow this is a receipt for connected.
        *
        * **The one thing this event says about the fight**, and it buys exactly
@@ -1579,6 +1595,11 @@ const serverMessageSchema = v.variant("type", [
           tileId: v.string(),
           from: flightPointSchema,
           to: flightPointSchema,
+          // Named here as well as in the type, because valibot strips what a
+          // schema does not mention — a field dropped on the way in would leave
+          // every shot aimed at the point it was loosed at and nothing saying
+          // why.
+          targetId: v.optional(v.string()),
           hit: v.boolean(),
         }),
         v.object({

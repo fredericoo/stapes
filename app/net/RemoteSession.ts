@@ -1263,6 +1263,9 @@ export class RemoteSession implements PlaySession {
         tileId: event.tileId,
         from: event.from,
         to: event.to,
+        // Carried through so this client can draw the shot following its
+        // target, which is the whole of what the id is for.
+        ...(event.targetId ? { targetId: event.targetId } : {}),
         // Derived rather than heard, which is the whole of what the catalogue
         // bought: both sides run the same `flightDurationMs` over the same two
         // points and the same entry, so there is no third number to disagree

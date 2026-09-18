@@ -1,6 +1,7 @@
 import {
   type FlightEffect,
   flightLevel,
+  type FlightPoint,
   type FlightPhase,
   flightPhase,
   flightPosition,
@@ -56,8 +57,11 @@ const OCTANT_RADIANS = (Math.PI * 2) / OCTANTS.length;
  * with no facing draws south: it is the direction a thing faces when nothing has
  * said otherwise.
  */
-export function projectileOctant(flight: ProjectileFlight): Octant {
-  const { dx, dy } = flightScreenDelta(flight.from, flight.to);
+export function projectileOctant(
+  flight: ProjectileFlight,
+  to: FlightPoint = flight.to,
+): Octant {
+  const { dx, dy } = flightScreenDelta(flight.from, to);
   if (dx === 0 && dy === 0) return "s";
 
   const index = Math.round(Math.atan2(dx, -dy) / OCTANT_RADIANS);
@@ -95,6 +99,33 @@ export function wearsFlightTransition(def: TileDef): boolean {
     const transition = projectileEffect(def, side);
     return Boolean(transition?.dissolve || transition?.scale);
   });
+}
+
+/**
+ * Where a body is right now, for a shot that is following it.
+ *
+ * Asked of the caller rather than worked out here, because the finest answer
+ * lives at the far end of the frame: `../render/GameRenderer` has every actor's
+ * *drawn* position, walk lerp and all, which is smoother than any cell a tick
+ * could have committed. Undefined for a body that has gone, and for a flight
+ * that never named one.
+ */
+export type AimAt = (targetId: string) => FlightPoint | undefined;
+
+/**
+ * The far end of a flight this frame: where its target is, or where it was
+ * aimed.
+ *
+ * **A shot at somebody who died mid-flight keeps the end it started with**,
+ * which is what makes "the arrow still finishes its flight" true rather than
+ * merely tolerated — it arrives at where they were standing, and at nobody.
+ */
+export function aimedAt(
+  flight: ProjectileFlight,
+  aimAt: AimAt | undefined,
+): FlightPoint {
+  if (!flight.targetId || !aimAt) return flight.to;
+  return aimAt(flight.targetId) ?? flight.to;
 }
 
 /** One arrow, as the renderer is asked to draw it. */
@@ -147,6 +178,7 @@ export type ProjectileView = {
 export function projectileViews(
   flights: readonly ProjectileFlight[],
   tilesById: Record<string, TileDef>,
+  aimAt?: AimAt,
 ): ProjectileView[] {
   const views: ProjectileView[] = [];
   for (const flight of flights) {
@@ -155,11 +187,15 @@ export function projectileViews(
     // would put the wrong sprite in the air. Its blow landed regardless — see
     // `../game/projectile`.
     if (!resolveProjectile(tilesById[flight.tileId])) continue;
-    const at = flightPosition(flight, flight.elapsedMs / flight.durationMs);
+    const to = aimedAt(flight, aimAt);
+    const at = flightPosition(flight, flight.elapsedMs / flight.durationMs, to);
     views.push({
       id: flight.id,
       tileId: flight.tileId,
-      direction: projectileOctant(flight),
+      // Re-read every frame rather than once, which it used to be: a flight's
+      // bearing was fixed because both its ends were, and a shot that follows a
+      // stepping target turns as it goes.
+      direction: projectileOctant(flight, to),
       x: at.x,
       y: at.y,
       elevAbs: at.elevAbs,
@@ -217,6 +253,7 @@ function canEmit(def: TileDef): boolean {
 export function flightLight(
   flight: ProjectileFlight,
   def: TileDef | undefined,
+  aimAt?: AimAt,
 ): EmitterOverride | null {
   if (!def || !canEmit(def)) return null;
   const light = resolveLight(def, {}, 0);
@@ -224,7 +261,11 @@ export function flightLight(
   const scale = flightLightScale(flight, def);
   if (scale <= 0) return null;
 
-  const at = flightPosition(flight, flight.elapsedMs / flight.durationMs);
+  const at = flightPosition(
+    flight,
+    flight.elapsedMs / flight.durationMs,
+    aimedAt(flight, aimAt),
+  );
   return {
     // The logical cell, which is what the overlay marks as self-lit. Floored
     // rather than rounded, because a fractional cell is *in* the cell it is

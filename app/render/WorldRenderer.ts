@@ -65,6 +65,7 @@ import { cutMaskFor } from "./cutMask";
 import type {
   Frame,
   MapFile,
+  Octant,
   PlacedTile,
   SpriteAnchor,
   SpriteState,
@@ -212,13 +213,18 @@ type ProjectileMesh = {
   /** Held for its height, which is the depth box's thickness. */
   def: TileDef;
   /**
-   * The bearing's frames, resolved once.
+   * The frames of the bearing it is currently drawn on.
    *
-   * Once is enough because a flight's bearing never changes — see
-   * `./projectileMotion` — so nothing can make this list go stale for as long as
-   * the arrow is in the air.
+   * **Re-resolved when the bearing changes, which it now can.** A flight's
+   * bearing used to be fixed, because both its ends were; a shot follows the
+   * body it was aimed at, so one chasing a body that steps sideways turns as it
+   * goes — see `./projectileMotion`'s `aimedAt`. Held rather than looked up per
+   * frame because the overwhelming majority of frames are on the same bearing
+   * as the last.
    */
   frames: Frame[];
+  /** Which bearing {@link frames} was resolved for. */
+  direction: Octant;
   tileset: TilesetDef;
   texture: THREE.Texture;
   /** Which frame the UVs currently show; -1 until the first is written. */
@@ -2098,6 +2104,7 @@ export class WorldRenderer {
       z: view.z,
       w: quad.w,
       h: quad.h,
+      direction: view.direction,
       base: { ...frames[0]!.sprite.base },
       uniforms,
     };
@@ -2107,6 +2114,21 @@ export class WorldRenderer {
 
   /** Put one arrow where this frame says it is. */
   private placeProjectile(entry: ProjectileMesh, view: ProjectileView) {
+    // **Before the frame is picked**, so a turn takes effect on the frame it
+    // happened rather than the one after. A bearing with no art authored is
+    // kept on the one it had: a shot that turns into an unauthored corner
+    // should go on being drawn, not blink out.
+    if (view.direction !== entry.direction) {
+      const turned = getFrames(entry.def, { direction: view.direction });
+      if (turned?.length) {
+        entry.direction = view.direction;
+        entry.frames = turned;
+        // Forced, because the index is compared against the *old* list's — the
+        // same ordinal on a new bearing is a different frame and its UVs have
+        // to be written.
+        entry.frameIdx = -1;
+      }
+    }
     const frameIdx = frameIndexAtTime(entry.frames, this.animClock);
     const frame = entry.frames[frameIdx]!;
     if (frameIdx !== entry.frameIdx) {

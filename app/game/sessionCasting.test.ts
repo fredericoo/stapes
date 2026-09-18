@@ -1723,6 +1723,19 @@ describe("a bolt thrown at somebody", () => {
     expect(flight!.to.elevAbs).toBe(flight!.from.elevAbs);
   });
 
+  /**
+   * **So the drawing can follow it.** Both ends used to be readings taken the
+   * instant the stone was pressed, which was right when the blow landed on that
+   * same instant. It does not any more — the blow waits out the flight — so a
+   * slow bolt gave its target time to walk out from under it.
+   */
+  it("names the body it was aimed at", () => {
+    const { play, target } = boltAt("bolt-stone");
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
+
+    expect(play.drainProjectiles()[0]!.targetId).toBe(target);
+  });
+
   /** And nothing flies at your own body, which has no distance to cross. */
   it("throws nothing when the bolt lands on its caster", () => {
     const play = session({ charm: "mend-stone" });

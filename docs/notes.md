@@ -3119,6 +3119,23 @@ air.
   life by `disappear` alone, and a long `hit` behind no `disappear` parks
   nothing on screen. `wearsFlightTransition` asks only those two sides for the
   same reason: a dissolve authored on a `hit` has nothing to dissolve.
+- **A shot follows the body it was aimed at.** Both ends used to be readings
+  taken the instant the string was let go, which was right back when the blow
+  landed on that same instant. It does not any more — `blowsInFlight` holds it
+  for the length of the flight — so a slow shot gave its target a second of
+  walking and the arrow went where they had been. The flight carries a
+  `targetId` and the wire carries it too; the far end is resolved per *frame*
+  rather than per tick, in `GameRenderer.aimAt`, because the drawing lerps a
+  walking body between two cells and a shot aimed at the cell would step once
+  per stride while the body it chases slides. Both sessions hand their snapshot
+  to the same renderer, so that is one implementation rather than one per clock.
+  Nothing about the fight turns on it: the dice were read when the shot was
+  loosed, so an arrow curving after a stepping target is drawing an outcome that
+  is already true rather than chasing one. A target that has gone leaves the
+  flight on the end it started with, which is what makes "the arrow still
+  finishes its flight" true rather than tolerated — it arrives at nobody. A
+  flight's bearing is therefore no longer fixed, and `placeProjectile`
+  re-resolves its frames when it turns.
 - **Whether the blow connected is the one thing a shot is told about the fight**,
   and it is why `fireProjectile` runs *after* `rollAttack` rather than before it.
   The arrow is drawn identically either way, because it was loosed either way; a

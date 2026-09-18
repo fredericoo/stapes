@@ -602,6 +602,7 @@ describe("nothing is quietly dropped in transit", () => {
         tileId: "arrow",
         from: { x: 0, y: 0, elevAbs: 2 },
         to: { x: 3, y: 0, elevAbs: 2 },
+        targetId: "rat",
         hit: true,
       },
       tileTransition: {

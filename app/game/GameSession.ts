@@ -4800,6 +4800,11 @@ export class GameSession implements PlaySession {
       // where either body ends up while it is in the air.
       from: { x: from.x, y: from.y, elevAbs: from.elevAbs },
       to: { x: to.x, y: to.y, elevAbs: to.elevAbs },
+      // The body rather than the cell, so the drawing can follow it — see
+      // `./projectile`'s {@link ProjectileFlight.targetId}. Absent for a
+      // placement that is not a body, which is every shot at a thing rather
+      // than at somebody.
+      ...(toBody.placed.owner ? { targetId: toBody.placed.owner } : {}),
       durationMs: flightDurationMs(from, to, flies),
       elapsedMs: 0,
       hit: connected,
