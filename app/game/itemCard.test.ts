@@ -69,6 +69,9 @@ function statAt(stats: ItemCardStat[], term: TermKey): ItemCardStat {
 
 const NOTHING_LEARNT: MasteryXp = {};
 
+/** What a weapon asks of its own mastery, which is the card's baseline body. */
+const GATE = SWORD.requirements!.sharp!;
+
 /** A body carrying nothing but these masteries — what the card is asked *for*. */
 function bodyWith(masteryXp: MasteryXp) {
   return {
@@ -112,34 +115,74 @@ describe("itemCard", () => {
 
   /**
    * **The whole point of the card.** Every figure is what the reader would get,
-   * not what is stamped on the weapon — so a novice holding a sword they are a
-   * long way short of is told what they would actually do with it, and the
-   * weapon's own number rides alongside as the thing to aim at.
+   * and what rides alongside is what somebody who has *just earned* the weapon
+   * gets — a real body, and the thing to aim at.
    *
-   * The two rows lean opposite ways here, which is the shortfall rule made
-   * visible: their aim is worse than the blade's own accuracy because handling
-   * drags it down, and their damage is already a shade *better* than the number
-   * stamped on the blade because five points of Sharp is five points of Sharp
-   * and nothing about being short of the weapon takes that back.
+   * **Not the authored figure, which is nobody's.** `../lib/battler`'s
+   * `damageAtMastery` scales its terms by the absolute level of the weapon's
+   * mastery, so `SWORD.damage` belongs to a wielder at Sharp 0 — who, since the
+   * sword asks Sharp 20, cannot hold it. A card striking that through against
+   * yours was asking you to compare yourself with a hand that never held one.
    */
-  it("gives the figures the reader would actually get, with the weapon's own beside them", () => {
+  it("gives the figures the reader would get, against a wielder who has just earned it", () => {
     const novice = { sharp: xpForLevel(5) };
-    const card = itemCard(tileWith(SWORD), null, novice);
+    const card = itemCard(tileWith(SWORD), null, novice)!;
     const yours = fightingStats(bodyWith(novice), SWORD);
+    const fresh = fightingStats(bodyWith({ sharp: xpForLevel(GATE) }), SWORD);
 
-    expect(statAt(card!.stats, "hit").value).toBe(`${Math.round(yours.hitChance * 100)}%`);
-    expect(statAt(card!.stats, "hit").base).toBe(`${SWORD.accuracy}%`);
-    expect(statAt(card!.stats, "hit").tone).toBe("bad");
-    expect(yours.hitChance * 100).toBeLessThan(SWORD.accuracy);
+    expect(statAt(card.stats, "hit").value).toBe(`${Math.round(yours.hitChance * 100)}%`);
+    expect(statAt(card.stats, "hit").base).toBe(`${Math.round(fresh.hitChance * 100)}%`);
+    expect(statAt(card.stats, "hit").tone).toBe("bad");
 
     // The band rather than the face value, through the same `damageBand` the
     // stats panel reports a body's blow with — a card that quoted `damage` on
     // its own would be quoting a number no blow is ever worth.
     const band = damageBand(yours);
-    expect(statAt(card!.stats, "damage").value).toBe(bandLabel(band.min, band.max));
-    const own = damageBandOf(SWORD.damage, SWORD.variance);
-    expect(statAt(card!.stats, "damage").base).toBe(bandLabel(own.min, own.max));
-    expect(yours.damage).toBeGreaterThanOrEqual(SWORD.damage);
+    const theirs = damageBand(fresh);
+    expect(statAt(card.stats, "damage").value).toBe(bandLabel(band.min, band.max));
+    expect(statAt(card.stats, "damage").base).toBe(bandLabel(theirs.min, theirs.max));
+  });
+
+  /**
+   * **Meeting a requirement exactly leaves one figure on the rows the gate
+   * governs**, which is the whole of what the baseline is for. You *are* the
+   * wielder the card compares against, so there is no gap, and a second number
+   * would be inviting a reader to look for one.
+   *
+   * This is the case that kept being reported as a bug: a battleaxe at exactly
+   * Sharp 33 read "32–64" struck through against "38–76", and the 32–64 was the
+   * figure a body at Sharp 0 would roll if one could lift it.
+   */
+  it("strikes nothing through for a wielder who exactly meets the gate", () => {
+    const card = itemCard(tileWith(SWORD), null, { sharp: xpForLevel(GATE) })!;
+
+    for (const row of card.stats) expect(row.base).toBeUndefined();
+    expect(card.stats.every((row) => row.tone !== "bad")).toBe(true);
+    expect(card.speech).not.toContain("just earned");
+  });
+
+  /**
+   * **Agility is not part of any gate, so it still shows a gap — and should.**
+   *
+   * The baseline body is built out of the weapon's requirements and nothing
+   * else, so it has whatever Agility those name, which for every weapon in the
+   * world today is none. A quick player therefore swings a weapon they have
+   * exactly earned faster than its fresh owner does, and the row says so.
+   *
+   * That is the right answer rather than an exception to the rule above: how
+   * fast you are is yours and not the weapon's, so it is a real difference
+   * between two bodies rather than a figure nobody is dealt. See
+   * `../lib/battler`'s `haste`, which is where Agility enters the rate.
+   */
+  it("still reports Agility as a gap at a gate that does not ask for it", () => {
+    const quick = { sharp: xpForLevel(GATE), agility: xpForLevel(60) };
+    const card = itemCard(tileWith(SWORD), null, quick)!;
+
+    expect(statAt(card.stats, "swing")).toMatchObject({ tone: "good" });
+    expect(statAt(card.stats, "swing").base).toBeDefined();
+    // And the rows the gate does govern still agree, because the gate is met.
+    expect(statAt(card.stats, "damage").base).toBeUndefined();
+    expect(statAt(card.stats, "hit").base).toBeUndefined();
   });
 
   /**
@@ -167,10 +210,10 @@ describe("itemCard", () => {
     expect(hastened).toBeLessThan(attackIntervalMs(SWORD.spd));
   });
 
-  it("leaves the item's own figure off a row that matches it", () => {
-    // A weapon that asks nothing, in hands that have learnt nothing: handling
-    // is full, the skill bonus is zero, and what comes out is the weapon as
-    // written. A card printing "12 (12)" would invite a reader to look for a
+  it("leaves the other figure off a row that matches it", () => {
+    // A weapon that asks nothing, in hands that have learnt nothing: the gate is
+    // at zero, so the reader *is* the baseline body and every row agrees with
+    // it. A card printing "12 (12)" would invite a reader to look for a
     // difference that is not there.
     const plain: WeaponItem = { ...SWORD, requirements: undefined };
     const card = itemCard(tileWith(plain), null, NOTHING_LEARNT)!;
@@ -216,17 +259,18 @@ describe("itemCard", () => {
    * master's figures run *past* the numbers stamped on the weapon, which is the
    * one case where the struck-through base is the smaller of the two.
    */
-  it("runs past the weapon's own numbers in a master's hands", () => {
+  it("runs past a fresh owner's numbers in a master's hands", () => {
     const master = { sharp: xpForLevel(90) };
     const card = itemCard(tileWith(SWORD), null, master)!;
     const yours = fightingStats(bodyWith(master), SWORD);
+    const fresh = fightingStats(bodyWith({ sharp: xpForLevel(GATE) }), SWORD);
 
-    expect(yours.damage).toBeGreaterThan(SWORD.damage);
+    expect(yours.damage).toBeGreaterThan(fresh.damage);
     const band = damageBand(yours);
-    const own = damageBandOf(SWORD.damage, SWORD.variance);
+    const theirs = damageBand(fresh);
     expect(statAt(card.stats, "damage")).toMatchObject({
       value: bandLabel(band.min, band.max),
-      base: bandLabel(own.min, own.max),
+      base: bandLabel(theirs.min, theirs.max),
       tone: "good",
     });
     // And no row leans the other way, because the gate is open: what is left is
@@ -337,30 +381,29 @@ describe("itemCard", () => {
    * actually scales, and the bar restating those rows as a percentage.
    *
    * What is asserted here is the two that survived, because they are the two a
-   * player can act on. The rows say what it costs in the units a blow is fought
-   * in — a slower swing, a worse chance of landing, each struck through against
-   * the weapon's own — and they lean the way the shortfall pushed them. The
-   * requirement says which mastery to go and train, and by how many points,
-   * which no pooled percentage can be worked back to.
+   * player can act on. Every row trails the wielder who has just earned the
+   * weapon, and the requirement says which mastery to go and train and by how
+   * many points — which no pooled percentage can be worked back to.
    *
-   * The rule itself is `../lib/battler`'s `weaponHandling`, tested there and in
-   * `../lib/weaponDemand`, which still prints the sentence over the canvas —
-   * see the look-label agreement below for why that is not a disagreement.
+   * **The damage row trails for a different reason from the others**, and the
+   * card does not distinguish them: `Swing` and `Hit` are docked by
+   * `weaponHandling`, while `Damage` is only lower because the fresh owner has
+   * more mastery. Falling short never takes damage away — that is
+   * `../lib/battler`'s rule and *is the authored profile the moment the
+   * requirement is met* in `battler.test.ts` is where it is pinned, because it
+   * is a fact about the engine rather than about a card.
    */
   it("shows what falling short costs in the rows rather than as a share", () => {
     const short = { sharp: xpForLevel(10) };
     const card = itemCard(tileWith(SWORD), null, short)!;
 
-    for (const term of ["swing", "hit"] as const) {
+    for (const term of ["swing", "hit", "damage"] as const) {
       expect(statAt(card.stats, term).base).toBeDefined();
       expect(statAt(card.stats, term).tone).toBe("bad");
     }
-    // And the damage rows the other way, because the shortfall never touched it
-    // — see `../lib/battler`'s `MIN_HANDLING`.
-    expect(statAt(card.stats, "damage").tone).not.toBe("bad");
 
     expect(card.requirements).toEqual([
-      { mastery: "sharp", required: 20, have: 10, met: false },
+      { mastery: "sharp", required: GATE, have: 10, met: false },
     ]);
     // No percentage anywhere, drawn or spoken.
     expect(card.speech).not.toMatch(/\d+% accuracy/);
@@ -897,11 +940,12 @@ describe("itemCard", () => {
     expect(card.speech).toContain(`${termLabel("damage")}: `);
     expect(card.speech).toContain("A blow every: ");
     expect(card.speech).not.toContain(termLabel("swing"));
-    // The item's own figure as a clause, because a screen reader reads "(12)" as
-    // "twelve" and the comparison disappears.
-    const own = damageBandOf(SWORD.damage, SWORD.variance);
+    // The other figure as a clause, because a screen reader reads "(12)" as
+    // "twelve" and the comparison disappears — and the body it belongs to is
+    // named, since it is somebody rather than something.
+    const fresh = damageBand(fightingStats(bodyWith({ sharp: xpForLevel(GATE) }), SWORD));
     expect(card.speech).toContain(
-      `where the item's own is ${bandLabel(own.min, own.max)}`,
+      `where somebody who has just earned it gets ${bandLabel(fresh.min, fresh.max)}`,
     );
   });
 });

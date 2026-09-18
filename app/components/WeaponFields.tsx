@@ -2,6 +2,7 @@ import { attackIntervalMs, damageBandOf, damageWorth } from "../game/combat";
 import {
   ACCURACY_AT_MAX_MASTERY,
   DAMAGE_AT_MAX_MASTERY,
+  damageAtMastery,
   hitChanceFrom,
   MIN_HANDLING,
   weaponHandling,
@@ -58,26 +59,69 @@ export function describeInterval(ms: number): string {
 }
 
 /**
- * What this accuracy does to the damage a blow is worth.
+ * What the Damage box actually comes to, at the two levels that bound it.
  *
- * Read out of the same function the simulation rolls with, at the two ends and
- * the peak of the triangle, rather than re-derived here — a readout that could
- * disagree with the formula is worse than none.
+ * **The number in the box is nobody's**, and this readout exists to say so.
+ * `damageAtMastery` scales both of its terms by the *absolute* level of the
+ * weapon's mastery, so what is authored here is what a wielder at mastery zero
+ * would do — and for any weapon that asks anything at all, that wielder cannot
+ * pick it up. A Rusty Sword written as 6 is worth 7 to the weakest hand allowed
+ * to hold it and 28 to a master. An author tuning the middle number of three was
+ * working blind at both ends.
+ *
+ * So the readout gives the two ends that are real:
+ *
+ * - **At the weapon's own rung** — the level its requirement names — which is
+ *   the figure that makes a ladder comparable, because it is what the weapon is
+ *   worth to somebody who has just earned it.
+ * - **At {@link MAX_MASTERY}**, which is where the flat term has carried it.
+ *   That one is not guessable from the box at all: the flat term pays the same
+ *   to every weapon, so two rungs ten apart as authored are still ten apart at
+ *   the top while the *proportion* between them has collapsed.
+ *
+ * Through `damageAtMastery` rather than restated here, for the reason every
+ * other readout in this file goes through the real function: one an author tunes
+ * against has to be the figure the fight uses.
+ *
+ * The mastery is named because it is the one the weapon answers to — a
+ * greatsword asks Toughness as well, and Toughness is a gate on how well it
+ * handles rather than on what it hits for.
  */
-export function describeDamageBand(weapon: {
-  damage: number;
-  variance: number;
-}): string {
+export function describeMasteryReach(weapon: WeaponItem): string {
+  if (weapon.damage <= 0) return "No damage, at any mastery.";
+  const gate = weapon.requirements?.[weapon.mastery] ?? 0;
+  const at = (level: number) => Math.round(damageAtMastery(weapon, level));
+  const name = MASTERY_LABELS[weapon.mastery];
+  return `${name} ${gate} does ${at(gate)}. ${name} ${MAX_MASTERY} does ${at(MAX_MASTERY)}.`;
+}
+
+/**
+ * How wide this variance makes a blow, for the same wielder the Damage field's
+ * readout names.
+ *
+ * **At the weapon's own rung, not at mastery zero**, which is the one thing this
+ * readout used to get wrong and the reason it contradicted its neighbour. It
+ * spread the *authored* figure, so a Rusty Sword read "Damage 4–6" while
+ * {@link describeMasteryReach} eighteen pixels to the left read "Sharp 5 does
+ * 7" — two readouts about one weapon, describing two different bodies, and only
+ * one of them a body that can hold it. A player at Sharp 5 rolls 4–7.
+ *
+ * Both ends through the same functions the fight rolls with, so an author tuning
+ * `variance` sees the band a player will be shown rather than a second reading
+ * of it. The peak is what this adds over the band, and it is the thing being
+ * tuned: `variance` decides how much of the band is below full worth, and the
+ * hump is where a blow usually lands inside it.
+ */
+export function describeDamageBand(weapon: WeaponItem): string {
+  const gate = weapon.requirements?.[weapon.mastery] ?? 0;
+  const worth = Math.round(damageAtMastery(weapon, gate));
+  const at = `${MASTERY_LABELS[weapon.mastery]} ${gate}`;
   if (weapon.variance <= MIN_PERCENT_STAT) {
-    return `Always ${weapon.damage} damage.`;
+    return `Always ${worth} damage at ${at}.`;
   }
-  // The same ends the card and the stats panel report, through the same
-  // function — an author tuning `variance` has to see the band a player will be
-  // shown, not a second reading of it. The peak has no such home: it is what
-  // this readout adds over the band, and it is the thing being tuned.
-  const { min, max } = damageBandOf(weapon.damage, weapon.variance);
-  const usual = damageWorth(weapon.damage, weapon.variance, [0.5, 0.5]);
-  return `Damage ${min}–${max}, usually near ${usual}.`;
+  const { min, max } = damageBandOf(worth, weapon.variance);
+  const usual = damageWorth(worth, weapon.variance, [0.5, 0.5]);
+  return `At ${at}, a blow lands ${min}–${max}, usually near ${usual}.`;
 }
 
 /**
@@ -222,11 +266,12 @@ export function WeaponFields({
       <div className="flex flex-wrap gap-4">
         <StatField
           label="Damage"
-          info="The most one blow takes off, before defence."
+          info="What one blow takes off before defence, at mastery zero. Every wielder who can hold the weapon has more than that, so read the line under the box for what it is really worth."
           value={weapon.damage}
           min={0}
           max={MAX_WEAPON_DAMAGE}
           onChange={(damage) => onChange({ damage })}
+          readout={describeMasteryReach(weapon)}
         />
         <StatField
           label="Def"

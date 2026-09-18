@@ -4565,6 +4565,77 @@ measures one weapon against one weapon, so it never sees a loadout, and
 balanced has to be found out by playing it**, and the two dials are the
 minimum and the accuracy — not the damage, for the reason above.
 
+### The authored damage is what mastery zero would do
+
+`damageAtMastery` scales both of its terms by the **absolute** level of the
+mastery a weapon answers to — `level / MAX_MASTERY` — so the number in the
+editor's Damage box is what the weapon is worth to a wielder who has learnt
+nothing. For any weapon asking anything at all, that wielder cannot pick it up.
+A Rusty Sword authored at 6 is worth 7 to the weakest hand allowed to hold it,
+and 28 to a master. The authored figure is a point on the line, not a point
+anybody stands on.
+
+That is confusing, and it is the first thing a player notices on the item card:
+meeting a requirement exactly still shows the weapon's own number struck through
+against a larger one. The `+1` on a rusty sword is not a reward for clearing the
+gate — it is `skill × DAMAGE_AT_MAX_MASTERY` at Sharp 5, which is `0.05 × 20`.
+At the bottom of the ladder the flat term is over 90% of the bonus.
+
+**The obvious fix does not work, and the ladder tests are what prove it.**
+Measuring mastery from the requirement instead — `max(0, level − gate) / MAX` —
+makes the authored number exactly what a just-qualified wielder is dealt, which
+is the property an author wants. It was tried; `duel.test.ts` failed on three
+ladders at once, and the reason is structural rather than a matter of retuning:
+
+- **Below a gate, none of your mastery counts towards that weapon.** At Sharp 31,
+  two short of the battleaxe, the axe you have outgrown collects the whole
+  `(31 − 15)` bonus and the battleaxe collects nothing. So the rung you are
+  reaching for stops being worth reaching for, which is *Nothing is taken off a
+  weapon for being one you have outgrown* below, arriving by a new road.
+- **The flat term's compression is load-bearing.** Added absolutely, `skill × 20`
+  lands on every weapon equally at a given level, which pulls weapon-to-weapon
+  *ratios* together. Measured from the gate it lands hardest on whatever you have
+  most outgrown, which pushes them apart. Two `duel.test.ts` properties then pull
+  in opposite directions: a battleaxe needs **more** damage to stay worth picking
+  up two short of Sharp 33, and **less** to stay inside the 15% band against the
+  longsword on that rung. There is no integer between 68 and 69 that satisfies
+  both, so no content retune closes it.
+
+"Authored equals at-gate" is only true if the *whole* bonus is zero at the gate,
+which means both terms measured from it — there is no third arrangement. So the
+absolute scale stays, and what changed instead is that the editor now says what
+the box is worth: see `describeMasteryReach` in `app/components/WeaponFields.tsx`,
+which prints the figure at the weapon's own rung and at `MAX_MASTERY` under the
+Damage field.
+
+**The item card had the same problem and the same fix.** Its second column — the
+struck-through figure beside yours — was that same authored number, so a
+battleaxe at exactly Sharp 33 read `32–64` struck through against `38–76`, and
+the 32–64 was what a body at Sharp 0 would roll if one could lift it. The card
+was asking a player to measure themselves against a hand that has never held the
+thing.
+
+The baseline is now **a wielder who has just earned the weapon**: `itemCard`
+builds the comparison body out of the weapon's own requirements rather than out
+of nothing. That is a real body, so the pair answers a question a player has —
+am I getting more out of this than somebody who only just qualified — and at
+exactly the requirement the two agree and the strikethrough disappears, which is
+the honest reading of having only just earned it.
+
+One consequence is worth naming because it looks like a contradiction. Below the
+gate the **damage** row now leans red, and falling short still does not take
+damage away: the row is lower because the fresh owner has more *mastery*, not
+because the shortfall docked anything. `Swing` and `Hit` lean red for both
+reasons at once and the card does not separate them. The engine's rule is
+unchanged and is pinned in `battler.test.ts`, which is where a fact about the
+engine belongs.
+
+That readout is worth having for a second reason, visible the moment it was
+added. The flat term pays the same to every weapon, so a ladder's rungs converge
+as mastery climbs: broad-axe and battleaxe are authored 34 and 64, are 38 and 76
+at their own rungs, and are 63 and 100 at Sharp 100 — 1.9× apart as written and
+1.6× apart at the top. Nothing in the editor said so before.
+
 ### Nothing is taken off a weapon for being one you have outgrown
 
 Two separate penalties used to land on the same choice, and between them they

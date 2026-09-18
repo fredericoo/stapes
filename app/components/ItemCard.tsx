@@ -182,10 +182,11 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 /**
  * One figure: the caption on the left, the value on the right.
  *
- * The item's own number appears beside it whenever the two differ. That
- * comparison is the main reason the card carries numbers: "Damage 6" says
- * nothing a sentence could not, while "Damage 6, and this sword does 17" says
- * what is wrong and what fixing it is worth.
+ * What a just-qualified wielder gets appears beside it whenever the two differ.
+ * That comparison is the main reason the card carries numbers: "Damage 6" says
+ * nothing a sentence could not, while "Damage 6, and a fresh owner does 17" says
+ * what is wrong and what fixing it is worth. Meeting a requirement exactly
+ * leaves one figure, because there is then nobody to compare against.
  *
  * The caption comes out of `../lib/terms` rather than off the row, so the word
  * this card uses for a measurement and the word the stats panel uses for the
@@ -201,9 +202,9 @@ function StatRow({ stat }: { stat: ItemCardStat }) {
       <dd className="flex min-w-0 flex-1 items-baseline gap-1 tabular-nums">
         <span className="min-w-0 flex-1 self-center border-b border-dotted border-ink/20" />
         {stat.base ? (
-          // Struck through rather than merely dimmed: this is the number the
-          // weapon would do in better hands, and a reader skimming has to be
-          // able to tell in one glance which of the two is theirs.
+          // Struck through rather than merely dimmed: this is what the weapon
+          // does for somebody who has just earned it, and a reader skimming has
+          // to be able to tell in one glance which of the two is theirs.
           <span className="shrink-0 text-ink/50 line-through">{stat.base}</span>
         ) : null}
         <span className={`shrink-0 font-bold ${TONE_TEXT[stat.tone]}`}>
