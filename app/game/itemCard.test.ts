@@ -385,13 +385,13 @@ describe("itemCard", () => {
    * weapon, and the requirement says which mastery to go and train and by how
    * many points — which no pooled percentage can be worked back to.
    *
-   * **The damage row trails for a different reason from the others**, and the
-   * card does not distinguish them: `Swing` and `Hit` are docked by
-   * `weaponHandling`, while `Damage` is only lower because the fresh owner has
-   * more mastery. Falling short never takes damage away — that is
-   * `../lib/battler`'s rule and *is the authored profile the moment the
-   * requirement is met* in `battler.test.ts` is where it is pinned, because it
-   * is a fact about the engine rather than about a card.
+   * **Every row trails for both reasons at once**, and the card does not
+   * separate them: a fresh owner has more mastery *and* is paying nothing to the
+   * shortfall, while this reader is short on both counts. `Swing` and `Hit` are
+   * docked by `weaponHandling` from the first point missing and `Damage` by
+   * `weaponForce` past its grace band — ten points short here, so both are
+   * charging. The rules themselves are `../lib/battler`'s and are pinned there,
+   * because they are facts about the engine rather than about a card.
    */
   it("shows what falling short costs in the rows rather than as a share", () => {
     const short = { sharp: xpForLevel(10) };
