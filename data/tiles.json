@@ -29813,6 +29813,54 @@
     },
     "lightPassing": true,
     "intangible": true,
+    "transitions": {
+      "appear": {
+        "durationMs": 700,
+        "dissolve": {
+          "pattern": "noise",
+          "clumpPx": 3,
+          "edgeColor": "#8ce6ff",
+          "edgeWidth": 0.15
+        }
+      }
+    },
+    "interactions": {
+      "projectile": {
+        "cellsPerSecond": 20,
+        "hit": {
+          "durationMs": 100,
+          "particles": {
+            "ratePerSecond": 60,
+            "ttlFromMs": 90,
+            "ttlToMs": 180,
+            "spawnRadiusCells": 0.1,
+            "spawnElevFrom": 1,
+            "spawnElevTo": 3,
+            "riseFrom": 1,
+            "riseTo": 5,
+            "driftCellsPerSecond": 0.9,
+            "lit": false,
+            "gravity": -18,
+            "windX": 0,
+            "windY": 0,
+            "radiusFromPx": 1,
+            "radiusToPx": 1,
+            "alphaFrom": 1,
+            "alphaTo": 0,
+            "ramp": [
+              {
+                "at": 0,
+                "color": "#ffffff"
+              },
+              {
+                "at": 1,
+                "color": "#c7dcd0"
+              }
+            ]
+          }
+        }
+      }
+    },
     "sprites": {
       "n": {
         "frames": [
@@ -29965,43 +30013,6 @@
             "durationMs": 200
           }
         ]
-      }
-    },
-    "interactions": {
-      "projectile": {
-        "cellsPerSecond": 20,
-        "hit": {
-          "durationMs": 100,
-          "particles": {
-            "ratePerSecond": 60,
-            "ttlFromMs": 90,
-            "ttlToMs": 180,
-            "spawnRadiusCells": 0.1,
-            "spawnElevFrom": 1,
-            "spawnElevTo": 3,
-            "riseFrom": 1,
-            "riseTo": 5,
-            "driftCellsPerSecond": 0.9,
-            "lit": false,
-            "gravity": -18,
-            "windX": 0,
-            "windY": 0,
-            "radiusFromPx": 1,
-            "radiusToPx": 1,
-            "alphaFrom": 1,
-            "alphaTo": 0,
-            "ramp": [
-              {
-                "at": 0,
-                "color": "#ffffff"
-              },
-              {
-                "at": 1,
-                "color": "#c7dcd0"
-              }
-            ]
-          }
-        }
       }
     }
   },
@@ -33972,6 +33983,11 @@
       "x": 0,
       "y": 0
     },
+    "interactions": {
+      "projectile": {
+        "cellsPerSecond": 20
+      }
+    },
     "sprite": {
       "frames": [
         {
@@ -34023,8 +34039,8 @@
               "h": 3
             },
             "base": {
-              "x": 2,
-              "y": 2
+              "x": 1,
+              "y": 1
             }
           },
           "durationMs": 200,
@@ -34096,9 +34112,29 @@
         }
       ]
     },
-    "interactions": {
-      "projectile": {
-        "cellsPerSecond": 20
+    "transitions": {
+      "appear": {
+        "durationMs": 300,
+        "dissolve": {
+          "pattern": "noise",
+          "clumpPx": 3,
+          "edgeColor": "#8ce6ff",
+          "edgeWidth": 0.15
+        },
+        "scale": {}
+      },
+      "disappear": {
+        "durationMs": 700,
+        "dissolve": {
+          "pattern": "sweep",
+          "from": {
+            "x": -1,
+            "y": -1
+          },
+          "clumpPx": 3,
+          "edgeColor": "#ff9e40",
+          "edgeWidth": 0.15
+        }
       }
     }
   },

@@ -8,6 +8,8 @@ import {
   type FlightEffect,
   flightDurationMs,
   flightLevel,
+  flightLifetimeMs,
+  flightPhase,
   flightPosition,
   flightScreenDelta,
   MIN_FLIGHT_MS,
@@ -230,6 +232,92 @@ function flying(fields: Partial<ProjectileFlight> = {}): ProjectileFlight {
     ...fields,
   };
 }
+
+/**
+ * A dissolve, which is the half of a side a plume cannot carry: particles are
+ * thrown into a cell, and this is done to the arrow's own sprite.
+ */
+const FADE: Transition = {
+  durationMs: 100,
+  dissolve: {
+    pattern: "noise",
+    clumpPx: 3,
+    edgeColor: "#ffffff",
+    edgeWidth: 0.15,
+  },
+};
+
+const SHRINK: Transition = { durationMs: 100, scale: {} };
+
+describe("how long a flight is drawn for", () => {
+  it("is the crossing alone for a projectile with no landing side", () => {
+    expect(flightLifetimeMs(flying(), projectile())).toBe(200);
+  });
+
+  /**
+   * The landing plays on the arrow, so the arrow has to still be there. A
+   * flight disposed of the moment it arrived had nothing left to dissolve.
+   */
+  it("outlives its arrival by whatever its landing runs for", () => {
+    expect(flightLifetimeMs(flying({ hit: true }), projectile({ hit: FADE })))
+      .toBe(300);
+  });
+
+  it("takes the miss's side when the blow did not connect", () => {
+    const def = projectile({ hit: FADE, disappear: { ...FADE, durationMs: 400 } });
+
+    expect(flightLifetimeMs(flying({ hit: false }), def)).toBe(600);
+  });
+});
+
+describe("which side is playing on the arrow", () => {
+  it("has nothing to wear on a projectile that authored no sides", () => {
+    expect(flightPhase(flying({ elapsedMs: 50 }), projectile())).toBeNull();
+  });
+
+  it("forms over the appear as it is loosed", () => {
+    const phase = flightPhase(flying({ elapsedMs: 25 }), projectile({ appear: FADE }));
+
+    expect(phase?.side).toBe("appear");
+    expect(phase?.shown).toBe(0.25);
+  });
+
+  /**
+   * Most of every flight is simply an arrow. An appear that ran the whole
+   * crossing would be a shot that never finished arriving.
+   */
+  it("wears nothing between the appear and the landing", () => {
+    expect(flightPhase(flying({ elapsedMs: 150 }), projectile({ appear: FADE })))
+      .toBeNull();
+  });
+
+  it("falls away over the landing, parked where it stopped", () => {
+    const phase = flightPhase(flying({ elapsedMs: 250 }), projectile({ hit: FADE }));
+
+    expect(phase?.side).toBe("hit");
+    expect(phase?.shown).toBe(0.5);
+  });
+
+  /** A miss plays the tile's own disappear, and never the hit's sparks. */
+  it("plays the miss's side for a shot that did not connect", () => {
+    const def = projectile({ hit: FADE, disappear: SHRINK });
+    const phase = flightPhase(flying({ hit: false, elapsedMs: 250 }), def);
+
+    expect(phase?.side).toBe("disappear");
+    expect(phase?.transition).toBe(def.transitions?.disappear);
+  });
+
+  /**
+   * Whole at the moment it lands and gone at the end, which is what makes the
+   * landing read as the arrow going rather than as it blinking out.
+   */
+  it("shows the whole arrow the instant it arrives and none at the end", () => {
+    const def = projectile({ hit: FADE });
+
+    expect(flightPhase(flying({ elapsedMs: 200 }), def)?.shown).toBe(1);
+    expect(flightPhase(flying({ elapsedMs: 300 }), def)?.shown).toBe(0);
+  });
+});
 
 describe("which side a landing plays", () => {
   function land(flight: ProjectileFlight, def: TileDef) {

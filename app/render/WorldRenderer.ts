@@ -47,7 +47,9 @@ import {
   resolveTransitionSlot,
   transitionAddress,
   transitionPose,
+  noTransitionUniforms,
   transitionUniforms,
+  writeTransitionUniforms,
   type LiveTransition,
   type TransitionPose,
   type TransitionUniforms,
@@ -99,7 +101,7 @@ import {
   WorkerChunkBaker,
 } from "../lib/lightBakerClient";
 import type { FramePhase, FrameProfiler } from "./frameProfile";
-import type { ProjectileView } from "./projectileMotion";
+import { wearsFlightTransition, type ProjectileView } from "./projectileMotion";
 import { GpuLighting } from "./gpuLighting";
 import { PalettePass } from "./palettePass";
 import {
@@ -226,6 +228,32 @@ type ProjectileMesh = {
   /** The sprite footprint, so the centre can be found without the rect again. */
   w: number;
   h: number;
+  /**
+   * Where in that footprint the flight point sits, in cells.
+   *
+   * **The first frame's, held for the whole flight**, because the quad above is
+   * the first frame's too and the two have to agree. Every later frame is drawn
+   * by swapping this quad's UVs, which is the same bargain the merged animation
+   * batch makes — see `./animTable`'s `uniformFootprint`, which refuses a tile
+   * whose frames disagree about exactly this.
+   *
+   * Read per frame, it moved the arrow: a projectile whose second frame carried
+   * a base one cell up had its whole sprite jump a cell up on that frame and
+   * back on the next, once per animation cycle, for as long as it was in the
+   * air. A placed tile can afford to honour a per-frame base — it is standing
+   * still, and `uniformFootprint` sends it down a path that rebuilds. A flight
+   * cannot: it is one quad, built once, moving.
+   */
+  base: { x: number; y: number };
+  /**
+   * The holder its own material's transition is written through, or null.
+   *
+   * Null for every projectile that authors no dissolve and no scale, which is
+   * the overwhelming majority and the case worth keeping cheap: no holder means
+   * the shared, cached material every other quad at that level wears, and not a
+   * uniform written per frame. @see wearsFlightTransition
+   */
+  uniforms: TransitionUniforms | null;
 };
 
 /** One quad the builder will emit, plus what decides how it is drawn. */
@@ -2027,6 +2055,11 @@ export class WorldRenderer {
 
     const texture = this.textures.get(tileset.id) ?? this.magentaTex;
     const rect = spriteRect(def.anchor, frames[0]!.sprite);
+    // Decided once, on the tile, because a projectile's authored sides cannot
+    // change mid-flight: a projectile that wears none keeps the shared material
+    // it always had, and only one that wears a dissolve or a scale pays for a
+    // material and a uniform write of its own.
+    const uniforms = wearsFlightTransition(def) ? noTransitionUniforms() : null;
     const quad: Omit<Quad, "x" | "y"> = {
       w: rect.w * CELL_SIZE,
       h: rect.h * CELL_SIZE,
@@ -2045,7 +2078,9 @@ export class WorldRenderer {
 
     const mesh = new THREE.Mesh(
       buildSingleQuadGeometry(quad),
-      this.materialFor(texture, view.z),
+      uniforms
+        ? this.transitionMaterial(texture, view.z, uniforms)
+        : this.materialFor(texture, view.z),
     );
     // Never culled, for the reason every other single-quad mesh here is not: the
     // bounding sphere is computed once and the thing moves every frame.
@@ -2063,6 +2098,8 @@ export class WorldRenderer {
       z: view.z,
       w: quad.w,
       h: quad.h,
+      base: { ...frames[0]!.sprite.base },
+      uniforms,
     };
     this.projectileMeshes.set(view.id, entry);
     return entry;
@@ -2083,7 +2120,21 @@ export class WorldRenderer {
     // at launch would light the whole descent by the room it left.
     if (view.z !== entry.z) {
       entry.z = view.z;
-      entry.mesh.material = this.materialFor(entry.texture, view.z);
+      if (entry.uniforms) {
+        // Rebuilt rather than re-pointed, because a transition material binds
+        // one level's light and roof-cut uniforms when its program compiles —
+        // and disposed here rather than left, since it belongs to this one
+        // flight and nothing else is holding it. The holder survives the swap,
+        // so a dissolve does not restart on a shot that crosses a storey.
+        (entry.mesh.material as THREE.Material).dispose();
+        entry.mesh.material = this.transitionMaterial(
+          entry.texture,
+          view.z,
+          entry.uniforms,
+        );
+      } else {
+        entry.mesh.material = this.materialFor(entry.texture, view.z);
+      }
     }
     // An arrow is parented to `world` rather than to a level group, so the group
     // toggle does not reach it — and neither can the shader mask, whose cell
@@ -2093,8 +2144,11 @@ export class WorldRenderer {
 
     const localElev = view.elevAbs - view.z * HEIGHT_PER_LEVEL;
     const baseOrigin = baseCellWorldOrigin(view.x, view.y, view.z, localElev);
-    const origin = spriteWorldOrigin(baseOrigin, frame.sprite.base);
-    entry.mesh.position.set(origin.x + entry.w / 2, origin.y + entry.h / 2, 0);
+    const origin = spriteWorldOrigin(baseOrigin, entry.base);
+    const centreX = origin.x + entry.w / 2;
+    const centreY = origin.y + entry.h / 2;
+    entry.mesh.position.set(centreX, centreY, 0);
+    if (entry.uniforms) this.wearFlightSide(entry, view, centreX, centreY);
     entry.mesh.updateMatrix();
     entry.mesh.updateMatrixWorld(true);
 
@@ -2110,6 +2164,69 @@ export class WorldRenderer {
       view.x + 1,
       view.y + 1,
     );
+  }
+
+  /**
+   * Dress one flight's mesh in whichever of its sides is playing.
+   *
+   * **Rewritten every frame rather than bound once**, unlike a placed tile's,
+   * and for a reason a placed tile does not have: an arrow moves. A sweep is
+   * laid out against the sprite's own middle, so a dissolve pointed once at the
+   * muzzle would sweep across an arrow that is no longer there. It is a handful
+   * of number writes — the same trade `./VfxPreview` makes, playing transition
+   * after transition through one holder.
+   *
+   * A scale is applied to the mesh rather than through {@link pixelSnappedQuad},
+   * which is the one place a flight departs from how a tile wears the same
+   * effect. Snapping exists so a shrinking sprite loses whole rows of art
+   * instead of drawing it at a fraction of a pixel — and a tile can, because it
+   * stands on the world-pixel grid. A flight never does: it is at a fractional
+   * cell on almost every frame it is drawn, so there is no grid to snap to and
+   * snapping would only make the shrink jump.
+   *
+   * It shrinks towards its own middle rather than towards the base of a cell,
+   * which is the other half of the same fact: a flight stands in no cell.
+   */
+  private wearFlightSide(
+    entry: ProjectileMesh,
+    view: ProjectileView,
+    centreX: number,
+    centreY: number,
+  ) {
+    const uniforms = entry.uniforms;
+    if (!uniforms) return;
+    const phase = view.phase;
+    if (!phase) {
+      writeTransitionUniforms(uniforms, null);
+      entry.mesh.scale.set(1, 1, 1);
+      return;
+    }
+
+    writeTransitionUniforms(
+      uniforms,
+      // A note built here rather than carried, on the terms `./VfxPreview`
+      // builds one: the only field either reads is the side, and a flight has
+      // no cell or stack slot to put in the rest.
+      {
+        note: {
+          id: view.id,
+          // `hit` sweeps the way a `disappear` does, because it is one — see
+          // `../game/projectile`'s `ProjectileSide`.
+          side: phase.side === "appear" ? "appear" : "disappear",
+          tileId: view.tileId,
+          x: view.x,
+          y: view.y,
+          z: view.z,
+          stackIndex: 0,
+        },
+        transition: phase.transition,
+        startMs: 0,
+      },
+      { centreX, centreY, w: entry.w, h: entry.h },
+    );
+    uniforms.uFxShown.value = phase.shown;
+    const scale = phase.transition.scale ? phase.shown : 1;
+    entry.mesh.scale.set(scale, scale, 1);
   }
 
   /** Level group for z, creating an empty one when the dest floor has no tiles yet. */

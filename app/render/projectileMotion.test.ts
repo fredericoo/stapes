@@ -4,11 +4,17 @@ import { CELL_CENTRE, depthStackBias } from "../lib/geometry";
 import { normalizeTileDef, type TileDef } from "../lib/types";
 import type { Transition } from "../lib/tileTransition";
 
-import { HEIGHT_PER_LEVEL, type Octant } from "../lib/types";
+import tilesJson from "../../data/tiles.json";
+import { uniformFootprint } from "./animTable";
+import { getFrames } from "../lib/tileResolve";
+import { projectileTiles } from "../lib/projectile";
+import { normalizeTiles } from "../lib/types";
+import { HEIGHT_PER_LEVEL, OCTANTS, type Octant } from "../lib/types";
 import {
   flightEmitter,
   projectileOctant,
   projectileViews,
+  wearsFlightTransition,
 } from "./projectileMotion";
 
 /**
@@ -43,6 +49,94 @@ const CATALOGUE: Record<string, TileDef> = {
     interactions: { projectile: { cellsPerSecond: 20 } },
   }),
 };
+
+/**
+ * The shipped projectiles, which is a claim about content and is allowed to be
+ * on the terms `CLAUDE.md` sets: `data/tiles.json` is the tile catalogue and
+ * stays real. What is asserted is a shape every projectile has to have, not a
+ * number anybody authored.
+ */
+describe("the projectiles we ship are drawn on one quad", () => {
+  const tiles = normalizeTiles(tilesJson as unknown[]);
+
+  /**
+   * **A flight is one quad, built from the first frame and then flown.** Its
+   * size comes from that frame's rect and its anchoring from that frame's base,
+   * and every later frame is drawn by swapping the quad's UVs — the same
+   * bargain `./animTable`'s merged batch makes, which is why the check is the
+   * same function.
+   *
+   * A placed tile may disagree across frames: it is standing still, and
+   * `tableCanHold` sends it down a path that rebuilds. A flight cannot. The
+   * fireball's third frame once carried a base one cell up, and the whole
+   * sprite jumped a cell and back once per animation cycle for as long as it
+   * was in the air — with nothing anywhere saying so.
+   */
+  it("keeps one footprint across every frame of every bearing", () => {
+    const fired = projectileTiles(tiles);
+
+    expect(fired.length).toBeGreaterThan(0);
+    for (const def of fired) {
+      for (const direction of OCTANTS) {
+        const frames = getFrames(def, { direction });
+        if (!frames || frames.length < 2) continue;
+        expect(
+          uniformFootprint(frames),
+          `${def.id} draws ${direction} from frames that disagree about size or base`,
+        ).toBe(true);
+      }
+    }
+  });
+});
+
+describe("whether a projectile's sides ask anything of its sprite", () => {
+  const sided = (sides: Record<string, Transition>, hit?: Transition) =>
+    normalizeTileDef({
+      id: "arrow",
+      name: "Arrow",
+      height: 0,
+      type: "directional8",
+      kind: "projectile",
+      interactions: {
+        projectile: { cellsPerSecond: 20, ...(hit ? { hit } : {}) },
+      },
+      ...(Object.keys(sides).length ? { transitions: sides } : {}),
+    });
+
+  const DISSOLVE: Transition = {
+    durationMs: 100,
+    dissolve: {
+      pattern: "noise",
+      clumpPx: 3,
+      edgeColor: "#ffffff",
+      edgeWidth: 0.15,
+    },
+  };
+
+  it("asks nothing of a projectile with no sides at all", () => {
+    expect(wearsFlightTransition(CATALOGUE.arrow!)).toBe(false);
+  });
+
+  /**
+   * The case the split is for: a side made purely of particles is thrown into
+   * the world by `flightEmitter` and wants nothing done to the arrow, so it
+   * must not buy one a material of its own.
+   */
+  it("asks nothing of a side that is only a plume", () => {
+    expect(wearsFlightTransition(sided({}, SPARK))).toBe(false);
+  });
+
+  it("is asked by a dissolve on any of the three sides", () => {
+    expect(wearsFlightTransition(sided({ appear: DISSOLVE }))).toBe(true);
+    expect(wearsFlightTransition(sided({ disappear: DISSOLVE }))).toBe(true);
+    expect(wearsFlightTransition(sided({}, DISSOLVE))).toBe(true);
+  });
+
+  it("is asked by a scale", () => {
+    expect(wearsFlightTransition(sided({ appear: { durationMs: 100, scale: {} } })))
+      .toBe(true);
+  });
+});
 
 describe("which way an arrow points", () => {
   /** Screen y grows downward, so north is a negative dy. */
@@ -93,7 +187,18 @@ describe("the views a frame is drawn from", () => {
   it("carries the position, the bearing and the floor", () => {
     const flight = { ...shot(4, 0), elapsedMs: 100 };
     expect(projectileViews([flight], CATALOGUE)).toEqual([
-      { id: "shot-1", tileId: "arrow", direction: "e", x: 12, y: 10, elevAbs: 0, z: 0 },
+      {
+        id: "shot-1",
+        tileId: "arrow",
+        direction: "e",
+        x: 12,
+        y: 10,
+        elevAbs: 0,
+        z: 0,
+        // The fixture arrow authors no sides, which is every projectile that
+        // was drawn before one could wear them.
+        phase: null,
+      },
     ]);
   });
 

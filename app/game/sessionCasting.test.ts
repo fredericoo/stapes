@@ -22,6 +22,7 @@ import {
 } from "./experience";
 import { GameSession } from "./GameSession";
 import type { SlotRef } from "./itemMoves";
+import { FLIGHT_BODY_SHARE } from "./projectile";
 
 /**
  * Casting, from the outside.
@@ -207,6 +208,15 @@ const BURN_PER_SECOND = 4;
  * that a creature standing next to the player never lands a blow and never pays
  * anybody experience. Every figure asserted below is the spell's alone.
  */
+/**
+ * How tall every body in this fixture stands.
+ *
+ * Named because the flight assertions below are arithmetic on it — a shot
+ * leaves half way up a body — and a bare 4 in two places is a number that can
+ * drift apart from itself.
+ */
+const FIXTURE_BODY_HEIGHT = 4;
+
 function body(
   id: string,
   toughness: number,
@@ -222,7 +232,7 @@ function body(
 ) {
   return tile({
     id,
-    height: 4,
+    height: FIXTURE_BODY_HEIGHT,
     kind: "battler",
     directional: true,
     walkable: false,
@@ -1680,6 +1690,37 @@ describe("a bolt thrown at somebody", () => {
 
     runUntilNothingIsFlying(play);
     expect(hpOf(play, target)).toBeLessThan(before);
+  });
+
+  /**
+   * **Between the two bodies' middles, never along the floor.** Both ends used
+   * to be `reachPointOf` results, which answer the surface a body stands on —
+   * right for measuring reach and wrong for drawing a shot, because it put
+   * every arrow at ground level to be cut and revealed by each tuft it crossed.
+   * The fixture bodies are four high, so half of one is two.
+   */
+  it("leaves and lands half way up a body rather than at its feet", () => {
+    const { play } = boltAt("bolt-stone");
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
+
+    const [flight] = play.drainProjectiles();
+
+    expect(flight!.from.elevAbs).toBe(FIXTURE_BODY_HEIGHT * FLIGHT_BODY_SHARE);
+    expect(flight!.to.elevAbs).toBe(FIXTURE_BODY_HEIGHT * FLIGHT_BODY_SHARE);
+  });
+
+  /**
+   * The same share at both ends, which is what keeps a shot across flat ground
+   * level: a launch height taken from the shooter alone would tilt every shot
+   * by the difference between the two bodies.
+   */
+  it("holds one height across a shot between bodies standing level", () => {
+    const { play } = boltAt("bolt-stone");
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
+
+    const [flight] = play.drainProjectiles();
+
+    expect(flight!.to.elevAbs).toBe(flight!.from.elevAbs);
   });
 
   /** And nothing flies at your own body, which has no distance to cross. */
