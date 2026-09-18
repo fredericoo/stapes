@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { fillElapsedMs } from "./InteractionList";
+import {
+  blockReason,
+  drawnBlockReason,
+  fillElapsedMs,
+} from "./InteractionList";
 
 /**
  * The arithmetic behind the bar across a row with a wait on it — a pull being
@@ -75,5 +79,47 @@ describe("how far through the wait before a blow a fight row is", () => {
   /** And empty again on the tick the blow goes out, which re-arms the cooldown. */
   it("is nothing when a blow has just been thrown", () => {
     expect(fillElapsedMs(wait(INTERVAL_MS))).toBe(0);
+  });
+});
+
+/**
+ * Which of a blocked row's two voices says why.
+ *
+ * A row that cannot be pressed has to say so twice — once in the column, where
+ * there are eleven pixels of type, and once in its `aria-label`, where a screen
+ * reader cannot see the grey. Usually both say the same phrase, and the two
+ * cases where they do not are the whole reason these are separate functions.
+ */
+describe("why a blocked row is grey", () => {
+  const WORKING = {
+    kind: "working",
+    extraction: { key: "0:1,0|bush", remainingMs: 500, durationMs: 1_000 },
+  } as const;
+
+  it("announces and draws the same phrase for an ordinary block", () => {
+    expect(blockReason({ kind: "noRoom" })).toBe("no room");
+    expect(drawnBlockReason({ kind: "noRoom" })).toBe("no room");
+    expect(blockReason({ kind: "taken" })).toBe("in use");
+    expect(drawnBlockReason({ kind: "taken" })).toBe("in use");
+  });
+
+  /**
+   * The bar behind the verb says it better than the word does and in none of
+   * the width — but a bar is invisible to a screen reader, so the announcement
+   * keeps the word.
+   */
+  it("draws nothing for a pull in progress, and still announces it", () => {
+    expect(drawnBlockReason(WORKING)).toBeNull();
+    expect(blockReason(WORKING)).toBe("working");
+  });
+
+  /**
+   * The opposite case: this is the one block that replaced the *verb* rather
+   * than annotating it, so the row already reads "You respawn here". Saying it
+   * again in either voice is the same fact twice.
+   */
+  it("says nothing either way on the respawn point you are anchored to", () => {
+    expect(drawnBlockReason({ kind: "here" })).toBeNull();
+    expect(blockReason({ kind: "here" })).toBeNull();
   });
 });
