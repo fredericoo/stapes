@@ -25206,7 +25206,7 @@
           "on": "target",
           "damage": 5,
           "variance": 60,
-          "projectile": "arcane-bolt"
+          "projectile": "fireball"
         },
         "cooldownMs": 4000,
         "requirements": {
@@ -33958,6 +33958,148 @@
           "durationMs": 200
         }
       ]
+    }
+  },
+  {
+    "id": "fireball",
+    "name": "Fireball",
+    "height": 0,
+    "type": "simple",
+    "kind": "projectile",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 0,
+      "y": 0
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 20,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 3,
+            "intensity": 1,
+            "color": "#ffcc88"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 3,
+              "y": 20,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 3,
+            "intensity": 1,
+            "color": "#ffcc88"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 6,
+              "y": 20,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 2,
+              "y": 2
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 3,
+            "intensity": 1,
+            "color": "#ffcc88"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 9,
+              "y": 20,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 3,
+            "intensity": 1,
+            "color": "#ffcc88"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 12,
+              "y": 20,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 3,
+            "intensity": 1,
+            "color": "#ffcc88"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 15,
+              "y": 20,
+              "w": 3,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 3,
+            "intensity": 1,
+            "color": "#ffcc88"
+          }
+        }
+      ]
+    },
+    "interactions": {
+      "projectile": {
+        "cellsPerSecond": 20
+      }
     }
   }
 ]
