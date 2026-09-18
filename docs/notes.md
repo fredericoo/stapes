@@ -3099,34 +3099,48 @@ air.
   `RemoteSession` holds its own (aged on the render loop), exactly as damage
   numbers are split.
 - **A flight plays three sides, and `hit` is the only one that is a claim about
-  the fight.** `appear` when it is loosed, and where it stops either `hit` or
-  `disappear` — mutually exclusive, because a flight ends exactly once and ends
-  one of two ways. The first two are the tile's own `transitions`, authored on
-  the Effects tab every tile already has and meaning there exactly what they
-  mean here; only `hit` is new, and it is a `Transition` too, so a projectile
-  gets the dissolve, the pose and the burst budget for free. `hit` falls back
-  to `disappear` when it is absent, which is what makes it an addition rather
-  than a rearrangement: one block dissolves a fireball
-  wherever it stops, and the second is written only by an author who wants the
-  landing that *connected* to differ. Nothing falls the other way — a miss that
-  borrowed the hit's sparks would be the picture saying a shot landed that did
-  not.
-- **Which side a landing plays is the one thing a shot is told about the fight**,
+  the fight.** `appear` when it is loosed, and where it stops `disappear` —
+  always — plus `hit` as well when the blow connected. The two landing sides
+  answer different questions about one moment: `disappear` is the projectile
+  going, which it does however the fight went, and `hit` is the blow landing.
+  The first two are the tile's own `transitions`, authored on the Effects tab
+  every tile already has and meaning there exactly what they mean here; only
+  `hit` is new, and it is a `Transition` too, so a projectile gets the dissolve,
+  the pose and the burst budget for free. Nothing falls either way: `hit` used
+  to borrow `disappear` when absent, back when a landing played exactly one
+  side and the fallback was what stopped a connected shot ending in silence —
+  with both playing, borrowing would draw the same effect twice on every blow.
+  And a miss still never borrows the hit's sparks, which would be the picture
+  saying a shot landed that did not. See `landingPlays`.
+- **Of the two a landing plays, only `disappear` is worn by the arrow.** A
+  transition worn by a sprite is a thing done *to* that sprite, and a `hit`
+  plays on whatever was struck — which is never the projectile. So `flightPhase`
+  returns `disappear` and never `hit`, `flightLifetimeMs` measures the arrow's
+  life by `disappear` alone, and a long `hit` behind no `disappear` parks
+  nothing on screen. `wearsFlightTransition` asks only those two sides for the
+  same reason: a dissolve authored on a `hit` has nothing to dissolve.
+- **Whether the blow connected is the one thing a shot is told about the fight**,
   and it is why `fireProjectile` runs *after* `rollAttack` rather than before it.
   The arrow is drawn identically either way, because it was loosed either way; a
   shot simply cannot be told whether it connected before anything has asked. A
   bolt passes `true` outright, because nothing dodges one.
-- **A landing is not a flight that has ended.** The two are over at different
-  moments — the arrow is gone the instant it arrives, and what it leaves stands
-  still and keeps emitting for the length its author wrote — so `ageFlights`
-  hands landings to a separate `flightEffects` list on the snapshot, which
-  `GameRenderer` turns into emitter specs standing exactly where the arrow was.
-  Keeping the landed flight around instead would park an arrow on its target for
-  the length of the spray. Both clocks call the same `ageFlights`, because "a
-  landing plays a side" written twice is one rule that can disagree with itself.
-  Only the *particles* half of an effect is played today: a dissolve and a scale
-  are things done to a mesh, and a flight's mesh is not a placement — see
-  `attachTransition`, which wants a cell and a depth box.
+- **A landing's plume is not the flight that ended.** A plume stands still and
+  keeps emitting for the length its author wrote, so `ageFlights` hands landings
+  to a separate `flightEffects` list on the snapshot, which `GameRenderer` turns
+  into emitter specs standing exactly where the arrow was. Both clocks call the
+  same `ageFlights`, because "a landing plays a side" written twice is one rule
+  that can disagree with itself.
+- **A flight does outlive its own arrival, by its `disappear`'s duration.** It
+  used to be dropped the instant it arrived, and the *particles* half of an
+  effect was all that ever played — a dissolve and a scale being things done to
+  a sprite, and an arrow disposed of on arrival having nothing left to dissolve.
+  The arrow is kept for that stretch instead and wears the side itself: the
+  quad it was already flying, with its own material and `writeTransitionUniforms`
+  rewritten per frame, because a sweep is laid out against a sprite's middle and
+  an arrow moves. Its scale goes on the mesh rather than through
+  `pixelSnappedQuad`, which exists so a shrinking sprite loses whole rows of art
+  instead of drawing them at a fraction of a pixel — a tile can be snapped
+  because it stands on the world-pixel grid, and a flight never does.
 - **A flight's own light is painted as an emitter override.** A projectile
   carrying one lit nothing: the bake walks placements in the map's stacks and an
   arrow is never in one, and `emitterOverridesFor` paints one override per

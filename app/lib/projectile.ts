@@ -70,10 +70,12 @@ import type { TileDef } from "./types";
 /**
  * Which moment of a flight an effect belongs to.
  *
- * **`hit` is a variant of `disappear` rather than a fourth moment.** A flight
- * ends exactly once and ends one of two ways, so the two are mutually exclusive
- * by construction: what plays where it lands is `hit` when the blow connected
- * and `disappear` when it did not.
+ * **`hit` sits on the same moment as `disappear` rather than being a fourth
+ * one.** A flight ends exactly once, and both of these describe that ending —
+ * `disappear` is the projectile going, which it does however the fight went,
+ * and `hit` is the blow landing, which is a separate claim about the same
+ * instant. They are played together rather than chosen between; see
+ * {@link landingPlays}.
  */
 export type ProjectileSide = TransitionSide | "hit";
 
@@ -134,8 +136,9 @@ export type ProjectileBlock = {
    * Played where it lands, on a landing that connected.
    *
    * The one thing a projectile says about the fight it came out of, and the
-   * only side that is not already {@link TileDef.transitions}. Absent falls
-   * back to `disappear` — see {@link projectileEffect}.
+   * only side that is not already {@link TileDef.transitions}. Absent plays
+   * nothing: `disappear` is already playing on every landing, so there is
+   * nothing for this to fall back to — see {@link landingPlays}.
    */
   hit?: Transition;
 };
@@ -179,31 +182,46 @@ export function resolveProjectile(
 /**
  * What to play at one end of a flight, or nothing.
  *
- * **`hit` falls back to `disappear`**, which is the whole of what makes the
- * third side an addition rather than a rearrangement: an author who wants a
- * fireball to dissolve wherever it stops writes one block and gets it on both
- * outcomes, and an author who wants the landing that *connected* to look
- * different writes the second. Nothing falls the other way — a `hit` authored
- * alone leaves a miss silent, which is correct, because a miss that borrowed
- * the hit's sparks would be the picture saying a shot landed that did not.
+ * **Each side answers for itself, and `hit` no longer falls back.** It used to
+ * borrow `disappear` when nothing was authored, because a landing played
+ * exactly one side and the fallback was what stopped a connected shot ending
+ * in silence. A landing plays both now — see {@link landingPlays} — so the
+ * fallback would draw the same effect twice on every blow that lands.
  *
  * `appear` and `disappear` are read off the tile's own transitions, so a
  * projectile authored in the Effects tab needs nothing here to know about it.
+ * `hit` is the projectile block's, because it is the only one of the three that
+ * is a claim about the fight.
  */
 export function projectileEffect(
   def: TileDef | undefined,
   side: ProjectileSide,
 ): Transition | undefined {
   if (!def) return undefined;
-  if (side === "hit") {
-    return resolveProjectile(def)?.hit ?? def.transitions?.disappear;
-  }
+  if (side === "hit") return resolveProjectile(def)?.hit ?? undefined;
   return def.transitions?.[side];
 }
 
-/** Which side a landing plays. @see projectileEffect */
-export function landingSide(connected: boolean): ProjectileSide {
-  return connected ? "hit" : "disappear";
+/**
+ * The sides a landing plays, in the order they are begun.
+ *
+ * **`disappear` always, and `hit` as well when the blow connected.** A flight
+ * ends exactly once, and the two sides answer different questions about that
+ * moment: `disappear` is *the projectile going*, which it does however the
+ * fight went, and `hit` is *the blow landing*, which is a thing that either
+ * happened or did not.
+ *
+ * They used to be mutually exclusive — a landing picked one — and that made an
+ * author choose between the two rather than describe both. A fireball that
+ * dissolves as it stops and throws sparks where it connects had to be written
+ * as one or the other, and a miss got whichever was left.
+ *
+ * Nothing falls the other way: a `hit` authored alone still leaves a miss with
+ * no sparks, which is correct, because a miss that borrowed them would be the
+ * picture saying a shot landed that did not.
+ */
+export function landingPlays(connected: boolean): ProjectileSide[] {
+  return connected ? ["disappear", "hit"] : ["disappear"];
 }
 
 /** Every tile that can be fired, for a picker to offer. */

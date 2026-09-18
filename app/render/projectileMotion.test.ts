@@ -252,10 +252,18 @@ describe("whether a projectile's sides ask anything of its sprite", () => {
     expect(wearsFlightTransition(sided({}, SPARK))).toBe(false);
   });
 
-  it("is asked by a dissolve on any of the three sides", () => {
+  it("is asked by a dissolve on either side the arrow wears", () => {
     expect(wearsFlightTransition(sided({ appear: DISSOLVE }))).toBe(true);
     expect(wearsFlightTransition(sided({ disappear: DISSOLVE }))).toBe(true);
-    expect(wearsFlightTransition(sided({}, DISSOLVE))).toBe(true);
+  });
+
+  /**
+   * **And never by a hit.** That side plays on whatever was struck, which is
+   * never the arrow, so a dissolve authored on it has nothing to dissolve — and
+   * counting it would buy the flight a material nothing ever writes to.
+   */
+  it("asks nothing of a dissolve authored on the hit", () => {
+    expect(wearsFlightTransition(sided({}, DISSOLVE))).toBe(false);
   });
 
   it("is asked by a scale", () => {

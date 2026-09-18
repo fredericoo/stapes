@@ -255,18 +255,32 @@ describe("how long a flight is drawn for", () => {
   });
 
   /**
-   * The landing plays on the arrow, so the arrow has to still be there. A
+   * The disappear plays on the arrow, so the arrow has to still be there. A
    * flight disposed of the moment it arrived had nothing left to dissolve.
    */
-  it("outlives its arrival by whatever its landing runs for", () => {
-    expect(flightLifetimeMs(flying({ hit: true }), projectile({ hit: FADE })))
-      .toBe(300);
+  it("outlives its arrival by whatever its disappear runs for", () => {
+    expect(
+      flightLifetimeMs(flying({ hit: true }), projectile({ disappear: FADE })),
+    ).toBe(300);
   });
 
-  it("takes the miss's side when the blow did not connect", () => {
-    const def = projectile({ hit: FADE, disappear: { ...FADE, durationMs: 400 } });
+  /**
+   * **And by the disappear whether or not the blow connected**, because that is
+   * the side the arrow itself wears. A `hit` is thrown at the point the shot
+   * stopped and ages on its own, so it holds no sprite on screen — a long hit
+   * with no disappear behind it would otherwise park an arrow with nothing
+   * happening to it.
+   */
+  it("measures the arrow's life by the disappear and never the hit", () => {
+    const def = projectile({ disappear: FADE, hit: { ...FADE, durationMs: 900 } });
 
-    expect(flightLifetimeMs(flying({ hit: false }), def)).toBe(600);
+    expect(flightLifetimeMs(flying({ hit: true }), def)).toBe(300);
+    expect(flightLifetimeMs(flying({ hit: false }), def)).toBe(300);
+  });
+
+  it("is the crossing alone for a projectile that only authored a hit", () => {
+    expect(flightLifetimeMs(flying({ hit: true }), projectile({ hit: FADE })))
+      .toBe(200);
   });
 });
 
@@ -291,20 +305,34 @@ describe("which side is playing on the arrow", () => {
       .toBeNull();
   });
 
-  it("falls away over the landing, parked where it stopped", () => {
-    const phase = flightPhase(flying({ elapsedMs: 250 }), projectile({ hit: FADE }));
+  it("falls away over the disappear, parked where it stopped", () => {
+    const phase = flightPhase(
+      flying({ elapsedMs: 250 }),
+      projectile({ disappear: FADE }),
+    );
 
-    expect(phase?.side).toBe("hit");
+    expect(phase?.side).toBe("disappear");
     expect(phase?.shown).toBe(0.5);
   });
 
-  /** A miss plays the tile's own disappear, and never the hit's sparks. */
-  it("plays the miss's side for a shot that did not connect", () => {
+  /**
+   * **Never the hit, whatever the blow came to.** A transition worn by a sprite
+   * is a thing done to that sprite, and of the two sides a landing plays only
+   * `disappear` is about the arrow. A `hit` plays on whatever was struck, which
+   * is never the projectile.
+   */
+  it("wears the disappear on a landing that connected too", () => {
     const def = projectile({ hit: FADE, disappear: SHRINK });
-    const phase = flightPhase(flying({ hit: false, elapsedMs: 250 }), def);
+    const phase = flightPhase(flying({ hit: true, elapsedMs: 250 }), def);
 
     expect(phase?.side).toBe("disappear");
     expect(phase?.transition).toBe(def.transitions?.disappear);
+  });
+
+  it("wears nothing at all for a projectile that only authored a hit", () => {
+    expect(
+      flightPhase(flying({ hit: true, elapsedMs: 250 }), projectile({ hit: FADE })),
+    ).toBeNull();
   });
 
   /**
@@ -312,7 +340,7 @@ describe("which side is playing on the arrow", () => {
    * landing read as the arrow going rather than as it blinking out.
    */
   it("shows the whole arrow the instant it arrives and none at the end", () => {
-    const def = projectile({ hit: FADE });
+    const def = projectile({ disappear: FADE });
 
     expect(flightPhase(flying({ elapsedMs: 200 }), def)?.shown).toBe(1);
     expect(flightPhase(flying({ elapsedMs: 300 }), def)?.shown).toBe(0);
@@ -339,6 +367,17 @@ describe("which side a landing plays", () => {
     ]);
   });
 
+  /**
+   * A projectile with no `disappear` authored plays only the hit, because
+   * `beginEffect` is silently nothing for a side nobody wrote — which is what
+   * keeps "both sides" from meaning "both must exist".
+   */
+  it("plays only what was authored, of the two", () => {
+    expect(
+      land(flying({ hit: true }), projectile({ hit: SPARK })).map((e) => e.id),
+    ).toEqual(["shot-1:hit"]);
+  });
+
   /** A miss and a dodge are drawn in full and leave the hit alone. */
   it("plays nothing where a shot that did not connect lands", () => {
     expect(land(flying({ hit: false }), projectile({ hit: SPARK }))).toEqual([]);
@@ -351,14 +390,33 @@ describe("which side a landing plays", () => {
   });
 
   /**
-   * The fallback is what makes `hit` an addition rather than a rearrangement: a
-   * fireball that dissolves wherever it stops is one block, and the second is
-   * only written by an author who wants the landing that connected to differ.
+   * **Both, and in that order.** A flight ends once, and the two sides answer
+   * different questions about that ending: the projectile went, and the blow
+   * landed. An author who wants a fireball to dissolve as it stops *and* throw
+   * sparks where it connects writes both and gets both.
    */
-  it("falls back to the disappear for a hit nobody authored", () => {
+  it("plays the disappear and the hit together where a blow lands", () => {
+    const effects = land(
+      flying({ hit: true }),
+      projectile({ disappear: FADE, hit: SPARK }),
+    );
+
+    expect(effects.map((effect) => effect.id)).toEqual([
+      "shot-1:disappear",
+      "shot-1:hit",
+    ]);
+  });
+
+  /**
+   * **No fallback any more.** `hit` used to borrow `disappear` when nothing was
+   * authored, because a landing played one side and the fallback stopped a
+   * connected shot ending in silence. Borrowing now would draw the same effect
+   * twice on every blow that lands.
+   */
+  it("plays the disappear once for a blow whose hit nobody authored", () => {
     const effects = land(flying({ hit: true }), projectile({ disappear: SPARK }));
 
-    expect(effects.map((effect) => effect.id)).toEqual(["shot-1:hit"]);
+    expect(effects.map((effect) => effect.id)).toEqual(["shot-1:disappear"]);
     // Equal rather than identical: the fixture goes through `normalizeTileDef`,
     // which parses the block rather than passing the object through.
     expect(effects[0]!.transition).toEqual(SPARK);

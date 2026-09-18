@@ -40,7 +40,7 @@
 
 import { PX_PER_HEIGHT } from "../lib/geometry";
 import {
-  landingSide,
+  landingPlays,
   type ProjectileBlock,
   projectileEffect,
   type ProjectileSide,
@@ -334,8 +334,13 @@ export function flightLifetimeMs(
   flight: ProjectileFlight,
   def: TileDef | undefined,
 ): number {
-  const landing = projectileEffect(def, landingSide(flight.hit));
-  return flight.durationMs + (landing?.durationMs ?? 0);
+  // `disappear` and never the landing's other side, because this is the life of
+  // the *arrow*: `disappear` is the one that plays on it, and a `hit` is thrown
+  // at the point it stopped and ages on its own — see {@link flightPhase}. A
+  // long hit and no disappear at all would otherwise hold a sprite on screen
+  // with nothing happening to it.
+  const going = projectileEffect(def, "disappear");
+  return flight.durationMs + (going?.durationMs ?? 0);
 }
 
 /** @see FlightPhase */
@@ -352,19 +357,21 @@ export function flightPhase(
     };
   }
 
-  const side = landingSide(flight.hit);
-  const landing = projectileEffect(def, side);
-  if (!landing || flight.elapsedMs < flight.durationMs) return null;
+  // **`disappear` and never `hit`**, of the two a landing plays. A transition
+  // worn by a sprite is a thing done *to* that sprite, and of the two only
+  // `disappear` is about the arrow: it is the projectile going. A `hit` is
+  // about the blow, it plays on whatever was struck, and the arrow is never
+  // that — which is what `../components/ProjectileTab` has always said about
+  // it. Its plume is thrown at the point the shot stopped and ages on its own.
+  const going = projectileEffect(def, "disappear");
+  if (!going || flight.elapsedMs < flight.durationMs) return null;
   return {
-    side,
-    transition: landing,
-    // `hit` shows what a `disappear` shows, because it *is* one — the fourth
-    // moment a landing could have been is the same moment, told apart only by
-    // whether the blow connected. @see ProjectileSide
+    side: "disappear",
+    transition: going,
     shown: shownFraction(
       "disappear",
       flight.elapsedMs - flight.durationMs,
-      landing.durationMs,
+      going.durationMs,
     ),
   };
 }
@@ -397,7 +404,13 @@ export function ageFlights(
     const wasFlying = flight.elapsedMs < flight.durationMs;
     flight.elapsedMs += dtMs;
     if (wasFlying && flight.elapsedMs >= flight.durationMs) {
-      beginEffect(flight, landingSide(flight.hit), flight.to, def, into);
+      // Both sides of the landing, in order — see `../lib/projectile`'s
+      // {@link landingPlays}. A projectile that authored only one of them
+      // begins only that one, because `beginEffect` is silently nothing for a
+      // side nobody wrote.
+      for (const side of landingPlays(flight.hit)) {
+        beginEffect(flight, side, flight.to, def, into);
+      }
     }
     if (flight.elapsedMs >= flightLifetimeMs(flight, def)) done = true;
   }

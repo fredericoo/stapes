@@ -67,13 +67,17 @@ export function projectileOctant(flight: ProjectileFlight): Octant {
 }
 
 /**
- * The three moments a flight can wear a transition at.
+ * The moments a flight can wear a transition at, which is two of its three.
  *
- * `hit` falls back to `disappear` inside {@link projectileEffect}, so naming
- * all three here costs nothing and means a projectile that authored only a hit
- * is still found.
+ * **`hit` is not one of them, and that is the whole shape of the split.** A
+ * transition worn by a sprite is a thing done *to* that sprite, and of the
+ * sides a landing plays only `disappear` is about the arrow — it is the
+ * projectile going. A `hit` is about the blow: it plays on whatever was struck,
+ * the arrow is never that, and its plume is thrown into the world by
+ * {@link flightEmitter} instead. A dissolve authored on a `hit` has nothing to
+ * dissolve, so counting it here would buy a material nothing ever writes to.
  */
-const FLIGHT_SIDES = ["appear", "disappear", "hit"] as const;
+const FLIGHT_SIDES = ["appear", "disappear"] as const;
 
 /**
  * Whether this projectile's sides ask anything of its sprite.
@@ -83,7 +87,8 @@ const FLIGHT_SIDES = ["appear", "disappear", "hit"] as const;
  * sprite*, so only they are counted: a side made purely of particles is thrown
  * into the world by {@link flightEmitter} and asks nothing of the arrow, and a
  * side with a `drop` asks for storeys above a cell that a flight does not
- * stand in.
+ * stand in. And only the sides the arrow itself wears are asked at all — see
+ * {@link FLIGHT_SIDES}.
  */
 export function wearsFlightTransition(def: TileDef): boolean {
   return FLIGHT_SIDES.some((side) => {
