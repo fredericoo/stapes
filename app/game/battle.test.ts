@@ -870,7 +870,7 @@ const SPARK: Transition = {
  * other fixture in this file is: what is tested is that a shot names a
  * projectile and plays its sides, not what the shipped arrow is authored as.
  */
-function arrowTile(hit?: Transition): TileDef {
+function arrowTile(hit?: Transition, cellsPerSecond = 20): TileDef {
   return tile({
     id: "arrow",
     height: 0,
@@ -878,10 +878,23 @@ function arrowTile(hit?: Transition): TileDef {
     kind: "projectile",
     intangible: true,
     interactions: {
-      projectile: { cellsPerSecond: 20, ...(hit ? { hit } : {}) },
+      projectile: { cellsPerSecond, ...(hit ? { hit } : {}) },
     },
   });
 }
+
+/**
+ * Two speeds far enough apart that the difference between them is ticks rather
+ * than rounding.
+ *
+ * Both are inside {@link MIN_PROJECTILE_SPEED}..{@link MAX_PROJECTILE_SPEED}, and
+ * the fast one is deliberately *not* the ceiling: a shot that crosses the yard
+ * inside one tick has no travel left to be shorter than.
+ */
+const SLOW_ARROW_CELLS_PER_SECOND = 2;
+/** So a wait can be asserted as a real one rather than as a tick count. */
+const TICKS_IN_A_SECOND = Math.ceil(1000 / TICK_MS);
+const FAST_ARROW_CELLS_PER_SECOND = 40;
 
 /**
  * The catalogue with the player holding this bow, and the arrow it fires in it.
@@ -891,8 +904,12 @@ function arrowTile(hit?: Transition): TileDef {
  * looses nothing, which is the behaviour and would make every assertion here
  * pass by never happening.
  */
-function archerTilesArmedWith(weapon: typeof bow, hit?: Transition): TileDef[] {
-  return [arrowTile(hit), ...tiles].map((t) =>
+function archerTilesArmedWith(
+  weapon: typeof bow,
+  hit?: Transition,
+  cellsPerSecond?: number,
+): TileDef[] {
+  return [arrowTile(hit, cellsPerSecond), ...tiles].map((t) =>
     t.id === "player"
       ? tile({
           ...t,
@@ -914,6 +931,11 @@ function archerTilesArmedWith(weapon: typeof bow, hit?: Transition): TileDef[] {
 }
 
 const archerTiles: TileDef[] = archerTilesArmedWith(bow);
+
+/** The same archer, firing an arrow authored at a speed the test picked. */
+function archerTilesFiring(cellsPerSecond: number): TileDef[] {
+  return archerTilesArmedWith(bow, undefined, cellsPerSecond);
+}
 
 /**
  * The same bow, deliberately unreliable where every other fixture here is
@@ -951,6 +973,23 @@ const archerTilesWithWall: TileDef[] = [
 ];
 
 /** The flights the viewer can see, however far along they are. */
+/**
+ * Run until a shot has been loosed *and* has arrived.
+ *
+ * The one thing every ranged assertion about hit points needs, and the reason
+ * it is a helper: a blow now waits out the flight of the arrow that depicts it
+ * (see `./projectile`), so stopping the clock the moment an arrow appears reads
+ * a health bar the shot has not reached yet.
+ */
+function advanceUntilShotLands(session: GameSession) {
+  advanceUntil(session, () => arrows(session).length > 0);
+  // The first arrow by id, not "no arrows left": an archer at this cadence has
+  // the next one in the air before the last has arrived, so waiting for an
+  // empty sky waits for the fight to be over.
+  const shot = arrows(session)[0]!.id;
+  advanceUntil(session, () => !arrows(session).some((f) => f.id === shot));
+}
+
 function arrows(session: GameSession) {
   return session.getSnapshot().projectiles;
 }
@@ -999,20 +1038,162 @@ describe("shooting at somebody", () => {
   });
 
   /**
-   * **The damage is settled when the shot is loosed, not when the arrow lands.**
-   * Hit points come off on the tick the flight begins — see `./projectile` for
-   * why that is the only arrangement two clients can agree about.
+   * **The dice are read when the shot is loosed; the hit points come off when
+   * the arrow arrives.** The two used to be the same tick, which meant a health
+   * bar dropped while the arrow that explained it was still halfway across the
+   * yard. What travels now is the blow itself, held behind its own flight — see
+   * `GameSession.blowsInFlight`, and `./projectile` for why the *outcome* still
+   * cannot wait for a picture two clients draw on two different clocks.
    */
-  it("takes the hit points before the arrow arrives", () => {
+  it("takes no hit points until the arrow arrives", () => {
     const session = new GameSession(withBody(field(6), 4, 0, "dummy"), archerTiles);
     fight(session, bodyOf(session, "dummy")!.id);
 
     advanceUntil(session, () => arrows(session).length > 0);
 
-    expect(arrows(session)[0]!.elapsedMs).toBeLessThan(
-      arrows(session)[0]!.durationMs,
-    );
+    // Mid-flight: the shot is a fact, and the target has felt nothing.
+    const shot = arrows(session)[0]!;
+    expect(shot.elapsedMs).toBeLessThan(shot.durationMs);
+    expect(bodyOf(session, "dummy")!.hp).toBe(DUMMY_MAX_HP);
+
+    advanceUntil(session, () => !arrows(session).some((f) => f.id === shot.id));
+
     expect(bodyOf(session, "dummy")!.hp).toBeLessThan(DUMMY_MAX_HP);
+  });
+
+  /**
+   * **The number and the arrow are one moment**, which is the whole of what this
+   * is for. The tick the flight leaves the sky is the tick the receipt is
+   * drained — not a tick before it, and not one after.
+   *
+   * Read off the session's own flight list rather than off a countdown the test
+   * keeps, so it is the two clocks agreeing rather than the test agreeing with
+   * itself.
+   */
+  it("floats the receipt on the tick the arrow arrives", () => {
+    const session = new GameSession(
+      withBody(field(6), 4, 0, "dummy"),
+      archerTilesFiring(SLOW_ARROW_CELLS_PER_SECOND),
+    );
+    fight(session, bodyOf(session, "dummy")!.id);
+
+    advanceUntil(session, () => arrows(session).length > 0);
+    const shot = arrows(session)[0]!.id;
+    session.setAttackMode(false);
+
+    let ticksWithNoReceipt = 0;
+    for (;;) {
+      session.tick(TICK_MS);
+      const stillFlying = arrows(session).some((f) => f.id === shot);
+      const receipts = session.drainDamage();
+      if (stillFlying) {
+        // Every tick the arrow is still in the air is a tick nothing is said.
+        expect(receipts).toHaveLength(0);
+        ticksWithNoReceipt++;
+        continue;
+      }
+      expect(receipts).toHaveLength(1);
+      expect(receipts[0]!.outcome).toBe("hit");
+      break;
+    }
+
+    // And the wait was a real one, or the assertion above held over no ticks at
+    // all: two cells a second across four cells is most of two seconds.
+    expect(ticksWithNoReceipt).toBeGreaterThan(TICKS_IN_A_SECOND);
+  });
+
+  /**
+   * **A blow may not take more than the target has left by the time it gets
+   * there.** The trim used to happen beside the dice, which was the same tick
+   * the blow landed on and so could not be wrong. It can be wrong now: an arrow
+   * crossing a yard gives everything else in the world time to take that health
+   * first, and a figure capped against what the target had when the bow was
+   * drawn is a receipt for hit points somebody else already collected — and,
+   * worse, an experience payout for them. Two archers on one dying wolf would
+   * both have been paid for killing it.
+   */
+  it("never takes more than the target has left when it finally lands", () => {
+    const session = new GameSession(
+      withBody(field(6), 4, 0, "dummy"),
+      archerTilesFiring(SLOW_ARROW_CELLS_PER_SECOND),
+    );
+    const dummy = bodyOf(session, "dummy")!.id;
+    fight(session, dummy);
+
+    advanceUntil(session, () => arrows(session).length > 0);
+    const shot = arrows(session)[0]!;
+    // One shot only, so the receipt drained below belongs to this arrow and to
+    // nothing else the archer got out in the two seconds it is in the air.
+    session.setAttackMode(false);
+
+    // And in the meantime, something else takes the dummy down to its last
+    // point. Drained, so the receipt that floated for *that* is not counted as
+    // this shot's.
+    session.runCommand(`/health 1 ${dummy}`);
+    session.drainDamage();
+
+    advanceUntil(session, () => !arrows(session).some((f) => f.id === shot.id));
+
+    const receipts = session
+      .drainDamage()
+      .filter((receipt) => receipt.outcome === "hit");
+    expect(receipts).toHaveLength(1);
+    expect(receipts[0]!.amount).toBe(1);
+  });
+
+  /**
+   * And a blow that arrives at nobody does nothing at all. The arrow was loosed
+   * and finishes its flight — see `./projectile` — but there is no longer a
+   * body at the far end of it, and the world keeps running.
+   */
+  it("lands on a body that died mid-flight without saying anything", () => {
+    const session = new GameSession(
+      withBody(field(6), 4, 0, "dummy"),
+      archerTilesFiring(SLOW_ARROW_CELLS_PER_SECOND),
+    );
+    const dummy = bodyOf(session, "dummy")!.id;
+    fight(session, dummy);
+
+    advanceUntil(session, () => arrows(session).length > 0);
+    const shot = arrows(session)[0]!;
+    session.setAttackMode(false);
+
+    session.runCommand(`/health 0 ${dummy}`);
+    session.drainDamage();
+    expect(bodyOf(session, "dummy")).toBeUndefined();
+
+    advanceUntil(session, () => !arrows(session).some((f) => f.id === shot.id));
+
+    expect(session.drainDamage()).toHaveLength(0);
+  });
+
+  /**
+   * And the delay is the *flight's*, not a constant: a slow projectile takes
+   * its target's health later than a fast one over the same distance. This is
+   * the whole of what the feature buys, so it is asserted against the clock
+   * rather than inferred from the arrow having gone.
+   */
+  it("makes a slower arrow take its hit points later", () => {
+    const shotLandsAfter = (cellsPerSecond: number) => {
+      const session = new GameSession(
+        withBody(field(6), 4, 0, "dummy"),
+        archerTilesFiring(cellsPerSecond),
+      );
+      fight(session, bodyOf(session, "dummy")!.id);
+      advanceUntil(session, () => arrows(session).length > 0);
+
+      let waited = 0;
+      advanceUntil(session, () => {
+        if ((bodyOf(session, "dummy")!.hp ?? 0) < DUMMY_MAX_HP) return true;
+        waited += TICK_MS;
+        return false;
+      });
+      return waited;
+    };
+
+    expect(shotLandsAfter(SLOW_ARROW_CELLS_PER_SECOND)).toBeGreaterThan(
+      shotLandsAfter(FAST_ARROW_CELLS_PER_SECOND),
+    );
   });
 
   /**
@@ -1033,6 +1214,13 @@ describe("shooting at somebody", () => {
    * including one armour ate entirely — a `miss` receipt for a shot that went
    * wide, and nothing at all for a dodge, which says what it has to say by
    * hopping.
+   *
+   * **The receipt is drained against the tick the arrow arrives on**, which is
+   * the tick the blow now lands on — so each shot is held here for its own
+   * `durationMs` before it is paired, on the same countdown
+   * `GameSession.blowsInFlight` holds it on. Pairing it against the tick it was
+   * *loosed* on is what this test used to do, and it is exactly the behaviour
+   * that changed.
    */
   it("marks a shot hit only when the blow connected", () => {
     const session = new GameSession(
@@ -1044,16 +1232,28 @@ describe("shooting at somebody", () => {
 
     let connected = 0;
     let missedOrDodged = 0;
+    let inTheAir: { hit: boolean; remainingMs: number }[] = [];
     for (let elapsed = 0; elapsed < ENOUGH_SHOTS_MS; elapsed += TICK_MS) {
       session.tick(TICK_MS);
-      const loosed = session.drainProjectiles();
       const landed = session
         .drainDamage()
         .some((receipt) => receipt.outcome === "hit");
-      for (const flight of loosed) {
+
+      const arriving: typeof inTheAir = [];
+      const stillFlying: typeof inTheAir = [];
+      for (const shot of inTheAir) {
+        shot.remainingMs -= TICK_MS;
+        (shot.remainingMs <= 0 ? arriving : stillFlying).push(shot);
+      }
+      inTheAir = stillFlying;
+      for (const shot of arriving) expect(shot.hit).toBe(landed);
+
+      // Drained after the countdown, so a shot loosed on this tick starts its
+      // flight on the next one — the order the session itself winds them on.
+      for (const flight of session.drainProjectiles()) {
         if (flight.hit) connected++;
         else missedOrDodged++;
-        expect(flight.hit).toBe(landed);
+        inTheAir.push({ hit: flight.hit, remainingMs: flight.durationMs });
       }
     }
 
@@ -1242,7 +1442,7 @@ describe("a bow and a knife", () => {
     );
     fight(session, bodyOf(session, "dummy")!.id);
 
-    advanceUntil(session, () => arrows(session).length > 0);
+    advanceUntilShotLands(session);
 
     expect(bodyOf(session, "dummy")!.hp).toBeLessThan(DUMMY_MAX_HP);
   });
@@ -1308,7 +1508,7 @@ describe("a bow and a knife", () => {
     );
     fight(session, bodyOf(session, "dummy")!.id);
 
-    advanceUntil(session, () => arrows(session).length > 0);
+    advanceUntilShotLands(session);
 
     expect(bodyOf(session, "dummy")!.hp).toBeLessThan(DUMMY_MAX_HP);
   });

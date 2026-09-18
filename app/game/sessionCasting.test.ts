@@ -689,6 +689,25 @@ function run(play: GameSession, ticks: number) {
 /** One second of simulated time, which is the grain a cooldown moves in. */
 const TICKS_PER_SECOND = Math.ceil(1000 / TICK_MS);
 
+/**
+ * Run until the sky is empty, which for one cast is "the bolt got there".
+ *
+ * **A bolt's effect now waits out the bolt's flight** — see
+ * `GameSession.blowsInFlight` — so a health bar read on the tick the stone was
+ * pressed is read before anything has happened to it. Nothing here casts twice,
+ * so there is never a second bolt to be waiting on.
+ *
+ * Bounded, because a test that hangs says nothing: the slowest projectile these
+ * fixtures author crosses this board in a small fraction of a second.
+ */
+function runUntilNothingIsFlying(play: GameSession) {
+  for (let i = 0; i < TICKS_PER_SECOND * 2; i++) {
+    if (play.getSnapshot().projectiles.length === 0) return;
+    play.tick(TICK_MS);
+  }
+  throw new Error("a bolt never arrived");
+}
+
 /** Which way the caster is looking, read off the body at the origin. */
 function facingOfCaster(play: GameSession): string | undefined {
   return getStack(play.getMap(), 0, 0, 0).find((p) => p.tileId === "player")
@@ -1540,8 +1559,16 @@ describe("a bolt thrown at somebody", () => {
     return { play, target, before: hpOf(play, target)! };
   }
 
-  const took = (play: GameSession, target: string, before: number) =>
-    before - hpOf(play, target)!;
+  /**
+   * How much this bolt took, once it has arrived.
+   *
+   * The run in the middle is the whole of what changed: a bolt takes its
+   * target's health when it gets there, not when the stone was pressed.
+   */
+  const took = (play: GameSession, target: string, before: number) => {
+    runUntilNothingIsFlying(play);
+    return before - hpOf(play, target)!;
+  };
 
   /** What is running on a body, by the status each instance came from. */
   const statusIdsOf = (play: GameSession, id: string) =>
@@ -1623,8 +1650,8 @@ describe("a bolt thrown at somebody", () => {
   });
 
   /**
-   * A receipt in the air, on the terms an arrow is one: loosed when the cast is
-   * made, and purely a picture — the health has already moved.
+   * The bolt in the air, loosed when the cast is made. What it depicts no
+   * longer arrives ahead of it — see the case below.
    */
   it("puts its projectile in the air", () => {
     const { play } = boltAt("bolt-stone");
@@ -1635,6 +1662,24 @@ describe("a bolt thrown at somebody", () => {
     expect(flights[0]!.tileId).toBe("arcane-mote");
     expect(flights[0]!.from.x).toBe(0);
     expect(flights[0]!.to.x).toBe(RAT_CELL.x);
+  });
+
+  /**
+   * **And the health waits for it.** A bolt crossing a yard takes its target's
+   * health when it gets there, on exactly the terms an arrow does — see
+   * `GameSession.blowsInFlight`. The dice were still read the moment the stone
+   * was pressed; what waits is what they came to.
+   */
+  it("takes nothing until the bolt arrives", () => {
+    const { play, target, before } = boltAt("bolt-stone");
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
+
+    // In the air, and the rat has felt nothing.
+    expect(play.getSnapshot().projectiles).toHaveLength(1);
+    expect(hpOf(play, target)).toBe(before);
+
+    runUntilNothingIsFlying(play);
+    expect(hpOf(play, target)).toBeLessThan(before);
   });
 
   /** And nothing flies at your own body, which has no distance to cross. */
@@ -1657,6 +1702,11 @@ describe("a bolt thrown at somebody", () => {
     const { play } = boltAt("bolt-stone");
     const before = play.masteryXpOf("local")?.arcane ?? 0;
     expect(play.cast(squareSlot("weapon"))).toBe(true);
+    // Paid on arrival, with the damage: what the bolt did is not a fact about
+    // the world until the bolt has got there. The flat fee for pressing the
+    // stone is the half that is already in the ledger by now, which is why the
+    // comparison is against `before + XP_PER_CAST` rather than `before`.
+    runUntilNothingIsFlying(play);
     expect(play.masteryXpOf("local")?.arcane ?? 0).toBeGreaterThan(
       before + XP_PER_CAST,
     );
@@ -1747,6 +1797,7 @@ describe("a harming stone worn as a charm", () => {
     const theirs = hpOf(play, target)!;
 
     expect(play.cast(squareSlot("charm"))).toBe(true);
+    runUntilNothingIsFlying(play);
     expect(hpOf(play, target)).toBeLessThan(theirs);
     expect(hpOf(play)).toBe(mine);
   });

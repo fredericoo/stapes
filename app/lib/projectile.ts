@@ -47,13 +47,18 @@ import type { TileDef } from "./types";
  * is loosed and goes when it lands. Only {@link ProjectileBlock.hit} is new,
  * because only it is a claim about the fight.
  *
- * ## Purely a picture, with one exception that proves it
+ * ## Purely a picture, and the one field that is not
  *
- * Nothing here changes a hit point. The one field the simulation reads is
- * {@link ProjectileBlock.cellsPerSecond}, and it reads it only to decide how
- * long the drawing lasts — see `../game/projectile`, which argues why a blow is
- * settled on the tick the shot is loosed and the arrow is a receipt arriving
- * late.
+ * Nothing here decides what a blow comes to. The one field the simulation reads
+ * is {@link ProjectileBlock.cellsPerSecond}, and what it decides is *when*: how
+ * long the drawing lasts, and — the same number — how long the blow it depicts
+ * waits before it takes anybody's health. See `../game/projectile`, which argues
+ * why the outcome is still settled on the tick the shot is loosed even though
+ * its consequences are not.
+ *
+ * So an author editing this speed is editing the game's timing as well as its
+ * art: an arrow at one cell a second is nearly a second of a six-cell shot
+ * during which the target has not been hit yet.
  */
 
 /**
@@ -107,6 +112,10 @@ export type ProjectileBlock = {
    * one — which is the only thing in the animation carrying any information
    * about distance. A fixed duration would make a shot crossing six cells look
    * exactly like one crossing two, at wildly different apparent speeds.
+   *
+   * **And it is felt, not only seen.** The blow waits out the flight, so this
+   * is what makes a lobbed stone hurt later than a loosed arrow across the same
+   * yard. @see `../game/projectile`
    *
    * **On the projectile rather than on what fires it**, which is what moved
    * when this became a kind. Three bows used to state it three times, and the
