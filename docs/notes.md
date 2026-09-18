@@ -581,17 +581,92 @@ their tile off the board, and at that moment the map stops being the record. So
 positions are kept a second time, per actor, under `pos:<id>` — and the two are
 not redundant.
 
-**A third row says where they *started*.** `spawn:<id>` is written once, the
-first time the world sees somebody, and never rewritten: where you entered is a
-different fact from where you are, and it does not move when you do. A death
-overwrites `pos:` with it, which is the whole of respawning — asked for from the
-death screen's Rebirth button, or by reloading. Today every row
-holds the same coordinates — a map has one authored `player` marker — and
-keeping it per player is what lets a death answer the question without asking a
-map that may since have been re-authored out of it. `replaceWorld` drops the
-rows wholesale for exactly that reason: a save can move the marker, and a
-remembered door into a building that no longer stands is worse than no memory
-at all.
+**A third row says where they come back.** `spawn:<id>` is minted the first
+time the world sees somebody: where you come back is a different fact from where
+you are, and it does not move when you do. A death overwrites `pos:` with it,
+which is the whole of respawning — asked for from the death screen's Rebirth
+button, or by reloading. Keeping it per player is what lets a death answer the
+question without asking a map that may since have been re-authored out of the
+marker. `replaceWorld` drops the rows wholesale for exactly that reason: a save
+can move the marker, and a remembered door into a building that no longer stands
+is worse than no memory at all.
+
+**The row moves, and a tile is what moves it.** It was write-once until the
+respawn point existed, on the grounds that every row held the same coordinates
+anyway — a map has one authored `player` marker. Now a `setSpawn` block on any
+tile is a place you can take as your own: press it and the row becomes the cell
+you are standing in. The block is deliberately the thinnest one in
+`interactions.ts` — an `ActivationTrigger` and an optional verb, and *no
+destination*. An author picks the gesture, and the cell is the placement's own.
+
+**The cell recorded is the marker's, never the presser's.** The marker *is* the
+place, which is the whole of what one is, so a marker two people press from two
+sides is one place and it is the place they can both point at. The presser's
+cell would make a respawn point mean something slightly different for everybody
+who used it. Whether a body can stand in that cell is deliberately not asked: a
+marker may be solid, and `findEntryCell` already bubbles outward from a
+remembered cell and takes the first with room. A mark has always been a *wish*
+rather than a promise, because the world keeps changing around it either way.
+
+For `respawn-point` the question does not arise — it is flat, walkable and
+`interactOver`, so the only body that can press it is one standing on it. The
+rule still has to be stated the general way, because an author can hang the
+block on a bed you press from beside. It is also the one tile in the catalogue
+that makes no pretence of being a thing in the world: it is called "Respawn
+Point" and its row says "Set respawn point", which is a label for the player
+rather than for the character. Its sheet is generated (`bun run
+generate:respawn`) rather than drawn, because eight by eight pixels of geometry
+is reviewable in a diff and a committed PNG is not.
+
+The chain is the status block's, one for one — `resolveSetSpawn`,
+`reachableSetSpawnAt`, `GameSession.activateSetSpawn`, and
+`spawnMarkOnArrival` for the `step` trigger, which is a temple doorway that
+claims you as you walk through it. Two things are its own:
+
+- **A mark that does not move costs nothing.** `markSpawn` refuses a cell that
+  is already the mark. Without that a `step` block would be a durable write and
+  a sentence per stride. The two callers want opposite things from the refusal
+  and both read it: a *press* says "You already respawn here" and spends the tap
+  anyway — nothing about the board refused it, so falling through to whatever
+  else the tile offers would make `canInteract` disagree with `interact` — while
+  an *arrival* says nothing at all.
+- **The list says it before the press does.** A row on the marker you are
+  already anchored to is drawn grey and *renamed*: "You respawn here" rather
+  than "Set respawn point". `spawnBlock` asks the same question `markSpawn`
+  asks before refusing — is this marker's cell the mark — so the grey and the
+  refusal agree by being one question in two places rather than two questions
+  that happen to line up. It is the one `OptionBlock` arm that replaces the
+  verb instead of putting a reason beside it, and the one label in
+  `interactionOptions` that is a state rather than a verb — both exceptions
+  earned by the same fact, that nothing lifts this block. Every other grey row
+  keeps its verb because the verb is still what pressing it will do once the
+  reason clears; this one says the press has already happened. The sentence
+  stays as the answer to a tap on the *world*, which the list never gated.
+- **The client is told the mark, and only so that row can go grey.**
+  `GameSnapshot.spawnAt` rides in on the `hello` and is moved by a `spawnPoint`
+  message, both addressed to the one socket they are about, on exactly the terms
+  a kit and a tag are: nobody else's respawn point is drawn anywhere. Sent after
+  the record has moved, never before. Null means "nothing has told us yet" and
+  leaves the row live — a grey button that would have worked is a worse lie than
+  a live one that turns out to be a no-op, and the no-op answers in words.
+- **The session holds a copy of the row, and only to answer that question.**
+  `ActorRuntime.spawnMark` is seeded by `GameServer.seatActor` and drained by
+  `flushSpawnMarks`; the record is still the storage row. Without the copy the
+  session would have to queue a write and a sentence on every press and let the
+  server discard both.
+
+`flushSpawnMarks` writes *through* `rememberSpawn`'s cache rather than behind
+it — that cache is read once per connection and trusted from then on, so a write
+that reached only storage would leave the instance putting people back at their
+first cell for the rest of the world's life. It runs before `noteDeaths` in the
+tick for the same kind of reason: a `step` block and the blow that kills you can
+land in one tick, and the death writes `pos:` by reading the cache. It is
+drained from the message chain too, because a press arrives between ticks. The
+facing never moves — a door is not a footprint, and somebody who anchored
+themselves walking north has said nothing about which way they want to be
+looking. A creature is refused outright: its return is a `SpawnPoint` the server
+owes it at its authored cell (`respawn.ts`), which is a different fact about a
+different kind of body, and `resident` is the test.
 
 **The write must not gate the broadcast.** The platform used to hold outgoing
 messages until preceding writes were durable, which was right for anything the

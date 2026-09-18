@@ -19,6 +19,7 @@ import type { ExtractInteraction } from "../lib/interactions";
 import {
   resolveAddStatus,
   resolveExtract,
+  resolveSetSpawn,
   resolveSwitch,
   resolveTeleport,
 } from "../lib/interactions";
@@ -88,6 +89,7 @@ import {
   canAddStatusFrom,
   canConsumeFrom,
   canEquipFrom,
+  canSetSpawnFrom,
   canTalkFrom,
   dropDestinationAt,
   canPickUpFrom,
@@ -100,6 +102,7 @@ import {
   interactiveDefAt,
   reachableAddStatusAt,
   reachableRewardAt,
+  reachableSetSpawnAt,
   reachableTeleportAt,
   rewardFits,
   teleportFits,
@@ -117,6 +120,8 @@ import {
   healthNotice,
   noRoomToLeaveNotice,
   rewardNotice,
+  spawnMarkNotice,
+  spawnMarkUnchangedNotice,
   statusAcquiredNotice,
   otherStatusNotice,
   statusesClearedNotice,
@@ -793,6 +798,21 @@ export type GameSnapshot = {
    * interaction list on it without walking the list.
    */
   tags: readonly string[];
+  /**
+   * Where the viewer comes back after a death, or null where nothing has said.
+   *
+   * Theirs alone on exactly the terms {@link tags} is, and for the same reason
+   * a kit is: nobody else's respawn point is drawn, and broadcasting everyone's
+   * would be fan-out for something no frame can show.
+   *
+   * **Here so a row can go grey**, and for nothing else. The mark is the
+   * server's — see `GameServer`'s `spawn:` rows — and the client is told it so
+   * that the respawn point it is already standing on can say so rather than
+   * offering a press that would change nothing. Null means "nothing has told us
+   * yet", which reads as a live row: a grey button that would have worked is a
+   * worse lie than a live one that turns out to be a no-op.
+   */
+  spawnAt: Coord | null;
   /**
    * Where the viewer is in a conversation, or null when no panel is open.
    *
@@ -1658,6 +1678,26 @@ type ActorRuntime = {
    */
   home: Coord | null;
   /**
+   * Where this body comes back after a death, or null for one that does not
+   * come back at all.
+   *
+   * The counterpart of {@link home} and its exact opposite in every way that
+   * matters. A creature's birthplace is authored, permanent and derived; a
+   * player's door is chosen, movable and *durable* — it lives in `GameServer`'s
+   * `spawn:` row, which is the record, and this is the session's copy of it.
+   *
+   * Held here for one reason: so that a press on a marker can tell whether it
+   * would change anything. Without it the session would have to queue a write
+   * and a sentence on every press and let the server discard both, which makes
+   * a `step` block you walk across say its line once a stride. So the server
+   * seeds it on {@link GameSession.spawn} and drains the changes — see
+   * {@link GameSession.drainSpawnMarks} — and the session never reads it for
+   * anything else. Null for a resident, who has no such row, and for a body the
+   * server said nothing about, which reads as "unknown, so the first press
+   * moves it".
+   */
+  spawnMark: Coord | null;
+  /**
    * Hit points, or null for a body that has never had any read.
    *
    * Filled on first use rather than at creation, which is what makes it free:
@@ -2373,6 +2413,19 @@ export class GameSession implements PlaySession {
    */
   private pendingDeaths: Death[] = [];
   /**
+   * Who moved where they come back to this tick, waiting to be written down.
+   *
+   * The same shape of queue {@link pendingDeaths} is and for the same reason:
+   * the session can hold the fact but cannot make it durable, and the row that
+   * *is* the answer belongs to the server. Drained rather than diffed, on a
+   * death's terms — a caller that dropped one would leave a player's stored door
+   * disagreeing with the one they were told about.
+   *
+   * At most one entry per actor per drain, because a second press in the same
+   * tick lands on a mark the first one already moved and is refused for it.
+   */
+  private pendingSpawnMarks: { actorId: string; at: Coord }[] = [];
+  /**
    * The creature-driven emitters the last settle pass saw, as a signature.
    *
    * A brain entering or leaving a state that holds a channel changes nothing on
@@ -2529,6 +2582,7 @@ export class GameSession implements PlaySession {
       earned?: MasteryXp;
       statuses?: readonly StatusInstance[];
       hp?: number;
+      spawnAt?: Coord;
     } = {},
   ): ActorRuntime {
     const resident = opts.resident === true;
@@ -2582,6 +2636,11 @@ export class GameSession implements PlaySession {
       brainAttentive: false,
       conversation: null,
       home: residentHome(id),
+      // The server's to supply and the server's to keep — see
+      // {@link ActorRuntime.spawnMark}. Null for a resident and for any world
+      // with no storage behind it, both of which read the same way: the first
+      // press moves a mark nobody was holding.
+      spawnMark: opts.spawnAt ?? null,
       // Restored where a returning player had any, and null otherwise — null
       // still means "ask the tile", which is what a fresh body and every
       // creature in the world wants. A stored zero would be a corpse, so it
@@ -2675,7 +2734,7 @@ export class GameSession implements PlaySession {
    * identity changed, so the next {@link settleBoardNow} will not skip.
    *
    * Everything a returning player brings back with them is one object, because
-   * that is what it is: six facts about the same person, restored together or
+   * that is what it is: seven facts about the same person, restored together or
    * not at all. Omit it entirely for somebody the world has never met.
    */
   spawn(
@@ -2704,6 +2763,14 @@ export class GameSession implements PlaySession {
       statuses?: readonly StatusInstance[];
       /** What health they were on. Omit for a body that comes back full. */
       hp?: number;
+      /**
+       * Where this player has asked to come back, if they have moved it. The
+       * session's copy of the server's `spawn:` row, and the only thing it is
+       * ever read for is deciding whether a press on a marker would change
+       * anything — see {@link ActorRuntime.spawnMark}. Omit for somebody the
+       * world remembers nothing about.
+       */
+      spawnAt?: Coord;
     } = {},
     {
       /**
@@ -4138,6 +4205,25 @@ export class GameSession implements PlaySession {
     const died = this.pendingDeaths;
     this.pendingDeaths = [];
     return died;
+  }
+
+  /**
+   * Everybody who moved their door this tick, handed over once.
+   *
+   * Not clearable by the next tick, on a death's terms rather than a noise's:
+   * the session's copy has *already* moved by the time this is called, so a
+   * caller that missed one would leave the world believing a player comes back
+   * somewhere storage has never heard of — and the first press that would have
+   * corrected it is the one refused for changing nothing.
+   *
+   * Drained by the server both after a tick and after a message, because unlike
+   * a death this can happen between ticks: pressing a bed is an interaction, and
+   * an interaction arrives whenever it arrives. @see `GameServer.flushSpawnMarks`
+   */
+  drainSpawnMarks(): { actorId: string; at: Coord }[] {
+    const moved = this.pendingSpawnMarks;
+    this.pendingSpawnMarks = [];
+    return moved;
   }
 
   /**
@@ -9678,6 +9764,134 @@ export class GameSession implements PlaySession {
     return true;
   }
 
+  canSetSpawn(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actor(id);
+    if (!this.idle(actor)) return false;
+    if (actor.resident) return false;
+    return canSetSpawnFrom(this.map, this.tilesById, this.locate(actor), ref);
+  }
+
+  /**
+   * Move where whoever pressed this comes back to. Returns false only when the
+   * gesture is not on offer at all — see below for why a press that moves
+   * nothing still counts.
+   *
+   * The pressed half only — a `step` one never arrives here, because there is no
+   * press to route. See {@link spawnMarkOnArrival}, which fires those.
+   *
+   * **Only somebody who comes back at all**, which is the one refusal the board
+   * cannot answer: a creature's return is a `SpawnPoint` the server owes it at
+   * its authored cell, and nothing about a rat pressing a bed could move that.
+   * `resident` is the exact test, and it is the same one {@link say} already
+   * runs — a line queued for a body with no owner is one nobody ever takes away.
+   */
+  activateSetSpawn(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actor(id);
+    if (!this.idle(actor)) return false;
+    if (actor.resident) return false;
+
+    const loc = this.locate(actor);
+    if (!reachableSetSpawnAt(this.map, this.tilesById, loc, ref)) return false;
+
+    // **The marker's cell, not the presser's.** For the shipped tile they are
+    // the same cell — it is pressed from on top of it — and where an author
+    // makes them differ, the marker is the honest answer: two people pressing
+    // one marker from two sides should come back to one place, and that place
+    // should be the thing they can see.
+    //
+    // **Answered either way, and the tap is spent either way.** A press on the
+    // marker you are already anchored to is not a press that failed — nothing
+    // about the board refused it — so it must not fall through to whatever else
+    // the tile offers, and `canInteract` would disagree with this method if it
+    // did. It gets the other sentence instead, on `./notices`'s second rule: a
+    // refusal shows as nothing occurring, and a press on this block shows as
+    // nothing occurring even when it works.
+    if (!this.markSpawn(actor, ref)) {
+      this.say(actor.id, spawnMarkUnchangedNotice());
+    }
+    return true;
+  }
+
+  /**
+   * Write this cell down as where the actor comes back, and say so.
+   *
+   * **The cell handed in is always a marker's**, never a presser's, and that is
+   * what makes the mark a thing in the world rather than a footprint: a marker
+   * two people press from two sides is one place, and it is the place they can
+   * both see. Whether anybody can *stand* there is not asked — the marker may
+   * be solid, and a rebirth resolves that the way a remembered position already
+   * does, by bubbling outward from it. @see findEntryCell
+   *
+   * **Refuses a move to where the mark already is**, and that refusal is what
+   * makes the whole block safe to author on a floor: a `step` one is asked on
+   * every arrival, so without it walking back and forth across a marker would
+   * be a storage write and a sentence per stride. It also makes pressing one
+   * twice read correctly — the second press is not a second thing happening.
+   *
+   * The cell only, with no facing. A door is not a footprint — the same reason
+   * `GameServer.rememberSpawn` stamps a fresh body's own direction on the row
+   * rather than whichever way somebody happened to be looking.
+   *
+   * Returns whether anything moved. Not whether the gesture counted — the two
+   * callers want opposite things from a mark that did not move, and both of
+   * them read this: {@link activateSetSpawn} says so and spends the tap anyway,
+   * while {@link spawnMarkOnArrival} says nothing, which is the whole of what
+   * makes a `step` block cost nothing to walk across.
+   */
+  private markSpawn(actor: ActorRuntime, at: Coord): boolean {
+    const cell = { x: at.x, y: at.y, z: at.z };
+    const mark = actor.spawnMark;
+    if (mark && mark.x === cell.x && mark.y === cell.y && mark.z === cell.z) {
+      return false;
+    }
+    actor.spawnMark = cell;
+    this.pendingSpawnMarks.push({ actorId: actor.id, at: cell });
+    this.say(actor.id, spawnMarkNotice());
+    return true;
+  }
+
+  /**
+   * Take the cell this actor has just arrived in as their door, if what they
+   * landed on says so.
+   *
+   * The `step` trigger, and the twin of {@link statusOnArrival} and
+   * {@link teleportOnArrival}: asked once per tick per actor whose cell
+   * changed, and read top down so a pad with a rug over it can be buried by its
+   * author.
+   *
+   * **After the status and before the teleport**, which is the order the other
+   * two already fix between themselves and the only one this can sit in
+   * sensibly: a temple floor that also burns you should burn you where you
+   * stood, and one that also leads somewhere must mark the cell you walked onto
+   * rather than the one it is about to put you in.
+   *
+   * A resident is passed over on {@link activateSetSpawn}'s own argument, and
+   * the check is here rather than inside {@link markSpawn} because this is the
+   * path a herd of deer would otherwise run through every time one crossed the
+   * cell.
+   */
+  private spawnMarkOnArrival(actor: ActorRuntime) {
+    if (actor.resident) return;
+
+    const loc = this.locate(actor);
+    const stack = getStack(this.map, loc.x, loc.y, loc.z);
+
+    for (let i = stack.length - 1; i >= 0; i--) {
+      // Their own body, and anything riding above it. Neither is the floor they
+      // stepped onto.
+      if (i >= loc.stackIndex) continue;
+      const placed = stack[i]!;
+      const def = this.tilesById[placed.tileId];
+      const setSpawn = def ? resolveSetSpawn(def) : null;
+      if (!setSpawn || setSpawn.trigger !== "step") continue;
+      // The marker's cell, as everywhere — and on this path it is also the
+      // cell the body is standing in, because the only way to set a `step`
+      // block off is to be on top of it.
+      this.markSpawn(actor, { x: loc.x, y: loc.y, z: loc.z });
+      return;
+    }
+  }
+
   /**
    * Take on whatever this actor has just arrived on top of.
    *
@@ -9891,6 +10105,10 @@ export class GameSession implements PlaySession {
       // burn the hand that lit it should light the room: the half of the tap the
       // player can see is the half they were aiming at.
       this.activateAddStatus(ref, id) ||
+      // Below the status, on the status's own argument one rung further down: a
+      // shrine authored to both bless you and take you as its own spends the tap
+      // on the blessing, which is the half that shows.
+      this.activateSetSpawn(ref, id) ||
       // Below every authored swap and above everything to do with carrying,
       // which is where an explicit authored act belongs. It can never actually
       // compete with one of them: a tile that both opened a door and could be
@@ -9911,6 +10129,7 @@ export class GameSession implements PlaySession {
       this.canTeleport(ref, id) ||
       this.canSwitch(ref, id) ||
       this.canAddStatus(ref, id) ||
+      this.canSetSpawn(ref, id) ||
       this.canExtract(ref, id) ||
       this.canEquip(ref, id) ||
       this.canPickUp(ref, id) ||
@@ -9951,16 +10170,19 @@ export class GameSession implements PlaySession {
   /**
    * Whatever the cell an actor has just reached does to them.
    *
-   * The two `step` triggers, in the order {@link statusOnArrival} argues for:
-   * the floor burns you and then takes you elsewhere, so a trapdoor of fire is
-   * a tile the traveller was in rather than one they were never on.
+   * The three `step` triggers, in the order {@link statusOnArrival} argues for:
+   * the floor burns you, takes you as its own, and then sends you elsewhere —
+   * so a trapdoor of fire is a tile the traveller was in rather than one they
+   * were never on, and a temple floor with a portal in it marks the cell walked
+   * onto rather than the one it is about to lead to.
    *
-   * A pair rather than two calls at each site, because "arriving" is one event
-   * with two consequences and a caller that ran half of it would be a cell that
-   * half works — see {@link push}, which is the caller that is not motion.
+   * One call rather than three at each site, because "arriving" is one event
+   * with three consequences and a caller that ran some of them would be a cell
+   * that half works — see {@link push}, which is the caller that is not motion.
    */
   private arriveIn(actor: ActorRuntime) {
     this.statusOnArrival(actor);
+    this.spawnMarkOnArrival(actor);
     this.teleportOnArrival(actor);
   }
 
@@ -10060,6 +10282,7 @@ export class GameSession implements PlaySession {
       attacking: self.attacking,
       equipment: self.equipment,
       tags: self.tags,
+      spawnAt: self.spawnMark,
       conversation: self.conversation,
       extracting: this.extractionOf(self.id),
       nextBlow: this.nextBlowOf(self.id),

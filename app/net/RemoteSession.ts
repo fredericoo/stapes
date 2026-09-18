@@ -46,6 +46,7 @@ import {
   canRewardFrom,
   canSwitchFrom,
   canAddStatusFrom,
+  canSetSpawnFrom,
   canTeleportFrom,
   type ObjectRef,
 } from "../game/affordances";
@@ -369,6 +370,16 @@ export class RemoteSession implements PlaySession {
    * its identity is what tells the renderer to rebuild its rows.
    */
   private tags: readonly string[] = NO_TAGS;
+  /**
+   * Where this player comes back, as the server last said — see
+   * `GameSnapshot.spawnAt`, which is the whole of what it is for.
+   *
+   * Null until the `hello` fills it in, which reads as "nothing has told us
+   * yet" and leaves every respawn point offering a live row. That is the right
+   * way round for a fact that arrives a moment late: a grey button that would
+   * have worked is a worse lie than a live one that turns out to be a no-op.
+   */
+  private spawnAt: Coord | null = null;
   /**
    * Where the viewer is in a conversation, as the server last said. Whole
    * state like the kit and the tags beside it; null is the panel closed.
@@ -711,6 +722,12 @@ export class RemoteSession implements PlaySession {
       // still belongs to the same person, and dropping their tags would hand
       // them every reward in the map a second time.
       this.tags = message.tags;
+      // Same rule again, with the one wrinkle that a world replacement *does*
+      // reach: `replaceWorld` drops every `spawn:` row, so the server re-mints
+      // one and the `hello` carries whatever it came to. Taking it as sent is
+      // what keeps this client agreeing with that rather than holding a mark
+      // for a building that no longer stands.
+      this.spawnAt = message.spawnAt;
       // Same rule a third time. The world may have been replaced under them,
       // but the pull they are half way through is a fact about the last few
       // seconds and the server is still counting it.
@@ -788,6 +805,15 @@ export class RemoteSession implements PlaySession {
     if (message.type === "tags") {
       // Whole state, like the kit beside it.
       this.tags = message.tags;
+      return;
+    }
+
+    if (message.type === "spawnPoint") {
+      // Whole state, like the tags above — it is one cell, so there is no
+      // incremental form. Held only so the respawn point this player is
+      // standing on can draw itself grey; nothing here decides where anybody
+      // actually comes back, which is the server's record and its alone.
+      this.spawnAt = message.at;
       return;
     }
 
@@ -2195,6 +2221,7 @@ export class RemoteSession implements PlaySession {
       attacking: this.attacking,
       equipment: this.equipment,
       tags: this.tags,
+      spawnAt: this.spawnAt,
       conversation: this.conversation,
       extracting: this.extracting,
       nextBlow: this.nextBlow,
@@ -2461,6 +2488,12 @@ export class RemoteSession implements PlaySession {
       // everything this client can drive is a battler, so a row this offers is
       // one the server will honour.
       canAddStatusFrom(this.map, this.tilesById, loc, ref) ||
+      // No wrapper either, on the status's own argument and with less left to
+      // ask: the cell this would record is the one the body is already standing
+      // in. Whether the presser is somebody who comes back at all is the
+      // server's question — everything this client can drive is a player, so a
+      // row this offers is one the server will honour.
+      canSetSpawnFrom(this.map, this.tilesById, loc, ref) ||
       // The same four questions the server asks — how much is left in it, how
       // much of that somebody else is already holding, whether what comes out
       // would fit, and whether this player is already on it — off the same map,

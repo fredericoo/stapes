@@ -14,7 +14,7 @@ import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import { masteryXpBlockSchema, type MasteryXp } from "../lib/mastery";
 import type { Extraction, ExtractionProgress } from "../game/extract";
 import type { Progress } from "../game/progress";
-import type { PlacedTile } from "../lib/types";
+import type { Coord, PlacedTile } from "../lib/types";
 import { TRANSITION_SIDES, type TileTransitionNote } from "../lib/tileTransition";
 import { MAX_CHAT_RAW_LENGTH } from "./chat";
 import { MAX_COMMAND_LENGTH } from "../game/commands";
@@ -799,6 +799,21 @@ export type ServerMessage =
        */
       tags: string[];
       /**
+       * Where this viewer comes back after a death.
+       *
+       * Sent in full on arrival on {@link tags}' terms and for the same
+       * failure: a client that started blank would offer "Set respawn point" on
+       * the very marker the player is already anchored to. Sent here rather
+       * than left to the first `spawnPoint` message, because that one only
+       * fires when the mark *moves* and a mark that has not moved since they
+       * joined is exactly the common case.
+       *
+       * Never null in practice — the server mints a row the first time it sees
+       * anybody — but typed nullable because the client has to behave when a
+       * world with no storage behind it says nothing.
+       */
+      spawnAt: Coord | null;
+      /**
        * The pull this viewer is part-way through, if any.
        *
        * Sent on arrival on {@link tags}' terms and for the same failure: a
@@ -881,6 +896,20 @@ export type ServerMessage =
    * missed, and a dropped tag is a chest that can be opened twice.
    */
   | { type: "tags"; tags: string[] }
+  /**
+   * "Here is where you come back now."
+   *
+   * Addressed to one socket on exactly the terms `tags` is, and whole on them
+   * too — it is one cell, so there is no incremental form to get wrong. Sent
+   * only when the mark moves, which is rare enough that the alternative
+   * (riding along with every patch) would be a coordinate per player per tick
+   * for a number that changes once an hour.
+   *
+   * The client draws nothing from it but a grey row. What *acts* on it is the
+   * server's own `spawn:` record, and this message is sent after that record
+   * has moved rather than before.
+   */
+  | { type: "spawnPoint"; at: Coord }
   /**
    * "Here is where you are in a conversation, and everything said so far."
    *
@@ -1525,6 +1554,10 @@ const serverMessageSchema = v.variant("type", [
     castings: v.optional(v.array(castingPatchSchema), () => []),
     equipment: tolerantEquipmentSchema,
     tags: v.array(v.string()),
+    // Optional with a null default, on `statusIds`' terms: a skew degrades to
+    // "the respawn point you are standing on offers a live row", which costs
+    // one press that answers with a sentence instead of doing anything.
+    spawnAt: v.optional(v.nullable(coordSchema), () => null),
     // Optional with a null default, on `statusIds`' terms: a version skew
     // should degrade to "you are not mining anything" — one refused tap —
     // rather than to a handshake that fails to parse.
@@ -1547,6 +1580,10 @@ const serverMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("tags"),
     tags: v.array(v.string()),
+  }),
+  v.object({
+    type: v.literal("spawnPoint"),
+    at: coordSchema,
   }),
   v.object({
     type: v.literal("conversation"),

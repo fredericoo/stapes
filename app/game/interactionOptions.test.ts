@@ -556,10 +556,10 @@ describe("listInteractionOptions — battlers", () => {
     const deer = actor("npc:deer", "deer", 1, 0, map, 10);
 
     const peaceful = listInteractionOptions(
-      map, tilesById, me, [me, deer], "npc:deer", KIT, null, [], false,
+      map, tilesById, me, [me, deer], "npc:deer", KIT, null, [], null, false,
     );
     const armed = listInteractionOptions(
-      map, tilesById, me, [me, deer], "npc:deer", KIT, null, [], true,
+      map, tilesById, me, [me, deer], "npc:deer", KIT, null, [], null, true,
     );
 
     const lit = (options: InteractionOption[]) =>
@@ -621,6 +621,7 @@ describe("listInteractionOptions — battlers", () => {
         KIT,
         null,
         [],
+        null,
         attacking,
         undefined,
         null,
@@ -884,6 +885,7 @@ describe("listInteractionOptions — stability", () => {
       KIT,
       null,
       [],
+      null,
       false,
       { key: bushKey, remainingMs: 500, durationMs: 1_000 },
       null,
@@ -899,6 +901,7 @@ describe("listInteractionOptions — stability", () => {
       KIT,
       null,
       [],
+      null,
       false,
       null,
       null,
@@ -965,6 +968,7 @@ describe("listInteractionOptions — stability", () => {
       KIT,
       null,
       [],
+      null,
       false,
       null,
       null,
@@ -992,6 +996,7 @@ describe("listInteractionOptions — stability", () => {
       KIT,
       null,
       [],
+      null,
       false,
       null,
       null,
@@ -1039,6 +1044,7 @@ describe("listInteractionOptions — stability", () => {
       KIT,
       null,
       [],
+      null,
       false,
       null,
       null,
@@ -1075,6 +1081,7 @@ describe("listInteractionOptions — stability", () => {
       KIT,
       null,
       [],
+      null,
       false,
       null,
       null,
@@ -1664,6 +1671,7 @@ describe("topInteractionAt", () => {
         KIT,
         null,
         [],
+        null,
         attacking,
       );
 
@@ -1902,7 +1910,7 @@ describe("applyInteraction — the fight and the watch", () => {
     const me = playerAt(map);
     const deer = actor("npc:deer", "deer", 1, 0, map, 10);
     return listInteractionOptions(
-      map, tilesById, me, [me, deer], targetId, KIT, null, [], attacking,
+      map, tilesById, me, [me, deer], targetId, KIT, null, [], null, attacking,
     );
   }
 

@@ -479,6 +479,39 @@ export function otherStatusNotice(name: string, status: string): string {
   return `${name} is ${status}`;
 }
 
+/**
+ * What somebody is told when they move where they come back to.
+ *
+ * A sentence because there is nothing to show. Every other authored
+ * interaction leaves a mark on the board or on the status strip; this one
+ * changes a row in storage that nothing in the view is drawn from, so a press
+ * that said nothing would be indistinguishable from a press that was dropped —
+ * which is the second of the two cases this module exists for.
+ *
+ * "Here" rather than the marker's name, because the player is looking straight
+ * at the thing they just pressed and a line naming it would be telling them
+ * what they can see. It is also the one word that stays true across every tile
+ * an author might hang the block on. "Respawn" rather than anything in the
+ * world's own voice, matching the marker it is said by — see `data/tiles.json`'s
+ * `respawn-point`, which is a label for the player and makes no pretence of
+ * being a thing in the world. @see `SetSpawnInteraction`
+ */
+export function spawnMarkNotice(): string {
+  return "You will respawn here.";
+}
+
+/**
+ * What somebody is told when they press the marker they are already on.
+ *
+ * The other half of {@link spawnMarkNotice}, and it exists for the same reason
+ * that one does: the press worked, nothing about the board refused it, and the
+ * view has no way to show that it landed. Without a sentence the second press
+ * on a bed is indistinguishable from a dropped input.
+ */
+export function spawnMarkUnchangedNotice(): string {
+  return "You already respawn here.";
+}
+
 /** What a body is told when everything running on it is taken off. */
 export function statusesClearedNotice(): string {
   return "Nothing is on you now.";

@@ -5,6 +5,7 @@ import {
   resolveAddStatus,
   resolveExtract,
   resolveRewardDef,
+  resolveSetSpawn,
   resolveSwitch,
   resolveTeleportDef,
   transmuteVerb,
@@ -15,7 +16,7 @@ import {
   equipVerb,
   resolveConsumable,
 } from "../lib/item";
-import type { MapFile, TileDef } from "../lib/types";
+import type { Coord, MapFile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import type { Progress } from "./progress";
 import {
@@ -26,6 +27,7 @@ import {
   canPickUpFrom,
   canPushFrom,
   canRewardFrom,
+  canSetSpawnFrom,
   canSwitchFrom,
   canTeleportFrom,
   equipSlotFrom,
@@ -263,7 +265,19 @@ export type OptionBlock =
    * they finish or are knocked off, which is why it is ranked below
    * {@link noRoom}.
    */
-  | { kind: "taken" };
+  | { kind: "taken" }
+  /**
+   * This *is* where they come back — the one respawn point they are already
+   * anchored to.
+   *
+   * The odd one out here, and the difference is worth naming: the three above
+   * are reasons a row cannot do what it says, and this is a row that has
+   * already been done. Nothing resolves it but walking to another marker, which
+   * is why the row carrying it is also *renamed* — see {@link objectActionLabel}
+   * — rather than left reading "Set respawn point" with a grey reason beside
+   * it. A verb somebody cannot press should not still be asking them to.
+   */
+  | { kind: "here" };
 
 const LABELS: Record<InteractionAction, string> = {
   target: "Target",
@@ -300,6 +314,12 @@ const LABELS: Record<InteractionAction, string> = {
   // leaves you burning says whether you reached into it or knelt at it. See
   // `AddStatusInteraction.actionName`.
   addStatus: "Touch",
+  // The fallback only, on the same terms: nothing derivable from a tile that
+  // changes where you wake up says whether you slept in it or knelt at it. See
+  // `SetSpawnInteraction.actionName`. "Mark" rather than "Rest", because the
+  // fallback has to name what the *player* does to every tile that could carry
+  // the block, and only half of them are things you lie down in.
+  setSpawn: "Mark",
   // The fallback only, on a switch's and a reward's terms: nothing derivable
   // from a tile that hands you a shard says whether you chipped it off or
   // plucked it. See `ExtractInteraction.actionName`.
@@ -391,36 +411,41 @@ const ACTION_ORDER: Record<InteractionAction, number> = {
   // both lights a room and burns the hand that lit it spends the tap on the
   // half the player can see.
   addStatus: 7,
+  // Directly under the status, because it is the same kind of entry — the
+  // other one that changes the *presser* rather than the board — and below it
+  // because a tile authored as both would be a shrine that blesses you and
+  // takes you as its own, and the blessing is the half you can see happen.
+  setSpawn: 8,
   // Below the switch and above everything to do with carrying, which is where
   // an explicit authored act belongs — and it never competes with the tap
   // anyway, since a transmute row is reached by name and a tile that both
   // cooked and swung open would spend its tap on the hinge either way.
-  transmute: 8,
+  transmute: 9,
   // Below the transmute and above everything to do with carrying, which is
   // where the session's own precedence puts it and for the same reason: an
   // explicit authored act comes before lifting a thing off the floor. It never
   // actually competes with the four above it — nobody authors a door you can
   // also mine — and if they did, the hinge is the half the player can see.
-  extract: 9,
+  extract: 10,
   // Above pick-up, and this is the one that decides what a plain tap on a sword
   // does. An empty hand is the strongest thing a player can be saying about what
   // they want done with a weapon on the floor, and stowing it afterwards is one
   // drag; the reverse — fishing a sword back out of a bag you did not mean it to
   // go into — is the annoying direction. It only ever appears when the slot is
   // free, so it cannot take a tap away from anybody who is already armed.
-  equip: 10,
+  equip: 11,
   // Above pick-up, and only ever up against it on a container: a pack you are
   // already wearing the twin of can be taken into a hand now, and a tap that
   // picked it up rather than looking inside would be answering the less
   // interesting of the two questions. Nothing else in the game is both.
-  open: 11,
-  pickUp: 12,
+  open: 12,
+  pickUp: 13,
   // Below pick-up on purpose, and pick-up is what a plain tap on the tile runs:
   // eating destroys the thing where lifting it is reversible, so the row you
   // have to *find* is the destructive one and the gesture you can fire by
   // accident is the safe one.
-  consume: 13,
-  push: 14,
+  consume: 14,
+  push: 15,
 };
 
 /**
@@ -584,6 +609,7 @@ export function listInteractionOptions(
   equipment: Equipment,
   openedRef: ObjectRef | null = null,
   tags: readonly string[] = [],
+  spawnAt: Coord | null = null,
   attacking: boolean = false,
   extracting: Extraction | null = NOTHING_EXTRACTING,
   conversation: Conversation | null = null,
@@ -604,6 +630,7 @@ export function listInteractionOptions(
       equipment,
       openedRef,
       tags,
+      spawnAt,
       extracting,
     ),
   ];
@@ -1012,6 +1039,7 @@ function objectOptions(
   equipment: Equipment,
   openedRef: ObjectRef | null,
   tags: readonly string[],
+  spawnAt: Coord | null,
   extracting: Extraction | null,
 ): InteractionOption[] {
   const out: InteractionOption[] = [];
@@ -1047,6 +1075,7 @@ function objectOptions(
               { x, y, z, stackIndex },
               openedRef,
               tags,
+              spawnAt,
               extracting,
             ),
           );
@@ -1068,6 +1097,7 @@ function slotOptions(
   ref: ObjectRef,
   openedRef: ObjectRef | null,
   tags: readonly string[],
+  spawnAt: Coord | null,
   extracting: Extraction | null,
 ): InteractionOption[] {
   const placed = getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex];
@@ -1133,8 +1163,23 @@ function slotOptions(
     const blocked =
       action === "extract"
         ? extractBlock(map, tilesById, self, equipment, ref, extracting)
-        : null;
-    add(action, objectActionLabel(action, tilesById[placed.tileId]), false, blocked);
+        : action === "setSpawn"
+          ? spawnBlock(ref, spawnAt)
+          : null;
+    add(
+      action,
+      // **The block renames this one rather than annotating it.** Every other
+      // grey row keeps its verb and takes a reason beside it, because the verb
+      // is still what pressing it would do once the reason lifts. Nothing lifts
+      // this one — it says the press has already happened — so a row still
+      // reading "Set respawn point" would be asking for something the player
+      // has. @see OptionBlock's `here` arm.
+      blocked?.kind === "here"
+        ? SPAWN_HERE_LABEL
+        : objectActionLabel(action, tilesById[placed.tileId]),
+      false,
+      blocked,
+    );
   }
 
   // Beside a tap that would arm you, the row that merely puts the thing away:
@@ -1254,6 +1299,10 @@ function objectAction(
   }
   if (canSwitchFrom(map, tilesById, self, ref)) return "switch";
   if (canAddStatusFrom(map, tilesById, self, ref)) return "addStatus";
+  // Below the status, on the session's own precedence. Whether pressing it
+  // would actually *move* the mark is not asked: the row names what a tap on
+  // this tile is for, and a bed you are already anchored to is still a bed.
+  if (canSetSpawnFrom(map, tilesById, self, ref)) return "setSpawn";
   // Neither the pull in progress nor the room is asked here. A resource
   // somebody is already working — or that this player has nowhere to put — is
   // still the row a tap on it names; it simply cannot be pressed, which is
@@ -1300,12 +1349,56 @@ function objectActionLabel(
   if (action === "addStatus") {
     return resolveAddStatus(def)?.actionName?.trim() || LABELS.addStatus;
   }
+  // The whole of it is the def's too, and more completely than any of the
+  // above: there is no placement half of this block at all, not even a
+  // destination — see `resolveSetSpawn`.
+  if (action === "setSpawn") {
+    return resolveSetSpawn(def)?.actionName?.trim() || LABELS.setSpawn;
+  }
   // The whole of it is the def's too — a resource carries no placement half
   // that could name it differently, only one that says how much is left.
   if (action === "extract") {
     return resolveExtract(def)?.actionName?.trim() || LABELS.extract;
   }
   return LABELS[action];
+}
+
+/**
+ * What a row on a respawn point reads when it is *the* respawn point.
+ *
+ * A state rather than a verb, which every other label in this file refuses to
+ * be — see {@link LABELS}, where "Follow" is deliberately not "Following". The
+ * exception is earned by the row being unpressable: the rule exists so that a
+ * row you can press says what pressing it does, and this is the one row in the
+ * game that appears only in order to say that pressing it is unnecessary.
+ *
+ * Reads "You respawn here" rather than naming the marker, because the marker's
+ * name is already the heading of the box this row sits in — see
+ * `../components/InteractionList`, which draws a subject once and its verbs
+ * under it. "Respawn Point / You respawn here" says it; "Respawn Point / You
+ * respawn at the Respawn Point" is the same sentence twice.
+ */
+const SPAWN_HERE_LABEL = "You respawn here";
+
+/**
+ * Is this the marker the viewer already comes back to?
+ *
+ * Asked of **the marker's own cell**, which is what a press would record — see
+ * `SetSpawnInteraction`. That makes this the same comparison
+ * `GameSession.markSpawn` runs before refusing a move, which is the property
+ * worth having: the grey row and the refused press agree because they are one
+ * question asked in two places, rather than two questions that happen to line
+ * up.
+ *
+ * Null `spawnAt` is "nothing has told us yet" and never blocks. A grey button
+ * that would have worked is a worse lie than a live one that turns out to be a
+ * no-op, and the server answers the no-op in words.
+ */
+function spawnBlock(ref: ObjectRef, spawnAt: Coord | null): OptionBlock | null {
+  if (!spawnAt) return null;
+  const here =
+    ref.x === spawnAt.x && ref.y === spawnAt.y && ref.z === spawnAt.z;
+  return here ? { kind: "here" } : null;
 }
 
 /**

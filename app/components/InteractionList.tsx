@@ -6,6 +6,7 @@ import {
   IconGift,
   IconHandGrab,
   IconHandMove,
+  IconMapPin,
   IconMessageCircle,
   IconPick,
   IconShirt,
@@ -113,6 +114,11 @@ const ICONS: Record<InteractionAction, typeof IconTarget> = {
   // covers a blessing too, and the authored verb beside it is what tells them
   // apart — the same trade the transmute row makes below.
   addStatus: IconFlame,
+  // A pin in a map, because what the row does is mark a place and every other
+  // shape that could say it — a bed, a flag, a shrine — names one of the tiles
+  // that might carry the block and misleads about the rest. The same trade the
+  // flame above declines to make and the transform below makes deliberately.
+  setSpawn: IconMapPin,
   // An apple for every consumable, drink included: the icon says "this gets
   // used up", and the authored verb beside it says how.
   consume: IconApple,
@@ -398,15 +404,45 @@ function InteractionBox({
  * grey, and a bar cannot say anything.
  *
  * A pull in progress keeps its bar and needs no words on screen; the phrase
- * here is only what it is announced as. See {@link OptionBlock}.
+ * here is only what it is announced as — see {@link drawnBlockReason}, which is
+ * the half the column draws. See {@link OptionBlock}.
+ *
+ * Exported for the test, on {@link fillElapsedMs}'s terms.
  */
-function blockReason(blocked: OptionBlock): string {
+export function blockReason(blocked: OptionBlock): string | null {
   if (blocked.kind === "working") return "working";
   // "In use" rather than "somebody is mining it": the column is eleven pixels
   // of type wide, and which of the people standing there is holding it is not
   // something the player can do anything with.
   if (blocked.kind === "taken") return "in use";
+  // Nothing at all, and the only arm with nothing to announce: the *verb* was
+  // replaced by the reason rather than annotated with it, so the row already
+  // reads "You respawn here" and a screen reader saying ", already set" after
+  // it would be the same fact twice. See `OptionBlock`'s `here` arm.
+  if (blocked.kind === "here") return null;
   return "no room";
+}
+
+/**
+ * The same reason as drawn beside the verb, or null where something else on the
+ * row is already saying it.
+ *
+ * Two blocks draw nothing, for opposite reasons. A pull in progress has a bar
+ * filling behind the verb, which says "working" better than the word does and
+ * in none of the width. A respawn point you are anchored to has had its verb
+ * replaced, so the row *is* the reason. Everything else gets the words.
+ *
+ * Split from {@link blockReason} rather than folded into it because the two
+ * readers genuinely differ: a bar is invisible to a screen reader, so the
+ * announcement still says "working" where the column does not.
+ *
+ * Exported for the test rather than for a second caller, on
+ * {@link fillElapsedMs}'s terms — which of the two a row asks is assertable and
+ * the rendering is not.
+ */
+export function drawnBlockReason(blocked: OptionBlock): string | null {
+  if (blocked.kind === "working") return null;
+  return blockReason(blocked);
 }
 
 /**
@@ -537,7 +573,7 @@ function ActionButton({
       // rest is its state. Spelled out rather than left to the grey, which a
       // screen reader cannot see and a bar cannot say.
       aria-label={
-        blocked
+        blocked && blockReason(blocked)
           ? `${interactionText(option)}, ${blockReason(blocked)}`
           : interactionText(option)
       }
@@ -617,12 +653,12 @@ function ActionButton({
           a row reading "Warm your h…" still says why it is grey, where one
           reading "Warm your hands · no r…" says neither thing. Absent for a
           pull in progress, which has a bar to say it with. */}
-      {blocked && blocked.kind !== "working" ? (
+      {blocked && drawnBlockReason(blocked) ? (
         <span
           aria-hidden="true"
           className="relative ml-auto shrink-0 text-[10px] leading-snug tracking-tight"
         >
-          {blockReason(blocked)}
+          {drawnBlockReason(blocked)}
         </span>
       ) : null}
     </button>

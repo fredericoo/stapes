@@ -11,6 +11,7 @@
     "generate": "bun scripts/generate-tilesets.ts",
     "generate:complement": "bun scripts/generate-autotile-complement.ts",
     "generate:npcs": "bun scripts/generate-npc-sheets.ts",
+    "generate:respawn": "bun scripts/generate-respawn-tileset.ts",
     "generate:water": "bun scripts/generate-water-tileset.ts",
     "carve:caves": "bun scripts/carve-caves.ts",
     "bench:server": "bun scripts/bench-server.ts",
