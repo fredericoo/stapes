@@ -14,6 +14,10 @@ import {
   MASTERY_ACCURACY_BONUS,
   MASTERY_DAMAGE_BONUS,
   MIN_HANDLING,
+  MIN_WEAPON_FORCE,
+  FORCE_GRACE_POINTS,
+  FORCE_PER_POINT_SHORT,
+  weaponForce,
   weaponHandling,
   spellPower,
 } from "./battler";
@@ -125,34 +129,58 @@ describe("what a weapon is worth in the hand", () => {
   });
 
   /**
-   * **A weapon you have not earned is clumsy and slow, and never weak.** This is
-   * the fairness rule the whole shortfall is now built around: the weapon you
-   * are short of is the harder-hitting weapon — that is why you reached for it —
-   * so taking its damage away made the rung below strictly better and left the
-   * requirement a wall to wait behind rather than a thing to reach for.
+   * **A weapon far beyond its wielder is clumsy, slow *and* weak**, and the last
+   * of those is the one that arrived late. What the rung below must never be is
+   * strictly better *close to a gate*, which is where a requirement stops being
+   * something to reach for — so force is charged past
+   * {@link FORCE_GRACE_POINTS} and not before. Forty short is well past it.
    *
-   * Handling floors at {@link MIN_HANDLING} rather than at zero, so even a
-   * wielder who brings nothing at all still swings — slowly and wildly, and for
-   * the blade's full damage.
+   * Both curves floor rather than reaching zero, and the floors multiply: at the
+   * bottom this weapon lands one swing in twenty, swings at a seventh of its
+   * pace and hits for a fifth of its worth. Experience is counted in damage
+   * dealt, so a weapon with no force left is one nobody can climb out of —
+   * see {@link MIN_WEAPON_FORCE}.
    *
    * **The rate is `haste` and never `spd`.** `spd` is a position on a curve
    * running 100:1 from end to end, so docking it by a half is not half the rate
    * but a third of it — and handling is quoted to the player as a share of their
    * swing rate. The weapon keeps its authored `spd`; the share goes where a
    * share of the rate is what it means.
-   *
-   * Forty points short is well past the floor, which is reached at seventeen.
    */
-  it("leaves a weapon far beyond its wielder clumsy and slow, not weak", () => {
+  it("leaves a weapon far beyond its wielder clumsy, slow and weak", () => {
     const asked = weapon({ requirements: { blunt: 40 } });
     const stats = fightingStats(body({ blunt: 0 }), asked);
     const unasked = fightingStats(body({ blunt: 0 }), weapon());
 
-    expect(stats.damage).toBe(unasked.damage);
+    expect(stats.damage).toBe(Math.round(unasked.damage * MIN_WEAPON_FORCE));
     expect(stats.spd).toBe(asked.spd);
     expect(stats.accuracy).toBe(Math.round(100 * MIN_HANDLING));
     expect(stats.haste).toBeCloseTo(unasked.haste * MIN_HANDLING, 10);
     expect(stats.hitChance).toBeLessThan(unasked.hitChance);
+  });
+
+  /**
+   * **The grace band is the whole reason charging force at all is safe**, and
+   * this is the pair that says so: two points short of a gate is the distance at
+   * which `../game/duel.test.ts` requires the next rung to already be worth
+   * carrying, and a blow there is worth every point the weapon is written for.
+   *
+   * Measured before it was written this way: a dock applied from the first point
+   * missing breaks that property on three of the four ladders at a twentieth per
+   * point, and still breaks it at a fiftieth.
+   */
+  it("leaves force alone while the shortfall is inside the grace band", () => {
+    const whole = fightingStats(body({ blunt: 20 }), weapon());
+    const near = (short: number) =>
+      fightingStats(body({ blunt: 20 }), weapon({ requirements: { blunt: 20 + short } }));
+
+    for (const short of [0, 2, FORCE_GRACE_POINTS]) {
+      expect(weaponForce(short)).toBe(1);
+      expect(near(short).damage).toBe(whole.damage);
+    }
+    // And it starts costing the moment the band runs out.
+    expect(weaponForce(FORCE_GRACE_POINTS + 1)).toBeCloseTo(1 - FORCE_PER_POINT_SHORT, 10);
+    expect(near(FORCE_GRACE_POINTS + 1).damage).toBeLessThan(whole.damage);
   });
 
   /**
@@ -173,9 +201,11 @@ describe("what a weapon is worth in the hand", () => {
     // Two points is a tenth off, twenty is all the way down to the floor.
     expect(weaponHandling(2)).toBeCloseTo(0.9, 10);
     expect(weaponHandling(20)).toBe(MIN_HANDLING);
-    // And the damage is untouched by any of it.
-    expect(twenty.damage).toBe(whole.damage);
+    // Force is charged on the same shortfall but on its own terms: nothing at
+    // two points, which is inside the grace band, and a slice of it at twenty.
     expect(two.damage).toBe(whole.damage);
+    expect(twenty.damage).toBe(Math.round(whole.damage * weaponForce(20)));
+    expect(twenty.damage).toBeLessThan(whole.damage);
   });
 
   /**
@@ -232,8 +262,11 @@ describe("what a weapon is worth in the hand", () => {
    * of the skill bonus as well, so being good with maces cannot cancel out being
    * short of this one.
    *
-   * Damage is exempt on purpose — see the shortfall rule above — so what a
-   * master loses on a weapon they cannot lift is aim and pace, not force.
+   * **The Toughness half is what charges the force here**, and it is worth
+   * seeing on this case in particular: a mastery the weapon does not *train*
+   * still pools into the shortfall, so a Blunt master short of the strength to
+   * heave a thing loses aim, pace and force alike. Being good with maces cancels
+   * out none of it.
    */
   it("gives a master no extra aim from a weapon they cannot lift", () => {
     const requirements = { blunt: 5, toughness: 100 };
@@ -249,11 +282,14 @@ describe("what a weapon is worth in the hand", () => {
       weapon({ requirements }),
     );
 
-    // A hundred points of Toughness short, which is long past the floor.
+    // A hundred points of Toughness short, which is long past both floors.
     expect(stats.accuracy).toBe(Math.round(able.accuracy * weaponHandling(100)));
     expect(stats.hitChance).toBeLessThan(able.hitChance);
-    expect(stats.damage).toBe(able.damage);
+    expect(stats.damage).toBe(Math.round(able.damage * MIN_WEAPON_FORCE));
     expect(able.damage).toBeGreaterThan(100);
+    // The skill bonus is still all there underneath — what the gate takes is a
+    // share of the whole blow, not the mastery that earned it.
+    expect(able.damage).toBeGreaterThan(weapon({ requirements }).damage);
   });
 
   /**

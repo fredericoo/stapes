@@ -4565,6 +4565,48 @@ measures one weapon against one weapon, so it never sees a loadout, and
 balanced has to be found out by playing it**, and the two dials are the
 minimum and the accuracy — not the damage, for the reason above.
 
+### A shortfall costs aim at once and force only past a grace band
+
+`weaponReadiness` was deleted for cubing the requirement share and taking damage
+with it — a weapon a fifth short was worth about half of itself, which made the
+rung you reached for strictly worse than the one you had outgrown. The
+conclusion drawn at the time was that damage must never be charged at all. That
+was one point further than the evidence went, and `weaponForce` is the walk-back.
+
+**What actually breaks is charging force near a gate.** `duel.test.ts` requires
+that two points short of the next rung, that rung is already worth carrying, and
+two points is exactly where it binds. Measured across all four ladders:
+
+| dock, from the first point short | ladders that break |
+| --- | --- |
+| a twentieth per point (handling's own rate) | knights-sword, battleaxe, war-bow |
+| a fiftieth per point | the same three |
+| a rate small enough to pass | rounds away on a six-damage sword |
+
+So the shape is a **grace band**: inside `FORCE_GRACE_POINTS` a weapon does
+everything it is written to do and what you are short of is aim and pace alone;
+past it, `FORCE_PER_POINT_SHORT` comes off each point down to
+`MIN_WEAPON_FORCE`. Every ladder property survives that, including at twice the
+rate finally chosen.
+
+The reading it buys is the point of it: **reaching one rung early costs you your
+aim; reaching two rungs early costs you the blow.** A battleaxe ten short is 43
+where it was 72, and one two short is untouched.
+
+**The two floors multiply, which is why this one is not as low as
+`MIN_HANDLING`.** A weapon at the bottom of both lands one swing in twenty,
+swings at a seventh of its pace, and now hits for a fifth of its worth.
+Experience is counted in damage dealt, so force is also the rate at which you
+climb out — and a weapon with none left is one nobody can climb out of. That is
+the same sentence as *a weapon nobody can use at all is a weapon nobody can
+learn on*, arriving on a second axis.
+
+**It also makes the item card honest.** The card compares you against a wielder
+who has just earned the weapon, so a shortfall already leaned the damage row red
+— and until now that lean was true only because the fresh owner had more mastery,
+not because anything had been docked. Now it is both, which is what a player
+reading the red would have assumed anyway.
+
 ### The authored damage is what mastery zero would do
 
 `damageAtMastery` scales both of its terms by the **absolute** level of the
@@ -4622,13 +4664,11 @@ am I getting more out of this than somebody who only just qualified — and at
 exactly the requirement the two agree and the strikethrough disappears, which is
 the honest reading of having only just earned it.
 
-One consequence is worth naming because it looks like a contradiction. Below the
-gate the **damage** row now leans red, and falling short still does not take
-damage away: the row is lower because the fresh owner has more *mastery*, not
-because the shortfall docked anything. `Swing` and `Hit` lean red for both
-reasons at once and the card does not separate them. The engine's rule is
-unchanged and is pinned in `battler.test.ts`, which is where a fact about the
-engine belongs.
+Below the gate every row leans red, for two reasons at once that the card does
+not separate: a fresh owner has more mastery *and* is paying nothing to the
+shortfall. `Swing` and `Hit` are docked by `weaponHandling` from the first point
+missing, `Damage` by `weaponForce` past its grace band. Both rules are pinned in
+`battler.test.ts`, which is where a fact about the engine belongs.
 
 That readout is worth having for a second reason, visible the moment it was
 added. The flat term pays the same to every weapon, so a ladder's rungs converge
@@ -4661,7 +4701,7 @@ damage away made it strictly worse than the rung below. A requirement stopped
 being something to reach for and became something to wait behind.
 
 **So: experience is never scaled by what you are holding, and falling short costs
-accuracy and swing rate only.**
+aim and pace from the first point and force only past a grace band.**
 
 - `learningRate` and `OUTGROWN_FALLOFF` are gone. `attackerEarnings` and
   `casterEarnings` pay what the blow or the cast did, full stop — which also let
@@ -4670,9 +4710,14 @@ accuracy and swing rate only.**
   pays nothing for a fight beneath the mastery being trained: a brake on what
   you fight rather than on what you grip. See *A mastery is weighed against
   itself* below for what "beneath" is measured against.
-- `weaponReadiness` is `weaponHandling`, it leaves damage alone, and it floors at
-  `MIN_HANDLING` rather than at zero. A weapon nobody can use at all is a weapon
-  nobody can learn on.
+- `weaponReadiness` is `weaponHandling`, and it floors at `MIN_HANDLING` rather
+  than at zero. A weapon nobody can use at all is a weapon nobody can learn on.
+- **Force is charged too, and the grace band is why that is safe** — see *A
+  shortfall costs aim at once and force only past a grace band* below. This is
+  the one part of the deletion above that has since been put back, deliberately
+  and in a different shape, so read the two together: what killed
+  `weaponReadiness` was charging damage *from the first point missing*, not
+  charging it at all.
 - **It applies to `haste` rather than to `spd`.** `spd` is a position on a curve
   running 100:1 from end to end, so docking it by a half is not half the rate —
   it is a third of it:

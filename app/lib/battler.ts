@@ -719,6 +719,70 @@ export function weaponHandling(shortfall: number): number {
 }
 
 /**
+ * How many points short a body may be before the weapon's *force* suffers.
+ *
+ * **The whole reason docking damage is safe now, and the reason it was not
+ * before.** `weaponReadiness` cubed the pooled requirement share and scaled
+ * damage by it from the first point missing, so a weapon a fifth short was worth
+ * about half of itself — which made the rung you were reaching for strictly
+ * worse than the one you had outgrown, and turned a requirement into something
+ * to wait behind. See *Nothing is taken off a weapon for being one you have
+ * outgrown* in `docs/notes.md`, where that deletion is argued.
+ *
+ * The property that broke is `duel.test.ts`'s **two points short of the next
+ * rung, that rung is already worth carrying**, and two points is where it binds.
+ * Measured: any dock applied from the first point short breaks it on three of
+ * the four ladders at a twentieth per point, and still breaks it at a fiftieth.
+ * Below that it is invisible — a rate small enough to pass is a rate that
+ * rounds away on a six-damage sword.
+ *
+ * A grace band resolves it, because the two facts want different things at
+ * different distances. Inside it a weapon does everything it is written to do
+ * and what you are short of is aim and pace alone; past it, force goes too.
+ * **Reaching one rung early costs you your aim; reaching two rungs early costs
+ * you the blow.**
+ */
+export const FORCE_GRACE_POINTS = 5;
+
+/**
+ * What each point past {@link FORCE_GRACE_POINTS} takes off a blow.
+ *
+ * Steeper than {@link HANDLING_PER_POINT_SHORT} on purpose. Handling starts
+ * charging immediately and has to stay survivable over the whole range; this
+ * starts late, so it can afford to fall fast once it does — which is what makes
+ * a weapon two rungs above you read as out of your depth rather than as merely
+ * awkward.
+ */
+export const FORCE_PER_POINT_SHORT = 0.08;
+
+/**
+ * The least of its own force a weapon can be reduced to.
+ *
+ * **Higher than {@link MIN_HANDLING}, and the two floors are multiplied
+ * together**, which is the whole of why this one is not as low. Experience is
+ * counted in damage dealt — see `../game/experience`'s `XP_PER_DAMAGE` — so
+ * docking damage docks the rate at which you climb towards the very requirement
+ * you are short of. A weapon at the floor already lands one swing in twenty and
+ * swings at a seventh of its pace; taking its force to nothing as well would
+ * make it unlearnable, and *a weapon nobody can use at all is a weapon nobody
+ * can learn on*.
+ */
+export const MIN_WEAPON_FORCE = 0.2;
+
+/**
+ * How much of a weapon's force a body this far short of it can bring to bear.
+ *
+ * One inside {@link FORCE_GRACE_POINTS}, then {@link FORCE_PER_POINT_SHORT} off
+ * for each point beyond it, down to {@link MIN_WEAPON_FORCE}. The sibling of
+ * {@link weaponHandling}, which charges for the same shortfall in aim and pace
+ * and charges from the first point.
+ */
+export function weaponForce(shortfall: number): number {
+  const past = Math.max(0, shortfall - FORCE_GRACE_POINTS);
+  return Math.max(MIN_WEAPON_FORCE, 1 - FORCE_PER_POINT_SHORT * past);
+}
+
+/**
  * What being good with a weapon adds, over and above being *allowed* to use it.
  *
  * **The half of mastery that requirements deliberately do not cover.** A Sharp
@@ -867,29 +931,28 @@ export function fightingStats(
   // How much of what the weapon asks this body brings, and how well it therefore
   // handles right now. Falling short makes a weapon clumsier and slower and
   // leaves its damage alone — see {@link MIN_HANDLING}.
-  const handling = weaponHandling(
-    requirementShortfall(battler.masteries, weapon.requirements),
-  );
+  const shortfall = requirementShortfall(battler.masteries, weapon.requirements);
+  const handling = weaponHandling(shortfall);
 
   // The mastery the weapon itself answers to, read at its absolute level. This
   // is the "you are simply good with blades" term, and it is deliberately not a
   // ratio against the requirement — see {@link MASTERY_DAMAGE_BONUS}.
   const skill = masteryLevel(battler.masteries, weapon.mastery) / MAX_MASTERY;
 
-  // **Damage is not touched by handling, which is the whole of the fairness
-  // rule.** A weapon you are short of is the harder-hitting weapon — that is why
-  // you picked it up — and scaling this by the shortfall made it hit softer than
-  // the one you had already outgrown, so there was never a moment worth reaching
-  // for the next rung. What being short of it costs you is `accuracy` and
-  // `haste` below.
+  // **Damage is docked only past a grace band, which is what keeps reaching for
+  // the next rung worth it.** A weapon you are a couple of points short of is
+  // the harder-hitting weapon — that is why you picked it up — and charging its
+  // force from the first point missing made it hit softer than the one you had
+  // already outgrown. Inside {@link FORCE_GRACE_POINTS} it does everything it is
+  // written to do and what you are short of is aim and pace alone; past it,
+  // force goes too. See {@link weaponForce}.
   //
   // Through {@link damageAtMastery} rather than worked out here, because the
   // editor shows an author the same figure and a readout it could disagree with
   // is worse than none.
-  const damage = damageAtMastery(
-    weapon,
-    masteryLevel(battler.masteries, weapon.mastery),
-  );
+  const damage =
+    damageAtMastery(weapon, masteryLevel(battler.masteries, weapon.mastery)) *
+    weaponForce(shortfall);
   // **Handling gates the skill bonus too, flat part included.** It is the
   // outermost factor rather than something applied to the weapon's own accuracy
   // and then added to, and that placement is the whole rule: what mastery buys
