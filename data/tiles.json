@@ -22377,6 +22377,12 @@
       "y": 8
     },
     "walkable": false,
+    "interactions": {
+      "setSpawn": {
+        "trigger": "interact",
+        "actionName": "Take bearings"
+      }
+    },
     "sprites": {
       "n": {
         "frames": [

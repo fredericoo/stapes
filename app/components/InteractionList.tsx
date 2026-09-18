@@ -6,6 +6,7 @@ import {
   IconGift,
   IconHandGrab,
   IconHandMove,
+  IconMapPin,
   IconMessageCircle,
   IconPick,
   IconShirt,
@@ -113,6 +114,11 @@ const ICONS: Record<InteractionAction, typeof IconTarget> = {
   // covers a blessing too, and the authored verb beside it is what tells them
   // apart — the same trade the transmute row makes below.
   addStatus: IconFlame,
+  // A pin in a map, because what the row does is mark a place and every other
+  // shape that could say it — a bed, a flag, a shrine — names one of the tiles
+  // that might carry the block and misleads about the rest. The same trade the
+  // flame above declines to make and the transform below makes deliberately.
+  setSpawn: IconMapPin,
   // An apple for every consumable, drink included: the icon says "this gets
   // used up", and the authored verb beside it says how.
   consume: IconApple,

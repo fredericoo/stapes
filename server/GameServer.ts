@@ -590,7 +590,15 @@ type SavedTags = { tags: string[]; savedAt: number };
 /** What somebody has learnt, kept against their return. */
 type SavedMasteries = { masteries: MasteryXp; savedAt: number };
 
-/** Where somebody came into the world, kept against their death. */
+/**
+ * Where somebody comes back into the world, kept against their death.
+ *
+ * Minted at their first sight of the world and moved from then on by whatever
+ * they anchor themselves to — see `SetSpawnInteraction` and
+ * {@link GameServer.flushSpawnMarks}. It was write-once until beds existed, and
+ * the shape did not have to change for that: what the row has always held is
+ * the answer to one question, and the question did not change either.
+ */
 type SavedSpawn = ActorPosition & { savedAt: number };
 
 /** What was still running on somebody, frozen for as long as they are away. */
@@ -1495,14 +1503,17 @@ export class GameServer {
    * Where this player comes back in, minting it the first time the world sees
    * them.
    *
-   * **Read once per connection, not once per death.** The row is written the
-   * moment somebody is created and never rewritten, so the only thing that can
-   * change it is the world being replaced — which drops the rows rather than
-   * editing them. Caching it on the instance is therefore not a staleness risk;
-   * it is the whole reason a death can be written without awaiting anything.
+   * **Read once per connection, not once per death**, which is what lets a
+   * death be written without awaiting anything. Two things can move the row
+   * afterwards and neither breaks that: the world being replaced, which drops
+   * the rows wholesale rather than editing them, and the player anchoring
+   * themselves somewhere — and {@link flushSpawnMarks} writes that one *through*
+   * this cache rather than behind it, so what is on the instance is never
+   * behind what is in storage.
    *
    * The facing is the one a fresh body takes, rather than whichever way they
-   * happened to be looking: this is a door, not a footprint.
+   * happened to be looking: this is a door, not a footprint. A mark moved later
+   * keeps that facing for the same reason — see {@link flushSpawnMarks}.
    */
   private async rememberSpawn(actorId: string): Promise<void> {
     if (this.spawns.has(actorId)) return;
@@ -2292,6 +2303,9 @@ export class GameServer {
     this.flushTags();
     this.flushConversations();
     this.flushExtracting();
+    // Before the notices, so a press that moved somebody's door is durable by
+    // the time they are told it did.
+    this.flushSpawnMarks();
     this.flushNotices();
     this.flushClock();
     this.flushMasteries();
@@ -2520,6 +2534,48 @@ export class GameServer {
       for (const text of session.drainNotices(attachment.actorId)) {
         ws.send(JSON.stringify({ type: "notice", text } satisfies ServerMessage));
       }
+    }
+  }
+
+  /**
+   * Move the doors of everybody who anchored themselves somewhere.
+   *
+   * **Through the cache rather than behind it.** {@link rememberSpawn} reads the
+   * row once per connection and trusts what it holds from then on, so a write
+   * that went only to storage would leave this instance putting people back at
+   * the cell they started at for the rest of the world's life. Both move, in
+   * that order, and the write is fire-and-forget on {@link rememberSpawn}'s own
+   * terms: it has to be durable before a death that reads it, which is why it
+   * is its own `put` rather than a place in the next flush, and there is nothing
+   * useful to do about one that does not stick.
+   *
+   * **The facing does not move.** What the session offers is a cell, and the
+   * direction on the row stays whatever a fresh body takes — a door is not a
+   * footprint, and somebody who anchored themselves while walking north has said
+   * nothing about which way they want to be looking when they come back.
+   *
+   * Nobody is told. The session already said the sentence to the player who
+   * pressed it, and there is nothing on any client drawn from this.
+   *
+   * Drained both from the tick and from the message chain, because a `step`
+   * block fires inside a tick and a pressed one arrives between two of them.
+   * Empty on almost every call, which is the cost of asking twice.
+   */
+  private flushSpawnMarks() {
+    const session = this.session;
+    if (!session) return;
+
+    for (const { actorId, at } of session.drainSpawnMarks()) {
+      const spawn: ActorPosition = {
+        x: at.x,
+        y: at.y,
+        z: at.z,
+        direction: this.spawns.get(actorId)?.direction ?? DEFAULT_FACING,
+      };
+      this.spawns.set(actorId, spawn);
+      this.ctx.storage
+        .put(this.spawnKey(actorId), { ...spawn, savedAt: Date.now() })
+        .catch(GameServer.reportWriteFailure("spawn write"));
     }
   }
 
@@ -3602,6 +3658,12 @@ export class GameServer {
     this.collectTransitionEvents(session);
     this.collectTeleportEvents(session);
     this.collectSwingEvents(session);
+    // **Before the deaths**, and that order is the whole of why this is not
+    // simply left to the message chain: a `step` block and the blow that kills
+    // you can land in one tick, and {@link noteDeaths} writes the position row
+    // by reading {@link spawns}. Draining afterwards would put somebody back at
+    // the door they had a moment before walking into the temple.
+    this.flushSpawnMarks();
     this.noteDeaths(session);
     this.releaseLingerers();
     this.broadcastSpeech(session, actors);
@@ -3841,7 +3903,16 @@ export class GameServer {
     this.dead.delete(actorId);
     this.silenced.delete(actorId);
     await this.rememberSpawn(actorId);
-    this.session!.spawn(actorId, await this.restoredActor(actorId));
+    const spawn = this.spawns.get(actorId);
+    this.session!.spawn(actorId, {
+      ...(await this.restoredActor(actorId)),
+      // The cell alone, dropping the facing the row also carries: what the
+      // session does with this is decide whether a press on a bed would change
+      // anything, and a direction it can never be handed could only ever make
+      // that comparison fail. Hence the seating happening after the remember,
+      // which the order above was already load-bearing for.
+      ...(spawn ? { spawnAt: { x: spawn.x, y: spawn.y, z: spawn.z } } : {}),
+    });
     // A seat happens on a join, a wake or a rebirth, never inside a tick, and
     // the next tick empties whatever it finds pending before it drains: the
     // body's way in has to be collected here or it is never sent.

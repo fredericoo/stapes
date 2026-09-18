@@ -3705,6 +3705,60 @@ describe("dying and coming back", () => {
     expect(position?.x).toBe(SPAWN_CELL);
   });
 
+  /**
+   * A world in progress with a signpost beside alice, which is the authored
+   * tile that carries `setSpawn` — see `data/tiles.json`. She is standing away
+   * from the spawn cell, so "the mark moved" and "nothing happened" are
+   * different answers.
+   */
+  function checkpointWithSign() {
+    const checkpoint = checkpointWith(["alice"]);
+    checkpoint.map.levels["0"]![`${AWAY_FROM_SPAWN + 1},0`] = [
+      { tileId: "grass" },
+      { tileId: "sign", direction: "s" },
+    ];
+    return checkpoint;
+  }
+
+  /** Press the signpost next to alice and wait for the sentence it answers with. */
+  async function takeBearings(ws: TestSocket) {
+    send(ws, {
+      type: "interact",
+      ref: { x: AWAY_FROM_SPAWN + 1, y: 0, z: 0, stackIndex: 1 },
+    });
+    // The notice is the acknowledgement that the press was handled; asserting
+    // on storage before it would be asserting on a race.
+    return await nextMessageOfType(ws, "notice");
+  }
+
+  it("moves the stored spawn row when somebody anchors themselves", async () => {
+    await putCheckpoint(checkpointWithSign());
+    const alice = await connect("alice");
+
+    const notice = await takeBearings(alice.ws);
+    expect(notice).toMatchObject({ text: "You will come back here." });
+
+    const spawn = await runInDurableObject(stub(), async (_instance, state) =>
+      state.storage.get<Record<string, unknown>>("spawn:alice"),
+    );
+    // Her own cell, not the signpost's: nobody is reborn inside the furniture.
+    expect(spawn).toMatchObject({ x: AWAY_FROM_SPAWN, y: 0, z: 0 });
+  });
+
+  it("sends a death to the moved mark rather than to the authored one", async () => {
+    await putCheckpoint(checkpointWithSign());
+    const alice = await connect("alice");
+    await takeBearings(alice.ws);
+
+    await killAndTick("alice");
+
+    const { position } = await storedRows("alice");
+    // The cache and the row move together — a write that reached only storage
+    // would leave this instance putting her back at SPAWN_CELL for the rest of
+    // the world's life. @see GameServer.flushSpawnMarks
+    expect(position?.x).toBe(AWAY_FROM_SPAWN);
+  });
+
   it("stores the spawn coordinates the first time it sees somebody", async () => {
     await putCheckpoint(checkpointWithSword());
     await connect("alice");

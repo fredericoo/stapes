@@ -427,6 +427,54 @@ export type AddStatusInteraction = {
 };
 
 /**
+ * Move whoever sets this off to *come back* here — a bed you sleep in, a shrine
+ * you claim, a signpost you take your bearings from.
+ *
+ * **Wholly on the tile, with no placement half at all**, on
+ * {@link AddStatusInteraction}'s own terms: what a bed does to the person who
+ * lies in it is a fact about beds, and every one cut from the tile does it.
+ * There is nothing left for a slot to vary — least of all *where* it sends
+ * them, which is the one thing about this that is never authored. See
+ * {@link SetSpawnInteraction.trigger}.
+ *
+ * **The cell recorded is the presser's, not the tile's.** A bed is a solid
+ * thing you stand beside and nobody is reborn inside one; where the player is
+ * actually standing is by definition a cell that holds them, which is the
+ * property the `spawn:` row needs and the only one the tile's own cell cannot
+ * promise. It is the same fact `pos:` records, and it is honoured the same way
+ * — `findEntryCell` bubbles out of it when the world has since filled it in.
+ *
+ * Nothing is spent and nothing is consumed, exactly as nothing is for a
+ * teleport: press it again after anchoring elsewhere and it takes the mark
+ * back. What keeps that from being noise is that setting the mark *where it
+ * already is* does nothing at all — see `GameSession.markSpawn` — so a `step`
+ * one you walk over twice says its line once.
+ */
+export type SetSpawnInteraction = {
+  /**
+   * What doing it is called — "Sleep" in a bed, "Pray" at a shrine.
+   *
+   * Authored for the reason every other verb in this file is: nothing derivable
+   * from a tile that changes where you wake up says whether you lay down in it
+   * or knelt at it. Optional, and blank reads as "Mark".
+   *
+   * Read only where the player has something to press. A {@link trigger} of
+   * `step` offers no row and never shows this.
+   */
+  actionName?: string;
+  /**
+   * What sets it off. See {@link ActivationTrigger}.
+   *
+   * There is no second field beside it, and that absence is the design: an
+   * author picks the *gesture* and the world picks the cell. A destination here
+   * would be a second opinion about where somebody comes back, and the honest
+   * answer — where they were standing when they asked — is one the tile cannot
+   * know.
+   */
+  trigger: ActivationTrigger;
+};
+
+/**
  * This tile hands things over — a chest you open, a person you receive from.
  *
  * **The block is a marker, and almost everything about the reward is on the
@@ -743,6 +791,7 @@ export type TileInteractions = {
   extract?: ExtractInteraction;
   teleport?: TeleportInteraction;
   addStatus?: AddStatusInteraction;
+  setSpawn?: SetSpawnInteraction;
   decay?: DecayInteraction;
   respawn?: RespawnInteraction;
   pressurePlate?: PressurePlateInteraction;
@@ -831,6 +880,17 @@ export const DEFAULT_ADD_STATUS: AddStatusInteraction = {
  */
 const DEFAULT_DECAY_FROM_MS = 20_000;
 const DEFAULT_DECAY_TO_MS = 40_000;
+
+/**
+ * Adjacent rather than underfoot, unlike the flame {@link DEFAULT_ADD_STATUS}
+ * is written for: the motivating tile is a thing you walk up to and press, and
+ * a block that anchored somebody the instant it was switched on would be an
+ * author's first click changing where every player in the world wakes up.
+ */
+export const DEFAULT_SET_SPAWN: SetSpawnInteraction = {
+  trigger: "interact",
+  actionName: "",
+};
 
 export const DEFAULT_DECAY: DecayInteraction = {
   tileId: "",
@@ -1371,6 +1431,35 @@ export function resolveAddStatus(def: TileDef): AddStatusInteraction | null {
   return addStatus;
 }
 
+const setSpawnSchema = v.object({
+  actionName: v.optional(v.string()),
+  trigger: v.picklist(ACTIVATION_TRIGGERS),
+});
+
+const setSpawnCache = new WeakMap<TileDef, SetSpawnInteraction | null>();
+
+/**
+ * Parsed come-back-here config for a tile def — whether pressing this moves
+ * where somebody is reborn, what the gesture is called, and how it is set off.
+ *
+ * Same trust model as {@link resolvePush}: malformed → moves nothing. The whole
+ * of it is here with no placement half to join, on {@link resolveAddStatus}'s
+ * terms — and with one field fewer than that, because the destination is never
+ * authored. A block with nothing in it but a trigger is therefore always
+ * complete: there is no half-filled state for this to refuse, which is why it
+ * has no `minLength` gate where the status block has one.
+ */
+export function resolveSetSpawn(def: TileDef): SetSpawnInteraction | null {
+  const cached = setSpawnCache.get(def);
+  if (cached !== undefined) return cached;
+
+  const raw = def.interactions?.setSpawn;
+  const parsed = raw == null ? null : v.safeParse(setSpawnSchema, raw);
+  const setSpawn = parsed?.success ? parsed.output : null;
+  setSpawnCache.set(def, setSpawn);
+  return setSpawn;
+}
+
 const decaySchema = v.pipe(
   v.object({
     // Permissive where every other target is `minLength(1)`, because blank is
@@ -1551,6 +1640,7 @@ export type InteractionKind =
   | "teleport"
   | "switch"
   | "addStatus"
+  | "setSpawn"
   | "transmute"
   | "extract"
   | "pickUp"
@@ -1573,6 +1663,10 @@ export function interactionKinds(def: TileDef): InteractionKind[] {
   // you walk into answers to no press, so listing it would outline a floor tile
   // and offer a row for something that has already happened.
   if (pressable(resolveAddStatus(def))) kinds.push("addStatus");
+  // The same second question again, and this one has the sharpest version of
+  // it: a `step` block is the whole of "walking in here anchors you", which is
+  // a thing that happens to you rather than a thing you can press.
+  if (pressable(resolveSetSpawn(def))) kinds.push("setSpawn");
   // The def's half and the whole of it — a transmuter carries no placement
   // half at all. Whether the player has anything to spend is a question about
   // *them*, which is the affordances', not this one's.
@@ -1824,6 +1918,18 @@ export function interactionsForSave(
         statusId: addStatus.statusId.trim(),
       }
     : undefined;
+  // Gated on the block's presence alone, on the terms the reward and the
+  // teleport are and unlike the status above: there is no second field that
+  // could be blank enough to mean unauthored, because the destination is never
+  // authored. Switching it on is the whole of authoring it.
+  const setSpawn = interactions?.setSpawn;
+  const setSpawnActionName = setSpawn?.actionName?.trim();
+  const savedSetSpawn = setSpawn
+    ? {
+        ...(setSpawnActionName ? { actionName: setSpawnActionName } : {}),
+        trigger: setSpawn.trigger,
+      }
+    : undefined;
   // Gated on the lifetime rather than on the target, unlike every other block
   // here: a blank target is how a tile says it vanishes, and dropping the block
   // for it would silently un-author exactly the case blood is.
@@ -1999,6 +2105,7 @@ export function interactionsForSave(
     !savedExtract &&
     !savedTeleport &&
     !savedAddStatus &&
+    !savedSetSpawn &&
     !savedDecay &&
     !savedRespawn &&
     !savedPlate &&
@@ -2020,6 +2127,7 @@ export function interactionsForSave(
     ...(savedExtract ? { extract: savedExtract } : {}),
     ...(savedTeleport ? { teleport: savedTeleport } : {}),
     ...(savedAddStatus ? { addStatus: savedAddStatus } : {}),
+    ...(savedSetSpawn ? { setSpawn: savedSetSpawn } : {}),
     ...(savedDecay ? { decay: savedDecay } : {}),
     ...(savedRespawn ? { respawn: savedRespawn } : {}),
     ...(savedPlate ? { pressurePlate: savedPlate } : {}),

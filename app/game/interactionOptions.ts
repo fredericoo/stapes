@@ -5,6 +5,7 @@ import {
   resolveAddStatus,
   resolveExtract,
   resolveRewardDef,
+  resolveSetSpawn,
   resolveSwitch,
   resolveTeleportDef,
   transmuteVerb,
@@ -25,6 +26,7 @@ import {
   canPickUpFrom,
   canPushFrom,
   canRewardFrom,
+  canSetSpawnFrom,
   canSwitchFrom,
   canTeleportFrom,
   equipSlotFrom,
@@ -282,6 +284,12 @@ const LABELS: Record<InteractionAction, string> = {
   // leaves you burning says whether you reached into it or knelt at it. See
   // `AddStatusInteraction.actionName`.
   addStatus: "Touch",
+  // The fallback only, on the same terms: nothing derivable from a tile that
+  // changes where you wake up says whether you slept in it or knelt at it. See
+  // `SetSpawnInteraction.actionName`. "Mark" rather than "Rest", because the
+  // fallback has to name what the *player* does to every tile that could carry
+  // the block, and only half of them are things you lie down in.
+  setSpawn: "Mark",
   // The fallback only, on a switch's and a reward's terms: nothing derivable
   // from a tile that hands you a shard says whether you chipped it off or
   // plucked it. See `ExtractInteraction.actionName`.
@@ -373,36 +381,41 @@ const ACTION_ORDER: Record<InteractionAction, number> = {
   // both lights a room and burns the hand that lit it spends the tap on the
   // half the player can see.
   addStatus: 7,
+  // Directly under the status, because it is the same kind of entry — the
+  // other one that changes the *presser* rather than the board — and below it
+  // because a tile authored as both would be a shrine that blesses you and
+  // takes you as its own, and the blessing is the half you can see happen.
+  setSpawn: 8,
   // Below the switch and above everything to do with carrying, which is where
   // an explicit authored act belongs — and it never competes with the tap
   // anyway, since a transmute row is reached by name and a tile that both
   // cooked and swung open would spend its tap on the hinge either way.
-  transmute: 8,
+  transmute: 9,
   // Below the transmute and above everything to do with carrying, which is
   // where the session's own precedence puts it and for the same reason: an
   // explicit authored act comes before lifting a thing off the floor. It never
   // actually competes with the four above it — nobody authors a door you can
   // also mine — and if they did, the hinge is the half the player can see.
-  extract: 9,
+  extract: 10,
   // Above pick-up, and this is the one that decides what a plain tap on a sword
   // does. An empty hand is the strongest thing a player can be saying about what
   // they want done with a weapon on the floor, and stowing it afterwards is one
   // drag; the reverse — fishing a sword back out of a bag you did not mean it to
   // go into — is the annoying direction. It only ever appears when the slot is
   // free, so it cannot take a tap away from anybody who is already armed.
-  equip: 10,
+  equip: 11,
   // Above pick-up, and only ever up against it on a container: a pack you are
   // already wearing the twin of can be taken into a hand now, and a tap that
   // picked it up rather than looking inside would be answering the less
   // interesting of the two questions. Nothing else in the game is both.
-  open: 11,
-  pickUp: 12,
+  open: 12,
+  pickUp: 13,
   // Below pick-up on purpose, and pick-up is what a plain tap on the tile runs:
   // eating destroys the thing where lifting it is reversible, so the row you
   // have to *find* is the destructive one and the gesture you can fire by
   // accident is the safe one.
-  consume: 13,
-  push: 14,
+  consume: 14,
+  push: 15,
 };
 
 /**
@@ -1227,6 +1240,10 @@ function objectAction(
   }
   if (canSwitchFrom(map, tilesById, self, ref)) return "switch";
   if (canAddStatusFrom(map, tilesById, self, ref)) return "addStatus";
+  // Below the status, on the session's own precedence. Whether pressing it
+  // would actually *move* the mark is not asked: the row names what a tap on
+  // this tile is for, and a bed you are already anchored to is still a bed.
+  if (canSetSpawnFrom(map, tilesById, self, ref)) return "setSpawn";
   // Neither the pull in progress nor the room is asked here. A resource
   // somebody is already working — or that this player has nowhere to put — is
   // still the row a tap on it names; it simply cannot be pressed, which is
@@ -1272,6 +1289,12 @@ function objectActionLabel(
   // `resolveAddStatus`.
   if (action === "addStatus") {
     return resolveAddStatus(def)?.actionName?.trim() || LABELS.addStatus;
+  }
+  // The whole of it is the def's too, and more completely than any of the
+  // above: there is no placement half of this block at all, not even a
+  // destination — see `resolveSetSpawn`.
+  if (action === "setSpawn") {
+    return resolveSetSpawn(def)?.actionName?.trim() || LABELS.setSpawn;
   }
   // The whole of it is the def's too — a resource carries no placement half
   // that could name it differently, only one that says how much is left.

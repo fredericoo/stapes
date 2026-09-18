@@ -9,6 +9,7 @@ import type {
   AddStatusInteraction,
   PlacedReward,
   PlacedTeleport,
+  SetSpawnInteraction,
   TransmuteInteraction,
 } from "../lib/interactions";
 import {
@@ -16,6 +17,7 @@ import {
   resolveAddStatus,
   resolvePush,
   resolveReward,
+  resolveSetSpawn,
   resolveSwitch,
   resolveTeleport,
   resolveTransmute,
@@ -1036,6 +1038,64 @@ export function canAddStatusFrom(
   ref: ObjectRef,
 ): boolean {
   return reachableAddStatusAt(map, tilesById, actor, ref) != null;
+}
+
+/**
+ * The come-back-here gesture at a stack slot, if this actor could set it off by
+ * pressing it.
+ *
+ * The tile's half and all of it, on {@link reachableAddStatusAt}'s terms —
+ * there is no placement to join and no destination to resolve, so this is
+ * `resolveSetSpawn` plus the reach, and the reach is the same one every pressed
+ * gesture in this file takes.
+ *
+ * A `step` one is never here, for the reason a `step` teleport and a `step`
+ * flame are not: nothing about it answers to a press. See
+ * `../game/GameSession.spawnMarkOnArrival`, which is what fires those.
+ *
+ * Says nothing about whether the presser is somebody who comes back at all.
+ * That is a question about a *body* — a creature has a world spawn point rather
+ * than a door of its own — and it is the session's; see
+ * `GameSession.activateSetSpawn`.
+ */
+export function reachableSetSpawnAt(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+): SetSpawnInteraction | null {
+  const def = interactiveDefAt(map, tilesById, actor, ref);
+  if (!def) return null;
+
+  const setSpawn = resolveSetSpawn(def);
+  if (!setSpawn) return null;
+
+  if (setSpawn.trigger === "interact") {
+    return pushDirectionFrom(actor, ref) ? setSpawn : null;
+  }
+  if (setSpawn.trigger === "interactOver") {
+    const over = actor.x === ref.x && actor.y === ref.y && actor.z === ref.z;
+    return over ? setSpawn : null;
+  }
+  return null;
+}
+
+/**
+ * Could this actor move where they come back to, right now?
+ *
+ * Nothing beyond the gesture being reachable, on {@link canAddStatusFrom}'s own
+ * grounds: the cell it would record is the one the presser is already standing
+ * in, so there is nothing about the *board* left to ask. Whether it would
+ * actually change anything — pressing the same bed twice — is a fact about the
+ * person and not about where they are.
+ */
+export function canSetSpawnFrom(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+): boolean {
+  return reachableSetSpawnAt(map, tilesById, actor, ref) != null;
 }
 
 /**

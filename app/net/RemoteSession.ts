@@ -46,6 +46,7 @@ import {
   canRewardFrom,
   canSwitchFrom,
   canAddStatusFrom,
+  canSetSpawnFrom,
   canTeleportFrom,
   type ObjectRef,
 } from "../game/affordances";
@@ -2437,6 +2438,12 @@ export class RemoteSession implements PlaySession {
       // everything this client can drive is a battler, so a row this offers is
       // one the server will honour.
       canAddStatusFrom(this.map, this.tilesById, loc, ref) ||
+      // No wrapper either, on the status's own argument and with less left to
+      // ask: the cell this would record is the one the body is already standing
+      // in. Whether the presser is somebody who comes back at all is the
+      // server's question — everything this client can drive is a player, so a
+      // row this offers is one the server will honour.
+      canSetSpawnFrom(this.map, this.tilesById, loc, ref) ||
       // The same four questions the server asks — how much is left in it, how
       // much of that somebody else is already holding, whether what comes out
       // would fit, and whether this player is already on it — off the same map,

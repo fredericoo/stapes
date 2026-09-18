@@ -479,6 +479,36 @@ export function otherStatusNotice(name: string, status: string): string {
   return `${name} is ${status}`;
 }
 
+/**
+ * What somebody is told when they move where they come back to.
+ *
+ * A sentence because there is nothing to show. Every other authored
+ * interaction leaves a mark on the board or on the status strip; this one
+ * changes a row in storage that nothing in the view is drawn from, so a press
+ * that said nothing would be indistinguishable from a press that was dropped —
+ * which is the second of the two cases this module exists for.
+ *
+ * "Here" rather than the tile's name, and that is the honest word: what is
+ * recorded is the cell the presser is standing in, not the bed they pressed.
+ * Naming the bed would promise a place they may be standing beside rather than
+ * on. @see `SetSpawnInteraction`
+ */
+export function spawnMarkNotice(): string {
+  return "You will come back here.";
+}
+
+/**
+ * What somebody is told when they press a bed they are already anchored to.
+ *
+ * The other half of {@link spawnMarkNotice}, and it exists for the same reason
+ * that one does: the press worked, nothing about the board refused it, and the
+ * view has no way to show that it landed. Without a sentence the second press
+ * on a bed is indistinguishable from a dropped input.
+ */
+export function spawnMarkUnchangedNotice(): string {
+  return "You already come back here.";
+}
+
 /** What a body is told when everything running on it is taken off. */
 export function statusesClearedNotice(): string {
   return "Nothing is on you now.";
