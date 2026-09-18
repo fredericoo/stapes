@@ -4,7 +4,12 @@ import { CELL_CENTRE, depthStackBias } from "../lib/geometry";
 import { normalizeTileDef, type TileDef } from "../lib/types";
 import type { Transition } from "../lib/tileTransition";
 
-import { HEIGHT_PER_LEVEL, type Octant } from "../lib/types";
+import tilesJson from "../../data/tiles.json";
+import { uniformFootprint } from "./animTable";
+import { getFrames } from "../lib/tileResolve";
+import { projectileTiles } from "../lib/projectile";
+import { normalizeTiles } from "../lib/types";
+import { HEIGHT_PER_LEVEL, OCTANTS, type Octant } from "../lib/types";
 import {
   flightEmitter,
   projectileOctant,
@@ -44,6 +49,45 @@ const CATALOGUE: Record<string, TileDef> = {
     interactions: { projectile: { cellsPerSecond: 20 } },
   }),
 };
+
+/**
+ * The shipped projectiles, which is a claim about content and is allowed to be
+ * on the terms `CLAUDE.md` sets: `data/tiles.json` is the tile catalogue and
+ * stays real. What is asserted is a shape every projectile has to have, not a
+ * number anybody authored.
+ */
+describe("the projectiles we ship are drawn on one quad", () => {
+  const tiles = normalizeTiles(tilesJson as unknown[]);
+
+  /**
+   * **A flight is one quad, built from the first frame and then flown.** Its
+   * size comes from that frame's rect and its anchoring from that frame's base,
+   * and every later frame is drawn by swapping the quad's UVs — the same
+   * bargain `./animTable`'s merged batch makes, which is why the check is the
+   * same function.
+   *
+   * A placed tile may disagree across frames: it is standing still, and
+   * `tableCanHold` sends it down a path that rebuilds. A flight cannot. The
+   * fireball's third frame once carried a base one cell up, and the whole
+   * sprite jumped a cell and back once per animation cycle for as long as it
+   * was in the air — with nothing anywhere saying so.
+   */
+  it("keeps one footprint across every frame of every bearing", () => {
+    const fired = projectileTiles(tiles);
+
+    expect(fired.length).toBeGreaterThan(0);
+    for (const def of fired) {
+      for (const direction of OCTANTS) {
+        const frames = getFrames(def, { direction });
+        if (!frames || frames.length < 2) continue;
+        expect(
+          uniformFootprint(frames),
+          `${def.id} draws ${direction} from frames that disagree about size or base`,
+        ).toBe(true);
+      }
+    }
+  });
+});
 
 describe("whether a projectile's sides ask anything of its sprite", () => {
   const sided = (sides: Record<string, Transition>, hit?: Transition) =>

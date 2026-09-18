@@ -193,10 +193,13 @@ export function tableCanHold(frames: Frame[]): boolean {
 }
 
 /**
- * Whether every frame draws the same size from the same sheet.
+ * Whether every frame draws the same size, from the same place in its footprint.
  *
  * A frame of a different *size* would need the quad's geometry to change, and
- * the whole point here is that it does not.
+ * the whole point here is that it does not. A frame with a different *base*
+ * would need the quad to move, which is the same problem wearing a different
+ * hat — and the one a flight cannot survive at all, since a projectile is a
+ * single quad built once and then flown. @see `./projectileMotion`
  *
  * A frame from a different *sheet* would break a merged batch too — it is one
  * texture by construction, and the quad would sample whichever sheet its
@@ -204,7 +207,7 @@ export function tableCanHold(frames: Frame[]): boolean {
  * say. The sheet is asked once, on `TileDef.anchor`, so there is nothing
  * left here to check.
  */
-function uniformFootprint(frames: Frame[]): boolean {
+export function uniformFootprint(frames: Frame[]): boolean {
   const first = frames[0]!.sprite;
   return frames.every(
     (f) =>

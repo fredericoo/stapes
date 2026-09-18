@@ -229,6 +229,23 @@ type ProjectileMesh = {
   w: number;
   h: number;
   /**
+   * Where in that footprint the flight point sits, in cells.
+   *
+   * **The first frame's, held for the whole flight**, because the quad above is
+   * the first frame's too and the two have to agree. Every later frame is drawn
+   * by swapping this quad's UVs, which is the same bargain the merged animation
+   * batch makes — see `./animTable`'s `uniformFootprint`, which refuses a tile
+   * whose frames disagree about exactly this.
+   *
+   * Read per frame, it moved the arrow: a projectile whose second frame carried
+   * a base one cell up had its whole sprite jump a cell up on that frame and
+   * back on the next, once per animation cycle, for as long as it was in the
+   * air. A placed tile can afford to honour a per-frame base — it is standing
+   * still, and `uniformFootprint` sends it down a path that rebuilds. A flight
+   * cannot: it is one quad, built once, moving.
+   */
+  base: { x: number; y: number };
+  /**
    * The holder its own material's transition is written through, or null.
    *
    * Null for every projectile that authors no dissolve and no scale, which is
@@ -2081,6 +2098,7 @@ export class WorldRenderer {
       z: view.z,
       w: quad.w,
       h: quad.h,
+      base: { ...frames[0]!.sprite.base },
       uniforms,
     };
     this.projectileMeshes.set(view.id, entry);
@@ -2126,7 +2144,7 @@ export class WorldRenderer {
 
     const localElev = view.elevAbs - view.z * HEIGHT_PER_LEVEL;
     const baseOrigin = baseCellWorldOrigin(view.x, view.y, view.z, localElev);
-    const origin = spriteWorldOrigin(baseOrigin, frame.sprite.base);
+    const origin = spriteWorldOrigin(baseOrigin, entry.base);
     const centreX = origin.x + entry.w / 2;
     const centreY = origin.y + entry.h / 2;
     entry.mesh.position.set(centreX, centreY, 0);
