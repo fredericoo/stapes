@@ -1,6 +1,12 @@
 import type { FightingStats } from "../lib/battler";
 import { COMBAT_STATUS_ID, type StatusDef } from "../lib/status";
-import { type AttackOutcome, cappedToHealth, rollAttack, swingIntervalMs } from "./combat";
+import {
+  type AttackOutcome,
+  cappedToHealth,
+  rollAttack,
+  swingIntervalMs,
+  swingWindupMs,
+} from "./combat";
 import { TICK_MS } from "./constants";
 import type { Rng } from "./rng";
 import {
@@ -29,10 +35,11 @@ import {
  *
  * ## The order of a tick is `GameSession`'s, not a convenient one
  *
- * Statuses, then cooldowns, then swings — and both sides start ready, so the
- * faster one lands first. A turn-based approximation would be simpler and would
- * quietly erase speed: a creature that swings twice as often really does get
- * twice the blows, and it only does so against a clock.
+ * Statuses, then cooldowns, then swings — and both sides start half an interval
+ * short of ready, so the faster one lands first. A turn-based approximation
+ * would be simpler and would quietly erase speed: a creature that swings twice
+ * as often really does get twice the blows, and it only does so against a
+ * clock.
  *
  * ## Nothing here reaches for the dice on its own
  *
@@ -355,11 +362,25 @@ export class Duel {
 }
 
 /**
- * A body at the start of a fight: full health, nothing running on it, and ready
- * to swing.
+ * A body at the start of a fight: full health, nothing running on it, and
+ * getting into its first blow.
  *
- * Ready rather than on a first cooldown, which is what makes speed worth having
- * beyond the long-run rate — the faster of the two lands the opening blow.
+ * **Winding up rather than ready**, which is the one thing about the opening of
+ * a fight that is not the long-run rate: a body in the world may not swing until
+ * it has been in reach of its target for half its own interval, and a duel where
+ * both sides swung on the first tick would answer a fight nobody can have. See
+ * `./combat`'s {@link swingWindupMs}.
+ *
+ * Nothing about *who* lands first changes, which is the point of it being a
+ * share: half of a shorter interval is shorter, so the faster of the two still
+ * opens. What it changes is that the slower one no longer gets its heaviest blow
+ * for free before the fight has cost it anything.
+ *
+ * Spent as the cooldown rather than as a clock of its own, because the world's
+ * windup answers a question this module has already taken out — whether the two
+ * are in reach of each other — and in here they always are. It can therefore
+ * never be re-armed, and a second field that only ever counted down once would
+ * be a rule this module was pretending to have.
  */
 function freshFighter(setup: DuelSetup): DuelFighter {
   // Any entry answers for the body's own numbers: `maxHp` comes off Toughness
@@ -370,7 +391,7 @@ function freshFighter(setup: DuelSetup): DuelFighter {
     swings: setup.swings,
     nextSwing: 0,
     hp: first.maxHp,
-    cooldownMs: 0,
+    cooldownMs: swingWindupMs(first),
     statuses: NO_STATUSES,
   };
 }

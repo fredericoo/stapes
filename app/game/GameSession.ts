@@ -181,6 +181,8 @@ import {
   ASSAILANT_GRACE_MS,
   type AttackOutcome,
   swingIntervalMs,
+  swingWindupMs,
+  WINDUP_LAPSE_MS,
   canReach,
   damageAfterDefence,
   damageFraction,
@@ -1684,6 +1686,41 @@ type ActorRuntime = {
   /** Milliseconds until this body may swing again. See `./combat`. */
   attackCooldownMs: number;
   /**
+   * Who this body is getting into a blow against, and what is left of the wait.
+   *
+   * **The cost of arriving, where {@link attackCooldownMs} is the cost of having
+   * swung.** A blow may not go out until this has run down, and it is armed
+   * afresh — to `./combat`'s {@link swingWindupMs} — every time a body comes
+   * into reach of something it was not already in reach of. Null is nobody: not
+   * engaged, and the next reach that holds starts a new wait.
+   *
+   * It exists because reach alone decided the opening blow, which made an
+   * approach free and made it equally free whatever was being swung. See
+   * {@link SWING_WINDUP_SHARE} for what that cost the fight.
+   *
+   * **Wound on the tick clock rather than on whoever is asking**, which is what
+   * makes it the same wait for everybody: a player's standing target is tried
+   * every tick and a creature's brain reaches its `attack` action once a round,
+   * and a clock that advanced per question would make the slower asker wind up
+   * six times more slowly. What the brain's cadence does cost a creature is that
+   * it notices it has left reach up to a round late, which is the resolution
+   * everything else about a creature's fight already has.
+   *
+   * **Keyed by target rather than a bare number**, so a body that turns on
+   * somebody else pays the approach again. Without the id, killing one rat and
+   * turning to the one beside it would swing on the tick the target changed —
+   * the same free opening blow this rule is about, taken at the only moment
+   * nobody had to walk anywhere for it.
+   *
+   * **Dropped when nobody is still asking**, which is what {@link
+   * WINDUP_LAPSE_MS} is for: leaving reach mid-swing is noticed by the next
+   * reach check, and dropping the target entirely is noticed by nothing at all.
+   *
+   * **Not durable**, like {@link attackCooldownMs} and {@link attackRecoveryMs}:
+   * it records something that is happening rather than something that happened.
+   */
+  windup: { targetId: string; msLeft: number; sinceSeenMs: number } | null;
+  /**
    * Milliseconds until this body may take a step again, having just swung.
    *
    * **Its own clock rather than a second reading of {@link attackCooldownMs},
@@ -2518,6 +2555,9 @@ export class GameSession implements PlaySession {
       standingStatusMs: 0,
       attackCooldownMs: 0,
       attackRecoveryMs: 0,
+      // Nobody, so the first thing this body comes into reach of is an approach
+      // it pays for — see {@link ActorRuntime.windup}.
+      windup: null,
       // Every spell ready, on the terms the swing cooldown above starts at
       // zero: a body arriving in the world is a body that has not cast yet.
       spellCooldownMs: {},
@@ -3973,12 +4013,14 @@ export class GameSession implements PlaySession {
   }
 
   /**
-   * Wind every cooldown down towards its next swing, and every recovery down
-   * towards its next step.
+   * Wind every cooldown down towards its next swing, every recovery down
+   * towards its next step, and every windup down towards its first blow.
    *
-   * The two together because they are the same kind of clock started by the
-   * same act — see {@link ActorRuntime.attackRecoveryMs} for why they are not
-   * the same number.
+   * The first two together because they are the same kind of clock started by
+   * the same act — see {@link ActorRuntime.attackRecoveryMs} for why they are
+   * not the same number. The windup joins them because it is wound by the same
+   * clock and for the same reason, and is started by the opposite act: those two
+   * are what a blow costs, and it is what getting into one costs.
    */
   private advanceCooldowns(tickMs: number) {
     for (const actor of this.actors.values()) {
@@ -3987,6 +4029,22 @@ export class GameSession implements PlaySession {
       }
       if (actor.attackRecoveryMs > 0) {
         actor.attackRecoveryMs = Math.max(0, actor.attackRecoveryMs - tickMs);
+      }
+      // On the tick clock rather than on whoever is asking, which is what makes
+      // an approach the same length for a player and for a creature thinking
+      // once a round. @see {@link ActorRuntime.windup}
+      const windup = actor.windup;
+      if (!windup) continue;
+      windup.sinceSeenMs += tickMs;
+      // An engagement nobody has confirmed since before the lapse is over, and
+      // the next reach that holds is a fresh approach. @see `./combat`'s
+      // {@link WINDUP_LAPSE_MS}
+      if (windup.sinceSeenMs > WINDUP_LAPSE_MS) {
+        actor.windup = null;
+        continue;
+      }
+      if (windup.msLeft > 0) {
+        windup.msLeft = Math.max(0, windup.msLeft - tickMs);
       }
     }
   }
@@ -4345,7 +4403,6 @@ export class GameSession implements PlaySession {
    * the brain's priority list fall through — see the `attack` action.
    */
   private tryAttack(attacker: ActorRuntime, targetId: string): boolean {
-    if (attacker.attackCooldownMs > 0) return false;
     if (targetId === attacker.id) return false;
 
     const target = this.actors.get(targetId);
@@ -4390,6 +4447,7 @@ export class GameSession implements PlaySession {
     // with" — and that fallback is for a body with nothing in either fist, not
     // for an archer who has let something get too close.
     if (hand === null && fightsWithAHand(attacker.equipment, this.tilesById)) {
+      attacker.windup = null;
       return false;
     }
 
@@ -4413,8 +4471,28 @@ export class GameSession implements PlaySession {
       hand === null &&
       !canReach(this.map, this.tilesById, fromPoint, toPoint, attackerStats.reach)
     ) {
+      attacker.windup = null;
       return false;
     }
+
+    // **In reach is not yet a blow**, and everything above is what "in reach"
+    // costs to establish — which is why the cooldown is asked below this rather
+    // than at the top of the function where it used to be. A body on cooldown
+    // still has to be *seen* in reach, or a fighter who withdrew for the length
+    // of one and strolled back would find the wait already served. @see
+    // {@link ActorRuntime.windup}
+    if (attacker.windup?.targetId !== targetId) {
+      attacker.windup = {
+        targetId,
+        msLeft: swingWindupMs(attackerStats),
+        sinceSeenMs: 0,
+      };
+    } else {
+      attacker.windup.sinceSeenMs = 0;
+    }
+    if (attacker.windup.msLeft > 0) return false;
+
+    if (attacker.attackCooldownMs > 0) return false;
 
     // Spent whether or not the blow connects: the swing happened, and a dodge
     // that cost the attacker nothing would let a fast creature flail for free.

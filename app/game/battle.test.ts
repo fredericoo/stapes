@@ -18,6 +18,7 @@ import {
   MIN_ATTACK_TICKS,
   MIN_GUARD_SHARE,
   STRIKE_RECOVERY_STEPS,
+  SWING_WINDUP_SHARE,
 } from "./combat";
 import { STRIKE_DURATION_MS, TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
@@ -348,16 +349,42 @@ function self(session: GameSession) {
 }
 
 /**
- * Pick a fight: point at somebody *and* mean it.
+ * Pick a fight: point at somebody, mean it, and stand there long enough to
+ * throw the first blow.
  *
- * Two calls rather than one because they are two decisions — a target alone is
- * somebody being watched, and attack mode is what turns it into blows. Nearly
- * every test below wants both, and the ones that deliberately do not say so.
+ * Three things rather than one because they are three decisions — a target
+ * alone is somebody being watched, attack mode is what turns it into blows, and
+ * a body may not swing until it has been in reach for half its own interval.
+ * Nearly every test below wants all three, and the ones that deliberately do not
+ * say so. @see `./combat`'s {@link SWING_WINDUP_SHARE}
+ *
+ * The wait is spent here rather than counted by each test because almost nothing
+ * below is a test about the approach: a blow that turns a body, plants it, or
+ * knocks a crate over is the same blow whenever it lands. The ones that *are*
+ * about the approach set their own target and do their own ticking.
  */
-function fight(session: GameSession, actorId: string | null) {
+function fight(
+  session: GameSession,
+  actorId: string | null,
+  windupMs = CERTAIN_WINDUP_MS,
+) {
   session.setTarget(actorId);
   session.setAttackMode(true);
+  for (let elapsed = 0; elapsed < windupMs; elapsed += TICK_MS) {
+    session.tick(TICK_MS);
+  }
 }
+
+/**
+ * How long a body swinging at {@link CERTAIN} speed spends getting into its
+ * first blow.
+ *
+ * The default because it is what nearly every fixture here swings at — three
+ * ticks, which is short enough that a test counting a window of swings can
+ * ignore it. A fixture authored slower says how long its own approach is; the
+ * figure is half the interval, whatever the interval is.
+ */
+const CERTAIN_WINDUP_MS = attackIntervalMs(CERTAIN.spd) * SWING_WINDUP_SHARE;
 
 describe("hit points", () => {
   it("start full, and only exist on a body that has stats", () => {
@@ -461,11 +488,110 @@ describe("swinging at a target", () => {
         : t,
     );
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), slowPlayer);
-    fight(session, bodyOf(session, "dummy")!.id);
 
     const interval = attackIntervalMs(0);
+    // The approach is half the interval and the first blow lands at the end of
+    // it, so the window that holds exactly one swing starts there rather than at
+    // the target. @see `./combat`'s {@link SWING_WINDUP_SHARE}
+    fight(session, bodyOf(session, "dummy")!.id, interval * SWING_WINDUP_SHARE);
     expect(swingsOver(session, interval - TICK_MS)).toBe(1);
     expect(swingsOver(session, TICK_MS * 2)).toBe(1);
+  });
+
+  /**
+   * The approach, which is the one thing a fight costs before it costs anything
+   * else.
+   *
+   * Reach alone used to decide the opening blow: a body that touched something
+   * swung on the tick it arrived. That made an approach free, made it *equally*
+   * free whatever was being swung — a greatsword landed as instantly as a dagger
+   * — and made withdrawing for exactly one cooldown strictly better than staying,
+   * since the wait ran wherever you went. Half an interval of standing there is
+   * the price of the first blow now. @see `./combat`'s {@link SWING_WINDUP_SHARE}
+   *
+   * Written against the slow player throughout, because the claim is about a
+   * length of time and at {@link CERTAIN}'s speed the whole approach is three
+   * ticks — a window too narrow to tell an approach from an off-by-one.
+   */
+  describe("getting into the first blow", () => {
+    const INTERVAL_MS = attackIntervalMs(0);
+    const APPROACH_MS = INTERVAL_MS * SWING_WINDUP_SHARE;
+
+    /** A player who swings once every twenty seconds, and always connects. */
+    const slow = tiles.map((t) =>
+      t.id === "player"
+        ? tile({
+            ...t,
+            interactions: {
+              battler: {
+                baseHp: FIXTURE_BASE_HP,
+                masteries: { toughness: PLAYER_TOUGHNESS },
+                naturalWeapon: claws({ damage: 1, accuracy: 100 }),
+              },
+            },
+          })
+        : t,
+    );
+
+    /**
+     * A fight picked but not yet stood through, with a second body beside the
+     * first — the anvil, because the only test that turns on it wants something
+     * that cannot be killed part-way through.
+     */
+    function approaching() {
+      const board = withBody(withBody(field(), 1, 0, "dummy"), 0, 1, "anvil");
+      const session = new GameSession(board, slow);
+      session.setTarget(bodyOf(session, "dummy")!.id);
+      session.setAttackMode(true);
+      return session;
+    }
+
+    it("holds the first blow for half the interval", () => {
+      const session = approaching();
+
+      expect(swingsOver(session, APPROACH_MS - TICK_MS)).toBe(0);
+      expect(swingsOver(session, TICK_MS * 2)).toBe(1);
+    });
+
+    /**
+     * The half of the rule that closes the withdrawal, and the reason the
+     * windup is re-armed rather than paid once: the cooldown runs wherever you
+     * go, so a wait that only applied to the opening blow would leave "touch,
+     * swing, leave, come back" exactly as strictly better as it was.
+     */
+    it("starts the approach again for a body that walked out of reach", () => {
+      const session = approaching();
+      advance(session, APPROACH_MS - WALK_DURATION_MS * 3);
+
+      // Out to the far side of the cell it came from and straight back, which
+      // is two whole steps spent nowhere near the dummy.
+      session.setInput({ directions: ["w"] });
+      advanceUntil(session, () => self(session).x === -1);
+      session.setInput({ directions: ["e"] });
+      advanceUntil(session, () => self(session).x === 0);
+      session.setInput({ directions: [] });
+
+      // Where the first approach would have landed its blow, and nothing has.
+      expect(swingsOver(session, WALK_DURATION_MS * 3)).toBe(0);
+      // The whole approach again, from the step that brought it back.
+      expect(swingsOver(session, APPROACH_MS)).toBe(1);
+    });
+
+    /**
+     * A body that turns on somebody else has arrived at somebody else. Without
+     * this, killing one of a pair and turning to the other would swing on the
+     * tick the target changed — the free opening blow, taken at the only moment
+     * nobody had to walk anywhere for it.
+     */
+    it("makes a second target a second approach", () => {
+      const session = approaching();
+      advance(session, APPROACH_MS - TICK_MS);
+
+      session.setTarget(bodyOf(session, "anvil")!.id);
+
+      expect(swingsOver(session, APPROACH_MS - TICK_MS)).toBe(0);
+      expect(swingsOver(session, TICK_MS * 2)).toBe(1);
+    });
   });
 
   it("turns to face what it is hitting", () => {
@@ -1713,6 +1839,38 @@ describe("what a swing costs in footwork", () => {
   }
 
   /**
+   * A slow walker holding a quick weapon.
+   *
+   * The one shape that can throw a blow during a step, now that getting into one
+   * costs half an interval. A step may not *start* while a recovery runs, so a
+   * blow thrown mid-step has to be thrown during a walk that was already in
+   * flight — and for anything as slow as {@link ponderous} the approach alone is
+   * longer than the whole step it would have to fit inside. At {@link CERTAIN}'s
+   * speed the approach is three ticks and the step is eighteen.
+   *
+   * Rooted from the first blow onwards, since these blows come round five times
+   * faster than this body walks. That is the extreme the test below is about and
+   * is not this one's problem: what is under test here is over by then.
+   */
+  function quickHanded(walkDurationMs: number): TileDef[] {
+    return tiles.map((t) =>
+      t.id === "player"
+        ? tile({
+            ...t,
+            walkDurationMs,
+            interactions: {
+              battler: {
+                baseHp: FIXTURE_BASE_HP,
+                masteries: { toughness: 92 },
+                naturalWeapon: claws({ damage: 5, ...CERTAIN }),
+              },
+            },
+          })
+        : t,
+    );
+  }
+
+  /**
    * A fight against something nothing can get through.
    *
    * The anvil rather than the dummy, because these run for whole seconds and a
@@ -1722,9 +1880,13 @@ describe("what a swing costs in footwork", () => {
    */
   function planted(defs: TileDef[]) {
     const session = new GameSession(withBody(field(), 1, 0, "anvil"), defs);
-    fight(session, bodyOf(session, "anvil")!.id);
+    // The approach is half of *this* body's interval, and this body is
+    // deliberately the slowest in the file — see {@link ponderous}.
+    fight(session, bodyOf(session, "anvil")!.id, PONDEROUS_WINDUP_MS);
     return session;
   }
+
+  const PONDEROUS_WINDUP_MS = attackIntervalMs(0) * SWING_WINDUP_SHARE;
 
   it("refuses to start a step while the swinger is recovering", () => {
     const session = planted(ponderous(PLODDER_WALK_MS));
@@ -1848,7 +2010,7 @@ describe("what a swing costs in footwork", () => {
   it("keeps facing what it struck when the step it swung on lands", () => {
     const session = new GameSession(
       withBody(field(), 1, 0, "anvil"),
-      ponderous(PLODDER_WALK_MS),
+      quickHanded(PLODDER_WALK_MS),
     );
     session.setInput({ directions: ["w"] });
     session.tick(TICK_MS);

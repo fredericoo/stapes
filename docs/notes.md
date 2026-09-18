@@ -2739,6 +2739,77 @@ It applies to the Agility row too. A dodge you never needed to make is worth as
 little as a blow you cannot feel, and exempting Agility would have left the whole
 thing standing one mastery over.
 
+### A fight opens with an approach, half an interval long
+
+Reach alone used to decide the opening blow: a body that came within reach of
+its target swung on the tick it arrived. Two things were wrong with that, and
+they compound.
+
+The first is that an approach was free *and equally free whatever you were
+swinging*. A greatsword and a dagger both landed their first blow instantly, so
+the slow weapon got its damage without ever paying its speed — which is the one
+thing it is supposed to pay.
+
+The second is the withdrawal. The cooldown a swing costs runs wherever the body
+goes, so the strictly better way to fight was to touch, swing, walk out of reach
+for exactly one interval, and come back with the wait already served. Standing
+your ground was the dominated choice, and nothing about the fight said so.
+
+A body may now not swing until it has been **in reach of its target for half its
+own interval** — `combat.ts`'s `swingWindupMs`, held on the attacker as
+`ActorRuntime.windup` and wound down in `advanceCooldowns` beside the cooldown
+and the recovery.
+
+- **A share of the interval, not a constant**, so what starting a fight costs
+  scales with the thing you are starting it with. Half of a rat's 867ms is a
+  moment; half of a greatsword's is a second somebody can walk away from. It also
+  keeps the opening blow the fast body's, which a flat windup would have handed
+  to whoever was slowest.
+- **Half rather than a whole, because it runs *alongside* the cooldown.** A body
+  that stays where it is finishes winding up long before its next blow comes
+  round, so a stand-up fight is exactly the fight it always was — the rate is
+  untouched and only the start moved. At a whole interval the windup would still
+  be running when the cooldown cleared, which would halve every rate in the game.
+- **Re-armed on every approach, not paid once per fight.** That is the half that
+  closes the withdrawal: a wait that only applied to the opening blow would leave
+  "touch, swing, leave, come back" as strictly better as it was. What it adds up
+  to is that you have to be beside your target for half of every interval. You
+  may still step in and out — a body that returns within the other half loses
+  nothing at all — and what you can no longer do is be absent.
+- **Keyed by target.** Without the id, killing one of a pair and turning on the
+  one beside it would swing on the tick the target changed: the free opening
+  blow, taken at the only moment nobody had to walk anywhere for it.
+- **Ranged is the same rule and barely notices it**, which is why there is no
+  branch for it. An archer is inside its reach disc from across a yard and rarely
+  leaves it, so the windup is long spent before the shot; what it does cost is
+  the first shot after acquiring somebody, and a target that ducks behind a wall
+  makes the archer start again.
+
+Two seams are worth knowing:
+
+- **The reach check moved above the cooldown check in `tryAttack`.** A body on
+  cooldown still has to be *seen* in reach, or a fighter who withdrew for the
+  length of one and strolled back would find the wait already served. The cost is
+  a `canReach` per engaged body per tick rather than one per swing, which is
+  small beside what a brain round already does. `bun run bench:server` did not
+  move: tick p50 0.42–0.78ms against 0.43–0.86ms before it, p95 inside the
+  run-to-run spread on every scenario, and the wire untouched.
+- **The windup is wound on the tick clock and dropped by `WINDUP_LAPSE_MS`.**
+  Reach is only asked about where somebody is trying to swing, and the two askers
+  run at very different rates: a player's standing target is tried every tick,
+  a creature's brain reaches its `attack` action once a round. Winding on the
+  tick is what makes the approach the same length for both. The lapse is the
+  other side of it — a windup nobody has confirmed for two rounds is forgotten,
+  so dropping your target and picking it up again is not a way to skip the wait.
+  Leaving reach *while still asking* drops it outright on the tick it happens.
+
+`duel.ts` seats both fighters on a first cooldown of `swingWindupMs` rather than
+ready. It has no reach to lose — the whole premise of that module is two bodies
+in reach of each other — so the windup there can only ever be the opening one,
+and spending it as the cooldown is the honest way to say that. Every fight in
+`duel.test.ts` is now half an interval longer than it was, which is why the
+"lose fast enough to be a signal" bound moved from eight seconds to nine.
+
 ### A blow costs the thrower two steps, and the aim with them
 
 Swinging is automatic and used to cost the body doing it nothing, so the

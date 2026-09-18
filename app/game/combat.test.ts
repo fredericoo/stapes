@@ -25,6 +25,9 @@ import {
   REFLEX_EDGE,
   reflex,
   rollAttack,
+  SWING_WINDUP_SHARE,
+  swingIntervalMs,
+  swingWindupMs,
   underPressure,
 } from "./combat";
 import { TICK_MS } from "./constants";
@@ -88,6 +91,63 @@ describe("attack speed", () => {
   it("clamps a stat somebody hand-edited out of range", () => {
     expect(attackIntervalMs(-50)).toBe(attackIntervalMs(0));
     expect(attackIntervalMs(500)).toBe(attackIntervalMs(100));
+  });
+});
+
+/**
+ * What getting into a blow costs, which is the one cost in a fight that is paid
+ * before anything has happened.
+ *
+ * A share of the interval rather than a figure of its own, so the heaviest
+ * weapon in the game no longer lands its opening blow as instantly as the
+ * lightest. See {@link SWING_WINDUP_SHARE} for what the flat version cost.
+ */
+describe("the approach", () => {
+  it("is half of whatever this body's own interval is", () => {
+    for (const spd of [0, 1, 25, 50, 75, 99, 100]) {
+      const stats = battler({ spd });
+      const half = swingIntervalMs(stats) * SWING_WINDUP_SHARE;
+      // Within the rounding below rather than exactly, because an interval of an
+      // odd number of ticks has no half in whole ticks.
+      expect(swingWindupMs(stats)).toBeGreaterThanOrEqual(half - TICK_MS / 2);
+      expect(swingWindupMs(stats)).toBeLessThanOrEqual(half + TICK_MS / 2);
+    }
+  });
+
+  /**
+   * Whole ticks, because the clock it is wound on counts in them: a windup of
+   * half a tick would be spent on the tick after the one it was armed on, which
+   * is a rule that rounds itself.
+   */
+  it("lands on a whole tick", () => {
+    for (let spd = 0; spd <= 100; spd++) {
+      const ticks = swingWindupMs(battler({ spd })) / TICK_MS;
+      expect(ticks).toBeCloseTo(Math.round(ticks), 6);
+    }
+  });
+
+  /**
+   * The property the fight actually rests on: the approach is shorter for the
+   * faster body, so the opening blow is still the quick one's. A flat windup
+   * would have handed the opening to whoever was slowest to follow it up.
+   */
+  it("never gets longer as speed goes up", () => {
+    for (let spd = 1; spd <= 100; spd++) {
+      expect(swingWindupMs(battler({ spd }))).toBeLessThanOrEqual(
+        swingWindupMs(battler({ spd: spd - 1 })),
+      );
+    }
+  });
+
+  /**
+   * Haste is in it, which is what makes it the *body's* approach rather than
+   * the weapon's: a body short of what its weapon asks swings slowly and gets
+   * into the blow slowly too, and one Agility has quickened does both faster.
+   */
+  it("follows haste, not spd alone", () => {
+    const hastened = battler({ spd: 50, haste: 2 });
+    const plain = battler({ spd: 50, haste: 1 });
+    expect(swingWindupMs(hastened)).toBeLessThan(swingWindupMs(plain));
   });
 });
 

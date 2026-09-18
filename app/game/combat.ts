@@ -11,7 +11,7 @@ import {
 } from "../lib/item";
 import type { WeaponMastery } from "../lib/mastery";
 import type { MapFile, TileDef } from "../lib/types";
-import { TICK_MS } from "./constants";
+import { BRAIN_TICK_MS, TICK_MS } from "./constants";
 import { type ReachPoint, withinReach } from "./distance";
 import { resolveWalkDurationMs } from "./movement";
 import type { Rng } from "./rng";
@@ -150,6 +150,78 @@ export function attackIntervalMs(spd: number, haste = 1): number {
 export function swingIntervalMs(attacker: FightingStats): number {
   return attackIntervalMs(attacker.spd, attacker.haste);
 }
+
+/**
+ * The share of a swing interval a body spends getting into the blow.
+ *
+ * A half. Before it, reach alone decided the opening blow: a body that touched
+ * something swung on the tick it arrived, which made the whole of an approach
+ * free and made it *equally* free for every weapon — a greatsword and a dagger
+ * both landed instantly, so the slow weapon got its damage without ever paying
+ * its speed. Worse, the cooldown it then owed ran wherever the body went, so the
+ * strictly better way to fight was to touch, swing, withdraw for exactly one
+ * interval, and come back for the next one with nothing at risk in between.
+ *
+ * A share rather than a constant, because what it is buying is that the cost of
+ * starting a fight scales with the thing you are starting it with. Half of a
+ * rat's 867ms is a moment; half of a greatsword's is a second somebody can walk
+ * away from.
+ *
+ * Half rather than a whole, because the windup runs *alongside* the cooldown
+ * rather than after it — see {@link swingWindupMs}. At a whole interval a body
+ * that never left reach would still be waiting on it when the cooldown cleared,
+ * which would halve every rate in the game; at a half, a stand-up fight is
+ * exactly the fight it was and only the approach changed.
+ */
+export const SWING_WINDUP_SHARE = 0.5;
+
+/**
+ * How long a body has to have been in reach of its target before it may swing.
+ *
+ * **Spent alongside the cooldown, not after it.** A body that stays where it is
+ * finishes winding up long before its next blow comes round, so a fight between
+ * two bodies standing their ground is unchanged. What the windup costs is
+ * *arriving*: the first blow of a fight comes half an interval after you get
+ * there, and a body that leaves reach starts the wait again when it returns.
+ *
+ * That is the whole of the rule, and it is deliberately not a fourth thing to
+ * dodge: you may still step in and out, and a body that returns within half an
+ * interval loses nothing at all. What it can no longer do is be absent.
+ *
+ * The hand's own interval, exactly as the cooldown is — a body alternating a
+ * dagger and an axe winds up for as long as whatever it is about to swing.
+ *
+ * Rounded to a whole tick, which is what the clock counts in.
+ */
+export function swingWindupMs(attacker: FightingStats): number {
+  const ticks = (swingIntervalMs(attacker) * SWING_WINDUP_SHARE) / TICK_MS;
+  return Math.round(ticks) * TICK_MS;
+}
+
+/**
+ * How long a windup outlives the last reach that held it up.
+ *
+ * Reach is only asked about where somebody is trying to swing, so a windup has
+ * no way of knowing it has been abandoned — and abandoning one has to cost
+ * something, or dropping your target, walking away and picking it up again
+ * would be the cheap version of the approach this whole rule is about. A windup
+ * nobody has confirmed for this long is forgotten, and the next reach that
+ * holds starts a fresh one.
+ *
+ * Two brain rounds, sized by the *slowest* of the two askers rather than by any
+ * balance figure: a player's standing target is tried every tick and a
+ * creature's brain reaches its `attack` action once a round, so anything under a
+ * round would forget every creature's windup between its own turns. The second
+ * round is slack for a turn that arrives late — see `GameSession`'s
+ * `brainDeferredMs`.
+ *
+ * It is not a window anybody can play in. Leaving reach *while still asking*
+ * drops the windup outright on the tick it happens, which is every tick a player
+ * is attacking and every round a creature is; this covers only the case where
+ * nobody is asking at all, and two rounds is not enough time to walk out of
+ * melee reach and back.
+ */
+export const WINDUP_LAPSE_MS = BRAIN_TICK_MS * 2;
 
 /**
  * How far apart two contested numbers have to be before the outcome stops being

@@ -1,4 +1,4 @@
-import { MAP_FILE_VERSION } from "../app/lib/types";
+import { MAP_FILE_VERSION, normalizeTiles } from "../app/lib/types";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { Harness, Pair, type TestSocket } from "./testHarness";
 import type { WorldStore } from "./WorldStore";
@@ -25,6 +25,8 @@ import { tilesByIdFromList } from "../app/lib/validation";
 import { CHAT_MIN_INTERVAL_MS } from "../app/net/chat";
 import { CLOSE_REPLACED } from "../app/net/protocol";
 import { COMBAT_STATUS_ID } from "../app/lib/status";
+import { fightingStats, resolveBattler } from "../app/lib/battler";
+import { swingWindupMs } from "../app/game/combat";
 import {
   CHAT_LOG_MAX_ROWS,
   MAX_REMEMBERED_ACTORS,
@@ -2495,6 +2497,26 @@ async function boxX(): Promise<number | null> {
  * damage number names the body that took it.
  */
 describe("announcing a swing", () => {
+  /**
+   * Long enough for the first blow of a fight to be thrown, plus the slack
+   * every other window here carries.
+   *
+   * A fight opens with an approach — half the swinger's own interval standing
+   * in reach of its target before anything goes out, see `app/game/combat`'s
+   * `SWING_WINDUP_SHARE` — so a window sized to a few quiet ticks now expires
+   * just before the swing it is listening for. Read off the authored player
+   * rather than written down, so re-authoring bare hands moves this with it.
+   */
+  const FIRST_BLOW_MS = (() => {
+    const player = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]))[
+      PLAYER_TILE_ID
+    ];
+    const battler = player && resolveBattler(player);
+    if (!battler) throw new Error("the player is not a battler");
+    const stats = fightingStats(battler, battler.naturalWeapon);
+    return swingWindupMs(stats) + QUIET_MS * 3;
+  })();
+
   it("tells the room each time somebody throws a blow", async () => {
     const alice = await connect("alice");
     const bob = await connect("bob");
@@ -2504,7 +2526,7 @@ describe("announcing a swing", () => {
     await walkEast(alice.ws);
 
     // Listening before the fight starts, so the first blow is not missed.
-    const swings = eventsWithin(alice.ws, "swung", QUIET_MS * 3);
+    const swings = eventsWithin(alice.ws, "swung", FIRST_BLOW_MS);
     alice.ws.send(JSON.stringify({ type: "target", actorId: "bob" }));
     alice.ws.send(JSON.stringify({ type: "attackMode", enabled: true }));
 
