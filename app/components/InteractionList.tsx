@@ -16,7 +16,7 @@ import {
   IconWalk,
 } from "@tabler/icons-react";
 import { useMemo, useRef } from "react";
-import type { Extraction } from "../game/extract";
+import type { Progress } from "../game/progress";
 import type {
   InteractionAction,
   InteractionGroup,
@@ -283,13 +283,21 @@ function actionClass(option: InteractionOption): string {
 }
 
 /**
- * How much of a pull has already been made, in milliseconds.
+ * How much of a wait has already gone, in milliseconds.
  *
- * **The one number the bar is drawn from**, and it is a negative
+ * **The one number a bar is drawn from**, and it is a negative
  * `animation-delay` rather than a width: the fill is a keyframe over the whole
- * duration, so starting it this far in is what makes a row rebuilt mid-pull
+ * duration, so starting it this far in is what makes a row rebuilt mid-wait
  * pick the animation up where it already was instead of restarting it. See
  * `fill-progress` in `app.css`.
+ *
+ * Two things are drawn this way and the arithmetic is the same for both — a
+ * pull being made, and the wait before a blow. That the second one *opens* half
+ * spent is the whole of what a windup looks like from here: the session hands
+ * over half an interval remaining out of a whole one, so the delay is half the
+ * duration and the bar arrives half full. Nothing in here knows that; it is a
+ * consequence of the two numbers. @see `../game/GameSession`'s
+ * `ActorRuntime.nextBlow`
  *
  * Clamped at both ends rather than trusted, on `statusFraction`'s terms: the
  * remainder and the duration are two numbers off the wire that nothing forces
@@ -299,9 +307,9 @@ function actionClass(option: InteractionOption): string {
  * Exported for the test rather than for a second caller — the arithmetic is
  * assertable and the rendering is not.
  */
-export function extractionElapsedMs(extraction: Extraction): number {
-  const elapsed = extraction.durationMs - extraction.remainingMs;
-  return Math.max(0, Math.min(extraction.durationMs, elapsed));
+export function fillElapsedMs(progress: Progress): number {
+  const elapsed = progress.durationMs - progress.remainingMs;
+  return Math.max(0, Math.min(progress.durationMs, elapsed));
 }
 
 /**
@@ -402,37 +410,73 @@ function blockReason(blocked: OptionBlock): string {
 }
 
 /**
- * The bar that fills as a pull is made.
+ * The bar that fills as a wait runs down — a pull being made, or the time until
+ * the next blow.
  *
- * White, faint, and driven entirely by CSS — see `fill-progress` in `app.css`. The
- * element is given the *whole* duration and a negative delay of however much
- * had already gone when it appeared, so the browser runs it on the compositor
- * and nothing here has to touch it again.
+ * Faint, in the colour of whatever it is filling towards (see {@link tone}), and
+ * driven entirely by CSS — see `fill-progress` in `app.css`. The element is
+ * given the *whole* duration and a negative delay of however much had already
+ * gone when it appeared, so the browser runs it on the compositor and nothing
+ * here has to touch it again.
  *
- * **The delay is read once, when the bar appears, and never again.** That is
- * the whole reason this is a component rather than three lines inline. A row is
- * re-rendered for all sorts of reasons while a pull runs — anything that
- * changes the list around it — and `extraction.remainingMs` is a live number,
- * so a delay recomputed on every render would re-seek a running animation over
- * and over and drive the fill far ahead of the pull it is drawing. It was doing
- * exactly that: an eight-second bar filled in five.
+ * **The delay is read once per wait, and never again while that wait runs.**
+ * That is the whole reason this is a component rather than three lines inline. A
+ * row is re-rendered for all sorts of reasons while a wait runs — anything that
+ * changes the list around it — and `remainingMs` is a live number the session
+ * winds in place, so a delay recomputed on every render would re-seek a running
+ * animation over and over and drive the fill far ahead of the thing it is
+ * drawing. It was doing exactly that: an eight-second bar filled in five.
  *
- * Reading it once is also *correct* rather than merely stable, because this
- * mounts exactly when the pull becomes visible to this client — its own start,
- * or a reconnect in the middle of one — and both are moments when the remainder
- * is right. The bar is unmounted when the pull ends, so the next one on the
- * same row starts a fresh instance and a fresh reading.
+ * **A new wait is a new bar**, which is what the identity check buys. A pull
+ * unmounts this when it ends, so its next one is a fresh instance either way; a
+ * fight does not — the row stays exactly as it was and the session hands over a
+ * replaced `Progress` on the tick the blow goes out. Comparing the object is
+ * what tells the two apart, and bumping the `key` is what makes the browser
+ * start the animation again rather than re-seek one that has already finished.
+ *
+ * Reading it once is also *correct* rather than merely stable, because each
+ * reading happens exactly when a wait becomes visible to this client — its own
+ * start, or a reconnect in the middle of one — and both are moments when the
+ * remainder is right.
  */
-function ProgressFill({ extraction }: { extraction: Extraction }) {
-  const delayMs = useRef(extractionElapsedMs(extraction)).current;
+function ProgressFill({
+  progress,
+  tone,
+}: {
+  progress: Progress;
+  /**
+   * What the fill is drawn in, and it is the colour of the thing it is filling
+   * towards — the list's four-colour vocabulary, one level down. A pull is a
+   * white bar on an unlit row, because a pull is not a fight and white is what
+   * the rest of the list wears. A fight's bar is red on a row that is already
+   * red, because it is the *fight* filling up, and a white one there would read
+   * as some second thing happening inside a red row.
+   *
+   * Deeper than the row it sits on rather than lighter, which is what makes it
+   * legible at all: the lit row is a fifth of the danger colour and this is
+   * closer to half, so the edge between served and still to serve is a step in
+   * the same hue instead of a wash over it.
+   */
+  tone: "pull" | "fight";
+}) {
+  const seen = useRef<Progress | null>(null);
+  const run = useRef({ id: 0, delayMs: 0 });
+  if (seen.current !== progress) {
+    seen.current = progress;
+    run.current = { id: run.current.id + 1, delayMs: fillElapsedMs(progress) };
+  }
 
   return (
     <span
+      key={run.current.id}
       aria-hidden="true"
-      className="fill-progress pointer-events-none absolute inset-0 bg-paper/20"
+      className={[
+        "fill-progress pointer-events-none absolute inset-0",
+        tone === "fight" ? "bg-danger/45" : "bg-paper/20",
+      ].join(" ")}
       style={{
-        animationDuration: `${extraction.durationMs}ms`,
-        animationDelay: `-${delayMs}ms`,
+        animationDuration: `${progress.durationMs}ms`,
+        animationDelay: `-${run.current.delayMs}ms`,
       }}
     />
   );
@@ -531,12 +575,23 @@ function ActionButton({
         actionClass(option),
       ].join(" ")}
     >
-      {/* The pull, filling the row from the left as it is made. Behind the
-          verb rather than under it, because what it is filling towards is
-          *that verb paying out* — a separate track below would be a second
-          thing to look at for one fact. Absent entirely when nothing is being
-          pulled, rather than drawn empty. */}
-      {working ? <ProgressFill extraction={working} /> : null}
+      {/* The wait, filling the row from the left as it runs down — a pull being
+          made, or the time until this fight's next blow. Behind the verb rather
+          than under it, because what it is filling towards is *that verb paying
+          out* — a separate track below would be a second thing to look at for
+          one fact. Absent entirely when there is no wait on, rather than drawn
+          empty.
+
+          One or the other and never both: a pull is a verb on a vein and a
+          fight is a verb on a body, so no row in the list can carry two. The
+          pull is asked first because it is also the reason the row is greyed,
+          and a row that drew a fight's bar over a refusal would be answering a
+          question nobody asked. */}
+      {working ? (
+        <ProgressFill progress={working} tone="pull" />
+      ) : option.wait ? (
+        <ProgressFill progress={option.wait} tone="fight" />
+      ) : null}
       <Icon
         size={14}
         stroke={2}

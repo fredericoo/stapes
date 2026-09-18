@@ -640,6 +640,50 @@ describe("RemoteSession strikes", () => {
   });
 });
 
+/**
+ * The wait before this viewer's next blow, as the server addresses it to them.
+ *
+ * The client's half of it is the countdown: the wire carries a wait twice — once
+ * when it changes, once when the fight ends — and everything in between is this
+ * side's clock, because the outline round the target fills from it every frame.
+ * @see `../render/blowReadiness`
+ */
+describe("RemoteSession the wait before a blow", () => {
+  const WAIT_MS = 1_200;
+
+  it("winds on the render clock between the two messages that carry it", () => {
+    const { socket, session } = connected();
+    socket.deliver({
+      type: "nextBlow",
+      nextBlow: { remainingMs: WAIT_MS, durationMs: WAIT_MS },
+    });
+
+    session.update(WAIT_MS / 4);
+
+    expect(session.getSnapshot().nextBlow).toEqual({
+      remainingMs: (WAIT_MS * 3) / 4,
+      durationMs: WAIT_MS,
+    });
+  });
+
+  it("stops reporting one when the server says the fight is off", () => {
+    const { socket, session } = connected();
+    socket.deliver({
+      type: "nextBlow",
+      nextBlow: { remainingMs: WAIT_MS, durationMs: WAIT_MS },
+    });
+    socket.deliver({ type: "nextBlow", nextBlow: null });
+
+    expect(session.getSnapshot().nextBlow).toBeNull();
+  });
+
+  /** A version skew degrades to an outline that breathes, which is the old one. */
+  it("reads a hello from before this existed as nobody in a fight", () => {
+    const { session } = connected();
+    expect(session.getSnapshot().nextBlow).toBeNull();
+  });
+});
+
 /** The plant a blow costs its thrower, as the server announces it. */
 const swung: MotionEvent = { kind: "swung", actorId: SELF };
 

@@ -2810,6 +2810,69 @@ and spending it as the cooldown is the honest way to say that. Every fight in
 `duel.test.ts` is now half an interval longer than it was, which is why the
 "lose fast enough to be a signal" bound moved from eight seconds to nine.
 
+### The fight row fills towards the next blow
+
+The windup above is invisible, and that is what it was reported as: a body
+standing beside a wolf hits at no moment the screen names, so the wait reads as
+the game thinking about it rather than as a rule. The first thing tried was
+driving the target outline's brightness off the wait. It was not clear — a 1px
+silhouette on an 8px sprite is too little surface to carry a value, and the
+outline already means "this is the one you picked".
+
+So the wait is drawn where the decision is made instead: the **Attack** row in
+the interaction list fills from the left as the wait runs down, using the same
+bar a pull already had (`fill-progress` in `app.css`, driven by a negative
+`animation-delay` so the browser runs it on the compositor).
+
+**A fight opens with the bar half full**, which is the windup made visible: the
+wait is half an interval and the bar is measured against a whole one. Nothing in
+the component knows that — it is a consequence of the two numbers the session
+hands over.
+
+#### What the two numbers are
+
+`ActorRuntime.nextBlow` is the longer of the windup and the cooldown, measured
+against the swing interval. Neither one alone would do:
+
+- The **windup** is what arriving costs, and it runs alongside the cooldown, so a
+  body that stays where it is finishes it long before its next blow comes round.
+  A bar drawn from it would sit full for the whole of every stand-up fight.
+- The **cooldown** is what a blow costs, and says nothing about arriving. A bar
+  drawn from it would promise a blow to somebody who has just walked into reach
+  and still owes half an interval.
+
+It is **a reading and never a rule**: nothing is gated on it, `windup` and
+`attackCooldownMs` remain the only two things a swing asks, and a bug here costs
+a wrong bar rather than a wrong fight. It is replaced on the two events that
+change the wait — a windup armed against somebody new, a cooldown spent — and
+wound in place in between, so identity is the change signal the way a pull's and
+a cast's are. It is dropped with the windup beside it, through `disengage`, so a
+body that steps out of reach stops reporting a blow nobody is winding up for.
+
+On the wire it is **addressed to one socket rather than broadcast**, unlike the
+pull and cast bars: the row it fills is the viewer's own, so everybody else's
+wait would be fan-out for a bar nobody can see. Two messages a wait and none in
+between; `flushNextBlow` compares by identity against what each attached player
+was last told, and the client winds the figure down on its own frame clock.
+
+#### Three seams worth knowing
+
+- **The hello records what it sent.** `rememberNextBlow` writes into
+  `sentNextBlow` as the hello is built, because the hello *is* the first thing
+  said about the wait. Without it the next flush follows every handshake with a
+  message repeating it, which is what broke the departure test.
+- **An unchanged key still has to hand the list over.** `pushInteractions` keys
+  the list on what a row *draws* and deliberately carries no remainder, so two
+  consecutive waits produce a byte-identical key — same row, same label, same
+  presence of a clock. `interactionsNextBlow` is what gets past that: the row
+  would otherwise keep the bar it mounted for the first blow and never start
+  another.
+- **A new wait is a new bar.** `ProgressFill` reads its delay once per wait and
+  bumps a `key` when the `Progress` it is handed changes identity. A pull
+  unmounts the bar when it ends, so its next one is a fresh instance either way;
+  a fight does not — the row stays exactly as it was — and re-seeking an
+  animation that has already finished does nothing.
+
 ### A blow costs the thrower two steps, and the aim with them
 
 Swinging is automatic and used to cost the body doing it nothing, so the

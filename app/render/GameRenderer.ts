@@ -36,7 +36,7 @@ import {
   type InteractionOption,
 } from "../game/interactionOptions";
 import type { Extraction } from "../game/extract";
-import { progressFraction } from "../game/progress";
+import { type Progress, progressFraction } from "../game/progress";
 import { inscribedNearby } from "./nearbyInscriptions";
 import { WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
@@ -446,6 +446,20 @@ export class GameRenderer {
    * `GameSnapshot.extracting`.
    */
   private interactionsExtracting: Extraction | null = null;
+  /**
+   * The wait the fight row's bar was last drawn from.
+   *
+   * Beside {@link interactionsExtracting} and compared the same way, for the
+   * same reason: the session replaces the value only when the wait changes — a
+   * windup armed, a blow thrown — and winds it in place in between, so identity
+   * fires once a blow rather than on every tick that advances one.
+   *
+   * It is also what forces the hand-over. The list's key deliberately carries no
+   * remainder — see {@link pushInteractions} — so two consecutive waits produce
+   * a byte-identical key, and without this the row would keep the bar it mounted
+   * for the first of them and never start the second. @see `GameSnapshot.nextBlow`
+   */
+  private interactionsNextBlow: Progress | null = null;
   private onOpenedContainer:
     | ((container: OpenedContainer | null) => void)
     | null = null;
@@ -1031,6 +1045,7 @@ export class GameRenderer {
     this.interactionsEquipment = null;
     this.interactionsTags = null;
     this.interactionsExtracting = null;
+    this.interactionsNextBlow = null;
     this.interactionsSent = [];
   }
 
@@ -2729,10 +2744,15 @@ export class GameRenderer {
       health === this.interactionsHealth &&
       snap.equipment === this.interactionsEquipment &&
       snap.tags === this.interactionsTags &&
-      snap.extracting === this.interactionsExtracting
+      snap.extracting === this.interactionsExtracting &&
+      snap.nextBlow === this.interactionsNextBlow
     ) {
       return;
     }
+    // Read before it is replaced, because it is the one change the key below
+    // cannot see. @see {@link interactionsNextBlow}
+    const waitChanged = snap.nextBlow !== this.interactionsNextBlow;
+    this.interactionsNextBlow = snap.nextBlow;
     this.interactionsEquipment = snap.equipment;
     this.interactionsTags = snap.tags;
     this.interactionsExtracting = snap.extracting;
@@ -2759,6 +2779,9 @@ export class GameRenderer {
       // its tier. This is the same array held for the hover below, read before
       // it is replaced.
       this.interactionsSent,
+      // Handed on as it arrived, on the pull's terms above: the bar on the
+      // fight row is drawn from the object the session winds in place.
+      snap.nextBlow,
     );
     // Held whether or not it is handed on, because the *references* inside it go
     // stale even when the list reads the same: a walking deer keeps its row and
@@ -2782,7 +2805,12 @@ export class GameRenderer {
           `${o.id}/${o.label}/${o.active}/${o.health?.hp ?? ""}/${o.blocked?.kind ?? ""}`,
       )
       .join("|");
-    if (key === this.interactionsKey) return;
+    // The wait is the one thing that gets past an unchanged key, and it has to
+    // be: a fresh wait is byte-identical to the one it replaced — same row, same
+    // label, same presence of a clock — so a row told only about key changes
+    // would keep the bar it mounted for the first blow and never start another.
+    // @see {@link interactionsNextBlow}
+    if (key === this.interactionsKey && !waitChanged) return;
     this.interactionsKey = key;
     this.onInteractions(options);
   }
