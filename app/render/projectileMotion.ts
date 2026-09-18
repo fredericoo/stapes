@@ -7,6 +7,9 @@ import {
   flightScreenDelta,
   type ProjectileFlight,
 } from "../game/projectile";
+import type { EmitterOverride } from "../lib/lighting";
+import { resolveLight } from "../lib/tileResolve";
+import { LIGHT_FADE_STEP_MS } from "./tileTransitions";
 import { CELL_CENTRE, depthBox, depthStackBias } from "../lib/geometry";
 import { projectileEffect, resolveProjectile } from "../lib/projectile";
 import type { ParticleEmitterSpec } from "./particles";
@@ -14,6 +17,7 @@ import {
   HEIGHT_PER_LEVEL,
   OCTANTS,
   type Octant,
+  tileCanEmitLight,
   type TileDef,
 } from "../lib/types";
 
@@ -159,6 +163,106 @@ export function projectileViews(
     });
   }
   return views;
+}
+
+/**
+ * Whether this tile emits at all, memoised per def.
+ *
+ * {@link tileCanEmitLight} walks every bearing and every frame and allocates as
+ * it goes, which is fine once per tile and wasteful once per flight per frame.
+ * Keyed on the def object rather than the id, on exactly the terms
+ * `../lib/lightingFlood` memoises the same question: an edited catalogue is a
+ * new object and simply misses, with the old entry collected behind it.
+ */
+const canEmitByDef = new WeakMap<TileDef, boolean>();
+
+function canEmit(def: TileDef): boolean {
+  let known = canEmitByDef.get(def);
+  if (known === undefined) {
+    known = tileCanEmitLight(def);
+    canEmitByDef.set(def, known);
+  }
+  return known;
+}
+
+/**
+ * One flight's light, cast from wherever the arrow is this frame.
+ *
+ * **A flight falls between the two ways a light gets made, and had neither.**
+ * The bake walks placements in the map's stacks and an arrow is never in one;
+ * `../render/GameRenderer`'s `emitterOverridesFor` paints one override per
+ * *actor* and an arrow is not one either. So a fireball carrying a light lit
+ * nothing at all — it was drawn at full brightness, because
+ * {@link tileCanEmitLight} makes any emitter `unlit`, and cast nothing on the
+ * ground it crossed. The look of a lamp with none of the effect.
+ *
+ * This is the door a torch in a bag goes through: an {@link EmitterOverride}
+ * carrying its own lights, which is what {@link EmitterOverride.lights} means —
+ * an emitter that is not on the board and has no cell to be looked up in.
+ *
+ * **Frame 0's light rather than the live frame's**, on the terms
+ * `./WorldRenderer`'s `withFadingLights` takes it: the override list is joined
+ * into the overlay's cache key, so a light read off a flickering sprite would
+ * add steps of its own to that key and miss the cache on frames the arrow had
+ * not even moved through.
+ *
+ * Null for the overwhelming majority — an arrow, a mote, anything that carries
+ * no light — so the common flight costs one memoised lookup and nothing else.
+ */
+export function flightLight(
+  flight: ProjectileFlight,
+  def: TileDef | undefined,
+): EmitterOverride | null {
+  if (!def || !canEmit(def)) return null;
+  const light = resolveLight(def, {}, 0);
+  if (!light) return null;
+  const scale = flightLightScale(flight, def);
+  if (scale <= 0) return null;
+
+  const at = flightPosition(flight, flight.elapsedMs / flight.durationMs);
+  return {
+    // The logical cell, which is what the overlay marks as self-lit. Floored
+    // rather than rounded, because a fractional cell is *in* the cell it is
+    // floored into and rounding would claim the one next door for half of it.
+    x: Math.floor(at.x),
+    y: Math.floor(at.y),
+    z: flightLevel(at),
+    // The middle of the cell it is over, exactly as {@link flightEmitter}
+    // hangs a plume — a flight point names a corner, and a light cast from a
+    // corner sits half a cell from where the arrow is drawn.
+    fx: at.x + CELL_CENTRE,
+    fy: at.y + CELL_CENTRE,
+    // In levels, fractional, which is the unit an override's height is in —
+    // see `../render/GameRenderer`'s `actorEmitter`. No half-height is added
+    // the way a body's is: a flight point is already where its sprite hangs.
+    fz: at.elevAbs / HEIGHT_PER_LEVEL,
+    lights: [{ ...light, intensity: light.intensity * scale }],
+  };
+}
+
+/**
+ * How much of a flight's light is left, on the shared step grid.
+ *
+ * Whole while it is crossing, and falling away with the landing it is playing —
+ * a flight outlives its own arrival now, and an arrow dissolving to nothing
+ * while its light stayed at full strength and then snapped off would be the
+ * picture and the lighting telling different stories.
+ *
+ * Read at the last grid line rather than at the exact moment, which is the trick
+ * {@link fadingLightScale} plays for the same reason: the value can only change
+ * when the grid does, so a landing arrow — which is parked, and therefore has a
+ * position the cache key already agrees with across frames — stops churning that
+ * key every frame. A crossing arrow churns it regardless, because it is moving.
+ */
+function flightLightScale(
+  flight: ProjectileFlight,
+  def: TileDef | undefined,
+): number {
+  const phase = flightPhase(flight, def);
+  if (!phase || phase.side === "appear") return 1;
+  const landed = flight.elapsedMs - flight.durationMs;
+  const gridMs = Math.floor(landed / LIGHT_FADE_STEP_MS) * LIGHT_FADE_STEP_MS;
+  return Math.max(0, 1 - gridMs / phase.transition.durationMs);
 }
 
 /**
