@@ -9,6 +9,7 @@ import {
   flightEmitter,
   projectileOctant,
   projectileViews,
+  wearsFlightTransition,
 } from "./projectileMotion";
 
 /**
@@ -43,6 +44,55 @@ const CATALOGUE: Record<string, TileDef> = {
     interactions: { projectile: { cellsPerSecond: 20 } },
   }),
 };
+
+describe("whether a projectile's sides ask anything of its sprite", () => {
+  const sided = (sides: Record<string, Transition>, hit?: Transition) =>
+    normalizeTileDef({
+      id: "arrow",
+      name: "Arrow",
+      height: 0,
+      type: "directional8",
+      kind: "projectile",
+      interactions: {
+        projectile: { cellsPerSecond: 20, ...(hit ? { hit } : {}) },
+      },
+      ...(Object.keys(sides).length ? { transitions: sides } : {}),
+    });
+
+  const DISSOLVE: Transition = {
+    durationMs: 100,
+    dissolve: {
+      pattern: "noise",
+      clumpPx: 3,
+      edgeColor: "#ffffff",
+      edgeWidth: 0.15,
+    },
+  };
+
+  it("asks nothing of a projectile with no sides at all", () => {
+    expect(wearsFlightTransition(CATALOGUE.arrow!)).toBe(false);
+  });
+
+  /**
+   * The case the split is for: a side made purely of particles is thrown into
+   * the world by `flightEmitter` and wants nothing done to the arrow, so it
+   * must not buy one a material of its own.
+   */
+  it("asks nothing of a side that is only a plume", () => {
+    expect(wearsFlightTransition(sided({}, SPARK))).toBe(false);
+  });
+
+  it("is asked by a dissolve on any of the three sides", () => {
+    expect(wearsFlightTransition(sided({ appear: DISSOLVE }))).toBe(true);
+    expect(wearsFlightTransition(sided({ disappear: DISSOLVE }))).toBe(true);
+    expect(wearsFlightTransition(sided({}, DISSOLVE))).toBe(true);
+  });
+
+  it("is asked by a scale", () => {
+    expect(wearsFlightTransition(sided({ appear: { durationMs: 100, scale: {} } })))
+      .toBe(true);
+  });
+});
 
 describe("which way an arrow points", () => {
   /** Screen y grows downward, so north is a negative dy. */
@@ -93,7 +143,18 @@ describe("the views a frame is drawn from", () => {
   it("carries the position, the bearing and the floor", () => {
     const flight = { ...shot(4, 0), elapsedMs: 100 };
     expect(projectileViews([flight], CATALOGUE)).toEqual([
-      { id: "shot-1", tileId: "arrow", direction: "e", x: 12, y: 10, elevAbs: 0, z: 0 },
+      {
+        id: "shot-1",
+        tileId: "arrow",
+        direction: "e",
+        x: 12,
+        y: 10,
+        elevAbs: 0,
+        z: 0,
+        // The fixture arrow authors no sides, which is every projectile that
+        // was drawn before one could wear them.
+        phase: null,
+      },
     ]);
   });
 

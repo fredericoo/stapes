@@ -1,12 +1,14 @@
 import {
   type FlightEffect,
   flightLevel,
+  type FlightPhase,
+  flightPhase,
   flightPosition,
   flightScreenDelta,
   type ProjectileFlight,
 } from "../game/projectile";
 import { CELL_CENTRE, depthBox, depthStackBias } from "../lib/geometry";
-import { resolveProjectile } from "../lib/projectile";
+import { projectileEffect, resolveProjectile } from "../lib/projectile";
 import type { ParticleEmitterSpec } from "./particles";
 import {
   HEIGHT_PER_LEVEL,
@@ -60,6 +62,32 @@ export function projectileOctant(flight: ProjectileFlight): Octant {
   return OCTANTS[((index % OCTANTS.length) + OCTANTS.length) % OCTANTS.length]!;
 }
 
+/**
+ * The three moments a flight can wear a transition at.
+ *
+ * `hit` falls back to `disappear` inside {@link projectileEffect}, so naming
+ * all three here costs nothing and means a projectile that authored only a hit
+ * is still found.
+ */
+const FLIGHT_SIDES = ["appear", "disappear", "hit"] as const;
+
+/**
+ * Whether this projectile's sides ask anything of its sprite.
+ *
+ * **The question the renderer asks once per flight**, to decide whether the
+ * arrow needs a material of its own. A dissolve and a scale are done *to a
+ * sprite*, so only they are counted: a side made purely of particles is thrown
+ * into the world by {@link flightEmitter} and asks nothing of the arrow, and a
+ * side with a `drop` asks for storeys above a cell that a flight does not
+ * stand in.
+ */
+export function wearsFlightTransition(def: TileDef): boolean {
+  return FLIGHT_SIDES.some((side) => {
+    const transition = projectileEffect(def, side);
+    return Boolean(transition?.dissolve || transition?.scale);
+  });
+}
+
 /** One arrow, as the renderer is asked to draw it. */
 export type ProjectileView = {
   /** Stable per flight; the mesh cache is keyed on it. */
@@ -82,6 +110,15 @@ export type ProjectileView = {
    * height. @see `../game/projectile`'s `flightLevel`
    */
   z: number;
+  /**
+   * The side playing on the arrow itself, if one is.
+   *
+   * Null for most of every flight, and for every projectile that authored no
+   * sides at all — which is the case the renderer keeps cheap: no transition
+   * means the shared material, and no transition means no per-frame uniform to
+   * write. @see `../game/projectile`'s {@link FlightPhase}
+   */
+  phase: FlightPhase | null;
 };
 
 /**
@@ -118,6 +155,7 @@ export function projectileViews(
       y: at.y,
       elevAbs: at.elevAbs,
       z: flightLevel(at),
+      phase: flightPhase(flight, tilesById[flight.tileId]),
     });
   }
   return views;
@@ -145,9 +183,11 @@ const FLIGHT_STACK_BIAS = 32;
  * the terms {@link flightLevel} sets: a shot down a stairwell plays its landing
  * under the lighting of the floor it lands on.
  *
- * Null for an effect with no plume, which is every dissolve and every scale: a
- * flight's mesh is not a placement, and those are things done to a mesh — see
- * `./WorldRenderer`'s `attachTransition`, which wants a cell and a depth box.
+ * Null for an effect with no plume, which is every dissolve and every scale.
+ * Those are things done to a *sprite*, and they are not dropped: the arrow
+ * itself wears them — see `../game/projectile`'s `flightPhase`, which is why a
+ * flight now outlives its own arrival. This is the plume half of the same
+ * side, and a transition carrying both plays both.
  *
  * No taper. A taper is a status winding down over seconds; an effect runs for
  * the length its author wrote and then stops being handed over at all.

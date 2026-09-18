@@ -45,7 +45,7 @@ import {
   projectileEffect,
   type ProjectileSide,
 } from "../lib/projectile";
-import type { Transition } from "../lib/tileTransition";
+import { shownFraction, type Transition } from "../lib/tileTransition";
 import { CELL_SIZE, HEIGHT_PER_LEVEL, type TileDef } from "../lib/types";
 import type { ReachPoint } from "./distance";
 
@@ -288,6 +288,88 @@ export function beginEffect(
 }
 
 /**
+ * Which of a flight's sides is playing right now, and how much of the sprite it
+ * is showing.
+ *
+ * **The half a plume cannot carry.** A flight's three sides have always been
+ * handed to `../render/projectileMotion`'s `flightEmitter`, which turns a
+ * transition into particles and answers null for anything else — so a dissolve
+ * or a scale authored on a projectile played silently nowhere. Particles are a
+ * thing thrown *into* a cell and a dissolve is a thing done *to a sprite*, and
+ * the only sprite a flight has is the arrow itself.
+ *
+ * So the arrow wears them. An `appear` runs over the first stretch of the
+ * flight, which is the projectile forming as it is loosed; a landing runs after
+ * it arrives, on the arrow parked where it stopped — see
+ * {@link flightLifetimeMs}, which is why a flight now outlives its own arrival.
+ *
+ * Null between the two, which is most of every flight: an arrow in the middle
+ * of its crossing is simply an arrow.
+ */
+export type FlightPhase = {
+  side: ProjectileSide;
+  transition: Transition;
+  /** 1 is the whole sprite, 0 is none of it. @see shownFraction */
+  shown: number;
+};
+
+/**
+ * How long a flight is drawn for, which is longer than it is in the air.
+ *
+ * The crossing plus whatever its landing side runs for, because the landing is
+ * played on the arrow itself and an arrow disposed of on arrival has nothing
+ * left to dissolve. A projectile with no landing side — the overwhelming
+ * majority — has a lifetime of exactly its crossing, so nothing that was drawn
+ * before this existed is drawn for a frame longer.
+ *
+ * **Not the number a blow waits on.** That is {@link flightDurationMs}, the
+ * crossing alone — `GameSession.blowsInFlight` holds the settled blow on it, so
+ * the health comes off the moment the arrow arrives. What this adds is the
+ * stretch *after* that, in which the arrow is parked where it stopped and
+ * dissolving: the target has already been hit, and what is left on screen is
+ * the shot going rather than the shot landing. Two numbers, and reading the
+ * longer one as the blow's would make a slow dissolve into a delayed hit.
+ */
+export function flightLifetimeMs(
+  flight: ProjectileFlight,
+  def: TileDef | undefined,
+): number {
+  const landing = projectileEffect(def, landingSide(flight.hit));
+  return flight.durationMs + (landing?.durationMs ?? 0);
+}
+
+/** @see FlightPhase */
+export function flightPhase(
+  flight: ProjectileFlight,
+  def: TileDef | undefined,
+): FlightPhase | null {
+  const arriving = projectileEffect(def, "appear");
+  if (arriving && flight.elapsedMs < arriving.durationMs) {
+    return {
+      side: "appear",
+      transition: arriving,
+      shown: shownFraction("appear", flight.elapsedMs, arriving.durationMs),
+    };
+  }
+
+  const side = landingSide(flight.hit);
+  const landing = projectileEffect(def, side);
+  if (!landing || flight.elapsedMs < flight.durationMs) return null;
+  return {
+    side,
+    transition: landing,
+    // `hit` shows what a `disappear` shows, because it *is* one — the fourth
+    // moment a landing could have been is the same moment, told apart only by
+    // whether the blow connected. @see ProjectileSide
+    shown: shownFraction(
+      "disappear",
+      flight.elapsedMs - flight.durationMs,
+      landing.durationMs,
+    ),
+  };
+}
+
+/**
  * Wind every flight forward, and start what the landings owe.
  *
  * Shared by the two things that age flights — the simulation on its tick clock
@@ -306,21 +388,24 @@ export function ageFlights(
   tilesById: Record<string, TileDef>,
   into: FlightEffect[],
 ): ProjectileFlight[] {
-  let landed = false;
+  let done = false;
   for (const flight of flights) {
+    const def = tilesById[flight.tileId];
+    // Read before the clock moves, so the crossing is detected as a *crossing*
+    // rather than as "already arrived" — which is what keeps the landing's
+    // plume thrown exactly once now that a flight outlives its own arrival.
+    const wasFlying = flight.elapsedMs < flight.durationMs;
     flight.elapsedMs += dtMs;
-    if (flight.elapsedMs < flight.durationMs) continue;
-    landed = true;
-    beginEffect(
-      flight,
-      landingSide(flight.hit),
-      flight.to,
-      tilesById[flight.tileId],
-      into,
-    );
+    if (wasFlying && flight.elapsedMs >= flight.durationMs) {
+      beginEffect(flight, landingSide(flight.hit), flight.to, def, into);
+    }
+    if (flight.elapsedMs >= flightLifetimeMs(flight, def)) done = true;
   }
-  if (!landed) return flights;
-  return flights.filter((flight) => flight.elapsedMs < flight.durationMs);
+  if (!done) return flights;
+  return flights.filter(
+    (flight) =>
+      flight.elapsedMs < flightLifetimeMs(flight, tilesById[flight.tileId]),
+  );
 }
 
 /**
