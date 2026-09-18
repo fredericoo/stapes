@@ -37,8 +37,9 @@ import { type TransitionPlay, VfxPreview } from "./VfxPreview";
  *
  * It plays *alongside* the Disappear rather than instead of it. A landing is
  * one moment that two sides describe — the projectile went, and the blow landed
- * — so an author who wants both writes both. See `../lib/projectile`'s
- * `landingPlays`.
+ * — so an author who wants both writes both, and this one plays on the body
+ * that was struck rather than in the air. See `../lib/projectile`'s
+ * `ProjectileSide`.
  *
  * ## The preview draws on somebody else
  *

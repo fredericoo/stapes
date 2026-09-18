@@ -399,7 +399,23 @@ const props: TileDef[] = [
     kind: "projectile",
     lightPassing: true,
     intangible: true,
-    interactions: { projectile: { cellsPerSecond: 14 } },
+    interactions: {
+      projectile: {
+        cellsPerSecond: 14,
+        // A dissolve rather than a plume, deliberately: it is the half of a hit
+        // that could only ever be done to a sprite, so a hit that plays it is a
+        // hit that found a body to play on.
+        hit: {
+          durationMs: 120,
+          dissolve: {
+            pattern: "noise",
+            clumpPx: 3,
+            edgeColor: "#ffffff",
+            edgeWidth: 0.15,
+          },
+        },
+      },
+    },
   }),
   tile({
     id: "walling-mail",
@@ -1734,6 +1750,39 @@ describe("a bolt thrown at somebody", () => {
     expect(play.cast(squareSlot("weapon"))).toBe(true);
 
     expect(play.drainProjectiles()[0]!.targetId).toBe(target);
+  });
+
+  /**
+   * **The hit plays on the body, not in the air where the bolt stopped.** It is
+   * the one effect that is not the placement's own: it belongs to what was
+   * thrown and happens to what it hit, so the note names both — see
+   * `../lib/tileTransition`'s `TileTransitionNote.struckBy`.
+   */
+  it("dresses the struck body in the bolt's hit", () => {
+    const { play, target } = boltAt("bolt-stone");
+    play.drainTransitions();
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
+    runUntilNothingIsFlying(play);
+
+    const struck = play.drainTransitions().filter((note) => note.struckBy);
+
+    expect(struck).toHaveLength(1);
+    expect(struck[0]!.struckBy).toBe("arcane-mote");
+    // The rat's own placement, dressed in somebody else's effect.
+    expect(struck[0]!.tileId).toBe("rat");
+    expect(play.getSnapshot().actors.some((a) => a.id === target)).toBe(true);
+  });
+
+  /** Always the side that climbs to whole: a struck body stays on the board. */
+  it("plays it as an appear, so the body ends drawn as itself", () => {
+    const { play } = boltAt("bolt-stone");
+    play.drainTransitions();
+    expect(play.cast(squareSlot("weapon"))).toBe(true);
+    runUntilNothingIsFlying(play);
+
+    expect(
+      play.drainTransitions().find((note) => note.struckBy)?.side,
+    ).toBe("appear");
   });
 
   /** And nothing flies at your own body, which has no distance to cross. */

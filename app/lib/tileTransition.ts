@@ -169,6 +169,23 @@ export type TileTransitionNote = {
   y: number;
   z: number;
   stackIndex: number;
+  /**
+   * The projectile whose `hit` is playing, for a note about a body being
+   * struck rather than about a tile arriving or going.
+   *
+   * **The one case where the effect is not the placement's own.** A hit belongs
+   * to what was thrown and plays on what it hit, so the note has to name both:
+   * `tileId` is the body, because that is the placement the effect is done *to*
+   * and the slot is checked against it, and this is the arrow, because that is
+   * where the effect is written down. See `../lib/projectile`'s
+   * `projectileEffect`.
+   *
+   * Its {@link side} is always `appear`. A struck body is not going anywhere —
+   * it has to end whole — and `appear` is the side that climbs to whole, so the
+   * blow scatters it and it resolves. A `disappear` would dissolve it away and
+   * pop it back.
+   */
+  struckBy?: string;
 };
 
 /**

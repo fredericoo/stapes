@@ -22,7 +22,10 @@ import {
 } from "./combat";
 import { STRIKE_DURATION_MS, TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
-import type { Transition } from "../lib/tileTransition";
+import type {
+  TileTransitionNote,
+  Transition,
+} from "../lib/tileTransition";
 
 /**
  * Fighting, on a board.
@@ -1390,34 +1393,42 @@ describe("shooting at somebody", () => {
   });
 
   /**
-   * And what that mark buys: the `hit` side plays where a shot that connected
-   * lands, and nothing plays where one that did not does. The effects are the
-   * session's own list rather than anything on the wire — see
-   * `./projectile`'s {@link FlightEffect}.
+   * And what that mark buys: the `hit` side plays on the body a shot that
+   * connected struck, and nothing plays where one that did not does.
+   *
+   * **Read off the transitions rather than the flight effects**, because a hit
+   * is done to whatever was hit: it is raised on that body's placement by
+   * `GameSession.strikeBody`, naming the arrow it came off — see
+   * `../lib/tileTransition`'s `TileTransitionNote.struckBy`. The arrow's own
+   * `disappear` is the one that stays a flight effect.
    */
-  it("plays the hit side only where a shot that connected landed", () => {
+  it("plays the hit on the body only where a shot that connected landed", () => {
     const session = new GameSession(
       withBody(field(6), 4, 0, "anvil"),
       archerTilesArmedWith(unreliableBow, SPARK),
       { seed: 7 },
     );
-    fight(session, bodyOf(session, "anvil")!.id);
+    const anvilId = bodyOf(session, "anvil")!.id;
+    fight(session, anvilId);
 
-    const played = new Set<string>();
+    const struck: TileTransitionNote[] = [];
     let shots = 0;
     for (let elapsed = 0; elapsed < ENOUGH_SHOTS_MS; elapsed += TICK_MS) {
       session.tick(TICK_MS);
       shots += session.drainProjectiles().length;
-      for (const effect of session.getSnapshot().flightEffects) {
-        played.add(effect.id);
-      }
+      struck.push(...session.drainTransitions().filter((n) => n.struckBy));
     }
 
-    // Every effect that ever played is a hit, and there are fewer of them than
-    // there were shots: the misses in between played nothing at all.
-    expect(played.size).toBeGreaterThan(0);
-    expect([...played].every((id) => id.endsWith(":hit"))).toBe(true);
-    expect(played.size).toBeLessThan(shots);
+    // Every one of them came off the arrow and landed on the body that was
+    // being shot at, and there are fewer of them than there were shots: the
+    // misses in between played nothing at all.
+    expect(struck.length).toBeGreaterThan(0);
+    expect(struck.every((note) => note.struckBy === "arrow")).toBe(true);
+    expect(struck.every((note) => note.tileId === "anvil")).toBe(true);
+    // Always the side that climbs back to whole: a struck body stays on the
+    // board and has to end up drawn as itself.
+    expect(struck.every((note) => note.side === "appear")).toBe(true);
+    expect(struck.length).toBeLessThan(shots);
   });
 
   /**

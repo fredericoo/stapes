@@ -1607,6 +1607,13 @@ const serverMessageSchema = v.variant("type", [
           id: v.string(),
           side: v.picklist(TRANSITION_SIDES),
           tileId: v.string(),
+          // The arrow whose hit is playing on the body this note is about, for
+          // the one kind of note whose effect is not the placement's own —
+          // see `../lib/tileTransition`'s `TileTransitionNote.struckBy`. Named
+          // here because valibot strips what a schema does not mention, and a
+          // struck note arriving without it would look up a side the body does
+          // not have and play nothing.
+          struckBy: v.optional(v.string()),
           // Whole, because each of these is a map lookup on the far side.
           x: v.pipe(v.number(), v.integer()),
           y: v.pipe(v.number(), v.integer()),

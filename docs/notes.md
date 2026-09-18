@@ -3112,13 +3112,30 @@ air.
   with both playing, borrowing would draw the same effect twice on every blow.
   And a miss still never borrows the hit's sparks, which would be the picture
   saying a shot landed that did not. See `landingPlays`.
-- **Of the two a landing plays, only `disappear` is worn by the arrow.** A
-  transition worn by a sprite is a thing done *to* that sprite, and a `hit`
-  plays on whatever was struck — which is never the projectile. So `flightPhase`
-  returns `disappear` and never `hit`, `flightLifetimeMs` measures the arrow's
-  life by `disappear` alone, and a long `hit` behind no `disappear` parks
-  nothing on screen. `wearsFlightTransition` asks only those two sides for the
-  same reason: a dissolve authored on a `hit` has nothing to dissolve.
+- **Of the two a landing plays, only `disappear` is the arrow's.** A transition
+  worn by a sprite is a thing done *to* that sprite, and a `hit` plays on
+  whatever was struck — which is never the projectile. So `flightPhase` returns
+  `disappear` and never `hit`, `flightLifetimeMs` measures the arrow's life by
+  `disappear` alone, and a long `hit` behind no `disappear` parks nothing on
+  screen. `wearsFlightTransition` asks only those two sides for the same reason:
+  a dissolve authored on a `hit` has nothing to dissolve.
+- **A `hit` is played on the body, by the half of the game that knows who was
+  struck.** `ageFlights` raises the arrow's `disappear` and nothing else;
+  `GameSession.strikeBody` raises the hit on the struck placement, from
+  `landSwing` (only on a blow that connected) and `landBolt` (always — nothing
+  dodges a bolt). It is the one `TileTransitionNote` whose effect is not the
+  placement's own, so it names both: `tileId` is the body, because that is what
+  is being dressed and what the slot is checked against, and `struckBy` is the
+  arrow, because that is where the effect is written down. Its side is always
+  `appear` — a struck body stays on the board and has to end drawn as itself, so
+  the blow scatters it and it resolves; a `disappear` would dissolve it away and
+  pop it back. Raising it in `ageFlights` as well would play the same effect
+  twice, once in the air and once on the body.
+- **`projectileEffect` gates every side on the kind**, not only `hit`. `hit` was
+  gated by construction, being read through `resolveProjectile`; the other two
+  were read straight off the tile, so a tile re-kinded mid-flight went on
+  playing its sides as a projectile's while `projectileViews` had already
+  stopped drawing the arrow.
 - **A shot follows the body it was aimed at.** Both ends used to be readings
   taken the instant the string was let go, which was right back when the blow
   landed on that same instant. It does not any more — `blowsInFlight` holds it

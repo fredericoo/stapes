@@ -40,7 +40,6 @@
 
 import { PX_PER_HEIGHT } from "../lib/geometry";
 import {
-  landingPlays,
   type ProjectileBlock,
   projectileEffect,
   type ProjectileSide,
@@ -439,13 +438,13 @@ export function ageFlights(
     const wasFlying = flight.elapsedMs < flight.durationMs;
     flight.elapsedMs += dtMs;
     if (wasFlying && flight.elapsedMs >= flight.durationMs) {
-      // Both sides of the landing, in order — see `../lib/projectile`'s
-      // {@link landingPlays}. A projectile that authored only one of them
-      // begins only that one, because `beginEffect` is silently nothing for a
-      // side nobody wrote.
-      for (const side of landingPlays(flight.hit)) {
-        beginEffect(flight, side, flight.to, def, into);
-      }
+      // **The arrow's own side, and only that one.** A landing plays two — see
+      // `../lib/projectile`'s {@link ProjectileSide} — but of the two only
+      // `disappear` is about the arrow. A `hit` is about the *blow*, and it
+      // plays on the body that was struck, raised by whoever knows who that
+      // was: `GameSession.strikeBody`. Raising it here as well would play the
+      // same effect twice, once in the air and once on the body.
+      beginEffect(flight, "disappear", flight.to, def, into);
     }
     if (flight.elapsedMs >= flightLifetimeMs(flight, def)) done = true;
   }

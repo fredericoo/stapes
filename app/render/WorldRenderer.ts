@@ -103,6 +103,7 @@ import {
 } from "../lib/lightBakerClient";
 import type { FramePhase, FrameProfiler } from "./frameProfile";
 import { wearsFlightTransition, type ProjectileView } from "./projectileMotion";
+import { projectileEffect } from "../lib/projectile";
 import { GpuLighting } from "./gpuLighting";
 import { PalettePass } from "./palettePass";
 import {
@@ -3470,7 +3471,13 @@ export class WorldRenderer {
     const admitted = admitTransitions(heard, {
       clockMs: this.animClock,
       live: this.liveTransitions.size,
-      transitionOf: (note) => transitionOf(view.tilesById[note.tileId], note.side),
+      // A struck body wears its attacker's effect rather than one of its own,
+      // which is the one note whose transition is not the placement's — see
+      // `../lib/tileTransition`'s `TileTransitionNote.struckBy`.
+      transitionOf: (note) =>
+        note.struckBy
+          ? projectileEffect(view.tilesById[note.struckBy], "hit")
+          : transitionOf(view.tilesById[note.tileId], note.side),
       inWindow: (note) =>
         window !== null && cellInMeshWindow(window, note.x, note.y, note.z),
     });
