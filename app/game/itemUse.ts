@@ -1,8 +1,9 @@
 import { resolveConsumable, resolveContainer } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { TileDef } from "../lib/types";
-import { equipSlotOf, type ObjectRef } from "./affordances";
-import type { SlotRef } from "./itemMoves";
+import { equipSlotsFor, type ObjectRef } from "./affordances";
+import type { Equipment } from "./equipment";
+import { equipDestination, isBodySlot, type SlotRef } from "./itemMoves";
 
 /**
  * What tapping a thing does to it.
@@ -19,9 +20,10 @@ import type { SlotRef } from "./itemMoves";
  *
  * - a container is for looking inside, so a tap opens it;
  * - a weapon is for holding and armour is for wearing, so a tap puts either in
- *   the square it belongs in — trading with whatever was there — and taps the
- *   thing already equipped back into your bag, because the inverse of a use is
- *   the same gesture again;
+ *   the best square it belongs in — the same ranking a drop on the equipment
+ *   button gets, so a free square is always filled before a full one is traded
+ *   out — and taps the thing already equipped back into your bag, because the
+ *   inverse of a use is the same gesture again;
  * - a consumable is for eating or drinking, so a tap spends it — the case this
  *   module was written expecting to gain.
  *
@@ -77,11 +79,23 @@ export type ConsumeSource =
  */
 const FIRST_BAG_SLOT: SlotRef = { kind: "contents", index: 0 };
 
-/** What a tap on this thing, in this square, would do — or nothing. */
+/**
+ * What a tap on this thing, in this square, would do — or nothing.
+ *
+ * **The kit is an argument because where a thing goes depends on what is
+ * already on you.** Tapping a second sword used to put it where the first one
+ * was, because the answer was read off the tile alone and a tile knows one
+ * square; arming yourself out of a full bag meant a row of taps that each threw
+ * away the one before. It is {@link equipDestination} now — the same ranking a
+ * drop on the equipment button gets — so every free square is filled before
+ * anything is displaced, and the two gestures cannot come to disagree about
+ * where a thing goes.
+ */
 export function itemUseFor(
   instance: ItemInstance,
   slot: SlotRef,
   tilesById: Record<string, TileDef>,
+  equipment: Equipment,
 ): ItemUse | null {
   const def = tilesById[instance.tileId];
   if (!def) return null;
@@ -100,18 +114,34 @@ export function itemUseFor(
   }
 
   // **Where the thing belongs**, which is the same answer the floor's "Wield"
-  // and "Hold" rows are built from — see `./affordances`' `equipSlotOf`. This
+  // and "Hold" rows are built from — see `./affordances`' `equipSlotsFor`. This
   // used to be guessed from whether the tile gave off light, because a lantern
   // is authored as a weapon and the swinging hand was once the only hand; the
   // guess is gone now that `WeaponItem.offhand` says it outright.
   // Every slot but the bag, which the container branch above has already
   // answered — the only things that belong on a back are containers, and looking
   // into one beats taking it off.
-  const belongs = equipSlotOf(def);
-  if (belongs && belongs !== "bag") {
-    return slot.kind === belongs
-      ? { type: "move", to: FIRST_BAG_SLOT }
-      : { type: "move", to: { kind: belongs } };
+  const homes = equipSlotsFor(def);
+  if (homes.length > 0 && homes[0] !== "bag") {
+    // **Already where it belongs, so the tap takes it off.** Any of its squares,
+    // not only the first: a torch in your fist is as worn as one on a belt loop,
+    // and a tap that moved it between the two would leave no gesture that puts
+    // it away.
+    if (isBodySlot(slot) && homes.includes(slot.kind)) {
+      return { type: "move", to: FIRST_BAG_SLOT };
+    }
+    // The square it came out of is refused rather than ranked: it is a
+    // candidate like any other — a sword in your off hand belongs in the other
+    // one — and a move onto the square a thing is already in is a swap with
+    // itself. Nothing else is filtered, so a tap that has nowhere to go simply
+    // does nothing.
+    const to = equipDestination(
+      equipment,
+      tilesById,
+      instance,
+      (dest) => dest.kind !== slot.kind,
+    );
+    return to && to.kind !== slot.kind ? { type: "move", to } : null;
   }
 
   // From any slot it can be sitting in — a hand, your bag, or a box on the

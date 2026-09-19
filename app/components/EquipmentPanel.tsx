@@ -264,6 +264,7 @@ export function EquipmentPanel({
             <ItemSlot
               slot={square.slot}
               instance={equipment[square.slot.kind]}
+              equipment={equipment}
               tilesById={tilesById}
               tilesets={tilesets}
               label={square.label}

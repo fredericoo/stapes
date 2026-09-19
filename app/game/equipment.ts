@@ -1017,7 +1017,7 @@ export function handHasRoomFor(
  * **A hand takes anything you can carry**, which is the honest reading of what a
  * hand is: if you would rather hold a second pack than a shield, that is a
  * choice the game has no business refusing. What a thing is *for* is a separate
- * question, answered by `equipSlotOf` — which is what decides where a thing goes
+ * question, answered by `equipSlotsFor` — which is what decides where a thing goes
  * when you have not said, and what `WeaponItem.offhand` exists to inform.
  *
  * The one refusal is a container nobody may carry: `equippable: false` is an

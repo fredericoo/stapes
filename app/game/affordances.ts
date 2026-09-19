@@ -34,7 +34,12 @@ import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/type
 import { physicalHeight } from "../lib/types";
 import { canReplaceStack, fitsTile } from "../lib/validation";
 import { PLAYER_TILE_ID } from "./constants";
-import { handAccepts, handHasRoomFor, type Equipment } from "./equipment";
+import {
+  handAccepts,
+  handHasRoomFor,
+  wornAccepts,
+  type Equipment,
+} from "./equipment";
 import { pushDestination } from "./push";
 
 /** A specific placed tile in the map — cell plus slot in its stack. */
@@ -424,23 +429,36 @@ export function reachableItemDefAt(
 }
 
 /**
- * The slot on a body this thing belongs in, from the tile alone.
+ * The squares on a body this thing belongs in, best first.
  *
- * **One slot per thing, and the tile decides which.** A sword is for the hand
- * you swing with, a shield for the other one (`ShieldItem`), a piece of
- * armour for whichever worn square it names (`ArmorItem.slot` — a mail shirt for
- * your body, a helm for your head, boots for your feet, a ring for your charm),
- * a backpack for your back (`ContainerItem.equippable`), and an `ArtifactItem` —
- * a torch, a lantern — for the off hand always, since the swinging hand is the
- * one that replaces what you fight with. Everything else — a berry, a chest, a
- * rock — has no slot and can only be carried in a bag.
+ * **Where a thing belongs is a fact about the thing**, and for all but one kind
+ * it is a single square: a sword is for the hand you swing with, a shield for
+ * the other one (`ShieldItem`), a piece of armour for whichever worn square it
+ * names (`ArmorItem.slot` — a mail shirt for your body, a helm for your head,
+ * boots for your feet, a ring for your charm), a backpack for your back
+ * (`ContainerItem.equippable`). Everything else — a berry, a chest, a rock — has
+ * no square at all and can only be carried in a bag.
  *
- * One rather than "every slot that would take it", because the alternative is a
- * list that offers to Wield *and* Hold the same sword and a player who has to
- * decide which hand a thing goes in every time they pick one up. Where a thing
- * belongs is a fact about the thing.
+ * **An `ArtifactItem` is the one kind with two, and the accessory square comes
+ * first.** A torch on a belt loop and a torch in your fist light the same room —
+ * `carriedLightTileIds` reads every worn square alike — so the off hand is the
+ * more expensive of the two places to put one, and the cheaper should be the one
+ * reached for when nobody has said. The hand stays on the list below it, because
+ * a lamp you are holding up is still a way to carry one and the accessory square
+ * has only the one opening.
  *
- * It is not the same question as "may this slot hold this" — `itemMoves`'
+ * The accessory square is offered only for an artifact it will actually have,
+ * which is `wornAccepts`' business rather than a second reading of it here: the
+ * square takes a light and refuses a key. An artifact nothing glows on — a
+ * shard, a signpost — is a hand's and nothing else's, exactly as it was.
+ *
+ * A list rather than "every square that would take it": a hand takes anything
+ * you can carry, so the generous answer would offer to Wield *and* Hold the same
+ * sword and make a player decide which fist every time they picked one up. What
+ * is here is the ranking, and nothing is on it that is not a place the thing
+ * belongs.
+ *
+ * It is not the same question as "may this square hold this" — `itemMoves`'
  * `slotAccepts` is looser and stays looser, because a drag is somebody saying
  * exactly what they want. This is what happens when they do not say. **Armour is
  * the one thing the two agree about**, since its square takes nothing else.
@@ -451,37 +469,39 @@ export function reachableItemDefAt(
  */
 export type { EquipSlot };
 
-export function equipSlotOf(def: TileDef): EquipSlot | null {
+export function equipSlotsFor(def: TileDef): readonly EquipSlot[] {
   const item = resolveItem(def);
-  if (!item) return null;
+  if (!item) return [];
 
   // Never into a bag: containers do not nest, so the only place one can go is
   // a back. A chest or a corpse is looted where it lies — that is what `open`
   // is for — and has no slot at all.
-  if (item.type === "container") return item.equippable ? "bag" : null;
+  if (item.type === "container") return item.equippable ? ["bag"] : [];
   // The armour's own square, which is the whole of what separates a helmet from
   // a breastplate — see `../lib/item`'s `ArmorItem.slot`.
-  if (item.type === "armor") return armorSlotOf(item);
-  // Needs no flag of its own to say so, where a weapon does: an artifact has no
-  // fight in it, and the hand you swing with is the square whose contents stand
-  // in for your natural weapon. See `../lib/item`'s `ArtifactItem`.
-  if (item.type === "artifact") return "offhand";
+  if (item.type === "armor") return [armorSlotOf(item)];
+  // Needs no flag of its own to say which hand, where a weapon does: an artifact
+  // has no fight in it, and the hand you swing with is the square whose contents
+  // stand in for your natural weapon. See `../lib/item`'s `ArtifactItem`.
+  if (item.type === "artifact") {
+    return wornAccepts("charm", def) ? ["charm", "offhand"] : ["offhand"];
+  }
   // A shield is held and never swung — see `../lib/item`'s `ShieldItem` — so it
   // goes where the things you merely hold go. Both hands would take it and both
   // hands swing, so this is a default rather than a rule: put it in your right
   // if you would rather, and you have simply chosen to fight one-handed.
-  if (item.type === "shield") return "offhand";
+  if (item.type === "shield") return ["offhand"];
   // An arcane stone is held and never swung, on exactly the terms a shield is —
   // so the hand you do not fight with is where it goes when nobody has said
   // otherwise, and putting it in the other one is choosing to cast instead of
   // swinging with that fist. Every stone now, where an automatic one used to go
   // round the neck instead.
-  if (item.type === "stone") return "offhand";
+  if (item.type === "stone") return ["offhand"];
   // A charm has exactly one square, and `handAccepts` refuses it a hand — so
   // offering anything else here would be a "Hold" row the move rules decline.
-  if (item.type === "charm") return "charm";
-  if (item.type === "weapon") return "weapon";
-  return null;
+  if (item.type === "charm") return ["charm"];
+  if (item.type === "weapon") return ["weapon"];
+  return [];
 }
 
 /**
@@ -499,6 +519,11 @@ export function equipSlotOf(def: TileDef): EquipSlot | null {
  * offered by the interface rather than aimed at, and one that quietly put your
  * sword on the floor to make room for a worse one is the kind of thing you
  * notice a fight later. Taking the second sword is what the bag is for.
+ *
+ * Every square the thing belongs in is tried, in {@link equipSlotsFor}'s order,
+ * so a torch whose accessory square is taken is still offered the hand below it
+ * rather than nothing at all. Only the first *free* one is ever the answer, so
+ * the rule above is untouched by there being two.
  */
 export function equipSlotFrom(
   map: MapFile,
@@ -508,16 +533,18 @@ export function equipSlotFrom(
   equipment: Equipment,
 ): EquipSlot | null {
   const def = reachableItemDefAt(map, tilesById, actor, ref);
-  const slot = def && equipSlotOf(def);
-  if (!slot || !def) return null;
-  if (equipment[slot]) return null;
-  // And, for a hand, what the other hand is doing — a greatsword has nowhere to
-  // go while you are holding a dagger, even though the square it wants is free.
-  // See `./equipment`'s `handHasRoomFor`.
-  if (slot === "weapon" || slot === "offhand") {
-    return handHasRoomFor(equipment, tilesById, slot, def) ? slot : null;
+  if (!def) return null;
+  for (const slot of equipSlotsFor(def)) {
+    if (equipment[slot]) continue;
+    // And, for a hand, what the other hand is doing — a greatsword has nowhere
+    // to go while you are holding a dagger, even though the square it wants is
+    // free. See `./equipment`'s `handHasRoomFor`.
+    if (slot === "weapon" || slot === "offhand") {
+      if (!handHasRoomFor(equipment, tilesById, slot, def)) continue;
+    }
+    return slot;
   }
-  return slot;
+  return null;
 }
 
 /** Could this actor equip the thing where it lies? @see equipSlotFrom */
@@ -553,7 +580,7 @@ export function canEquipFrom(
  * hands swing, so neither is the one with consequences and a thing picked up
  * into either joins the rotation. It stays in this order because a stable
  * answer is worth more than an arbitrary one, and because the other hand is
- * where `equipSlotOf` sends a weapon that *belongs* somewhere — leaving it free
+ * where `equipSlotsFor` sends a thing that *belongs* in one — leaving it free
  * keeps the two rows out of each other's way.
  *
  * A container never goes in the bag, wearable or not: nothing nests. A wearable
@@ -586,9 +613,10 @@ export function pickUpDestination(
 
   // Where the thing belongs has its own row with its own verb, so a pickup that
   // reached for that slot too would put "Wield" and "Pick up" side by side
-  // meaning one thing. The hands come up only once nowhere else will have it.
-  const belongs = equipSlotOf(def);
-  if (belongs && !equipment[belongs]) return null;
+  // meaning one thing. The hands come up only once nowhere else will have it —
+  // which for a torch means both of the squares it belongs in are taken, not
+  // only the first.
+  if (equipSlotsFor(def).some((slot) => !equipment[slot])) return null;
 
   if (!handAccepts(def)) return null;
   // A free square is not enough for a hand: the other one may have spoken for

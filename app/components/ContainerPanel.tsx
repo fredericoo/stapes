@@ -1,5 +1,6 @@
 import { IconX } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { Equipment } from "../game/equipment";
 import { slotIn, type ContainerRef } from "../game/itemMoves";
 import { engravedName } from "../lib/engraving";
 import { resolveContainer } from "../lib/item";
@@ -165,6 +166,7 @@ export function containerSlotGrid(availablePx: number): {
 export function ContainerPanel({
   container,
   location,
+  equipment,
   tiles,
   tilesets,
   title,
@@ -191,6 +193,13 @@ export function ContainerPanel({
    * are called when something is moved out of one of them.
    */
   location: ContainerRef;
+  /**
+   * What the viewer is wearing and holding, for the squares to say what a press
+   * on them would do. Theirs rather than the container's, on the same terms
+   * {@link masteryXp} is: a sword in a chest on the floor is wielded by whoever
+   * is standing over it. See `./ItemSlot`.
+   */
+  equipment: Equipment;
   tiles: TileDef[];
   tilesets: TilesetDef[];
   /** What to call it — "Bag" on your own, the tile's name on a chest. */
@@ -356,6 +365,7 @@ export function ContainerPanel({
             <ItemSlot
               slot={slotIn(location, i)}
               instance={instance}
+              equipment={equipment}
               tilesById={tilesById}
               tilesets={tilesets}
               label={`${title}, slot ${i + 1}`}
