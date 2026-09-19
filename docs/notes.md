@@ -800,6 +800,25 @@ holds which hand is open beside `bagOpen`, dropping it the moment that hand is
 emptied. `carriedInstances` walks every slot's contents for the same reason: a
 thing it misses is a thing the id-minting pass never reaches.
 
+**A tap fills before it replaces.** `itemUseFor` used to read the destination off
+the tile alone, so tapping a second weapon put it where the first one was: bow,
+then sword, and the bow is back in your bag with an empty fist beside it. A tile
+knows one square and a body has two hands, so the free one was a square the
+gesture could not reach. It takes the kit now and asks `equipDestination` — the
+same ranking a drop on the equipment button is under — so every free square is
+filled before anything is displaced, and the two gestures cannot come to
+disagree about where a thing goes. Tapping a thing in the square it belongs in
+still puts it away, which is what keeps the gesture its own undo, and the square
+a thing came out of is refused rather than ranked: a move onto the square it is
+already in is a swap with itself.
+
+It is why `ItemSlot` takes the kit: the press hint is read off the same function
+the press runs through, so a square promising a destination the tap does not use
+would be the panel lying about its own button. `ContainerPanel` passes it down
+for the same reason, and it is the viewer's kit rather than the container's — a
+sword in a chest on the floor is wielded by whoever is standing over it, exactly
+as `masteryXp` already worked.
+
 **The verb is read off the item, never off the slot** (`equipVerb`): you wield a
 sword, you hold a torch, you wear a mail shirt, you put on a pack. Since both hands take anything, a
 verb named after the square would have to call a backpack in your fist

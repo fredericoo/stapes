@@ -375,7 +375,7 @@ export function GameViewport({
    * the label describing that tap cannot come to disagree.
    */
   const runItemUse = (slot: SlotRef, instance: ItemInstance) => {
-    const use = itemUseFor(instance, slot, tilesById);
+    const use = itemUseFor(instance, slot, tilesById, equipment);
     if (!use) return;
     // Shut it if it is open: the same press, both ways, because a bag is
     // somewhere you look into rather than something you switch on.
@@ -560,6 +560,7 @@ export function GameViewport({
         <ContainerPanel
           container={equipment.bag}
           location={{ kind: "bag" }}
+          equipment={equipment}
           tiles={tiles}
           tilesets={tilesets}
           title="Bag"
@@ -575,6 +576,7 @@ export function GameViewport({
         <ContainerPanel
           container={heldContainer}
           location={{ kind: "hand", hand: openHand }}
+          equipment={equipment}
           tiles={tiles}
           tilesets={tilesets}
           title={tilesById[heldContainer.tileId]?.name ?? "Container"}
@@ -592,6 +594,7 @@ export function GameViewport({
         <ContainerPanel
           container={openedContainer.instance}
           location={{ kind: "ground", ref: openedContainer.ref }}
+          equipment={equipment}
           tiles={tiles}
           tilesets={tilesets}
           title={

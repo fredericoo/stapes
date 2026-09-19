@@ -8,6 +8,7 @@ import type { ItemInstance } from "../lib/itemInstance";
 import type { TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
+import { emptyEquipment, type Equipment } from "./equipment";
 import { itemUseFor } from "./itemUse";
 import tilesJson from "../../data/tiles.json";
 import { normalizeTiles } from "../lib/types";
@@ -61,6 +62,11 @@ function instance(tileId: string): ItemInstance {
   return { id: `itm_${tileId}`, tileId };
 }
 
+/** A body wearing nothing but what this case is about. */
+function kit(worn: Partial<Equipment> = {}): Equipment {
+  return { ...emptyEquipment(), ...worn };
+}
+
 const GROUND = { x: 1, y: 0, z: 0, stackIndex: 1 };
 
 describe("itemUseFor", () => {
@@ -69,7 +75,7 @@ describe("itemUseFor", () => {
       { kind: "contents", index: 2 } as const,
       { kind: "ground", ref: GROUND, index: 0 } as const,
     ]) {
-      expect(itemUseFor(instance("sword"), slot, tilesById)).toEqual({
+      expect(itemUseFor(instance("sword"), slot, tilesById, kit())).toEqual({
         type: "move",
         to: { kind: "weapon" },
       });
@@ -78,7 +84,7 @@ describe("itemUseFor", () => {
 
   it("puts away the weapon already in hand", () => {
     expect(
-      itemUseFor(instance("sword"), { kind: "weapon" }, tilesById),
+      itemUseFor(instance("sword"), { kind: "weapon" }, tilesById, kit()),
     ).toEqual({ type: "move", to: { kind: "contents", index: 0 } });
   });
 
@@ -88,7 +94,7 @@ describe("itemUseFor", () => {
       { kind: "offhand" } as const,
       { kind: "ground", ref: GROUND, index: 0 } as const,
     ]) {
-      expect(itemUseFor(instance("mail"), slot, tilesById)).toEqual({
+      expect(itemUseFor(instance("mail"), slot, tilesById, kit())).toEqual({
         type: "move",
         to: { kind: "armor" },
       });
@@ -96,16 +102,15 @@ describe("itemUseFor", () => {
   });
 
   it("takes off what is already worn", () => {
-    expect(itemUseFor(instance("mail"), { kind: "armor" }, tilesById)).toEqual({
-      type: "move",
-      to: { kind: "contents", index: 0 },
-    });
+    expect(
+      itemUseFor(instance("mail"), { kind: "armor" }, tilesById, kit()),
+    ).toEqual({ type: "move", to: { kind: "contents", index: 0 } });
   });
 
   it("opens the bag on your back", () => {
-    expect(itemUseFor(instance("bag"), { kind: "bag" }, tilesById)).toEqual({
-      type: "open",
-    });
+    expect(
+      itemUseFor(instance("bag"), { kind: "bag" }, tilesById, kit()),
+    ).toEqual({ type: "open" });
   });
 
   /**
@@ -114,7 +119,7 @@ describe("itemUseFor", () => {
    */
   it("opens a pack held in either hand", () => {
     for (const slot of [{ kind: "weapon" } as const, { kind: "offhand" } as const]) {
-      expect(itemUseFor(instance("bag"), slot, tilesById)).toEqual({
+      expect(itemUseFor(instance("bag"), slot, tilesById, kit())).toEqual({
         type: "open",
       });
     }
@@ -129,6 +134,7 @@ describe("itemUseFor", () => {
         instance("chest"),
         { kind: "ground", ref: GROUND, index: 0 },
         tilesById,
+        kit(),
       ),
     ).toBeNull();
   });
@@ -140,7 +146,7 @@ describe("itemUseFor", () => {
       { kind: "contents", index: 1 } as const,
       { kind: "ground", ref: GROUND, index: 0 } as const,
     ]) {
-      expect(itemUseFor(instance("cherry"), slot, tilesById)).toEqual({
+      expect(itemUseFor(instance("cherry"), slot, tilesById, kit())).toEqual({
         type: "consume",
       });
     }
@@ -148,13 +154,23 @@ describe("itemUseFor", () => {
 
   it("does nothing with a thing that is not for anything yet", () => {
     expect(
-      itemUseFor(instance("sign"), { kind: "contents", index: 0 }, tilesById),
+      itemUseFor(
+        instance("sign"),
+        { kind: "contents", index: 0 },
+        tilesById,
+        kit(),
+      ),
     ).toBeNull();
   });
 
   it("does nothing with a tile that is not in the catalogue", () => {
     expect(
-      itemUseFor(instance("ghost"), { kind: "contents", index: 0 }, tilesById),
+      itemUseFor(
+        instance("ghost"),
+        { kind: "contents", index: 0 },
+        tilesById,
+        kit(),
+      ),
     ).toBeNull();
   });
 });
@@ -174,21 +190,58 @@ describe("a tap on a light", () => {
   const sword = { id: "itm_sword", tileId: "rusty-sword" };
 
   it("sends a lantern to the off hand rather than the weapon hand", () => {
-    expect(itemUseFor(lantern, { kind: "contents", index: 0 }, shipped)).toEqual({
-      type: "move",
-      to: { kind: "offhand" },
-    });
+    expect(
+      itemUseFor(lantern, { kind: "contents", index: 0 }, shipped, kit()),
+    ).toEqual({ type: "move", to: { kind: "offhand" } });
   });
 
   it("takes it back off again when it is already held", () => {
-    const use = itemUseFor(lantern, { kind: "offhand" }, shipped);
+    const use = itemUseFor(lantern, { kind: "offhand" }, shipped, kit());
     expect(use?.type === "move" && use.to.kind).toBe("contents");
   });
 
   it("still sends a sword to the hand that swings", () => {
-    expect(itemUseFor(sword, { kind: "contents", index: 0 }, shipped)).toEqual({
-      type: "move",
-      to: { kind: "weapon" },
-    });
+    expect(
+      itemUseFor(sword, { kind: "contents", index: 0 }, shipped, kit()),
+    ).toEqual({ type: "move", to: { kind: "weapon" } });
+  });
+});
+
+/**
+ * **Arming yourself is a row of taps, and each one has to keep the last.**
+ *
+ * A tap used to read the destination off the tile alone, so a second weapon
+ * went where the first one was and the bow you had just wielded came straight
+ * back out. Both hands swing, so the free one was a square the gesture could
+ * not reach.
+ */
+describe("a tap on a second weapon", () => {
+  const shipped = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]));
+  const bow = { id: "itm_bow", tileId: "simple-bow" };
+  const sword = { id: "itm_sword", tileId: "rusty-sword" };
+
+  it("fills the free hand rather than displacing the weapon already held", () => {
+    expect(
+      itemUseFor(
+        sword,
+        { kind: "contents", index: 1 },
+        shipped,
+        kit({ weapon: bow }),
+      ),
+    ).toEqual({ type: "move", to: { kind: "offhand" } });
+  });
+
+  // Only once there is nowhere left, and the hand that swings is the one that
+  // gives way — the same ranking a drop on the equipment button is under.
+  it("replaces the weapon hand once both hands are full", () => {
+    const axe = { id: "itm_axe", tileId: "rusty-sword" };
+    expect(
+      itemUseFor(
+        axe,
+        { kind: "contents", index: 2 },
+        shipped,
+        kit({ weapon: bow, offhand: sword }),
+      ),
+    ).toEqual({ type: "move", to: { kind: "weapon" } });
   });
 });

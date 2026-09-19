@@ -6,7 +6,7 @@ import {
   useState,
   type ComponentType,
 } from "react";
-import { stoneLocked, takesEffect } from "../game/equipment";
+import { stoneLocked, takesEffect, type Equipment } from "../game/equipment";
 import { itemCard } from "../game/itemCard";
 import { isBodySlot, slotKey, type SlotRef } from "../game/itemMoves";
 import { itemUseFor } from "../game/itemUse";
@@ -161,10 +161,11 @@ function pressHintFor(
   instance: ItemInstance | null,
   slot: SlotRef,
   tilesById: Record<string, TileDef>,
+  equipment: Equipment,
   open: boolean | undefined,
 ): string | null {
   if (!instance) return null;
-  const use = itemUseFor(instance, slot, tilesById);
+  const use = itemUseFor(instance, slot, tilesById, equipment);
   if (!use) return null;
   if (use.type === "open") return open ? "Press to close it." : "Press to open it.";
   if (use.type === "consume") {
@@ -297,6 +298,7 @@ function slotLabelFor(instance: ItemInstance, tile: TileDef | null): string {
 export function ItemSlot({
   slot,
   instance,
+  equipment,
   tilesById,
   tilesets,
   label,
@@ -312,6 +314,16 @@ export function ItemSlot({
   /** Where this square is, in the terms a move is expressed in. */
   slot: SlotRef;
   instance: ItemInstance | null;
+  /**
+   * What is worn and held, which is half of what a press on this square does.
+   *
+   * Passed in rather than read off anything here: where a tap sends a thing
+   * depends on which squares are free — see `../game/itemUse`'s `itemUseFor` —
+   * and a hint worked out without it would promise a square the press does not
+   * use. Every surface that draws a square already holds the kit, because the
+   * drag it also passes is answered against the same fact.
+   */
+  equipment: Equipment;
   /**
    * A thing in the *other* hand that has spoken for this one — a two-handed
    * weapon, which occupies one square and claims its partner.
@@ -561,7 +573,7 @@ export function ItemSlot({
   // it is doing: the state belongs to the *thing* in the slot, and a slot whose
   // thing has been dropped has no state left to be in.
   const isOpen = instance ? open : undefined;
-  const pressHint = pressHintFor(instance, slot, tilesById, isOpen);
+  const pressHint = pressHintFor(instance, slot, tilesById, equipment, isOpen);
   // The same question {@link asking} answers, and it is asked twice rather than
   // shared because they are not the same fact: that one decides whether the
   // card is *built*, and a card that cannot be built for a square with nothing
