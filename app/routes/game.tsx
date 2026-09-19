@@ -112,6 +112,17 @@ export default function GamePage() {
   const [loggedIn, setLoggedIn] = useState(
     () => sessionStorage.getItem(LOGGED_IN) === "1",
   );
+  /**
+   * Whether the world has been on screen at all since this player logged in.
+   *
+   * Beside {@link painted} rather than derived from it, because they answer
+   * different questions: `painted` is *is there a frame up now*, which a
+   * reconnect takes back, and this is *has this player got in yet*, which
+   * nothing but logging out takes back. The door reads the second one — see
+   * {@link entering} — so a reconnect gets the loading screen and its status
+   * chip rather than a door claiming somebody is still logging in.
+   */
+  const [entered, setEntered] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const logIn = useCallback(() => {
@@ -150,6 +161,7 @@ export default function GamePage() {
   const logOut = useCallback(() => {
     sessionStorage.removeItem(LOGGED_IN);
     setStatus("connecting");
+    setEntered(false);
     setLoggedIn(false);
   }, []);
   /**
@@ -328,6 +340,12 @@ export default function GamePage() {
   statusDefsRef.current = statusDefs;
   const lightingRef = useRef(lightingEnabled);
   lightingRef.current = lightingEnabled;
+
+  // One way, and only per login: the door comes down against a world being on
+  // the canvas, and a reconnect taking the frame back does not put it up again.
+  useEffect(() => {
+    if (painted) setEntered(true);
+  }, [painted]);
 
   useEffect(() => {
     rendererRef.current?.setLightingEnabled(lightingEnabled);
@@ -598,16 +616,28 @@ export default function GamePage() {
     // somebody who cannot see it yet is a walk they never asked for.
   }, [tiles, tilesets, socketPath, assetsReady, loggedIn]);
 
-  // The whole page until somebody presses it, rather than an overlay over a
-  // shell: there is no world behind this yet and no header worth reading over
-  // nothing. The catalogues and the tilesets are loading behind it either way —
-  // `useGameAssets` above runs whether or not this screen is the one drawn — so
-  // the press has less to wait for the longer it takes.
-  if (!loggedIn) {
-    return (
-      <LoginScreen onLogIn={logIn} pending={loggingIn} error={loginError} />
-    );
-  }
+  /**
+   * Whether the press is still being answered — anywhere between the button
+   * going down and the world appearing.
+   *
+   * **Getting in is one wait and reads as one.** Minting the actor, opening the
+   * socket, waiting on `hello` and waiting for the first frame are four things,
+   * and a screen apiece is a page flickering through states a player cannot act
+   * on and did not ask about. So the door stays up, saying `Logging in…`, until
+   * there is a world behind it — which is {@link entered}, the first frame, and
+   * not `hello`: the renderer is built on `hello` and paints some way after it,
+   * and that gap was the seam this exists to close.
+   *
+   * **The moment something is wrong it stands down**, because the statuses it
+   * covers are the two that mean the wait is going normally. A socket that
+   * closes before the first frame puts `reconnecting` or `restarting` on the
+   * page, and then the loading screen and its chip take over and say so — a
+   * door reading `Logging in…` at somebody whose server is down is a screen
+   * that explains nothing. `outdated` and `replaced` are ends of the road and
+   * draw their own screens for the same reason.
+   */
+  const entering =
+    loggedIn && !entered && (status === "connecting" || status === "live");
 
   // Held in a variable because it rides in one of two slots. A world that is
   // simply connected is not news and folds away into the menu with everything
@@ -625,113 +655,135 @@ export default function GamePage() {
 
   return (
     <>
-      {/* Everything the game is, taken out of reach in one place while this
-          player is dead. `inert` rather than a pile of `disabled` props and a
-          `pointer-events: none`: it is the browser's own answer to "this
-          subtree is not interactive", so it covers the pointer, the tab order,
-          the arrow keys reaching a focused field and anything read aloud —
-          none of which an overlay drawn on top of them covers. The wrapper
+      {/* **Nothing of the game is in the page before the press**: no canvas, so
+          no socket — see the effect above. The catalogues and the tilesets load
+          behind the door either way, because `useGameAssets` runs whether or
+          not the world is being drawn, so the longer somebody looks at the
+          button the less the press has left to wait for.
+
+          The wrapper below is everything the game is, taken out of reach in one
+          place while this player is dead. `inert` rather than a pile of
+          `disabled` props and a `pointer-events: none`: it is the browser's own
+          answer to "this subtree is not interactive", so it covers the pointer,
+          the tab order, the arrow keys reaching a focused field and anything
+          read aloud — none of which an overlay drawn on top of them covers. It
           exists for the attribute and takes the height back, because the shell
           under it is sized against its parent. */}
-      <div className="h-full" inert={dead || rebirthing}>
-        <AppShell
-          menuExtras={
-            <>
-              <div
-                className="flex items-center gap-2"
-                // Announced, unlike the clock: the headcount changes only when
-                // somebody actually arrives or leaves, which is worth hearing.
-                role="status"
-              >
-                <span className="text-xs uppercase text-paper/70">Players</span>
-                <span className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper">
-                  {players ?? "—"}
-                </span>
-              </div>
-              <FrameStatsReadout stats={stats} />
-              {status === "live" ? statusChip : null}
-              <LightingToggle
-                enabled={lightingEnabled}
-                onChange={setLightingEnabled}
-              />
-              {/* Last in the row, and last in the menu on a phone: it is the
-                  only thing here that ends the session rather than changing
-                  what is on screen. */}
-              <LogOutButton
-                inCombat={vitals.statuses.some(
-                  (status) => status.defId === COMBAT_STATUS_ID,
-                )}
-                onLogOut={logOut}
-              />
-            </>
-          }
-          // The bar goes away entirely on a phone, because the game draws the
-          // menu itself — see `AppMenuButton` in the row of controls under the
-          // world. Which is also why the readings below are handed to the
-          // viewport rather than to the header: there is no header to hand them
-          // to, and beside the world is where they belonged anyway.
-          menuInPage
-        >
-          {/* Outside the wrapper below and not inside the viewport it is about: the
-              viewport waits on its assets, and the document would be cream around
-              the loading screen until they arrived. */}
-          <InkDocument />
-          {/* The screen sits over the game rather than instead of it, because it
-              outlasts the moment the canvas mounts — see `painted`. */}
-          <div className="relative h-full w-full">
-            {assetsReady ? (
-              <GameViewport
-                canvasRef={canvasRef}
-                labelRef={labelRef}
-                onDirectionPress={pressDirection}
-                onDirectionRelease={releaseDirection}
-                onSay={say}
-                onTypingChange={noteTyping}
-                readouts={
-                  <>
-                    {status === "live" ? null : statusChip}
-                    <WorldClock minutesOfDay={minutesOfDay} />
-                  </>
-                }
-                interactions={interactions}
-                onInteract={act}
-                onHoverInteraction={hoverInteraction}
-                conversation={conversation}
-                onTalk={talk}
-                equipment={equipment}
-                masteryXp={masteryXp}
-                vitals={vitals}
-                statuses={activeStatuses(vitals.statuses, statusDefs)}
-                statusDefs={statusDefs}
-                openedContainer={openedContainer}
-                onOpenContainer={openContainer}
-                canMoveItem={canMoveItem}
-                onMoveItem={moveItem}
-                onConsumeItem={consumeItem}
-                onDragOverWorld={dragOverWorld}
-                onDropOnWorld={dropOnWorld}
-                spells={spells}
-                onCast={cast}
-                onStopCast={stopCast}
-                tiles={tiles}
-                tilesets={tilesets}
-              />
-            ) : null}
-            {/* The wait, and the two cases where it is not a wait. A refused
-                version, or another tab taking this player, is the end of the
-                road for this tab — there is no reconnect pending and no world
-                coming — so each takes the loading screen's place rather than
-                sitting behind it, whether or not the canvas ever painted. */}
-            {status === "outdated" ? (
-              <OutdatedScreen serverVersion={serverVersion} />
-            ) : status === "replaced" ? (
-              <ReplacedScreen />
-            ) : painted ? null : (
-              <LoadingScreen />
-            )}
-          </div>
-        </AppShell>
-      </div>
+      {!loggedIn ? null : (
+        // `entering` is in here for the same reason the death is: the door is
+        // drawn over this, and an overlay stops a pointer but not a tab key —
+        // a world nobody can see yet is not one to be able to reach into.
+        <div className="h-full" inert={dead || rebirthing || entering}>
+          <AppShell
+            menuExtras={
+              <>
+                <div
+                  className="flex items-center gap-2"
+                  // Announced, unlike the clock: the headcount changes only when
+                  // somebody actually arrives or leaves, which is worth hearing.
+                  role="status"
+                >
+                  <span className="text-xs uppercase text-paper/70">Players</span>
+                  <span className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper">
+                    {players ?? "—"}
+                  </span>
+                </div>
+                <FrameStatsReadout stats={stats} />
+                {status === "live" ? statusChip : null}
+                <LightingToggle
+                  enabled={lightingEnabled}
+                  onChange={setLightingEnabled}
+                />
+                {/* Last in the row, and last in the menu on a phone: it is the
+                    only thing here that ends the session rather than changing
+                    what is on screen. */}
+                <LogOutButton
+                  inCombat={vitals.statuses.some(
+                    (status) => status.defId === COMBAT_STATUS_ID,
+                  )}
+                  onLogOut={logOut}
+                />
+              </>
+            }
+            // The bar goes away entirely on a phone, because the game draws the
+            // menu itself — see `AppMenuButton` in the row of controls under the
+            // world. Which is also why the readings below are handed to the
+            // viewport rather than to the header: there is no header to hand them
+            // to, and beside the world is where they belonged anyway.
+            menuInPage
+          >
+            {/* Outside the wrapper below and not inside the viewport it is about: the
+                viewport waits on its assets, and the document would be cream around
+                the loading screen until they arrived. */}
+            <InkDocument />
+            {/* The screen sits over the game rather than instead of it, because it
+                outlasts the moment the canvas mounts — see `painted`. */}
+            <div className="relative h-full w-full">
+              {assetsReady ? (
+                <GameViewport
+                  canvasRef={canvasRef}
+                  labelRef={labelRef}
+                  onDirectionPress={pressDirection}
+                  onDirectionRelease={releaseDirection}
+                  onSay={say}
+                  onTypingChange={noteTyping}
+                  readouts={
+                    <>
+                      {status === "live" ? null : statusChip}
+                      <WorldClock minutesOfDay={minutesOfDay} />
+                    </>
+                  }
+                  interactions={interactions}
+                  onInteract={act}
+                  onHoverInteraction={hoverInteraction}
+                  conversation={conversation}
+                  onTalk={talk}
+                  equipment={equipment}
+                  masteryXp={masteryXp}
+                  vitals={vitals}
+                  statuses={activeStatuses(vitals.statuses, statusDefs)}
+                  statusDefs={statusDefs}
+                  openedContainer={openedContainer}
+                  onOpenContainer={openContainer}
+                  canMoveItem={canMoveItem}
+                  onMoveItem={moveItem}
+                  onConsumeItem={consumeItem}
+                  onDragOverWorld={dragOverWorld}
+                  onDropOnWorld={dropOnWorld}
+                  spells={spells}
+                  onCast={cast}
+                  onStopCast={stopCast}
+                  tiles={tiles}
+                  tilesets={tilesets}
+                />
+              ) : null}
+              {/* The wait, and the two cases where it is not a wait. A refused
+                  version, or another tab taking this player, is the end of the
+                  road for this tab — there is no reconnect pending and no world
+                  coming — so each takes the loading screen's place rather than
+                  sitting behind it, whether or not the canvas ever painted. */}
+              {status === "outdated" ? (
+                <OutdatedScreen serverVersion={serverVersion} />
+              ) : status === "replaced" ? (
+                <ReplacedScreen />
+              ) : painted || entering ? null : (
+                <LoadingScreen />
+              )}
+            </div>
+          </AppShell>
+        </div>
+      )}
+      {/* The door, which is also the wait behind it. Over the shell rather than
+          inside it, so the button does not move between the two: it is in the
+          middle of the page before the press and in the middle of the page
+          after it. @see entering */}
+      {!loggedIn || entering ? (
+        <LoginScreen
+          onLogIn={logIn}
+          pending={loggingIn || entering}
+          error={loginError}
+        />
+      ) : null}
       {/* One screen for the whole time this player has no body to act with,
           which is why the wait is a state of it rather than a second overlay:
           the death outlasts the press, and the wait outlasts the death. */}

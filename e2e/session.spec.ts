@@ -40,9 +40,12 @@ test.describe("the front door", () => {
     expect(await actor()).toBeUndefined();
 
     await logIn.click();
-    await expect(page.locator("canvas").first()).toBeVisible({
-      timeout: BOOT_TIMEOUT_MS,
-    });
+    // The door is the wait as well, so it standing down is the world arriving.
+    await expect(page.getByRole("button", { name: /Logging in/ })).toHaveCount(
+      0,
+      { timeout: BOOT_TIMEOUT_MS },
+    );
+    await expect(page.locator("canvas").first()).toBeVisible();
     await expect(page.getByText("live", { exact: true }).first()).toBeVisible({
       timeout: 60_000,
     });
@@ -63,9 +66,10 @@ test.describe("the front door", () => {
     expect(await actor()).toBe(first);
 
     await logIn.click();
-    await expect(page.locator("canvas").first()).toBeVisible({
-      timeout: BOOT_TIMEOUT_MS,
-    });
+    await expect(page.getByRole("button", { name: /Logging in/ })).toHaveCount(
+      0,
+      { timeout: BOOT_TIMEOUT_MS },
+    );
     expect(await actor()).toBe(first);
 
     // And the one case that does ask. Losing hit points to anything flags

@@ -137,6 +137,23 @@ It is also where a login goes. When there are accounts, the account is asked for
 here and nothing else on the page changes, because everything else already waits
 for this button.
 
+**The door is the wait as well.** Minting the actor, opening the socket, waiting
+on `hello` and waiting for the first frame are four waits, and a screen apiece
+is a page flickering through states nobody can act on. So the press does not
+swap the page: the button stays where it is, reading `Logging in…`, until there
+is a world on the canvas. The route's `entering` is what decides that, and it
+ends on the *first frame* rather than on `hello` — the renderer is built on
+`hello` and paints some way after it, and that gap was a second loading screen
+appearing for a second and a half.
+
+It stands down the moment the wait stops being ordinary. `entering` covers
+`connecting` and `live` only, so a socket that closes before the first frame
+puts the loading screen and its `reconnecting` chip back on the page: a door
+reading `Logging in…` at somebody whose server is down explains nothing. And it
+is one-way per login — `entered` is set by the first frame and cleared by
+logging out — so a *reconnect* an hour later gets the loading screen rather than
+a door claiming this player is still logging in.
+
 ### Logging out leaves the character, not the account
 
 `app/components/LogOutButton.tsx` sits in the menu the lighting switch is in —

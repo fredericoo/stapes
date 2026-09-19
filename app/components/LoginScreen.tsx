@@ -1,11 +1,24 @@
 /**
- * What stands in front of the world until somebody asks to be let in.
+ * What stands in front of the world until somebody asks to be let in — and
+ * until they are.
  *
  * **The button is what opens the socket.** Nothing connects on load: the page
  * fetches the tile and status catalogues, decodes the tilesets, and then waits
  * here. A tab left open on the front door costs the world nothing — no actor to
  * simulate, no chunks to send, no body standing in the square somebody else is
  * trying to walk through.
+ *
+ * **And it stays up until there is a world behind it**, reading `Logging in…`
+ * the whole way. Minting the actor, opening the socket, waiting on `hello` and
+ * waiting for the first frame are four waits, and a screen apiece would be a
+ * page flickering through states a player cannot act on and did not ask about.
+ * So the press does not swap the page: the button it was pressed on reports
+ * what it started. @see ../routes/game's `entering`, which is the only thing
+ * that draws this over a mounted world.
+ *
+ * `fixed` rather than filling its parent for that second job: the button has to
+ * be in the same place before and after the press, and after it there is a
+ * header and a viewport in the page that would otherwise push it down.
  *
  * It is also where a login will go. Today the press mints the anonymous actor
  * cookie and that is all it does; when there are accounts, the account is asked
@@ -34,7 +47,7 @@ export function LoginScreen({
 }) {
   return (
     <div
-      className="flex h-full w-full flex-col items-center justify-center gap-4 bg-ink p-6 text-center"
+      className="fixed inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-ink p-6 text-center"
       style={{ fontFamily: SYSTEM_MONO }}
     >
       <button
