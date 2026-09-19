@@ -112,7 +112,10 @@ const tiles: TileDef[] = [
       kind: "bolt",
       damage: 10,
       on: "target",
-      projectile: { tileId: "arrow", cellsPerSecond: 14 },
+      // An id into the projectile catalogue, which is what the block has taken
+      // since the flight stopped being written out per stone. @see
+      // `../lib/item`'s `StoneEffect`
+      projectile: "arrow",
     },
     cooldownMs: 20_000,
     reach: NEAR_REACH,
