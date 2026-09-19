@@ -137,6 +137,30 @@ It is also where a login goes. When there are accounts, the account is asked for
 here and nothing else on the page changes, because everything else already waits
 for this button.
 
+### Logging out leaves the character, not the account
+
+`app/components/LogOutButton.tsx` sits in the menu the lighting switch is in —
+the header on a wide window, the cog beside the d-pad on a phone. Pressing it
+drops `loggedIn`, which is what tears the connecting effect down: the canvas
+goes, and with it the renderer, the session and this player's body in the world.
+
+**It does not touch the actor cookie**, and that is the whole design rather than
+a thing left undone. The cookie is the identity and will be the account; leaving
+a character is not signing out of one. So the next Log in is the same body,
+standing where it was left, and when there are accounts this button comes back
+to a character selection screen instead of the door.
+
+Which is also why it asks nothing in the ordinary case. A confirmation on an act
+that the button beside it undoes is a confirmation people learn to click
+through, and the next one they click through is one that mattered.
+
+**The one that matters is leaving mid-fight**, and the button asks only then. A
+body in combat does not go with its socket — it stands there, idle and hittable,
+until the minute since the last blow runs out (see "Closing the tab does not end
+a fight", which is the rule this is warning about). The page reads that state
+the same way the status strip does: `COMBAT_STATUS_ID` in the vitals the server
+pushes, so the warning appears and goes on its own as the fight does.
+
 **`GAME_SOCKET_PATH` still says `/online/ws`.** The page that name came from is
 gone; the wire path did not follow it, because changing it refuses every tab
 that was open across the deploy at the upgrade — and a browser reports a
@@ -9147,6 +9171,11 @@ somewhere", "the authored map is mostly static tiles". Both read as safe
 because they name no coordinate, and both still failed on an afternoon's
 authoring. If a claim really is about the world we ship, the Playwright run
 against a real world is where it belongs.
+
+`e2e/session.spec.ts` is that run for the front door: it presses Log in and Log
+out against a real server and asserts that no game socket opens before the
+press, that one opens after it, and that the actor cookie is minted and then
+forgotten. It names no cell and reads no map, so authoring cannot move it.
 
 Two rules learned the hard way, which still hold:
 

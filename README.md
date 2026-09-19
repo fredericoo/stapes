@@ -61,7 +61,11 @@ push the same objects. Closing the tab removes your tile.
 
 Identity is a random id in an `HttpOnly` cookie — enough to give you your avatar
 back on reload, and deliberately not a login. The socket handshake sends it, so
-the server never trusts a client-supplied id.
+the server never trusts a client-supplied id. **Log out**, in the same menu as
+the lighting switch, closes the socket and leaves the cookie alone, so logging
+in again is the same body: it is leaving the character, not the account. It
+warns first only when you are in a fight, because a body in combat stays on the
+board for a minute after its socket goes.
 
 Saving in `/admin/map` writes the map and restarts the world: everyone re-enters a
 fresh game on the new map.

@@ -9,6 +9,7 @@ import { InkDocument } from "../components/InkDocument";
 import { LightingToggle } from "../components/LightingToggle";
 import { LoadingScreen } from "../components/LoadingScreen";
 import { LoginScreen } from "../components/LoginScreen";
+import { LogOutButton } from "../components/LogOutButton";
 import { OutdatedScreen } from "../components/OutdatedScreen";
 import { ReplacedScreen } from "../components/ReplacedScreen";
 import { WorldClock } from "../components/WorldClock";
@@ -20,7 +21,7 @@ import {
   applyInteraction,
   type InteractionOption,
 } from "../game/interactionOptions";
-import { activeStatuses, statusesById } from "../lib/status";
+import { activeStatuses, COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import { useGameAssets } from "../lib/gameAssets";
 import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
 import type { ObjectRef } from "../game/affordances";
@@ -131,6 +132,25 @@ export default function GamePage() {
         setLoginError("Could not reach the world. Try again.");
       },
     );
+  }, []);
+  /**
+   * Leave the world, keeping the actor that was in it.
+   *
+   * Dropping {@link loggedIn} is the whole of it: the connecting effect below is
+   * torn down with the canvas, which takes the renderer, the session and this
+   * player's body out of the world. The status goes back to what a fresh page
+   * says, so the chip does not read `live` over a door.
+   *
+   * **The cookie is deliberately left alone.** It is this player's identity and
+   * will be their account, and leaving a character is not signing out of one:
+   * the next Log in is the same body, standing where it was left. What that
+   * costs is the one thing the button warns about — a body in combat stays on
+   * the board after its socket goes. @see ../components/LogOutButton
+   */
+  const logOut = useCallback(() => {
+    sessionStorage.removeItem(LOGGED_IN);
+    setStatus("connecting");
+    setLoggedIn(false);
   }, []);
   /**
    * What the server said it speaks, once it has refused us for speaking
@@ -633,6 +653,15 @@ export default function GamePage() {
               <LightingToggle
                 enabled={lightingEnabled}
                 onChange={setLightingEnabled}
+              />
+              {/* Last in the row, and last in the menu on a phone: it is the
+                  only thing here that ends the session rather than changing
+                  what is on screen. */}
+              <LogOutButton
+                inCombat={vitals.statuses.some(
+                  (status) => status.defId === COMBAT_STATUS_ID,
+                )}
+                onLogOut={logOut}
               />
             </>
           }
