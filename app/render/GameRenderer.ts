@@ -17,7 +17,7 @@ import type {
   PlaySession,
 } from "../game/GameSession";
 import { PLAYER_TILE_ID } from "../game/constants";
-import { bodyNameFor, sizedUpName } from "../game/displayName";
+import { bodyNameFor, bodyNameIn, sizedUpName } from "../game/displayName";
 import type { Equipment } from "../game/equipment";
 import type { Conversation } from "../game/dialogRuntime";
 import type { MasteryXp } from "../lib/mastery";
@@ -69,6 +69,7 @@ import {
 import { emitterCenter } from "../lib/lighting";
 import { DWELL_MS } from "../lib/useDwell";
 import { elevationAt, getStack, stackHeight } from "../lib/mapData";
+import { conjuredName } from "../game/conjured";
 import { engravedName } from "../lib/engraving";
 import { pileTally } from "../lib/piles";
 import {
@@ -1518,6 +1519,7 @@ export class GameRenderer {
     if (standing?.tileId !== PLAYER_TILE_ID) return null;
     return {
       map: snap.map,
+      who: self.id,
       at: { x: self.x, y: self.y, z: self.z, stackIndex: self.stackIndex },
       stepping: self.walk ? self.walk.to : null,
       def,
@@ -2207,7 +2209,16 @@ export class GameRenderer {
     // The engraving filled in, so a skull on the ground is whose it is rather
     // than what kind of thing it is. Free for everything else — a name with no
     // hole in it comes straight back. See `../lib/engraving`.
-    const name = engravedName(def.name, placed.engraved);
+    //
+    // Then whoever conjured it, where anybody did: "Green Fox's Arcane Flame"
+    // over the same tile a hearth leaves behind as plain "Arcane Flame". The
+    // caster is named off the snapshot's own actors, so the look label and the
+    // name tag over their head are one answer. @see `../game/conjured`
+    const name = conjuredName(
+      engravedName(def.name, placed.engraved),
+      placed,
+      bodyNameIn(snap.actors, this.tilesById),
+    );
     const lines = [{ id: "name", text: tally ? `${name} ${tally}` : name }];
     if (placed.inscription) {
       lines.push({ id: "inscription", text: placed.inscription });

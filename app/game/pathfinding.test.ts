@@ -545,6 +545,46 @@ describe("a cell that fires when you land on it", () => {
   });
 
   /**
+   * A flame the walker conjured cannot hurt them, so it is not a hazard to
+   * them. The pair below is one board asked twice, which is the whole of what
+   * `PathStart.who` buys. @see ./conjured's `sparesCaster`
+   */
+  describe("a flame the walker conjured", () => {
+    /** The same flame in the same cell, laid down by whoever is named. */
+    function litBy(castBy: string): MapFile {
+      return replaceStack(field(6), 1, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "flame", castBy },
+      ]);
+    }
+
+    function legs(map: MapFile, who?: string): Direction[] | null {
+      const from = standing(0, 0);
+      const found = findPath(
+        map,
+        { at: from, self: from, who },
+        { x: 3, y: 0, z: 0 },
+        rat,
+        tilesById,
+        statusDefs,
+      );
+      return found.ok ? walked(found.route) : null;
+    }
+
+    it("is walked straight through by the one who lit it", () => {
+      expect(legs(litBy("rat"), "rat")?.[0]).toBe("e");
+    });
+
+    it("is still gone round by everybody else", () => {
+      expect(legs(litBy("somebody-else"), "rat")?.[0]).toMatch(/^[ns]$/);
+    });
+
+    it("is gone round by a search told nobody, as it always was", () => {
+      expect(legs(litBy("rat"))?.[0]).toMatch(/^[ns]$/);
+    });
+  });
+
+  /**
    * Sealing a room with fire seals it. Walking in by hand still works — nothing
    * here touches `canWalk` — but nothing will *route* you through it, which is
    * the trade the rule is worth making.

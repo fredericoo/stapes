@@ -36,9 +36,10 @@ import {
   type EquipSlot,
   type ObjectRef,
 } from "./affordances";
+import { conjuredName } from "./conjured";
 import { engravedName } from "../lib/engraving";
 import { pileTally } from "../lib/piles";
-import { bodyNameFor } from "./displayName";
+import { bodyNameFor, bodyNameIn } from "./displayName";
 import type { Equipment } from "./equipment";
 import {
   extractFits,
@@ -619,6 +620,10 @@ export function listInteractionOptions(
   nextBlow: Progress | null = null,
 ): InteractionOption[] {
   const bodies = bodiesByCell(self, visibleActors);
+  // Who a conjured tile belongs to, named off the bodies this viewer can see —
+  // their own included, since the flame in front of them is very often theirs.
+  // @see ./conjured's `conjuredName`
+  const nameOf = bodyNameIn([self, ...visibleActors], tilesById);
 
   const options = [
     ...battlerOptions(tilesById, bodies, targetId, followId, attacking, nextBlow),
@@ -628,6 +633,7 @@ export function listInteractionOptions(
       tilesById,
       self,
       bodies,
+      nameOf,
       equipment,
       openedRef,
       tags,
@@ -1037,6 +1043,7 @@ function objectOptions(
   tilesById: Record<string, TileDef>,
   self: ActorSnapshot,
   bodies: Map<string, ActorSnapshot>,
+  nameOf: (actorId: string) => string | null,
   equipment: Equipment,
   openedRef: ObjectRef | null,
   tags: readonly string[],
@@ -1072,6 +1079,7 @@ function objectOptions(
               tilesById,
               self,
               bodies,
+              nameOf,
               equipment,
               { x, y, z, stackIndex },
               openedRef,
@@ -1094,6 +1102,7 @@ function slotOptions(
   tilesById: Record<string, TileDef>,
   self: ActorSnapshot,
   bodies: Map<string, ActorSnapshot>,
+  nameOf: (actorId: string) => string | null,
   equipment: Equipment,
   ref: ObjectRef,
   openedRef: ObjectRef | null,
@@ -1117,9 +1126,16 @@ function slotOptions(
   const name = body
     ? bodyNameFor({ actorId: body.id, tileId: body.tileId }, tilesById)
     : [
-        engravedName(
-          tilesById[placed.tileId]?.name ?? placed.tileId,
-          placed.engraved,
+        // Whoever conjured it in front of the name, so the row reads "Touch
+        // Green Fox's Arcane Flame" — the same answer the look label gives,
+        // through the same call. @see ./conjured's `conjuredName`
+        conjuredName(
+          engravedName(
+            tilesById[placed.tileId]?.name ?? placed.tileId,
+            placed.engraved,
+          ),
+          placed,
+          nameOf,
         ),
         tally,
       ]

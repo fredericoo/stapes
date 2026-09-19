@@ -139,6 +139,14 @@ import type { Coord, MapFile, TileDef } from "../lib/types";
 /** What steering a body needs to know about it and the board it is on. */
 export type WalkView = {
   map: MapFile;
+  /**
+   * Who is walking.
+   *
+   * Read for one thing: a tile this body conjured cannot hurt it, so a route
+   * goes straight through it rather than round. @see ./pathfinding's
+   * `PathStart.who` and `./conjured`'s `sparesCaster`
+   */
+  who: string;
   /** Where the body stands, and which slot of that cell's stack it is. */
   at: Coord & { stackIndex: number };
   /** The cell a step already under way will land in, or null when standing still. */
@@ -451,7 +459,7 @@ export class WalkTo {
       // while the next leg is owed from the one it is landing in. Told only
       // one of them, the search has the walker's own body as a wall behind it.
       // @see ./pathfinding's PathStart
-      { at: from, self: view.at },
+      { at: from, self: view.at, who: view.who },
       goal,
       view.def,
       view.tilesById,
