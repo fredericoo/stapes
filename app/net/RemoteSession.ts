@@ -8,10 +8,12 @@ import {
   WALK_DURATION_MS,
 } from "../game/constants";
 import {
+  inCombat,
   UNKNOWN_REMAINING_MS,
   type StatusInstance,
   walkSpeedPercentFrom,
 } from "../game/statuses";
+import { type Combatant, mayHarm } from "../game/pvp";
 import {
   ageEffects,
   ageFlights,
@@ -125,6 +127,7 @@ import {
   type ClientMessage,
   type CarriedLightsPatch,
   type StatusIdsPatch,
+  type PvpPatch,
   type CastingPatch,
   type ExtractionPatch,
   type HpPatch,
@@ -322,6 +325,18 @@ export class RemoteSession implements PlaySession {
    * @see ExtractionPatch
    */
   private readonly extractionsById = new Map<string, ExtractionProgress>();
+  /**
+   * Who is fighting other players, as the broadcast last said. @see `PvpPatch`
+   *
+   * A set rather than a map of booleans, because off is what a body nobody has
+   * mentioned is: the server sends the mark when it goes on and again when it
+   * comes off, and everybody else is absent from both.
+   *
+   * The viewer's own is in here too, on {@link castingsById}' terms: the switch
+   * is the server's state and this side predicts none of it, so the button
+   * follows the broadcast rather than a copy of its own.
+   */
+  private readonly pvpOn = new Set<string>();
   /**
    * Everybody's cast in progress as the broadcast last described it, wound on
    * the render clock between its two messages.
@@ -706,6 +721,12 @@ export class RemoteSession implements PlaySession {
       this.hps.clear();
       this.carriedLights.clear();
       this.statusesById.clear();
+      // Cleared with them and refilled by the `hello` below, which carries
+      // everybody's switch in full. Not resent the way attack mode is: the
+      // switch is the *server's* state and it carries it across a save itself,
+      // so a client that said it again would be telling the far end something
+      // it already knows. @see `server/GameServer`'s replaceWorld
+      this.pvpOn.clear();
       this.extractionsById.clear();
       this.castingsById.clear();
       // Replaced outright rather than kept: the body at the other end is a
@@ -751,6 +772,7 @@ export class RemoteSession implements PlaySession {
       this.applyHps(message.hps);
       this.applyCarriedLights(message.carriedLights);
       this.applyStatusIds(message.statusIds);
+      this.applyPvp(message.pvp);
       this.applyExtractions(message.extractions);
       this.applyCastings(message.castings);
       this.setPlayers(message.playerCount);
@@ -919,6 +941,7 @@ export class RemoteSession implements PlaySession {
     this.applyHps(message.hps);
     this.applyCarriedLights(message.carriedLights);
     this.applyStatusIds(message.statusIds);
+    this.applyPvp(message.pvp);
     this.applyExtractions(message.extractions);
     this.applyCastings(message.castings);
     for (const event of message.events) this.applyEvent(event);
@@ -1005,6 +1028,21 @@ export class RemoteSession implements PlaySession {
    * Copied rather than adopted, on {@link setExtracting}'s terms, because
    * {@link windBars} winds these in place.
    */
+  /**
+   * Take the server's word for who is fighting other players.
+   *
+   * Absent means off, so an entry is deleted rather than stored false — the
+   * same shape {@link applyExtractions} keeps for a pull that has stopped, and
+   * for the same reason: "not fighting" and "never heard about them" draw the
+   * same nothing. @see `../game/pvp`
+   */
+  private applyPvp(patches: PvpPatch[]) {
+    for (const patch of patches) {
+      if (patch.on) this.pvpOn.add(patch.actorId);
+      else this.pvpOn.delete(patch.actorId);
+    }
+  }
+
   private applyExtractions(patches: ExtractionPatch[]) {
     for (const patch of patches) {
       if (patch.progress) {
@@ -1219,6 +1257,7 @@ export class RemoteSession implements PlaySession {
     this.hps.delete(id);
     this.carriedLights.delete(id);
     this.statusesById.delete(id);
+    this.pvpOn.delete(id);
     // Beside the statuses, and they were missing here: nothing draws a bar for
     // a body that is not in {@link motions}, so a left-behind row sat inert
     // until the same id came back — which a respawned resident does, under the
@@ -2184,6 +2223,9 @@ export class RemoteSession implements PlaySession {
       // Everybody's off the broadcast, the viewer's own included: a cast has no
       // owner's half. @see castingsById
       casting: this.castingsById.get(id) ?? null,
+      // Off the broadcast for everybody including the viewer, on the cast's
+      // terms: the switch is the server's state and nothing here predicts it.
+      pvp: this.pvpOn.has(id),
     };
   }
 
@@ -2227,6 +2269,10 @@ export class RemoteSession implements PlaySession {
       nextBlow: this.nextBlow,
       masteryXp: this.masteryXp,
       attributes: this.attributesOf(mine),
+      // The mark off the broadcast, and whether it may be moved off this side's
+      // own status list — the same two answers the simulation gives, from the
+      // same two places. @see setPvp
+      pvp: { on: mine.pvp, changeable: this.canSetPvp() },
       chats: this.chats,
       noises: this.noises,
       damage: this.damage,
@@ -2266,6 +2312,37 @@ export class RemoteSession implements PlaySession {
     if (enabled === this.attacking) return;
     this.attacking = enabled;
     this.send({ type: "attackMode", enabled });
+  }
+
+  /**
+   * Opt into fighting other players, or back out of it. @see `../game/pvp`
+   *
+   * **Nothing is predicted**, unlike a step and like every other fact about
+   * other people: the mark over a head and the state of the button both come
+   * off the broadcast, so they cannot show a switch the server did not move.
+   * The round trip is a frame or two, and a button that flipped and flipped back
+   * would be worse than one that answers a frame late.
+   *
+   * Asked here before it is sent, on the terms a cast is: a client that offers
+   * what the far end refuses is a client whose buttons lie. The server asks the
+   * same question again, because this side's answer is as old as its last patch.
+   */
+  setPvp(enabled: boolean): boolean {
+    if (!this.canSetPvp()) return false;
+    this.send({ type: "pvp", enabled });
+    return true;
+  }
+
+  /**
+   * Whether the switch may be moved right now — which is to say, whether this
+   * body is out of the fight. @see `../game/statuses`' `inCombat`
+   *
+   * The same test the server runs, over the viewer's own status list, which is
+   * the one list on this side with a real countdown on it. Everybody else's is
+   * rebuilt from ids and is not asked. @see `../game/GameSession`'s `canSetPvp`
+   */
+  private canSetPvp(): boolean {
+    return !inCombat(this.statuses);
   }
 
   /**
@@ -2393,6 +2470,16 @@ export class RemoteSession implements PlaySession {
       spells: this.naturalSpells(from.placed.tileId),
       spellCooldownsMs: this.spellCooldowns,
       target: to ? this.castPoint(to) : null,
+      // The same rule the server runs, over what this side knows about the two
+      // bodies: a player is a body wearing the player tile, which is the test
+      // `bodyNameFor` already reads identity off. @see `../game/pvp`
+      mayHarmTarget:
+        to && this.targetId
+          ? mayHarm(
+              this.combatant(this.selfId, from),
+              this.combatant(this.targetId, to),
+            )
+          : true,
     };
   }
 
@@ -2432,6 +2519,22 @@ export class RemoteSession implements PlaySession {
    * half a level nearer than a rat beside it, and a client measuring from the
    * floor would dim a button the server would have honoured.
    */
+  /**
+   * One body as the harm rule sees it. @see `../game/pvp`'s {@link Combatant}
+   *
+   * Residency is read off the tile, which is the same test identity is read off
+   * everywhere else on this side: a player wears the player tile and a creature
+   * wears its own. The simulation knows it as a fact recorded when the actor was
+   * made; the two agree because that is what the tile means.
+   */
+  private combatant(id: string, loc: ActorLocation): Combatant {
+    return {
+      id,
+      resident: loc.placed.tileId !== PLAYER_TILE_ID,
+      pvp: this.pvpOn.has(id),
+    };
+  }
+
   private castPoint(loc: ActorLocation): CastPoint {
     const stack = getStack(this.map, loc.x, loc.y, loc.z);
     return {
@@ -2858,6 +2961,9 @@ function offscreenActor(id: string): ActorSnapshot {
     carriedLights: NO_CARRIED_LIGHTS,
     extracting: null,
     casting: null,
+    // Unmarked, like everything else here: a body that has not arrived is not
+    // in anybody's fight.
+    pvp: false,
   };
 }
 

@@ -2525,6 +2525,11 @@ describe("announcing a swing", () => {
     // is a fight to announce at all. @see `app/game/distance`
     await walkEast(alice.ws);
 
+    // Both switches on, because two players do not swing at each other until
+    // both have asked to. @see `app/game/pvp`
+    alice.ws.send(JSON.stringify({ type: "pvp", enabled: true }));
+    bob.ws.send(JSON.stringify({ type: "pvp", enabled: true }));
+
     // Listening before the fight starts, so the first blow is not missed.
     const swings = eventsWithin(alice.ws, "swung", FIRST_BLOW_MS);
     alice.ws.send(JSON.stringify({ type: "target", actorId: "bob" }));
@@ -4382,7 +4387,13 @@ describe("casting", () => {
   it("puts a cast's flight and its receipt on the wire", async () => {
     const victimId = freshPlayer();
     const thrower = await connect(freshPlayer());
-    await connect(victimId);
+    const victim = await connect(victimId);
+
+    // Both switches on: a bolt that takes health is refused at a player who is
+    // not in the fighting, and so is one thrown by a caster who is not.
+    // @see `app/game/pvp`
+    send(thrower.ws, { type: "pvp", enabled: true });
+    send(victim.ws, { type: "pvp", enabled: true });
 
     const shots = eventsWithin(thrower.ws, "projectileFired", 400);
     const hits = eventsWithin(thrower.ws, "damage", 400);
@@ -4965,6 +4976,83 @@ describe("a cast somebody else is making", () => {
     expect(bob.hello.castings).toEqual([
       expect.objectContaining({ actorId: "alice" }),
     ]);
+  });
+});
+
+/**
+ * The switch that says whether somebody is in the fighting.
+ *
+ * What travels is one boolean per body, and what these cases pin is the three
+ * journeys it makes: onto everybody else's screen, into storage, and back out
+ * of it on the next `hello`. The rule it feeds — who may hurt whom — is
+ * `app/game/pvp`'s and is asserted there, without a socket.
+ */
+describe("the pvp switch", () => {
+  /** Wait for a patch naming this body's switch, or null if none comes. */
+  function pvpWithin(
+    ws: TestSocket,
+    actorId: string,
+  ): Promise<{ actorId: string; on: boolean } | null> {
+    return new Promise((resolve) => {
+      const done = (value: { actorId: string; on: boolean } | null) => {
+        clearTimeout(timer);
+        ws.removeEventListener("message", onMessage);
+        resolve(value);
+      };
+      const onMessage = (event: { data: string }) => {
+        const message = JSON.parse(event.data) as Record<string, unknown>;
+        if (message.type !== "patch") return;
+        const entries = (message.pvp ?? []) as Array<{
+          actorId: string;
+          on: boolean;
+        }>;
+        const entry = entries.find((e) => e.actorId === actorId);
+        if (entry) done(entry);
+      };
+      const timer = setTimeout(() => done(null), MESSAGE_TIMEOUT_MS);
+      ws.addEventListener("message", onMessage);
+    });
+  }
+
+  it("reaches everybody else when it moves", async () => {
+    const alice = await connect("alice");
+    const bob = await connect("bob");
+
+    const turningOn = pvpWithin(bob.ws, "alice");
+    send(alice.ws, { type: "pvp", enabled: true });
+    expect(await turningOn).toEqual({ actorId: "alice", on: true });
+
+    const turningOff = pvpWithin(bob.ws, "alice");
+    send(alice.ws, { type: "pvp", enabled: false });
+    expect(await turningOff).toEqual({ actorId: "alice", on: false });
+  });
+
+  it("is handed in full to somebody who arrives after it was moved", async () => {
+    const alice = await connect("alice");
+    send(alice.ws, { type: "pvp", enabled: true });
+    await messageWithin(alice.ws, "patch", MESSAGE_TIMEOUT_MS);
+
+    const bob = await connect("bob");
+
+    expect(bob.hello.pvp).toEqual([{ actorId: "alice", on: true }]);
+  });
+
+  /**
+   * The point of the row: a reconnect must not put somebody back in the
+   * fighting, and must not take them out of it either. Written the moment it
+   * moves rather than on the periodic flush, so a crash in between cannot
+   * disagree with what the player pressed.
+   */
+  it("comes back with a player who reconnects", async () => {
+    const first = await connect("alice");
+    send(first.ws, { type: "pvp", enabled: true });
+    await messageWithin(first.ws, "patch", MESSAGE_TIMEOUT_MS);
+    first.ws.close();
+
+    await simulateEviction();
+
+    const second = await connect("alice");
+    expect(second.hello.pvp).toEqual([{ actorId: "alice", on: true }]);
   });
 });
 

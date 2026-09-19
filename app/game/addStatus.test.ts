@@ -169,7 +169,7 @@ const tiles: TileDef[] = [
     interactions: { addStatus: { trigger: "step", statusId: "haunted" } },
   }),
   // The same block with the other tone, which is what a caster is *not* spared
-  // by their own conjure. @see ./conjured's `sparesCaster`
+  // by their own conjure. @see ./conjured's `sparesStander`
   tile({
     id: "circle",
     interactions: { addStatus: { trigger: "step", statusId: "blessed" } },
@@ -464,7 +464,7 @@ describe("stepping into a fire", () => {
  *
  * The cell is the same cell for everybody — what differs is who is standing in
  * it — so every case here is one board walked into by two people.
- * @see ./conjured's `sparesCaster`
+ * @see ./conjured's `sparesStander`
  */
 describe("a fire somebody conjured", () => {
   /** The player at the origin, facing a cell somebody laid this stack in. */
@@ -509,7 +509,7 @@ describe("a fire somebody conjured", () => {
 
   it("hands the caster their own blessing, which is the other tone", () => {
     // Only harm is spared. A circle laid down to be stood in is one the person
-    // who laid it may stand in. @see ./conjured's `sparesCaster`
+    // who laid it may stand in. @see ./conjured's `sparesStander`
     const play = session(beside({ tileId: "circle", castBy: "local" }));
     step(play, "e");
     expect(held(play)).toEqual(["blessed"]);

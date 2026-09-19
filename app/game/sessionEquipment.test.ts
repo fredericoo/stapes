@@ -1501,6 +1501,10 @@ describe("dying with something on you", () => {
     session.spawn(KILLER, { at: { x: 1, y: 0, z: 0, direction: "w" } });
     session.setTarget(selfId(session), KILLER);
     session.setAttackMode(true, KILLER);
+    // Both switches on, because two players do not fight until both have asked
+    // to. @see ./pvp
+    session.setPvp(true, KILLER);
+    session.setPvp(true, selfId(session));
     return session;
   }
 

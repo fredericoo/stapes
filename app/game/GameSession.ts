@@ -131,7 +131,8 @@ import {
 import type { MinutesOfDay } from "../lib/clock";
 import { leaveResidue } from "./residue";
 import { type Blame, causeOfDeath, possessive } from "./blame";
-import { conjuredName, sparesCaster } from "./conjured";
+import { conjuredName, sparesStander } from "./conjured";
+import { type Combatant, mayHarm } from "./pvp";
 import {
   GOTO_COMMAND,
   HEALTH_COMMAND,
@@ -577,6 +578,19 @@ export type ActorSnapshot = {
    * `./casting`'s `CastProgress`
    */
   casting: CastProgress | null;
+  /**
+   * Whether this body is fighting other players. @see `./pvp`
+   *
+   * Broadcast on exactly the terms {@link rating} is, and for the same reason:
+   * it is something you have to be able to read off somebody *before* deciding
+   * anything, and a switch you could only discover by swinging at a stranger
+   * and being refused is a switch nobody can plan around. It is what puts the
+   * mark beside a name — see `./displayName`'s `fightingName`.
+   *
+   * False for every creature, whose aggression is its brain's rather than a
+   * decision anybody made.
+   */
+  pvp: boolean;
 };
 
 /**
@@ -883,6 +897,17 @@ export type GameSnapshot = {
    */
   attributes: Attributes | null;
   /**
+   * The viewer's own switch: whether they are fighting other players, and
+   * whether it may be moved right now. @see `./pvp`
+   *
+   * Theirs alone on {@link attributes}' terms — everybody else's `on` is on
+   * their {@link ActorSnapshot}, because a mark over a head is drawn from it.
+   * What is here and nowhere else is `changeable`, which is a fact about a
+   * fight the viewer is in rather than about any body on the board, and which
+   * only a session can answer. @see GameSession.canSetPvp
+   */
+  pvp: { on: boolean; changeable: boolean };
+  /**
    * Speech still on screen, on this viewer's level only.
    *
    * Always present rather than optional so the renderer's contract stays total;
@@ -931,6 +956,34 @@ export type Vitals = {
    * the one thing that reads it.
    */
   attributes: Attributes | null;
+  /**
+   * Whether this body is fighting other players, and whether that may be
+   * changed right now. @see `./pvp`
+   *
+   * Here rather than on a channel of its own because it answers the block's own
+   * question — *what state is my body in* — and because the one thing that
+   * reads it is the switch that sets it. The second half is the session's
+   * answer rather than the chrome's: a fight is what freezes the switch, and
+   * the chrome would have to re-derive "in combat" from the status list to know
+   * it. @see GameSession.canSetPvp
+   */
+  pvp: { on: boolean; changeable: boolean };
+};
+
+/**
+ * A body nothing has reported on yet.
+ *
+ * Shared because four places need one — the viewport's default, and each route's
+ * state before the first frame and again after a reconnect — and because a
+ * block written out four times is a block that grows a field in three of them.
+ */
+export const NO_VITALS: Vitals = {
+  hp: null,
+  maxHp: null,
+  rating: null,
+  statuses: [],
+  attributes: null,
+  pvp: { on: false, changeable: false },
 };
 
 /** The id the single local actor takes when nobody names one. */
@@ -1039,6 +1092,15 @@ export interface PlaySession {
   setTarget(actorId: string | null): void;
   /** Swing at the target, or merely keep it. @see GameSnapshot.attacking */
   setAttackMode(enabled: boolean): void;
+  /**
+   * Opt into fighting other players, or back out of it. @see `./pvp`
+   *
+   * Answers whether anything moved, which for both implementations is false
+   * exactly when the body is still in a fight — the one refusal there is. What
+   * the chrome draws from is {@link GameSnapshot.pvp}, whose `changeable` is the
+   * same answer asked before the press rather than after it.
+   */
+  setPvp(enabled: boolean): boolean;
   /**
    * Every arcane stone this body could press, in square order, with why each
    * can or cannot be cast right now.
@@ -1869,6 +1931,21 @@ type ActorRuntime = {
    * {@link GameSession.tryAttack} and never through a standing target.
    */
   attacking: boolean;
+  /**
+   * Whether this player has opted into fighting other players. @see `./pvp`
+   *
+   * Off for everybody the world has never met, and off for every creature —
+   * nothing reads it for a resident, because `mayHarm` answers on the residency
+   * first. Restored with the rest of what a returning player brings back, since
+   * a switch that forgot itself on every reconnect would be a switch nobody
+   * could rely on.
+   *
+   * Beside {@link attacking} because they are the two halves of "am I
+   * fighting", and separate for the same reason {@link targetId} is separate
+   * from the mode: attack mode is what this body is doing *right now* and this
+   * is a standing decision about who may do it to whom.
+   */
+  pvp: boolean;
   input: GameInput;
   walk: WalkState | null;
   fall: FallState | null;
@@ -2584,6 +2661,8 @@ export class GameSession implements PlaySession {
       statuses?: readonly StatusInstance[];
       hp?: number;
       spawnAt?: Coord;
+      /** Whether this player was fighting other players. @see ActorRuntime.pvp */
+      pvp?: boolean;
     } = {},
   ): ActorRuntime {
     const resident = opts.resident === true;
@@ -2674,6 +2753,9 @@ export class GameSession implements PlaySession {
       casting: null,
       targetId: null,
       attacking: false,
+      // Off unless the world remembers otherwise, which is the state a body
+      // nobody can hurt is in. @see ./pvp
+      pvp: opts.pvp ?? false,
       input: { directions: [] },
       walk: null,
       fall: null,
@@ -2772,6 +2854,12 @@ export class GameSession implements PlaySession {
        * world remembers nothing about.
        */
       spawnAt?: Coord;
+      /**
+       * Whether this player had opted into fighting other players. Omit for
+       * somebody the world remembers nothing about, who arrives with it off.
+       * @see `./pvp`
+       */
+      pvp?: boolean;
     } = {},
     {
       /**
@@ -4646,6 +4734,17 @@ export class GameSession implements PlaySession {
     const target = this.actors.get(targetId);
     if (!target) return false;
 
+    // **Two players who have not both opted in do not swing at each other.**
+    // Before the reach and before the windup, because it is the one refusal that
+    // will still be true when everything below it has changed: walking closer
+    // does not make it a fight. The target stays targeted — pointing at
+    // somebody is how you read them, and a player you cannot fight is still a
+    // player you may want to look at. @see ./pvp
+    if (!this.mayHarm(attacker, target)) {
+      this.disengage(attacker);
+      return false;
+    }
+
     const from = this.tryLocate(attacker);
     const to = this.tryLocate(target);
     if (!from || !to) return false;
@@ -5972,6 +6071,16 @@ export class GameSession implements PlaySession {
     if (resolveBattler(this.defFor(actor))?.immuneTo?.includes(grant.id)) {
       return "refused";
     }
+    // **And the same gate for harm between two players.** Here rather than at
+    // each source, because this is the one place every bad status arrives at: a
+    // bolt's curse, a blade's poison, and the burn a conjured flame hands over.
+    // Only a status the author called `bad` — a player may still be mended or
+    // blessed by somebody they cannot fight, which is the one thing a switch
+    // about violence should not be allowed to refuse. @see ./pvp
+    if (def.tone === "bad" && causedBy !== undefined) {
+      const causer = this.actors.get(causedBy);
+      if (causer && !this.mayHarm(causer, actor)) return "refused";
+    }
     // Read before the list is replaced, because afterwards there is nothing to
     // compare against: `applyStatus` stacks and refreshes in place, so a body
     // that was already burning and one that has just caught fire come back
@@ -6187,6 +6296,9 @@ export class GameSession implements PlaySession {
       spells: this.spellsOf(actor),
       spellCooldownsMs: actor.spellCooldownMs,
       target: to ? this.castPointOf(to) : null,
+      // Whether a spell that takes health may be aimed at them at all. Asked of
+      // the two bodies here, because this is the side that has both. @see ./pvp
+      mayHarmTarget: targetActor ? this.mayHarm(actor, targetActor) : true,
     };
   }
 
@@ -6713,7 +6825,16 @@ export class GameSession implements PlaySession {
     // the health, so a killing bolt still dresses the body it killed.
     this.strikeBody(bolt.subjectId, bolt.projectile);
 
-    if (bolt.move) {
+    // **Asked again on arrival, not only when the stone was pressed.** A cast
+    // can take seconds and a bolt can be a yard in the air, and either is long
+    // enough for the switch at the far end to move — `castability` refused this
+    // press against the world as it was, and this is the same rule against the
+    // world the bolt actually landed in. A caster who has left the world is
+    // nobody to ask, and their bolt lands as every bolt did before this existed.
+    // @see ./pvp
+    const harmless =
+      bolt.move?.kind === "harm" && actor && !this.mayHarm(actor, subject);
+    if (bolt.move && !harmless) {
       this.applyHealthMove(bolt.move, subject, actor, bolt);
     }
 
@@ -7155,6 +7276,66 @@ export class GameSession implements PlaySession {
   }
 
   /**
+   * Opt into fighting other players, or back out of it. @see `./pvp`
+   *
+   * **Never in the middle of a fight**, which is the whole of what stops the
+   * switch being a weapon: a body that could turn it off while somebody was
+   * swinging at them would be invulnerable on demand, and one that could turn it
+   * on mid-brawl would be doing the same trick from the other side. The combat
+   * flag is the exact test — it is already what keeps a closing tab in the fight
+   * it started, and it runs for a minute after the last blow either way.
+   *
+   * Answers whether anything moved, so the caller can say why not: false is
+   * either a body that has left the world, a creature (whose aggression is its
+   * brain's and not a switch), or somebody still in a fight.
+   */
+  setPvp(enabled: boolean, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actors.get(id);
+    if (!actor) return false;
+    if (!this.canSetPvp(id)) return false;
+    // Not a refusal: asking for the state you are already in is a press that
+    // changed nothing, and answering false would have the chrome say a fight is
+    // stopping you when nothing is.
+    actor.pvp = enabled;
+    return true;
+  }
+
+  /**
+   * Whether this body's switch may be moved right now.
+   *
+   * Asked by the button as well as by {@link setPvp}, so a control that cannot
+   * be pressed is drawn as one rather than answering with a sentence. @see
+   * `../components/PvpToggle`
+   */
+  canSetPvp(id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actors.get(id);
+    if (!actor) return false;
+    if (actor.resident) return false;
+    return !inCombat(actor.statuses);
+  }
+
+  /** Whether this body is fighting other players. @see `./pvp` */
+  pvpOf(id: string): boolean {
+    return this.actors.get(id)?.pvp ?? false;
+  }
+
+  /**
+   * This body as the harm rule sees it. @see `./pvp`'s {@link Combatant}
+   *
+   * Its own method because four callers need the same three fields off a
+   * runtime, and a fifth that built them by hand would be the one that forgot
+   * residency.
+   */
+  private combatantOf(actor: ActorRuntime): Combatant {
+    return { id: actor.id, resident: actor.resident, pvp: actor.pvp };
+  }
+
+  /** Whether harm from one of these bodies reaches the other. @see `./pvp` */
+  private mayHarm(from: ActorRuntime, to: ActorRuntime): boolean {
+    return mayHarm(this.combatantOf(from), this.combatantOf(to));
+  }
+
+  /**
    * The channels creatures are holding open right now, one entry per emitting
    * mind. Read straight off each brain's current state, so a creature that has
    * moved on is simply not among them and the wire it was driving falls quiet.
@@ -7249,7 +7430,7 @@ export class GameSession implements PlaySession {
     const landing = this.stepLandingCell(loc, direction, def, check.to);
     if (!landing) return false;
     // Whose step this is, because a tile this body conjured is not a hazard to
-    // it. @see ./conjured's `sparesCaster`
+    // it. @see ./conjured's `sparesStander`
     return unsafeToStepOn(
       this.map,
       landing,
@@ -9950,14 +10131,22 @@ export class GameSession implements PlaySession {
       const def = this.tilesById[placed.tileId];
       const addStatus = def ? resolveAddStatus(def) : null;
       if (!addStatus || addStatus.trigger !== "step") continue;
-      // **Your own flame is not a floor that burns you.** Passed over rather
-      // than answered with, so what is under it still gets its turn: an
-      // arcanist who conjured a flame on a bed of coals stands in the coals.
-      // Only a status the author called `bad` is skipped — a circle somebody
-      // laid down to be stood in still heals the one who laid it.
-      // @see ./conjured's `sparesCaster`
+      // **Your own flame is not a floor that burns you** — nor is one belonging
+      // to somebody whose harm does not reach you, which is the same sentence
+      // for a player standing in a stranger's fire. Passed over rather than
+      // answered with, so what is under it still gets its turn: an arcanist who
+      // conjured a flame on a bed of coals stands in the coals. Only a status
+      // the author called `bad` is skipped — a circle somebody laid down to be
+      // stood in still heals whoever laid it. @see ./conjured's `sparesStander`
       const status = this.statusDefs[addStatus.statusId];
-      if (sparesCaster(placed, status, actor.id)) continue;
+      const spared = sparesStander(placed, status, actor.id, (castBy) => {
+        const caster = this.actors.get(castBy);
+        // A caster who has left the world is nobody, and a fire nobody owns
+        // burns whoever stands in it — which is what every flame did before any
+        // of this existed. @see `../lib/types`' `PlacedTile.castBy`
+        return caster ? this.mayHarm(caster, actor) : true;
+      });
+      if (spared) continue;
       // Whoever conjured the tile, if anybody did — which is what makes a flame
       // an arcanist lit pay them when somebody walks into it, and leaves every
       // hearth in the world attributed to nobody exactly as it was.
@@ -10279,6 +10468,7 @@ export class GameSession implements PlaySession {
       // By reference on exactly the terms above, and never non-null at the same
       // time as its neighbour. @see ActorSnapshot.casting
       casting: actor.casting?.progress ?? null,
+      pvp: actor.pvp,
     };
   }
 
@@ -10311,6 +10501,10 @@ export class GameSession implements PlaySession {
       // from their tile. The fallback is for the body that has none to give.
       masteryXp: self.masteryXp ?? {},
       attributes: this.attributesOf(self),
+      // Both halves read off the runtime this frame, because a fight ending is
+      // what unfreezes the switch and nothing announces that: the combat flag
+      // simply runs out. @see canSetPvp
+      pvp: { on: self.pvp, changeable: this.canSetPvp(self.id) },
       // Nobody to talk to: the local simulation has no wire and no other actors
       // worth naming, so speech is a thing only the online client carries.
       chats: [],

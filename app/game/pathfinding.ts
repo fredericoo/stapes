@@ -8,7 +8,7 @@ import {
 import { cellKey } from "./pressurePlates";
 import { getStack, removeTileAt } from "../lib/mapData";
 import { resolveAddStatus, resolveTeleportDef } from "../lib/interactions";
-import { sparesCaster } from "./conjured";
+import { sparesStander } from "./conjured";
 import type { StatusDef } from "../lib/status";
 import { fitsAtElevation } from "../lib/validation";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
@@ -73,7 +73,7 @@ import { MAX_CLIMB_HEIGHT } from "./constants";
  * is a hazard.
  *
  * **A tile the walker conjured is not a hazard to them**, because it does not
- * hurt them — `./conjured`'s `sparesCaster` is the same rule the granting side
+ * hurt them — `./conjured`'s `sparesStander` is the same rule the granting side
  * reads, and a route that did not know about it would send an arcanist the long
  * way round their own flame, or refuse a doorway they can walk straight
  * through. Who is walking is {@link PathStart.who}, and a search told nobody
@@ -185,7 +185,7 @@ export type PathStart = {
    * Which body is walking, when the caller has one to name.
    *
    * Read for one thing only: a tile this body conjured cannot hurt it, so it is
-   * not a hazard to route around. @see ./conjured's `sparesCaster`
+   * not a hazard to route around. @see ./conjured's `sparesStander`
    *
    * Optional, and absent is what every caller meant before it existed — a test
    * about geometry, a search on behalf of nobody in particular. Left out, every
@@ -448,11 +448,12 @@ function firesOnStepAt(
       const addStatus = resolveAddStatus(def);
       if (addStatus?.trigger === "step") {
         // A flame the walker conjured is passed over rather than answered with,
-        // and the tile under it is asked instead — which is the same search
-        // `GameSession.grantStandingStatus` runs when the body actually lands,
-        // so a cell this calls safe is a cell that hands over nothing.
-        // @see ./conjured's `sparesCaster`
-        if (!sparesCaster(placed, statusDefs[addStatus.statusId], who)) {
+        // and the tile under it is asked instead — the same search
+        // `GameSession.grantStandingStatus` runs when the body actually lands.
+        // Only the ownership half: a board is not a roster of bodies, so who
+        // may harm whom is not a question this module can ask.
+        // @see ./conjured's `sparesStander`
+        if (!sparesStander(placed, statusDefs[addStatus.statusId], who)) {
           statusId = addStatus.statusId;
           found = true;
         }

@@ -17,7 +17,12 @@ import type {
   PlaySession,
 } from "../game/GameSession";
 import { PLAYER_TILE_ID } from "../game/constants";
-import { bodyNameFor, bodyNameIn, sizedUpName } from "../game/displayName";
+import {
+  bodyNameFor,
+  bodyNameIn,
+  fightingName,
+  sizedUpName,
+} from "../game/displayName";
 import type { Equipment } from "../game/equipment";
 import type { Conversation } from "../game/dialogRuntime";
 import type { MasteryXp } from "../lib/mastery";
@@ -810,6 +815,9 @@ export class GameRenderer {
       // equipment and the masteries is the one that can answer it. @see
       // `../game/attributes`
       attributes: snap.attributes,
+      // And the switch for the same reason: whether it may be moved is a fact
+      // about a fight, which only a session knows it is in. @see `../game/pvp`
+      pvp: snap.pvp,
     };
     const sent = this.vitalsSent;
     if (
@@ -821,6 +829,10 @@ export class GameRenderer {
       // block is rebuilt every tick, so identity here would push a new object
       // thirty times a second. @see `../game/attributes`'s `sameAttributes`
       sameAttributes(sent.attributes, next.attributes) &&
+      // Two booleans, compared by value: the block is rebuilt every frame, so
+      // identity here would push a new object thirty times a second.
+      sent.pvp.on === next.pvp.on &&
+      sent.pvp.changeable === next.pvp.changeable &&
       // By reading rather than by identity: the status list is a fresh array on
       // every tick a status is running, so an identity check here would push a
       // new object thirty times a second and re-render the panel with it. What
@@ -2310,9 +2322,13 @@ export class GameRenderer {
       const visual = this.actorVisualWorld(snap.map, actor);
       const height = this.bodyOwnHeight(snap.map, actor, actor.stackIndex);
       const head = elevationScreenOffset(height);
-      const name = bodyNameFor(
-        { actorId: actor.id, tileId: actor.tileId },
-        this.tilesById,
+      // Marked where this body is fighting other players, so a stranger's name
+      // says whether they can be fought before anybody swings — see
+      // `../game/pvp`. Under the ⭐ rather than over it, because the mark is
+      // always on and the rating only while looking.
+      const name = fightingName(
+        bodyNameFor({ actorId: actor.id, tileId: actor.tileId }, this.tilesById),
+        actor.pvp,
       );
       // Look mode, and not the target: a rating you only see once you have
       // committed to the fight arrived too late to be any use. Holding shift is

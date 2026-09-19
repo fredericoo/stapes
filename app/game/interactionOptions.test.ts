@@ -247,6 +247,7 @@ function actor(
     carriedLights: [],
     extracting: null,
     casting: null,
+    pvp: false,
   };
 }
 

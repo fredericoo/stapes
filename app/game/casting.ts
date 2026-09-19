@@ -147,7 +147,12 @@ export type CastRefusal =
    * A conjure whose cell will not take the tile: a wall, water, a bush, a full
    * stack. @see conjureLanding
    */
-  | "blocked";
+  | "blocked"
+  /**
+   * A spell that takes health, aimed at a player this caster may not harm.
+   * @see `./pvp`, and {@link CastContext.mayHarmTarget}
+   */
+  | "peaceful";
 
 /** Whether this stone can be cast, and why not when it cannot. */
 export type Castability =
@@ -282,6 +287,19 @@ export type CastContext = {
    * `../lib/item`'s {@link StoneEffect} for what a conjure does with no target.
    */
   target: CastPoint | null;
+  /**
+   * Whether harm from this caster reaches whoever they are pointing at.
+   *
+   * Absent means it does, which is what every caller meant before this existed
+   * and what every cast at a creature means now. False is two players who have
+   * not both opted into fighting each other — see `./pvp`, which is where the
+   * rule lives and which both ends run.
+   *
+   * A flag rather than the two bodies, because this module resolves nothing
+   * about a world: it is handed a board, a kit and a point, and "may these two
+   * fight" is the same kind of answered question `masteries` is.
+   */
+  mayHarmTarget?: boolean;
 };
 
 /**
@@ -358,6 +376,17 @@ function cooldownOf(context: CastContext, slot: CastSlot): number {
  * enemy. What decides this is whom the effect names and nothing else — see
  * {@link needsTarget}, which is the whole of the rule.
  */
+/**
+ * Whether this stone takes health off whoever it lands on.
+ *
+ * The sign of the authored number and nothing else: positive harms, negative
+ * mends, absent moves nothing. @see `../lib/item`'s {@link StoneEffect}
+ */
+function harmsOnLanding(stone: ArcaneStoneItem): boolean {
+  const effect = stone.effect;
+  return effect.kind === "bolt" && effect.on === "target" && (effect.damage ?? 0) > 0;
+}
+
 function reachability(
   context: CastContext,
   stone: ArcaneStoneItem,
@@ -384,6 +413,20 @@ function reachability(
     )
   ) {
     return refused("outOfRange");
+  }
+
+  // **A spell that would take health off somebody this caster may not fight is
+  // refused before it starts.** Here rather than where the bolt lands, so the
+  // button says so and the cooldown is not spent on a cast that could do
+  // nothing — the same argument the blocked conjure below makes.
+  //
+  // The damage alone, which is what the authored number says the spell is for:
+  // a mend thrown at a stranger is a strange thing to author and not a thing to
+  // refuse, and a bolt whose whole effect is a curse is stopped where every
+  // other bad status is, on the way onto the body. @see
+  // `./GameSession.grantStatus`
+  if (target && harmsOnLanding(stone) && context.mayHarmTarget === false) {
+    return refused("peaceful");
   }
 
   // Asked here rather than when the placement is made, so a conjure that
@@ -746,6 +789,7 @@ export const CAST_REFUSAL_NOTES: Record<CastRefusal, string> = {
   noTarget: "nothing targeted",
   outOfRange: "out of range",
   blocked: "nowhere for it to land",
+  peaceful: "they are not in the fighting",
 };
 
 /**

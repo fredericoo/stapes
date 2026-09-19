@@ -144,7 +144,7 @@ export type WalkView = {
    *
    * Read for one thing: a tile this body conjured cannot hurt it, so a route
    * goes straight through it rather than round. @see ./pathfinding's
-   * `PathStart.who` and `./conjured`'s `sparesCaster`
+   * `PathStart.who` and `./conjured`'s `sparesStander`
    */
   who: string;
   /** Where the body stands, and which slot of that cell's stack it is. */
