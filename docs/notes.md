@@ -6942,6 +6942,21 @@ to printable ASCII, so a ⚔ falls back to a colour emoji at the wrong metrics. 
 is always on, unlike the ⭐, which is only drawn while looking — a mark you had
 to hold a key to see would be a mark nobody reads before walking into a crowd.
 
+### The button asks on the way in, and not on the way out
+
+Pressing it while it is off puts up a dialog saying what it lets happen — that
+other players will be able to attack, curse and burn you, that it takes two,
+that creatures are unaffected either way, and that it cannot be turned off
+mid-fight — with Cancel beside it. Pressing it while it is *on* turns it off
+with nothing to confirm: backing out of violence needs no warning, and a dialog
+between a player and the one press that makes them safe is a dialog in the way.
+The decision is `pvpPress`, exported and asserted for the reason
+`spellAppearance` is: the rest of the component is React.
+
+**One glyph, and the colour is the state** — a skull either way, red once it is
+on. A button that changed its picture as well as its colour would be two
+controls to learn, where what has to be read at a glance is whether it is on.
+
 Storage keeps a `pvp:` row per player, written the moment the switch moves
 rather than on the periodic flush: a switch somebody turned off and a crash a
 second later must not add up to a player who comes back fightable. Off is written
