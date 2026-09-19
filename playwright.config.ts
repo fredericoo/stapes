@@ -19,7 +19,7 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   /**
-   * Both halves, because `/map` is not a static page: the editor reads the
+   * Both halves, because `/admin/map` is not a static page: the editor reads the
    * world over `/api`, which Vite proxies through to the Bun server beside it.
    *
    * The ports are pinned rather than picked. `scripts/dev.ts` asks the OS for
@@ -32,7 +32,7 @@ export default defineConfig({
       STAPES_CLIENT_PORT: PORT,
       STAPES_SERVER_PORT: SERVER_PORT,
     },
-    url: `${BASE}/map`,
+    url: `${BASE}/admin/map`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

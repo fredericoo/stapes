@@ -1,39 +1,39 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { useLoaderData } from "react-router";
 import type { Route } from "./+types/play";
-import { AppShell } from "../components/AppShell";
-import { GameViewport } from "../components/GameViewport";
-import { InkDocument } from "../components/InkDocument";
-import { LightingToggle } from "../components/LightingToggle";
-import { LoadingScreen } from "../components/LoadingScreen";
-import { WorldClock } from "../components/WorldClock";
-import { GameSession, NO_VITALS, type Vitals } from "../game/GameSession";
-import { type Equipment, emptyEquipment } from "../game/equipment";
-import type { Conversation, TalkAction } from "../game/dialogRuntime";
-import type { MasteryXp } from "../lib/mastery";
-import { bindCastKeys, bindKeyboard, HeldDirections } from "../game/heldDirections";
+import { AdminShell } from "../../components/AppShell";
+import { GameViewport } from "../../components/GameViewport";
+import { InkDocument } from "../../components/InkDocument";
+import { LightingToggle } from "../../components/LightingToggle";
+import { LoadingScreen } from "../../components/LoadingScreen";
+import { WorldClock } from "../../components/WorldClock";
+import { GameSession, NO_VITALS, type Vitals } from "../../game/GameSession";
+import { type Equipment, emptyEquipment } from "../../game/equipment";
+import type { Conversation, TalkAction } from "../../game/dialogRuntime";
+import type { MasteryXp } from "../../lib/mastery";
+import { bindCastKeys, bindKeyboard, HeldDirections } from "../../game/heldDirections";
 import {
   applyInteraction,
   type InteractionOption,
-} from "../game/interactionOptions";
+} from "../../game/interactionOptions";
 import {
   DEFAULT_PLAY_MINUTES,
   formatClock,
   MINUTES_PER_DAY,
   type MinutesOfDay,
-} from "../lib/clock";
-import type { ObjectRef } from "../game/affordances";
-import type { OpenedContainer, SlotRef } from "../game/itemMoves";
-import { type CastSlot, type SpellButton, spellPress } from "../game/casting";
-import { useGameAssets } from "../lib/gameAssets";
-import type { Direction } from "../lib/types";
-import { fetchBootstrap, fetchMapText } from "../lib/api";
-import { parseMap } from "../lib/mapData";
-import { activeStatuses, statusesById } from "../lib/status";
-import { GameRenderer } from "../render/GameRenderer";
-import { debugViewRequested } from "../render/debugView";
-import { FrameStatsReadout } from "../components/FrameStatsReadout";
-import type { FrameStats } from "../render/frameProfile";
+} from "../../lib/clock";
+import type { ObjectRef } from "../../game/affordances";
+import type { OpenedContainer, SlotRef } from "../../game/itemMoves";
+import { type CastSlot, type SpellButton, spellPress } from "../../game/casting";
+import { useGameAssets } from "../../lib/gameAssets";
+import type { Direction } from "../../lib/types";
+import { fetchBootstrap, fetchMapText } from "../../lib/api";
+import { parseMap } from "../../lib/mapData";
+import { activeStatuses, statusesById } from "../../lib/status";
+import { GameRenderer } from "../../render/GameRenderer";
+import { debugViewRequested } from "../../render/debugView";
+import { FrameStatsReadout } from "../../components/FrameStatsReadout";
+import type { FrameStats } from "../../render/frameProfile";
 
 export async function clientLoader() {
   const [mapText, bootstrap] = await Promise.all([
@@ -303,7 +303,7 @@ export default function PlayPage() {
   };
 
   return (
-    <AppShell
+    <AdminShell
       // Everything you reach for while *building* — the frame counter, the
       // lighting switch, the hand on the clock. On a phone they fold away and
       // the bar keeps one row for the game.
@@ -383,6 +383,6 @@ export default function PlayPage() {
         ) : null}
         {painted ? null : <LoadingScreen />}
       </div>
-    </AppShell>
+    </AdminShell>
   );
 }

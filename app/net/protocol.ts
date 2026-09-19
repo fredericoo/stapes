@@ -85,7 +85,7 @@ const directionSchema = v.picklist(["n", "e", "s", "w"] as const);
 /**
  * Cap on an actor id crossing the wire inbound.
  *
- * Ids are minted by the `/online` loader as cookie values, so a real one is far
+ * Ids are minted by `GET /api/session` as cookie values, so a real one is far
  * under this; the bound exists because the only inbound message carrying one is
  * a target, and a target is *kept* — an unbounded string would be held in an
  * actor slot for as long as the client cared to keep pointing at it.
@@ -1896,7 +1896,15 @@ export function parseServerMessage(raw: string): ServerMessage | null {
   return parsed.success ? (parsed.output as ServerMessage) : null;
 }
 
-/** Path the browser opens its socket on. */
+/**
+ * Path the browser opens its socket on.
+ *
+ * Still says `/online`, which is no longer a page: the game moved to `/` and
+ * this did not follow it. A wire path is not a URL anybody types, and changing
+ * it would refuse every tab that was open across the deploy at the upgrade —
+ * which is the one failure the version handshake cannot explain to them, since
+ * a browser reports a rejected upgrade as an indistinguishable failure.
+ */
 export const GAME_SOCKET_PATH = "/online/ws";
 
 /**
@@ -1948,5 +1956,5 @@ export const CLOSE_OUTDATED_CLIENT = 4001;
  */
 export const CLOSE_REPLACED = 4002;
 
-/** Cookie carrying the actor id, minted by the /online loader. */
+/** Cookie carrying the actor id, minted by `GET /api/session`. */
 export const ACTOR_COOKIE = "stapes_uid";

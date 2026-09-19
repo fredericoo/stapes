@@ -1,12 +1,12 @@
-import { MAP_FILE_VERSION } from "../lib/types";
+import { MAP_FILE_VERSION } from "../../lib/types";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   fetchMapText,
   fetchTiles,
   fetchTilesets,
   saveMapText,
-} from "../lib/api";
-import { parseMap, serializeMap } from "../lib/mapData";
+} from "../../lib/api";
+import { parseMap, serializeMap } from "../../lib/mapData";
 import { useFetcher, useLoaderData } from "react-router";
 import {
   IconArrowBackUp,
@@ -17,19 +17,19 @@ import {
   IconStackBackward,
 } from "@tabler/icons-react";
 import type { Route } from "./+types/map";
-import { AppShell } from "../components/AppShell";
-import { LightingToggle } from "../components/LightingToggle";
-import { MapPanels } from "../editor/panels/MapPanels";
+import { AdminShell } from "../../components/AppShell";
+import { LightingToggle } from "../../components/LightingToggle";
+import { MapPanels } from "../../editor/panels/MapPanels";
 import {
   useEditorStore,
   ZOOM_LEVELS,
   snapZoom,
-} from "../editor/store";
-import { flattenMap } from "../lib/mapData";
-import { formatClock, MINUTES_PER_DAY } from "../lib/clock";
-import type { MapFile } from "../lib/types";
-import { MAX_LEVEL, MIN_LEVEL, clampLevel } from "../lib/types";
-import { Button, Input, Toggle, Tooltip, useToast } from "../ui";
+} from "../../editor/store";
+import { flattenMap } from "../../lib/mapData";
+import { formatClock, MINUTES_PER_DAY } from "../../lib/clock";
+import type { MapFile } from "../../lib/types";
+import { MAX_LEVEL, MIN_LEVEL, clampLevel } from "../../lib/types";
+import { Button, Input, Toggle, Tooltip, useToast } from "../../ui";
 
 export async function clientLoader() {
   const [mapText, tiles, tilesets] = await Promise.all([
@@ -170,7 +170,7 @@ export default function MapPage() {
   };
 
   return (
-    <AppShell
+    <AdminShell
       trailing={
         <>
           <div className="flex items-center gap-1">
@@ -221,9 +221,9 @@ export default function MapPage() {
           </div>
           {/* Every switch in one place, with the lighting one at the end of the
               run because the clock beside it is the other half of that control.
-              It rides here rather than in the header's menu — where /play and
-              /online keep theirs — so it can sit next to the hour it works
-              with; the cost is that on a narrow window it wraps with the rest
+              It rides here rather than in the header's menu — where the game
+              and /admin/play keep theirs — so it can sit next to the hour it
+              works with; the cost is that on a narrow window it wraps with the rest
               of the map's controls instead of folding away with the nav. */}
           <div className="flex items-center gap-1">
             {/* The switch is worded for what turning it on does, so it is the
@@ -347,6 +347,6 @@ export default function MapPage() {
       }
     >
       <MapPanels tiles={data.tiles} tilesets={data.tilesets} />
-    </AppShell>
+    </AdminShell>
   );
 }

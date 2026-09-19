@@ -1,26 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLoaderData } from "react-router";
 import type { Route } from "./+types/arena";
-import { AppShell } from "../components/AppShell";
-import { ArenaFighterPanel } from "../components/ArenaFighterPanel";
-import { ArenaMetrics } from "../components/ArenaMetrics";
-import { type Floater, ArenaStage, type StageSide } from "../components/ArenaStage";
+import { AdminShell } from "../../components/AppShell";
+import { ArenaFighterPanel } from "../../components/ArenaFighterPanel";
+import { ArenaMetrics } from "../../components/ArenaMetrics";
+import { type Floater, ArenaStage, type StageSide } from "../../components/ArenaStage";
 import {
   type ArenaFighter,
   battlerTiles,
   fighterForTile,
   swingsOf,
-} from "../game/arena";
-import { swingOdds } from "../game/combatMetrics";
-import { DAMAGE_NUMBER_LIFETIME_MS, TICK_MS } from "../game/constants";
-import { type DuelEvent, Duel, opponentOf, type Side, SIDES } from "../game/duel";
-import { Rng } from "../game/rng";
-import { fetchBootstrap } from "../lib/api";
-import type { FightingStats } from "../lib/battler";
-import { isRanged } from "../lib/item";
-import { type StatusDef, statusesById } from "../lib/status";
-import type { TileDef } from "../lib/types";
-import { Button, NumberInput, Segmented } from "../ui";
+} from "../../game/arena";
+import { swingOdds } from "../../game/combatMetrics";
+import { DAMAGE_NUMBER_LIFETIME_MS, TICK_MS } from "../../game/constants";
+import { type DuelEvent, Duel, opponentOf, type Side, SIDES } from "../../game/duel";
+import { Rng } from "../../game/rng";
+import { fetchBootstrap } from "../../lib/api";
+import type { FightingStats } from "../../lib/battler";
+import { isRanged } from "../../lib/item";
+import { type StatusDef, statusesById } from "../../lib/status";
+import type { TileDef } from "../../lib/types";
+import { Button, NumberInput, Segmented } from "../../ui";
 
 /**
  * The combat simulator: two bodies, no world, and the arithmetic on the table.
@@ -229,7 +229,7 @@ export default function ArenaPage() {
   const ready = statsA !== null && statsB !== null;
 
   return (
-    <AppShell>
+    <AdminShell>
       <div className="flex h-full flex-col gap-3 overflow-auto p-3">
         <div className="flex flex-wrap items-center gap-2 border-2 border-border bg-panel p-2">
           <Button
@@ -307,7 +307,7 @@ export default function ArenaPage() {
           />
         </div>
       </div>
-    </AppShell>
+    </AdminShell>
   );
 }
 

@@ -1,18 +1,18 @@
 import { useState } from "react";
 import { useFetcher, useLoaderData } from "react-router";
 import type { Route } from "./+types/statuses";
-import { AppShell } from "../components/AppShell";
-import { StatusEditorDialog } from "../components/StatusEditorDialog";
-import { SpritePreview } from "../components/TilePreview";
-import { fetchStatuses, fetchTiles, fetchTilesets, saveStatuses } from "../lib/api";
-import { TITLE_SPRITE_SIZE_PX } from "../components/ContainerPanel";
+import { AdminShell } from "../../components/AppShell";
+import { StatusEditorDialog } from "../../components/StatusEditorDialog";
+import { SpritePreview } from "../../components/TilePreview";
+import { fetchStatuses, fetchTiles, fetchTilesets, saveStatuses } from "../../lib/api";
+import { TITLE_SPRITE_SIZE_PX } from "../../components/ContainerPanel";
 import {
   completeSprite,
   DEFAULT_STATUS_SOURCE,
   resolveStatus,
   type StatusSource,
-} from "../lib/status";
-import { Button, useToast } from "../ui";
+} from "../../lib/status";
+import { Button, useToast } from "../../ui";
 
 /**
  * Authoring the status catalogue.
@@ -91,7 +91,7 @@ export default function StatusesPage() {
   };
 
   return (
-    <AppShell>
+    <AdminShell>
       <div className="flex flex-col gap-3 p-3">
         <div className="flex items-center gap-2">
           <h1 className="text-sm font-bold uppercase tracking-wide">Statuses</h1>
@@ -161,6 +161,6 @@ export default function StatusesPage() {
           onSave={save}
         />
       ) : null}
-    </AppShell>
+    </AdminShell>
   );
 }

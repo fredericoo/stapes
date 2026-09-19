@@ -58,7 +58,7 @@ describe("serving a build", () => {
   it("falls through to index.html, because routes are not files", async () => {
     await bundle.store("aaa", build("aaa"));
     await bundle.activate("aaa");
-    expect(await text(bundle.respond("/map"))).toContain("aaa");
+    expect(await text(bundle.respond("/admin/map"))).toContain("aaa");
   });
 
   it("caches hashed assets forever and index.html never", async () => {

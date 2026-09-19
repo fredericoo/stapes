@@ -10,7 +10,8 @@ import { Toggle, Tooltip } from "../ui";
  * against its neighbours in the editor, and measuring anything else on the
  * frame while the most expensive phase is out of the picture.
  *
- * Shared by `/play`, `/online` and `/map` so the control means the same thing
+ * Shared by the game, `/admin/play` and `/admin/map` so the control means the
+ * same thing
  * and sits in the same place in all three, even though each keeps the flag
  * somewhere different.
  */
