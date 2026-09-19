@@ -435,7 +435,7 @@ curl https://stapes.example.com/api/health
 # {"status":"ok","players":0,"build":"<sha>"}
 ```
 
-Then open the site, join `/online`, and redeploy the server by hand from Coolify
+Then open the site, log in, and redeploy the server by hand from Coolify
 while standing in the world. You should see it pause for a couple of seconds and
 come back **with you where you were standing** — not at spawn, and not on an
 error screen. That is the whole migration working: if position survives a deploy,

@@ -211,7 +211,7 @@ export class ClientBundle {
    * that disagree about a path disagree about its name too.
    *
    * Anything unrecognised falls through to `index.html`, because the client is a
-   * single-page app and `/map` is a route rather than a file. `index.html` itself
+   * single-page app and `/admin/map` is a route rather than a file. `index.html` itself
    * is `no-store`, which is what lets a deploy be noticed at all; the hashed
    * assets beside it are immutable for a year.
    */

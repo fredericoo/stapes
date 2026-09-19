@@ -100,6 +100,102 @@ is not one.
   the second closes the first — see "One connection per actor". To play two
   characters, use `localhost` in one and `127.0.0.1` in the other.
 
+## The game is `/`, and every tool is under `/admin`
+
+`app/routes.ts` has two halves and the split is what a visitor is offered, not
+where the files sit. `/` is the shared world. Everything a person editing the
+game needs — the map editor, the tile and status catalogues, the voxel editor,
+the arena and the single-player page — is under `/admin`, and `/admin` itself
+redirects to `/admin/map`.
+
+**Nothing guards `/admin`.** There is no account system to guard it with, and
+pretending otherwise with a password in the client would be worse than the
+honest gap. What the split buys today is that the game links to none of it: a
+tester never sees a tile editor, and there is one segment to put an account
+check in front of when there is one to put there.
+
+**The header's destinations are a prop, not a module constant.**
+`AppShell` draws navigation only for a page that hands it some, and
+`AdminShell` — `AppShell` with `ADMIN_DESTINATIONS` — is the only thing that
+does. A player-facing page therefore cannot grow a link to the editor by
+copying a shell call, which is the failure the old module-wide list invited.
+The game still uses `AppShell` for the rest of what the shell is: the menu it
+folds into the cog on a phone, holding the lighting switch, the headcount and
+the frame readout.
+
+### The socket opens on a button press
+
+`app/components/LoginScreen.tsx` is the whole page until it is pressed. The
+loader fetches the catalogues and `useGameAssets` decodes the tilesets behind
+it, but `GET /api/session` — the call that mints the `HttpOnly` actor cookie —
+happens on the press, and the connecting effect wants a canvas that only exists
+once somebody has pressed. A tab left on the front door therefore costs the
+world nothing: no actor, no chunks, no body standing in a doorway somebody else
+is walking through.
+
+It is also where a login goes. When there are accounts, the account is asked for
+here and nothing else on the page changes, because everything else already waits
+for this button.
+
+**The door is the wait as well.** Minting the actor, opening the socket, waiting
+on `hello` and waiting for the first frame are four waits, and a screen apiece
+is a page flickering through states nobody can act on. So the press does not
+swap the page: the button stays where it is, reading `Logging in…`, until there
+is a world on the canvas. The route's `entering` is what decides that, and it
+ends on the *first frame* rather than on `hello` — the renderer is built on
+`hello` and paints some way after it, and that gap was a second loading screen
+appearing for a second and a half.
+
+It stands down the moment the wait stops being ordinary. `entering` covers
+`connecting` and `live` only, so a socket that closes before the first frame
+puts the loading screen and its `reconnecting` chip back on the page: a door
+reading `Logging in…` at somebody whose server is down explains nothing. And it
+is one-way per login — `entered` is set by the first frame and cleared by
+logging out — so a *reconnect* an hour later gets the loading screen rather than
+a door claiming this player is still logging in.
+
+### Logging out leaves the character, not the account
+
+`app/components/LogOutButton.tsx` sits in the menu the lighting switch is in —
+the header on a wide window, the cog beside the d-pad on a phone. Pressing it
+drops `loggedIn`, which is what tears the connecting effect down: the canvas
+goes, and with it the renderer, the session and this player's body in the world.
+
+**It does not touch the actor cookie**, and that is the whole design rather than
+a thing left undone. The cookie is the identity and will be the account; leaving
+a character is not signing out of one. So the next Log in is the same body,
+standing where it was left, and when there are accounts this button comes back
+to a character selection screen instead of the door.
+
+Which is also why it asks nothing in the ordinary case. A confirmation on an act
+that the button beside it undoes is a confirmation people learn to click
+through, and the next one they click through is one that mattered.
+
+**The one that matters is leaving mid-fight**, and the button asks only then. A
+body in combat does not go with its socket — it stands there, idle and hittable,
+until the minute since the last blow runs out (see "Closing the tab does not end
+a fight", which is the rule this is warning about). The page reads that state
+the same way the status strip does: `COMBAT_STATUS_ID` in the vitals the server
+pushes, so the warning appears and goes on its own as the fight does.
+
+**The game's route module is `app/routes/game.tsx`, not `_index.tsx`.** The
+build names a route's chunk after its file, and the preview workflow reads the
+client's protocol version out of that chunk by name — page, then route
+manifest, then `game-main-*.js`, which is how it proves the served client and
+the running server agree about the wire before anybody tries to connect. Two
+index routes called `_index.tsx` produce two `_index-main-*.js` chunks and
+leave that step picking one by luck; one of them is a four-line redirect with
+no socket in it. `routes.ts` is what says which route is the index, so the file
+is free to be named after what it holds.
+
+**`GAME_SOCKET_PATH` still says `/online/ws`.** The page that name came from is
+gone; the wire path did not follow it, because changing it refuses every tab
+that was open across the deploy at the upgrade — and a browser reports a
+rejected upgrade to the page as an indistinguishable failure, so those tabs
+would sit in a reconnect backoff rather than reloading. The version handshake
+in `app/net/protocol.ts` is how a stale client is told to reload, and it can
+only do that on a socket that opened.
+
 ## `dependencies` is what the *server* needs, and nothing else
 
 React, three, the icon sets and the rest of the client's packages are
@@ -251,7 +347,7 @@ because it is the one somebody just opened or reloaded.
 
 ## The simulation holds N actors
 
-`GameSession` runs any number of actors. `/play` runs exactly one and never
+`GameSession` runs any number of actors. `/admin/play` runs exactly one and never
 names it (`LOCAL_ACTOR_ID`); the game server will spawn one per connection.
 
 - **Ownership lives on the placement.** `PlacedTile.owner` is what tells two
@@ -451,8 +547,8 @@ terms: a conversation is a state of play.
   have left.
 - **The panel takes the reach list's place**, on desktop and on a phone
   alike: a conversation is what is in reach, said longer. It gets the
-  identity-gated push the kit gets (`pushConversation`), so `/play` and
-  `/online` both have it.
+  identity-gated push the kit gets (`pushConversation`), so `/admin/play` and
+  the game both have it.
 - **Passed through the tile save untouched**, like the brain and for the same
   reason: the script is `./dialog`'s to know.
 
@@ -4478,7 +4574,7 @@ one refusal that is invisible.
 
 ## Balancing happens in the Arena, not in the world
 
-`/arena` is a fight with the world taken out of it: two bodies, a cell apart, on
+`/admin/arena` is a fight with the world taken out of it: two bodies, a cell apart, on
 one floor, facing each other, both in reach, with nothing between them and
 nowhere to run. Everything a world contributes — terrain, a brain deciding to
 back off, whether somebody was standing on a crate — is left out on purpose,
@@ -4539,7 +4635,7 @@ up — so a fight tuned around either is a fight that can happen. A natural weap
 is what the creature *is*: it is the axis that stops every animal being a bigger
 or smaller version of the same one, and editing it in a tuning tool would be
 authoring a creature with nowhere to save it. It is shown in full, read-only,
-naming `/tiles` as where it changes.
+naming `/admin/tiles` as where it changes.
 
 Picking a different creature loads **that creature's masteries** and keeps
 whatever is in its hands. Those are the two halves of what the page is for: a
@@ -4665,8 +4761,8 @@ flex column, "they must not overlap" is true by construction rather than by
 arrangement.
 
 **Nothing is drawn until the assets are all here** (`app/lib/gameAssets.ts`).
-`/play` and `/online` hold the canvas out of the page behind a loading screen,
-which is what makes the renderer unable to start early, and the label font is
+`/admin/play` and the game hold the canvas out of the page behind a loading
+screen, which is what makes the renderer unable to start early, and the label font is
 part of what is waited for. It has to be asked for by name: `document.fonts`
 only knows about faces something has tried to typeset in, and in this page the
 only thing in that font is the world's own text — so `fonts.ready` on its own
@@ -5615,8 +5711,8 @@ Both verbs land through one `putBodyAt`, which moves with `moveThrough` — the
 same one a portal makes — so a body that walks somewhere and a body that types
 its way there end in one state and the client animates both the same way.
 
-**Neither is reachable in `/play`.** Commands are typed into the chat field and
-`/play` never passes `onSay`, so single-player has no chat and therefore no
+**Neither is reachable in `/admin/play`.** Commands are typed into the chat field and
+`/admin/play` never passes `onSay`, so single-player has no chat and therefore no
 commands at all. That is true of `/tile` and `/health` too and predates these;
 it is worth knowing before going looking for the field in single-player.
 
@@ -6591,7 +6687,7 @@ The **Combat** block under the masteries shows what you hit for, how often, what
 you turn aside and how fast you walk: a damage band, an attack interval, an
 accuracy, a reach, defence, evasion and a walking rate.
 `app/game/attributes.ts` works all of it out, and **the simulation and the
-browser both call it**, which is why `/play` and a connected world quote the same
+browser both call it**, which is why `/admin/play` and a connected world quote the same
 figures for the same body.
 
 **Seven short labels in two columns — attack down the left, survival down the
@@ -7316,7 +7412,7 @@ running for something nobody can be hurt by. The clock is the renderer's:
 `RemoteSession` stamps a note on arrival against a clock that runs while the tab
 is hidden, drops what could have finished, and caps what it holds, because
 frames stop in a background tab while the socket keeps delivering. Offline
-`/play` keeps its own capped list, since `update` can run several ticks between
+`/admin/play` keeps its own capped list, since `update` can run several ticks between
 two frames and each tick empties the list a server drains.
 
 **A note's slot is a hint.** `stackIndex` is exact when the change happens, and
@@ -7666,7 +7762,7 @@ world that would not load over a smoke plume is worse than a chimney that has
 stopped smoking. The same parse is what fills in a field an authored block
 predates, so the renderer reads a complete emitter and never a partial one.
 
-**The map editor draws no plumes**, tile or status: `/map` is
+**The map editor draws no plumes**, tile or status: `/admin/map` is
 `app/editor/EditorRenderer.ts`, a separate renderer from the one play uses, with
 no particle layer in it. What answers for that is the preview in the tile dialog
 — `app/render/VfxPreview.ts`, the status editor's rendering simulation, with the
@@ -7748,7 +7844,7 @@ instance is built with `UNKNOWN_REMAINING_MS` (`Infinity`), which falls through
 `taperAt` as "not winding down" with no special case. The consequence, stated
 plainly: **somebody else's poison burns at full strength until it ends.** Your
 own tapers, because your own countdown is on the wire in full. A local
-`GameSession` (`/play`, `/arena`) has neither limit — every actor's statuses are
+`GameSession` (`/admin/play`, `/admin/arena`) has neither limit — every actor's statuses are
 on its snapshots at tick rate.
 
 `diffStatusIds` is not `drainStatusChanges`. That queue is drained to send a
@@ -8391,7 +8487,7 @@ spent by the time you have done anything twice. Every rule below was written
 after something in this list cost 2–150ms per frame in production code, so
 treat them as load-bearing rather than stylistic.
 
-Measure with the in-game counter first: the FPS chip in `/play` expands into a
+Measure with the in-game counter first: the FPS chip in `/admin/play` expands into a
 per-phase breakdown (`app/render/frameProfile.ts`). It reports **p50 and worst**
 per 500ms window. Read the worst. A 55ms hitch once every 200ms barely moves an
 average, and that is exactly the shape of bug that reaches a player.
@@ -8500,7 +8596,7 @@ Everything gameplay produces still takes the cheap path, for the reason it
 always did: a mobile tile is never in the merged batch, so a step is one mesh
 swapped inside a group that is otherwise untouched.
 
-Measured on the den map, walking `/play` in a headless browser — an A/B, since
+Measured on the den map, walking `/admin/play` in a headless browser — an A/B, since
 software GL makes the absolute numbers pessimistic:
 
 | | before | after |
@@ -8610,7 +8706,7 @@ Two things to keep in mind before adding a second shader up there:
   `PlaneGeometry` is a buffer, not a compile, and it costs microseconds against
   the milliseconds a relink costs. Pool it only with a measurement in hand.
 
-Measured on `/play`, one outline going off and back on, `setOverlays` +
+Measured on `/admin/play`, one outline going off and back on, `setOverlays` +
 `renderOnce`: **0.50ms p50 pooled against 2.50ms relinked** (worst 1.3ms against
 4.3ms). Two milliseconds is a quarter of the 8.3ms budget, spent on every hover
 change. The number is from a warm Chrome shader cache and is the *floor* — a
@@ -8940,12 +9036,13 @@ and rebakes them for output that cannot differ.
 
 ### Lighting has an off switch, and off means *not computed*
 
-The top bar of `/play`, `/online` and `/map` carries a Lighting toggle
+The top bar of the game, `/admin/play` and `/admin/map` carries a Lighting
+toggle
 (`app/components/LightingToggle.tsx`). Off is not a fullbright ambient or a
 shader branch with the bake still running behind it: `sync` and `light` are
 skipped outright in `WorldRenderer.setView`, nothing is baked, stitched or
 uploaded, and `uLightingEnabled` draws the art as authored. Measured on the
-fixture map at night it takes the worst frame in `/play` from 15.3ms to 1.9ms,
+fixture map at night it takes the worst frame in `/admin/play` from 15.3ms to 1.9ms,
 and the editor from 4.0ms to 1.9ms — which is also what makes it the first
 thing to reach for when profiling anything *else* on the frame.
 
@@ -9160,6 +9257,11 @@ because they name no coordinate, and both still failed on an afternoon's
 authoring. If a claim really is about the world we ship, the Playwright run
 against a real world is where it belongs.
 
+`e2e/session.spec.ts` is that run for the front door: it presses Log in and Log
+out against a real server and asserts that no game socket opens before the
+press, that one opens after it, and that the actor cookie is minted and then
+forgotten. It names no cell and reads no map, so authoring cannot move it.
+
 Two rules learned the hard way, which still hold:
 
 - **Revert one fix at a time when proving a test can fail.** Reverting all three
@@ -9176,7 +9278,7 @@ Two rules learned the hard way, which still hold:
 ## `?debug=1` draws the windows the renderer is keeping
 
 **Undocumented in the game and on purpose.** There is no toggle, no menu entry
-and nothing in the UI that mentions it. Add `?debug=1` to `/play` or `/online`
+and nothing in the UI that mentions it. Add `?debug=1` to `/` or `/admin/play`
 and the camera pulls back off the play square; `[` and `]` take it from ×1 to
 ×8. A player who never types it gets exactly the frame they got before this
 existed.
@@ -9251,8 +9353,8 @@ they replace, verified across all three `AMBIENT_PRESETS` and several player
 positions, not eyeballed in a screenshot. If output legitimately changes, say by
 how much and where.
 
-**Check which renderer you are measuring.** `/play` uses `GameRenderer` →
-`WorldRenderer`. `/map` uses `EditorRenderer`, which has its own lighting path
+**Check which renderer you are measuring.** `/admin/play` uses `GameRenderer` →
+`WorldRenderer`. `/admin/map` uses `EditorRenderer`, which has its own lighting path
 and does **not** use the chunk cache. Numbers from one say nothing about the
 other.
 

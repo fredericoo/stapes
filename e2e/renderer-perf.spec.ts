@@ -51,11 +51,11 @@ test.describe("editor renderer perf", () => {
     // Listening across both loads rather than arming afterwards, so that an app
     // that is genuinely broken still fails by name: it throws on this load and
     // on the next one, and only the copy from this one is discarded.
-    await page.goto("/map", { waitUntil: "networkidle" });
+    await page.goto("/admin/map", { waitUntil: "networkidle" });
     await page.locator("canvas").first().waitFor({ timeout: BOOT_TIMEOUT_MS });
     pageErrors.length = 0;
 
-    await page.goto("/map", { waitUntil: "networkidle" });
+    await page.goto("/admin/map", { waitUntil: "networkidle" });
     await expect(page.locator("canvas").first()).toBeVisible({
       timeout: BOOT_TIMEOUT_MS,
     });

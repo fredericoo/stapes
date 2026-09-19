@@ -10,9 +10,10 @@ bun run generate   # regenerate tilesets + demo map into data/
 bun dev
 ```
 
-Open http://localhost:5173 — redirects to `/online`. Tile database lives at `/tiles`.
-Weapons and creatures are balanced at `/arena`, which fights two of them without
-a world in the way.
+Open http://localhost:5173 — the game, behind a Log in button that is what
+opens the socket. The authoring tools are all under `/admin`, which opens on the
+map editor: the tile database is at `/admin/tiles`, and `/admin/arena` balances
+two fighters without a world in the way. Nothing guards `/admin` yet.
 
 ## Scripts
 
@@ -54,15 +55,19 @@ Deploying is in [SETUP.md](SETUP.md).
 
 ## Multiplayer
 
-`/online` joins a shared world held by a Durable Object. Everyone spawns where
+`/` joins a shared world held by a Durable Object. Everyone spawns where
 the map's `player` tile is placed; you appear to each other as tiles and can
 push the same objects. Closing the tab removes your tile.
 
 Identity is a random id in an `HttpOnly` cookie — enough to give you your avatar
 back on reload, and deliberately not a login. The socket handshake sends it, so
-the server never trusts a client-supplied id.
+the server never trusts a client-supplied id. **Log out**, in the same menu as
+the lighting switch, closes the socket and leaves the cookie alone, so logging
+in again is the same body: it is leaving the character, not the account. It
+warns first only when you are in a fight, because a body in combat stays on the
+board for a minute after its socket goes.
 
-Saving in `/map` writes the map and restarts the world: everyone re-enters a
+Saving in `/admin/map` writes the map and restarts the world: everyone re-enters a
 fresh game on the new map.
 
 Deploying the server also restarts the world, and that is announced: the page
