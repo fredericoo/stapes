@@ -6,7 +6,7 @@ import { Button, Dialog } from "../ui";
  * The way back out of the world, in the menu the lighting switch is in.
  *
  * **It leaves the character, not the account.** All it does is close the socket
- * and put the door back up — see `../routes/_index`. The actor cookie stays, so
+ * and put the door back up — see `../routes/game`. The actor cookie stays, so
  * logging in again is the same body, standing where it was left. That is the
  * shape the account system will keep: the cookie becomes the account, and this
  * comes back to a character selection screen rather than signing anybody out.

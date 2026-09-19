@@ -6,7 +6,7 @@ export default [
    * and a redirect from `/` to somewhere else was a round trip before the first
    * paint that told them nothing.
    */
-  index("routes/_index.tsx"),
+  index("routes/game.tsx"),
   /**
    * The authoring tools, all of them, behind one path segment.
    *

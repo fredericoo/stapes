@@ -161,6 +161,16 @@ a fight", which is the rule this is warning about). The page reads that state
 the same way the status strip does: `COMBAT_STATUS_ID` in the vitals the server
 pushes, so the warning appears and goes on its own as the fight does.
 
+**The game's route module is `app/routes/game.tsx`, not `_index.tsx`.** The
+build names a route's chunk after its file, and the preview workflow reads the
+client's protocol version out of that chunk by name — page, then route
+manifest, then `game-main-*.js`, which is how it proves the served client and
+the running server agree about the wire before anybody tries to connect. Two
+index routes called `_index.tsx` produce two `_index-main-*.js` chunks and
+leave that step picking one by luck; one of them is a four-line redirect with
+no socket in it. `routes.ts` is what says which route is the index, so the file
+is free to be named after what it holds.
+
 **`GAME_SOCKET_PATH` still says `/online/ws`.** The page that name came from is
 gone; the wire path did not follow it, because changing it refuses every tab
 that was open across the deploy at the upgrade — and a browser reports a

@@ -240,6 +240,12 @@ jobs:
       # `build/client` is the point — it is the *live* client that is being
       # asked, so an upload that never activated is caught here too.
       #
+      # The chunk is named after the route module that opens the socket, so
+      # `app/routes/game.tsx` is why this greps for `game-main-`. That is also
+      # why the route file is not called `_index.tsx`: the admin index is an
+      # index route too, and two `_index-main-` chunks in one manifest leave
+      # this step picking one of them by luck.
+      #
       # The one thing this is brittle to is the client no longer building its
       # socket URL with `searchParams.set`. That fails loudly and says so: the
       # fix then is to teach this step the new shape, not to drop the check.
@@ -250,12 +256,12 @@ jobs:
           SERVER_VERSION=$(curl -fsS --max-time 10 "${PREVIEW_ORIGIN}/api/session" | jq -r '.protocolVersion // empty')
           [ -n "$SERVER_VERSION" ] || fail "the preview's /api/session reported no protocolVersion"
 
-          PAGE=$(curl -fsS --max-time 10 "${PREVIEW_ORIGIN}/online")
+          PAGE=$(curl -fsS --max-time 10 "${PREVIEW_ORIGIN}/")
           MANIFEST=$(printf '%s' "$PAGE" | grep -oE '/assets/manifest-[A-Za-z0-9_-]+\.js' | head -1)
-          [ -n "$MANIFEST" ] || fail "the preview's /online names no route manifest, so no client bundle is being served"
+          [ -n "$MANIFEST" ] || fail "the preview's / names no route manifest, so no client bundle is being served"
 
-          MAIN=$(curl -fsS --max-time 10 "${PREVIEW_ORIGIN}${MANIFEST}" | grep -oE '/assets/online-main-[A-Za-z0-9_-]+\.js' | head -1)
-          [ -n "$MAIN" ] || fail "${MANIFEST} names no online-main chunk"
+          MAIN=$(curl -fsS --max-time 10 "${PREVIEW_ORIGIN}${MANIFEST}" | grep -oE '/assets/game-main-[A-Za-z0-9_-]+\.js' | head -1)
+          [ -n "$MAIN" ] || fail "${MANIFEST} names no game-main chunk — the game route is app/routes/game.tsx, and this step is named after it"
 
           CLIENT_VERSION=$(curl -fsS --max-time 10 "${PREVIEW_ORIGIN}${MAIN}" \
             | grep -oE 'searchParams\.set\(["'"'"'`]v["'"'"'`],[^)]*[0-9]+' \
