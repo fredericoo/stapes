@@ -8,6 +8,7 @@ import {
 import { cellKey } from "./pressurePlates";
 import { getStack, removeTileAt } from "../lib/mapData";
 import { resolveAddStatus, resolveTeleportDef } from "../lib/interactions";
+import { sparesCaster } from "./conjured";
 import type { StatusDef } from "../lib/status";
 import { fitsAtElevation } from "../lib/validation";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
@@ -70,6 +71,13 @@ import { MAX_CLIMB_HEIGHT } from "./constants";
  * straight over a shrine — the two are the same block with different content,
  * and treating them alike would have a pathfinder deciding that being blessed
  * is a hazard.
+ *
+ * **A tile the walker conjured is not a hazard to them**, because it does not
+ * hurt them — `./conjured`'s `sparesCaster` is the same rule the granting side
+ * reads, and a route that did not know about it would send an arcanist the long
+ * way round their own flame, or refuse a doorway they can walk straight
+ * through. Who is walking is {@link PathStart.who}, and a search told nobody
+ * routes as it always did.
  *
  * **The goal is exempt, and has to be.** A portal is a place you walk into on
  * purpose and a click on a flame is a click on a flame, so a cell that is
@@ -173,6 +181,17 @@ export type PathStart = {
    * the parameter looked like when only brains asked.
    */
   self: Coord & { stackIndex: number };
+  /**
+   * Which body is walking, when the caller has one to name.
+   *
+   * Read for one thing only: a tile this body conjured cannot hurt it, so it is
+   * not a hazard to route around. @see ./conjured's `sparesCaster`
+   *
+   * Optional, and absent is what every caller meant before it existed — a test
+   * about geometry, a search on behalf of nobody in particular. Left out, every
+   * flame on the board is somebody else's.
+   */
+  who?: string;
 };
 
 /**
@@ -413,6 +432,8 @@ function firesOnStepAt(
   map: MapFile,
   at: Coord,
   tilesById: Record<string, TileDef>,
+  statusDefs: Record<string, StatusDef>,
+  who: string | undefined,
 ): { statusId: string | null; teleports: boolean } {
   const stack = getStack(map, at.x, at.y, at.z);
   let statusId: string | null = null;
@@ -420,13 +441,21 @@ function firesOnStepAt(
   let teleports = false;
 
   for (let i = stack.length - 1; i >= 0; i--) {
-    const def = tilesById[stack[i]!.tileId];
+    const placed = stack[i]!;
+    const def = tilesById[placed.tileId];
     if (!def) continue;
     if (!found) {
       const addStatus = resolveAddStatus(def);
       if (addStatus?.trigger === "step") {
-        statusId = addStatus.statusId;
-        found = true;
+        // A flame the walker conjured is passed over rather than answered with,
+        // and the tile under it is asked instead — which is the same search
+        // `GameSession.grantStandingStatus` runs when the body actually lands,
+        // so a cell this calls safe is a cell that hands over nothing.
+        // @see ./conjured's `sparesCaster`
+        if (!sparesCaster(placed, statusDefs[addStatus.statusId], who)) {
+          statusId = addStatus.statusId;
+          found = true;
+        }
       }
     }
     if (!teleports) teleports = resolveTeleportDef(def)?.trigger === "step";
@@ -454,8 +483,9 @@ export function unsafeToStepOn(
   at: Coord,
   tilesById: Record<string, TileDef>,
   statusDefs: Record<string, StatusDef>,
+  who?: string,
 ): boolean {
-  const fires = firesOnStepAt(map, at, tilesById);
+  const fires = firesOnStepAt(map, at, tilesById, statusDefs, who);
   if (fires.teleports) return true;
   return (
     fires.statusId !== null && statusDefs[fires.statusId]?.tone === "bad"
@@ -476,10 +506,11 @@ function avoidRule(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   statusDefs: Record<string, StatusDef>,
+  who: string | undefined,
   asked: (cell: Coord) => boolean,
 ): (cell: Coord) => boolean {
   return (cell) =>
-    !asked(cell) && unsafeToStepOn(map, cell, tilesById, statusDefs);
+    !asked(cell) && unsafeToStepOn(map, cell, tilesById, statusDefs, who);
 }
 
 /**
@@ -787,7 +818,13 @@ export function findRefuge(
   // Nothing is exempt, on the same grounds: there is no goal here, so there is
   // no cell anybody has pointed at. An animal cornered against a fire is
   // cornered — running into it is not an escape. @see avoidRule
-  const avoid = avoidRule(board, tilesById, statusDefs, NOTHING_ASKED_FOR);
+  const avoid = avoidRule(
+    board,
+    tilesById,
+    statusDefs,
+    start.who,
+    NOTHING_ASKED_FOR,
+  );
 
   const frontier = new Frontier();
   const best = new Map<string, number>();
@@ -863,8 +900,12 @@ export function findPath(
   // The cell that was pointed at, and only when a caller pointed at a cell to
   // stand *in*: a route that stops beside its goal never lands on it, so there
   // is nothing for `beside` to exempt. @see avoidRule
-  const avoid = avoidRule(board, tilesById, statusDefs, (cell) =>
-    arrive === "on" && sameCell(cell, goal),
+  const avoid = avoidRule(
+    board,
+    tilesById,
+    statusDefs,
+    start.who,
+    (cell) => arrive === "on" && sameCell(cell, goal),
   );
 
   const budget = opts.maxNodes ?? PATH_MAX_NODES;

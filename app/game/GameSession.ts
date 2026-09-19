@@ -131,6 +131,7 @@ import {
 import type { MinutesOfDay } from "../lib/clock";
 import { leaveResidue } from "./residue";
 import { type Blame, causeOfDeath, possessive } from "./blame";
+import { conjuredName, sparesCaster } from "./conjured";
 import {
   GOTO_COMMAND,
   HEALTH_COMMAND,
@@ -7247,7 +7248,15 @@ export class GameSession implements PlaySession {
 
     const landing = this.stepLandingCell(loc, direction, def, check.to);
     if (!landing) return false;
-    return unsafeToStepOn(this.map, landing, this.tilesById, this.statusDefs);
+    // Whose step this is, because a tile this body conjured is not a hazard to
+    // it. @see ./conjured's `sparesCaster`
+    return unsafeToStepOn(
+      this.map,
+      landing,
+      this.tilesById,
+      this.statusDefs,
+      actor.id,
+    );
   }
 
   /**
@@ -7309,7 +7318,9 @@ export class GameSession implements PlaySession {
     const self = { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex };
     const found = findPath(
       this.map,
-      { at: self, self },
+      // Named, so a creature that conjured a flame walks back through it rather
+      // than round it. @see ./pathfinding's PathStart.who
+      { at: self, self, who: actor.id },
       at,
       this.defFor(actor),
       this.tilesById,
@@ -7512,7 +7523,7 @@ export class GameSession implements PlaySession {
     const def = this.defFor(actor);
     const found = findRefuge(
       this.map,
-      { at: self, self },
+      { at: self, self, who: actor.id },
       threat,
       def,
       this.tilesById,
@@ -9939,6 +9950,14 @@ export class GameSession implements PlaySession {
       const def = this.tilesById[placed.tileId];
       const addStatus = def ? resolveAddStatus(def) : null;
       if (!addStatus || addStatus.trigger !== "step") continue;
+      // **Your own flame is not a floor that burns you.** Passed over rather
+      // than answered with, so what is under it still gets its turn: an
+      // arcanist who conjured a flame on a bed of coals stands in the coals.
+      // Only a status the author called `bad` is skipped — a circle somebody
+      // laid down to be stood in still heals the one who laid it.
+      // @see ./conjured's `sparesCaster`
+      const status = this.statusDefs[addStatus.statusId];
+      if (sparesCaster(placed, status, actor.id)) continue;
       // Whoever conjured the tile, if anybody did — which is what makes a flame
       // an arcanist lit pay them when somebody walks into it, and leaves every
       // hearth in the world attributed to nobody exactly as it was.
@@ -9949,12 +9968,13 @@ export class GameSession implements PlaySession {
         placed.castElements,
         {
           source: this.statusName(addStatus.statusId),
-          // The tile, and whoever conjured it where anybody did — which is what
-          // makes one `arcane-flame` def read as "Green Fox's Arcane Flame"
-          // where a stone lit it and as plain "Arcane Flame" where a hearth did.
-          by: possessive(
-            placed.castBy ? this.bodyName(placed.castBy) : null,
-            def?.name ?? placed.tileId,
+          // The tile as it is named on screen — which is what makes one
+          // `arcane-flame` def read as "Green Fox's Arcane Flame" where a stone
+          // lit it and as plain "Arcane Flame" where a hearth did. The same
+          // call the look label and the interaction row go through, so a skull
+          // names the fire the way the player saw it named.
+          by: conjuredName(def?.name ?? placed.tileId, placed, (id) =>
+            this.bodyName(id),
           ),
         },
       );

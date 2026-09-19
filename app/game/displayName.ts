@@ -115,6 +115,30 @@ export function bodyNameFor(
 }
 
 /**
+ * {@link bodyNameFor}'s answer for a caller holding a list of bodies rather
+ * than a session to ask.
+ *
+ * Both halves of the client ask this about somebody they are not drawing — the
+ * look label and the interaction row both name whoever conjured the tile under
+ * the pointer — and the list they have is the snapshot's. Null for a body that
+ * is not in it: a caster who has left the world is nobody, which is the answer
+ * `GameSession.bodyName` already gives the skull it writes.
+ *
+ * A scan rather than an index, because the list is a handful of actors and this
+ * is asked about one tile at a time.
+ */
+export function bodyNameIn(
+  bodies: readonly { id: string; tileId: string }[],
+  tilesById: Record<string, TileDef>,
+): (actorId: string) => string | null {
+  return (actorId) => {
+    const body = bodies.find((one) => one.id === actorId);
+    if (!body) return null;
+    return bodyNameFor({ actorId: body.id, tileId: body.tileId }, tilesById);
+  };
+}
+
+/**
  * What to call a body you are *sizing up*, which is the name plus its rating.
  *
  * **Only while looking.** A rating over every head all the time turns a field of

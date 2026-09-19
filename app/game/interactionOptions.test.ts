@@ -13,6 +13,7 @@ import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { extractKey } from "./extract";
+import { displayNameFor } from "./displayName";
 import type { ActorSnapshot, PlaySession } from "./GameSession";
 import {
   actionRows,
@@ -1220,6 +1221,55 @@ describe("listInteractionOptions — picking things up", () => {
  * choosing between — and it is the one row that works with no bag at all, which
  * is the whole reason it exists.
  */
+/**
+ * A row names a conjured tile after whoever conjured it, which is the same
+ * answer the look label gives. @see ./conjured's `conjuredName`
+ */
+describe("listInteractionOptions — a tile somebody conjured", () => {
+  /** The same sword beside the player, conjured by whoever is named. */
+  function litBy(castBy: string): MapFile {
+    return replaceStack(field(), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "sword", castBy },
+    ]);
+  }
+
+  it("names it after the caster", () => {
+    const map = litBy("me");
+    const me = playerAt(map);
+
+    const options = listInteractionOptions(map, tilesById, me, [me], null, ARMED);
+
+    expect(options[0]!.name).toBe(`${displayNameFor("me")}'s Sword`);
+  });
+
+  it("names it after a creature that conjured it", () => {
+    const map = litBy("npc:1");
+    const me = playerAt(map);
+    const deer = actor("npc:1", "deer", 0, 2, map, 10);
+
+    const options = listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me, deer],
+      null,
+      ARMED,
+    );
+
+    expect(options.find((o) => o.action === "pickUp")!.name).toBe("Deer's Sword");
+  });
+
+  it("is the plain name again for a caster nobody can see", () => {
+    const map = litBy("who");
+    const me = playerAt(map);
+
+    const options = listInteractionOptions(map, tilesById, me, [me], null, ARMED);
+
+    expect(options[0]!.name).toBe("Sword");
+  });
+});
+
 describe("listInteractionOptions — putting things on", () => {
   const rowsFor = (tileId: string, kit: Equipment) => {
     let map = field();

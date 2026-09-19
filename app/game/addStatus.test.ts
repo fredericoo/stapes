@@ -4,7 +4,7 @@ import { maxHpFrom } from "../lib/battler";
 import { resolveAddStatus } from "../lib/interactions";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import { statusesById } from "../lib/status";
-import type { Direction, MapFile, TileDef } from "../lib/types";
+import type { Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { canAddStatusFrom, reachableAddStatusAt } from "./affordances";
@@ -168,6 +168,12 @@ const tiles: TileDef[] = [
     id: "ghost-fire",
     interactions: { addStatus: { trigger: "step", statusId: "haunted" } },
   }),
+  // The same block with the other tone, which is what a caster is *not* spared
+  // by their own conjure. @see ./conjured's `sparesCaster`
+  tile({
+    id: "circle",
+    interactions: { addStatus: { trigger: "step", statusId: "blessed" } },
+  }),
 ];
 
 const tilesById = tilesByIdFromList(tiles);
@@ -184,6 +190,18 @@ const catalogue = statusesById([
     maxMs: BURN_MS * 3,
     everyMs: 1_000,
     effects: { hp: "0 - max(4, ceil(MAX_HP / 10))" },
+  },
+  {
+    id: "blessed",
+    name: "Blessed",
+    description: "Somebody laid this down to be stood in.",
+    tone: "good",
+    fromMs: BURN_MS,
+    toMs: BURN_MS,
+    stacks: false,
+    maxMs: BURN_MS,
+    everyMs: 0,
+    effects: {},
   },
 ]);
 
@@ -438,6 +456,63 @@ describe("stepping into a fire", () => {
     const start = hpOf(play)!;
     run(play, Math.round(1000 / TICK_MS));
     expect(hpOf(play)).toBe(start - perSecond);
+  });
+});
+
+/**
+ * A fire belongs to whoever conjured it, and does not turn on them.
+ *
+ * The cell is the same cell for everybody — what differs is who is standing in
+ * it — so every case here is one board walked into by two people.
+ * @see ./conjured's `sparesCaster`
+ */
+describe("a fire somebody conjured", () => {
+  /** The player at the origin, facing a cell somebody laid this stack in. */
+  function beside(...placed: PlacedTile[]): MapFile {
+    const map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "player", direction: "e" },
+    ]);
+    return replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, ...placed]);
+  }
+
+  it("does not burn the one who cast it", () => {
+    const play = session(beside({ tileId: "fire", castBy: "local" }));
+    step(play, "e");
+    expect(whereIs(play.getMap(), "player")).toMatchObject({ x: 1, y: 0 });
+    expect(held(play)).toEqual([]);
+  });
+
+  it("burns anybody else who walks into it", () => {
+    const play = session(beside({ tileId: "fire", castBy: "somebody-else" }));
+    step(play, "e");
+    expect(held(play)).toEqual(["burned"]);
+  });
+
+  it("goes on sparing the caster for as long as they stand in it", () => {
+    const play = session(beside({ tileId: "fire", castBy: "local" }));
+    step(play, "e");
+    run(play, TICKS_PER_SECOND * 3);
+    expect(held(play)).toEqual([]);
+  });
+
+  it("lets whatever is under it take its turn instead", () => {
+    // A flame conjured on a bed of coals: the caster is spared the flame and
+    // stands in the coals, which is why the skip is a `continue` rather than a
+    // way out of the loop.
+    const play = session(
+      beside({ tileId: "fire" }, { tileId: "fire", castBy: "local" }),
+    );
+    step(play, "e");
+    expect(held(play)).toEqual(["burned"]);
+  });
+
+  it("hands the caster their own blessing, which is the other tone", () => {
+    // Only harm is spared. A circle laid down to be stood in is one the person
+    // who laid it may stand in. @see ./conjured's `sparesCaster`
+    const play = session(beside({ tileId: "circle", castBy: "local" }));
+    step(play, "e");
+    expect(held(play)).toEqual(["blessed"]);
   });
 });
 

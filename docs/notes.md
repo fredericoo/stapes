@@ -6773,6 +6773,62 @@ stand in should be worse than one you walk through — but it means the two
 authored flames (`flame`, `arcane-flame`) hit considerably harder than they did,
 and a conjured one now earns its caster for as long as somebody stays in it.
 
+## A conjured tile belongs to whoever cast it
+
+`PlacedTile.castBy` started as an accounting field: a flame pays the arcanist
+who lit it, and the skull it leaves says whose fire it was. Ownership is the
+other half of the same fact, and it has two consequences — a conjured tile is
+*named* after its caster, and it does not turn on them. Both are in
+`app/game/conjured.ts`, together, because they are one answer to one question
+and reading `castBy` in six places is how they would come apart.
+
+**"Green Fox's Arcane Flame".** `conjuredName` puts the caster's name in front
+of the tile's own, so one `arcane-flame` def reads as somebody's where a stone
+lit it and as plain "Arcane Flame" where a hearth did. Three callers: the look
+label, the interaction row, and the `Blame` a death by it writes — which is why
+a skull now names the fire exactly as the player saw it named while they were
+standing in it.
+
+Nothing is stored. `castBy` is an actor id and the name is derived from it at
+the moment it is shown, on `app/game/displayName.ts`'s own terms, so nothing
+about ownership goes on the wire. The client resolves it against the snapshot's
+actors (`bodyNameIn`) and the session against its own (`GameSession.bodyName`);
+a caster who has left the world is nobody, and the tile is back to being called
+what every other one of its kind is called. That is the same reading `castBy`
+has always had for attribution, and it is the reason this is not a second field
+holding a name.
+
+**It does not turn on them.** `sparesCaster` is the rule: a placement whose
+`castBy` is the body standing in it hands over nothing, *if* the status is one
+the author called `bad`. Tone and not the whole block, because a conjure is not
+only a weapon — a circle somebody lays down to be stood in still blesses the
+person who laid it, and `StatusDef.tone` exists precisely because only the
+author knows which way a status leans.
+
+Two places read it, and they have to agree:
+
+- `GameSession.grantStandingStatus` skips the placement and **carries on down
+  the stack** rather than stopping. A flame conjured on a bed of coals spares
+  the caster the flame and stands them in the coals, which is what a `continue`
+  buys over a `return`.
+- `pathfinding`'s `unsafeToStepOn` asks on behalf of a named walker
+  (`PathStart.who`, threaded through `WalkView.who` for a clicked walk). A
+  pathfinder that did not know would route an arcanist the long way round their
+  own flame, or refuse a doorway they can walk straight through. A search told
+  nobody routes exactly as it did before — which is every test about geometry.
+
+**The pressed half is deliberately not covered.** A `step` trigger is harm
+nobody chose; touching a brazier is a choice, and every press in this game does
+what its row says. A conjurable brazier that spared its owner would offer a row
+that does nothing at all, which is a worse answer than burning somebody who
+reached into their own fire.
+
+**An item does not carry it.** `castConjure` mints an `itemId` for a conjured
+item, and picking it up makes an `ItemInstance`, which has no `castBy` — so a
+conjured sword in a bag is a sword. That is the same line `engraved` sits on the
+other side of, and it is fine: ownership here is a fact about a thing standing
+in the world, not about a thing in somebody's hand.
+
 ## A status cadence is a formula, so Fed heals every body in the same time
 
 Fed used to heal `ceil(MAX_HP / 100)` every second: a hundred-point body was
@@ -6998,7 +7054,9 @@ where it is read: "A blow by Snake" is a sentence and "Blow by Snake" is a stub.
 joins them, so one `arcane-flame` def reads as "Green Fox's Arcane Flame" where
 a stone lit it and as plain "Hearth" where nobody did — which is the same tile,
 and exactly why the possessive is decided at the moment of granting rather than
-written into a tile's name.
+written into a tile's name. It goes through `conjured.ts`'s `conjuredName` now,
+which is the same call the look label and the interaction row make — see "A
+conjured tile belongs to whoever cast it".
 
 ## A drag onto a taken square trades the two things
 

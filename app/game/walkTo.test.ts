@@ -168,6 +168,9 @@ const HOME = { x: 0, y: 0, z: 0, stackIndex: 1 };
 /** The same, for a walker standing a level up on a floor of blocks. */
 const UPSTAIRS = { x: 0, y: 0, z: 1, stackIndex: 0 };
 
+/** The walker these cases are about, wherever one has to be named. */
+const WALKER = "walker";
+
 function view(
   map: MapFile,
   opts: {
@@ -179,6 +182,7 @@ function view(
 ): WalkView {
   return {
     map,
+    who: WALKER,
     at: opts.at ?? HOME,
     stepping: opts.stepping ?? null,
     def: playerDef,
