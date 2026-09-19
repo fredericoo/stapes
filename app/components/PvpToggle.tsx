@@ -23,7 +23,8 @@ import { useTap } from "./useTap";
  * `../game/GameSession`'s `canSetPvp` — and it arrives on the snapshot beside
  * the state itself. A control that looked pressable and did nothing is exactly
  * the refusal `../game/notices` is written against, so it is drawn disabled and
- * the tooltip says which fight is holding it.
+ * the tooltip names what is holding it — In combat, which is the status the
+ * strip beside it is already counting down.
  */
 /**
  * What a press on the switch asks for. @see pvpPress
@@ -80,7 +81,7 @@ export function PvpToggle({
   return (
     <>
       <Tooltip
-        content={changeable ? label : `${label} — cannot change during a fight`}
+        content={changeable ? label : `${label} — cannot change while in combat`}
       >
         <button
           type="button"
@@ -109,10 +110,15 @@ export function PvpToggle({
         </button>
       </Tooltip>
 
-      {/* What the press means, in the words of what it lets happen to you. The
-          three lines are the three things that surprise people: that it takes
-          two, that creatures are not in it, and that it cannot be undone while
-          somebody is swinging. */}
+      {/* What the press means, in the words of what it lets happen to you.
+          Three short lines, because a dialog nobody finishes reading is a
+          dialog that did not warn anybody: that it takes both switches, that
+          the name is marked, and that it cannot be undone mid-fight.
+
+          "In combat" rather than "during a fight", because that is the name of
+          the status the strip is about to show them — the thing that freezes
+          this button is the one they can see counting down. @see
+          `../lib/status`'s COMBAT_STATUS */}
       <Dialog
         open={asking}
         onOpenChange={setAsking}
@@ -135,22 +141,9 @@ export function PvpToggle({
         }
       >
         <div className="flex flex-col gap-2 text-sm">
-          <p>
-            Other players will be able to attack you, curse you and burn you,
-            and you will be able to do the same to them. Your name is marked so
-            everybody can see it.
-          </p>
-          <p>
-            It takes two: nothing passes between you and somebody who has not
-            turned this on as well.
-          </p>
-          <p>
-            Creatures are unaffected — they fight you either way.
-          </p>
-          <p>
-            You can turn it off again whenever you are out of a fight, but not
-            during one.
-          </p>
+          <p>Players who also turn this on can hurt you, and you can hurt them.</p>
+          <p>Your name is marked while it is on.</p>
+          <p>You cannot switch it off while in combat.</p>
         </div>
       </Dialog>
     </>
