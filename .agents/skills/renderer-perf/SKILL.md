@@ -18,7 +18,7 @@ When you change the Three.js editor renderer, map mesh building, lighting bake, 
 3. Prefer fixing regressions (draw calls, mesh/quad ratio, frame p95, lighting bake ms) over raising caps.
 4. `PERF_SKIP_TIMING=1` is only for diagnosing structure asserts when the GPU is unavailable — not a way to ignore slow frames on a normal machine.
 5. To *see* what the play renderer is keeping — meshed chunks, the lighting
-   window, the client's subscription — open `/play?debug=1` or `/online?debug=1`
+   window, the client's subscription — open `/admin/play?debug=1` or `/online?debug=1`
    (`[` and `]` zoom). It draws every window the renderer derives, and the panel
    reports how far past the view each one reaches. Undocumented in the game;
    `docs/notes.md` has the section. A frame time read in that mode includes the

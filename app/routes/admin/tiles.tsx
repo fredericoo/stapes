@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Form, useFetcher, useLoaderData, useNavigation } from "react-router";
 import type { Route } from "./+types/tiles";
-import { AppShell } from "../components/AppShell";
-import { TileEditorDialog, tileIsAnimated } from "../components/TileEditorDialog";
-import { TilePreview } from "../components/TilePreview";
-import { statusesById } from "../lib/status";
-import { isTypingTarget } from "../game/heldDirections";
-import { filterTiles, TILE_FILTER_KINDS, type TileFilterKind } from "../lib/tileFilter";
-import { readPngSize } from "../lib/png";
+import { AdminShell } from "../../components/AppShell";
+import { TileEditorDialog, tileIsAnimated } from "../../components/TileEditorDialog";
+import { TilePreview } from "../../components/TilePreview";
+import { statusesById } from "../../lib/status";
+import { isTypingTarget } from "../../game/heldDirections";
+import { filterTiles, TILE_FILTER_KINDS, type TileFilterKind } from "../../lib/tileFilter";
+import { readPngSize } from "../../lib/png";
 import {
   fetchBootstrap,
   fetchTiles,
@@ -15,9 +15,9 @@ import {
   saveTiles,
   saveTilesets,
   uploadTilesetBytes,
-} from "../lib/api";
-import type { TileDef, TilesetDef } from "../lib/types";
-import { Button, Dialog, Input, Segmented, useToast } from "../ui";
+} from "../../lib/api";
+import type { TileDef, TilesetDef } from "../../lib/types";
+import { Button, Dialog, Input, Segmented, useToast } from "../../ui";
 
 /** Reaches for the search field from anywhere on the page. */
 const SEARCH_KEY = "/";
@@ -147,7 +147,7 @@ export default function TilesPage() {
   }, [dialogOpen, uploadOpen]);
 
   return (
-    <AppShell
+    <AdminShell
       trailing={
         <>
           <Button size="sm" onClick={() => setUploadOpen(true)}>
@@ -381,6 +381,6 @@ export default function TilesPage() {
           </p>
         </Form>
       </Dialog>
-    </AppShell>
+    </AdminShell>
   );
 }

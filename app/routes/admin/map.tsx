@@ -1,12 +1,12 @@
-import { MAP_FILE_VERSION } from "../lib/types";
+import { MAP_FILE_VERSION } from "../../lib/types";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   fetchMapText,
   fetchTiles,
   fetchTilesets,
   saveMapText,
-} from "../lib/api";
-import { parseMap, serializeMap } from "../lib/mapData";
+} from "../../lib/api";
+import { parseMap, serializeMap } from "../../lib/mapData";
 import { useFetcher, useLoaderData } from "react-router";
 import {
   IconArrowBackUp,
@@ -17,19 +17,19 @@ import {
   IconStackBackward,
 } from "@tabler/icons-react";
 import type { Route } from "./+types/map";
-import { AppShell } from "../components/AppShell";
-import { LightingToggle } from "../components/LightingToggle";
-import { MapPanels } from "../editor/panels/MapPanels";
+import { AdminShell } from "../../components/AppShell";
+import { LightingToggle } from "../../components/LightingToggle";
+import { MapPanels } from "../../editor/panels/MapPanels";
 import {
   useEditorStore,
   ZOOM_LEVELS,
   snapZoom,
-} from "../editor/store";
-import { flattenMap } from "../lib/mapData";
-import { formatClock, MINUTES_PER_DAY } from "../lib/clock";
-import type { MapFile } from "../lib/types";
-import { MAX_LEVEL, MIN_LEVEL, clampLevel } from "../lib/types";
-import { Button, Input, Toggle, Tooltip, useToast } from "../ui";
+} from "../../editor/store";
+import { flattenMap } from "../../lib/mapData";
+import { formatClock, MINUTES_PER_DAY } from "../../lib/clock";
+import type { MapFile } from "../../lib/types";
+import { MAX_LEVEL, MIN_LEVEL, clampLevel } from "../../lib/types";
+import { Button, Input, Toggle, Tooltip, useToast } from "../../ui";
 
 export async function clientLoader() {
   const [mapText, tiles, tilesets] = await Promise.all([
@@ -170,7 +170,7 @@ export default function MapPage() {
   };
 
   return (
-    <AppShell
+    <AdminShell
       trailing={
         <>
           <div className="flex items-center gap-1">
@@ -347,6 +347,6 @@ export default function MapPage() {
       }
     >
       <MapPanels tiles={data.tiles} tilesets={data.tilesets} />
-    </AppShell>
+    </AdminShell>
   );
 }

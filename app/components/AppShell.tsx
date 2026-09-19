@@ -31,14 +31,24 @@ import { Tooltip } from "../ui/Tooltip";
 /** Tailwind's `md`, below which the nav folds away. */
 const NARROW_VIEWPORT = "(max-width: 767px)";
 
-const DESTINATIONS: { to: string; label: string }[] = [
-  { to: "/tiles", label: "Tiles" },
-  { to: "/statuses", label: "Statuses" },
-  { to: "/map", label: "Map" },
-  { to: "/play", label: "Play" },
-  { to: "/arena", label: "Arena" },
+export type Destination = { to: string; label: string };
+
+/**
+ * Where the authoring tools are, for the pages that are authoring tools.
+ *
+ * Not a module-wide list any more, because the game is not one of them: a
+ * player's screen offers no way into the tile editor, so the shell only draws
+ * navigation for a page that hands it some — see {@link AdminShell}, which is
+ * what every page under `/admin` uses.
+ */
+export const ADMIN_DESTINATIONS: Destination[] = [
+  { to: "/admin/tiles", label: "Tiles" },
+  { to: "/admin/statuses", label: "Statuses" },
+  { to: "/admin/map", label: "Map" },
+  { to: "/admin/play", label: "Play" },
+  { to: "/admin/arena", label: "Arena" },
+  { to: "/admin/voxel", label: "Voxel" },
   { to: "/online", label: "Online" },
-  { to: "/voxel", label: "Voxel" },
 ];
 
 function linkClass(isActive: boolean, block: boolean): string {
@@ -63,7 +73,10 @@ function linkClass(isActive: boolean, block: boolean): string {
  * wherever it ends up: the header on a wide window, and the game's own row of
  * controls on a narrow one.
  */
-const AppMenuExtras = createContext<React.ReactNode>(null);
+const AppMenuContents = createContext<{
+  destinations: Destination[];
+  extras: React.ReactNode;
+}>({ destinations: [], extras: null });
 
 /**
  * The menu's contents: where you can go, and the switches that ride with the
@@ -73,9 +86,11 @@ const AppMenuExtras = createContext<React.ReactNode>(null);
  * so a destination added here reaches every way in.
  */
 function AppMenuPopup({
+  destinations,
   extras,
   onNavigate,
 }: {
+  destinations: Destination[];
   extras: React.ReactNode;
   onNavigate: () => void;
 }) {
@@ -84,23 +99,34 @@ function AppMenuPopup({
     // with its caption and pause box — so the extras keep the one-line shape
     // they have in the header.
     <Popover.Popup className="z-50 flex w-72 max-w-[calc(100vw-1.5rem)] flex-col gap-2 border-2 border-border bg-ink p-2 text-paper shadow-hard">
-      <nav className="flex flex-col gap-1">
-        {DESTINATIONS.map(({ to, label }) => (
-          <NavLink
-            key={to}
-            to={to}
-            // Closed by hand rather than by the route changing: tapping the
-            // destination you are already on navigates nowhere, and a menu that
-            // stayed open on it would read as the tap having missed.
-            onClick={onNavigate}
-            className={({ isActive }) => linkClass(isActive, true)}
-          >
-            {label}
-          </NavLink>
-        ))}
-      </nav>
+      {destinations.length === 0 ? null : (
+        <nav className="flex flex-col gap-1">
+          {destinations.map(({ to, label }) => (
+            <NavLink
+              key={to}
+              to={to}
+              // Closed by hand rather than by the route changing: tapping the
+              // destination you are already on navigates nowhere, and a menu
+              // that stayed open on it would read as the tap having missed.
+              onClick={onNavigate}
+              className={({ isActive }) => linkClass(isActive, true)}
+            >
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+      )}
       {extras ? (
-        <div className="flex flex-wrap items-center gap-2 border-t-2 border-paper/20 pt-2">
+        // The rule separates the switches from the destinations above them, so
+        // a menu that is only switches — the game's — does not open with one.
+        <div
+          className={[
+            "flex flex-wrap items-center gap-2",
+            destinations.length === 0 ? "" : "border-t-2 border-paper/20 pt-2",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
           {extras}
         </div>
       ) : null}
@@ -121,11 +147,14 @@ function AppMenuPopup({
  * one menu, both on screen at once, is two things to learn for one destination.
  */
 export function AppMenuButton({ size = "touch" }: { size?: ActionButtonSize }) {
-  const extras = useContext(AppMenuExtras);
+  const { destinations, extras } = useContext(AppMenuContents);
   const narrow = useMediaQuery(NARROW_VIEWPORT);
   const [open, setOpen] = useState(false);
 
   if (!narrow) return null;
+  // A button that opens an empty popup is a button that lies about having
+  // something behind it.
+  if (destinations.length === 0 && !extras) return null;
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
@@ -152,7 +181,11 @@ export function AppMenuButton({ size = "touch" }: { size?: ActionButtonSize }) {
         {/* Opened upwards from a control near the bottom of the screen, which
             `side` alone would not guarantee on a short phone. */}
         <Popover.Positioner sideOffset={8} side="top" align="end">
-          <AppMenuPopup extras={extras} onNavigate={() => setOpen(false)} />
+          <AppMenuPopup
+            destinations={destinations}
+            extras={extras}
+            onNavigate={() => setOpen(false)}
+          />
         </Popover.Positioner>
       </Popover.Portal>
     </Popover.Root>
@@ -161,11 +194,21 @@ export function AppMenuButton({ size = "touch" }: { size?: ActionButtonSize }) {
 
 export function AppShell({
   children,
+  destinations = [],
   trailing,
   menuExtras,
   menuInPage = false,
 }: {
   children: React.ReactNode;
+  /**
+   * Where this page's menu can take you.
+   *
+   * Empty by default, which is what the game gets: the world is the whole
+   * screen and the tile editor is not somewhere a player is offered. The
+   * authoring pages pass {@link ADMIN_DESTINATIONS} — see {@link AdminShell},
+   * which is the only thing that does.
+   */
+  destinations?: Destination[];
   trailing?: React.ReactNode;
   /**
    * Controls that belong with the navigation rather than with the view: they
@@ -192,7 +235,7 @@ export function AppShell({
   const headerHidden = narrow && menuInPage;
 
   return (
-    <AppMenuExtras.Provider value={menuExtras}>
+    <AppMenuContents.Provider value={{ destinations, extras: menuExtras }}>
       <div
         className="flex h-full flex-col"
         style={{
@@ -223,25 +266,28 @@ export function AppShell({
             </div>
 
             {narrow ? (
-              <Popover.Root open={menuOpen} onOpenChange={setMenuOpen}>
-                <Popover.Trigger
-                  className="flex items-center gap-1 border-2 border-paper/40 px-2 py-1 text-paper hover:border-paper data-[popup-open]:border-paper data-[popup-open]:bg-paper data-[popup-open]:text-ink"
-                  aria-label="Menu"
-                >
-                  <IconMenu2 size={16} stroke={2} aria-hidden="true" />
-                </Popover.Trigger>
-                <Popover.Portal>
-                  <Popover.Positioner sideOffset={8} align="start">
-                    <AppMenuPopup
-                      extras={menuExtras}
-                      onNavigate={() => setMenuOpen(false)}
-                    />
-                  </Popover.Positioner>
-                </Popover.Portal>
-              </Popover.Root>
+              destinations.length === 0 && !menuExtras ? null : (
+                <Popover.Root open={menuOpen} onOpenChange={setMenuOpen}>
+                  <Popover.Trigger
+                    className="flex items-center gap-1 border-2 border-paper/40 px-2 py-1 text-paper hover:border-paper data-[popup-open]:border-paper data-[popup-open]:bg-paper data-[popup-open]:text-ink"
+                    aria-label="Menu"
+                  >
+                    <IconMenu2 size={16} stroke={2} aria-hidden="true" />
+                  </Popover.Trigger>
+                  <Popover.Portal>
+                    <Popover.Positioner sideOffset={8} align="start">
+                      <AppMenuPopup
+                        destinations={destinations}
+                        extras={menuExtras}
+                        onNavigate={() => setMenuOpen(false)}
+                      />
+                    </Popover.Positioner>
+                  </Popover.Portal>
+                </Popover.Root>
+              )
             ) : (
               <nav className="flex gap-1">
-                {DESTINATIONS.map(({ to, label }) => (
+                {destinations.map(({ to, label }) => (
                   <NavLink
                     key={to}
                     to={to}
@@ -261,6 +307,20 @@ export function AppShell({
         )}
         <div className="min-h-0 flex-1">{children}</div>
       </div>
-    </AppMenuExtras.Provider>
+    </AppMenuContents.Provider>
   );
+}
+
+/**
+ * The shell every page under `/admin` uses: {@link AppShell} with the tools in
+ * its menu.
+ *
+ * A component rather than a `destinations` prop repeated on six pages, so the
+ * list cannot drift page to page — and so no player-facing screen can grow a
+ * link to the tile editor by copying a shell call.
+ */
+export function AdminShell(
+  props: Omit<React.ComponentProps<typeof AppShell>, "destinations">,
+) {
+  return <AppShell {...props} destinations={ADMIN_DESTINATIONS} />;
 }

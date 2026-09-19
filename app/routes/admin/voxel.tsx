@@ -1,19 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFetcher } from "react-router";
 import type { Route } from "./+types/voxel";
-import { AppShell } from "../components/AppShell";
-import { DirectionPreview } from "../components/voxel/DirectionPreview";
-import { SliceEditor, type SliceTool } from "../components/voxel/SliceEditor";
+import { AdminShell } from "../../components/AppShell";
+import { DirectionPreview } from "../../components/voxel/DirectionPreview";
+import { SliceEditor, type SliceTool } from "../../components/voxel/SliceEditor";
 import {
   fetchTiles,
   fetchTilesets,
   saveTiles,
   saveTilesets,
   uploadTileset,
-} from "../lib/api";
-import { readPngSize } from "../lib/png";
-import { CELL_SIZE, DIRECTIONS } from "../lib/types";
-import type { TileDef, TileHeight, TilesetDef } from "../lib/types";
+} from "../../lib/api";
+import { readPngSize } from "../../lib/png";
+import { CELL_SIZE, DIRECTIONS } from "../../lib/types";
+import type { TileDef, TileHeight, TilesetDef } from "../../lib/types";
 import {
   DEFAULT_FRAME_DURATION_MS,
   emptyGrid,
@@ -31,8 +31,8 @@ import {
   type ShadeMode,
   type VoxelProject,
   type VoxelSize,
-} from "../lib/voxel";
-import { Button, Dialog, Input, NumberInput, Segmented, Select, Switch, useToast } from "../ui";
+} from "../../lib/voxel";
+import { Button, Dialog, Input, NumberInput, Segmented, Select, Switch, useToast } from "../../ui";
 
 const STORAGE_KEY = "stapes-voxel-project";
 const AUTOSAVE_DELAY_MS = 400;
@@ -229,7 +229,7 @@ export default function VoxelPage() {
   };
 
   return (
-    <AppShell
+    <AdminShell
       trailing={
         <>
           <Button size="sm" variant="ghost-inverse" onClick={resetProject}>
@@ -368,7 +368,7 @@ export default function VoxelPage() {
         project={project}
         render={render}
       />
-    </AppShell>
+    </AdminShell>
   );
 }
 

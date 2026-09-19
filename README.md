@@ -10,9 +10,10 @@ bun run generate   # regenerate tilesets + demo map into data/
 bun dev
 ```
 
-Open http://localhost:5173 — redirects to `/online`. Tile database lives at `/tiles`.
-Weapons and creatures are balanced at `/arena`, which fights two of them without
-a world in the way.
+Open http://localhost:5173 — redirects to `/online`. The authoring tools are all
+under `/admin`, which opens on the map editor: the tile database is at
+`/admin/tiles`, and `/admin/arena` balances two fighters without a world in the
+way. Nothing guards `/admin` yet.
 
 ## Scripts
 
@@ -62,7 +63,7 @@ Identity is a random id in an `HttpOnly` cookie — enough to give you your avat
 back on reload, and deliberately not a login. The socket handshake sends it, so
 the server never trusts a client-supplied id.
 
-Saving in `/map` writes the map and restarts the world: everyone re-enters a
+Saving in `/admin/map` writes the map and restarts the world: everyone re-enters a
 fresh game on the new map.
 
 Deploying the server also restarts the world, and that is announced: the page
