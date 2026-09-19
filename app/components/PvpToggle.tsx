@@ -115,6 +115,9 @@ export function PvpToggle({
           dialog that did not warn anybody: that it takes both switches, that
           the name is marked, and that it cannot be undone mid-fight.
 
+          The title names the thing rather than the act — "PvP mode", which is
+          what the mark beside a name says too.
+
           "In combat" rather than "during a fight", because that is the name of
           the status the strip is about to show them — the thing that freezes
           this button is the one they can see counting down. @see
@@ -122,7 +125,7 @@ export function PvpToggle({
       <Dialog
         open={asking}
         onOpenChange={setAsking}
-        title="Fight other players?"
+        title="Turn PvP mode on?"
         footer={
           <>
             <Button variant="secondary" onClick={() => setAsking(false)}>

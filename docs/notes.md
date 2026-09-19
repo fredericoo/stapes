@@ -6944,7 +6944,9 @@ to hold a key to see would be a mark nobody reads before walking into a crowd.
 
 ### The button asks on the way in, and not on the way out
 
-Pressing it while it is off puts up three lines and a Cancel: that players who
+Pressing it while it is off puts up **Turn PvP mode on?** — the thing rather
+than the act, and the same two letters the mark beside a name carries — with
+three lines and a Cancel: that players who
 also turn it on can hurt you and you them, that your name is marked while it is
 on, and that you cannot switch it off while **in combat** — which is the name of
 the status doing the freezing, so the dialog and the countdown in the strip say
