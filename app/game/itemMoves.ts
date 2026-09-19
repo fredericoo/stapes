@@ -14,7 +14,7 @@ import {
 import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import {
-  equipSlotOf,
+  equipSlotsFor,
   reachableItemDefAt,
   type Actor,
   type ObjectRef,
@@ -302,7 +302,7 @@ export function slotTakes(kind: SlotKind, def: TileDef): boolean {
   // Both hands, one rule, and it is a generous one — see `handAccepts`. A drag
   // is somebody saying exactly what they want, and a hand refusing a thing you
   // could obviously hold is the interface arguing with them. Which slot a thing
-  // *belongs* in is `equipSlotOf`'s question, asked only when nobody has said.
+  // *belongs* in is `equipSlotsFor`'s question, asked only when nobody has said.
   if (kind === "weapon" || kind === "offhand") return handAccepts(def);
   // The one slot a container may go in besides a hand, and only a wearable one.
   if (kind === "bag") return resolveContainer(def)?.equippable === true;
@@ -476,7 +476,7 @@ function squareCouldTake(
   equipment: Equipment,
   tilesById: Record<string, TileDef>,
   kind: EquipSlot,
-  home: EquipSlot,
+  homes: readonly EquipSlot[],
   instance: ItemInstance,
   def: TileDef,
 ): boolean {
@@ -487,8 +487,9 @@ function squareCouldTake(
   // itself and wrong here: the button means "wear this", and a free fist is not
   // an answer to it. So a hand is a candidate only for a thing that belongs in
   // one, which is what keeps a second helm trading with the one on your head
-  // instead of ending up in your grip.
-  if (isHand(kind) && !isHand(home)) return false;
+  // instead of ending up in your grip. A torch belongs in a hand *and* in the
+  // accessory square, so it keeps both.
+  if (isHand(kind) && !homes.some(isHand)) return false;
   if (bodySlotHasRoom(equipment, tilesById, kind, instance)) return true;
   if (!equipment[kind]) return false;
   const emptied: Equipment = { ...equipment, [kind]: null };
@@ -507,16 +508,18 @@ function squareCouldTake(
  * was drafted.
  *
  * So it is a ranking rather than a lookup. **Every square the thing would be
- * equipped in is a candidate** — for an arcane stone that is both hands and the
- * charm, for a helm only your head, for a wearable pack only your back — and
- * they are sorted by two keys:
+ * equipped in is a candidate** — for an arcane stone or a torch that is both
+ * hands and the accessory square, for a helm only your head, for a wearable
+ * pack only your back — and they are sorted by two keys:
  *
  * 1. {@link displacementCost}: what making room there would cost you. An empty
  *    square beats a taken one, and among taken ones the ladder decides.
- * 2. Its {@link equipSlotOf} square — where the thing *belongs* — over any
- *    other, which is what settles a tie. Two free hands give a sword the one it
- *    is swung with; two swords give the same answer, so "replace the main hand"
- *    needs no rule of its own.
+ * 2. How far down {@link equipSlotsFor} the square is — where the thing
+ *    *belongs*, best first — which is what settles a tie. Two free hands give a
+ *    sword the one it is swung with; two swords give the same answer, so
+ *    "replace the main hand" needs no rule of its own. A free accessory square
+ *    and a free hand give a torch the accessory square, because that is the
+ *    order its list is in.
  *
  * Ties below that keep `EQUIP_SLOTS` order, so the answer is stable: a body
  * that has swapped nothing must not be offered a different square for asking
@@ -547,16 +550,17 @@ export function equipDestination(
 ): BodySlotRef | null {
   const def = tilesById[instance.tileId];
   const item = def ? resolveItem(def) : null;
-  const home = def ? equipSlotOf(def) : null;
+  const homes = def ? equipSlotsFor(def) : [];
+  const home = homes[0];
   if (!def || !item || !home) return null;
 
   const ranked = EQUIP_SLOTS.filter((kind) =>
-    squareCouldTake(equipment, tilesById, kind, home, instance, def),
+    squareCouldTake(equipment, tilesById, kind, homes, instance, def),
   )
     .map((kind) => ({
       kind,
       cost: displacementCost(equipment[kind], item, instance, tilesById),
-      belongs: kind === home ? 0 : 1,
+      belongs: belongsRank(homes, kind),
     }))
     // Stable, so squares that tie on both keys stay in `EQUIP_SLOTS` order.
     .sort((a, b) => a.cost - b.cost || a.belongs - b.belongs);
@@ -565,6 +569,19 @@ export function equipDestination(
     if (lands({ kind })) return { kind };
   }
   return { kind: home };
+}
+
+/**
+ * How far down a thing's list of homes this square is, lowest first.
+ *
+ * A position rather than a flag because an artifact has two — the accessory
+ * square, then the hand — and "belongs" has to be able to say which of the two
+ * is meant when both are free. Everything not on the list sorts behind all of
+ * it. @see `./affordances`' `equipSlotsFor`
+ */
+function belongsRank(homes: readonly EquipSlot[], kind: EquipSlot): number {
+  const at = homes.indexOf(kind);
+  return at === -1 ? homes.length : at;
 }
 
 /** Rewrite a ground container's contents, leaving the rest of its slot alone. */

@@ -750,13 +750,26 @@ them apart is what makes the kit both permissive and legible.
   backpack than a shield, the game has no business refusing you. The one refusal
   is `equippable: false` — an author saying "this is a chest, opened where it
   lies" — and the inside of a bag, where nesting still bites.
-- `equipSlotOf` answers the first, from the tile alone: a weapon goes in the hand
-  you swing with, a `WeaponItem.offhand` thing (a shield) or an `ArtifactItem` (a
-  torch) in the other, an `ArmorItem` on your body, an equippable container on
-  your back. It is what happens when nobody has said. A drag is somebody saying,
-  so `slotAccepts` stays the looser of the two. It reads the parsed union
-  directly rather than asking four resolvers in turn, so an arm added to
-  `ItemDef` and forgotten here fails to compile.
+- `equipSlotsFor` answers the first, from the tile alone: a weapon goes in the
+  hand you swing with, a `ShieldItem` or an arcane stone in the other, an
+  `ArmorItem` on your body, an equippable container on your back, and a lit
+  `ArtifactItem` in the accessory square with the off hand behind it. It is what
+  happens when nobody has said. A drag is somebody saying, so `slotAccepts`
+  stays the looser of the two. It reads the parsed union directly rather than
+  asking four resolvers in turn, so an arm added to `ItemDef` and forgotten here
+  fails to compile.
+
+  **A list rather than one square, because a torch has two.** It used to answer
+  with exactly one, which was true of everything until the accessory square
+  learned to take a light: a lamp on a belt loop and a lamp in your fist are
+  both places one goes, and the belt loop is the cheaper. So the answer is
+  ranked, and the second entry is what keeps the floor's "Hold" row reachable
+  once the accessory square is full. The head of the list is what "where it
+  belongs" means wherever there is nowhere to put a second choice — the tie a
+  ranking settles, the square a refused drop falls back to. The accessory square
+  is on an artifact's list only when `wornAccepts` will have it there, which is
+  the same light test `takesEffect` asks: a key or a shard is a hand's and
+  nothing else's.
 
 **The body slot is the one square that refuses a drag**, and the exception is
 deliberate. Both hands are generous because a hand *is* generous; defence is the
@@ -780,11 +793,13 @@ frames the whole time; none of those numbers were ever wanted. They are gone
 rather than tuned upward: no `resolveWeapon`, so the natural weapon stands and
 `offhandDefence` reads zero, and the thing's whole effect is being a placement
 that emits light. It needs no `offhand` flag either — nothing inert is ever meant
-for the hand that stands in for what you fight with, so `equipSlotOf` sends every
-artifact to the off hand and a flag with one legal value stays unwritten.
+for the hand that stands in for what you fight with, so `equipSlotsFor` never
+offers an artifact the swinging hand and a flag with one legal value stays
+unwritten.
 
 **Putting a thing on is not picking it up.** `equipSlotFrom` offers the natural
-slot only while it is *empty* — equipping never displaces what you are holding,
+slot — the first free one on `equipSlotsFor`'s list — only while it is *empty*;
+equipping never displaces what you are holding,
 because a swap is two deliberate acts and a tap that quietly put your sword on
 the floor is something you notice a fight later. It is the row that works with
 **no bag at all**, which is the whole reason it is a verb of its own: before it,
@@ -807,10 +822,12 @@ knows one square and a body has two hands, so the free one was a square the
 gesture could not reach. It takes the kit now and asks `equipDestination` — the
 same ranking a drop on the equipment button is under — so every free square is
 filled before anything is displaced, and the two gestures cannot come to
-disagree about where a thing goes. Tapping a thing in the square it belongs in
-still puts it away, which is what keeps the gesture its own undo, and the square
-a thing came out of is refused rather than ranked: a move onto the square it is
-already in is a swap with itself.
+disagree about where a thing goes. Tapping a thing in *any* of the squares it
+belongs in still puts it away, which is what keeps the gesture its own undo: a
+torch in your fist is as worn as one on a belt loop, and a tap that moved it
+between the two would leave no press that takes it off. The square a thing came
+out of is refused rather than ranked: a move onto the square it is already in is
+a swap with itself.
 
 It is why `ItemSlot` takes the kit: the press hint is read off the same function
 the press runs through, so a square promising a destination the tap does not use
@@ -3518,6 +3535,15 @@ included — so a torch in the accessory square lit the room the day the square
 existed, and `takesEffect` already drew it as a square doing something. The one
 thing in the way was `wornAccepts`, which took armour, a stone and a charm and
 stopped. It takes a light now.
+
+**And it is where a light goes first, not merely where one may go.** Taking the
+square was half the change: `equipSlotsFor` still sent every artifact to the off
+hand, so a tap, a drop on the equipment button and the floor's "Hold" row all
+reached for the fist, and the accessory square was somewhere you had to drag a
+torch by hand. A lit artifact's list is the accessory square then the off hand,
+which costs a player nothing and saves them the gesture. The hand stays on the
+list because the square holds one thing: a second lamp, or one worn under an
+amulet, is still a lamp you can hold up.
 
 **What it buys is a hand.** The off hand exists because a lantern authored as a
 weapon meant fighting at a twentieth of your bare hands to see in the dark, and
@@ -7026,9 +7052,12 @@ yet. So it is a ranking rather than a lookup. Every square the thing would be
    trade the gesture almost always is — a sword for a sword — and the one below
    it says that anything you put in a hand is something to do with that hand
    instead of swinging, which is what you still have another hand for.
-2. **The square it belongs in** (`equipSlotOf`) over any other, which settles
+2. **How far down `equipSlotsFor` the square is**, best first, which settles
    ties. Two free hands give a sword the one it is swung with; two swords give
-   the same answer, so "replace the main hand" needs no rule of its own.
+   the same answer, so "replace the main hand" needs no rule of its own. A free
+   accessory square and a free hand give a torch the accessory square, because
+   that is the order its own list is in — and a *taken* accessory square with a
+   free hand still gives the hand, because the cost ladder above outranks it.
 
 **A hand is a candidate only for a thing that belongs in a hand.** Both hands
 take anything you can carry — `handAccepts` — which is right for a drag onto the
@@ -7036,7 +7065,8 @@ square itself and wrong here: holding a helmet is carrying it, not wearing it.
 Without that clause a second helm lands in your free fist instead of trading
 with the one on your head. It is also what keeps an arcane stone interesting:
 a stone belongs in a hand, so its candidates are both hands *and* the charm, and
-an empty charm beats displacing either.
+an empty charm beats displacing either. A lit artifact reaches the hands the
+same way, since the off hand is the second entry on its list.
 
 The drag hands the ranking `lands` — `canMoveItem` with the source end filled in
 — so the best square *the move rules will honour* wins rather than the best

@@ -74,8 +74,32 @@ const tiles = [
     interactions: { item: { type: "armor", slot: "head", def: 2 } },
   }),
   // A thing you hold and never swing, which is where the off hand's default
-  // comes from — see `./affordances`' `equipSlotOf`.
+  // comes from — see `./affordances`' `equipSlotsFor`. Dark, so the accessory
+  // square refuses it: an artifact is welcome there only for its light.
   tile({ id: "torch", kind: "item", interactions: { item: DEFAULT_ARTIFACT } }),
+  // The same artifact with a flame on it, which is the one the accessory square
+  // will have — and so the one whose list of squares has two things on it.
+  tile({
+    id: "lantern",
+    kind: "item",
+    // On the frame rather than on the tile, which is where a light lives — see
+    // `../lib/tileResolve`'s `resolveLight`. A flame authored anywhere else is
+    // a fixture that lights nothing.
+    sprite: {
+      frames: [
+        {
+          sprite: {
+            tilesetId: "t",
+            rect: { x: 0, y: 0, w: 1, h: 1 },
+            base: { x: 0, y: 0 },
+          },
+          durationMs: 200,
+          light: { radius: 6, intensity: 1, color: "#ffcc88" },
+        },
+      ],
+    },
+    interactions: { item: DEFAULT_ARTIFACT },
+  }),
   // Held and never swung, which is the thing a weapon is ranked above.
   tile({ id: "shield", kind: "item", interactions: { item: DEFAULT_SHIELD } }),
   // Fits either hand *and* the charm, which is what the ranking is for.
@@ -963,6 +987,7 @@ describe("a container held in a hand", () => {
  */
 describe("equipping without naming a square", () => {
   const torch: ItemInstance = { id: "itm_torch", tileId: "torch" };
+  const lantern: ItemInstance = { id: "itm_lantern", tileId: "lantern" };
   const shield: ItemInstance = { id: "itm_shield", tileId: "shield" };
   const stone: ItemInstance = { id: "itm_stone", tileId: "stone" };
   const helmet: ItemInstance = { id: "itm_helm", tileId: "helm" };
@@ -1049,13 +1074,50 @@ describe("equipping without naming a square", () => {
     });
   });
 
-  /** A torch belongs in the hand you do not fight with, and falls back likewise. */
-  it("sends a torch to the off hand, and to the other one when it is full", () => {
+  /**
+   * An unlit artifact belongs in the hand you do not fight with, and falls back
+   * likewise. The accessory square is not on its list at all — `wornAccepts`
+   * takes a light there and refuses a key.
+   */
+  it("sends a dark artifact to the off hand, and to the other one when it is full", () => {
     expect(equipDestination(emptyEquipment(), tilesById, torch)).toEqual({
       kind: "offhand",
     });
     const held = { ...emptyEquipment(), offhand: shield };
     expect(equipDestination(held, tilesById, torch)).toEqual({ kind: "weapon" });
+  });
+
+  /**
+   * **A light goes round your neck before it costs you a fist.** Both squares
+   * are free and both cost nothing to fill, so the tie is settled by the order
+   * the thing's own squares are in.
+   */
+  it("sends a lantern to the accessory square over an empty hand", () => {
+    expect(equipDestination(emptyEquipment(), tilesById, lantern)).toEqual({
+      kind: "charm",
+    });
+  });
+
+  it("falls back to a hand once the accessory square is taken", () => {
+    const worn = { ...emptyEquipment(), charm: { id: "itm_am", tileId: "amulet" } };
+    expect(equipDestination(worn, tilesById, lantern)).toEqual({
+      kind: "offhand",
+    });
+  });
+
+  /**
+   * An empty hand beats displacing the amulet, which is the cost ladder having
+   * the last word over the order: the square a thing prefers only settles ties.
+   */
+  it("prefers an empty hand to trading the accessory square out", () => {
+    const worn = {
+      ...emptyEquipment(),
+      charm: { id: "itm_am", tileId: "amulet" },
+      weapon: sword("itm_a"),
+    };
+    expect(equipDestination(worn, tilesById, lantern)).toEqual({
+      kind: "offhand",
+    });
   });
 
   /** Armour names its own square, and there is no second head to fall back to. */

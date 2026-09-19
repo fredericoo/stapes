@@ -176,7 +176,7 @@ describe("itemUseFor", () => {
 });
 
 /**
- * A light goes to the other hand.
+ * A light goes to the accessory square, and the hand is the fallback.
  *
  * Checked before the weapon rule rather than after it, because a lantern *is* a
  * weapon as far as the catalogue is concerned — it had to be, when the swinging
@@ -187,17 +187,37 @@ describe("itemUseFor", () => {
 describe("a tap on a light", () => {
   const shipped = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]));
   const lantern = { id: "itm_lamp", tileId: "hand-lantern" };
+  const amulet = { id: "itm_amulet", tileId: "jade-amulet" };
   const sword = { id: "itm_sword", tileId: "rusty-sword" };
 
-  it("sends a lantern to the off hand rather than the weapon hand", () => {
+  it("sends a lantern to the accessory square rather than to a hand", () => {
     expect(
       itemUseFor(lantern, { kind: "contents", index: 0 }, shipped, kit()),
+    ).toEqual({ type: "move", to: { kind: "charm" } });
+  });
+
+  // The whole point of the square being first rather than only: a lamp you
+  // cannot wear is still a lamp you can hold up.
+  it("falls back to the off hand when the accessory square is taken", () => {
+    expect(
+      itemUseFor(
+        lantern,
+        { kind: "contents", index: 0 },
+        shipped,
+        kit({ charm: amulet }),
+      ),
     ).toEqual({ type: "move", to: { kind: "offhand" } });
   });
 
-  it("takes it back off again when it is already held", () => {
-    const use = itemUseFor(lantern, { kind: "offhand" }, shipped, kit());
-    expect(use?.type === "move" && use.to.kind).toBe("contents");
+  it("takes it back off again from either square it belongs in", () => {
+    for (const slot of [
+      { kind: "charm" } as const,
+      { kind: "offhand" } as const,
+    ]) {
+      const kitWithIt = kit({ [slot.kind]: lantern });
+      const use = itemUseFor(lantern, slot, shipped, kitWithIt);
+      expect(use?.type === "move" && use.to.kind).toBe("contents");
+    }
   });
 
   it("still sends a sword to the hand that swings", () => {

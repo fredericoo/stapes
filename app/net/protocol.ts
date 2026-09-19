@@ -1177,7 +1177,7 @@ export type ClientMessage =
    * depending on what the server felt like would make "Wield" a suggestion.
    *
    * **No slot travels with it.** Where a thing goes is a fact about the tile —
-   * `equipSlotOf` — so naming it here would be the client telling the server
+   * `equipSlotsFor` — so naming it here would be the client telling the server
    * something the server already knows, and one more field to disbelieve. Which
    * slot must be *free* is a fact about the kit, which is the server's.
    */

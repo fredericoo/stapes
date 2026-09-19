@@ -818,8 +818,23 @@ describe("picking things up", () => {
       expect(tilesAt(session, 1, 0)).toEqual(["grass"]);
     });
 
-    it("puts a torch in the other hand, leaving the weapon hand free", () => {
+    it("puts a torch in the accessory square, leaving both hands free", () => {
       const session = bare(1, 0, "torch");
+
+      expect(session.equip(refAt(session, 1, 0))).toBe(true);
+      expect(kitOf(session).charm?.tileId).toBe("torch");
+      expect(kitOf(session).weapon).toBeNull();
+      expect(kitOf(session).offhand).toBeNull();
+    });
+
+    // The accessory square is where a light goes first and not the only place it
+    // goes: a hand holds one too, and the row in the world has to reach it.
+    it("falls back to the other hand once the accessory square is taken", () => {
+      const session = bare(1, 0, "torch");
+      session.equipmentOf(selfId(session))!.charm = {
+        id: "itm_worn",
+        tileId: "torch",
+      };
 
       expect(session.equip(refAt(session, 1, 0))).toBe(true);
       expect(kitOf(session).offhand?.tileId).toBe("torch");

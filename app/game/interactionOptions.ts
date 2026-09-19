@@ -121,10 +121,11 @@ export type InteractionAction =
   /**
    * Putting a thing on where it lies — into a hand, or onto your back.
    *
-   * One action rather than three, because a thing has one slot it belongs in
-   * (`equipSlotOf`) and the row is named after that slot: "Wield" a sword,
-   * "Hold" a torch, "Put on" a pack. Three actions would be three ranks to keep
-   * ordered against each other for a choice nothing can ever present twice.
+   * One action rather than three, because there is only ever one square on
+   * offer — the first free one on `equipSlotsFor`'s list — and the row is named
+   * after the *thing* rather than after that square: "Wield" a sword, "Hold" a
+   * torch, "Put on" a pack. Three actions would be three ranks to keep ordered
+   * against each other for a choice nothing can ever present twice.
    */
   | "equip";
 

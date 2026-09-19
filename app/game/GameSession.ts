@@ -8108,7 +8108,7 @@ export class GameSession implements PlaySession {
    * The same trip a pickup makes and a different destination: a sword goes into
    * the hand rather than into a bag, which is what lets somebody carrying
    * nothing at all arm themselves. Which slot is the tile's own answer — see
-   * `equipSlotOf` — and it has to be empty, so this never puts down what you are
+   * `equipSlotsFor` — and it has to be empty, so this never puts down what you are
    * already holding.
    *
    * Returns false when the equip is illegal, on the same terms a pickup does.
