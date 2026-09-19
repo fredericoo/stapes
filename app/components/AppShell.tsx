@@ -48,7 +48,9 @@ export const ADMIN_DESTINATIONS: Destination[] = [
   { to: "/admin/play", label: "Play" },
   { to: "/admin/arena", label: "Arena" },
   { to: "/admin/voxel", label: "Voxel" },
-  { to: "/online", label: "Online" },
+  // The way back out. The game itself offers no way in here, so this is the
+  // only link between the two halves, and it points at the front door.
+  { to: "/", label: "Game" },
 ];
 
 function linkClass(isActive: boolean, block: boolean): string {
@@ -105,6 +107,9 @@ function AppMenuPopup({
             <NavLink
               key={to}
               to={to}
+              // `/` is a prefix of every other path, so without this the game
+              // reads as the page you are on from inside the tile editor.
+              end={to === "/"}
               // Closed by hand rather than by the route changing: tapping the
               // destination you are already on navigates nowhere, and a menu
               // that stayed open on it would read as the tap having missed.
@@ -291,6 +296,8 @@ export function AppShell({
                   <NavLink
                     key={to}
                     to={to}
+                    // @see the menu's copy of this link, which explains `end`.
+                    end={to === "/"}
                     className={({ isActive }) => linkClass(isActive, false)}
                   >
                     {label}

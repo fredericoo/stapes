@@ -831,7 +831,7 @@ export function GameViewport({
           <div className="flex shrink-0 flex-col gap-2 border-b-2 border-paper/20 pb-2">
             {readouts ? (
               // Wraps rather than overflows, because this line holds whatever a
-              // route hands it: `../routes/online` puts a connection chip beside
+              // route hands it: `../routes/_index` puts a connection chip beside
               // the hour, and two readings in a narrow column want a second row
               // rather than a horizontal scrollbar.
               <div className="flex min-w-0 flex-wrap items-center gap-2">

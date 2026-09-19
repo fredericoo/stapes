@@ -54,7 +54,7 @@ const app = new Elysia({
      * by `GET /api/session`, which is the only thing that mints one.
      */
     beforeHandle({ cookie, status }) {
-      if (!cookie[ACTOR_COOKIE]?.value) return status(403, "Visit /online first");
+      if (!cookie[ACTOR_COOKIE]?.value) return status(403, "Log in first");
       return undefined;
     },
 

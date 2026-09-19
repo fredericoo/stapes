@@ -100,6 +100,51 @@ is not one.
   the second closes the first — see "One connection per actor". To play two
   characters, use `localhost` in one and `127.0.0.1` in the other.
 
+## The game is `/`, and every tool is under `/admin`
+
+`app/routes.ts` has two halves and the split is what a visitor is offered, not
+where the files sit. `/` is the shared world. Everything a person editing the
+game needs — the map editor, the tile and status catalogues, the voxel editor,
+the arena and the single-player page — is under `/admin`, and `/admin` itself
+redirects to `/admin/map`.
+
+**Nothing guards `/admin`.** There is no account system to guard it with, and
+pretending otherwise with a password in the client would be worse than the
+honest gap. What the split buys today is that the game links to none of it: a
+tester never sees a tile editor, and there is one segment to put an account
+check in front of when there is one to put there.
+
+**The header's destinations are a prop, not a module constant.**
+`AppShell` draws navigation only for a page that hands it some, and
+`AdminShell` — `AppShell` with `ADMIN_DESTINATIONS` — is the only thing that
+does. A player-facing page therefore cannot grow a link to the editor by
+copying a shell call, which is the failure the old module-wide list invited.
+The game still uses `AppShell` for the rest of what the shell is: the menu it
+folds into the cog on a phone, holding the lighting switch, the headcount and
+the frame readout.
+
+### The socket opens on a button press
+
+`app/components/LoginScreen.tsx` is the whole page until it is pressed. The
+loader fetches the catalogues and `useGameAssets` decodes the tilesets behind
+it, but `GET /api/session` — the call that mints the `HttpOnly` actor cookie —
+happens on the press, and the connecting effect wants a canvas that only exists
+once somebody has pressed. A tab left on the front door therefore costs the
+world nothing: no actor, no chunks, no body standing in a doorway somebody else
+is walking through.
+
+It is also where a login goes. When there are accounts, the account is asked for
+here and nothing else on the page changes, because everything else already waits
+for this button.
+
+**`GAME_SOCKET_PATH` still says `/online/ws`.** The page that name came from is
+gone; the wire path did not follow it, because changing it refuses every tab
+that was open across the deploy at the upgrade — and a browser reports a
+rejected upgrade to the page as an indistinguishable failure, so those tabs
+would sit in a reconnect backoff rather than reloading. The version handshake
+in `app/net/protocol.ts` is how a stale client is told to reload, and it can
+only do that on a socket that opened.
+
 ## `dependencies` is what the *server* needs, and nothing else
 
 React, three, the icon sets and the rest of the client's packages are
@@ -452,7 +497,7 @@ terms: a conversation is a state of play.
 - **The panel takes the reach list's place**, on desktop and on a phone
   alike: a conversation is what is in reach, said longer. It gets the
   identity-gated push the kit gets (`pushConversation`), so `/admin/play` and
-  `/online` both have it.
+  the game both have it.
 - **Passed through the tile save untouched**, like the brain and for the same
   reason: the script is `./dialog`'s to know.
 
@@ -4665,8 +4710,8 @@ flex column, "they must not overlap" is true by construction rather than by
 arrangement.
 
 **Nothing is drawn until the assets are all here** (`app/lib/gameAssets.ts`).
-`/admin/play` and `/online` hold the canvas out of the page behind a loading screen,
-which is what makes the renderer unable to start early, and the label font is
+`/admin/play` and the game hold the canvas out of the page behind a loading
+screen, which is what makes the renderer unable to start early, and the label font is
 part of what is waited for. It has to be asked for by name: `document.fonts`
 only knows about faces something has tried to typeset in, and in this page the
 only thing in that font is the world's own text — so `fonts.ready` on its own
@@ -8882,7 +8927,8 @@ and rebakes them for output that cannot differ.
 
 ### Lighting has an off switch, and off means *not computed*
 
-The top bar of `/admin/play`, `/online` and `/admin/map` carries a Lighting toggle
+The top bar of the game, `/admin/play` and `/admin/map` carries a Lighting
+toggle
 (`app/components/LightingToggle.tsx`). Off is not a fullbright ambient or a
 shader branch with the bake still running behind it: `sync` and `light` are
 skipped outright in `WorldRenderer.setView`, nothing is baked, stitched or
@@ -9118,7 +9164,7 @@ Two rules learned the hard way, which still hold:
 ## `?debug=1` draws the windows the renderer is keeping
 
 **Undocumented in the game and on purpose.** There is no toggle, no menu entry
-and nothing in the UI that mentions it. Add `?debug=1` to `/admin/play` or `/online`
+and nothing in the UI that mentions it. Add `?debug=1` to `/` or `/admin/play`
 and the camera pulls back off the play square; `[` and `]` take it from ×1 to
 ×8. A player who never types it gets exactly the frame they got before this
 existed.

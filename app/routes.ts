@@ -1,8 +1,12 @@
 import { type RouteConfig, index, prefix, route } from "@react-router/dev/routes";
 
 export default [
+  /**
+   * The game is the front door. There is nothing else a visitor is here for,
+   * and a redirect from `/` to somewhere else was a round trip before the first
+   * paint that told them nothing.
+   */
   index("routes/_index.tsx"),
-  route("online", "routes/online.tsx"),
   /**
    * The authoring tools, all of them, behind one path segment.
    *

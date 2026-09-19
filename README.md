@@ -10,10 +10,10 @@ bun run generate   # regenerate tilesets + demo map into data/
 bun dev
 ```
 
-Open http://localhost:5173 — redirects to `/online`. The authoring tools are all
-under `/admin`, which opens on the map editor: the tile database is at
-`/admin/tiles`, and `/admin/arena` balances two fighters without a world in the
-way. Nothing guards `/admin` yet.
+Open http://localhost:5173 — the game, behind a Log in button that is what
+opens the socket. The authoring tools are all under `/admin`, which opens on the
+map editor: the tile database is at `/admin/tiles`, and `/admin/arena` balances
+two fighters without a world in the way. Nothing guards `/admin` yet.
 
 ## Scripts
 
@@ -55,7 +55,7 @@ Deploying is in [SETUP.md](SETUP.md).
 
 ## Multiplayer
 
-`/online` joins a shared world held by a Durable Object. Everyone spawns where
+`/` joins a shared world held by a Durable Object. Everyone spawns where
 the map's `player` tile is placed; you appear to each other as tiles and can
 push the same objects. Closing the tab removes your tile.
 
