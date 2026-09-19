@@ -547,7 +547,7 @@ describe("a cell that fires when you land on it", () => {
   /**
    * A flame the walker conjured cannot hurt them, so it is not a hazard to
    * them. The pair below is one board asked twice, which is the whole of what
-   * `PathStart.who` buys. @see ./conjured's `sparesCaster`
+   * `PathStart.who` buys. @see ./conjured's `sparesStander`
    */
   describe("a flame the walker conjured", () => {
     /** The same flame in the same cell, laid down by whoever is named. */

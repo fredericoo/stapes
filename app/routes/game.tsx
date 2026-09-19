@@ -36,7 +36,7 @@ import {
   PROTOCOL_VERSION_PARAM,
 } from "../net/protocol";
 import { fetchBootstrap, startSession } from "../lib/api";
-import type { Vitals } from "../game/GameSession";
+import { NO_VITALS, type Vitals } from "../game/GameSession";
 import { RemoteSession } from "../net/RemoteSession";
 import type { FrameStats } from "../render/frameProfile";
 import { GameRenderer } from "../render/GameRenderer";
@@ -186,6 +186,12 @@ export default function GamePage() {
   // Through a ref for the same reason the directions are: a reconnect swaps the
   // session underneath while the page keeps the callback it was handed.
   const say = useCallback((text: string) => sessionRef.current?.say(text), []);
+  // Through the ref on `say`'s terms. Nothing is kept here: what the button
+  // draws comes back on the broadcast, so the switch cannot show a state the
+  // server did not agree to. @see ../game/pvp
+  const setPvp = useCallback((on: boolean) => {
+    sessionRef.current?.setPvp(on);
+  }, []);
   const act = useCallback(
     (option: InteractionOption) =>
       // The renderer beside the session, because one row is not the board's
@@ -254,7 +260,7 @@ export default function GamePage() {
   /** What this player has learnt — theirs alone, beside the kit. */
   const [masteryXp, setMasteryXp] = useState<MasteryXp>({});
   /** What this player's body can take, and its ⭐. */
-  const [vitals, setVitals] = useState<Vitals>({ hp: null, maxHp: null, rating: null, statuses: [], attributes: null });
+  const [vitals, setVitals] = useState<Vitals>(NO_VITALS);
   const [openedContainer, setOpenedContainer] =
     useState<OpenedContainer | null>(null);
   /**
@@ -414,7 +420,7 @@ export default function GamePage() {
       setConversation(null);
       setSpells([]);
       setMasteryXp({});
-      setVitals({ hp: null, maxHp: null, rating: null, statuses: [], attributes: null });
+      setVitals(NO_VITALS);
       setOpenedContainer(null);
       // And the loading screen comes back for the same reason: the next
       // renderer starts with an empty canvas, and a reconnect can take a while.
@@ -726,6 +732,7 @@ export default function GamePage() {
                   onDirectionPress={pressDirection}
                   onDirectionRelease={releaseDirection}
                   onSay={say}
+                  onPvp={setPvp}
                   onTypingChange={noteTyping}
                   readouts={
                     <>
@@ -784,6 +791,7 @@ export default function GamePage() {
           error={loginError}
         />
       ) : null}
+
       {/* One screen for the whole time this player has no body to act with,
           which is why the wait is a state of it rather than a second overlay:
           the death outlasts the press, and the wait outlasts the death. */}

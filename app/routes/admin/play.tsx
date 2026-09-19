@@ -7,7 +7,7 @@ import { InkDocument } from "../../components/InkDocument";
 import { LightingToggle } from "../../components/LightingToggle";
 import { LoadingScreen } from "../../components/LoadingScreen";
 import { WorldClock } from "../../components/WorldClock";
-import { GameSession, type Vitals } from "../../game/GameSession";
+import { GameSession, NO_VITALS, type Vitals } from "../../game/GameSession";
 import { type Equipment, emptyEquipment } from "../../game/equipment";
 import type { Conversation, TalkAction } from "../../game/dialogRuntime";
 import type { MasteryXp } from "../../lib/mastery";
@@ -105,7 +105,7 @@ export default function PlayPage() {
   /** What this player has learnt — theirs alone, beside the kit. */
   const [masteryXp, setMasteryXp] = useState<MasteryXp>({});
   /** What this player's body can take, and its ⭐. */
-  const [vitals, setVitals] = useState<Vitals>({ hp: null, maxHp: null, rating: null, statuses: [], attributes: null });
+  const [vitals, setVitals] = useState<Vitals>(NO_VITALS);
   const [openedContainer, setOpenedContainer] =
     useState<OpenedContainer | null>(null);
   /**
@@ -270,7 +270,7 @@ export default function PlayPage() {
       setConversation(null);
       setSpells([]);
       setMasteryXp({});
-      setVitals({ hp: null, maxHp: null, rating: null, statuses: [], attributes: null });
+      setVitals(NO_VITALS);
       setOpenedContainer(null);
       // A new renderer has a fresh canvas to fill — an editor save arrives here
       // as a map change — so the screen goes back up until it has filled it.

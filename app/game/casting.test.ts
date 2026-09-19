@@ -112,7 +112,10 @@ const tiles: TileDef[] = [
       kind: "bolt",
       damage: 10,
       on: "target",
-      projectile: { tileId: "arrow", cellsPerSecond: 14 },
+      // An id into the projectile catalogue, which is what the block has taken
+      // since the flight stopped being written out per stone. @see
+      // `../lib/item`'s `StoneEffect`
+      projectile: "arrow",
     },
     cooldownMs: 20_000,
     reach: NEAR_REACH,
@@ -349,6 +352,43 @@ describe("why a stone cannot be cast", () => {
     expect(
       castability(context({ weapon: instance("curse-stone") }), squareSlot("weapon")),
     ).toEqual({ ok: false, reason: "noTarget" });
+  });
+
+  /**
+   * Two players who have not both opted into fighting. Refused here rather than
+   * where the bolt lands, so the button says so and no cooldown is spent on a
+   * cast that could do nothing. @see `./pvp`
+   */
+  it("refuses a bolt that takes health at somebody it may not harm", () => {
+    const state = context(
+      { weapon: instance("bolt-stone") },
+      { target: point(1), mayHarmTarget: false },
+    );
+    expect(castability(state, squareSlot("weapon"))).toEqual({
+      ok: false,
+      reason: "peaceful",
+    });
+  });
+
+  it("allows the same bolt at anybody else", () => {
+    const state = context(
+      { weapon: instance("bolt-stone") },
+      { target: point(1) },
+    );
+    expect(castability(state, squareSlot("weapon"))).toEqual({ ok: true });
+  });
+
+  /**
+   * Only the damage is read here. A spell whose whole effect is a curse is
+   * stopped where every other bad status is — on the way onto the body — so the
+   * button stays lit and the press is honest about having been made.
+   */
+  it("allows a bolt that takes no health, curse or no curse", () => {
+    const state = context(
+      { weapon: instance("curse-stone") },
+      { target: point(1), mayHarmTarget: false },
+    );
+    expect(castability(state, squareSlot("weapon"))).toEqual({ ok: true });
   });
 
   it("refuses a target out of the stone's reach", () => {

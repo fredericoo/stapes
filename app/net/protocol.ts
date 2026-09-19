@@ -164,6 +164,11 @@ const statusIdsPatchSchema = v.object({
   defIds: v.array(v.string()),
 });
 
+const pvpPatchSchema = v.object({
+  actorId: v.string(),
+  on: v.boolean(),
+});
+
 const extractionPatchSchema = v.object({
   actorId: v.string(),
   progress: v.nullable(
@@ -418,6 +423,24 @@ export type CarriedLightsPatch = {
 export type StatusIdsPatch = {
   actorId: string;
   defIds: string[];
+};
+
+/**
+ * Whether a body is fighting other players. @see `../game/pvp`
+ *
+ * Its own patch rather than a field on {@link StatusIdsPatch}, and the two are
+ * not the same kind of fact however alike the message looks: a status is
+ * something happening to a body right now, and this is a standing decision
+ * somebody made that survives their reconnecting. Folded together, every burn
+ * in the world would carry a switch nobody moved.
+ *
+ * Broadcast because it is drawn: the mark beside a name says whether that
+ * stranger can be fought, which is a thing you have to be able to read before
+ * deciding anything. Sent when it changes, which for most bodies is never.
+ */
+export type PvpPatch = {
+  actorId: string;
+  on: boolean;
 };
 
 /**
@@ -776,6 +799,13 @@ export type ServerMessage =
        */
       statusIds: StatusIdsPatch[];
       /**
+       * Who is fighting other players, on the terms {@link statusIds} is sent
+       * in full here: a joiner has nothing to patch against, and somebody who
+       * can be fought has to be marked on the first frame rather than the next
+       * time anybody touches the switch. @see PvpPatch
+       */
+      pvp: PvpPatch[];
+      /**
        * Everybody's pulls in progress, on the terms {@link statusIds} is sent in
        * full here: a deer already at a bush has to show its bar on the first
        * frame, and the next patch about it is the one saying it has finished.
@@ -1020,6 +1050,8 @@ export type ServerMessage =
       carriedLights: CarriedLightsPatch[];
       /** Only the actors whose statuses changed since the last patch. */
       statusIds: StatusIdsPatch[];
+      /** Only the actors whose switch moved since the last patch. @see PvpPatch */
+      pvp: PvpPatch[];
       /** Only the actors whose pull started or ended since the last patch. */
       extractions: ExtractionPatch[];
       /** Only the actors whose cast started or ended since the last patch. */
@@ -1300,6 +1332,16 @@ export type ClientMessage =
    */
   | { type: "attackMode"; enabled: boolean }
   /**
+   * "I am in the fighting" — or not. @see `../game/pvp`
+   *
+   * A standing decision rather than a mode, which is what separates it from
+   * {@link ClientMessage} `attackMode` above: that one says what this body is
+   * doing right now, and this says who is allowed to do it to whom. Refused by
+   * the server while the body is in a fight, so a client cannot turn its own
+   * invulnerability on halfway through one.
+   */
+  | { type: "pvp"; enabled: boolean }
+  /**
    * "Cast the stone in this square."
    *
    * **A square, never an instance id**, on exactly the grounds every
@@ -1503,6 +1545,10 @@ const clientMessageSchema = v.variant("type", [
     enabled: v.boolean(),
   }),
   v.object({
+    type: v.literal("pvp"),
+    enabled: v.boolean(),
+  }),
+  v.object({
     type: v.literal("cast"),
     // A square off the game's own list, or the name of a spell the body has —
     // so a square added to a body is a square this schema already accepts, a
@@ -1546,6 +1592,9 @@ const serverMessageSchema = v.variant("type", [
     // else's effects are drawn" rather than to a handshake that fails to parse.
     // The output type is still required, because the server always sends it.
     statusIds: v.optional(v.array(statusIdsPatchSchema), () => []),
+    // And the same for the switch: a skew degrades to "nobody is marked", which
+    // is how every client read the world before this existed.
+    pvp: v.optional(v.array(pvpPatchSchema), () => []),
     // Optional with an empty default, on `statusIds`' terms: a skew degrades to
     // "nobody else's pull is drawn".
     extractions: v.optional(v.array(extractionPatchSchema), () => []),
@@ -1748,6 +1797,7 @@ const serverMessageSchema = v.variant("type", [
     // else's effects are drawn" rather than to a handshake that fails to parse.
     // The output type is still required, because the server always sends it.
     statusIds: v.optional(v.array(statusIdsPatchSchema), () => []),
+    pvp: v.optional(v.array(pvpPatchSchema), () => []),
     extractions: v.optional(v.array(extractionPatchSchema), () => []),
     castings: v.optional(v.array(castingPatchSchema), () => []),
   }),
@@ -1873,7 +1923,7 @@ export const GAME_SOCKET_PATH = "/online/ws";
  * This is deliberately not the build id. A client deploy that changes no
  * messages should not disconnect anybody, and most client deploys are that.
  */
-export const PROTOCOL_VERSION = 14;
+export const PROTOCOL_VERSION = 15;
 
 /**
  * How often the world says nothing, to keep a proxy from hanging up.

@@ -9,7 +9,7 @@ import type { CastSlot, SpellButton } from "../game/casting";
 import { itemUseFor } from "../game/itemUse";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { MasteryXp } from "../lib/mastery";
-import type { Vitals } from "../game/GameSession";
+import { NO_VITALS, type Vitals } from "../game/GameSession";
 import type { Direction, TileDef, TilesetDef } from "../lib/types";
 import { useCoarsePointer } from "../lib/useMediaQuery";
 import { tilesByIdFromList } from "../lib/validation";
@@ -24,20 +24,14 @@ import { InteractionList } from "./InteractionList";
 import type { ActionButtonSize } from "./actionButton";
 import { SpellBar } from "./SpellBar";
 import { BagButton, EquipmentToggle, StatsToggle } from "./PanelToggle";
+import { PvpToggle } from "./PvpToggle";
 import { StatsPanel } from "./StatsPanel";
 import type { ActiveStatus, StatusDef } from "../lib/status";
 import { StatusStrip } from "./StatusStrip";
 import { useItemDrag } from "./useItemDrag";
 import { useNoZoom } from "./useNoZoom";
 
-/** A body nothing has reported on yet. Shared, so a default costs no allocation. */
-const NO_VITALS: Vitals = {
-  hp: null,
-  maxHp: null,
-  rating: null,
-  statuses: [],
-  attributes: null,
-};
+
 
 /** Nobody is under anything, which is almost everybody almost always. */
 const NO_STATUSES: ActiveStatus[] = [];
@@ -101,6 +95,7 @@ export function GameViewport({
   onDirectionPress,
   onDirectionRelease,
   onSay,
+  onPvp,
   onTypingChange,
   readouts,
   interactions = [],
@@ -137,6 +132,15 @@ export function GameViewport({
   onDirectionRelease: (direction: Direction) => void;
   /** Given only by a route with somebody to talk to; the bar is absent without it. */
   onSay?: (text: string) => void;
+  /**
+   * Move the switch that says whether this player is in the fighting, or
+   * nothing for a route with nobody to fight. @see `../game/pvp`
+   *
+   * Given only by the online route, on {@link onSay}'s terms: the state is
+   * carried by every session, and a control about other people is chrome a
+   * world with no other people in it should not grow.
+   */
+  onPvp?: (on: boolean) => void;
   onTypingChange?: (typing: boolean) => void;
   /**
    * What the world says about itself — the hour, and on a connected world
@@ -493,6 +497,23 @@ export function GameViewport({
    */
   const panelButtons = (size: ActionButtonSize) => (
     <>
+      {/* First and ruled off from the rest, because it is the one control in
+          this row that changes something out in the world rather than opening a
+          panel — the same rule the chat button takes on a phone. */}
+      {onPvp ? (
+        <>
+          <PvpToggle
+            on={vitals.pvp.on}
+            changeable={vitals.pvp.changeable}
+            onChange={onPvp}
+            size={size}
+          />
+          <span
+            className="h-8 w-px shrink-0 bg-paper/20"
+            aria-hidden="true"
+          />
+        </>
+      ) : null}
       <StatsToggle open={showStats} onChange={openStats} size={size} />
       <EquipmentToggle
         open={showEquipment}

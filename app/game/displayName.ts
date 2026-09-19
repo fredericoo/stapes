@@ -29,6 +29,7 @@
 import { animals, colors } from "unique-names-generator";
 import { RATING_GLYPH } from "../lib/mastery";
 import { PLAYER_TILE_ID } from "./constants";
+import { PVP_MARK } from "./pvp";
 import type { TileDef } from "../lib/types";
 
 /**
@@ -156,6 +157,23 @@ export function bodyNameIn(
  * Falls back to the bare name for anything with no rating to give: a crate is
  * lookable and has no opinion about fighting.
  */
+/**
+ * What to call somebody who is *in the fighting*, which is their name and a mark.
+ *
+ * **Always on, unlike the ⭐.** A rating answers a question you only ask when you
+ * are sizing somebody up, and this answers one you have to be able to ask at a
+ * glance about everybody in the room: whether that person can be fought, and
+ * whether they can fight you. A mark you had to hold a key to see would be a
+ * mark nobody reads before walking into a crowd.
+ *
+ * Only for a body whose switch is on — see `./pvp`. Off is the quiet state and
+ * the common one, and a tag for it would mark every stranger in a peaceful world
+ * with a word about violence.
+ */
+export function fightingName(name: string, pvp: boolean): string {
+  return pvp ? `${name} ${PVP_MARK}` : name;
+}
+
 export function sizedUpName(
   name: string,
   rating: number | null,

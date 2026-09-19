@@ -2208,11 +2208,15 @@ function surrounded(count: number) {
     actorIds: ["me"],
     seed: 1,
   });
+  // Everybody's switch on, because two players do not fight until both have
+  // asked to — and a crowd of players is exactly that. @see ./pvp
+  session.setPvp(true, "me");
   const crowd = SURROUNDING_CELLS.slice(0, count).map(([x, y], index) => {
     const id = `mob-${index}`;
     session.spawn(id, { at: { x, y, z: 0 } });
     session.setTarget("me", id);
     session.setAttackMode(true, id);
+    session.setPvp(true, id);
     return id;
   });
   return { session, crowd };

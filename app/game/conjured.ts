@@ -15,7 +15,8 @@ import { possessive } from "./blame";
  *   Flame" over the same `arcane-flame` def a hearth leaves behind as plain
  *   "Arcane Flame".
  * - **It does not turn on them.** The caster walks through their own flame and
- *   nothing happens; everybody else burns.
+ *   nothing happens; everybody else burns — unless they are somebody the caster
+ *   may not harm at all, which is `./pvp`'s question rather than this one's.
  *
  * Neither is stored. `castBy` is an actor id and a name is derived from it at
  * the moment it is shown — see `./displayName`, which is where the reasoning
@@ -46,8 +47,11 @@ export function conjuredName(
 }
 
 /**
- * Whether this placement's status is one the body standing in it is spared
- * because the body conjured it.
+ * Whether this placement's status is one the body standing in it is spared.
+ *
+ * Two reasons it might be, and they are the same fact told twice: the fire is
+ * *yours*, or it belongs to somebody whose harm does not reach you at all — see
+ * `./pvp`, which is what `reaches` answers.
  *
  * **Tone and not the whole block**, because a conjure is not only a weapon: an
  * author can lay down a circle that heals whoever stands in it, and a caster
@@ -55,21 +59,34 @@ export function conjuredName(
  * `../lib/status`'s {@link StatusDef.tone}, which exists because only the
  * author knows which way a status leans.
  *
- * **The rule the granting and the routing both read**, which is the reason it
- * is a function rather than a line inside either: `GameSession` grants what a
- * cell holds and `./pathfinding` refuses to walk through what would hurt, and a
- * pathfinder that thought a caster's own flame was a hazard would route them
- * round a tile that cannot touch them — or refuse a doorway they could walk
- * straight through.
+ * **Skipped in the stack rather than merely refused**, which is why this is
+ * asked where the column is walked rather than only where a status is granted:
+ * a flame conjured on a bed of coals spares the caster the flame and stands them
+ * in the coals.
  *
  * A body with nothing to compare against — a caller that has no walker in hand
  * — is spared nothing, which is what every one of them did before this existed.
  */
-export function sparesCaster(
+export function sparesStander(
   placed: Pick<PlacedTile, "castBy">,
   status: StatusDef | undefined,
   who: string | undefined,
+  /**
+   * Whether harm from that caster reaches this body at all.
+   *
+   * Defaulted to "it does", so a caller with no roster of bodies to ask — the
+   * pathfinder, which is given a board and not a world — reads the ownership
+   * half alone. That is the conservative way round: it routes a player around
+   * another player's flame that could not have hurt them, which costs two steps
+   * rather than a body.
+   */
+  reaches: (casterId: string) => boolean = REACHES,
 ): boolean {
-  if (who === undefined || placed.castBy !== who) return false;
-  return status?.tone === "bad";
+  const castBy = placed.castBy;
+  if (who === undefined || castBy === undefined) return false;
+  if (status?.tone !== "bad") return false;
+  return castBy === who || !reaches(castBy);
 }
+
+/** Harm reaches, which is what it does everywhere nobody has said otherwise. */
+const REACHES = () => true;

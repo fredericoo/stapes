@@ -76,6 +76,7 @@ import {
   parseClientMessage,
   type CarriedLightsPatch,
   type StatusIdsPatch,
+  type PvpPatch,
   type CastingPatch,
   type ExtractionPatch,
   type CellPatch,
@@ -118,6 +119,7 @@ function isEmptyPatch(
     patch.hps.length === 0 &&
     patch.carriedLights.length === 0 &&
     patch.statusIds.length === 0 &&
+    patch.pvp.length === 0 &&
     patch.extractions.length === 0 &&
     patch.castings.length === 0
   );
@@ -313,6 +315,22 @@ function currentStatusIds(actors: ActorSnapshot[]): StatusIdsPatch[] {
  */
 function statusIdsOf(actor: ActorSnapshot): string[] {
   return actor.statuses.map((status) => status.defId).sort();
+}
+
+/**
+ * Who is fighting other players. @see currentCarriedLights for the omission rule.
+ *
+ * Only the bodies with it on, which is the omission rule read the same way: off
+ * is what a client assumes about a body it has heard nothing about, and every
+ * creature in the world is off.
+ */
+function currentPvp(actors: ActorSnapshot[]): PvpPatch[] {
+  const out: PvpPatch[] = [];
+  for (const actor of actors) {
+    if (!actor.pvp) continue;
+    out.push({ actorId: actor.id, on: true });
+  }
+  return out;
 }
 
 /** Everybody's pulls in progress. @see currentCarriedLights for the omission rule. */
@@ -518,6 +536,22 @@ const STATUSES_KEY_PREFIX = "status:";
 const HP_KEY_PREFIX = "hp:";
 
 /**
+ * Key prefix under which one player's switch is kept. @see `../app/game/pvp`
+ *
+ * A row of its own beside the six above, and it is the kind of fact a tag is
+ * rather than the kind a kit is: it records a decision the *player* made, so
+ * nothing about the world it was made in can invalidate it and there is nothing
+ * to check it against on the way back in. Only somebody who has turned it on
+ * has a row — off is what an absent key means, and what every player who has
+ * never touched it is.
+ *
+ * Written the moment it moves rather than on the flush behind everything else:
+ * a switch somebody turned off and a crash a second later must not add up to a
+ * player who comes back fightable.
+ */
+const PVP_KEY_PREFIX = "pvp:";
+
+/**
  * How many actors the world remembers the whereabouts of.
  *
  * One entry per player who has ever connected — it grows with *visitors*, not
@@ -617,6 +651,15 @@ type SavedStatuses = { statuses: StatusInstance[]; savedAt: number };
 type SavedHp = { hp: number | null; savedAt: number };
 
 /**
+ * Whether somebody was fighting other players, kept against their return.
+ *
+ * Nullable in the same sense {@link SavedHp} is not: `on` is written false as
+ * well as true, because a row that could only ever be set would make turning
+ * the switch off a thing that lasted until the next reconnect.
+ */
+type SavedPvp = { on: boolean; savedAt: number };
+
+/**
  * One stored status, checked rather than trusted.
  *
  * Every field is arithmetic a tick will act on, so a malformed one has to fail
@@ -669,6 +712,8 @@ type WrittenActor = {
    */
   statuses: readonly StatusInstance[] | null;
   hp: number | null;
+  /** What the `pvp:` row was last told. False is also what an absent row means. */
+  pvp: boolean;
 };
 
 /** Whether two positions describe the same standing place, facing the same way. */
@@ -858,6 +903,8 @@ export class GameServer {
   private sentCarriedLights = new Map<string, string>();
   /** Last broadcast status ids per actor, joined. @see diffStatusIds */
   private sentStatusIds = new Map<string, string>();
+  /** Last broadcast switch per actor. @see diffPvp */
+  private sentPvp = new Map<string, boolean>();
   /**
    * The pull each actor was last broadcast as making.
    *
@@ -1468,15 +1515,16 @@ export class GameServer {
    * them the default".
    */
   private async restoredActor(actorId: string) {
-    const [at, carrying, tagged, earned, statuses, hp] = await Promise.all([
+    const [at, carrying, tagged, earned, statuses, hp, pvp] = await Promise.all([
       this.lastPositionOf(actorId),
       this.lastEquipmentOf(actorId),
       this.lastTagsOf(actorId),
       this.lastMasteriesOf(actorId),
       this.lastStatusesOf(actorId),
       this.lastHpOf(actorId),
+      this.lastPvpOf(actorId),
     ]);
-    return { at, carrying, tagged, earned, statuses, hp };
+    return { at, carrying, tagged, earned, statuses, hp, pvp };
   }
 
   /**
@@ -1572,6 +1620,16 @@ export class GameServer {
 
   private hpKey(actorId: string): string {
     return `${HP_KEY_PREFIX}${actorId}`;
+  }
+
+  private pvpKey(actorId: string): string {
+    return `${PVP_KEY_PREFIX}${actorId}`;
+  }
+
+  /** Whether this player was fighting other players, if the world remembers. */
+  private async lastPvpOf(actorId: string): Promise<boolean | undefined> {
+    const saved = await this.ctx.storage.get<SavedPvp>(this.pvpKey(actorId));
+    return saved?.on;
   }
 
   private masteriesKey(actorId: string): string {
@@ -1724,6 +1782,7 @@ export class GameServer {
       | SavedMasteries
       | SavedStatuses
       | SavedHp
+      | SavedPvp
       | Checkpoint
       | ChunkCells
     > = {};
@@ -1739,6 +1798,7 @@ export class GameServer {
       const masteries = session.masteryXpOf(actorId);
       const statuses = session.statusesOf(actorId);
       const hp = session.storedHpOf(actorId);
+      const pvp = session.pvpOf(actorId);
 
       // **A resident's position is never written, because nothing ever reads
       // it.** Every caller of {@link lastPositionOf} is asking on behalf of a
@@ -1853,6 +1913,14 @@ export class GameServer {
         if (hp !== (written?.hp ?? null)) {
           entries[this.hpKey(actorId)] = { hp, savedAt };
         }
+        // And by value again, on the `hp:` row's terms including the one that
+        // matters: turning the switch *off* has to be written, or it would last
+        // exactly until the next reconnect. Residents are excluded with the two
+        // above — `mayHarm` answers on residency before it ever reads a
+        // creature's flag. @see PVP_KEY_PREFIX
+        if (pvp !== (written?.pvp ?? false)) {
+          entries[this.pvpKey(actorId)] = { on: pvp, savedAt };
+        }
       }
 
       // Remembered as of this batch rather than as of a confirmation, on the
@@ -1866,6 +1934,7 @@ export class GameServer {
         masteries,
         statuses,
         hp,
+        pvp,
       });
     }
 
@@ -2145,6 +2214,10 @@ export class GameServer {
       hps: currentHps(actors),
       carriedLights: currentCarriedLights(actors),
       statusIds: currentStatusIds(actors),
+      // Beside the statuses and for their reason: somebody who can be fought has
+      // to be marked on the first frame rather than the next time anybody
+      // touches the switch. @see `../app/game/pvp`
+      pvp: currentPvp(actors),
       extractions: currentExtractions(actors),
       // Beside the pulls and for their reason: somebody half way through a
       // flame when this client arrived has to have a bar on the first frame.
@@ -2266,6 +2339,17 @@ export class GameServer {
       // cast, so the cast is already running here rather than waiting behind
       // a step. The castings diff on the next flush is what tells everybody.
       session.cancelCast(actorId);
+    } else if (message.type === "pvp") {
+      // Honoured now rather than queued, unlike a cast: where a body stands has
+      // nothing to do with it. Refused while the body is in a fight, and the
+      // refusal is silent here — the client asked the same question before
+      // sending, off the same `changeable` the snapshot carries, so a message
+      // that arrives during a fight is a race rather than a press to explain.
+      session.setPvp(message.enabled, actorId);
+      // Written straight away rather than left to the periodic flush: a switch
+      // somebody turned off and a crash a second later must not add up to a
+      // player who comes back fightable.
+      this.saveActors([actorId], true);
     } else if (message.type === "attackMode") {
       // The wake below matters more here than for a target: a world at rest
       // stays at rest while somebody merely points at a deer, and turning this
@@ -3334,6 +3418,7 @@ export class GameServer {
     const running = new Map<string, readonly StatusInstance[]>();
     const health = new Map<string, number>();
     const standing = new Map<string, ActorPosition>();
+    const fighting = new Set<string>();
     // Lingering bodies included: a save re-creates the world, not the people
     // in it, and a body still standing in a fight is somebody in it.
     const present = this.presentActorIds();
@@ -3370,6 +3455,11 @@ export class GameServer {
       if (statuses?.length) running.set(actorId, statuses);
       const hp = this.session?.storedHpOf(actorId);
       if (hp !== null && hp !== undefined) health.set(actorId, hp);
+      // And the switch, on the tags' argument rather than the kit's: it records
+      // a decision the player made, and nothing an author writes into a map has
+      // any bearing on it. Dropping it would put everybody back in the fighting
+      // once per save — and the editor saves constantly.
+      if (this.session?.pvpOf(actorId)) fighting.add(actorId);
     }
 
     this.tiles = tiles;
@@ -3466,6 +3556,7 @@ export class GameServer {
           statuses:
             running.get(actorId) ?? (await this.lastStatusesOf(actorId)),
           hp: health.get(actorId) ?? (await this.lastHpOf(actorId)),
+          pvp: fighting.has(actorId) || (await this.lastPvpOf(actorId)),
         },
         { announce: false },
       );
@@ -3638,6 +3729,7 @@ export class GameServer {
     this.sentHp.clear();
     this.sentCarriedLights.clear();
     this.sentStatusIds.clear();
+    this.sentPvp.clear();
     this.queuedIntents.clear();
     this.lastSaidAt.clear();
     // Their bodies went with the board, and a reset seats nobody who has no
@@ -3776,6 +3868,7 @@ export class GameServer {
     const hps = this.diffHps(actors);
     const carriedLights = this.diffCarriedLights(actors);
     const statusIds = this.diffStatusIds(actors);
+    const pvp = this.diffPvp(actors);
     const extractions = this.diffExtractions(actors);
     const castings = this.diffCastings(actors);
     // Sent even when the shared diff is empty, because a client whose
@@ -3788,6 +3881,7 @@ export class GameServer {
       hps,
       carriedLights,
       statusIds,
+      pvp,
       extractions,
       castings,
     });
@@ -4260,6 +4354,28 @@ export class GameServer {
   }
 
   /**
+   * Whose switch moved since the last patch. @see `../app/net/protocol`'s PvpPatch
+   *
+   * A diff on {@link diffStatusIds}' terms, down to forgetting a body that has
+   * left — so somebody who comes back is diffed against nothing and is marked,
+   * or unmarked, on the frame they arrive.
+   */
+  private diffPvp(actors: ActorSnapshot[]): PvpPatch[] {
+    const out: PvpPatch[] = [];
+    const live = new Set<string>();
+    for (const actor of actors) {
+      live.add(actor.id);
+      if ((this.sentPvp.get(actor.id) ?? false) === actor.pvp) continue;
+      this.sentPvp.set(actor.id, actor.pvp);
+      out.push({ actorId: actor.id, on: actor.pvp });
+    }
+    for (const id of this.sentPvp.keys()) {
+      if (!live.has(id)) this.sentPvp.delete(id);
+    }
+    return out;
+  }
+
+  /**
    * Whose pull started or ended since the last patch.
    *
    * Not a read of `drainExtractionChanges`, for the reason {@link diffStatusIds}
@@ -4429,6 +4545,7 @@ export class GameServer {
         hps: [],
         carriedLights: [],
         statusIds: [],
+        pvp: [],
         extractions: [],
         castings: [],
       });
@@ -4585,6 +4702,7 @@ export class GameServer {
     const hps = patchesInScope(patch.hps, held);
     const carriedLights = patchesInScope(patch.carriedLights, held);
     const statusIds = patchesInScope(patch.statusIds, held);
+    const pvp = patchesInScope(patch.pvp, held);
     const extractions = patchesInScope(patch.extractions, held);
     const castings = patchesInScope(patch.castings, held);
     if (
@@ -4595,6 +4713,7 @@ export class GameServer {
       hps === patch.hps &&
       carriedLights === patch.carriedLights &&
       statusIds === patch.statusIds &&
+      pvp === patch.pvp &&
       extractions === patch.extractions &&
       castings === patch.castings
     ) {
@@ -4648,6 +4767,7 @@ export class GameServer {
       hps: [...currentHps(arrivals), ...hps],
       carriedLights: [...currentCarriedLights(arrivals), ...carriedLights],
       statusIds: [...currentStatusIds(arrivals), ...statusIds],
+      pvp: [...currentPvp(arrivals), ...pvp],
       extractions: [...currentExtractions(arrivals), ...extractions],
       castings: [...currentCastings(arrivals), ...castings],
     };

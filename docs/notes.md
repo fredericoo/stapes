@@ -2708,6 +2708,17 @@ are load-bearing.
   was a mode a player could be left in, and it is now one half of a press about
   one creature that a fresh body has not made.
 
+**Both rows answer a second press, and the fight row did not used to.** Pressing
+the lit `attack` row turns the mode off and keeps the body, which is exactly what
+the keyboard's half — `GameRenderer.toggleSwing`, bound to E — has always done;
+pressing the lit `target` row lets the body go. The fight row used to re-send the
+same two calls and change nothing, on the grounds that the pair already says
+everything: watching is the off position, so there was one. What that missed is
+what a *lit* row promises. Every other lit row in the list undoes itself — the
+talk row closes the panel, the follow row stops following — so a lit row that
+answered a press with nothing was indistinguishable from a tap the page had
+dropped.
+
 The colour of the outline follows from the stance rather than from having a
 target at all: white while you are only watching, red once it is a fight, and
 pulsing in both cases because the pulse is what separates a *chosen* body from one the
@@ -6924,6 +6935,143 @@ item, and picking it up makes an `ItemInstance`, which has no `castBy` — so a
 conjured sword in a bag is a sword. That is the same line `engraved` sits on the
 other side of, and it is fine: ownership here is a fact about a thing standing
 in the world, not about a thing in somebody's hand.
+
+## Two players do not hurt each other until both have asked to
+
+Everybody carries a switch — `ActorRuntime.pvp`, off until they move it — and
+harm passes between two players only when both have it on. `app/game/pvp.ts` is
+the whole rule:
+
+```ts
+export function mayHarm(from: Combatant, to: Combatant): boolean {
+  if (from.id === to.id) return true;
+  if (from.resident || to.resident) return true;
+  return from.pvp && to.pvp;
+}
+```
+
+**Creatures are not in it.** A wolf is not somebody's decision, so the residency
+test comes first and everything a body does to a rat — and the rat does back —
+is exactly what it was. A body may also always harm itself: a stone authored to
+hurt its caster is a curse somebody chose to press, and a flag about other
+people has no business refusing it.
+
+**Both, not either.** The switch is not a shield you raise while you go on
+swinging: a player with it off cannot be hurt by another player *and* cannot hurt
+one.
+
+### The four places harm passes
+
+- **A swing.** `tryAttack` refuses before the reach check and before the windup,
+  because it is the one refusal that will still be true when everything below it
+  has changed — walking closer does not make it a fight.
+- **A bolt that takes health.** `castability` refuses it, so the button reads
+  unavailable and no cooldown is spent — the same argument the blocked conjure
+  makes. `CastContext.mayHarmTarget` is the answered question, because that
+  module resolves nothing about a world; both ends work it out and hand it in.
+  Only the authored `damage` is read: a mend thrown at a stranger is a strange
+  thing to author and not a thing to refuse. `landBolt` asks again on arrival,
+  because a cast can take seconds and a bolt can be a yard in the air, and either
+  is long enough for the switch at the far end to move.
+- **A bad status from anybody.** `grantStatus` is the one place every one of
+  them arrives at — a bolt's curse, a blade's poison, a conjured flame's burn —
+  so the gate is there rather than at each source. Tone is what it reads: a
+  player may still be mended or blessed by somebody they cannot fight.
+- **A tile somebody conjured.** `grantStandingStatus` skips the placement in the
+  stack rather than merely refusing it, so what is under it still gets its turn.
+  That is `conjured.ts`'s `sparesStander`, which now answers two questions with
+  one sentence: the fire is yours, or it belongs to somebody whose harm does not
+  reach you. The pathfinder reads the ownership half alone — a board is not a
+  roster of bodies — so a player still routes around a stranger's flame that
+  could not have hurt them, which costs two steps rather than a body.
+
+**Targeting is deliberately not on that list.** Pointing at somebody is how you
+read them — their name, their health, their ⭐ — and a player you cannot fight is
+still a player you may want to look at. A refused swing leaves the target
+targeted.
+
+### The fight row is not drawn where there is no fight to be had
+
+`battlerOptions` asks `mayHarm` and leaves the `attack` row out entirely when the
+answer is no. A row that is drawn and does nothing when pressed is the one thing
+the interaction list promises never to offer — the same promise a blocked row
+keeps by being grey, except that here there is nothing to explain: the body is
+simply not something you can fight, and the two verbs that still work are the
+two that are left.
+
+The watch row is then lit whenever that body is the one picked, rather than only
+when the attack mode is off. With no fight row beside it there is nothing to
+share the decision with, and attack mode can perfectly well be on because of a
+fight with somebody else.
+
+The rule has to be asked on both sides, so `pvp.ts`'s `combatantOf` reads
+residency off the tile — a player wears the player tile — which is the same test
+`bodyNameFor` reads identity off. The simulation builds its own from
+`ActorRuntime.resident`; the two agree because that is what the tile means.
+
+### Frozen mid-fight
+
+`setPvp` refuses while the body is in combat, and that is the whole of what stops
+the switch being a weapon: turning it off with somebody swinging at you would be
+invulnerability on demand, and turning it on mid-brawl is the same trick from the
+other side. The combat flag is the exact test — it already runs for a minute
+after the last blow and already keeps a closing tab in the fight it started.
+
+The chrome asks the same question before the press rather than after it:
+`GameSnapshot.pvp` carries `{ on, changeable }`, so the button is drawn disabled
+instead of answering with a sentence. The server asks again on the message,
+silently, because a press that arrives during a fight is a race rather than
+something to explain.
+
+### What travels, and what is written down
+
+One boolean per body, as its own patch (`PvpPatch`) beside the status ids — a
+different kind of fact from a status, however alike the message looks: a status
+is something happening to a body right now and this is a standing decision that
+survives a reconnect. It is broadcast because it is *drawn*: the mark beside a
+name says whether that stranger can be fought, which is a thing you have to be
+able to read before deciding anything.
+
+The mark is `[PvP]` rather than crossed swords, for the reason `RATING_GLYPH` is
+an asterisk rather than a star: the world's text is typeset in NF Pixels, subset
+to printable ASCII, so a ⚔ falls back to a colour emoji at the wrong metrics. It
+is always on, unlike the ⭐, which is only drawn while looking — a mark you had
+to hold a key to see would be a mark nobody reads before walking into a crowd.
+
+### The button asks on the way in, and not on the way out
+
+Pressing it while it is off puts up **Turn PvP mode on?** — the thing rather
+than the act, and the same two letters the mark beside a name carries — with
+three lines and a Cancel: that players who
+also turn it on can hurt you and you them, that your name is marked while it is
+on, and that you cannot switch it off while **in combat** — which is the name of
+the status doing the freezing, so the dialog and the countdown in the strip say
+the same word. Pressing it while it is *on* turns it off
+with nothing to confirm: backing out of violence needs no warning, and a dialog
+between a player and the one press that makes them safe is a dialog in the way.
+The decision is `pvpPress`, exported and asserted for the reason
+`spellAppearance` is: the rest of the component is React.
+
+**One glyph, and the colour is the state** — a skull either way, red once it is
+on. A button that changed its picture as well as its colour would be two
+controls to learn, where what has to be read at a glance is whether it is on.
+
+Storage keeps a `pvp:` row per player, written the moment the switch moves
+rather than on the periodic flush: a switch somebody turned off and a crash a
+second later must not add up to a player who comes back fightable. Off is written
+as well as on, or turning it off would last exactly until the next reconnect. It
+also rides across a world replacement on the tags' argument — it records a
+decision the player made, and nothing an author writes into a map has any bearing
+on it.
+
+### It defaults to off, and that is a balance decision
+
+Every player who has never touched it is unfightable, and two players who have
+never touched it cannot fight at all. The alternative — everybody in, opt out —
+makes the first minute of a stranger's world a fight they did not choose. The
+cost is that a duel now takes two presses rather than none, which is the right
+way round for a world where most of what anybody is doing is mining, building and
+feeding deer.
 
 ## A status cadence is a formula, so Fed heals every body in the same time
 
