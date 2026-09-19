@@ -2612,6 +2612,17 @@ are load-bearing.
   was a mode a player could be left in, and it is now one half of a press about
   one creature that a fresh body has not made.
 
+**Both rows answer a second press, and the fight row did not used to.** Pressing
+the lit `attack` row turns the mode off and keeps the body, which is exactly what
+the keyboard's half — `GameRenderer.toggleSwing`, bound to E — has always done;
+pressing the lit `target` row lets the body go. The fight row used to re-send the
+same two calls and change nothing, on the grounds that the pair already says
+everything: watching is the off position, so there was one. What that missed is
+what a *lit* row promises. Every other lit row in the list undoes itself — the
+talk row closes the panel, the follow row stops following — so a lit row that
+answered a press with nothing was indistinguishable from a tap the page had
+dropped.
+
 The colour of the outline follows from the stance rather than from having a
 target at all: white while you are only watching, red once it is a fight, and
 pulsing in both cases because the pulse is what separates a *chosen* body from one the
@@ -6882,6 +6893,25 @@ one.
 read them — their name, their health, their ⭐ — and a player you cannot fight is
 still a player you may want to look at. A refused swing leaves the target
 targeted.
+
+### The fight row is not drawn where there is no fight to be had
+
+`battlerOptions` asks `mayHarm` and leaves the `attack` row out entirely when the
+answer is no. A row that is drawn and does nothing when pressed is the one thing
+the interaction list promises never to offer — the same promise a blocked row
+keeps by being grey, except that here there is nothing to explain: the body is
+simply not something you can fight, and the two verbs that still work are the
+two that are left.
+
+The watch row is then lit whenever that body is the one picked, rather than only
+when the attack mode is off. With no fight row beside it there is nothing to
+share the decision with, and attack mode can perfectly well be on because of a
+fight with somebody else.
+
+The rule has to be asked on both sides, so `pvp.ts`'s `combatantOf` reads
+residency off the tile — a player wears the player tile — which is the same test
+`bodyNameFor` reads identity off. The simulation builds its own from
+`ActorRuntime.resident`; the two agree because that is what the tile means.
 
 ### Frozen mid-fight
 

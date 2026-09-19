@@ -216,6 +216,15 @@ function field(): MapFile {
   return map;
 }
 
+/**
+ * A body on the board.
+ *
+ * **In the fighting by default**, which is the opposite of what a player who
+ * has never touched the switch is — see `./pvp`. Almost every case in this file
+ * is about which rows a body offers and in what order, and a fixture that was
+ * quietly unfightable would be asserting the switch instead. The cases that
+ * *are* about the switch pass `pvp: false` and say so.
+ */
 function actor(
   id: string,
   tileId: string,
@@ -223,6 +232,7 @@ function actor(
   y: number,
   map: MapFile,
   hp: number | null = null,
+  pvp = true,
 ): ActorSnapshot {
   return {
     id,
@@ -247,7 +257,7 @@ function actor(
     carriedLights: [],
     extracting: null,
     casting: null,
-    pvp: false,
+    pvp,
   };
 }
 
@@ -1944,6 +1954,70 @@ describe("actionRows", () => {
  * in two places — a row here and a mode elsewhere — and pressing one told you
  * nothing about the other.
  */
+/**
+ * Two players who have not both opted into fighting each other.
+ *
+ * What the list has to do about it is leave the fight row out: a row that is
+ * drawn and does nothing when pressed is the one thing this file promises never
+ * to offer. Everything else about the body stays. @see ./pvp
+ */
+describe("listInteractionOptions — somebody you cannot fight", () => {
+  /** The viewer and one other player, each with their switch where it is put. */
+  function twoPlayers(mine: boolean, theirs: boolean) {
+    const map = place(field(), 1, 0, ["grass", "player"]);
+    const me = actor("me", "player", 0, 0, map, 10, mine);
+    const them = actor("them", "player", 1, 0, map, 10, theirs);
+    return { map, me, them };
+  }
+
+  function verbsOn(mine: boolean, theirs: boolean, targetId: string | null = null) {
+    const { map, me, them } = twoPlayers(mine, theirs);
+    return listInteractionOptions(map, tilesById, me, [me, them], targetId, KIT)
+      .filter((option) => option.actorId === "them")
+      .map((option) => option.action);
+  }
+
+  it("offers the fight row when both switches are on", () => {
+    expect(verbsOn(true, true)).toContain("attack");
+  });
+
+  // The shove stays, and so does everything else a body offers: a push moves
+  // somebody, which is not harm and is not what the switch is about.
+  it("leaves it out when theirs is off", () => {
+    expect(verbsOn(true, false)).toEqual(["target", "follow", "push"]);
+  });
+
+  it("leaves it out when the viewer's own is off", () => {
+    expect(verbsOn(false, true)).toEqual(["target", "follow", "push"]);
+  });
+
+  it("still offers it against a creature, whatever the viewer's switch says", () => {
+    const map = place(field(), 1, 0, ["grass", "deer"]);
+    const me = actor("me", "player", 0, 0, map, 10, false);
+    const deer = actor("npc:deer", "deer", 1, 0, map, 10, false);
+
+    expect(
+      listInteractionOptions(map, tilesById, me, [me, deer], null, KIT)
+        .filter((option) => option.actorId === "npc:deer")
+        .map((option) => option.action),
+    ).toContain("attack");
+  });
+
+  /**
+   * With no fight row beside it, the watch row is the whole of the control
+   * rather than half of one — so it says what it is whatever the attack mode
+   * happens to be set to by a fight with somebody else.
+   */
+  it("lights the lone watch row for the body that is picked", () => {
+    const { map, me, them } = twoPlayers(true, false);
+    const options = listInteractionOptions(
+      map, tilesById, me, [me, them], "them", KIT, null, [], null, true,
+    );
+
+    expect(options.find((option) => option.action === "target")?.active).toBe(true);
+  });
+});
+
 describe("applyInteraction — the fight and the watch", () => {
   /** Just enough of a session to record what a press asked of it. */
   function recorder() {
@@ -1977,12 +2051,17 @@ describe("applyInteraction — the fight and the watch", () => {
     expect(calls).toEqual(["target npc:deer", "swinging true"]);
   });
 
-  it("keeps swinging when pressed again, rather than calling the fight off", () => {
+  /**
+   * Both ends of the pair answer a second press now. A lit row that did nothing
+   * when pressed is one nobody can tell from a dropped tap — and this is the
+   * same toggle the keyboard's half has always been.
+   */
+  it("stops the fight when pressed again, and keeps the body", () => {
     const { calls, session } = recorder();
 
     applyInteraction(session, row(bodyOptions("npc:deer", true), "attack"));
 
-    expect(calls).toEqual(["target npc:deer", "swinging true"]);
+    expect(calls).toEqual(["swinging false"]);
   });
 
   it("stops the fight and keeps the body when the watch beside it is pressed", () => {

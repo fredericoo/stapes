@@ -37,6 +37,7 @@ import {
   type ObjectRef,
 } from "./affordances";
 import { conjuredName } from "./conjured";
+import { combatantOf, mayHarm } from "./pvp";
 import { engravedName } from "../lib/engraving";
 import { pileTally } from "../lib/piles";
 import { bodyNameFor, bodyNameIn } from "./displayName";
@@ -626,7 +627,15 @@ export function listInteractionOptions(
   const nameOf = bodyNameIn([self, ...visibleActors], tilesById);
 
   const options = [
-    ...battlerOptions(tilesById, bodies, targetId, followId, attacking, nextBlow),
+    ...battlerOptions(
+      tilesById,
+      self,
+      bodies,
+      targetId,
+      followId,
+      attacking,
+      nextBlow,
+    ),
     ...talkOptions(map, tilesById, self, bodies, conversation),
     ...objectOptions(
       map,
@@ -926,6 +935,17 @@ export function applyInteraction(
   // watching says who and that you are not. Nothing can end up swinging at
   // somebody it never picked, which is exactly what the old mode allowed.
   if (option.action === "attack") {
+    // **Pressing the lit one stops the fight without letting the body go**, and
+    // the watch row beside it lights instead. The same toggle the keyboard's
+    // half has always been — see `../render/GameRenderer`'s `toggleSwing` — and
+    // the reason both ends of the pair now answer a second press: a row that is
+    // lit and does nothing when pressed is a row nobody can tell from a dropped
+    // tap. Backing out of a fight without losing sight of what you backed out
+    // of is what {@link PlaySession.setAttackMode} is for.
+    if (option.active) {
+      session.setAttackMode(false);
+      return;
+    }
     session.setTarget(option.actorId);
     session.setAttackMode(true);
     return;
@@ -1479,9 +1499,16 @@ function talkOptions(
  * **Exactly one of the fight row and the target row is ever lit**, because they
  * are the two positions of one decision about this body: swinging at it, or
  * watching it. Neither is lit for a body that is not the one you have picked.
+ *
+ * **Two of the three on somebody there is no fight to be had with.** A player
+ * who has not opted into fighting other players — or a viewer who has not —
+ * gets no fight row, because the row would be a button that does nothing. What
+ * is left is watching them and walking after them, which are exactly the two
+ * things that still work. @see `./pvp`
  */
 function battlerOptions(
   tilesById: Record<string, TileDef>,
+  self: ActorSnapshot,
   bodies: Map<string, ActorSnapshot>,
   targetId: string | null,
   followId: string | null,
@@ -1489,6 +1516,7 @@ function battlerOptions(
   nextBlow: Progress | null,
 ): InteractionOption[] {
   const out: InteractionOption[] = [];
+  const me = combatantOf(self);
 
   for (const actor of bodies.values()) {
     if (actor.hp === null) continue;
@@ -1505,24 +1533,32 @@ function battlerOptions(
     );
     const health = healthOf(actor);
     const picked = actor.id === targetId;
-    const fighting = picked && attacking;
-    out.push({
-      id: `attack:${actor.id}`,
-      action: "attack",
-      label: LABELS.attack,
-      ref,
-      actorId: actor.id,
-      recipeIndex: null,
-      blocked: null,
-      // The lit fight row and no other: a fight row on a body nobody has picked
-      // is an offer, and a clock drawn on it would be counting down to a blow
-      // nobody has asked for. @see {@link InteractionOption.wait}
-      wait: fighting ? nextBlow : null,
-      tileId: actor.tileId,
-      name,
-      health,
-      active: fighting,
-    });
+    // **No fight row where there is no fight to be had.** Two players who have
+    // not both opted in cannot hurt each other, so the row would be a button
+    // that does nothing — and this list's whole promise is that a row does what
+    // it says. Everything else about the body stays: watching it and walking
+    // after it are what you can still do. @see `./pvp`
+    const fightable = mayHarm(me, combatantOf(actor));
+    const fighting = fightable && picked && attacking;
+    if (fightable) {
+      out.push({
+        id: `attack:${actor.id}`,
+        action: "attack",
+        label: LABELS.attack,
+        ref,
+        actorId: actor.id,
+        recipeIndex: null,
+        blocked: null,
+        // The lit fight row and no other: a fight row on a body nobody has
+        // picked is an offer, and a clock drawn on it would be counting down to
+        // a blow nobody has asked for. @see {@link InteractionOption.wait}
+        wait: fighting ? nextBlow : null,
+        tileId: actor.tileId,
+        name,
+        health,
+        active: fighting,
+      });
+    }
     out.push({
       id: `target:${actor.id}`,
       action: "target",
@@ -1535,7 +1571,11 @@ function battlerOptions(
       tileId: actor.tileId,
       name,
       health,
-      active: picked && !attacking,
+      // Lit whenever this body is the one picked, unless the fight row beside
+      // it is lit instead. With no fight row there is nothing to share the
+      // decision with, so a picked body reads as picked however the attack mode
+      // happens to be set — which it can be, from a fight with somebody else.
+      active: fightable ? picked && !attacking : picked,
     });
     out.push({
       id: `follow:${actor.id}`,

@@ -13,7 +13,7 @@ import {
   type StatusInstance,
   walkSpeedPercentFrom,
 } from "../game/statuses";
-import { type Combatant, mayHarm } from "../game/pvp";
+import { combatantOf, type Combatant, mayHarm } from "../game/pvp";
 import {
   ageEffects,
   ageFlights,
@@ -2519,20 +2519,13 @@ export class RemoteSession implements PlaySession {
    * half a level nearer than a rat beside it, and a client measuring from the
    * floor would dim a button the server would have honoured.
    */
-  /**
-   * One body as the harm rule sees it. @see `../game/pvp`'s {@link Combatant}
-   *
-   * Residency is read off the tile, which is the same test identity is read off
-   * everywhere else on this side: a player wears the player tile and a creature
-   * wears its own. The simulation knows it as a fact recorded when the actor was
-   * made; the two agree because that is what the tile means.
-   */
+  /** One body as the harm rule sees it. @see `../game/pvp`'s `combatantOf` */
   private combatant(id: string, loc: ActorLocation): Combatant {
-    return {
+    return combatantOf({
       id,
-      resident: loc.placed.tileId !== PLAYER_TILE_ID,
+      tileId: loc.placed.tileId,
       pvp: this.pvpOn.has(id),
-    };
+    });
   }
 
   private castPoint(loc: ActorLocation): CastPoint {

@@ -26,10 +26,44 @@
  *   stack rather than merely refused, so what is under it still gets its turn
  *   (`GameSession.grantStandingStatus` and `./conjured`).
  *
+ * The interaction list reads it too, and reads it for the other reason: a fight
+ * row on somebody you cannot fight is a button that does nothing, so the row is
+ * simply not offered. @see `./interactionOptions`'s `battlerOptions`
+ *
  * What is deliberately *not* in that list is targeting. Pointing at somebody is
  * how you read them — their name, their health, their ⭐ — and a player you
- * cannot fight is still a player you may want to look at.
+ * cannot fight is still a player you may want to look at. The watch row is
+ * offered for everybody, and with no fight row beside it, it is the whole of
+ * the control rather than half of one.
  */
+
+import { PLAYER_TILE_ID } from "./constants";
+
+/**
+ * One body as the rule sees it, read off a snapshot.
+ *
+ * **Residency is read off the tile**, which is the same test identity is read
+ * off everywhere a client works: a player wears the player tile and a creature
+ * wears its own — see `./displayName`'s {@link bodyNameFor}. The simulation
+ * knows residency as a fact recorded when the actor was made and builds its own
+ * {@link Combatant} from that; the two agree because that is what the tile
+ * means.
+ *
+ * Here rather than in each of the three callers, because a caller that built it
+ * by hand is the one that would forget the residency and have a player refuse
+ * to swing at a deer.
+ */
+export function combatantOf(body: {
+  id: string;
+  tileId: string;
+  pvp: boolean;
+}): Combatant {
+  return {
+    id: body.id,
+    resident: body.tileId !== PLAYER_TILE_ID,
+    pvp: body.pvp,
+  };
+}
 
 /**
  * Just enough of a body to answer the question.
