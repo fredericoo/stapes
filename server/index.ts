@@ -1,11 +1,13 @@
 import { Elysia } from "elysia";
 import {
-  ACTOR_COOKIE,
+  CHARACTER_PARAM,
   CLOSE_OUTDATED_CLIENT,
+  CLOSE_SIGNED_OUT,
   GAME_SOCKET_PATH,
   PROTOCOL_VERSION,
   PROTOCOL_VERSION_PARAM,
 } from "../app/net/protocol";
+import { viewerOf } from "./auth";
 import { readConfig } from "./config";
 import { createApi } from "./api";
 import { ClientBundle } from "./clientBundle";
@@ -15,7 +17,7 @@ import { World } from "./world";
 /**
  * The whole server: the world, the API, and the client bundle, on one origin.
  *
- * One origin is not a convenience. The actor cookie is `HttpOnly` and has to
+ * One origin is not a convenience. The session cookie is `HttpOnly` and has to
  * ride the socket upgrade; splitting the client onto its own hostname would
  * mean `SameSite=None`, a CORS policy, and credentialed fetches — three knobs
  * whose misconfiguration breaks identity silently. Serving the client from here
@@ -46,20 +48,7 @@ const app = new Elysia({
 })
   .use(createApi(world, bundle, config))
   .ws(GAME_SOCKET_PATH, {
-    /**
-     * Identity and version are settled before the socket is a socket.
-     *
-     * The id comes from the cookie, never from the query string — a client
-     * naming its own actor could drive somebody else's body. The cookie is set
-     * by `GET /api/session`, which is the only thing that mints one.
-     */
-    beforeHandle({ cookie, status }) {
-      if (!cookie[ACTOR_COOKIE]?.value) return status(403, "Log in first");
-      return undefined;
-    },
-
     open(ws) {
-      const actorId = String(ws.data.cookie[ACTOR_COOKIE]!.value);
       const socket = new GameSocket({
         send: (data) => void ws.send(data),
         close: (code, reason) => void ws.close(code, reason),
@@ -73,9 +62,8 @@ const app = new Elysia({
       // A browser reports a rejected upgrade to the page as an indistinguishable
       // failure, so a client refused that way cannot tell "reload me" from "the
       // server is down", and sits in its backoff instead of reloading.
-      const claimed = Number(
-        new URL(ws.data.request.url).searchParams.get(PROTOCOL_VERSION_PARAM),
-      );
+      const url = new URL(ws.data.request.url);
+      const claimed = Number(url.searchParams.get(PROTOCOL_VERSION_PARAM));
       if (claimed !== PROTOCOL_VERSION) {
         socket.send(
           JSON.stringify({ type: "outdated", serverVersion: PROTOCOL_VERSION }),
@@ -89,7 +77,43 @@ const app = new Elysia({
         return;
       }
 
-      void world.join(socket, actorId);
+      /**
+       * Who this socket is, settled after the upgrade rather than before it.
+       *
+       * **The account comes from the cookie and the body comes from the query
+       * string, and only the first of those is trusted.** The cookie is signed
+       * and `HttpOnly`, so the page cannot claim to be another account; the
+       * character id is a plain parameter, so it is looked up *against that
+       * account* and a character belonging to anybody else is simply not
+       * found. That is the whole of the ownership rule — "two accounts cannot
+       * share a character" is this query returning no row.
+       *
+       * Refused with a close rather than a 403 at the upgrade, on exactly the
+       * terms the version check above is: a rejected upgrade reaches the page
+       * as an indistinguishable failure, so a signed-out tab would sit in its
+       * reconnect backoff instead of putting the sign-in screen back up.
+       */
+      void (async () => {
+        const viewer = await viewerOf(world.auth, ws.data.request.headers);
+        if (!viewer) {
+          socket.close(CLOSE_SIGNED_OUT, "not signed in");
+          return;
+        }
+        const wanted = url.searchParams.get(CHARACTER_PARAM);
+        const character = wanted
+          ? await world.characters.ownedBy(wanted, viewer.id)
+          : null;
+        if (!character) {
+          socket.close(CLOSE_SIGNED_OUT, "not your character");
+          return;
+        }
+        // Closed while we were asking — a tab shut in the half-millisecond the
+        // two lookups took. Joining would seat a body for a connection that is
+        // already gone, and nothing would take it off the board until the next
+        // load reaped it.
+        if (socket.closed) return;
+        await world.join(socket, character.id);
+      })();
     },
 
     message(ws, message) {
@@ -105,28 +129,6 @@ const app = new Elysia({
       const socket = sockets.get(ws.raw as object);
       if (socket) void world.leave(socket);
     },
-  })
-  /**
-   * Mint the actor cookie.
-   *
-   * Identity is a random id in an `HttpOnly` cookie — enough to give somebody
-   * their avatar back on reload, and deliberately not a login. `HttpOnly` is
-   * what makes the socket handshake trustworthy: the page cannot read it, so it
-   * cannot claim to be anybody else.
-   */
-  .get("/api/session", ({ cookie }) => {
-    const existing = cookie[ACTOR_COOKIE]?.value;
-    if (!existing) {
-      cookie[ACTOR_COOKIE]!.set({
-        value: crypto.randomUUID(),
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: config.PUBLIC_ORIGIN.startsWith("https:"),
-        maxAge: 60 * 60 * 24 * 365,
-      });
-    }
-    return { protocolVersion: PROTOCOL_VERSION };
   })
   /**
    * Everything else is the client.

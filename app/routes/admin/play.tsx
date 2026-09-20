@@ -7,7 +7,12 @@ import { InkDocument } from "../../components/InkDocument";
 import { LightingToggle } from "../../components/LightingToggle";
 import { LoadingScreen } from "../../components/LoadingScreen";
 import { WorldClock } from "../../components/WorldClock";
-import { GameSession, NO_VITALS, type Vitals } from "../../game/GameSession";
+import {
+  GameSession,
+  LOCAL_ACTOR_ID,
+  NO_VITALS,
+  type Vitals,
+} from "../../game/GameSession";
 import { type Equipment, emptyEquipment } from "../../game/equipment";
 import type { Conversation, TalkAction } from "../../game/dialogRuntime";
 import type { MasteryXp } from "../../lib/mastery";
@@ -28,6 +33,7 @@ import { type CastSlot, type SpellButton, spellPress } from "../../game/casting"
 import { useGameAssets } from "../../lib/gameAssets";
 import type { Direction } from "../../lib/types";
 import { fetchBootstrap, fetchMapText } from "../../lib/api";
+import { requireAdmin } from "../../lib/auth";
 import { parseMap } from "../../lib/mapData";
 import { activeStatuses, statusesById } from "../../lib/status";
 import { GameRenderer } from "../../render/GameRenderer";
@@ -36,6 +42,9 @@ import { FrameStatsReadout } from "../../components/FrameStatsReadout";
 import type { FrameStats } from "../../render/frameProfile";
 
 export async function clientLoader() {
+  // First and alone, because `/api/map` is behind the same role and would 404
+  // for anybody this is about to turn away. @see ../../lib/auth's requireAdmin
+  await requireAdmin();
   const [mapText, bootstrap] = await Promise.all([
     fetchMapText(),
     fetchBootstrap(),
@@ -201,7 +210,13 @@ export default function PlayPage() {
 
     let session: GameSession;
     try {
-      session = new GameSession(map, tiles, { statuses: statusDefs });
+      session = new GameSession(map, tiles, {
+        // Offline, so there is no account and no character row to read a name
+        // off — and a label reading `Nobody` over the only body on screen is a
+        // worse answer than saying what this page is. @see `../../game/displayName`
+        names: { [LOCAL_ACTOR_ID]: "Tester" },
+        statuses: statusDefs,
+      });
     } catch (err) {
       console.error(err);
       return;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PLAYER_TILE_ID } from "../game/constants";
-import { displayNameFor, bodyNameFor, sizedUpName } from "../game/displayName";
+import { bodyNameFor, sizedUpName, UNNAMED_BODY } from "../game/displayName";
 import { RATING_GLYPH } from "../lib/mastery";
 import type { TileDef } from "../lib/types";
 import { labelScreenPosition, stackingOrder } from "./textLabels";
@@ -106,86 +106,21 @@ describe("stacking order", () => {
   });
 });
 
-describe("display names", () => {
-  const uuid = "3f9ac1d2-55b7-4a0e-9c31-8a2b6f0e1d44";
-  const twoCapitalisedWords = /^[A-Z][a-z]+ [A-Z][a-z]+$/;
-
-  it("names an actor after a colour and an animal", () => {
-    expect(displayNameFor(uuid)).toMatch(twoCapitalisedWords);
-  });
-
-  it("gives the same actor the same name every time", () => {
-    expect(displayNameFor(uuid)).toBe(displayNameFor(uuid));
-  });
-
-  it("tells two actors apart", () => {
-    expect(displayNameFor(uuid)).not.toBe(
-      displayNameFor("aa11bb22-55b7-4a0e-9c31-8a2b6f0e1d44"),
-    );
-  });
-
-  /**
-   * The reason the id is hashed rather than handed to the generator's own
-   * `seed`, which sums char codes: uuids differing only in the order of their
-   * digits are exactly what a cookie mints, and summing gives every one of them
-   * the same name.
-   */
-  it("tells apart two ids made of the same characters", () => {
-    expect(displayNameFor("3f9ac1d2-55b7-4a0e-9c31-8a2b6f0e1d44")).not.toBe(
-      displayNameFor("2d1ca9f3-55b7-4a0e-9c31-8a2b6f0e1d44"),
-    );
-  });
-
-  /**
-   * A name is drawn from a fixed pair of word lists, so the odd ids have
-   * nothing to fall back to and nothing to fail at — but the arithmetic that
-   * indexes those lists can still walk off the end of one.
-   */
-  it("names an actor whatever its id looks like", () => {
-    for (const id of ["", "-", "ab", "----------", "z"]) {
-      expect(displayNameFor(id)).toMatch(twoCapitalisedWords);
-    }
-  });
-
-  /**
-   * Both halves have to keep moving. Everything above would still pass if one
-   * of the two words were drawn from a handful of entries — the names would be
-   * distinct and it would be the *other* word doing all the work — so this
-   * counts what a hundred ids actually get.
-   *
-   * The thresholds are well under what a uniform draw gives (≈45 of 52 colours,
-   * ≈87 of 355 animals, both by the birthday effect rather than by any flaw), so
-   * they fail on a stuck word list rather than on an unlucky run.
-   */
-  it("draws on the breadth of both word lists", () => {
-    const names = Array.from({ length: 100 }, (_, i) =>
-      displayNameFor(`actor-${i}`),
-    );
-
-    const colours = new Set(names.map((name) => name.split(" ")[0]));
-    const beasts = new Set(names.map((name) => name.split(" ")[1]));
-    expect(new Set(names).size).toBe(100);
-    expect(colours.size).toBeGreaterThan(30);
-    expect(beasts.size).toBeGreaterThan(70);
-  });
-});
-
 /**
  * Who a bubble is attributed to, which is a different question for a person and
- * for a deer: one is a stranger behind a cookie, the other is a tile somebody
- * authored and named.
+ * for a deer: one typed a name when they made their character, the other is a
+ * tile somebody authored and named.
  */
 describe("naming a speaker", () => {
   const tilesById = {
     deer: { id: "deer", name: "Deer" } as TileDef,
     [PLAYER_TILE_ID]: { id: PLAYER_TILE_ID, name: "Player" } as TileDef,
   };
-  const uuid = "3f9ac1d2-55b7-4a0e-9c31-8a2b6f0e1d44";
 
-  it("calls a person by their generated name", () => {
+  it("calls a person by the name they chose", () => {
     expect(
-      bodyNameFor({ actorId: uuid, tileId: PLAYER_TILE_ID }, tilesById),
-    ).toBe(displayNameFor(uuid));
+      bodyNameFor({ tileId: PLAYER_TILE_ID, name: "Arthur" }, tilesById),
+    ).toBe("Arthur");
   });
 
   /**
@@ -194,31 +129,40 @@ describe("naming a speaker", () => {
    */
   it("does not call a person after the tile they stand up in", () => {
     expect(
-      bodyNameFor({ actorId: uuid, tileId: PLAYER_TILE_ID }, tilesById),
+      bodyNameFor({ tileId: PLAYER_TILE_ID, name: "Arthur" }, tilesById),
     ).not.toBe("Player");
   });
 
+  /**
+   * A body with no name is a body from a session that has no character table —
+   * `/admin/play`'s single local player — or one whose name never reached this
+   * client. Either way the words still have to be attributed to something, and
+   * a blank label is worse than an obviously placeholder one.
+   */
+  it("still attributes the words when a person has no name", () => {
+    expect(bodyNameFor({ tileId: PLAYER_TILE_ID }, tilesById)).toBe(
+      UNNAMED_BODY,
+    );
+  });
+
   it("calls a creature what its tile is called", () => {
-    expect(bodyNameFor({ actorId: "npc:1,2,0,1", tileId: "deer" }, tilesById))
-      .toBe("Deer");
+    expect(bodyNameFor({ tileId: "deer" }, tilesById)).toBe("Deer");
   });
 
   /**
-   * The point of naming a creature after its tile rather than its owner id:
-   * every deer is the same deer, and two of them yelping should not read as two
-   * individuals with names.
+   * The point of naming a creature after its tile: every deer is the same
+   * deer, and two of them yelping should not read as two individuals with
+   * names.
    */
   it("calls every creature of a kind the same thing", () => {
-    expect(
-      bodyNameFor({ actorId: "npc:1,2,0,1", tileId: "deer" }, tilesById),
-    ).toBe(bodyNameFor({ actorId: "npc:8,4,0,1", tileId: "deer" }, tilesById));
+    expect(bodyNameFor({ tileId: "deer" }, tilesById)).toBe(
+      bodyNameFor({ tileId: "deer" }, tilesById),
+    );
   });
 
   /** A map holding a deleted tile id is a bug elsewhere, not a blank label. */
   it("still attributes the words when the tile is unknown", () => {
-    expect(
-      bodyNameFor({ actorId: "npc:1,2,0,1", tileId: "ghost" }, tilesById),
-    ).toBeTruthy();
+    expect(bodyNameFor({ tileId: "ghost" }, tilesById)).toBeTruthy();
   });
 });
 

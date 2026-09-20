@@ -14,7 +14,7 @@ import type { TileDef, TilesetDef } from "./types";
  *
  * Same-origin by construction. The server owns the origin and serves this
  * bundle, so there is no base URL to configure, no CORS, and the `HttpOnly`
- * actor cookie rides every request without `credentials` ceremony.
+ * session cookie rides every request without `credentials` ceremony.
  *
  * `origin`, not `host`: Eden prefixes a bare host with `https://` unless it
  * is loopback. A phone on `http://192.168.0.4:…` would then call HTTPS on a
@@ -114,13 +114,6 @@ export async function uploadTilesetBytes(
     new File([bytes as BlobPart], name, { type: "image/png" }),
     name,
   );
-}
-
-/** Mint or refresh the actor cookie, and learn what the server speaks. */
-export async function startSession(): Promise<{ protocolVersion: number }> {
-  const response = await fetch("/api/session", { credentials: "same-origin" });
-  if (!response.ok) throw new Error("Could not start a session");
-  return (await response.json()) as { protocolVersion: number };
 }
 
 /** Where a tileset PNG is served from, for the renderer's image loads. */

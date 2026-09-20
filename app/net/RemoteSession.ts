@@ -131,6 +131,7 @@ import {
   type CastingPatch,
   type ExtractionPatch,
   type HpPatch,
+  type NamePatch,
   type MotionEvent,
 } from "./protocol";
 
@@ -294,6 +295,20 @@ export class RemoteSession implements PlaySession {
     string,
     { hp: number; maxHp: number; rating: number }
   >();
+  /**
+   * What each person the server has named is called.
+   *
+   * **Never cleared except by a `hello`, and never overwritten**, which makes
+   * it the one map here that is not a cache of a moving fact. A name is typed
+   * at character creation and fixed after that, so the server sends each one
+   * once — on arrival, or when the body walks into reach — and the client keeps
+   * it. A body that walks out of reach and back is announced again and the
+   * second announcement says the same thing.
+   *
+   * Creatures are absent by design: they are named after their tile, out of the
+   * catalogue this client already holds. @see `../game/displayName`
+   */
+  private readonly names = new Map<string, string>();
   /**
    * The lit things each actor is carrying, as the server last reported them.
    *
@@ -769,6 +784,11 @@ export class RemoteSession implements PlaySession {
         sinceEffectMs: 0,
       }));
       for (const id of message.actorIds) this.motions.set(id, emptyMotion());
+      // Emptied first, unlike everything beside it: a `hello` is a new world or
+      // a new body, and holding names from the last one would leave a label on
+      // a body somebody else is now in.
+      this.names.clear();
+      this.applyNames(message.names);
       this.applyHps(message.hps);
       this.applyCarriedLights(message.carriedLights);
       this.applyStatusIds(message.statusIds);
@@ -793,6 +813,11 @@ export class RemoteSession implements PlaySession {
         id: `chat-${this.nextChatId++}`,
         actorId: message.actorId,
         tileId: message.tileId,
+        // Off the message rather than out of {@link names}, because the bubble
+        // outlives its author: a stranger can say something and walk out of
+        // reach before the five seconds are up. @see `../game/GameSession`'s
+        // `ChatBubble`
+        name: message.name,
         text: message.text,
         x: message.x,
         y: message.y,
@@ -938,6 +963,7 @@ export class RemoteSession implements PlaySession {
     }
 
     const leaving = this.applyCells(message.cells);
+    this.applyNames(message.names);
     this.applyHps(message.hps);
     this.applyCarriedLights(message.carriedLights);
     this.applyStatusIds(message.statusIds);
@@ -969,6 +995,17 @@ export class RemoteSession implements PlaySession {
    * single list because there is only ever one body it describes.
    */
   private statuses: readonly StatusInstance[] = NO_STATUSES;
+
+  /**
+   * Learn what somebody is called.
+   *
+   * Nothing is removed here and nothing is corrected: see {@link names}. A
+   * body that has left is left in the map on purpose — a bubble it left behind
+   * outlives it by five seconds, and so does the skull with its name on it.
+   */
+  private applyNames(patches: NamePatch[]) {
+    for (const patch of patches) this.names.set(patch.actorId, patch.name);
+  }
 
   /** Take the server's word for everybody's hit points. */
   private applyHps(hps: HpPatch[]) {
@@ -2198,6 +2235,7 @@ export class RemoteSession implements PlaySession {
       strikeProgress: motion.strike
         ? Math.min(1, motion.strike.elapsedMs / STRIKE_DURATION_MS)
         : 0,
+      name: this.names.get(id) ?? null,
       hp: health?.hp ?? null,
       maxHp: health?.maxHp ?? null,
       rating: health?.rating ?? null,
@@ -2931,6 +2969,10 @@ function emptyMotion(): RemoteMotion {
 function offscreenActor(id: string): ActorSnapshot {
   return {
     id,
+    // Nameless, because nothing draws this body: it exists to keep the
+    // renderer's contract total before the first `hello` and after a death,
+    // and neither of those is a moment anybody is reading a label.
+    name: null,
     // The viewer's own body, which is always a player's — this stands in for
     // one that has not arrived yet, not for one that turned out to be a deer.
     tileId: PLAYER_TILE_ID,

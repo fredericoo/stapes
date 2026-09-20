@@ -16,6 +16,7 @@ import { DAMAGE_NUMBER_LIFETIME_MS, TICK_MS } from "../../game/constants";
 import { type DuelEvent, Duel, opponentOf, type Side, SIDES } from "../../game/duel";
 import { Rng } from "../../game/rng";
 import { fetchBootstrap } from "../../lib/api";
+import { requireAdmin } from "../../lib/auth";
 import type { FightingStats } from "../../lib/battler";
 import { isRanged } from "../../lib/item";
 import { type StatusDef, statusesById } from "../../lib/status";
@@ -60,6 +61,7 @@ import { Button, NumberInput, Segmented } from "../../ui";
  */
 
 export async function clientLoader() {
+  await requireAdmin();
   return await fetchBootstrap();
 }
 

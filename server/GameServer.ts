@@ -81,6 +81,7 @@ import {
   type ExtractionPatch,
   type CellPatch,
   type HpPatch,
+  type NamePatch,
   type MotionEvent,
   type ServerMessage,
 } from "../app/net/protocol";
@@ -96,12 +97,27 @@ type TickPatch = Omit<Extract<ServerMessage, { type: "patch" }>, "type">;
 /**
  * The tick's patch before it is cut for anybody: the same fields, with the
  * cells still carrying what decides who they are news to.
+ *
+ * **Without the names**, which is the one field that has no shared form. Every
+ * other list here is a diff of something that moved this tick and is the same
+ * fact for everybody; a name is sent to one client because *that* client has
+ * not met the body, so it only exists once the patch has been cut. @see
+ * NamePatch
  */
-type SharedPatch = Omit<TickPatch, "cells"> & { cells: ScopedCell[] };
+type SharedPatch = Omit<TickPatch, "cells" | "names"> & { cells: ScopedCell[] };
 
-/** The shared patch as the wire shape, for a client that takes all of it. */
+/**
+ * The shared patch as the wire shape, for a client that takes all of it.
+ *
+ * Nameless, and it cannot be otherwise: a client takes the shared patch only
+ * when nothing was cut for it, and an arrival is a cut. @see scopedPatchFor
+ */
 function wholePatch(patch: SharedPatch): TickPatch {
-  return { ...patch, cells: patch.cells.map((scoped) => scoped.cell) };
+  return {
+    ...patch,
+    names: [],
+    cells: patch.cells.map((scoped) => scoped.cell),
+  };
 }
 
 /**
@@ -111,8 +127,11 @@ function wholePatch(patch: SharedPatch): TickPatch {
  * cells are still carrying what decides who they are for.
  */
 function isEmptyPatch(
-  patch: Omit<TickPatch, "cells"> & { cells: readonly unknown[] },
+  patch: Omit<TickPatch, "cells" | "names"> & { cells: readonly unknown[] },
 ): boolean {
+  // Names are not asked about, and cannot change the answer: one is only ever
+  // sent for a body that just entered this client's reach, and that body is a
+  // `spawned` in `events` on the same patch.
   return (
     patch.cells.length === 0 &&
     patch.events.length === 0 &&
@@ -263,6 +282,24 @@ const RESPAWN_PENDING_KEY = "respawnPending";
  * never comes back.
  */
 const RESPAWN_RETRY_MS = 5_000;
+
+/**
+ * What to call everybody here who is a person, for a client that has never
+ * been told.
+ *
+ * Only the named, which is only the players: a creature is named after its
+ * tile off a catalogue the client already holds, so an entry per deer would be
+ * a string for every body on the board saying what the tile id beside it
+ * already says. @see NamePatch and `../app/game/displayName`
+ */
+function currentNames(actors: ActorSnapshot[]): NamePatch[] {
+  const out: NamePatch[] = [];
+  for (const actor of actors) {
+    if (actor.name === null) continue;
+    out.push({ actorId: actor.id, name: actor.name });
+  }
+  return out;
+}
 
 /** Everybody's hit points right now, for a client that has nothing to diff. */
 function currentHps(actors: ActorSnapshot[]): HpPatch[] {
@@ -824,7 +861,19 @@ export class GameServer {
    */
   constructor(
     protected readonly ctx: WorldContext,
-    protected readonly env: { dataStore: DataStore },
+    protected readonly env: {
+      dataStore: DataStore;
+      /**
+       * What to call the body behind an actor id, or null for an id no account
+       * owns — which is every creature on the map.
+       *
+       * Injected rather than imported because the world does not otherwise
+       * know that accounts exist: `server/world.ts` hands it the character
+       * table, and `server/testHarness.ts` hands it nothing, so the suite
+       * builds worlds full of anonymous bodies exactly as it always did.
+       */
+      nameOf?: (actorId: string) => Promise<string | null>;
+    },
   ) {}
 
   private session: GameSession | null = null;
@@ -2212,6 +2261,11 @@ export class GameServer {
       map: mapOfInterest(session.getMap(), chunks, held),
       actorIds: actors.map((actor) => actor.id),
       hps: currentHps(actors),
+      // Everybody in reach who has a name, so a tag is right on the first
+      // frame. Nothing after this corrects one — see {@link NamePatch} — so a
+      // body missing from here is a body labelled `Nobody` until it leaves
+      // this client's reach and comes back.
+      names: currentNames(actors),
       carriedLights: currentCarriedLights(actors),
       statusIds: currentStatusIds(actors),
       // Beside the statuses and for their reason: somebody who can be fought has
@@ -3029,6 +3083,7 @@ export class GameServer {
     this.broadcastChat(actors, {
       actorId,
       tileId: author.tileId,
+      name: author.name,
       text,
       x: author.x,
       y: author.y,
@@ -3088,6 +3143,8 @@ export class GameServer {
     at: {
       actorId: string;
       tileId: string;
+      /** What the speaker is called, or null for a creature. @see ChatBubble */
+      name: string | null;
       text: string;
       x: number;
       y: number;
@@ -3544,6 +3601,13 @@ export class GameServer {
       this.session.spawn(
         actorId,
         {
+          // Asked of the character table rather than carried over from the
+          // outgoing session, on the terms {@link seatActor} asks it: the table
+          // is what owns a name, and reading it here means the one seating path
+          // that does *not* go through `seatActor` cannot drift from it. A save
+          // that dropped this left every player in the world labelled `Nobody`
+          // until they reconnected.
+          name: (await this.env.nameOf?.(actorId)) ?? null,
           // Honoured only if the cell still has room for them; `findEntryCell`
           // bubbles outward and gives up at the new spawn, so a position kept
           // across a deploy can never seat somebody inside a wall.
@@ -4105,6 +4169,12 @@ export class GameServer {
     await this.rememberSpawn(actorId);
     const spawn = this.spawns.get(actorId);
     this.session!.spawn(actorId, {
+      // Read at every seating rather than remembered across them, and the cost
+      // is one indexed lookup on a join. It is not a fact the checkpoint could
+      // hold: a `name:` row beside the `pos:` row would be a second copy of
+      // something the character table already owns, and the copy is what would
+      // be read if the two ever disagreed. @see `./characters`
+      name: (await this.env.nameOf?.(actorId)) ?? null,
       ...(await this.restoredActor(actorId)),
       // The cell alone, dropping the facing the row also carries: what the
       // session does with this is decide whether a press on a bed would change
@@ -4543,6 +4613,9 @@ export class GameServer {
         cells,
         events: [],
         hps: [],
+        // Ground, and nothing standing on it: the bodies in these cells were
+        // stripped out two lines above, so there is nobody here to name.
+        names: [],
         carriedLights: [],
         statusIds: [],
         pvp: [],
@@ -4732,7 +4805,7 @@ export class GameServer {
       // wandered off and came back was drawn where it used to be, facing the
       // way it used to face, for as long as it stood still. @see `../app/net/scope`
       cells: [
-        ...(cells ?? wholePatch(patch).cells),
+        ...(cells ?? patch.cells.map((scoped) => scoped.cell)),
         ...this.cellsOfChangedReach(arrivals, departed ?? [], held),
       ],
       // Arrivals first and departures last, and both orderings are load-bearing.
@@ -4765,6 +4838,10 @@ export class GameServer {
       // also in the diff below, both readings are taken off this tick's snapshot
       // and say the same thing.
       hps: [...currentHps(arrivals), ...hps],
+      // Arrivals only, and there is no diff half to concatenate: a name cannot
+      // change, so the only reason to send one is a body this client has not
+      // met. @see NamePatch
+      names: currentNames(arrivals),
       carriedLights: [...currentCarriedLights(arrivals), ...carriedLights],
       statusIds: [...currentStatusIds(arrivals), ...statusIds],
       pvp: [...currentPvp(arrivals), ...pvp],

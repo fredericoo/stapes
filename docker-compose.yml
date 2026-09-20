@@ -13,6 +13,10 @@ services:
       DATA_DIR: /data
       PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?set this}
       ADMIN_SECRET: ${ADMIN_SECRET:?set this}
+      # What session cookies are signed with. Required here as well as by the
+      # server, so a missing one fails before the container is built rather
+      # than a second into its first boot.
+      AUTH_SECRET: ${AUTH_SECRET:?set this}
       CHECKPOINT_INTERVAL_MS: ${CHECKPOINT_INTERVAL_MS:-2000}
       BACKUP_DIR: /backups
     volumes:

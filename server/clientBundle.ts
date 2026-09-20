@@ -7,7 +7,7 @@ import type { Config } from "./config";
  *
  * The client is only files, so the process that already owns the origin serves
  * them — which is what collapses the deployment to one container, removes the
- * reverse-proxy routing table, and makes the actor cookie first-party by
+ * reverse-proxy routing table, and makes the session cookie first-party by
  * construction rather than by configuration.
  *
  * **There is no object storage.** An earlier draft read builds from an S3

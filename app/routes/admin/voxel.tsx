@@ -33,6 +33,7 @@ import {
   type VoxelSize,
 } from "../../lib/voxel";
 import { Button, Dialog, Input, NumberInput, Segmented, Select, Switch, useToast } from "../../ui";
+import { requireAdmin } from "../../lib/auth";
 
 const STORAGE_KEY = "stapes-voxel-project";
 const AUTOSAVE_DELAY_MS = 400;
@@ -127,6 +128,16 @@ function loadStoredProject(): VoxelProject | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * The role, and nothing else: this page loads no authored content, so there is
+ * nothing here to fetch and nothing that would have failed on its own.
+ * @see ../../lib/auth's requireAdmin
+ */
+export async function clientLoader() {
+  await requireAdmin();
+  return null;
 }
 
 export default function VoxelPage() {

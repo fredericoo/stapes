@@ -2326,10 +2326,7 @@ export class GameRenderer {
       // says whether they can be fought before anybody swings — see
       // `../game/pvp`. Under the ⭐ rather than over it, because the mark is
       // always on and the rating only while looking.
-      const name = fightingName(
-        bodyNameFor({ actorId: actor.id, tileId: actor.tileId }, this.tilesById),
-        actor.pvp,
-      );
+      const name = fightingName(bodyNameFor(actor, this.tilesById), actor.pvp);
       // Look mode, and not the target: a rating you only see once you have
       // committed to the fight arrived too late to be any use. Holding shift is
       // the question being asked.

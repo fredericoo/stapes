@@ -13,7 +13,6 @@ import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { extractKey } from "./extract";
-import { displayNameFor } from "./displayName";
 import type { ActorSnapshot, PlaySession } from "./GameSession";
 import {
   actionRows,
@@ -236,6 +235,10 @@ function actor(
 ): ActorSnapshot {
   return {
     id,
+    // Every player body in this file is `me`, and what a body is called comes
+    // off the body now rather than out of its id. A creature's is null: it is
+    // named after its tile. @see `./displayName`
+    name: tileId === "player" ? "Mira" : null,
     tileId,
     x,
     y,
@@ -1251,7 +1254,7 @@ describe("listInteractionOptions — a tile somebody conjured", () => {
 
     const options = listInteractionOptions(map, tilesById, me, [me], null, ARMED);
 
-    expect(options[0]!.name).toBe(`${displayNameFor("me")}'s Sword`);
+    expect(options[0]!.name).toBe("Mira's Sword");
   });
 
   it("names it after a creature that conjured it", () => {

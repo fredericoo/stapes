@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { PERF_BUDGETS } from "../app/editor/perf";
+import { signInAsAdmin } from "./accounts";
 
 /**
  * Structure caps always run. Frame-time budget:
@@ -39,6 +40,11 @@ test.describe("editor renderer perf", () => {
 
     const pageErrors: string[] = [];
     page.on("pageerror", (err) => pageErrors.push(String(err)));
+
+    // The editors are behind an `ADMIN` account now, and this test is not about
+    // the door: without a session the navigation below lands on a sign-in form
+    // and there is no canvas to measure. @see ./accounts
+    await signInAsAdmin(page);
 
     // A first load on a cold Vite cache, whose errors are then dropped. The dev
     // server optimises dependencies while that page is already running, and the

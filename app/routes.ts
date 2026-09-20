@@ -8,15 +8,26 @@ export default [
    */
   index("routes/game.tsx"),
   /**
-   * The authoring tools, all of them, behind one path segment.
+   * The authoring tools, all of them, behind one path segment — and now behind
+   * a role as well.
    *
-   * Unguarded on purpose: there is no login yet, so `/admin` is a place rather
-   * than a permission. What it buys today is that nothing in the game links to
-   * it — a tester who never types the path never sees a tile editor — and that
-   * when there is an account system there is one segment to put it in front of.
+   * **Every page here but the door asks for an `ADMIN` account.** The ask is in
+   * each route's own `clientLoader` rather than in a layout above them, because
+   * React Router runs a layout's loader alongside its child's rather than
+   * before it: a gate up there would still let the map editor fire the fetch it
+   * is about to be refused, and the page would land on an error boundary
+   * instead of a sign-in form.
+   *
+   * It is a courtesy rather than the control. These pages are static files in a
+   * bundle anybody can fetch, so what actually stops somebody authoring the
+   * world is `server/api.ts` refusing to write it — see `requireAdmin`, which
+   * says the same thing from the other side.
    */
   ...prefix("admin", [
     index("routes/admin/_index.tsx"),
+    // Reachable signed out, and the only route here that is: there would
+    // otherwise be nowhere to sign in.
+    route("sign-in", "routes/admin/signIn.tsx"),
     route("map", "routes/admin/map.tsx"),
     route("tiles", "routes/admin/tiles.tsx"),
     route("statuses", "routes/admin/statuses.tsx"),

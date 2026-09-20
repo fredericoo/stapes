@@ -7,7 +7,6 @@ import { statusesById } from "../lib/status";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { TICK_MS } from "./constants";
-import { displayNameFor } from "./displayName";
 import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
 
 /**
@@ -263,15 +262,16 @@ describe("a player who dies", () => {
   it("leaves a skull engraved with who they were", () => {
     const session = new GameSession(field([{ tileId: "hearth" }]), tiles, {
       statuses: catalogue,
+      // The name a character was created with, which is the only thing a body
+      // could be engraved with now. @see `./displayName`
+      names: { [LOCAL_ACTOR_ID]: "Arthur" },
     });
 
     advanceUntilDead(session);
 
     const skull = skullAt(session, 0, 0);
-    expect(skull?.engraved).toBe(displayNameFor(LOCAL_ACTOR_ID));
-    expect(engravedName("%s's skull", skull?.engraved)).toBe(
-      `${displayNameFor(LOCAL_ACTOR_ID)}'s skull`,
-    );
+    expect(skull?.engraved).toBe("Arthur");
+    expect(engravedName("%s's skull", skull?.engraved)).toBe("Arthur's skull");
   });
 
   it("says what the condition was and what was burning them", () => {
@@ -398,7 +398,8 @@ describe("a creature that dies", () => {
 
     const skull = skullAt(session, 1, 0);
     // Its tile's name, which is what `./displayName` calls every creature —
-    // so an author picks the art and the world writes on it.
+    // so an author picks the art and the world writes on it. A creature is
+    // never given a name of its own, however many of them the map holds.
     expect(skull?.engraved).toBe("Troll");
     expect(skull?.description).toBe("Cause of death: Burned by Hearth");
   });

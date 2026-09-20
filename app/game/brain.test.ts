@@ -18,7 +18,6 @@ import {
 import { group } from "../lib/conditions";
 import { constantFormula } from "../lib/formula";
 import { DEFAULT_STATUS_SOURCE, type StatusDef } from "../lib/status";
-import { displayNameFor } from "./displayName";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { Coord, Direction, FlatMapFile, MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
@@ -2881,9 +2880,13 @@ describe("holding a conversation", () => {
     map = withPlayerAt(map, 2, 0);
     const session = new GameSession(map, shopkeepers, {
       actorIds: ["alice"],
+      // The names these two would have typed at character creation. A brain
+      // that greets somebody by name reads them off the body — there is no
+      // longer anything derivable from an id. @see `./displayName`
+      names: { alice: ALICE, bob: BOB },
       spawnAt: { x: -9, y: -9, z: 0, stackIndex: 1 },
     });
-    session.spawn("bob", { at: { x: 0, y: 2, z: 0 } });
+    session.spawn("bob", { name: BOB, at: { x: 0, y: 2, z: 0 } });
     return session;
   }
 
@@ -2897,7 +2900,8 @@ describe("holding a conversation", () => {
     return said;
   }
 
-  const ALICE = displayNameFor("alice");
+  const ALICE = "Alice";
+  const BOB = "Bob";
 
   it("greets whoever says hi, by name", () => {
     const session = shop();
@@ -2984,7 +2988,7 @@ describe("holding a conversation", () => {
 
     session.hear("bob", "hi");
     expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual([
-      `Hello, ${displayNameFor("bob")}.`,
+      `Hello, ${BOB}.`,
     ]);
   });
 
@@ -2996,7 +3000,7 @@ describe("holding a conversation", () => {
     // The clock ran out, so alice no longer has the floor and bob does.
     session.hear("bob", "hi");
     expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual([
-      `Hello, ${displayNameFor("bob")}.`,
+      `Hello, ${BOB}.`,
     ]);
   });
 
@@ -3006,12 +3010,12 @@ describe("holding a conversation", () => {
     advance(session, GREETING_MS + BRAIN_TICK_MS * 2);
 
     session.despawn("alice");
-    session.spawn("alice", { at: { x: EARSHOT + 3, y: 0, z: 0 } });
+    session.spawn("alice", { name: ALICE, at: { x: EARSHOT + 3, y: 0, z: 0 } });
     advance(session, BRAIN_TICK_MS * 2);
 
     session.hear("bob", "hi");
     expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual([
-      `Hello, ${displayNameFor("bob")}.`,
+      `Hello, ${BOB}.`,
     ]);
   });
 

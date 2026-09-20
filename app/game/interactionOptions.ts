@@ -1144,7 +1144,7 @@ function slotOptions(
   // `../lib/piles`' `pileTally`.
   const tally = pileTally(placed);
   const name = body
-    ? bodyNameFor({ actorId: body.id, tileId: body.tileId }, tilesById)
+    ? bodyNameFor(body, tilesById)
     : [
         // Whoever conjured it in front of the name, so the row reads "Touch
         // Green Fox's Arcane Flame" — the same answer the look label gives,
@@ -1468,7 +1468,7 @@ function talkOptions(
       blocked: null,
       wait: null,
       tileId: actor.tileId,
-      name: bodyNameFor({ actorId: actor.id, tileId: actor.tileId }, tilesById),
+      name: bodyNameFor(actor, tilesById),
       health: healthOf(actor),
       active: conversation?.npcId === actor.id,
     });
@@ -1527,10 +1527,7 @@ function battlerOptions(
       z: actor.z,
       stackIndex: actor.stackIndex,
     };
-    const name = bodyNameFor(
-      { actorId: actor.id, tileId: actor.tileId },
-      tilesById,
-    );
+    const name = bodyNameFor(actor, tilesById);
     const health = healthOf(actor);
     const picked = actor.id === targetId;
     // **No fight row where there is no fight to be had.** Two players who have

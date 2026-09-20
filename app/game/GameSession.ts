@@ -476,6 +476,15 @@ export type ActorPosition = Coord & { direction: Direction };
 export type ActorSnapshot = {
   id: string;
   /**
+   * What to call this body, for a body somebody is playing, and null for every
+   * creature — which is named after its tile. @see `./displayName`
+   *
+   * On the snapshot rather than derived from the id, which is what it used to
+   * be: a name is typed at character creation now, so it is a fact about the
+   * body and the only place to read it off is the body.
+   */
+  name: string | null;
+  /**
    * The tile this actor's body is. Carried because an actor is no longer
    * necessarily a person: chrome meant for players — a name over the head,
    * above all — has to be able to tell a visitor from a deer, and the body is
@@ -705,8 +714,8 @@ export type ChatBubble = {
   actorId: string;
   /**
    * The body the speaker was in when they said it, which is what decides how
-   * they are named: a person by the handle derived from their id, a creature by
-   * what its tile is called.
+   * they are named: a person by the name they typed, a creature by what its
+   * tile is called.
    *
    * Carried on the bubble rather than looked up when it is drawn, because the
    * bubble outlives its author — the deer that yelped can wander off, and the
@@ -714,6 +723,16 @@ export type ChatBubble = {
    * there for the rest of their five seconds.
    */
   tileId: string;
+  /**
+   * What the speaker was called, for a speaker who is a person, and null for a
+   * creature — which is named after {@link tileId} instead.
+   *
+   * On the bubble for exactly the reason the tile is: it outlives its author.
+   * Reading the name off the live board when the bubble is drawn would be
+   * asking about somebody who has since walked out of view, logged out, or
+   * been killed by the thing they were shouting about.
+   */
+  name: string | null;
   text: string;
   x: number;
   y: number;
@@ -1422,6 +1441,16 @@ type BlowInFlight = {
 
 type ActorRuntime = {
   readonly id: string;
+  /**
+   * What this body is called, for a body that is a person, and null for
+   * everything else.
+   *
+   * Written once when the actor is seated and never again — a character's name
+   * is typed at creation and is the one thing about it that cannot change, so
+   * there is nothing here to keep in step. Null for every creature on the map,
+   * which is named after its tile instead. @see `./displayName`
+   */
+  readonly name: string | null;
   /**
    * Lives in the map rather than on a socket, so nothing outside will ever
    * drive it. Recorded when the actor is created because that is the only
@@ -2525,6 +2554,7 @@ export class GameSession implements PlaySession {
     tiles: TileDef[],
     {
       actorIds = [LOCAL_ACTOR_ID],
+      names = {},
       spawnAt,
       seed,
       statuses: statusDefs = {},
@@ -2535,6 +2565,12 @@ export class GameSession implements PlaySession {
        * to open an empty world and {@link spawn} into it.
        */
       actorIds?: readonly string[];
+      /**
+       * What to call the actors above, by id. Anybody left out is nameless,
+       * which is what `/admin/play`'s single local body is — there is no
+       * character table behind an offline session to ask. @see `./displayName`
+       */
+      names?: Readonly<Record<string, string>>;
       /**
        * Where actors enter. Omit for an authored map, and it is read from the
        * `player` tile, which is then consumed — adopted by the first actor or
@@ -2568,7 +2604,7 @@ export class GameSession implements PlaySession {
 
     if (spawnAt) {
       this.spawnAt = spawnAt;
-      for (const id of actorIds) this.spawn(id);
+      for (const id of actorIds) this.spawn(id, { name: names[id] ?? null });
     } else {
       this.spawnAt = spawnPoint(this.map);
       // The first actor adopts the authored tile rather than spawning beside
@@ -2580,9 +2616,12 @@ export class GameSession implements PlaySession {
         this.map = removeAuthoredPlayer(this.map);
       } else {
         this.map = adoptAuthoredPlayer(this.map, first);
-        this.addActor(first, { bodyTileId: PLAYER_TILE_ID });
+        this.addActor(first, {
+          bodyTileId: PLAYER_TILE_ID,
+          name: names[first] ?? null,
+        });
       }
-      for (const id of rest) this.spawn(id);
+      for (const id of rest) this.spawn(id, { name: names[id] ?? null });
     }
 
     // After the connecting actors, and before anything reads the board: a
@@ -2650,6 +2689,11 @@ export class GameSession implements PlaySession {
     opts: {
       resident?: boolean;
       /**
+       * What this body is called. Omitted for a creature, and for a player in
+       * the offline session, where there is no character table to ask.
+       */
+      name?: string | null;
+      /**
        * The tile of the body this actor is being seated in, which is what its
        * kit is rolled from — see {@link rollKit}. Omit only where there is
        * genuinely no body to name, which is nowhere today.
@@ -2686,6 +2730,7 @@ export class GameSession implements PlaySession {
     this.decay.armEquipment(equipment, this.tilesById);
     const actor: ActorRuntime = {
       id,
+      name: opts.name ?? null,
       resident,
       equipment,
       // Null rather than armed, so a body wearing a charm on arrival waits a
@@ -2823,6 +2868,13 @@ export class GameSession implements PlaySession {
   spawn(
     id: string,
     restored: {
+      /**
+       * What this character is called — typed once at creation and never
+       * changed, so it is restored beside the rest rather than kept in step.
+       * Omit for the offline session, whose one player has no account behind
+       * them. @see `./displayName`
+       */
+      name?: string | null;
       /**
        * Where this actor was standing the last time anyone saw them. Consulted
        * only when they have no tile on the board — a body already in the map is
@@ -4007,7 +4059,7 @@ export class GameSession implements PlaySession {
     const loc = this.tryLocate(actor);
     if (!loc) return null;
     return bodyNameFor(
-      { actorId: id, tileId: loc.placed.tileId },
+      { tileId: loc.placed.tileId, name: actor.name },
       this.tilesById,
     );
   }
@@ -4030,6 +4082,7 @@ export class GameSession implements PlaySession {
       id: `say-${this.nextSpeechId++}`,
       actorId: actor.id,
       tileId: loc.placed.tileId,
+      name: actor.name,
       text,
       x: loc.x,
       y: loc.y,
@@ -5788,7 +5841,7 @@ export class GameSession implements PlaySession {
         // player's two skulls are two things and can be told apart.
         itemId: mintItemId(),
         engraved: bodyNameFor(
-          { actorId: target.id, tileId: at.placed.tileId },
+          { tileId: at.placed.tileId, name: target.name },
           this.tilesById,
         ),
         ...(blame ? { description: causeOfDeath(blame) } : {}),
@@ -10422,6 +10475,7 @@ export class GameSession implements PlaySession {
     const visualExtra = this.accumulatorMs;
     return {
       id: actor.id,
+      name: actor.name,
       tileId: loc.placed.tileId,
       x: loc.x,
       y: loc.y,

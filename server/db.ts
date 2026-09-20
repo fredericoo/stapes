@@ -73,6 +73,105 @@ const MIGRATIONS: readonly string[] = [
      id    INTEGER PRIMARY KEY CHECK (id = 0),
      at_ms INTEGER NOT NULL
    )`,
+  // Better Auth's four tables, written by hand rather than by its CLI.
+  //
+  // The CLI generates a Kysely migration and runs it against a database it
+  // opens itself, which this process will not allow — see `server/lock.ts`.
+  // More to the point, a second migration mechanism beside this array would be
+  // two things deciding what the schema is, and the answer to "what shape is
+  // this database" would depend on which of them ran last.
+  //
+  // **The column names are Better Auth's, so they are camelCase**, unlike
+  // `blob`'s `content_type` above. Its adapter builds every query from the
+  // field names in its own schema, so a snake_case column here is a column it
+  // never selects. Anything of ours — `role` below, and `character` in the
+  // next migration — follows the house style instead.
+  //
+  // Dates are TEXT and booleans are INTEGER because that is what the adapter
+  // sends for SQLite: `supportsDates` and `supportsBooleans` are both false
+  // there, so a `Date` arrives as an ISO string and a boolean as 0 or 1.
+  `CREATE TABLE IF NOT EXISTS user (
+     id              TEXT PRIMARY KEY,
+     name            TEXT NOT NULL,
+     email           TEXT NOT NULL UNIQUE,
+     emailVerified   INTEGER NOT NULL DEFAULT 0,
+     image           TEXT,
+     createdAt       TEXT NOT NULL,
+     updatedAt       TEXT NOT NULL,
+     username        TEXT UNIQUE,
+     displayUsername TEXT,
+     -- USER or ADMIN, and only ever written by hand. The field is declared
+     -- input-false in server/auth.ts, so nothing a client sends reaches it.
+     role            TEXT NOT NULL DEFAULT 'USER'
+   )`,
+  `CREATE TABLE IF NOT EXISTS session (
+     id        TEXT PRIMARY KEY,
+     expiresAt TEXT NOT NULL,
+     token     TEXT NOT NULL UNIQUE,
+     createdAt TEXT NOT NULL,
+     updatedAt TEXT NOT NULL,
+     ipAddress TEXT,
+     userAgent TEXT,
+     userId    TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE
+   )`,
+  `CREATE TABLE IF NOT EXISTS account (
+     id                    TEXT PRIMARY KEY,
+     accountId             TEXT NOT NULL,
+     providerId            TEXT NOT NULL,
+     userId                TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+     accessToken           TEXT,
+     refreshToken          TEXT,
+     idToken               TEXT,
+     accessTokenExpiresAt  TEXT,
+     refreshTokenExpiresAt TEXT,
+     scope                 TEXT,
+     password              TEXT,
+     createdAt             TEXT NOT NULL,
+     updatedAt             TEXT NOT NULL
+   )`,
+  `CREATE TABLE IF NOT EXISTS verification (
+     id         TEXT PRIMARY KEY,
+     identifier TEXT NOT NULL,
+     value      TEXT NOT NULL,
+     expiresAt  TEXT NOT NULL,
+     createdAt  TEXT NOT NULL,
+     updatedAt  TEXT NOT NULL
+   )`,
+  // The characters an account may play, and the one table that decides who a
+  // body in the world belongs to.
+  //
+  // **The id is the actor id.** Every `pos:`, `equip:` and `mast:` row in `kv`
+  // is keyed by it, and so is the body on the board — so a character is not a
+  // label on an account, it is the thing the simulation has always been about.
+  // What the account system adds is an owner for it.
+  //
+  // `name` is unique and `COLLATE NOCASE` with it. Names are stored already
+  // capitalised — see `server/characters.ts` — so two rows could only ever
+  // collide exactly; the collation is there so that a name typed in a case the
+  // normaliser has not seen still cannot slip past the index.
+  `CREATE TABLE IF NOT EXISTS character (
+     id         TEXT PRIMARY KEY,
+     user_id    TEXT NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+     name       TEXT NOT NULL COLLATE NOCASE UNIQUE,
+     created_at INTEGER NOT NULL
+   )`,
+  `CREATE INDEX IF NOT EXISTS character_user ON character(user_id)`,
+  // Forget every body the cookie era left behind.
+  //
+  // Identity used to be a random uuid minted by `GET /api/session`, so every
+  // `kv` row below is keyed by an actor nobody can sign in as any more. They
+  // would sit in the checkpoint forever: the load path reaps a body whose
+  // socket is gone, but the rows it was restored from are only ever overwritten
+  // by the actor they belong to.
+  //
+  // The board itself is left alone. `chunk:` rows hold those bodies' tiles, and
+  // `GameSession.reapAbsentActors` takes each one off on the first load after
+  // this — which is the same path that has always cleaned up after a connection
+  // that died while the world was down.
+  `DELETE FROM kv WHERE key LIKE 'pos:%' OR key LIKE 'equip:%'
+                     OR key LIKE 'tags:%' OR key LIKE 'mast:%'
+                     OR key LIKE 'spawn:%' OR key LIKE 'status:%'
+                     OR key LIKE 'hp:%' OR key LIKE 'pvp:%'`,
 ];
 
 /**

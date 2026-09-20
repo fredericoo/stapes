@@ -2,6 +2,8 @@ import { Elysia, t } from "elysia";
 import { parseMap, serializeMap } from "../app/lib/mapData";
 import { readPngSize } from "../app/lib/png";
 import { untar } from "./untar";
+import { PROTOCOL_VERSION } from "../app/net/protocol";
+import { syntheticEmail, viewerOf, type Viewer } from "./auth";
 import type { World } from "./world";
 import type { ClientBundle } from "./clientBundle";
 import type { Config } from "./config";
@@ -22,13 +24,154 @@ import type { Config } from "./config";
 export function createApi(world: World, bundle: ClientBundle, config: Config) {
   const store = world.blobs;
 
+  /**
+   * Who is asking, or null for a browser with no session.
+   *
+   * Null rather than a throw, because the three callers below want three
+   * different things from that answer: `/me` says so in a 200, `/characters`
+   * answers 401, and the authoring routes answer 404.
+   */
+  const signedIn = (request: Request): Promise<Viewer | null> =>
+    viewerOf(world.auth, request.headers);
+
+  /**
+   * The guard on everything that authors the world.
+   *
+   * **This is what `/admin` being behind a login actually means.** The pages
+   * under that path are static files in a bundle anybody can fetch — there is
+   * no server rendering here, so a route guard in the client is a courtesy to
+   * whoever mistyped a URL and nothing more. What stops somebody who is not an
+   * administrator from replacing the map is that this refuses to write it.
+   *
+   * 404 rather than 403, on the terms the bearer-token endpoints below already
+   * answer: an installation somebody has no business in should not confirm
+   * what it has.
+   */
+  const admin = async (request: Request): Promise<boolean> =>
+    (await signedIn(request))?.role === "ADMIN";
+
   return (
     new Elysia({ prefix: "/api" })
+      // ---- accounts --------------------------------------------------------
+      /**
+       * Better Auth's own routes, whole.
+       *
+       * Sign-in, sign-out, the session lookup and the password change are all
+       * its endpoints under here, used by the client as they come — see
+       * `../app/lib/auth.ts`. Sign-*up* is the one exception and has a handler
+       * of its own below, because this game has no email to ask for.
+       *
+       * `parse: "none"` because Better Auth reads the body off the `Request`
+       * itself: letting Elysia parse it first would hand the handler a stream
+       * that has already been consumed.
+       */
+      .all("/auth/*", ({ request }) => world.auth.handler(request), {
+        parse: "none",
+      })
+      /**
+       * Make an account.
+       *
+       * Its own route rather than Better Auth's `/sign-up/email`, because the
+       * address is not the player's to supply: there is no email in this game,
+       * and an account table that demands one is satisfied with a synthetic
+       * address nothing will ever read. @see syntheticEmail
+       *
+       * The reply is Better Auth's own `Response`, passed through untouched —
+       * which is what carries the `Set-Cookie` that signs the new account in.
+       * Rebuilding the body here would mean dropping it.
+       */
+      .post(
+        "/account",
+        async ({ body, request, status }) => {
+          try {
+            return await world.auth.api.signUpEmail({
+              body: {
+                email: syntheticEmail(body.username),
+                password: body.password,
+                // Better Auth's `name` is a display name, which this game does
+                // not use: what is drawn over a head is the *character's*
+                // name. The username is the honest thing to put here.
+                name: body.username,
+                username: body.username,
+              },
+              headers: request.headers,
+              asResponse: true,
+            });
+          } catch (error) {
+            // **Caught rather than left to Elysia**, because a refusal that
+            // escapes here arrives at the browser as a 200 with a sentence in
+            // it. Better Auth throws an `APIError` whose `status` is a name
+            // rather than a number — `UNPROCESSABLE_ENTITY` — and Elysia's
+            // error path cannot read a code out of that, so "Username is
+            // already taken" was reaching the sign-up form as a *success* and
+            // leaving somebody looking at a door that had just told them they
+            // were through it.
+            return status(400, refusalFrom(error));
+          }
+        },
+        {
+          body: t.Object({
+            username: t.String(),
+            password: t.String(),
+          }),
+        },
+      )
+      /**
+       * Who this browser is, and what it may play.
+       *
+       * One request rather than two, on the terms `/bootstrap` is one: the
+       * page cannot decide what to draw without both, and asking separately
+       * would be two sequential waits in front of the sign-in screen.
+       *
+       * `user: null` rather than a 401 for a signed-out browser. Not being
+       * signed in is the ordinary state of somebody arriving at the game, and
+       * an error status would put it through the client's failure path.
+       */
+      .get("/me", async ({ request }) => {
+        const viewer = await signedIn(request);
+        if (!viewer) return { user: null, characters: [] };
+        return {
+          user: viewer,
+          characters: await world.characters.listFor(viewer.id),
+        };
+      })
+      /**
+       * Make a character.
+       *
+       * Every refusal is a 400 with a sentence in it, because every refusal
+       * here is something the person typing is entitled to read — the name is
+       * not a name, somebody already has it, or this account is full. @see
+       * `./characters`
+       */
+      .post(
+        "/characters",
+        async ({ body, request, status }) => {
+          const viewer = await signedIn(request);
+          if (!viewer) return status(401, "Sign in first");
+          const made = await world.characters.create(viewer.id, body.name);
+          if ("error" in made) return status(400, made.error);
+          return { character: made.character };
+        },
+        { body: t.Object({ name: t.String() }) },
+      )
+
       // ---- authored content, read ----------------------------------------
       .get("/tiles", async () => ({ tiles: await store.readTiles() }))
       .get("/statuses", async () => ({ statuses: await store.readStatuses() }))
       .get("/tilesets", async () => ({ tilesets: await store.readTilesets() }))
-      .get("/map", async () => ({ map: serializeMap(await store.readMap()) }))
+      /**
+       * The map as text, for the editor and nothing else.
+       *
+       * Behind the administrator check while its neighbours are not, and the
+       * difference is who wants them: the tile, tileset and status catalogues
+       * are what every client needs before it can draw a frame, and the map is
+       * what the *editor* opens. Everybody playing gets their map over the
+       * socket, in the chunks their view reaches. @see `../app/net/interest`
+       */
+      .get("/map", async ({ request, status }) => {
+        if (!(await admin(request))) return status(404, "Not found");
+        return { map: serializeMap(await store.readMap()) };
+      })
       .get("/bootstrap", async () => ({
         // The three things every page needs before it can draw anything, in one
         // round trip. Three separate `clientLoader` fetches would be three
@@ -58,7 +201,8 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
       // ---- authored content, write ---------------------------------------
       .post(
         "/tiles",
-        async ({ body }) => {
+        async ({ body, request, status }) => {
+          if (!(await admin(request))) return status(404, "Not found");
           await store.writeTiles(body.tiles as never);
           // Written *before* the world is told, on the terms the map save above
           // is: a catalogue that failed to store must not become the one the
@@ -77,7 +221,8 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
       )
       .post(
         "/tilesets",
-        async ({ body }) => {
+        async ({ body, request, status }) => {
+          if (!(await admin(request))) return status(404, "Not found");
           await store.writeTilesets(body.tilesets as never);
           return { ok: true as const };
         },
@@ -85,7 +230,8 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
       )
       .post(
         "/statuses",
-        async ({ body }) => {
+        async ({ body, request, status }) => {
+          if (!(await admin(request))) return status(404, "Not found");
           await store.writeStatuses(body.statuses);
           // Beside the tiles and for the same reason: the running world compiled
           // its status catalogue at load, so a re-authored burn reached the file
@@ -97,7 +243,8 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
       )
       .post(
         "/map",
-        async ({ body }) => {
+        async ({ body, request, status }) => {
+          if (!(await admin(request))) return status(404, "Not found");
           // Parsed before it is written, and written before the world is told:
           // a save that cannot be parsed must not become the map, and a world
           // restarted onto a map that failed to store would be a world nobody
@@ -114,7 +261,8 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
       )
       .post(
         "/tilesets/:file",
-        async ({ params, body, status }) => {
+        async ({ params, body, request, status }) => {
+          if (!(await admin(request))) return status(404, "Not found");
           const bytes = new Uint8Array(
             await (body.file as File).arrayBuffer(),
           ) as Uint8Array<ArrayBuffer>;
@@ -142,6 +290,22 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
         status: world.accepting ? ("ok" as const) : ("draining" as const),
         players: world.playerCount,
         build: bundle.active,
+        /**
+         * What this server speaks, for the deploy that has to prove the served
+         * client agrees with it.
+         *
+         * **Health is not the question; agreement is.** A client and a server a
+         * version apart produce a world that answers `ok` here, serves its
+         * page, and then closes every socket with 4001 — which is exactly what
+         * two previews shipped green before `.github/workflows/preview.yml`
+         * started asking. It used to ask `GET /api/session`, which existed to
+         * mint the anonymous actor cookie and went away with it.
+         *
+         * On the health endpoint rather than a route of its own because this is
+         * already the unauthenticated "what is this server" call, and the
+         * workflow fetches it two steps later anyway.
+         */
+        protocolVersion: PROTOCOL_VERSION,
       }))
       .guard({ headers: t.Object({ authorization: t.Optional(t.String()) }) })
       .post(
@@ -224,6 +388,21 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
 }
 
 export type Api = ReturnType<typeof createApi>;
+
+/**
+ * The sentence to hand back for a refused sign-up.
+ *
+ * Better Auth's `APIError` carries the readable half in `body.message`, which
+ * is what the form shows — "Username is already taken", "Password too short".
+ * Anything that is not one of its errors gets a generic line rather than
+ * whatever a stack trace happens to say: the person typing is entitled to the
+ * reason, and to nothing about the server.
+ */
+function refusalFrom(error: unknown): string {
+  const body = (error as { body?: { message?: unknown } } | null)?.body;
+  if (typeof body?.message === "string" && body.message) return body.message;
+  return "That did not work. Try again.";
+}
 
 /**
  * Check the bearer token without leaking how far it matched.
