@@ -184,27 +184,42 @@ tab would sit in its reconnect backoff instead of putting a door back up. On
 4003 the page tears down, forgets the character and asks `/api/me` again, which
 is what decides which of the two doors it lands on.
 
-### Logging out leaves the character, not the account
+### An account signs in; a character enters
 
-`app/components/LogOutButton.tsx` sits in the menu the lighting switch is in —
-the header on a wide window, the cog beside the d-pad on a phone. Pressing it
-drops `playing`, which is what tears the connecting effect down: the canvas
-goes, and with it the renderer, the session and this player's body in the world.
-What comes back up is the character chooser.
+**Two pairs of words, and they are never mixed.**
 
-**It does not touch the session**, and that is the whole design rather than a
-thing left undone. Leaving a character is not signing out of an account: this is
-how somebody swaps to another of their three, and coming back to the one they
-left is the same body standing where they left it.
+| Thing | What it does | Where |
+| --- | --- | --- |
+| Account | **signs in**, **signs out** | the front door, and the character chooser |
+| Character | **enters** the world, **leaves** it | the chooser, and the game's own menu |
 
-**Signing out is one step further away**, on that chooser. Two buttons in this
-menu that both look like leaving is how somebody ends a session they only meant
-to pause — and on an account with no password recovery, being signed out is a
-state worth having to ask for.
+It is not pedantry. They are genuinely different acts with different
+consequences — leaving the world keeps your session and your body, signing out
+ends the session for every tab — and a screen that called both of them "log
+out" would be the thing teaching people they are the same. So the vocabulary is
+enforced by where the controls live rather than only by their labels: **the
+game's menu has no account controls at all**, and the chooser has no way into
+the world except a character.
 
-Which is also why it asks nothing in the ordinary case. A confirmation on an act
-that the button beside it undoes is a confirmation people learn to click
-through, and the next one they click through is one that mattered.
+- `app/components/LeaveWorldButton.tsx` sits in the menu the lighting switch is
+  in — the header on a wide window, the cog beside the d-pad on a phone. It
+  drops `playing`, which tears the connecting effect down: the canvas goes, and
+  with it the renderer, the session and this player's body in the world. What
+  comes back up is the chooser. **It does not touch the session**: this is how
+  somebody swaps to another of their three, and coming back to the one they
+  left is the same body standing where they left it.
+- **Sign out** and **Change password** are on the chooser, because that is the
+  screen the account lives on. Being signed out is a state worth having to ask
+  for on an account with no password reset, and a password is not something
+  anybody should be changing mid-fight.
+
+`e2e/session.spec.ts` asserts the split from both sides: the account's controls
+are absent in the game and present on the chooser.
+
+**Leaving asks nothing in the ordinary case**, because the button beside it
+undoes it: the chooser is one press from the world again. A confirmation on an
+act that cheap is a confirmation people learn to click through, and the next one
+they click through is one that mattered.
 
 **The one that matters is leaving mid-fight**, and the button asks only then. A
 body in combat does not go with its socket — it stands there, idle and hittable,
@@ -269,21 +284,33 @@ unlike everything else in that file, because its adapter builds every query from
 its own field names — a snake_case column there is a column it never selects.
 Dates are TEXT and booleans INTEGER, which is what the adapter sends for SQLite.
 
-### There is no email, and therefore no recovery
+### An email is stored, and nothing else happens to it
 
-Sign-up asks for a username and a password and nothing else. The `user` table
-still has an `email` column because Better Auth's schema is not optional, so
-`POST /api/account` synthesises one — `<username>@stapes.invalid`, a TLD RFC
-2606 reserves precisely so it can never resolve. Nothing reads it and nothing is
-ever sent to it.
+Sign-up asks for a username, an email and a password. **Signing in never asks
+for the email again** — the username is the credential, and a second identifier
+on the screen people see most often is a field to get wrong.
 
-That is why the only rule on a password is a length, and why the form says it
-before anybody has typed anything wrong: a forgotten password is a lost account,
-so every rule beyond a floor is a rule that makes people write theirs down.
-`POST /api/auth/change-password` is offered in the game's own menu, with
-`revokeOtherSessions` — a password is changed either because somebody chose a
-better one or because they think it got out, and the second case is the one
-worth designing for.
+Nothing sends to the address, nothing verifies it
+(`requireEmailVerification: false`) and there is no reset flow behind it. What
+it buys is a way to reach somebody about their account at all, which a game with
+no other contact detail had none of. `POST /api/account` passes it through to
+Better Auth untouched; the route exists for one remaining reason, which is that
+Better Auth's `name` is a *display* name this game has no use for — what is
+drawn over a head is the character's name — so the server decides it mirrors the
+username rather than putting a fourth field on the form.
+
+The seeded administrator is the one row written without anybody having typed an
+address, because it is created at boot and there is nobody to ask. It gets
+`admin@stapes.invalid` — a TLD RFC 2606 reserves precisely so it can never
+resolve, so a bug that started sending mail bounces at the first resolver.
+
+There being no reset is why the only rule on a password is a length, and why the
+form says so before anybody has typed anything wrong: a forgotten password is a
+lost account, so every rule beyond a floor is a rule that makes people write
+theirs down. `POST /api/auth/change-password` is offered on the character
+chooser, with `revokeOtherSessions` — a password is changed either because
+somebody chose a better one or because they think it got out, and the second
+case is the one worth designing for.
 
 ### A role is assigned in the database and by nothing else
 
@@ -588,7 +615,8 @@ Blocking used to be an accident rather than a rule. Actors are placements in the
 stack, `player` is exactly `HEIGHT_PER_LEVEL` tall, and every sum in `mapData`
 added it up with the walls — so a person standing still was a wall, and the only
 thing that had ever said so was arithmetic. One player at the top of a ladder was
-a lid on it, and logging in on top of a friend bounced you to the next cell.
+a lid on it, and entering the world on top of a friend bounced you to the next
+cell.
 
 The rule now has two halves and they are in two places:
 

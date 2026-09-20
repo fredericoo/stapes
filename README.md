@@ -69,17 +69,25 @@ Deploying is in [SETUP.md](SETUP.md).
 
 ## Multiplayer
 
-`/` joins a shared world held by a Durable Object. Everyone spawns where
-the map's `player` tile is placed; you appear to each other as tiles and can
-push the same objects. Closing the tab removes your tile.
+`/` joins a shared world. Everyone spawns where the map's `player` tile is
+placed; you appear to each other as tiles and can push the same objects.
+Closing the tab removes your tile.
 
-Identity is a random id in an `HttpOnly` cookie — enough to give you your avatar
-back on reload, and deliberately not a login. The socket handshake sends it, so
-the server never trusts a client-supplied id. **Log out**, in the same menu as
-the lighting switch, closes the socket and leaves the cookie alone, so logging
-in again is the same body: it is leaving the character, not the account. It
-warns first only when you are in a fight, because a body in combat stays on the
-board for a minute after its socket goes.
+**Two words, kept apart everywhere.** You *sign in* and *sign out* of an
+**account**; a **character** *enters* and *leaves* the world. An account holds
+up to three characters, nobody else can play yours, and a character's name is
+typed once and never changes.
+
+So the account's own controls — Sign out, Change password — are on the character
+chooser, and the game's menu has neither. What it has is **Leave world**, beside
+the lighting switch: it closes the socket and puts the chooser back, leaving the
+session alone, so coming back to that character is the same body standing where
+you left it. It warns first only when you are in a fight, because a body in
+combat stays on the board for a minute after its socket goes.
+
+Which character you are is a query parameter on the socket, checked against the
+signed session cookie — so naming somebody else's character is a refusal, not a
+way into their body.
 
 Saving in `/admin/map` writes the map and restarts the world: everyone re-enters a
 fresh game on the new map.

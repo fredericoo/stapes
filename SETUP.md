@@ -458,10 +458,14 @@ A fresh world comes up with one account — `admin`, password `salem123`, both
 written down in this repository and therefore known to everybody. Until it is
 changed, anybody who finds the deployment can author the world.
 
-Open `https://stapes.example.com/admin`, sign in as `admin`, and use
-**Password** in the menu. That is the whole of it: the seed only ever *creates*,
-so the next boot sees `admin` already there and leaves the new password alone.
-Nothing has to be turned off afterwards.
+Open `https://stapes.example.com/`, sign in as `admin`, and press **Change
+password** on the character chooser — the screen you land on. That is the whole
+of it: the seed only ever *creates*, so the next boot sees `admin` already there
+and leaves the new password alone. Nothing has to be turned off afterwards.
+
+(The account's controls are on that screen and not in the game, deliberately —
+see `docs/notes.md`, "An account signs in; a character enters". `admin` does not
+need a character to reach them.)
 
 Everybody else makes their own account at the front door, and every one of them
 is a `USER`. **There is no endpoint that grants a role** — that is deliberate,
