@@ -1,4 +1,12 @@
 import { GameServer } from "../../server/GameServer";
+
+/**
+ * What the one body in a local world is called.
+ *
+ * Creatures are still named after their tiles — `nameOf` is only asked about
+ * actors — so this is the player and nothing else.
+ */
+const LOCAL_PLAYER_NAME = "Tester";
 import {
   GameSocket,
   SocketHub,
@@ -69,7 +77,16 @@ export class LocalWorld {
       acceptWebSocket: (socket) => hub.accept(socket),
     };
 
-    const server = new GameServer(context, { dataStore });
+    const server = new GameServer(context, {
+      dataStore,
+      // A fixed name for whoever is in this world, because there is nobody to
+      // ask. Online, `nameOf` reads the character table — see
+      // `server/characters.ts` — and a name is what somebody typed when they
+      // made the character. There are no characters here and no account to hold
+      // one, and a body labelled `Nobody` on the route people open to check the
+      // game still works is a worse answer than saying what this page is.
+      nameOf: async () => LOCAL_PLAYER_NAME,
+    });
     const world = new LocalWorld(server, store, hub, checkpointIntervalMs);
 
     world.rearmAlarm(store.alarmAt());

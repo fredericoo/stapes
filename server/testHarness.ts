@@ -210,9 +210,18 @@ export class Harness {
     readonly blobs: SqliteBlobs,
     private db: Database,
     private readonly directory: string,
+    private readonly names: Readonly<Record<string, string>>,
   ) {}
 
-  static async create(): Promise<Harness> {
+  /**
+   * @param names what to call the actors that will be seated, by id. Omit and
+   *   every body in the world is nameless, which is what a creature is and what
+   *   the suite's players were before accounts existed. `server/world.ts`
+   *   passes the character table here instead.
+   */
+  static async create(
+    names: Readonly<Record<string, string>> = {},
+  ): Promise<Harness> {
     const directory = await mkdtemp(join(tmpdir(), "stapes-world-"));
     const db = await openDatabase(join(directory, "stapes.db"));
     const blobs = new SqliteBlobs(db);
@@ -220,12 +229,13 @@ export class Harness {
     const hub = new SocketHub();
 
     const harness = new Harness(
-      buildServer(store, hub, blobs),
+      buildServer(store, hub, blobs, names),
       store,
       hub,
       blobs,
       db,
       directory,
+      names,
     );
     harness.startAlarms();
     return harness;
@@ -280,12 +290,13 @@ export class Harness {
     const store = new WorldStore(this.db);
     const hub = new SocketHub();
     return new Harness(
-      buildServer(store, hub, blobs),
+      buildServer(store, hub, blobs, this.names),
       store,
       hub,
       blobs,
       this.db,
       this.directory,
+      this.names,
     );
   }
 
@@ -315,13 +326,21 @@ function buildServer(
   store: WorldStore,
   hub: SocketHub,
   blobs: SqliteBlobs,
+  names: Readonly<Record<string, string>>,
 ): GameServer {
   const context: WorldContext = {
     storage: store,
     getWebSockets: () => hub.all(),
     acceptWebSocket: (socket) => hub.accept(socket),
   };
-  return new GameServer(context, { dataStore: new DataStore(blobs) });
+  return new GameServer(context, {
+    dataStore: new DataStore(blobs),
+    // A stand-in for the character table, which is a database this suite has no
+    // reason to hold: what the world does with a name is read it once per
+    // seating and put it on the wire, and a map answers that exactly as the
+    // table does. @see `server/characters.ts`
+    nameOf: async (actorId) => names[actorId] ?? null,
+  });
 }
 
 export { Pair };

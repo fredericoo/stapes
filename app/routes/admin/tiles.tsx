@@ -16,6 +16,7 @@ import {
   saveTilesets,
   uploadTilesetBytes,
 } from "../../lib/api";
+import { requireAdmin } from "../../lib/auth";
 import type { TileDef, TilesetDef } from "../../lib/types";
 import { Button, Dialog, Input, Segmented, useToast } from "../../ui";
 
@@ -23,6 +24,7 @@ import { Button, Dialog, Input, Segmented, useToast } from "../../ui";
 const SEARCH_KEY = "/";
 
 export async function clientLoader() {
+  await requireAdmin();
   return await fetchBootstrap();
 }
 

@@ -232,8 +232,8 @@ jobs:
       # 4001. That is what #152 shipped green, and #119 before it. Health was
       # never the question — agreement is.
       #
-      # So ask both halves what version they speak. The server says so from
-      # `/api/session`. The client's is minified into whichever chunk opens the
+      # So ask both halves what version they speak. The server says so on
+      # `/api/health`. The client's is minified into whichever chunk opens the
       # socket, as the `?v=` it sets, and is reached the way a browser reaches
       # it: the served page names the route manifest, and the manifest names the
       # chunk. Following that chain from the origin rather than reading
@@ -258,8 +258,8 @@ jobs:
         run: |
           fail() { echo "::error::$1"; exit 1; }
 
-          SERVER_VERSION=$(curl -fsS --max-time 10 "${PREVIEW_ORIGIN}/api/session" | jq -r '.protocolVersion // empty')
-          [ -n "$SERVER_VERSION" ] || fail "the preview's /api/session reported no protocolVersion"
+          SERVER_VERSION=$(curl -fsS --max-time 10 "${PREVIEW_ORIGIN}/api/health" | jq -r '.protocolVersion // empty')
+          [ -n "$SERVER_VERSION" ] || fail "the preview's /api/health reported no protocolVersion"
 
           PAGE=$(curl -fsS --max-time 10 "${PREVIEW_ORIGIN}/")
           MANIFEST=$(printf '%s' "$PAGE" | grep -oE '/assets/manifest-[A-Za-z0-9_-]+\.js' | head -1)

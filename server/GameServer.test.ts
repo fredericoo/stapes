@@ -316,12 +316,23 @@ async function waitForCheckpointedAt(
   throw new Error(`${actorId} was never checkpointed at ${cell}`);
 }
 
+/**
+ * What the two actors this suite connects are called.
+ *
+ * Every player in the world has a name now — it is typed at character creation
+ * and the world reads it off the character table when it seats somebody — so a
+ * harness with none would be a world in a shape production never reaches. The
+ * ids stay the ids: a name is what a label says, and nothing keys on it.
+ * @see `server/characters.ts`
+ */
+const NAMES = { alice: "Alice", bob: "Bob" } as const;
+
 beforeEach(async () => {
   // A fresh world per test, against a real database file in its own temporary
   // directory. Real rather than in-memory, for the reason this suite used to
   // run inside workerd: the load and restore paths are what it exists to cover,
   // and a store that cannot be closed and reopened cannot exercise them.
-  harness = await Harness.create();
+  harness = await Harness.create(NAMES);
   await harness.blobs.put("tiles.json", JSON.stringify(tilesJson), JSON_TYPE);
   await harness.blobs.put(
     "statuses.json",
@@ -342,6 +353,11 @@ describe("joining and leaving", () => {
     expect(hello.type).toBe("hello");
     expect(hello.selfId).toBe("alice");
     expect(hello.actorIds).toEqual(["alice"]);
+    // And what to call them. Sent once and never corrected — a name cannot
+    // change — so a joiner missing it would be labelled `Nobody` until they
+    // left this client's reach and came back. @see `../app/net/protocol`'s
+    // `NamePatch`
+    expect(hello.names).toEqual([{ actorId: "alice", name: "Alice" }]);
     expect(playerOwners(hello.map as FlatMapFile)).toEqual(["alice"]);
   });
 
@@ -986,6 +1002,23 @@ describe("replacing the world", () => {
     const stored = await harness.blobs.getText("map.json");
     const text = stored!;
     expect(text).not.toContain('"owner"');
+  });
+
+  /**
+   * A save re-creates the world, not the people standing in it — and a name is
+   * a person. This is the one seating path that does not go through
+   * `seatActor`, so it is the one that can silently drop it: without the name,
+   * an editor save leaves every player in the world labelled `Nobody` until
+   * they reconnect, and the editor saves constantly.
+   */
+  it("keeps everybody's name across a save", async () => {
+    const alice = await connect("alice");
+
+    const fresh = nextMessage(alice.ws);
+    await stub().replaceWorld(authoredMap());
+    const hello = await fresh;
+
+    expect(hello.names).toEqual([{ actorId: "alice", name: "Alice" }]);
   });
 
   /**
@@ -5313,6 +5346,11 @@ describe("patches scoped to a subscription", () => {
     expect(await chatWithin(alice.ws, 1000)).toMatchObject({
       text: "hello",
       actorId: "bob",
+      // The speaker's name travels with the words rather than being looked up
+      // where they are drawn: a bubble outlives its author by five seconds, so
+      // naming them off the live board would be asking about somebody who has
+      // since walked out of reach. @see `../app/game/GameSession`'s `ChatBubble`
+      name: "Bob",
     });
   });
 
@@ -5335,6 +5373,14 @@ describe("patches scoped to a subscription", () => {
       .of("patch")
       .flatMap((message) => message.hps as { actorId: string }[]);
     expect(hps.map((entry) => entry.actorId)).toContain("bob");
+    // Its name with it, and for the same reason — alice has never been told
+    // what this body is called, and nothing after this would tell her. A
+    // patch's names are arrivals only: there is no diff half, because a name
+    // cannot move. @see `../app/net/protocol`'s `NamePatch`
+    const names = heard
+      .of("patch")
+      .flatMap((message) => message.names as { actorId: string; name: string }[]);
+    expect(names).toContainEqual({ actorId: "bob", name: "Bob" });
     // The step itself was not news to alice while it was being taken: bob was
     // nobody she had been told about until it landed.
     const walks = heard

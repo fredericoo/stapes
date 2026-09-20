@@ -9,7 +9,6 @@ import {
   isCommand,
   parseCommand,
 } from "./commands";
-import { displayNameFor } from "./displayName";
 import { constantFormula } from "../lib/formula";
 import { NO_VFX } from "../lib/statusVfx";
 import type { StatusDef } from "../lib/status";
@@ -408,7 +407,13 @@ function field(): MapFile {
 }
 
 function world(actorIds: string[] = ["me"]) {
-  return new GameSession(field(), tiles, { actorIds, seed: 1 });
+  return new GameSession(field(), tiles, {
+    actorIds,
+    // Whatever these two would have typed at character creation. Notices name
+    // a body, and a body is named by what its player called it.
+    names: { me: "Mira", you: "Yorick" },
+    seed: 1,
+  });
 }
 
 /** A world that has a status to hand out. @see statusWorld */
@@ -496,9 +501,9 @@ describe("what a command does to a body", () => {
       "Your arcane mastery is now 12",
     ]);
     expect(session.drainNotices("me")).toEqual([
-      // Their handle, through the one function that decides what a body is
+      // Their name, through the one function that decides what a body is
       // called — an id in a sentence is a serial number, not a person.
-      `${displayNameFor("you")}'s arcane mastery is now 12`,
+      "Yorick's arcane mastery is now 12",
     ]);
   });
 

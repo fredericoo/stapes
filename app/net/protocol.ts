@@ -85,10 +85,11 @@ const directionSchema = v.picklist(["n", "e", "s", "w"] as const);
 /**
  * Cap on an actor id crossing the wire inbound.
  *
- * Ids are minted by `GET /api/session` as cookie values, so a real one is far
- * under this; the bound exists because the only inbound message carrying one is
- * a target, and a target is *kept* — an unbounded string would be held in an
- * actor slot for as long as the client cared to keep pointing at it.
+ * A real one is a uuid — an actor id is a character id, minted when the
+ * character was made — so it is far under this; the bound exists because the
+ * only inbound message carrying one is a target, and a target is *kept*. An
+ * unbounded string would be held in an actor slot for as long as the client
+ * cared to keep pointing at it.
  */
 const MAX_ACTOR_ID_LENGTH = 128;
 
@@ -97,6 +98,11 @@ const hpPatchSchema = v.object({
   hp: v.number(),
   maxHp: v.number(),
   rating: v.number(),
+});
+
+const namePatchSchema = v.object({
+  actorId: v.string(),
+  name: v.string(),
 });
 
 /**
@@ -336,6 +342,25 @@ export type CellPatch = {
   y: number;
   z: number;
   stack: PlacedTile[];
+};
+
+/**
+ * What to call one body, said once and never again.
+ *
+ * **The only fact on this wire that cannot change.** A character's name is
+ * typed at creation and is fixed after that, so this is not a diff of anything
+ * — it is the server introducing a body the client has not met. A client holds
+ * what it is told forever: there is no message that corrects a name, because
+ * there is nothing that could move one.
+ *
+ * Creatures are absent from this entirely. A deer is named after its tile, off
+ * the catalogue both ends already hold, and sending "Deer" once per deer per
+ * `hello` would be a string for every body on the board to say what the tile id
+ * beside it already says. @see `../game/displayName`
+ */
+export type NamePatch = {
+  actorId: string;
+  name: string;
 };
 
 /**
@@ -785,6 +810,16 @@ export type ServerMessage =
        */
       hps: HpPatch[];
       /**
+       * What to call everybody in reach who is a person.
+       *
+       * In full here on {@link hps}' terms — a joiner has nothing to patch
+       * against, and a name tag has to be right on the first frame rather than
+       * the first time somebody speaks. Unlike the hit points, what follows is
+       * not a diff: a name never changes, so the patches after this only ever
+       * *add*. @see NamePatch
+       */
+      names: NamePatch[];
+      /**
        * Everybody's carried lights as of this moment, on the same terms
        * {@link hps} is sent in full here: a joiner has nothing to patch against,
        * and a room lit by somebody else's lantern has to be lit on the first
@@ -1046,6 +1081,15 @@ export type ServerMessage =
       events: MotionEvent[];
       /** Only the actors whose hit points changed since the last patch. */
       hps: HpPatch[];
+      /**
+       * Only the people this client had not been told the name of yet.
+       *
+       * Empty on almost every tick, because it is not a diff of a changing
+       * fact: a name is fixed for the life of a character, so this carries one
+       * only when somebody walks into a client's subscription for the first
+       * time. @see NamePatch
+       */
+      names: NamePatch[];
       /** Only the actors whose carried lights changed since the last patch. */
       carriedLights: CarriedLightsPatch[];
       /** Only the actors whose statuses changed since the last patch. */
@@ -1082,6 +1126,15 @@ export type ServerMessage =
       type: "chat";
       actorId: string;
       tileId: string;
+      /**
+       * What the speaker is called, or null for a creature — which is named
+       * after {@link tileId} instead.
+       *
+       * Travels for the reason the tile does: the bubble outlives its author,
+       * so naming the speaker off the live board when it is drawn would be
+       * asking about somebody who has since walked away or been killed.
+       */
+      name: string | null;
       text: string;
       x: number;
       y: number;
@@ -1587,6 +1640,10 @@ const serverMessageSchema = v.variant("type", [
     playerCount: v.number(),
     minutesOfDay: v.number(),
     hps: v.array(hpPatchSchema),
+    // Optional with an empty default, on `statusIds`' terms below: a skew
+    // degrades to a room of bodies labelled `Nobody` rather than to a
+    // handshake that fails to parse. @see `../game/displayName`
+    names: v.optional(v.array(namePatchSchema), () => []),
     carriedLights: v.array(carriedLightsPatchSchema),
     // Optional with an empty default, so a version skew degrades to "nobody
     // else's effects are drawn" rather than to a handshake that fails to parse.
@@ -1792,6 +1849,8 @@ const serverMessageSchema = v.variant("type", [
       ]),
     ),
     hps: v.array(hpPatchSchema),
+    // Optional with an empty default, on `statusIds`' terms below.
+    names: v.optional(v.array(namePatchSchema), () => []),
     carriedLights: v.array(carriedLightsPatchSchema),
     // Optional with an empty default, so a version skew degrades to "nobody
     // else's effects are drawn" rather than to a handshake that fails to parse.
@@ -1805,6 +1864,9 @@ const serverMessageSchema = v.variant("type", [
     type: v.literal("chat"),
     actorId: v.string(),
     tileId: v.string(),
+    // Optional with a null default, on the `names` array's terms: a skew
+    // degrades to `Nobody says: …` rather than to a bubble that fails to parse.
+    name: v.optional(v.nullable(v.string()), () => null),
     text: v.string(),
     x: v.number(),
     y: v.number(),
@@ -1923,7 +1985,7 @@ export const GAME_SOCKET_PATH = "/online/ws";
  * This is deliberately not the build id. A client deploy that changes no
  * messages should not disconnect anybody, and most client deploys are that.
  */
-export const PROTOCOL_VERSION = 15;
+export const PROTOCOL_VERSION = 16;
 
 /**
  * How often the world says nothing, to keep a proxy from hanging up.
@@ -1936,6 +1998,23 @@ export const KEEPALIVE_INTERVAL_MS = 30_000;
 
 /** Query parameter carrying {@link PROTOCOL_VERSION} on the socket URL. */
 export const PROTOCOL_VERSION_PARAM = "v";
+
+/**
+ * Query parameter naming which of the account's characters is being played.
+ *
+ * **Safe to take from the client because it is checked, not trusted.** The
+ * session cookie says who the account is, and `server/index.ts` looks the named
+ * character up against *that account* before the socket opens — so naming
+ * somebody else's character is a 403 rather than a way into their body. What
+ * the client is choosing here is which of its own three to be, which is a thing
+ * only the client knows.
+ *
+ * On the query string rather than in a cookie because it is a property of this
+ * tab and not of this browser: two tabs on one account playing two different
+ * characters is a reasonable thing to do, and a cookie would make the second
+ * one silently change the first.
+ */
+export const CHARACTER_PARAM = "character";
 
 /**
  * Close code for a socket closed because the client is stale.
@@ -1956,5 +2035,14 @@ export const CLOSE_OUTDATED_CLIENT = 4001;
  */
 export const CLOSE_REPLACED = 4002;
 
-/** Cookie carrying the actor id, minted by `GET /api/session`. */
-export const ACTOR_COOKIE = "stapes_uid";
+/**
+ * Close code for a socket refused because nobody is signed in, or because the
+ * character named on it is not this account's.
+ *
+ * Distinct from every other close for the same reason {@link CLOSE_REPLACED}
+ * is: the client must not reconnect on it. A backoff loop against a session
+ * that has expired is a tab hammering the server until somebody notices, when
+ * what it should do is put the sign-in screen back up. @see
+ * `../routes/game`
+ */
+export const CLOSE_SIGNED_OUT = 4003;

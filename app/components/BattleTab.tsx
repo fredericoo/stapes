@@ -277,7 +277,7 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {} }: Props) {
         </div>
 
         <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
-          <FieldLabel info="Dropped where this body falls, beside whatever it was carrying. Engraved with who it was and described by what killed it — a tile whose name says %s reads as “Green Fox's skull”, one without simply ignores it. Leave it at Nothing for anything you do not want a keepsake of: a world where every rat drops one fills up fast.">
+          <FieldLabel info="Dropped where this body falls, beside whatever it was carrying. Engraved with who it was and described by what killed it — a tile whose name says %s reads as “Arthur's skull”, one without simply ignores it. Leave it at Nothing for anything you do not want a keepsake of: a world where every rat drops one fills up fast.">
             Remains
           </FieldLabel>
           <Select

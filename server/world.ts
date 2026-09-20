@@ -6,6 +6,9 @@ import { WorldStore } from "./WorldStore";
 import { GameSocket, SocketHub, type WorldContext } from "./sockets";
 import { openWorldDatabaseExclusively } from "./lock";
 import { seedFromDirectory } from "./seed";
+import { createAuth, seedAdmin, type Auth } from "./auth";
+import { resolveAuthSecret } from "./authSecret";
+import { Characters } from "./characters";
 import { KEEPALIVE_INTERVAL_MS } from "../app/net/protocol";
 import type { Config } from "./config";
 import type { Database } from "./db";
@@ -31,6 +34,13 @@ export class World {
     readonly store: WorldStore,
     readonly hub: SocketHub,
     readonly blobs: DataStore,
+    /**
+     * Accounts, sessions and passwords, on the same connection the board is
+     * checkpointed to. @see `./auth`
+     */
+    readonly auth: Auth,
+    /** Who may play which body. @see `./characters` */
+    readonly characters: Characters,
     private readonly rawBlobs: Blobs,
     private readonly db: Database,
     private readonly config: Config,
@@ -66,12 +76,35 @@ export class World {
       acceptWebSocket: (socket) => hub.accept(socket),
     };
 
-    const server = new GameServer(context, { dataStore: new DataStore(blobs) });
+    // Configured, or generated on the first boot and kept in the database.
+    // A deployment whose environment nobody has touched still comes up — see
+    // `./authSecret`, which is also where the reason that matters is.
+    const auth = createAuth(
+      db,
+      config,
+      await resolveAuthSecret(db, config.AUTH_SECRET),
+    );
+    const characters = new Characters(db);
+    // Before anything is served, so the first request to arrive at a fresh
+    // deployment already has somebody it could be. Create-only — see
+    // {@link seedAdmin}.
+    await seedAdmin(auth, db);
+
+    const server = new GameServer(context, {
+      dataStore: new DataStore(blobs),
+      // What the world calls a body, resolved from the character table at the
+      // moment somebody is seated. Injected rather than imported so that
+      // `server/testHarness.ts` can build a world with no accounts in it —
+      // every actor there is anonymous, which is what a creature is.
+      nameOf: (actorId) => characters.nameOf(actorId),
+    });
     const world = new World(
       server,
       store,
       hub,
       new DataStore(blobs),
+      auth,
+      characters,
       blobs,
       db,
       config,
@@ -150,9 +183,16 @@ export class World {
     );
   }
 
-  /** Attach a freshly upgraded connection to the world. */
-  async join(socket: GameSocket, actorId: string): Promise<void> {
-    await this.server.join(socket, actorId);
+  /**
+   * Attach a freshly upgraded connection to the world.
+   *
+   * The character has already been checked against the session cookie by the
+   * time this runs — see `server/index.ts`. Nothing below re-asks, because
+   * nothing below could: the socket is open and there is no longer a request
+   * to read a cookie off.
+   */
+  async join(socket: GameSocket, characterId: string): Promise<void> {
+    await this.server.join(socket, characterId);
   }
 
   async message(socket: GameSocket, raw: string): Promise<void> {

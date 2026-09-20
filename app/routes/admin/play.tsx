@@ -3,12 +3,17 @@ import { useLoaderData } from "react-router";
 import { ADMIN_DESTINATIONS } from "../../components/AppShell";
 import { WorldPage } from "../../components/WorldPage";
 import { fetchBootstrap } from "../../lib/api";
+import { requireAdmin } from "../../lib/auth";
 import { localLink } from "../../local/link";
 
 export async function clientLoader() {
+  // The role, on the terms every page under `/admin` asks for it — see
+  // `../../lib/auth`'s `requireAdmin`. The *world* here needs no account at
+  // all; what needs one is being in the editors, and this is one of them.
+  await requireAdmin();
   // The same catalogues the game loads, for the same reason: the renderer needs
-  // them and the world reads its own copy. Nothing here opens a world — the
-  // Log in press does, exactly as it does on `/`.
+  // them and the world reads its own copy. Nothing here signs anybody in — the
+  // world opens as this tab, which is what `../../local/link` is for.
   return await fetchBootstrap();
 }
 
@@ -21,9 +26,15 @@ export async function clientLoader() {
  * them stubbed. What is different is that the far end of the wire is a worker
  * instead of a machine: no socket, no account, no server to be running.
  *
- * That is what it is for. `/` is growing a login, and hand-testing a change to
- * the world should not mean hand-testing the way in to it first. This is the
- * path to open when the question is "does the game still work".
+ * That is what it is for. `/` has a sign-in and a character chooser in front of
+ * it now, and hand-testing a change to the world should not mean hand-testing
+ * the way in to it first. This is the path to open when the question is "does
+ * the game still work".
+ *
+ * It does still want an `ADMIN` account, because it is under `/admin` and every
+ * page there does. That is a fact about the editors rather than about the
+ * world: what it buys is that a tester who never types the path never finds a
+ * second world to be confused by.
  *
  * @see ../../local/link
  * @see docs/notes.md, "`/admin/play` runs the server in the tab"

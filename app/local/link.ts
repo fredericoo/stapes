@@ -12,8 +12,11 @@ import type { FromWorld, ToWorld } from "./workerProtocol";
  * "`/admin/play` runs the server in the tab".
  *
  * **No network and no account.** That is what it is for: `/admin/play` is the
- * path that goes on working while `/` grows a login, so hand-testing a change
- * to the world does not mean hand-testing the way in to it first.
+ * path that goes on working now that `/` has a sign-in and a character chooser
+ * in front of it, so hand-testing a change to the world does not mean
+ * hand-testing the way in to it first. There is nothing to enter here — opening
+ * the world *is* entering it, and {@link actorId} mints an identity on the way
+ * past.
  */
 export const localLink: WorldLink = (() => {
   let worker: Worker | null = null;
@@ -39,15 +42,6 @@ export const localLink: WorldLink = (() => {
 
   return {
     id: "local",
-    enter() {
-      // Minted here for the same reason `GET /api/session` mints the cookie
-      // there: identity is settled before anything connects, and it outlives
-      // the connection. `localStorage` rather than a cookie because there is no
-      // server to make it `HttpOnly` for — the page cannot lie to a world it is
-      // running itself.
-      actorId();
-      return Promise.resolve();
-    },
 
     open() {
       const id = ++opened;
@@ -73,7 +67,7 @@ export const localLink: WorldLink = (() => {
   };
 })();
 
-/** Where this tab's identity is kept. The local stand-in for the actor cookie. */
+/** Where this tab's identity is kept. The local stand-in for an account. */
 const ACTOR_STORAGE_KEY = "stapes:local-actor";
 
 /**

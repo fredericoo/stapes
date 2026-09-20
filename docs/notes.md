@@ -105,14 +105,28 @@ is not one.
 `app/routes.ts` has two halves and the split is what a visitor is offered, not
 where the files sit. `/` is the shared world. Everything a person editing the
 game needs — the map editor, the tile and status catalogues, the voxel editor,
-the arena and the play route — is under `/admin`, and `/admin` itself
-redirects to `/admin/map`.
+the arena and the play route — is under `/admin`, and `/admin` itself redirects
+to `/admin/map`.
 
-**Nothing guards `/admin`.** There is no account system to guard it with, and
-pretending otherwise with a password in the client would be worse than the
-honest gap. What the split buys today is that the game links to none of it: a
-tester never sees a tile editor, and there is one segment to put an account
-check in front of when there is one to put there.
+**`/admin` is a role now, not just a place.** Every route under it asks for an
+`ADMIN` account in its own `clientLoader` — `requireAdmin` in `app/lib/auth.ts`
+— and `/admin/sign-in` is the one exception, because there would otherwise be
+nowhere to sign in.
+
+**The loaders ask, not a layout above them, and that is not a preference.**
+React Router runs a layout's loader *alongside* its children's rather than
+before them. A gate up there would still let the map editor fire the fetch it is
+about to be refused, and the page would land on an error boundary instead of a
+sign-in form.
+
+**And none of that is the control.** These pages are static files in a bundle
+anybody can fetch, so a client-side guard is a courtesy to whoever mistyped a
+URL. What actually stops somebody authoring the world is `server/api.ts`
+refusing to write it: every `POST` that touches authored content, and the
+`GET /api/map` the editor opens with, answers 404 to anybody who is not an
+administrator. 404 rather than 403, on the terms the bearer-token endpoints
+beside them already answer — an installation somebody has no business in should
+not confirm what it has.
 
 **The header's destinations are a prop, not a module constant.**
 `AppShell` draws navigation only for a page that hands it some, and
@@ -123,53 +137,125 @@ The game still uses `AppShell` for the rest of what the shell is: the menu it
 folds into the cog on a phone, holding the lighting switch, the headcount and
 the frame readout.
 
-### The socket opens on a button press
+### One route per question, under one layout
 
-`app/components/LoginScreen.tsx` is the whole page until it is pressed. The
-loader fetches the catalogues and `useGameAssets` decodes the tilesets behind
-it, but `GET /api/session` — the call that mints the `HttpOnly` actor cookie —
-happens on the press, and the connecting effect wants a canvas that only exists
-once somebody has pressed. A tab left on the front door therefore costs the
-world nothing: no actor, no chunks, no body standing in a doorway somebody else
-is walking through.
+`app/routes.ts` puts every player-facing screen under `routes/player.tsx`:
 
-It is also where a login goes. When there are accounts, the account is asked for
-here and nothing else on the page changes, because everything else already waits
-for this button.
+| Route | The one question it asks |
+| --- | --- |
+| `/sign-in` | who is this account |
+| `/sign-up` | make one — username, email, password |
+| `/characters` | which body, and the account's own two controls |
+| `/characters/new` | what is this one called |
+| `/account/password` | what is the new password |
+| `/` | the world |
 
-**The door is the wait as well.** Minting the actor, opening the socket, waiting
-on `hello` and waiting for the first frame are four waits, and a screen apiece
-is a page flickering through states nobody can act on. So the press does not
-swap the page: the button stays where it is, reading `Logging in…`, until there
-is a world on the canvas. The route's `entering` is what decides that, and it
-ends on the *first frame* rather than on `hello` — the renderer is built on
-`hello` and paints some way after it, and that gap was a second loading screen
-appearing for a second and a half.
+**Small routes rather than one that does all of it.** `app/routes/game.tsx` used
+to hold all six: the sign-in form, the chooser, the world, and the state machine
+deciding which of them was on screen. Each of these is now a file you can read
+in a sitting, with its own `clientLoader` saying what it needs and its own
+redirect when that is missing — no session sends you to `/sign-in`, no character
+chosen sends you to `/characters`, a full account sends `/characters/new` back
+to the list. There is no "which screen am I on" state left anywhere, because the
+URL is it.
 
-It stands down the moment the wait stops being ordinary. `entering` covers
-`connecting` and `live` only, so a socket that closes before the first frame
-puts the loading screen and its `reconnecting` chip back on the page: a door
-reading `Logging in…` at somebody whose server is down explains nothing. And it
-is one-way per login — `entered` is set by the first frame and cleared by
-logging out — so a *reconnect* an hour later gets the loading screen rather than
-a door claiming this player is still logging in.
+**The layout is what makes that free.** A layout's loader runs once and its
+component stays mounted across every navigation between its children, so
+`fetchBootstrap` runs once per tab and `useGameAssets` decodes the tilesets once
+per tab — *while somebody is still typing a username*. By the time a character
+is pressed there is nothing left to fetch, which is the property the single
+route had by accident and this keeps on purpose. `shouldRevalidate` is off
+because none of it can change under a player: authored content changes when an
+author saves, and a save replaces the world and pushes a fresh `hello`.
 
-### Logging out leaves the character, not the account
+**Nothing connects until the world route.** The socket belongs to `/` alone and
+is opened as a character, so a tab parked at any other screen costs the world
+nothing — no body standing in a doorway somebody else is walking through.
 
-`app/components/LogOutButton.tsx` sits in the menu the lighting switch is in —
-the header on a wide window, the cog beside the d-pad on a phone. Pressing it
-drops `loggedIn`, which is what tears the connecting effect down: the canvas
-goes, and with it the renderer, the session and this player's body in the world.
+**`game.tsx` keeps its name**, and the name is load-bearing. The build names a
+route's chunk after its file, and the preview workflow reads the client's
+protocol version out of that chunk by name — page, then route manifest, then
+`game-main-*.js` — which is how it proves the served client and the running
+server agree about the wire before anybody tries to connect. That is also why
+the world is not in a file called `_index.tsx`: the admin index is an index
+route too, and two `_index-main-*.js` chunks leave that step picking one by
+luck. `routes.ts` is what says which route is the index, so the file is free to
+be named after what it holds — and renaming it now is renaming the chunk that
+step greps for.
 
-**It does not touch the actor cookie**, and that is the whole design rather than
-a thing left undone. The cookie is the identity and will be the account; leaving
-a character is not signing out of one. So the next Log in is the same body,
-standing where it was left, and when there are accounts this button comes back
-to a character selection screen instead of the door.
+**Which character is remembered in `sessionStorage`, not in a cookie.** See
+`app/lib/playing.ts`. An account holds three, and two tabs playing two of them
+is a reasonable thing to do; a cookie would make the second tab silently change
+the first. It dies with the tab, which is right — a new tab is somebody
+arriving, and arriving means choosing. It is never trusted on its own either:
+the id is resolved against the list `/api/me` just returned, so a character
+deleted in the database lands on the chooser rather than on a socket that will
+be refused.
 
-Which is also why it asks nothing in the ordinary case. A confirmation on an act
-that the button beside it undoes is a confirmation people learn to click
-through, and the next one they click through is one that mattered.
+**A refused socket is a close, not a rejected upgrade** — `CLOSE_SIGNED_OUT`
+(4003), for a session that expired or a character that is not this account's.
+The same argument the protocol-version refusal already makes: a browser reports
+a rejected upgrade to the page as an indistinguishable failure, so a signed-out
+tab would sit in its reconnect backoff instead of putting a door back up. On
+4003 the page forgets the character and navigates to `/characters`, whose loader
+sends it on to `/sign-in` if the session really is gone — one redirect, decided
+by the route whose job that already is.
+
+### The connecting effect is rebuilt only to throw a world away
+
+`app/routes/game.tsx`'s socket effect has five dependencies and every one of
+them is a reason to want a *different* world. Anything else in that list is a
+live world torn down and asked for again, which is a fresh `hello` — the whole
+map — for nothing.
+
+`useNavigate`'s result is the trap: the close handler needs it, and it is not
+documented to be stable. It is held in a ref and read at call time, like every
+other long-lived callback in that effect.
+
+**React Router's client entry wraps the app in `StrictMode`**, so in development
+React mounts this effect, tears it down and mounts it again — two sockets
+opened, one closed, one live. That is StrictMode doing its job, and production
+mounts once. `e2e/session.spec.ts` counts *open* sockets rather than opened
+ones for exactly that reason: a cumulative count would be asserting a
+development artifact.
+
+### An account signs in; a character enters
+
+**Two pairs of words, and they are never mixed.**
+
+| Thing | What it does | Where |
+| --- | --- | --- |
+| Account | **signs in**, **signs out** | the front door, and the character chooser |
+| Character | **enters** the world, **leaves** it | the chooser, and the game's own menu |
+
+It is not pedantry. They are genuinely different acts with different
+consequences — leaving the world keeps your session and your body, signing out
+ends the session for every tab — and a screen that called both of them "log
+out" would be the thing teaching people they are the same. So the vocabulary is
+enforced by where the controls live rather than only by their labels: **the
+game's menu has no account controls at all**, and the chooser has no way into
+the world except a character.
+
+- `app/components/LeaveWorldButton.tsx` sits in the menu the lighting switch is
+  in — the header on a wide window, the cog beside the d-pad on a phone. It
+  forgets the character and navigates to `/characters`, which unmounts the world
+  route and tears the connecting effect down with it: the canvas goes, and with
+  it the renderer, the session and this player's body in the world. **It does
+  not touch the session**: this is how somebody swaps to another of their three,
+  and coming back to the one they left is the same body standing where they left
+  it.
+- **Sign out** is on `/characters` and **Change password** is its own route off
+  it, because that is where the account lives. Being signed out is a state worth
+  having to ask for on an account with no password reset, and a password is not
+  something anybody should be changing mid-fight.
+
+`e2e/session.spec.ts` asserts the split from both sides: the account's controls
+are absent in the game and present on the chooser.
+
+**Leaving asks nothing in the ordinary case**, because the button beside it
+undoes it: the chooser is one press from the world again. A confirmation on an
+act that cheap is a confirmation people learn to click through, and the next one
+they click through is one that mattered.
 
 **The one that matters is leaving mid-fight**, and the button asks only then. A
 body in combat does not go with its socket — it stands there, idle and hittable,
@@ -178,16 +264,6 @@ a fight", which is the rule this is warning about). The page reads that state
 the same way the status strip does: `COMBAT_STATUS_ID` in the vitals the server
 pushes, so the warning appears and goes on its own as the fight does.
 
-**The game's route module is `app/routes/game.tsx`, not `_index.tsx`.** The
-build names a route's chunk after its file, and the preview workflow reads the
-client's protocol version out of that chunk by name — page, then route
-manifest, then `game-main-*.js`, which is how it proves the served client and
-the running server agree about the wire before anybody tries to connect. Two
-index routes called `_index.tsx` produce two `_index-main-*.js` chunks and
-leave that step picking one by luck; one of them is a four-line redirect with
-no socket in it. `routes.ts` is what says which route is the index, so the file
-is free to be named after what it holds.
-
 **`GAME_SOCKET_PATH` still says `/online/ws`.** The page that name came from is
 gone; the wire path did not follow it, because changing it refuses every tab
 that was open across the deploy at the upgrade — and a browser reports a
@@ -195,6 +271,182 @@ rejected upgrade to the page as an indistinguishable failure, so those tabs
 would sit in a reconnect backoff rather than reloading. The version handshake
 in `app/net/protocol.ts` is how a stale client is told to reload, and it can
 only do that on a socket that opened.
+
+## An account is Better Auth; a character is the actor the world already had
+
+`server/auth.ts` builds a Better Auth instance with the username plugin, and
+`server/characters.ts` is four SQL statements beside it. Everything the world
+does with an actor id is unchanged — what arrived is a row saying who the id
+belongs to.
+
+**A character id *is* an actor id.** Every `pos:`, `equip:`, `mast:` and `hp:`
+key in `kv` is keyed by it, and so is the body in the `chunk:` rows. That is why
+this was a day's work rather than a rewrite: the simulation was already about a
+stable opaque id, and accounts only had to decide where the id comes from.
+
+### Better Auth shares the world's database connection
+
+It reaches its tables through Kysely, and Kysely reaches a database through a
+dialect. Every dialect it ships opens a connection of its own, which is the one
+thing this process may not do — `server/lock.ts` takes the file with
+`PRAGMA locking_mode = EXCLUSIVE`, so a second handle fails on its first write
+even from inside this process. `server/authDialect.ts` is a dialect over the
+handle already in hand, and it is about sixty lines because Turso's driver is
+already the shape Kysely wants: prepare, then `all` or `run`, with `reader`
+answering which.
+
+**It never opens a transaction, and the dialect throws if asked.** A `BEGIN`
+issued there would not own the connection — `WorldStore.flush` commits the
+tick's board writes through `db.batch(…, "IMMEDIATE")` on the same handle — so a
+checkpoint landing mid-signup would be committed by the signup's `COMMIT`, or
+rolled back with its failure. Better Auth is configured `transaction: false`, and
+its writes are single statements.
+
+**The tables are in `MIGRATIONS` in `server/db.ts`, written by hand.** Better
+Auth's CLI generates a Kysely migration and runs it against a database it opens
+itself, which this process will not allow; and a second migration mechanism
+would be two things deciding what the schema is. Its columns are camelCase,
+unlike everything else in that file, because its adapter builds every query from
+its own field names — a snake_case column there is a column it never selects.
+Dates are TEXT and booleans INTEGER, which is what the adapter sends for SQLite.
+
+### An email is stored, and nothing else happens to it
+
+Sign-up asks for a username, an email and a password. **Signing in never asks
+for the email again** — the username is the credential, and a second identifier
+on the screen people see most often is a field to get wrong.
+
+Nothing sends to the address, nothing verifies it
+(`requireEmailVerification: false`) and there is no reset flow behind it. What
+it buys is a way to reach somebody about their account at all, which a game with
+no other contact detail had none of. `POST /api/account` passes it through to
+Better Auth untouched; the route exists for one remaining reason, which is that
+Better Auth's `name` is a *display* name this game has no use for — what is
+drawn over a head is the character's name — so the server decides it mirrors the
+username rather than putting a fourth field on the form.
+
+The seeded administrator is the one row written without anybody having typed an
+address, because it is created at boot and there is nobody to ask. It gets
+`admin@stapes.invalid` — a TLD RFC 2606 reserves precisely so it can never
+resolve, so a bug that started sending mail bounces at the first resolver.
+
+There being no reset is why the only rule on a password is a length, and why the
+form says so before anybody has typed anything wrong: a forgotten password is a
+lost account, so every rule beyond a floor is a rule that makes people write
+theirs down. `POST /api/auth/change-password` is offered on the character
+chooser, with `revokeOtherSessions` — a password is changed either because
+somebody chose a better one or because they think it got out, and the second
+case is the one worth designing for.
+
+### The signing key is generated rather than demanded
+
+`AUTH_SECRET` when it is set, and otherwise 32 random bytes minted on the first
+boot and kept in an `auth_secret` row — see `server/authSecret.ts`. What must
+never happen is Better Auth falling back to the constant it ships in its own
+source, which is a session anybody who has read that source can forge; an
+environment variable and a stored secret both avoid that, and only one of them
+needs somebody to remember it.
+
+**It was a hard requirement for one afternoon, and that was wrong.** A server
+that refuses to start until a variable is set does not come up on a deployment
+whose environment nobody has touched — which is every preview, and the first
+deploy of anything. The failure is also the worst kind to read: the container
+crash-loops, no backend answers, no certificate is ever issued, and the preview
+workflow's health check spends five minutes on `SSL certificate problem:
+self-signed certificate` with nothing anywhere about a missing variable. That is
+the shape of every "required at boot" flag, and it is why this one is not.
+
+Storing it beside the sessions is not a weakening: the secret's job is to make a
+cookie unforgeable by somebody who does not have the database, and anybody who
+*has* it already has the `session` table. The row is not in `kv` for the reason
+the alarm is not — `POST /api/reset` empties that table, and a reset that signed
+everybody out would be doing something it does not say it does.
+
+### A role is assigned in the database and by nothing else
+
+`role` is declared on the user model with `input: false`, which drops it from
+every request body Better Auth parses, sign-up included. There is no promote
+endpoint, on purpose: it is the kind of endpoint that is quietly wrong for
+months. Becoming an `ADMIN` is `UPDATE user SET role = 'ADMIN' WHERE username =
+…`, run by somebody who can already reach the box.
+
+A fresh database seeds one account — `admin` / `salem123`, both written down in
+this repository and therefore known to everybody. **The seed creates and never
+updates**, which is the whole reason it is safe to leave in: change that
+password in a running deployment and the next boot sees the username already
+there and does nothing. `server/accounts.test.ts` pins that, because it is the
+sort of property that a well-meant "make the seed idempotent" refactor breaks
+silently.
+
+### The socket takes the account from the cookie and the character from the URL
+
+`?character=<id>` on the socket URL, checked against the session rather than
+believed: `Characters.ownedBy` looks the id up *for that account*, and a
+character belonging to anybody else is simply not found. "Two accounts cannot
+share a character" is that query returning no row — there is no second rule
+anywhere.
+
+It is a query parameter rather than a cookie because it is a property of the
+tab, not of the browser. See "One connection per actor".
+
+### Three characters, and the count is not defended by a constraint
+
+SQLite has no way to say "at most three rows per owner", so `Characters.create`
+counts and then inserts. The name is the opposite: the unique index *is* the
+check, because looking first and inserting after leaves a window two signups can
+both pass through — widest exactly when it matters, in the minute after a name
+becomes plausible. A unique-constraint failure is translated back into the
+sentence a pre-flight lookup would have produced.
+
+Losing the count race gives one account four characters. Losing the name race
+would give two people the same name for ever.
+
+## A name is typed once and never again
+
+`app/lib/characterName.ts` holds the rules and both halves run them: the form so
+a refusal arrives while somebody is still typing, the server because the socket
+is the boundary. Letters only, two to twenty, stored capitalised — `arthur`,
+`ARTHUR` and `aRtHuR` are all a request to be called `Arthur`, which is what
+makes the unique index mean anything.
+
+Refused rather than stripped. Somebody who typed `Ka1n` and was silently given
+`Kan` was not told anything, and there is no second chance: a name is the one
+thing about a character that cannot be changed, which is exactly what makes it
+worth recognising across a square.
+
+**It used to be derived, and the change is not cosmetic.** Identity was an
+anonymous cookie, so a name was a colour and an animal hashed out of the uuid
+("Green Fox") — the only way to make a room of serial numbers legible. Nobody
+chose one, two people could be handed the same, and there was nothing to address
+a person by that would still mean them tomorrow.
+
+### The name travels with the body, and is sent once
+
+`ActorRuntime.name` is set when an actor is seated — `GameServer.seatActor` asks
+the character table, through an injected `nameOf` so the world does not
+otherwise know accounts exist — and `ActorSnapshot.name` carries it to
+everything that draws a label. Null for every creature, which is named after its
+tile out of the catalogue both ends already hold.
+
+On the wire it is a `NamePatch`, and it is **the only fact there that cannot
+change**. `hello` carries one for everybody in reach; a tick's patch carries one
+only for a body entering this client's reach for the first time, which is why
+`SharedPatch` has no `names` field at all — a name is sent to one client because
+*that* client has not met the body, so it only exists once the patch has been
+cut. The client keeps what it is told and nothing ever corrects it.
+
+A chat bubble carries its speaker's name inline instead, for the reason it
+already carried the speaker's tile: the bubble outlives its author by five
+seconds, and naming them off the live board would be asking about somebody who
+has since walked away or been killed by the thing they were shouting about.
+
+**Two seating paths, and both have to ask.** `seatActor` is the obvious one —
+join, wake, rebirth — and `replaceWorld` is the other: an editor save builds a
+new `GameSession` and re-seats everybody into it by hand, without going through
+`seatActor` at all. The first draft of this only wired up the first, so a save
+left every player in the world labelled `Nobody` until they reconnected, and the
+editor saves constantly. Both now ask the character table rather than carrying a
+name across, so the two cannot drift; `GameServer.test.ts` pins it.
 
 ## `/admin/play` runs the server in the tab
 
@@ -322,10 +574,14 @@ built in continuous integration and shipped as files; the image runs
 `dependencies` made the image 672MB instead of 439MB, all of it code the process
 never opens.
 
-The four that stay are the ones `server/` actually reaches: `elysia`,
-`@tursodatabase/database`, `valibot` and `unique-names-generator`. If a server
-module ever needs a fifth, move it — and if the image starts growing again, this
+The five that stay are the ones `server/` actually reaches: `elysia`,
+`@tursodatabase/database`, `valibot`, `better-auth` and `kysely`. If a server
+module ever needs a sixth, move it — and if the image starts growing again, this
 is the first place to look.
+
+`unique-names-generator` used to be one of them, and is gone: names are typed at
+character creation now rather than drawn from word lists — see "A name is typed
+once and never again".
 
 (Unrelated but adjacent: `@react-router/dev` declares `wrangler` as an optional
 peer dependency, so a dev install still pulls workerd's binaries. They are
@@ -418,8 +674,9 @@ from the head sha.
 
 **And the workflow asks them afterwards whether they agree.** Health alone could
 never catch this — which is why both those previews went green: a world nobody
-can enter answers `/api/health` with `ok` like any other. The server is asked
-from `/api/session`. The client is asked by following the served page to its
+can enter answers `/api/health` with `ok` like any other. The server's version
+is a field on that same payload, `protocolVersion`, which is why the endpoint
+answers two questions. The client is asked by following the served page to its
 route manifest to the `online-main` chunk and reading the `?v=` it sets, which
 is the chain a browser follows, so a client that failed to activate is caught by
 the same step.
@@ -440,10 +697,12 @@ mismatch; this is what a player sees on the ones we do not catch.
 
 ## One connection per actor
 
-Identity is the actor cookie, so a second tab in the same browser is the same
-actor. `GameServer.join` closes every socket the actor already has, with 4002
-(`CLOSE_REPLACED`), before it seats the new one. The newest connection wins,
-because it is the one somebody just opened or reloaded.
+Identity is the character, so two tabs playing the *same* character are the same
+actor — and two tabs on one account playing two different characters are not,
+which is deliberate and is why the chosen character lives in `sessionStorage`
+rather than in a cookie. `GameServer.join` closes every socket the actor already
+has, with 4002 (`CLOSE_REPLACED`), before it seats the new one. The newest
+connection wins, because it is the one somebody just opened or reloaded.
 
 - **The displaced socket's attachment is cleared before it is closed.** Its
   close handler runs later, and until then `getWebSockets` still lists it. With
@@ -525,7 +784,8 @@ Blocking used to be an accident rather than a rule. Actors are placements in the
 stack, `player` is exactly `HEIGHT_PER_LEVEL` tall, and every sum in `mapData`
 added it up with the walls — so a person standing still was a wall, and the only
 thing that had ever said so was arithmetic. One player at the top of a ladder was
-a lid on it, and logging in on top of a friend bounced you to the next cell.
+a lid on it, and entering the world on top of a friend bounced you to the next
+cell.
 
 The rule now has two halves and they are in two places:
 
@@ -9528,10 +9788,16 @@ because they name no coordinate, and both still failed on an afternoon's
 authoring. If a claim really is about the world we ship, the Playwright run
 against a real world is where it belongs.
 
-`e2e/session.spec.ts` is that run for the front door: it presses Log in and Log
-out against a real server and asserts that no game socket opens before the
-press, that one opens after it, and that the actor cookie is minted and then
-forgotten. It names no cell and reads no map, so authoring cannot move it.
+`e2e/session.spec.ts` is that run for the front door: it makes an account and a
+character against a real server and asserts that no game socket opens until a
+character is chosen, that leaving one comes back to the chooser rather than to
+the account screen, and that the editors turn away a browser with no
+administrator behind it. It names no cell and reads no map, so authoring cannot
+move it.
+
+It also types a name nothing else will take. A character name is unique for the
+life of a world and can never be changed, so a fixed one is a test that passes
+once and fails every run after — `e2e/accounts.ts` derives one from the clock.
 
 Two rules learned the hard way, which still hold:
 

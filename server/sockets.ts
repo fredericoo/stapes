@@ -47,6 +47,18 @@ export class GameSocket {
     }
   }
 
+  /**
+   * Whether the far end has gone.
+   *
+   * Read by `server/index.ts` between the two lookups that check a socket's
+   * account and its character: a tab shut in that window must not be seated,
+   * because nothing would take the body off the board until the next load
+   * reaped it.
+   */
+  get closed(): boolean {
+    return this.transport.closed;
+  }
+
   serializeAttachment(value: unknown): void {
     this.attachment = value;
   }

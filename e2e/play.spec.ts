@@ -1,18 +1,25 @@
 import { expect, test } from "@playwright/test";
+import { signInAsAdmin } from "./accounts";
 
 /**
  * `/admin/play`, which is the same game with the world in the tab.
  *
  * This is the claim the route exists to make, and it is a claim about the
- * shipped app rather than about a module — that the page comes up, lets
- * somebody in, and paints a world **without a socket to anything**. Nothing
- * here reads `data/map.json`: what it asserts is that a canvas appears, that no
- * game socket is opened, and that an identity survives a reload, none of which
- * an afternoon's authoring can move.
+ * shipped app rather than about a module — that the page comes up and paints a
+ * world **without a socket to anything**. Nothing here reads `data/map.json`:
+ * what it asserts is that a canvas appears, that no game socket is opened, and
+ * that an identity survives a reload, none of which an afternoon's authoring
+ * can move.
  *
- * It is also the path the rest of the suite is meant to lean on as `/` grows a
- * login: a world you can get into with no account and no server is the one
- * place a change to the game can be seen working.
+ * It is the path to lean on now that `/` has a sign-in and a character chooser
+ * in front of it: a world with no account behind it and no server is the one
+ * place a change to the game can be seen working on its own.
+ *
+ * **There is no door here any more.** It had one because `WorldPage` did, for
+ * the shared world's sake; that moved out to routes, and the local world is
+ * entered by being opened. What the page still needs is an `ADMIN` account,
+ * because it is under `/admin` and every page there does — so the test signs
+ * in as the seeded one before it asks anything about the world.
  */
 
 /** The app booting on a cold Vite cache. @see ./renderer-perf.spec.ts */
@@ -34,20 +41,16 @@ test.describe("the world in the tab", () => {
     const actor = () =>
       page.evaluate((key) => localStorage.getItem(key), ACTOR_STORAGE_KEY);
 
+    // The editors are behind a role, and this page is one of them. The world it
+    // draws is not — see below, where nothing connects to anything.
+    await signInAsAdmin(page);
     await page.goto("/admin/play", { waitUntil: "networkidle" });
 
-    const logIn = page.getByRole("button", { name: "Log in", exact: true });
-    await expect(logIn).toBeVisible({ timeout: BOOT_TIMEOUT_MS });
-    // The same door the game has, and it means the same thing: nothing is
-    // simulating anybody who has not asked to be here.
-    expect(await actor()).toBeNull();
-
-    await logIn.click();
-    await expect(page.getByRole("button", { name: /Logging in/ })).toHaveCount(
-      0,
-      { timeout: BOOT_TIMEOUT_MS },
-    );
-    await expect(page.locator("canvas").first()).toBeVisible();
+    // Straight into a world: there is nothing to sign in to here, and no
+    // character to choose. The identity is minted as the world is opened.
+    await expect(page.locator("canvas").first()).toBeVisible({
+      timeout: BOOT_TIMEOUT_MS,
+    });
     await expect(page.getByText("live", { exact: true }).first()).toBeVisible({
       timeout: 60_000,
     });
@@ -60,7 +63,7 @@ test.describe("the world in the tab", () => {
     expect(first).toBeTruthy();
 
     // A reload is a reconnect to a world that was written down, so it goes
-    // straight back in — no door, and the same body.
+    // straight back in, as the same body.
     await page.reload({ waitUntil: "networkidle" });
     await expect(page.locator("canvas").first()).toBeVisible({
       timeout: BOOT_TIMEOUT_MS,
@@ -97,5 +100,10 @@ test.describe("the world in the tab", () => {
 
     // Unlike the game, this page is an authoring page and says so.
     await expect(page.locator("header nav a").first()).toBeVisible();
+    // And unlike the game, there is nowhere to leave this world to: it is this
+    // tab's, and closing the tab is the way out of it.
+    await expect(
+      page.getByRole("button", { name: "Leave world" }),
+    ).toHaveCount(0);
   });
 });

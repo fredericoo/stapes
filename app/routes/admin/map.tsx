@@ -7,6 +7,7 @@ import {
   saveMapText,
 } from "../../lib/api";
 import { parseMap, serializeMap } from "../../lib/mapData";
+import { requireAdmin } from "../../lib/auth";
 import { useFetcher, useLoaderData } from "react-router";
 import {
   IconArrowBackUp,
@@ -32,6 +33,9 @@ import { MAX_LEVEL, MIN_LEVEL, clampLevel } from "../../lib/types";
 import { Button, Input, Toggle, Tooltip, useToast } from "../../ui";
 
 export async function clientLoader() {
+  // First and alone, because `/api/map` is behind the same role and would 404
+  // for anybody this is about to turn away. @see ../../lib/auth's requireAdmin
+  await requireAdmin();
   const [mapText, tiles, tilesets] = await Promise.all([
     fetchMapText(),
     fetchTiles(),

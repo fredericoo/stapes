@@ -5,6 +5,7 @@ import { AdminShell } from "../../components/AppShell";
 import { StatusEditorDialog } from "../../components/StatusEditorDialog";
 import { SpritePreview } from "../../components/TilePreview";
 import { fetchStatuses, fetchTiles, fetchTilesets, saveStatuses } from "../../lib/api";
+import { requireAdmin } from "../../lib/auth";
 import { TITLE_SPRITE_SIZE_PX } from "../../components/ContainerPanel";
 import {
   completeSprite,
@@ -27,6 +28,7 @@ import { Button, useToast } from "../../ui";
  */
 
 export async function clientLoader() {
+  await requireAdmin();
   // The tiles are here for the effects preview, which draws on any of them —
   // see `VfxPreview`. Fetched beside the rest rather than lazily, because
   // the dialog is the only thing on this page and it needs all three.

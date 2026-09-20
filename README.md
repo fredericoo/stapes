@@ -10,10 +10,23 @@ bun run generate   # regenerate tilesets + demo map into data/
 bun dev
 ```
 
-Open http://localhost:5173 — the game, behind a Log in button that is what
-opens the socket. The authoring tools are all under `/admin`, which opens on the
-map editor: the tile database is at `/admin/tiles`, and `/admin/arena` balances
-two fighters without a world in the way. Nothing guards `/admin` yet.
+Open the client URL `bun dev` prints — the game, behind two doors: an account
+(`/sign-in`), then which of its characters to play (`/characters`). The socket
+opens on the second one.
+
+The authoring tools are all under `/admin`, which opens on the map editor: the
+tile database is at `/admin/tiles`, and `/admin/arena` balances two fighters
+without a world in the way. **They need an `ADMIN` account.** A fresh database
+seeds one — username `admin`, password `salem123` — and nothing else grants the
+role: to promote somebody, say so in the database.
+
+```sql
+UPDATE user SET role = 'ADMIN' WHERE username = 'someone';
+```
+
+A deployment needs nothing new: session cookies are signed with `AUTH_SECRET`
+when it is set, and with a secret the server generates on its first boot and
+keeps in its own database when it is not. See [SETUP.md](SETUP.md).
 
 `/admin/play` is the same game with the world running in the tab — the real
 `GameServer` in a worker, the real protocol, no socket and nothing to log in to.
@@ -51,26 +64,42 @@ It is the path to open when the question is whether the game still works.
   needed: a fresh one seeds itself on boot
 - `bun run typecheck` — route typegen, then all three tsconfigs
 - `bun run test:unit` — `app/` logic, in vitest
-- `bun run test:server` — the world, on Bun, against a real database file
+- `bun run test:server` — the world and its accounts, on Bun, against a real
+  database file
 - `bun run test:perf` — the app in a real browser, in Playwright: renderer
-  budgets, the front door, and the world in a tab
+  budgets, the way in, and the world in a tab
 - `bun run build` — the client bundle, which CI pushes to the bucket
 
 Deploying is in [SETUP.md](SETUP.md).
 
 ## Multiplayer
 
-`/` joins a shared world held by a Durable Object. Everyone spawns where
-the map's `player` tile is placed; you appear to each other as tiles and can
-push the same objects. Closing the tab removes your tile.
+`/` joins a shared world. Everyone spawns where the map's `player` tile is
+placed; you appear to each other as tiles and can push the same objects.
+Closing the tab removes your tile.
 
-Identity is a random id in an `HttpOnly` cookie — enough to give you your avatar
-back on reload, and deliberately not a login. The socket handshake sends it, so
-the server never trusts a client-supplied id. **Log out**, in the same menu as
-the lighting switch, closes the socket and leaves the cookie alone, so logging
-in again is the same body: it is leaving the character, not the account. It
-warns first only when you are in a fight, because a body in combat stays on the
-board for a minute after its socket goes.
+**Two words, kept apart everywhere.** You *sign in* and *sign out* of an
+**account**; a **character** *enters* and *leaves* the world. An account holds
+up to three characters, nobody else can play yours, and a character's name is
+typed once and never changes.
+
+Each of those is its own route, and each asks one question: `/sign-in`,
+`/sign-up`, `/characters`, `/characters/new`, `/account/password`, and `/` for
+the world. They share one layout, which fetches the catalogues and decodes the
+tilesets once per tab — while you are still typing — so splitting them up costs
+nothing on the way in.
+
+The account's own controls, Sign out and Change password, are reachable from the
+character chooser and from nowhere else; the game's menu has neither. What it
+has is **Leave world**, beside the lighting switch: it closes the socket and
+puts the chooser back, leaving the session alone, so coming back to that
+character is the same body standing where you left it. It warns first only when
+you are in a fight, because a body in combat stays on the board for a minute
+after its socket goes.
+
+Which character you are is a query parameter on the socket, checked against the
+signed session cookie — so naming somebody else's character is a refusal, not a
+way into their body.
 
 Saving in `/admin/map` writes the map and restarts the world: everyone re-enters a
 fresh game on the new map.
@@ -81,15 +110,17 @@ couple of seconds later. Deploying the *client* restarts nothing — CI posts th
 build to the running server, which stores it beside the world and flips a
 pointer. Nobody is disconnected, and a later server deploy does not undo it.
 
-Two tabs in one browser share the cookie and are therefore the *same* player.
-To test two players locally, open one on `localhost` and one on `127.0.0.1` —
-different hosts, different cookie jars.
+Two tabs in one browser share the session, but not the character: which one a
+tab is playing lives in its own `sessionStorage`, so two tabs can be two of your
+three at once. Two tabs on the *same* character are the same player, and the
+newest connection wins. To test two accounts locally, open one on `localhost`
+and one on `127.0.0.1` — different hosts, different cookie jars.
 
 **`/admin/play` is the same page against a world in the tab.** One world per
 tab, kept in IndexedDB between visits, with a Reset world button where the
 shared world has `POST /api/reset`. It reads the map and the catalogues over
 `/api` like every other page, so it still wants `bun dev` — what it does not
-want is a socket, an actor cookie or anything to log in to. See `docs/notes.md`,
+want is a socket, an account or anything to sign in to. See `docs/notes.md`,
 "`/admin/play` runs the server in the tab".
 
 ## Data
@@ -118,6 +149,10 @@ actually in. It prefers its own checkpoint to the authored content, so a seeded
 map changes nothing anybody can see, and it deliberately carries each player's
 kit, tags and masteries across a save. `POST /api/reset` is the way out — it
 destroys every position, kit, reward and mastery, and needs `ADMIN_SECRET`.
+
+Accounts and characters are a fourth, and none of the above touches them. They
+are their own tables rather than keys in the world's checkpoint, so a reset
+hands everybody a fresh body under the name they already have.
 
 Map edits are in-memory until you hit **Save** (or Cmd/Ctrl+S). Tile DB edits
 save immediately.

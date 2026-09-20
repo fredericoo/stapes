@@ -48,6 +48,21 @@ const schema = v.object({
   ADMIN_SECRET: v.optional(v.string()),
 
   /**
+   * What session cookies are signed with.
+   *
+   * Optional, and a deployment that leaves it unset gets one generated and kept
+   * in its own database — see `server/authSecret.ts`. What must never happen is
+   * Better Auth falling back to the constant it ships with, which is a session
+   * anybody who has read its source can mint; an environment variable and a
+   * stored secret both avoid that, and only one of them needs somebody to
+   * remember it.
+   *
+   * Set it to rotate — a new value signs every existing session out — or to
+   * hold the secret somewhere other than the volume.
+   */
+  AUTH_SECRET: v.optional(v.string()),
+
+  /**
    * Where `POST /api/backup` writes snapshots.
    *
    * A separate mount from `DATA_DIR` in production, because a backup sitting on

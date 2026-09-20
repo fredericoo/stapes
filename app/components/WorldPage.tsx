@@ -6,8 +6,7 @@ import { GameViewport } from "./GameViewport";
 import { InkDocument } from "./InkDocument";
 import { LightingToggle } from "./LightingToggle";
 import { LoadingScreen } from "./LoadingScreen";
-import { LoginScreen } from "./LoginScreen";
-import { LogOutButton } from "./LogOutButton";
+import { LeaveWorldButton } from "./LeaveWorldButton";
 import { OutdatedScreen } from "./OutdatedScreen";
 import { ReplacedScreen } from "./ReplacedScreen";
 import { WorldClock } from "./WorldClock";
@@ -29,6 +28,7 @@ import type { Direction, TileDef, TilesetDef } from "../lib/types";
 import {
   CLOSE_OUTDATED_CLIENT,
   CLOSE_REPLACED,
+  CLOSE_SIGNED_OUT,
   PROTOCOL_VERSION,
 } from "../net/protocol";
 import type { WorldLink } from "../net/link";
@@ -51,10 +51,19 @@ import { debugViewRequested } from "../render/debugView";
  *
  * Everything here is therefore about a world at the other end of a wire, and
  * says nothing about where that wire goes. What differs is behind
- * {@link WorldLink}: minting an identity, opening a connection, and whether
- * this page is allowed to throw the world away and start again.
+ * {@link WorldLink}: opening a connection, and whether this page is allowed to
+ * throw the world away and start again.
+ *
+ * **It does not ask who you are.** It used to hold a Log in button, and that
+ * moved out to routes — `/sign-in`, `/characters` and the rest — because
+ * "which account" and "which character" are questions with their own screens,
+ * their own URLs and their own redirects. By the time this mounts, the answer
+ * is settled: `/`'s loader has redirected anybody without one, and
+ * `/admin/play` needs none. So this connects on mount and the loading screen
+ * covers the wait.
  *
  * @see ../net/link
+ * @see ../routes/player, the layout the game's screens share
  */
 
 /** Backoff between reconnect attempts, capped. */
@@ -74,18 +83,6 @@ const RESTART_RECONNECT_JITTER_MS = 750;
 /** Guards the reload-on-stale-client path against looping. */
 const RELOADED_FOR_VERSION = "stapes:reloaded-for-version";
 
-/**
- * Marks a tab that has already been let in, so a reload does not ask again.
- *
- * Two of the page's own paths end in `location.reload()` — a client refused for
- * its protocol version, and taking the player back from another tab — and both
- * are the app reloading itself mid-session rather than somebody arriving. Left
- * to the login screen they would drop a player at the door in the middle of
- * playing. The tab's own storage, so it dies with the tab; when the button
- * becomes a real login this is what a live session replaces.
- */
-const LOGGED_IN = "stapes:logged-in";
-
 type Status =
   | "connecting"
   | "live"
@@ -101,6 +98,8 @@ export function WorldPage({
   statuses,
   destinations,
   menuExtras,
+  onLeave,
+  onRefused,
 }: {
   /** How this page gets to a world, and the only thing `/` and `/admin/play` disagree about. */
   link: WorldLink;
@@ -115,6 +114,23 @@ export function WorldPage({
   destinations?: Destination[];
   /** Controls this page has and the other does not, in the same menu. */
   menuExtras?: React.ReactNode;
+  /**
+   * Take this character out of the world, if there is anywhere to take it.
+   *
+   * Given by the game, where leaving means going back to the character chooser
+   * — see `../routes/game`. Absent under `/admin/play`, where there is nothing
+   * to leave *to*: that world is this tab's and closing the tab is the way out
+   * of it. The menu draws **Leave world** only when this is here.
+   */
+  onLeave?: () => void;
+  /**
+   * The world refused this connection for who it was opened as.
+   *
+   * Only the shared world can answer that — see {@link CLOSE_SIGNED_OUT} — and
+   * only the game supplies it. Reconnecting would be refused the same way every
+   * time, so the page stops and lets the route decide where somebody goes.
+   */
+  onRefused?: () => void;
 }) {
   // Both ends load the same catalogue: the server to run the effects, this side
   // to name and draw them. Only ids and clocks travel, which is what keeps a
@@ -128,70 +144,7 @@ export function WorldPage({
   // the renderer is not even built until `hello` arrives, since there is nobody
   // to centre the camera on before it.
   const [painted, setPainted] = useState(false);
-  /**
-   * Whether this tab has asked to be in the world.
-   *
-   * False until the Log in button is pressed and the actor cookie comes back,
-   * and nothing below opens a socket while it is: the connecting effect wants a
-   * canvas, and there is no canvas on the login screen. @see ./LoginScreen
-   */
-  const loggedInKey = `${LOGGED_IN}:${link.id}`;
   const reloadedKey = `${RELOADED_FOR_VERSION}:${link.id}`;
-  const [loggedIn, setLoggedIn] = useState(
-    () => sessionStorage.getItem(loggedInKey) === "1",
-  );
-  /**
-   * Whether the world has been on screen at all since this player logged in.
-   *
-   * Beside {@link painted} rather than derived from it, because they answer
-   * different questions: `painted` is *is there a frame up now*, which a
-   * reconnect takes back, and this is *has this player got in yet*, which
-   * nothing but logging out takes back. The door reads the second one — see
-   * {@link entering} — so a reconnect gets the loading screen and its status
-   * chip rather than a door claiming somebody is still logging in.
-   */
-  const [entered, setEntered] = useState(false);
-  const [loggingIn, setLoggingIn] = useState(false);
-  const [loginError, setLoginError] = useState<string | null>(null);
-  const logIn = useCallback(() => {
-    setLoggingIn(true);
-    setLoginError(null);
-    // The actor cookie is minted here and nowhere else, and it has to land
-    // before the socket opens: identity comes from that cookie and never from
-    // anything this page could say about itself. A refusal leaves the button
-    // where it is — there is nothing to be in the world with.
-    link.enter().then(
-      () => {
-        sessionStorage.setItem(loggedInKey, "1");
-        setLoggingIn(false);
-        setLoggedIn(true);
-      },
-      () => {
-        setLoggingIn(false);
-        setLoginError("Could not reach the world. Try again.");
-      },
-    );
-  }, [link, loggedInKey]);
-  /**
-   * Leave the world, keeping the actor that was in it.
-   *
-   * Dropping {@link loggedIn} is the whole of it: the connecting effect below is
-   * torn down with the canvas, which takes the renderer, the session and this
-   * player's body out of the world. The status goes back to what a fresh page
-   * says, so the chip does not read `live` over a door.
-   *
-   * **The cookie is deliberately left alone.** It is this player's identity and
-   * will be their account, and leaving a character is not signing out of one:
-   * the next Log in is the same body, standing where it was left. What that
-   * costs is the one thing the button warns about — a body in combat stays on
-   * the board after its socket goes. @see ./LogOutButton
-   */
-  const logOut = useCallback(() => {
-    sessionStorage.removeItem(loggedInKey);
-    setStatus("connecting");
-    setEntered(false);
-    setLoggedIn(false);
-  }, [loggedInKey]);
   /**
    * What the server said it speaks, once it has refused us for speaking
    * something else. Null until then, and null for a refusal that closed without
@@ -374,12 +327,17 @@ export function WorldPage({
   statusDefsRef.current = statusDefs;
   const lightingRef = useRef(lightingEnabled);
   lightingRef.current = lightingEnabled;
-
-  // One way, and only per login: the door comes down against a world being on
-  // the canvas, and a reconnect taking the frame back does not put it up again.
-  useEffect(() => {
-    if (painted) setEntered(true);
-  }, [painted]);
+  /**
+   * The route's two callbacks, read at call time rather than named as
+   * dependencies of the connecting effect.
+   *
+   * Neither is a reason to throw a live world away, and a caller that passed an
+   * inline arrow — which is every caller — would rebuild the connection on
+   * every render if they were in that list. This is the discipline every other
+   * long-lived callback in that effect already follows.
+   */
+  const handlersRef = useRef({ onLeave, onRefused });
+  handlersRef.current = { onLeave, onRefused };
 
   useEffect(() => {
     rendererRef.current?.setLightingEnabled(lightingEnabled);
@@ -599,6 +557,18 @@ export function WorldPage({
         }
         sessionStorage.removeItem(reloadedKey);
 
+        // The session expired, or this character is no longer this account's.
+        // Reconnecting would be refused the same way every time, so the page
+        // stops and lets the route decide where somebody goes. Only the shared
+        // world can answer this; locally there is nobody to refuse you.
+        if (event.code === CLOSE_SIGNED_OUT) {
+          teardownRenderer();
+          setStats(null);
+          setPlayers(null);
+          handlersRef.current.onRefused?.();
+          return;
+        }
+
         // Another tab has this player now. Reconnecting would take the actor
         // back, the other tab would reconnect and take it again, and the two
         // would trade it for ever — so this one stops and waits to be asked.
@@ -641,34 +611,15 @@ export function WorldPage({
       setStats(null);
       setPlayers(null);
     };
-    // `assetsReady` and `loggedIn` are in here for the canvas rather than for
-    // themselves — the element only exists once both are true. They also hold
-    // the socket back until then, which is right: a world being simulated for
-    // somebody who cannot see it yet is a walk they never asked for.
-  }, [tiles, tilesets, link, assetsReady, loggedIn]);
-
-  /**
-   * Whether the press is still being answered — anywhere between the button
-   * going down and the world appearing.
-   *
-   * **Getting in is one wait and reads as one.** Minting the actor, opening the
-   * socket, waiting on `hello` and waiting for the first frame are four things,
-   * and a screen apiece is a page flickering through states a player cannot act
-   * on and did not ask about. So the door stays up, saying `Logging in…`, until
-   * there is a world behind it — which is {@link entered}, the first frame, and
-   * not `hello`: the renderer is built on `hello` and paints some way after it,
-   * and that gap was the seam this exists to close.
-   *
-   * **The moment something is wrong it stands down**, because the statuses it
-   * covers are the two that mean the wait is going normally. A socket that
-   * closes before the first frame puts `reconnecting` or `restarting` on the
-   * page, and then the loading screen and its chip take over and say so — a
-   * door reading `Logging in…` at somebody whose server is down is a screen
-   * that explains nothing. `outdated` and `replaced` are ends of the road and
-   * draw their own screens for the same reason.
-   */
-  const entering =
-    loggedIn && !entered && (status === "connecting" || status === "live");
+    // `assetsReady` is in here for the canvas rather than for itself — the
+    // element only exists once it is true. It also holds the connection back
+    // until then, which is right: a world being simulated for somebody who
+    // cannot see it yet is a walk they never asked for.
+    //
+    // Nothing else belongs here. Every entry is a reason to throw a live world
+    // away and ask for another one, which is a fresh `hello` — the whole map.
+    // That is why the two callbacks are read through {@link handlersRef}.
+  }, [tiles, tilesets, link, assetsReady]);
 
   // Held in a variable because it rides in one of two slots. A world that is
   // simply connected is not news and folds away into the menu with everything
@@ -700,11 +651,7 @@ export function WorldPage({
           read aloud — none of which an overlay drawn on top of them covers. It
           exists for the attribute and takes the height back, because the shell
           under it is sized against its parent. */}
-      {!loggedIn ? null : (
-        // `entering` is in here for the same reason the death is: the door is
-        // drawn over this, and an overlay stops a pointer but not a tab key —
-        // a world nobody can see yet is not one to be able to reach into.
-        <div className="h-full" inert={dead || rebirthing || entering}>
+      <div className="h-full" inert={dead || rebirthing}>
           <AppShell
             destinations={destinations}
             menuExtras={
@@ -730,12 +677,14 @@ export function WorldPage({
                 {/* Last in the row, and last in the menu on a phone: it is the
                     only thing here that ends the session rather than changing
                     what is on screen. */}
-                <LogOutButton
-                  inCombat={vitals.statuses.some(
-                    (status) => status.defId === COMBAT_STATUS_ID,
-                  )}
-                  onLogOut={logOut}
-                />
+                {onLeave ? (
+                  <LeaveWorldButton
+                    inCombat={vitals.statuses.some(
+                      (status) => status.defId === COMBAT_STATUS_ID,
+                    )}
+                    onLeave={onLeave}
+                  />
+                ) : null}
               </>
             }
             // The bar goes away entirely on a phone, because the game draws the
@@ -800,24 +749,12 @@ export function WorldPage({
                 <OutdatedScreen serverVersion={serverVersion} />
               ) : status === "replaced" ? (
                 <ReplacedScreen />
-              ) : painted || entering ? null : (
+              ) : painted ? null : (
                 <LoadingScreen />
               )}
             </div>
           </AppShell>
         </div>
-      )}
-      {/* The door, which is also the wait behind it. Over the shell rather than
-          inside it, so the button does not move between the two: it is in the
-          middle of the page before the press and in the middle of the page
-          after it. @see entering */}
-      {!loggedIn || entering ? (
-        <LoginScreen
-          onLogIn={logIn}
-          pending={loggingIn || entering}
-          error={loginError}
-        />
-      ) : null}
 
       {/* One screen for the whole time this player has no body to act with,
           which is why the wait is a state of it rather than a second overlay:
