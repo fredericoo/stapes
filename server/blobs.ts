@@ -1,6 +1,6 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname, join, normalize } from "node:path";
-import type { Blobs } from "../app/lib/storage.server";
+import type { Blobs } from "../app/lib/dataStore";
 import type { Database } from "./db";
 
 /**

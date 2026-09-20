@@ -105,7 +105,7 @@ is not one.
 `app/routes.ts` has two halves and the split is what a visitor is offered, not
 where the files sit. `/` is the shared world. Everything a person editing the
 game needs — the map editor, the tile and status catalogues, the voxel editor,
-the arena and the single-player page — is under `/admin`, and `/admin` itself
+the arena and the play route — is under `/admin`, and `/admin` itself
 redirects to `/admin/map`.
 
 **Nothing guards `/admin`.** There is no account system to guard it with, and
@@ -195,6 +195,123 @@ rejected upgrade to the page as an indistinguishable failure, so those tabs
 would sit in a reconnect backoff rather than reloading. The version handshake
 in `app/net/protocol.ts` is how a stale client is told to reload, and it can
 only do that on a socket that opened.
+
+## `/admin/play` runs the server in the tab
+
+`/` and `/admin/play` are **one page** — `app/components/WorldPage.tsx` — against
+one protocol. The only thing they disagree about is `WorldLink`, which is how
+you are connected:
+
+- `app/net/link.ts`'s `onlineLink` opens a `WebSocket` to the Bun process, with
+  identity in the `HttpOnly` cookie that rides the upgrade.
+- `app/local/link.ts`'s `localLink` starts a worker, and the world is in it.
+
+Everything else is shared, and none of it is stubbed: the frames are
+`app/net/protocol.ts`, the client is `RemoteSession`, and **the simulation is
+`server/GameServer.ts`, the same file the server runs** — imported rather than
+reimplemented. A change to the world cannot be true on one route and false on
+the other.
+
+### Why it exists
+
+`/` is growing a login. Hand-testing a change to the game should not mean
+hand-testing the way in to it first, and a green path that needs an account, a
+server and a database is one people stop running. This one needs a tab.
+
+It replaced the single-player page that used to be here, which ran a local
+`GameSession` with no server in the picture. That page was a different game: no
+prediction, no interest management, no scoping, no checkpoint — so a bug in any
+of them was invisible on the route people reached for when they wanted to just
+play it. **Nothing in a tab constructs a `GameSession` any more.** The client's
+only session is `RemoteSession`, on both routes.
+
+What went with the old page is the client-side clock. The time scrubber and its
+Pause box were a page deciding for itself what hour it was; the hour belongs to
+the world now, and `/time` is what moves it — for everybody, which in a tab is
+you.
+
+### The worker is the server
+
+`app/local/world.worker.ts` is what `server/index.ts` is: something owns a
+world, accepts connections, and hands raw frames between them. A worker rather
+than a corner of the page, because a simulation sharing a thread with a renderer
+that wants every millisecond of it ticks late — and a world that ticks late is a
+different world from the one the server runs, which is the one thing this route
+must not be.
+
+`app/local/LocalWorld.ts` is `server/world.ts` for a runtime with no filesystem
+and no signals: the same checkpoint loop, alarm timer and keepalive, without the
+drain, the snapshot and the re-seed, which are all about being a server.
+
+**The link is a module constant, and the world outlives the page.**
+`localLink` holds the worker, so a page that built its own link would tie a
+world's lifetime to React's — to a remount, to a double-invoked effect, to the
+order two cleanups happen to run in. Walking to the map editor and back would
+be a world thrown away and read in again, if it were thrown away at the right
+moment at all. What the page owns is the connection, which it closes on the way
+out as it always has; a world with no connections stops ticking by itself
+(`sleepIfIdle`), so leaving one running costs a checkpoint timer that has
+nothing to write.
+
+**One world per tab.** Two tabs are two worlds rather than two players in one,
+because each tab has its own worker. A `SharedWorker` would make them one and is
+the obvious next step if testing two players locally is ever worth it — nothing
+above the worker assumes either, since the world already takes any number of
+connections.
+
+### Where that world is kept
+
+`app/local/LocalStore.ts` is `server/WorldStore.ts` against IndexedDB, keeping
+the interface `GameServer` reads and writes through. Three differences, each
+forced by the runtime:
+
+- **The memory map is the world and the checkpoint is a copy of it.** The server
+  buffers writes because its source of truth is a file it must not touch on a
+  tick; here the source of truth is already in memory, so a write lands
+  immediately and the flush only has to tell IndexedDB what moved. The tombstone
+  bookkeeping goes with it — a deleted key is deleted.
+- **Values are JSON text**, exactly as the server stores them. Not a detail:
+  `GameServer` hands over structures it goes on mutating — the live board among
+  them — and a store that kept the reference would checkpoint a board from one
+  tick beside actors from another.
+- **`storage.sql` goes nowhere.** `logChat` writes speech into a table nothing
+  ever reads back: not the client, not the world, not a later load. On the
+  server that is a record somebody can open the database and read; in a tab
+  there is nobody to read it and no database to open. Speech still reaches
+  everyone it should, which is the broadcast and has nothing to do with the log.
+
+Persistence is best-effort on purpose. A private window, a blocked origin or a
+full quota all end in the same place — the world runs in memory and goes with
+the tab — and a page that refused to start because it could not save would be
+strictly worse than one that forgets.
+
+**Reset world**, in the menu the lighting switch is in, is `POST /api/reset`
+without the secret: the shared world is everybody's and this one is yours. It
+destroys every position, kit, reward and mastery, and sends every connected
+socket a fresh `hello`, so the page redraws into the new world rather than
+reconnecting into it.
+
+### It still reads content over `/api`
+
+A world in a tab has no `data/` and no blob table, so `app/local/content.ts` is
+a third `Blobs` beside `DiskBlobs` and `SqliteBlobs`, reading the map, the tiles
+and the statuses over the same endpoints every other page reads them over.
+**So `/admin/play` is not a standalone page**: `bun dev` runs both halves and the
+content API is one of them. What it does not need is the *world* — no socket, no
+actor cookie, no checkpoint on the volume, and nothing to log in to.
+
+It is a reader, and refuses to be anything else. Nothing in a tab authors
+content: the map editor still saves through `POST /api/map` to the real server,
+and this world picks the result up the next time it loads.
+
+### `app/lib/storage.server.ts` is `app/lib/dataStore.ts`
+
+The rename is not cosmetic. React Router's Vite plugin refuses a `.server.ts`
+module in the client graph, and `DataStore` is in it now — the world in the tab
+reads its content through the same class the server does. The suffix was a
+leftover from the Worker deployment in any case: the module is a set of keys and
+a `JSON.parse`, with nothing server-only in it, and `GameServer` had been
+importing its type into shared code for as long as it has existed.
 
 ## `dependencies` is what the *server* needs, and nothing else
 
@@ -347,8 +464,10 @@ because it is the one somebody just opened or reloaded.
 
 ## The simulation holds N actors
 
-`GameSession` runs any number of actors. `/admin/play` runs exactly one and never
-names it (`LOCAL_ACTOR_ID`); the game server will spawn one per connection.
+`GameSession` runs any number of actors, and `GameServer` is the only thing that
+builds one: a connection spawns an actor, and since `/admin/play` moved onto the
+server there is no session in a tab at all. `LOCAL_ACTOR_ID` is the id its
+single-actor API still defaults to, and the tests are what call it.
 
 - **Ownership lives on the placement.** `PlacedTile.owner` is what tells two
   identical `player` tiles apart. Authored maps never carry one — the map's
@@ -5722,10 +5841,12 @@ Both verbs land through one `putBodyAt`, which moves with `moveThrough` — the
 same one a portal makes — so a body that walks somewhere and a body that types
 its way there end in one state and the client animates both the same way.
 
-**Neither is reachable in `/admin/play`.** Commands are typed into the chat field and
-`/admin/play` never passes `onSay`, so single-player has no chat and therefore no
-commands at all. That is true of `/tile` and `/health` too and predates these;
-it is worth knowing before going looking for the field in single-player.
+**Both are reachable in `/admin/play`**, which they were not while that page ran
+a session of its own: commands are typed into the chat field, the field is
+`onSay`, and a page with nothing to send to never drew one. The world in the tab
+is a server, so `/goto`, `/move`, `/tile`, `/health` and `/time` all work there
+exactly as they do online — which is most of what makes the route worth testing
+on.
 
 ### `/tile` puts anything anywhere, on the editor's own terms
 
@@ -7559,9 +7680,10 @@ before its own drain, so a note raised there would otherwise never be sent. A vi
 running for something nobody can be hurt by. The clock is the renderer's:
 `RemoteSession` stamps a note on arrival against a clock that runs while the tab
 is hidden, drops what could have finished, and caps what it holds, because
-frames stop in a background tab while the socket keeps delivering. Offline
-`/admin/play` keeps its own capped list, since `update` can run several ticks between
-two frames and each tick empties the list a server drains.
+frames stop in a background tab while the socket keeps delivering. A local
+`GameSession` keeps its own capped list instead, since `update` can run several
+ticks between two frames and each tick empties the list a server drains — a path
+only the tests take now that `/admin/play` is a client like any other.
 
 **A note's slot is a hint.** `stackIndex` is exact when the change happens, and
 gravity, extraction or a creature eating in the same tick can still move things
@@ -7992,8 +8114,9 @@ instance is built with `UNKNOWN_REMAINING_MS` (`Infinity`), which falls through
 `taperAt` as "not winding down" with no special case. The consequence, stated
 plainly: **somebody else's poison burns at full strength until it ends.** Your
 own tapers, because your own countdown is on the wire in full. A local
-`GameSession` (`/admin/play`, `/admin/arena`) has neither limit — every actor's statuses are
-on its snapshots at tick rate.
+`GameSession` has neither limit — every actor's statuses are on its snapshots at
+tick rate — which since `/admin/play` moved onto the server is the world's own
+session and the tests.
 
 `diffStatusIds` is not `drainStatusChanges`. That queue is drained to send a
 viewer their own countdown; reading it in the broadcast would take the message
