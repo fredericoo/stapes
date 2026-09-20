@@ -24,10 +24,9 @@ role: to promote somebody, say so in the database.
 UPDATE user SET role = 'ADMIN' WHERE username = 'someone';
 ```
 
-A deployment has one more requirement than development does: `AUTH_SECRET`, a
-long random string that session cookies are signed with. The server refuses to
-start without it rather than falling back to a published constant. See
-[SETUP.md](SETUP.md).
+A deployment needs nothing new: session cookies are signed with `AUTH_SECRET`
+when it is set, and with a secret the server generates on its first boot and
+keeps in its own database when it is not. See [SETUP.md](SETUP.md).
 
 `/admin/play` is the same game with the world running in the tab — the real
 `GameServer` in a worker, the real protocol, no socket and nothing to log in to.

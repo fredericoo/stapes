@@ -63,10 +63,10 @@ const SEEDED_ADMIN_EMAIL = "admin@stapes.invalid";
  * is held exclusively, so accounts could not have a handle of their own even if
  * a separate file were wanted.
  */
-export function createAuth(db: Database, config: Config) {
+export function createAuth(db: Database, config: Config, secret: string) {
   return betterAuth({
     appName: "Stapes",
-    secret: config.authSecret,
+    secret,
     baseURL: config.PUBLIC_ORIGIN,
     // Lives under the same `/api` prefix everything else does, because the one
     // origin is the whole deployment — see `server/index.ts`.

@@ -196,20 +196,21 @@ DATA_DIR=/data
 BACKUP_DIR=/backups
 PUBLIC_ORIGIN=https://stapes.example.com
 ADMIN_SECRET=<openssl rand -hex 32>
-AUTH_SECRET=<openssl rand -base64 32>
 NODE_ENV=production
 CHECKPOINT_INTERVAL_MS=2000
 ```
 
-Six variables and two secrets. `NODE_ENV=production` is what tells the server to
+Five variables and one secret. `NODE_ENV=production` is what tells the server to
 read authored content from the database rather than from a `data/` directory
 that only exists in a checkout.
 
-**`AUTH_SECRET` is not optional, and the server refuses to start without it.**
-It is what session cookies are signed with; unset, Better Auth falls back to a
-constant it ships in its own source, and every session in the world could be
-forged by anybody who has read it. Any long random string will do, and changing
-it later signs everybody out — which is the emergency lever if one ever leaks.
+**`AUTH_SECRET` is optional and deliberately not in that list.** It is what
+session cookies are signed with, and a deployment that does not set it generates
+one on its first boot and keeps it in its own database — so a fresh environment
+comes up without anybody having to remember. Set it (`openssl rand -base64 32`)
+if you would rather the secret lived off the volume, or to rotate one: a new
+value signs every existing session out, which is the emergency lever if one ever
+leaks.
 
 `PUBLIC_ORIGIN` gains a second job here: it is the only origin allowed to post
 to the account routes, which is the whole of the cross-site request protection.
@@ -332,8 +333,8 @@ A second Coolify application, same repository, same server:
   is somebody else's hostname is one where signing in works and changing a
   password is refused.
 - And a **different** `ADMIN_SECRET`, which goes into `PREVIEW_ADMIN_SECRET`.
-  `AUTH_SECRET` may be a different value too, and probably should be: a preview
-  is a separate world with a separate `admin` account in it.
+  Leave `AUTH_SECRET` unset here: each preview is its own world with its own
+  database, and generating a secret per preview is exactly right.
 - **Never deploy the base application.** Only its `pr-N` children are wanted;
   the parent exists to hold the settings and to give `{{domain}}` a value.
 

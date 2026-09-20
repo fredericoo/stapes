@@ -338,6 +338,30 @@ chooser, with `revokeOtherSessions` — a password is changed either because
 somebody chose a better one or because they think it got out, and the second
 case is the one worth designing for.
 
+### The signing key is generated rather than demanded
+
+`AUTH_SECRET` when it is set, and otherwise 32 random bytes minted on the first
+boot and kept in an `auth_secret` row — see `server/authSecret.ts`. What must
+never happen is Better Auth falling back to the constant it ships in its own
+source, which is a session anybody who has read that source can forge; an
+environment variable and a stored secret both avoid that, and only one of them
+needs somebody to remember it.
+
+**It was a hard requirement for one afternoon, and that was wrong.** A server
+that refuses to start until a variable is set does not come up on a deployment
+whose environment nobody has touched — which is every preview, and the first
+deploy of anything. The failure is also the worst kind to read: the container
+crash-loops, no backend answers, no certificate is ever issued, and the preview
+workflow's health check spends five minutes on `SSL certificate problem:
+self-signed certificate` with nothing anywhere about a missing variable. That is
+the shape of every "required at boot" flag, and it is why this one is not.
+
+Storing it beside the sessions is not a weakening: the secret's job is to make a
+cookie unforgeable by somebody who does not have the database, and anybody who
+*has* it already has the `session` table. The row is not in `kv` for the reason
+the alarm is not — `POST /api/reset` empties that table, and a reset that signed
+everybody out would be doing something it does not say it does.
+
 ### A role is assigned in the database and by nothing else
 
 `role` is declared on the user model with `input: false`, which drops it from

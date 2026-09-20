@@ -7,6 +7,7 @@ import { GameSocket, SocketHub, type WorldContext } from "./sockets";
 import { openWorldDatabaseExclusively } from "./lock";
 import { seedFromDirectory } from "./seed";
 import { createAuth, seedAdmin, type Auth } from "./auth";
+import { resolveAuthSecret } from "./authSecret";
 import { Characters } from "./characters";
 import { KEEPALIVE_INTERVAL_MS } from "../app/net/protocol";
 import type { Config } from "./config";
@@ -75,7 +76,14 @@ export class World {
       acceptWebSocket: (socket) => hub.accept(socket),
     };
 
-    const auth = createAuth(db, config);
+    // Configured, or generated on the first boot and kept in the database.
+    // A deployment whose environment nobody has touched still comes up — see
+    // `./authSecret`, which is also where the reason that matters is.
+    const auth = createAuth(
+      db,
+      config,
+      await resolveAuthSecret(db, config.AUTH_SECRET),
+    );
     const characters = new Characters(db);
     // Before anything is served, so the first request to arrive at a fresh
     // deployment already has somebody it could be. Create-only — see

@@ -9,6 +9,7 @@ import {
   viewerOf,
   type Auth,
 } from "./auth";
+import { resolveAuthSecret } from "./authSecret";
 import { Characters } from "./characters";
 import { readConfig } from "./config";
 import { openDatabase, type Database } from "./db";
@@ -38,7 +39,11 @@ let characters: Characters;
 beforeEach(async () => {
   directory = await mkdtemp(join(tmpdir(), "stapes-accounts-"));
   db = await openDatabase(join(directory, "stapes.db"));
-  auth = createAuth(db, readConfig({ DATA_DIR: directory } as never));
+  auth = createAuth(
+    db,
+    readConfig({ DATA_DIR: directory } as never),
+    await resolveAuthSecret(db, undefined),
+  );
   characters = new Characters(db);
 });
 
@@ -75,6 +80,42 @@ async function sessionHeaders(
   if (!cookie) throw new Error(`no session cookie for ${username}`);
   return new Headers({ cookie: cookie.split(";")[0]! });
 }
+
+/**
+ * The signing key, which a deployment is not required to supply.
+ *
+ * It used to be a hard requirement and a refusal to start, which is what a
+ * preview deployment with an untouched environment meets — a crash loop, no
+ * certificate, and a health check timing out with nothing in the log about a
+ * missing variable. @see `./authSecret`
+ */
+describe("the session signing key", () => {
+  it("is generated once and read back on every boot after", async () => {
+    const first = await resolveAuthSecret(db, undefined);
+    expect(first.length).toBeGreaterThanOrEqual(32);
+
+    // A second boot against the same database. Anything else would sign every
+    // existing session out on every restart.
+    expect(await resolveAuthSecret(db, undefined)).toBe(first);
+  });
+
+  /**
+   * An operator who would rather the secret lived somewhere other than the
+   * volume sets `AUTH_SECRET`, and the stored row is then never consulted —
+   * nor overwritten, so unsetting the variable again comes back to whatever
+   * this deployment generated rather than signing everybody out twice.
+   */
+  it("lets the environment say instead, and leaves the stored one alone", async () => {
+    const generated = await resolveAuthSecret(db, undefined);
+
+    expect(await resolveAuthSecret(db, "a-secret-from-somewhere-else")).toBe(
+      "a-secret-from-somewhere-else",
+    );
+
+    const stored = await db.prepare("SELECT secret FROM auth_secret WHERE id = 0");
+    expect(await stored.get()).toEqual({ secret: generated });
+  });
+});
 
 describe("the seeded administrator", () => {
   it("can sign in to a fresh world", async () => {

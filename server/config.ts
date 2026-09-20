@@ -50,10 +50,15 @@ const schema = v.object({
   /**
    * What session cookies are signed with.
    *
-   * No default, and unlike `ADMIN_SECRET` an unset one is fatal in production
-   * rather than merely closing a door: Better Auth falls back to a constant it
-   * ships with, and a session signed with a published secret is a session
-   * anybody can mint. Development gets a fixed string — see `authSecret`.
+   * Optional, and a deployment that leaves it unset gets one generated and kept
+   * in its own database — see `server/authSecret.ts`. What must never happen is
+   * Better Auth falling back to the constant it ships with, which is a session
+   * anybody who has read its source can mint; an environment variable and a
+   * stored secret both avoid that, and only one of them needs somebody to
+   * remember it.
+   *
+   * Set it to rotate — a new value signs every existing session out — or to
+   * hold the secret somewhere other than the volume.
    */
   AUTH_SECRET: v.optional(v.string()),
 
@@ -83,8 +88,6 @@ const schema = v.object({
 export type Config = v.InferOutput<typeof schema> & {
   /** `DATA_DIR` joined to the database filename. */
   databasePath: string;
-  /** What Better Auth signs sessions with. @see AUTH_SECRET */
-  authSecret: string;
   /**
    * Whether authored content lives in the database rather than in `data/`.
    *
@@ -97,36 +100,9 @@ export type Config = v.InferOutput<typeof schema> & {
 
 export function readConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const parsed = v.parse(schema, env);
-  const deployed = env.NODE_ENV === "production";
   return {
     ...parsed,
     databasePath: `${parsed.DATA_DIR.replace(/\/+$/, "")}/stapes.db`,
-    authSecret: authSecret(parsed.AUTH_SECRET, deployed),
-    deployed,
+    deployed: env.NODE_ENV === "production",
   };
-}
-
-/**
- * The session signing key, or a refusal to start.
- *
- * **A deployment with no `AUTH_SECRET` stops here**, which is the one place in
- * this file that throws for a missing value. Every other secret being unset
- * disables a feature; this one being unset would leave Better Auth signing with
- * the constant it ships as a fallback, so every session cookie in the world
- * could be forged by anybody who has read its source. Failing at second zero is
- * the only honest answer.
- *
- * Development gets a fixed string rather than a random one per boot, so that
- * `bun dev` does not sign everybody out every time the server restarts — which,
- * under `--watch`, is every time anybody edits a file in `server/`.
- */
-function authSecret(configured: string | undefined, deployed: boolean): string {
-  if (configured) return configured;
-  if (deployed) {
-    throw new Error(
-      "AUTH_SECRET is unset. Set it to a long random string — without one, " +
-        "session cookies are signed with a published constant.",
-    );
-  }
-  return "stapes-development-auth-secret-not-for-deployment";
 }

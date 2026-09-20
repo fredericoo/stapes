@@ -156,6 +156,17 @@ const MIGRATIONS: readonly string[] = [
      created_at INTEGER NOT NULL
    )`,
   `CREATE INDEX IF NOT EXISTS character_user ON character(user_id)`,
+  // What session cookies are signed with, when nothing in the environment says.
+  //
+  // A single row, shaped like `alarm` above and for one of its reasons: it is
+  // one fact about this deployment rather than a key/value. The sharper reason
+  // it is not in `kv` is that `POST /api/reset` empties that table — and a
+  // reset that signed everybody out would be doing something it does not say it
+  // does. @see `server/authSecret.ts`
+  `CREATE TABLE IF NOT EXISTS auth_secret (
+     id     INTEGER PRIMARY KEY CHECK (id = 0),
+     secret TEXT NOT NULL
+   )`,
   // Forget every body the cookie era left behind.
   //
   // Identity used to be a random uuid minted by `GET /api/session`, so every
