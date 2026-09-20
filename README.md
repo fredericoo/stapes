@@ -10,8 +10,9 @@ bun run generate   # regenerate tilesets + demo map into data/
 bun dev
 ```
 
-Open the client URL `bun dev` prints — the game, behind two doors: an account,
-then which of its characters to play. The socket opens on the second one.
+Open the client URL `bun dev` prints — the game, behind two doors: an account
+(`/sign-in`), then which of its characters to play (`/characters`). The socket
+opens on the second one.
 
 The authoring tools are all under `/admin`, which opens on the map editor: the
 tile database is at `/admin/tiles`, and `/admin/arena` balances two fighters
@@ -78,12 +79,19 @@ Closing the tab removes your tile.
 up to three characters, nobody else can play yours, and a character's name is
 typed once and never changes.
 
-So the account's own controls — Sign out, Change password — are on the character
-chooser, and the game's menu has neither. What it has is **Leave world**, beside
-the lighting switch: it closes the socket and puts the chooser back, leaving the
-session alone, so coming back to that character is the same body standing where
-you left it. It warns first only when you are in a fight, because a body in
-combat stays on the board for a minute after its socket goes.
+Each of those is its own route, and each asks one question: `/sign-in`,
+`/sign-up`, `/characters`, `/characters/new`, `/account/password`, and `/` for
+the world. They share one layout, which fetches the catalogues and decodes the
+tilesets once per tab — while you are still typing — so splitting them up costs
+nothing on the way in.
+
+The account's own controls, Sign out and Change password, are reachable from the
+character chooser and from nowhere else; the game's menu has neither. What it
+has is **Leave world**, beside the lighting switch: it closes the socket and
+puts the chooser back, leaving the session alone, so coming back to that
+character is the same body standing where you left it. It warns first only when
+you are in a fight, because a body in combat stays on the board for a minute
+after its socket goes.
 
 Which character you are is a query parameter on the socket, checked against the
 signed session cookie — so naming somebody else's character is a refusal, not a

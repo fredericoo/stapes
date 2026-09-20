@@ -137,52 +137,87 @@ The game still uses `AppShell` for the rest of what the shell is: the menu it
 folds into the cog on a phone, holding the lighting switch, the headcount and
 the frame readout.
 
-### Two doors, and the socket opens behind the second
+### One route per question, under one layout
 
-`app/components/SignInScreen.tsx` asks who this is; `CharacterScreen.tsx` asks
-which body. Both are the whole page while they are up, both are drawn on the
-dark surface in `components/door.tsx`, and nothing connects behind either of
-them: the connecting effect wants a canvas, and the canvas only exists once a
-character has been chosen. A tab left at a door therefore costs the world
+`app/routes.ts` puts every player-facing screen under `routes/player.tsx`:
+
+| Route | The one question it asks |
+| --- | --- |
+| `/sign-in` | who is this account |
+| `/sign-up` | make one — username, email, password |
+| `/characters` | which body, and the account's own two controls |
+| `/characters/new` | what is this one called |
+| `/account/password` | what is the new password |
+| `/` | the world |
+
+**Small routes rather than one that does all of it.** `app/routes/game.tsx` used
+to hold all six: the sign-in form, the chooser, the world, and the state machine
+deciding which of them was on screen. Each of these is now a file you can read
+in a sitting, with its own `clientLoader` saying what it needs and its own
+redirect when that is missing — no session sends you to `/sign-in`, no character
+chosen sends you to `/characters`, a full account sends `/characters/new` back
+to the list. There is no "which screen am I on" state left anywhere, because the
+URL is it.
+
+**The layout is what makes that free.** A layout's loader runs once and its
+component stays mounted across every navigation between its children, so
+`fetchBootstrap` runs once per tab and `useGameAssets` decodes the tilesets once
+per tab — *while somebody is still typing a username*. By the time a character
+is pressed there is nothing left to fetch, which is the property the single
+route had by accident and this keeps on purpose. `shouldRevalidate` is off
+because none of it can change under a player: authored content changes when an
+author saves, and a save replaces the world and pushes a fresh `hello`.
+
+**Nothing connects until the world route.** The socket belongs to `/` alone and
+is opened as a character, so a tab parked at any other screen costs the world
 nothing — no body standing in a doorway somebody else is walking through.
 
-The catalogues and `/api/me` are fetched together in the route's loader, and
-`useGameAssets` decodes the tilesets behind whichever door is up, so the longer
-somebody looks at a door the less the press has left to wait for.
+**`game.tsx` keeps its name**, and the name is load-bearing. The build names a
+route's chunk after its file, and the preview workflow reads the client's
+protocol version out of that chunk by name — page, then route manifest, then
+`game-main-*.js` — which is how it proves the served client and the running
+server agree about the wire before anybody tries to connect. That is also why
+the world is not in a file called `_index.tsx`: the admin index is an index
+route too, and two `_index-main-*.js` chunks leave that step picking one by
+luck. `routes.ts` is what says which route is the index, so the file is free to
+be named after what it holds — and renaming it now is renaming the chunk that
+step greps for.
 
-**Signing in is not a wait; entering is.** The account screen goes the moment
-the cookie lands, because what follows is another question rather than a world.
-Opening the socket, waiting on `hello` and waiting for the first frame are three
-waits, and a screen apiece is a page flickering through states nobody can act
-on — so the chooser does not swap the page: the row that was pressed reads
-`Entering…` and everything else goes quiet behind it. The route's `entering` is
-what decides that, and it ends on the *first frame* rather than on `hello` — the
-renderer is built on `hello` and paints some way after it, and that gap was a
-second loading screen appearing for a second and a half.
-
-It stands down the moment the wait stops being ordinary. `entering` covers
-`connecting` and `live` only, so a socket that closes before the first frame
-puts the loading screen and its `reconnecting` chip back on the page: a chooser
-reading `Entering…` at somebody whose server is down explains nothing. And it is
-one-way per entry — `entered` is set by the first frame and cleared by logging
-out — so a *reconnect* an hour later gets the loading screen rather than a door
-claiming this player is still arriving.
-
-**Which character is remembered in `sessionStorage`, not in a cookie.** An
-account holds three, and two tabs playing two of them is a reasonable thing to
-do; a cookie would make the second tab silently change the first. It dies with
-the tab, which is right — a new tab is somebody arriving, and arriving means
-choosing. It is never trusted on its own either: the id is checked against the
-list `/api/me` just returned, so a character deleted in the database lands on
-the chooser rather than on a socket that will be refused.
+**Which character is remembered in `sessionStorage`, not in a cookie.** See
+`app/lib/playing.ts`. An account holds three, and two tabs playing two of them
+is a reasonable thing to do; a cookie would make the second tab silently change
+the first. It dies with the tab, which is right — a new tab is somebody
+arriving, and arriving means choosing. It is never trusted on its own either:
+the id is resolved against the list `/api/me` just returned, so a character
+deleted in the database lands on the chooser rather than on a socket that will
+be refused.
 
 **A refused socket is a close, not a rejected upgrade** — `CLOSE_SIGNED_OUT`
 (4003), for a session that expired or a character that is not this account's.
 The same argument the protocol-version refusal already makes: a browser reports
 a rejected upgrade to the page as an indistinguishable failure, so a signed-out
 tab would sit in its reconnect backoff instead of putting a door back up. On
-4003 the page tears down, forgets the character and asks `/api/me` again, which
-is what decides which of the two doors it lands on.
+4003 the page forgets the character and navigates to `/characters`, whose loader
+sends it on to `/sign-in` if the session really is gone — one redirect, decided
+by the route whose job that already is.
+
+### The connecting effect is rebuilt only to throw a world away
+
+`app/routes/game.tsx`'s socket effect has five dependencies and every one of
+them is a reason to want a *different* world. Anything else in that list is a
+live world torn down and asked for again, which is a fresh `hello` — the whole
+map — for nothing.
+
+`useNavigate`'s result is the trap: the close handler needs it, and it is not
+documented to be stable. It is held in a ref and read at call time, like every
+other long-lived callback in that effect.
+
+**React Router's client entry wraps the app in `StrictMode`**, so in development
+React mounts this effect, tears it down and mounts it again — two sockets
+opened, one closed, one live. That is StrictMode doing its job, and production
+mounts once. `e2e/session.spec.ts` counts *open* sockets rather than opened
+ones for exactly that reason: a cumulative count would be asserting a
+development artifact.
 
 ### An account signs in; a character enters
 
@@ -203,15 +238,16 @@ the world except a character.
 
 - `app/components/LeaveWorldButton.tsx` sits in the menu the lighting switch is
   in — the header on a wide window, the cog beside the d-pad on a phone. It
-  drops `playing`, which tears the connecting effect down: the canvas goes, and
-  with it the renderer, the session and this player's body in the world. What
-  comes back up is the chooser. **It does not touch the session**: this is how
-  somebody swaps to another of their three, and coming back to the one they
-  left is the same body standing where they left it.
-- **Sign out** and **Change password** are on the chooser, because that is the
-  screen the account lives on. Being signed out is a state worth having to ask
-  for on an account with no password reset, and a password is not something
-  anybody should be changing mid-fight.
+  forgets the character and navigates to `/characters`, which unmounts the world
+  route and tears the connecting effect down with it: the canvas goes, and with
+  it the renderer, the session and this player's body in the world. **It does
+  not touch the session**: this is how somebody swaps to another of their three,
+  and coming back to the one they left is the same body standing where they left
+  it.
+- **Sign out** is on `/characters` and **Change password** is its own route off
+  it, because that is where the account lives. Being signed out is a state worth
+  having to ask for on an account with no password reset, and a password is not
+  something anybody should be changing mid-fight.
 
 `e2e/session.spec.ts` asserts the split from both sides: the account's controls
 are absent in the game and present on the chooser.
@@ -227,16 +263,6 @@ until the minute since the last blow runs out (see "Closing the tab does not end
 a fight", which is the rule this is warning about). The page reads that state
 the same way the status strip does: `COMBAT_STATUS_ID` in the vitals the server
 pushes, so the warning appears and goes on its own as the fight does.
-
-**The game's route module is `app/routes/game.tsx`, not `_index.tsx`.** The
-build names a route's chunk after its file, and the preview workflow reads the
-client's protocol version out of that chunk by name — page, then route
-manifest, then `game-main-*.js`, which is how it proves the served client and
-the running server agree about the wire before anybody tries to connect. Two
-index routes called `_index.tsx` produce two `_index-main-*.js` chunks and
-leave that step picking one by luck; one of them is a four-line redirect with
-no socket in it. `routes.ts` is what says which route is the index, so the file
-is free to be named after what it holds.
 
 **`GAME_SOCKET_PATH` still says `/online/ws`.** The page that name came from is
 gone; the wire path did not follow it, because changing it refuses every tab
