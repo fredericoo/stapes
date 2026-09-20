@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DataStore } from "../app/lib/storage.server";
+import { DataStore } from "../app/lib/dataStore";
 import { openDatabase, type Database } from "./db";
 import { SqliteBlobs } from "./blobs";
 import { WorldStore } from "./WorldStore";

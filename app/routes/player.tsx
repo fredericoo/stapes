@@ -1,9 +1,6 @@
-import { useMemo } from "react";
 import { Outlet, useLoaderData, useOutletContext } from "react-router";
 import { fetchBootstrap } from "../lib/api";
 import { useGameAssets } from "../lib/gameAssets";
-import { statusesById } from "../lib/status";
-import type { StatusDef } from "../lib/status";
 import type { TileDef, TilesetDef } from "../lib/types";
 
 /**
@@ -27,6 +24,11 @@ import type { TileDef, TilesetDef } from "../lib/types";
  * authored content changes when an author saves, and a save replaces the world
  * and pushes a fresh `hello` rather than expecting the page to re-fetch.
  *
+ * **The decode is started here and waited for in `WorldPage`.** This one does
+ * not pass `assetsReady` down, because `/admin/play` is not under this layout
+ * and has to ask for itself: `useGameAssets` remembers the lists it has settled
+ * so the second ask is free. @see ../lib/gameAssets
+ *
  * **Nothing here connects.** The socket belongs to one child — the world — and
  * it is opened as a character, so a tab parked at any of the other screens
  * costs the world nothing: no body on the board, no chunks sent.
@@ -39,43 +41,26 @@ export function shouldRevalidate() {
   return false;
 }
 
-/** What the boot hands its children. @see usePlayerShell */
+/** The catalogues, for a screen underneath. @see usePlayerShell */
 export type PlayerShell = {
   tiles: TileDef[];
   tilesets: TilesetDef[];
-  /**
-   * The status catalogue keyed by id, compiled once here rather than per
-   * screen: both ends load the same catalogue, and only ids and clocks travel.
-   */
-  statusDefs: Record<string, StatusDef>;
-  /**
-   * Whether the tilesets and the label font are in hand.
-   *
-   * The world refuses to mount a canvas until this is true — see
-   * `../lib/gameAssets`, which explains why a world drawn against assets that
-   * are still arriving comes up *wrong* rather than late.
-   */
-  assetsReady: boolean;
+  /** Raw, because `WorldPage` compiles them and `/admin/play` hands it the same. */
+  statuses: unknown[];
 };
 
-/** The boot's data, for a screen underneath it. */
 export function usePlayerShell(): PlayerShell {
   return useOutletContext<PlayerShell>();
 }
 
 export default function PlayerLayout() {
-  const { tiles, tilesets, statuses } = useLoaderData<typeof clientLoader>();
-  const statusDefs = useMemo(() => statusesById(statuses), [statuses]);
-  // Here rather than in the world, so the decode overlaps with whatever
+  const shell = useLoaderData<typeof clientLoader>();
+  // Started here rather than in the world, so the decode overlaps with whatever
   // somebody is typing on the way in rather than with the wait after they have
-  // pressed. The hook does not re-run on a navigation between children: this
+  // pressed. The answer is not used on this screen — there is nothing to draw —
+  // and the hook does not re-run on a navigation between children, because this
   // component never unmounts.
-  const assetsReady = useGameAssets(tilesets);
-
-  const shell: PlayerShell = useMemo(
-    () => ({ tiles, tilesets, statusDefs, assetsReady }),
-    [tiles, tilesets, statusDefs, assetsReady],
-  );
+  useGameAssets(shell.tilesets);
 
   return <Outlet context={shell} />;
 }

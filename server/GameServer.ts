@@ -57,7 +57,7 @@ import {
   getStack,
   mapFromChunks,
 } from "../app/lib/mapData";
-import type { DataStore } from "../app/lib/storage.server";
+import type { DataStore } from "../app/lib/dataStore";
 import { tilesByIdFromList } from "../app/lib/validation";
 import { type StatusDef, statusesById } from "../app/lib/status";
 import type { StatusInstance } from "../app/game/statuses";

@@ -246,6 +246,11 @@ jobs:
       # index route too, and two `_index-main-` chunks in one manifest leave
       # this step picking one of them by luck.
       #
+      # The URL itself is built in `app/net/link.ts`'s `onlineLink`, which is a
+      # shared module — and still lands in this chunk, because the game route is
+      # the only thing that imports it. `/admin/play` connects to a world in the
+      # tab and sets no `?v=` at all, so it cannot be the chunk found here.
+      #
       # The one thing this is brittle to is the client no longer building its
       # socket URL with `searchParams.set`. That fails loudly and says so: the
       # fix then is to teach this step the new shape, not to drop the check.

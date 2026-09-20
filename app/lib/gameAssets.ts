@@ -69,19 +69,42 @@ const FONT_PROBE = `20px "${WORLD_LABEL_FONT_FAMILY}"`;
 const ASSET_TIMEOUT_MS = 10_000;
 
 /**
+ * Tileset lists this tab has already waited for.
+ *
+ * **Because two things ask, and the second must not put the loading screen
+ * back.** The player layout decodes while somebody is at a door, so the world
+ * behind it has nothing left to wait for; `WorldPage` asks again because
+ * `/admin/play` is not under that layout and has to ask for itself. Without
+ * this the second caller would start at `false` and flash a loading screen over
+ * a world whose assets are already decoded.
+ *
+ * Keyed by the array identity, which is the loader data's and is therefore
+ * stable per tab. A different list is a different question and is waited for
+ * again — that is an editor save adding a tileset, and the decode is what makes
+ * it drawable.
+ */
+const settled = new WeakSet<TilesetDef[]>();
+
+/**
  * Whether the world may be drawn yet.
  *
- * False on the server and on the first client render, so a route can simply not
- * mount its canvas until this says otherwise — see the loading screen in
- * `../components/LoadingScreen`.
+ * False on the server and on the first client render — unless this tab has
+ * already waited for exactly these tilesets, in which case there is nothing to
+ * wait for. A route can simply not mount its canvas until this says otherwise:
+ * see the loading screen in `../components/LoadingScreen`.
  */
 export function useGameAssets(tilesets: TilesetDef[]): boolean {
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState(() => settled.has(tilesets));
 
   useEffect(() => {
+    if (settled.has(tilesets)) {
+      setReady(true);
+      return;
+    }
     let cancelled = false;
     setReady(false);
     void loadGameAssets(tilesets).then(() => {
+      settled.add(tilesets);
       if (!cancelled) setReady(true);
     });
     return () => {

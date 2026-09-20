@@ -29,6 +29,10 @@ long random string that session cookies are signed with. The server refuses to
 start without it rather than falling back to a published constant. See
 [SETUP.md](SETUP.md).
 
+`/admin/play` is the same game with the world running in the tab — the real
+`GameServer` in a worker, the real protocol, no socket and nothing to log in to.
+It is the path to open when the question is whether the game still works.
+
 ## Scripts
 
 - `bun dev` — both halves at once: Vite for the client, `bun --watch` for the
@@ -63,7 +67,8 @@ start without it rather than falling back to a published constant. See
 - `bun run test:unit` — `app/` logic, in vitest
 - `bun run test:server` — the world and its accounts, on Bun, against a real
   database file
-- `bun run test:perf` — renderer budgets and the two doors, in Playwright
+- `bun run test:perf` — the app in a real browser, in Playwright: renderer
+  budgets, the way in, and the world in a tab
 - `bun run build` — the client bundle, which CI pushes to the bucket
 
 Deploying is in [SETUP.md](SETUP.md).
@@ -106,9 +111,18 @@ couple of seconds later. Deploying the *client* restarts nothing — CI posts th
 build to the running server, which stores it beside the world and flips a
 pointer. Nobody is disconnected, and a later server deploy does not undo it.
 
-Two tabs in one browser share the cookie and are therefore the *same* player.
-To test two players locally, open one on `localhost` and one on `127.0.0.1` —
-different hosts, different cookie jars.
+Two tabs in one browser share the session, but not the character: which one a
+tab is playing lives in its own `sessionStorage`, so two tabs can be two of your
+three at once. Two tabs on the *same* character are the same player, and the
+newest connection wins. To test two accounts locally, open one on `localhost`
+and one on `127.0.0.1` — different hosts, different cookie jars.
+
+**`/admin/play` is the same page against a world in the tab.** One world per
+tab, kept in IndexedDB between visits, with a Reset world button where the
+shared world has `POST /api/reset`. It reads the map and the catalogues over
+`/api` like every other page, so it still wants `bun dev` — what it does not
+want is a socket, an account or anything to sign in to. See `docs/notes.md`,
+"`/admin/play` runs the server in the tab".
 
 ## Data
 
@@ -118,7 +132,7 @@ Authored content is:
 - `tiles.json` — tile definitions
 - `map.json` — sparse stacked map (levels -8..+8)
 
-It has two homes behind one interface (`app/lib/storage.server.ts`):
+It has two homes behind one interface (`app/lib/dataStore.ts`):
 
 - **In dev, `data/` on disk is the source of truth.** A tileset edited in an
   external tool is live on the next request, and the map editor's Save writes

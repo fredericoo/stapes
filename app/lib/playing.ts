@@ -25,6 +25,24 @@ export function rememberCharacter(character: Character): void {
   sessionStorage.setItem(PLAYING_KEY, character.id);
 }
 
+/**
+ * The remembered id, unresolved.
+ *
+ * For the one caller that has no list to check it against and no business
+ * fetching one: `app/net/link.ts` reads it as it opens a socket, and the server
+ * is what decides whether it means anything. @see resolveRemembered for the
+ * callers that can check.
+ */
+export function rememberedCharacterId(): string | null {
+  try {
+    return sessionStorage.getItem(PLAYING_KEY);
+  } catch {
+    // A private window with storage blocked. No character named is a socket the
+    // server closes, which puts the chooser back — the honest outcome.
+    return null;
+  }
+}
+
 export function forgetCharacter(): void {
   sessionStorage.removeItem(PLAYING_KEY);
 }
