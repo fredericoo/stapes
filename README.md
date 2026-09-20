@@ -15,6 +15,10 @@ opens the socket. The authoring tools are all under `/admin`, which opens on the
 map editor: the tile database is at `/admin/tiles`, and `/admin/arena` balances
 two fighters without a world in the way. Nothing guards `/admin` yet.
 
+`/admin/play` is the same game with the world running in the tab — the real
+`GameServer` in a worker, the real protocol, no socket and nothing to log in to.
+It is the path to open when the question is whether the game still works.
+
 ## Scripts
 
 - `bun dev` — both halves at once: Vite for the client, `bun --watch` for the
@@ -48,7 +52,8 @@ two fighters without a world in the way. Nothing guards `/admin` yet.
 - `bun run typecheck` — route typegen, then all three tsconfigs
 - `bun run test:unit` — `app/` logic, in vitest
 - `bun run test:server` — the world, on Bun, against a real database file
-- `bun run test:perf` — renderer budgets, in Playwright
+- `bun run test:perf` — the app in a real browser, in Playwright: renderer
+  budgets, the front door, and the world in a tab
 - `bun run build` — the client bundle, which CI pushes to the bucket
 
 Deploying is in [SETUP.md](SETUP.md).
@@ -79,6 +84,13 @@ pointer. Nobody is disconnected, and a later server deploy does not undo it.
 Two tabs in one browser share the cookie and are therefore the *same* player.
 To test two players locally, open one on `localhost` and one on `127.0.0.1` —
 different hosts, different cookie jars.
+
+**`/admin/play` is the same page against a world in the tab.** One world per
+tab, kept in IndexedDB between visits, with a Reset world button where the
+shared world has `POST /api/reset`. It reads the map and the catalogues over
+`/api` like every other page, so it still wants `bun dev` — what it does not
+want is a socket, an actor cookie or anything to log in to. See `docs/notes.md`,
+"`/admin/play` runs the server in the tab".
 
 ## Data
 
