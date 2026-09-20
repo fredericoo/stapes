@@ -88,7 +88,7 @@ Authored content is:
 - `tiles.json` — tile definitions
 - `map.json` — sparse stacked map (levels -8..+8)
 
-It has two homes behind one interface (`app/lib/storage.server.ts`):
+It has two homes behind one interface (`app/lib/dataStore.ts`):
 
 - **In dev, `data/` on disk is the source of truth.** A tileset edited in an
   external tool is live on the next request, and the map editor's Save writes

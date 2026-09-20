@@ -1,4 +1,4 @@
-import { DataStore, type Blobs } from "../app/lib/storage.server";
+import { DataStore, type Blobs } from "../app/lib/dataStore";
 import { flattenMap } from "../app/lib/mapData";
 import { GameServer } from "./GameServer";
 import { SqliteBlobs, DiskBlobs } from "./blobs";

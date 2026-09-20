@@ -1,6 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { Blobs } from "../app/lib/storage.server";
+import type { Blobs } from "../app/lib/dataStore";
 
 /**
  * Authored content, as it is laid out in the repository.

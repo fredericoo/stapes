@@ -22,7 +22,7 @@ import {
  * walked into and never picked up, so giving it a `TileDef` would mean every
  * consumer of `tilesById` carrying entries that can never appear on a board.
  * `data/statuses.json` is a fourth authored blob beside the map, the tiles and
- * the tilesets, read through the same `./storage.server`.
+ * the tilesets, read through the same `./dataStore`.
  *
  * ## Parsed, never trusted
  *
