@@ -1,12 +1,40 @@
-import { type RouteConfig, index, prefix, route } from "@react-router/dev/routes";
+import {
+  type RouteConfig,
+  index,
+  layout,
+  prefix,
+  route,
+} from "@react-router/dev/routes";
 
 export default [
   /**
-   * The game is the front door. There is nothing else a visitor is here for,
-   * and a redirect from `/` to somewhere else was a round trip before the first
-   * paint that told them nothing.
+   * Everything a player sees, under one layout.
+   *
+   * **Several small routes rather than one that does all of it.** Each screen
+   * here answers exactly one question — who are you, which body, what is this
+   * one called, what is the new password, and then the world itself — so each
+   * is a file you can read in a sitting, with its own loader saying what it
+   * needs and its own redirect when that is missing.
+   *
+   * `routes/player.tsx` is what makes that affordable. A layout's loader runs
+   * once and its component stays mounted across every navigation between its
+   * children, so the catalogues are fetched once per tab and the tilesets
+   * decoded once per tab — while somebody is still typing a username, rather
+   * than after they have pressed a character. Splitting the screens up costs
+   * nothing on the way in as a result.
+   *
+   * `/` is still the game: a visitor who is signed in with a character chosen
+   * lands on the world, and the loader redirects only when a precondition is
+   * actually missing.
    */
-  index("routes/game.tsx"),
+  layout("routes/player.tsx", [
+    index("routes/game.tsx"),
+    route("sign-in", "routes/signIn.tsx"),
+    route("sign-up", "routes/signUp.tsx"),
+    route("characters", "routes/characters.tsx"),
+    route("characters/new", "routes/newCharacter.tsx"),
+    route("account/password", "routes/password.tsx"),
+  ]),
   /**
    * The authoring tools, all of them, behind one path segment — and now behind
    * a role as well.

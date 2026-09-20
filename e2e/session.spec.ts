@@ -2,14 +2,15 @@ import { expect, test } from "@playwright/test";
 import { freshCharacterName } from "./accounts";
 
 /**
- * The three screens every player meets, against a real world.
+ * The screens a player meets, against a real world.
  *
  * This is a claim about the shipped app rather than about a module — that there
- * is no way into the world without an account, that a character is what the
- * socket is opened as, and that leaving a character is not signing out of the
- * account — so it belongs here and not in `vitest`. None of it reads
- * `data/map.json`: what it asserts is that a canvas appears and which screen is
- * on top of it, neither of which an afternoon's authoring can move.
+ * is no way into the world without an account and a character, that each screen
+ * is its own route with its own redirect when a precondition is missing, and
+ * that the account's vocabulary and the character's never appear together — so
+ * it belongs here and not in `vitest`. None of it reads `data/map.json`: what it
+ * asserts is which URL you land on and what is on it, neither of which an
+ * afternoon's authoring can move.
  *
  * It makes its own account rather than using the seeded administrator, because
  * what it is describing is what an ordinary player does. The names are unique
@@ -20,88 +21,135 @@ import { freshCharacterName } from "./accounts";
 /** The app booting on a cold Vite cache. @see ./renderer-perf.spec.ts */
 const BOOT_TIMEOUT_MS = 120_000;
 
-test.describe("the front door", () => {
-  test("connects nothing until a character is chosen, and keeps the account when one leaves", async ({
+test.describe("the way in", () => {
+  test("is a route per question, and keeps the account when a character leaves", async ({
     page,
   }) => {
     test.setTimeout(BOOT_TIMEOUT_MS + 180_000);
 
-    const gameSockets: string[] = [];
+    /**
+     * Every game socket this tab has opened, and whether it is still open.
+     *
+     * **Counted live rather than cumulatively**, and the difference is not
+     * pedantry: React Router's client entry wraps the app in `StrictMode`, so
+     * in development React mounts an effect, tears it down and mounts it again
+     * — which opens a socket, closes it, and opens another. That is StrictMode
+     * doing its job (it proves the connecting effect cleans up after itself),
+     * and production mounts once. A cumulative count would be asserting a
+     * development artifact; what matters is that the tab ends up holding
+     * exactly one connection.
+     */
+    const gameSockets: { url: string; closed: boolean }[] = [];
     page.on("websocket", (ws) => {
       // Vite's own hot-reload socket is on this origin too, and is not the game.
-      if (ws.url().includes("/ws?")) gameSockets.push(ws.url());
+      if (!ws.url().includes("/ws?")) return;
+      const socket = { url: ws.url(), closed: false };
+      gameSockets.push(socket);
+      ws.on("close", () => {
+        socket.closed = true;
+      });
     });
+    const openSockets = () => gameSockets.filter((one) => !one.closed);
 
     const username = freshCharacterName("player").toLowerCase();
     const character = freshCharacterName();
     /**
+     * Wait until the app has settled on this path, and fail saying so if it
+     * does not.
+     *
+     * `waitForURL` rather than reading `page.url()`, because a client
+     * navigation only commits once the target route's `clientLoader` has
+     * resolved — and every route here has one. Reading the URL straight after
+     * a press races that, and the race is won by whichever screen was already
+     * on the page.
+     */
+    const landsOn = async (path: string) => {
+      await page.waitForURL((url) => url.pathname === path, {
+        timeout: 30_000,
+      });
+    };
+    /**
      * The chip the header shows once the socket is up.
      *
      * Waited on rather than the canvas, and the difference matters: the canvas
-     * is mounted as soon as a character is chosen, well before `hello` — so a
+     * is mounted as soon as the world route is, well before `hello` — so a
      * message typed against it is one the world never hears.
      */
     const live = page.getByText("live", { exact: true }).first();
 
+    // ---- every door redirects to the one before it -------------------------
     await page.goto("/", { waitUntil: "networkidle" });
-
-    // ---- the account ------------------------------------------------------
-    const createAccount = page.getByRole("button", {
-      name: "Create an account",
-    });
-    await expect(createAccount).toBeVisible({ timeout: BOOT_TIMEOUT_MS });
-    // The point of the screen: nobody is in the world, and no socket is open.
+    await page.getByLabel("Username").waitFor({ timeout: BOOT_TIMEOUT_MS });
+    await landsOn("/sign-in");
+    // The point of the screen: nobody is in the world, and nothing has even
+    // tried to connect.
     expect(gameSockets).toEqual([]);
 
-    await createAccount.click();
+    for (const guarded of ["/characters", "/characters/new", "/account/password"]) {
+      await page.goto(guarded, { waitUntil: "networkidle" });
+      await landsOn("/sign-in");
+    }
+
+    // ---- the account ------------------------------------------------------
+    await page.getByRole("link", { name: "Create an account" }).click();
+    await landsOn("/sign-up");
     await page.getByLabel("Username").fill(username);
     // Asked for once, here, and then only stored — nothing sends to it. Signing
     // in below never asks again. @see `server/auth.ts`
     await page.getByLabel("Email").fill(`${username}@example.test`);
-    await page.getByLabel("Password", { exact: true }).fill(
-      "a-long-enough-password",
-    );
+    await page.getByLabel("Password").fill("a-long-enough-password");
     await page.getByRole("button", { name: "Create account" }).click();
 
-    // ---- the character ----------------------------------------------------
-    // Signing in ends in a question rather than a world, so the account screen
-    // goes and the chooser arrives — and still nothing has connected.
-    const newCharacter = page.getByLabel("New character");
-    await expect(newCharacter).toBeVisible({ timeout: 30_000 });
+    // ---- the chooser ------------------------------------------------------
+    // Signing in ends in another question rather than a world, so it lands on
+    // the chooser — and still nothing has connected.
+    await expect(page.getByText(`Signed in as ${username}`)).toBeVisible({
+      timeout: 30_000,
+    });
+    await landsOn("/characters");
     expect(gameSockets).toEqual([]);
 
-    await newCharacter.fill(character);
-    await page.getByRole("button", { name: "Create character" }).click();
+    // ---- naming one, which is its own route -------------------------------
+    await page.getByRole("link", { name: "New character" }).click();
+    await landsOn("/characters/new");
+    // Refused while somebody is still typing, not on the press.
+    await page.getByLabel("Name").fill("Ka1n");
+    await expect(
+      page.getByRole("button", { name: "Create and enter" }),
+    ).toBeDisabled();
+    await page.getByLabel("Name").fill(character);
+    await page.getByRole("button", { name: "Create and enter" }).click();
 
     // ---- the world --------------------------------------------------------
-    await expect(page.locator("canvas").first()).toBeVisible({
-      timeout: BOOT_TIMEOUT_MS,
-    });
-    await expect(live).toBeVisible({ timeout: 60_000 });
-    expect(gameSockets).toHaveLength(1);
-    // The body is named by what was typed, not by anything derived from an id.
-    expect(gameSockets[0]).toContain("character=");
+    await expect(live).toBeVisible({ timeout: BOOT_TIMEOUT_MS });
+    await landsOn("/");
+    // One connection, once the StrictMode remount above has settled.
+    await expect.poll(() => openSockets().length, { timeout: 30_000 }).toBe(1);
+    // Opened as the character, not as anything derived from an id — and the
+    // server checked that name against the session before seating a body.
+    expect(openSockets()[0]!.url).toContain("character=");
 
     // Nothing in the game offers a way into the editors.
     await expect(page.locator("header nav a")).toHaveCount(0);
     // And nothing in the game offers the account's own controls: you sign in
     // and out of an account, a character enters and leaves the world, and the
-    // two are never on the same screen. @see ../app/components/ChangePassword
+    // two are never on the same screen. @see docs/notes.md
     await expect(page.getByRole("button", { name: "Sign out" })).toHaveCount(0);
     await expect(
-      page.getByRole("button", { name: "Change password" }),
+      page.getByRole("link", { name: "Change password" }),
     ).toHaveCount(0);
 
     // ---- leaving the world, which is not signing out ----------------------
     // Nothing to confirm out of a fight: the press is the whole of it.
     await page.getByRole("button", { name: "Leave world" }).click();
-    // Back at the chooser rather than at the account screen, with the character
-    // that was just left on it. @see docs/notes.md, "Leaving the world is not
-    // signing out"
     await expect(page.getByRole("button", { name: character })).toBeVisible({
       timeout: 30_000,
     });
+    await landsOn("/characters");
     await expect(page.locator("canvas")).toHaveCount(0);
+    // And the body went with it: leaving the world closes the connection.
+    await expect.poll(() => openSockets().length, { timeout: 30_000 }).toBe(0);
+    // Still the same account — leaving is not signing out.
     await expect(page.getByText(`Signed in as ${username}`)).toBeVisible();
 
     await page.getByRole("button", { name: character }).click();
@@ -131,20 +179,32 @@ test.describe("the front door", () => {
 
     await page.getByRole("button", { name: "Leave world" }).click();
     await warning.getByRole("button", { name: "Leave", exact: true }).click();
-
-    // ---- and signing out, which lives on the chooser and nowhere else -----
     await expect(page.getByRole("button", { name: character })).toBeVisible({
       timeout: 30_000,
     });
-    // Both of the account's controls are here, and this is the only screen
-    // either of them is on.
-    await expect(
-      page.getByRole("button", { name: "Change password" }),
-    ).toBeVisible();
+
+    // ---- the password, which is its own route too -------------------------
+    await page.getByRole("link", { name: "Change password" }).click();
+    await landsOn("/account/password");
+    await page.getByLabel("Current password").fill("a-long-enough-password");
+    await page.getByLabel("New password").fill("a-different-password");
+    await page.getByRole("button", { name: "Change password" }).click();
+    await page.getByRole("button", { name: "Back to characters" }).click();
+    await landsOn("/characters");
+
+    // ---- and signing out, which lives here and nowhere else ---------------
     await page.getByRole("button", { name: "Sign out" }).click();
-    await expect(
-      page.getByRole("button", { name: "Create an account" }),
-    ).toBeVisible({ timeout: 30_000 });
+    await page.getByLabel("Username").waitFor({ timeout: 30_000 });
+    await landsOn("/sign-in");
+
+    // The new password is the one that works, which is what makes the change
+    // above a change rather than a screen that said so.
+    await page.getByLabel("Username").fill(username);
+    await page.getByLabel("Password").fill("a-different-password");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page.getByRole("button", { name: character })).toBeVisible({
+      timeout: 30_000,
+    });
   });
 });
 
@@ -165,11 +225,12 @@ test.describe("the editors", () => {
     await expect(page.getByText("Administrators only")).toBeVisible({
       timeout: BOOT_TIMEOUT_MS,
     });
+    expect(new URL(page.url()).pathname).toBe("/admin/sign-in");
     await expect(page.locator("canvas")).toHaveCount(0);
     // No offer to make an account: a role is assigned in the database, so one
     // made here would be signed in and refused in the same breath.
     await expect(
-      page.getByRole("button", { name: "Create an account" }),
+      page.getByRole("link", { name: "Create an account" }),
     ).toHaveCount(0);
 
     // And the part that is not a courtesy: the page is only a page, so what

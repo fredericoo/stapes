@@ -1,15 +1,12 @@
-import { useCallback, useEffect, useRef, useState, useMemo } from "react";
-import { useLoaderData } from "react-router";
-import type { Route } from "./+types/game";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { redirect, useLoaderData, useNavigate } from "react-router";
 import { AppShell } from "../components/AppShell";
 import { DeathScreen } from "../components/DeathScreen";
 import { FrameStatsReadout } from "../components/FrameStatsReadout";
 import { GameViewport } from "../components/GameViewport";
 import { InkDocument } from "../components/InkDocument";
 import { LightingToggle } from "../components/LightingToggle";
-import { CharacterScreen } from "../components/CharacterScreen";
 import { LoadingScreen } from "../components/LoadingScreen";
-import { SignInScreen } from "../components/SignInScreen";
 import { LeaveWorldButton } from "../components/LeaveWorldButton";
 import { OutdatedScreen } from "../components/OutdatedScreen";
 import { ReplacedScreen } from "../components/ReplacedScreen";
@@ -22,8 +19,7 @@ import {
   applyInteraction,
   type InteractionOption,
 } from "../game/interactionOptions";
-import { activeStatuses, COMBAT_STATUS_ID, statusesById } from "../lib/status";
-import { useGameAssets } from "../lib/gameAssets";
+import { activeStatuses, COMBAT_STATUS_ID } from "../lib/status";
 import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
 import type { ObjectRef } from "../game/affordances";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
@@ -38,26 +34,38 @@ import {
   PROTOCOL_VERSION,
   PROTOCOL_VERSION_PARAM,
 } from "../net/protocol";
-import { fetchBootstrap } from "../lib/api";
-import { fetchMe, signOut, type Me } from "../lib/auth";
-import { MIN_PASSWORD_LENGTH } from "../lib/account";
-import type { Character } from "../../server/characters";
+import { fetchMe } from "../lib/auth";
+import { forgetCharacter, resolveRemembered } from "../lib/playing";
+import { usePlayerShell } from "./player";
 import { NO_VITALS, type Vitals } from "../game/GameSession";
 import { RemoteSession } from "../net/RemoteSession";
 import type { FrameStats } from "../render/frameProfile";
 import { GameRenderer } from "../render/GameRenderer";
 import { debugViewRequested } from "../render/debugView";
 
+/**
+ * The world, for whichever character this tab last chose.
+ *
+ * **This route is only the world now.** Signing in, choosing a character,
+ * naming one and changing a password are four other routes, each one question —
+ * see `./player`, the layout they all share. What is left here is the socket,
+ * the renderer and the chrome around them.
+ *
+ * The catalogues are not fetched here: the layout has them, and had them while
+ * somebody was still typing a username. What this asks for is who the browser
+ * is, and which of their characters it is supposed to be.
+ *
+ * **Both redirects are the honest answer to a missing precondition.** No
+ * session means the front door; a session with no character chosen — a fresh
+ * tab, or one whose character was deleted — means the chooser. Rendering a
+ * world for neither would be a canvas with no body to centre on.
+ */
 export async function clientLoader() {
-  // The catalogues and who this browser is, together: the page cannot decide
-  // what to draw without both, and they are independent requests, so asking
-  // for them in sequence would be two waits in front of a door.
-  //
-  // Nothing is *opened* here. The socket waits for a character to open it as —
-  // see {@link CharacterScreen} — so a tab that never gets that far costs the
-  // world nothing: no body on the board, no chunks sent.
-  const [bootstrap, me] = await Promise.all([fetchBootstrap(), fetchMe()]);
-  return { ...bootstrap, me, socketPath: GAME_SOCKET_PATH };
+  const me = await fetchMe();
+  if (!me.user) throw redirect("/sign-in");
+  const character = resolveRemembered(me.characters);
+  if (!character) throw redirect("/characters");
+  return { character, socketPath: GAME_SOCKET_PATH };
 }
 
 /** Backoff between reconnect attempts, capped. */
@@ -77,27 +85,6 @@ const RESTART_RECONNECT_JITTER_MS = 750;
 /** Guards the reload-on-stale-client path against looping. */
 const RELOADED_FOR_VERSION = "stapes:reloaded-for-version";
 
-/**
- * Which character this tab was playing, so a reload comes back as them.
- *
- * Two of the page's own paths end in `location.reload()` — a client refused for
- * its protocol version, and taking the player back from another tab — and both
- * are the app reloading itself mid-session rather than somebody arriving. Left
- * to the character screen they would drop a player at a menu in the middle of
- * playing.
- *
- * **The tab's own storage, not the browser's**, and that is the point rather
- * than a convenience: an account holds three characters, and two tabs playing
- * two of them is a reasonable thing to do. A cookie or `localStorage` would
- * make the second tab silently change the first. It dies with the tab, which
- * is right — a new tab is somebody arriving, and arriving means choosing.
- *
- * Never trusted on its own. The id is checked against the account at the
- * socket, and checked here against the characters `/api/me` just listed, so a
- * character deleted in the database is a tab that lands on the chooser rather
- * than one that hangs on a refusal.
- */
-const PLAYING = "stapes:playing";
 
 type Status =
   | "connecting"
@@ -108,99 +95,23 @@ type Status =
   | "replaced";
 
 export default function GamePage() {
-  const {
-    tiles,
-    tilesets,
-    statuses,
-    me: loadedMe,
-    socketPath,
-  } = useLoaderData<typeof clientLoader>();
-  // Both ends load the same catalogue: the server to run the effects, this side
-  // to name and draw them. Only ids and clocks travel, which is what keeps a
-  // status running for an hour to a handful of small messages.
-  const statusDefs = useMemo(() => statusesById(statuses), [statuses]);
-  // No canvas until the assets are here, so no socket either: the connection is
-  // opened by the same effect the renderer is built in. @see ../lib/gameAssets
-  const assetsReady = useGameAssets(tilesets);
-  // And the loading screen stays up past that, until there is a world on the
-  // canvas. Here that covers a third wait as well as the renderer's textures:
-  // the renderer is not even built until `hello` arrives, since there is nobody
-  // to centre the camera on before it.
+  const { character, socketPath } = useLoaderData<typeof clientLoader>();
+  // The catalogues and the decoded tilesets, from the layout every screen on
+  // the way in shares — so by the time a character has been pressed there is
+  // nothing left to fetch. @see ./player
+  const { tiles, tilesets, statusDefs, assetsReady } = usePlayerShell();
+  const navigate = useNavigate();
+  // The loading screen stays up past the assets, until there is a world on the
+  // canvas. That covers a third wait as well as the renderer's textures: the
+  // renderer is not even built until `hello` arrives, since there is nobody to
+  // centre the camera on before it.
   const [painted, setPainted] = useState(false);
-  /**
-   * Who this browser is and what it may play, as of the last time we asked.
-   *
-   * Seeded from the loader and replaced after every sign-in, sign-out and
-   * character creation — the three things that change the answer. Held here
-   * rather than re-fetched per screen so that the two doors below are reading
-   * the same list.
-   */
-  const [me, setMe] = useState<Me>(loadedMe);
-  /**
-   * The character this tab is in the world as, or null for a tab standing at
-   * one of the doors.
-   *
-   * **This is what opens the socket**, and nothing below opens one while it is
-   * null: the connecting effect wants a canvas, and there is no canvas behind a
-   * door. It is also what the socket names itself with — see
-   * {@link CHARACTER_PARAM} — which the server checks against the session
-   * rather than believes.
-   */
-  const [playing, setPlaying] = useState<Character | null>(() => {
-    const remembered = sessionStorage.getItem(PLAYING);
-    // Against the list the loader just fetched, not against the id alone: a
-    // character somebody deleted, or a session that has moved to another
-    // account, should land on the chooser rather than on a refused socket.
-    return loadedMe.characters.find((one) => one.id === remembered) ?? null;
-  });
-  /**
-   * Whether this tab is in the world, as opposed to standing at a door.
-   *
-   * Derived rather than held, because a second flag saying the same thing as
-   * {@link playing} is a second flag to get out of step with it.
-   */
-  const inWorld = playing !== null;
-  /**
-   * Whether the world has been on screen at all since this character was
-   * chosen.
-   *
-   * Beside {@link painted} rather than derived from it, because they answer
-   * different questions: `painted` is *is there a frame up now*, which a
-   * reconnect takes back, and this is *has this player got in yet*, which
-   * nothing but leaving the character takes back. The chooser reads the second
-   * one — see {@link entering} — so a reconnect gets the loading screen and its
-   * status chip rather than a door claiming somebody is still arriving.
-   */
-  const [entered, setEntered] = useState(false);
-  /**
-   * Enter the world as this character.
-   *
-   * Written down before it is acted on, so a reload mid-session comes back as
-   * the same body rather than at the chooser. @see PLAYING
-   */
-  const play = useCallback((character: Character) => {
-    sessionStorage.setItem(PLAYING, character.id);
-    setPlaying(character);
-  }, []);
-  /**
-   * Ask the server again who this browser is.
-   *
-   * The one way {@link me} is ever refreshed, and it is called after each of
-   * the three things that change the answer: signing in, signing out, and
-   * making a character. Deriving it instead — patching the list locally after a
-   * create, say — would be this page keeping a second opinion about what the
-   * account holds.
-   */
-  const refreshMe = useCallback(() => {
-    void fetchMe().then(setMe);
-  }, []);
   /**
    * Take this character out of the world, keeping the account signed in.
    *
-   * Dropping {@link playing} is the whole of it: the connecting effect below is
-   * torn down with the canvas, which takes the renderer, the session and this
-   * player's body out of the world. The status goes back to what a fresh page
-   * says, so the chip does not read `live` over a door.
+   * Forgetting the choice and navigating away is the whole of it: this route
+   * unmounts, and the connecting effect below is torn down with it — which
+   * takes the renderer, the session and this player's body out of the world.
    *
    * **The session is deliberately left alone.** Leaving the world is not
    * signing out — those are two different things in this game, and this is the
@@ -211,34 +122,9 @@ export default function GamePage() {
    * @see ../components/LeaveWorldButton
    */
   const leaveWorld = useCallback(() => {
-    sessionStorage.removeItem(PLAYING);
-    setStatus("connecting");
-    setEntered(false);
-    setPlaying(null);
-  }, []);
-  /**
-   * End the session — the account's own door, offered only on the chooser.
-   *
-   * Takes the body out of the world on the way, because the socket is torn down
-   * with the canvas exactly as {@link leaveWorld} does it. A signed-out tab
-   * holding a live connection would be a body nobody can sign in as, standing
-   * in the square.
-   *
-   * **Optimistic, then reconciled.** The page forgets who it was before the
-   * request has been answered, because waiting would leave somebody who pressed
-   * Sign out looking at their own characters; and then it asks `/api/me`, which
-   * is the only thing that actually knows. A sign-out that failed to reach the
-   * server puts the chooser back rather than leaving a browser that believes it
-   * is signed out while the cookie still works.
-   */
-  const signOutOfAccount = useCallback(() => {
-    sessionStorage.removeItem(PLAYING);
-    setStatus("connecting");
-    setEntered(false);
-    setPlaying(null);
-    setMe({ user: null, characters: [] });
-    void signOut().then(() => void fetchMe().then(setMe));
-  }, []);
+    forgetCharacter();
+    void navigate("/characters");
+  }, [navigate]);
   /**
    * What the server said it speaks, once it has refused us for speaking
    * something else. Null until then, and null for a refusal that closed without
@@ -421,12 +307,19 @@ export default function GamePage() {
   statusDefsRef.current = statusDefs;
   const lightingRef = useRef(lightingEnabled);
   lightingRef.current = lightingEnabled;
-
-  // One way, and only per login: the door comes down against a world being on
-  // the canvas, and a reconnect taking the frame back does not put it up again.
-  useEffect(() => {
-    if (painted) setEntered(true);
-  }, [painted]);
+  /**
+   * Through a ref, because `useNavigate` is not documented to return a stable
+   * function.
+   *
+   * The connecting effect below must not be torn down for anything but a reason
+   * to throw a live world away — every rebuild is a fresh socket and a fresh
+   * `hello`, which is the whole map — so a dependency whose identity is not
+   * guaranteed has no business in its list. The close handler reads it at call
+   * time instead, which is what every other long-lived callback in that effect
+   * already does.
+   */
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
 
   useEffect(() => {
     rendererRef.current?.setLightingEnabled(lightingEnabled);
@@ -443,24 +336,19 @@ export default function GamePage() {
   /**
    * The id the socket names itself with, and the effect's own dependency.
    *
-   * The id rather than the character object, because {@link refreshMe} builds a
-   * new list after every sign-in and creation — and a live world torn down and
-   * rebuilt because an equal-but-different object arrived would be a full
-   * `hello`, the whole map, for nothing.
+   * The id rather than the character object, because a revalidated loader
+   * builds an equal-but-different one — and a live world torn down and rebuilt
+   * for that would be a full `hello`, the whole map, for nothing.
    */
-  const characterId = playing?.id ?? null;
+  const characterId = character.id;
 
   useEffect(() => {
-    // No canvas until this player has picked a character and the assets are
-    // decoded, and no socket without a canvas: a world simulating somebody who
-    // is not watching is a body standing in a square for nothing.
+    // No canvas until the assets are decoded, and no socket without a canvas: a
+    // world simulating somebody who is not watching is a body standing in a
+    // square for nothing. There is always a character by here — the loader
+    // redirects to the chooser when there is not.
     const canvas = canvasRef.current;
     if (!canvas) return;
-
-    // Belt and braces with the canvas above: the element only exists once
-    // there is a character, and naming one is how this effect is allowed to
-    // open a socket at all.
-    if (!characterId) return;
 
     let disposed = false;
     let socket: WebSocket | null = null;
@@ -671,18 +559,16 @@ export default function GamePage() {
 
         // The session expired, or this character is no longer this account's.
         // Reconnecting would be refused the same way every time, so the tab
-        // stops and goes back to the doors — which is where somebody can
-        // actually do something about it. Asking the server who we are now is
-        // what decides which of the two they land on.
+        // stops and navigates to the chooser — whose own loader asks who this
+        // browser is now, and sends them to the front door if the answer is
+        // nobody. One redirect decides which of the two screens they land on,
+        // and it is the one whose job that already is.
         if (event.code === CLOSE_SIGNED_OUT) {
           teardownRenderer();
-          sessionStorage.removeItem(PLAYING);
-          setStatus("connecting");
-          setEntered(false);
-          setPlaying(null);
+          forgetCharacter();
           setStats(null);
           setPlayers(null);
-          void fetchMe().then(setMe);
+          void navigateRef.current("/characters");
           return;
         }
 
@@ -728,40 +614,15 @@ export default function GamePage() {
       setStats(null);
       setPlayers(null);
     };
-    // `assetsReady` and `characterId` are in here for the canvas rather than
-    // for themselves — the element only exists once there is a character and
-    // the assets are decoded. They also hold the socket back until then, which
-    // is right: a world being simulated for somebody who cannot see it yet is a
-    // walk they never asked for. The id rather than the character object, so
-    // that re-fetching the list does not tear a live world down.
+    // `assetsReady` is in here for the canvas rather than for itself — the
+    // element only exists once the assets are decoded. It also holds the socket
+    // back until then, which is right: a world being simulated for somebody who
+    // cannot see it yet is a walk they never asked for.
+    //
+    // Nothing else belongs here, and `navigate` in particular does not: see
+    // {@link navigateRef}. Every entry in this list is a reason to throw a live
+    // world away and ask for another one.
   }, [tiles, tilesets, socketPath, assetsReady, characterId]);
-
-  /**
-   * Whether the press is still being answered — anywhere between a character
-   * being chosen and the world appearing.
-   *
-   * **Getting in is one wait and reads as one.** Opening the socket, waiting on
-   * `hello` and waiting for the first frame are three things, and a screen
-   * apiece is a page flickering through states a player cannot act on and did
-   * not ask about. So the chooser stays up, with the pressed row reading
-   * `Entering…`, until there is a world behind it — which is {@link entered},
-   * the first frame, and not `hello`: the renderer is built on `hello` and
-   * paints some way after it, and that gap was the seam this exists to close.
-   *
-   * Signing in is deliberately not part of this. It ends in another question
-   * rather than in a world, so the account screen goes the moment the cookie
-   * lands and the chooser takes over.
-   *
-   * **The moment something is wrong it stands down**, because the statuses it
-   * covers are the two that mean the wait is going normally. A socket that
-   * closes before the first frame puts `reconnecting` or `restarting` on the
-   * page, and then the loading screen and its chip take over and say so — a
-   * chooser reading `Entering…` at somebody whose server is down is a screen
-   * that explains nothing. `outdated` and `replaced` are ends of the road and
-   * draw their own screens for the same reason.
-   */
-  const entering =
-    inWorld && !entered && (status === "connecting" || status === "live");
 
   // Held in a variable because it rides in one of two slots. A world that is
   // simply connected is not news and folds away into the menu with everything
@@ -779,25 +640,15 @@ export default function GamePage() {
 
   return (
     <>
-      {/* **Nothing of the game is in the page before the press**: no canvas, so
-          no socket — see the effect above. The catalogues and the tilesets load
-          behind the door either way, because `useGameAssets` runs whether or
-          not the world is being drawn, so the longer somebody looks at the
-          button the less the press has left to wait for.
-
-          The wrapper below is everything the game is, taken out of reach in one
-          place while this player is dead. `inert` rather than a pile of
-          `disabled` props and a `pointer-events: none`: it is the browser's own
-          answer to "this subtree is not interactive", so it covers the pointer,
-          the tab order, the arrow keys reaching a focused field and anything
-          read aloud — none of which an overlay drawn on top of them covers. It
-          exists for the attribute and takes the height back, because the shell
-          under it is sized against its parent. */}
-      {!inWorld ? null : (
-        // `entering` is in here for the same reason the death is: the door is
-        // drawn over this, and an overlay stops a pointer but not a tab key —
-        // a world nobody can see yet is not one to be able to reach into.
-        <div className="h-full" inert={dead || rebirthing || entering}>
+      {/* Everything the game is, taken out of reach in one place while this
+          player is dead. `inert` rather than a pile of `disabled` props and a
+          `pointer-events: none`: it is the browser's own answer to "this
+          subtree is not interactive", so it covers the pointer, the tab order,
+          the arrow keys reaching a focused field and anything read aloud — none
+          of which an overlay drawn on top of them covers. It exists for the
+          attribute and takes the height back, because the shell under it is
+          sized against its parent. */}
+      <div className="h-full" inert={dead || rebirthing}>
           <AppShell
             menuExtras={
               <>
@@ -898,48 +749,12 @@ export default function GamePage() {
                 <OutdatedScreen serverVersion={serverVersion} />
               ) : status === "replaced" ? (
                 <ReplacedScreen />
-              ) : painted || entering ? null : (
+              ) : painted ? null : (
                 <LoadingScreen />
               )}
             </div>
           </AppShell>
         </div>
-      )}
-      {/* The two doors, and the wait behind the second of them.
-
-          In this order because they are the two questions in order: who is
-          this, and which body. Over the shell rather than inside it, so that
-          the press that opens the world does not move the page under it — the
-          chooser is in the middle of the page before the press, and the wait
-          is in the middle of the page after it.
-
-          Signing in is not a wait: the account screen goes the moment the
-          cookie lands, because what follows is another question rather than a
-          world. Entering is, which is why the chooser stays up reading
-          `Entering…` until there is a frame. @see entering */}
-      {!me.user ? (
-        <SignInScreen
-          onSignedIn={refreshMe}
-          minPasswordLength={MIN_PASSWORD_LENGTH}
-        />
-      ) : !inWorld || entering ? (
-        <CharacterScreen
-          username={me.user.username}
-          characters={me.characters}
-          onPlay={play}
-          // Straight into the world on a fresh character: somebody who has just
-          // typed a name has said what they want to do next, and a list with
-          // one new row on it and nothing selected is a screen asking them to
-          // say it twice.
-          onMade={(character) => {
-            refreshMe();
-            play(character);
-          }}
-          onSignOut={signOutOfAccount}
-          entering={entering}
-        />
-      ) : null}
-
       {/* One screen for the whole time this player has no body to act with,
           which is why the wait is a state of it rather than a second overlay:
           the death outlasts the press, and the wait outlasts the death. */}

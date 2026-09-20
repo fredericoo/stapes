@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { redirect, useLoaderData } from "react-router";
-import { DoorNote } from "../../components/door";
-import { SignInScreen } from "../../components/SignInScreen";
-import { MIN_PASSWORD_LENGTH } from "../../lib/account";
+import { Door, DoorNote, DoorTitle } from "../../components/door";
+import { SignInForm } from "../../components/SignInForm";
 import { fetchMe, signOut, type Me } from "../../lib/auth";
 
 /**
@@ -15,7 +14,7 @@ import { fetchMe, signOut, type Me } from "../../lib/auth";
  * **It does not offer to make an account.** A role is assigned in the database
  * and by nothing else, so an account made here would be signed in and refused
  * in the same breath. Somebody who wants to play makes their account at the
- * game's own door.
+ * game's own door, `/sign-up`.
  *
  * The other case it has to answer is the awkward one: a player who typed
  * `/admin` while signed in as themselves. A sign-in form at somebody who is
@@ -34,24 +33,23 @@ export async function clientLoader() {
 export default function AdminSignIn() {
   const { me: loaded } = useLoaderData<typeof clientLoader>();
   const [me, setMe] = useState<Me>(loaded);
-
   const signedIn = me.user;
 
   return (
-    <SignInScreen
-      allowSignUp={false}
-      minPasswordLength={MIN_PASSWORD_LENGTH}
-      onSignedIn={() => {
-        // A full navigation rather than a state change: what is behind this is
-        // the editor, and the editor's loaders have already run and failed.
-        // Reloading is the cheapest way to make them run again as somebody
-        // else, and it happens once per sign-in.
-        void fetchMe().then((now) => {
-          if (now.user?.role === "ADMIN") window.location.assign("/admin/map");
-          else setMe(now);
-        });
-      }}
-    >
+    <Door>
+      <DoorTitle>The editors</DoorTitle>
+      <SignInForm
+        onSignedIn={() => {
+          // A full navigation rather than a client one: what is behind this is
+          // the editor, and the editors' loaders have already run and failed.
+          // Reloading is the cheapest way to make them run again as somebody
+          // else, and it happens once per sign-in.
+          void fetchMe().then((now) => {
+            if (now.user?.role === "ADMIN") window.location.assign("/admin/map");
+            else setMe(now);
+          });
+        }}
+      />
       {signedIn ? (
         <DoorNote>
           This browser is signed in as {signedIn.username}, who is not an
@@ -65,8 +63,8 @@ export default function AdminSignIn() {
           </button>
         </DoorNote>
       ) : (
-        <DoorNote>The editors. Administrators only.</DoorNote>
+        <DoorNote>Administrators only.</DoorNote>
       )}
-    </SignInScreen>
+    </Door>
   );
 }
