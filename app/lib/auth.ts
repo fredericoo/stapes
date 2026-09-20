@@ -91,9 +91,10 @@ export async function fetchMe(): Promise<Me> {
 
 export function signUp(
   username: string,
+  email: string,
   password: string,
 ): Promise<Attempt<unknown>> {
-  return post("/api/account", { username, password });
+  return post("/api/account", { username, email, password });
 }
 
 export function signIn(

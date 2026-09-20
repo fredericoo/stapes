@@ -16,10 +16,11 @@ export const MAX_USERNAME_LENGTH = 30;
 /**
  * The password floor.
  *
- * **Deliberately not a policy.** There is no email on an account here and no
- * recovery, so a forgotten password is a lost account and every rule beyond a
- * length is a rule that makes people write theirs down. Eight characters is
- * the floor Better Auth defaults to, stated here so the form can say it before
- * anybody is refused for missing it.
+ * **Deliberately not a policy.** There is no password reset in this game — an
+ * account carries an email but nothing is ever sent to it — so a forgotten
+ * password is a lost account, and every rule beyond a length is a rule that
+ * makes people write theirs down. Eight characters is the floor Better Auth
+ * defaults to, stated here so the form can say it before anybody is refused
+ * for missing it.
  */
 export const MIN_PASSWORD_LENGTH = 8;

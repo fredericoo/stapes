@@ -8,10 +8,9 @@ import { GameViewport } from "../components/GameViewport";
 import { InkDocument } from "../components/InkDocument";
 import { LightingToggle } from "../components/LightingToggle";
 import { CharacterScreen } from "../components/CharacterScreen";
-import { ChangePasswordButton } from "../components/ChangePasswordButton";
 import { LoadingScreen } from "../components/LoadingScreen";
 import { SignInScreen } from "../components/SignInScreen";
-import { LogOutButton } from "../components/LogOutButton";
+import { LeaveWorldButton } from "../components/LeaveWorldButton";
 import { OutdatedScreen } from "../components/OutdatedScreen";
 import { ReplacedScreen } from "../components/ReplacedScreen";
 import { WorldClock } from "../components/WorldClock";
@@ -196,33 +195,34 @@ export default function GamePage() {
     void fetchMe().then(setMe);
   }, []);
   /**
-   * Leave the world, keeping the account that was in it.
+   * Take this character out of the world, keeping the account signed in.
    *
    * Dropping {@link playing} is the whole of it: the connecting effect below is
    * torn down with the canvas, which takes the renderer, the session and this
    * player's body out of the world. The status goes back to what a fresh page
    * says, so the chip does not read `live` over a door.
    *
-   * **The session is deliberately left alone.** Leaving a character is not
-   * signing out: this is how somebody swaps to another of their three, and
+   * **The session is deliberately left alone.** Leaving the world is not
+   * signing out — those are two different things in this game, and this is the
+   * first of them. It is how somebody swaps to another of their three, and
    * coming back to the one they left is the same body standing where it was.
-   * What that costs is the one thing the button warns about — a body in combat
+   * What that costs is the one thing the button warns about: a body in combat
    * stays on the board after its socket goes.
-   * @see ../components/LogOutButton
+   * @see ../components/LeaveWorldButton
    */
-  const logOut = useCallback(() => {
+  const leaveWorld = useCallback(() => {
     sessionStorage.removeItem(PLAYING);
     setStatus("connecting");
     setEntered(false);
     setPlaying(null);
   }, []);
   /**
-   * End the session, not just the character.
+   * End the session — the account's own door, offered only on the chooser.
    *
    * Takes the body out of the world on the way, because the socket is torn down
-   * with the canvas exactly as {@link logOut} does it — a signed-out tab
-   * holding a live connection would be a body nobody can sign in as standing in
-   * the square.
+   * with the canvas exactly as {@link leaveWorld} does it. A signed-out tab
+   * holding a live connection would be a body nobody can sign in as, standing
+   * in the square.
    *
    * **Optimistic, then reconciled.** The page forgets who it was before the
    * request has been answered, because waiting would leave somebody who pressed
@@ -231,7 +231,7 @@ export default function GamePage() {
    * server puts the chooser back rather than leaving a browser that believes it
    * is signed out while the cookie still works.
    */
-  const leaveAccount = useCallback(() => {
+  const signOutOfAccount = useCallback(() => {
     sessionStorage.removeItem(PLAYING);
     setStatus("connecting");
     setEntered(false);
@@ -818,15 +818,21 @@ export default function GamePage() {
                   enabled={lightingEnabled}
                   onChange={setLightingEnabled}
                 />
-                <ChangePasswordButton />
                 {/* Last in the row, and last in the menu on a phone: it is the
-                    only thing here that ends the session rather than changing
-                    what is on screen. */}
-                <LogOutButton
+                    only thing here that takes this body out of the world rather
+                    than changing what is on screen.
+
+                    **The account's controls are deliberately not here.**
+                    Signing out and changing a password are on the chooser,
+                    because that is the screen the account lives on — see
+                    ./ChangePassword. A menu offering both would be the one
+                    place teaching people that leaving the world and signing
+                    out are the same act. */}
+                <LeaveWorldButton
                   inCombat={vitals.statuses.some(
                     (status) => status.defId === COMBAT_STATUS_ID,
                   )}
-                  onLogOut={logOut}
+                  onLeave={leaveWorld}
                 />
               </>
             }
@@ -929,7 +935,7 @@ export default function GamePage() {
             refreshMe();
             play(character);
           }}
-          onSignOut={leaveAccount}
+          onSignOut={signOutOfAccount}
           entering={entering}
         />
       ) : null}

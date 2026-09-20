@@ -13,6 +13,7 @@ import {
   MAX_CHARACTER_NAME_LENGTH,
   characterNameProblem,
 } from "../lib/characterName";
+import { ChangePassword } from "./ChangePassword";
 import { createCharacter } from "../lib/auth";
 import type { Character } from "../../server/characters";
 
@@ -33,6 +34,12 @@ import type { Character } from "../../server/characters";
  * Three is the ceiling, and the form goes away rather than being refused at it:
  * a field that is only ever going to say no is a field that should not be on
  * screen.
+ *
+ * **It is also where the account's own controls live** — Sign out, and Change
+ * password. You sign in and out of an *account*; a *character* enters and
+ * leaves the world, and the game's menu offers only the second. Keeping the two
+ * vocabularies on two screens is what stops them collapsing into one word.
+ * @see `docs/notes.md`, "An account signs in; a character enters"
  */
 export function CharacterScreen({
   username,
@@ -168,15 +175,26 @@ export function CharacterScreen({
       )}
       {error ? <DoorError>{error}</DoorError> : null}
 
-      <button
-        type="button"
-        className="text-xs uppercase tracking-widest text-paper/50 underline underline-offset-4 hover:text-paper disabled:opacity-50"
-        style={{ fontFamily: SYSTEM_MONO }}
-        disabled={entering}
-        onClick={onSignOut}
-      >
-        Sign out
-      </button>
+      {/* The account's own two controls, and the only two anywhere. Signing in
+          and out is what you do with an account; entering and leaving the world
+          is what a character does — so the game's own menu offers neither of
+          these. @see ./ChangePassword
+
+          `max-w-xs` to match the fields above: the password form expands in
+          place here, and one that came out narrower than the field it appeared
+          under would read as a different screen arriving. */}
+      <div className="flex w-full max-w-xs flex-col items-center gap-3">
+        <ChangePassword disabled={entering} />
+        <button
+          type="button"
+          className="text-xs uppercase tracking-widest text-paper/50 underline underline-offset-4 hover:text-paper disabled:opacity-50"
+          style={{ fontFamily: SYSTEM_MONO }}
+          disabled={entering}
+          onClick={onSignOut}
+        >
+          Sign out
+        </button>
+      </div>
     </Door>
   );
 }

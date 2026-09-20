@@ -1,19 +1,22 @@
-import { IconLogout } from "@tabler/icons-react";
+import { IconDoorExit } from "@tabler/icons-react";
 import { useState } from "react";
 import { Button, Dialog } from "../ui";
 
 /**
  * The way back out of the world, in the menu the lighting switch is in.
  *
- * **It leaves the character, not the account.** All it does is close the socket
- * and put the character screen back up — see `../routes/game`. The session
- * stays, so this is how somebody swaps to another of their three, and coming
- * back to the one they left is the same body standing where they left it.
+ * **A character leaves the world; it does not sign out.** Those are two
+ * different things in this game and the words are kept apart everywhere: you
+ * sign in and out of an *account*, and a *character* enters and leaves. All
+ * this does is close the socket and put the character chooser back up — see
+ * `../routes/game` — so it is how somebody swaps to another of their three, and
+ * coming back to the one they left is the same body standing where it was.
  *
- * Signing out is deliberately one step further away, on that screen. Two
- * buttons in this menu that both look like leaving is how somebody ends a
- * session they only meant to pause — and on an account with no password
- * recovery, being signed out is a state worth having to ask for.
+ * **Signing out is deliberately not here at all**, and not just further away:
+ * it is on the chooser, because that is the screen the account lives on. A
+ * menu offering both would be the one place teaching people the two words mean
+ * the same thing — and on an account with no password recovery, being signed
+ * out is a state worth having to ask for.
  *
  * So it asks nothing in the ordinary case. A confirmation on an act you can
  * undo by pressing the button beside it teaches people to click through the
@@ -26,13 +29,13 @@ import { Button, Dialog } from "../ui";
  * walking away from is a body somebody else can still kill, and they will not
  * be there to see it happen.
  */
-export function LogOutButton({
+export function LeaveWorldButton({
   inCombat,
-  onLogOut,
+  onLeave,
 }: {
   /** Whether the engine's `combat` status is running on this player's body. */
   inCombat: boolean;
-  onLogOut: () => void;
+  onLeave: () => void;
 }) {
   const [asking, setAsking] = useState(false);
 
@@ -41,15 +44,15 @@ export function LogOutButton({
       <Button
         variant="ghost-inverse"
         size="sm"
-        onClick={() => (inCombat ? setAsking(true) : onLogOut())}
+        onClick={() => (inCombat ? setAsking(true) : onLeave())}
       >
-        <IconLogout size={16} stroke={2} aria-hidden="true" />
-        Log out
+        <IconDoorExit size={16} stroke={2} aria-hidden="true" />
+        Leave world
       </Button>
       <Dialog
         open={asking}
         onOpenChange={setAsking}
-        title="Log out mid-fight"
+        title="Leave mid-fight"
         footer={
           <>
             <Button variant="secondary" onClick={() => setAsking(false)}>
@@ -59,10 +62,10 @@ export function LogOutButton({
               variant="danger"
               onClick={() => {
                 setAsking(false);
-                onLogOut();
+                onLeave();
               }}
             >
-              Log out
+              Leave
             </Button>
           </>
         }

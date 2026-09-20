@@ -3,7 +3,7 @@ import { parseMap, serializeMap } from "../app/lib/mapData";
 import { readPngSize } from "../app/lib/png";
 import { untar } from "./untar";
 import { PROTOCOL_VERSION } from "../app/net/protocol";
-import { syntheticEmail, viewerOf, type Viewer } from "./auth";
+import { viewerOf, type Viewer } from "./auth";
 import type { World } from "./world";
 import type { ClientBundle } from "./clientBundle";
 import type { Config } from "./config";
@@ -59,7 +59,7 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
        * Sign-in, sign-out, the session lookup and the password change are all
        * its endpoints under here, used by the client as they come — see
        * `../app/lib/auth.ts`. Sign-*up* is the one exception and has a handler
-       * of its own below, because this game has no email to ask for.
+       * of its own below; the reason is there.
        *
        * `parse: "none"` because Better Auth reads the body off the `Request`
        * itself: letting Elysia parse it first would hand the handler a stream
@@ -71,10 +71,12 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
       /**
        * Make an account.
        *
-       * Its own route rather than Better Auth's `/sign-up/email`, because the
-       * address is not the player's to supply: there is no email in this game,
-       * and an account table that demands one is satisfied with a synthetic
-       * address nothing will ever read. @see syntheticEmail
+       * Its own route rather than Better Auth's `/sign-up/email`, for one
+       * reason that is left: Better Auth's `name` is a *display* name, and this
+       * game has no use for one — what is drawn over a head is the
+       * *character's* name, typed later. Deciding here that it mirrors the
+       * username keeps a field out of the form that would only ever confuse
+       * somebody about which of the two names people see.
        *
        * The reply is Better Auth's own `Response`, passed through untouched —
        * which is what carries the `Set-Cookie` that signs the new account in.
@@ -86,11 +88,11 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
           try {
             return await world.auth.api.signUpEmail({
               body: {
-                email: syntheticEmail(body.username),
+                // Typed by the person signing up, and stored. Nothing sends to
+                // it and nothing verifies it — see `./auth` — but it is theirs
+                // rather than something this server made up.
+                email: body.email,
                 password: body.password,
-                // Better Auth's `name` is a display name, which this game does
-                // not use: what is drawn over a head is the *character's*
-                // name. The username is the honest thing to put here.
                 name: body.username,
                 username: body.username,
               },
@@ -112,6 +114,7 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
         {
           body: t.Object({
             username: t.String(),
+            email: t.String(),
             password: t.String(),
           }),
         },

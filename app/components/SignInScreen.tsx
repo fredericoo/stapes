@@ -10,19 +10,18 @@ import {
 import { signIn, signUp } from "../lib/auth";
 
 /**
- * The front door: a username, a password, and no third field.
+ * The front door: sign in to an account, or make one.
  *
- * **There is no email and no recovery.** Nobody has an address to send a reset
- * to, so a forgotten password is a lost account — which is why the only rule
- * the form imposes is a length, and why it says so before anybody has typed
- * anything wrong. Asking for an address the game would never use, to enable a
- * recovery the game does not have, would be collecting a personal detail for
- * the look of the thing.
+ * **Signing in is a username and a password.** An email is asked for once, when
+ * the account is made, and then only stored: nothing sends to it, nothing
+ * verifies it, and there is no reset behind it — which is why the form says a
+ * forgotten password is a lost account before anybody has typed one. What the
+ * address buys is a way to reach somebody about their account at all, which a
+ * game with no other contact detail had none of.
  *
- * **One screen for both errands.** Signing in and making an account ask for
- * exactly the same two things, and a separate page for the second is a
- * navigation somebody has to find. The toggle underneath swaps which button the
- * form has and nothing else moves.
+ * **One screen for both errands.** They ask for nearly the same things, and a
+ * separate page for the second is a navigation somebody has to find. Making an
+ * account adds the email field and swaps the button; nothing else moves.
  *
  * Nothing behind this connects. The socket is opened once there is a character
  * to open it as — see `./CharacterScreen` and `../routes/game` — so a tab left
@@ -53,6 +52,7 @@ export function SignInScreen({
 }) {
   const [making, setMaking] = useState(false);
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +61,7 @@ export function SignInScreen({
     setBusy(true);
     setError(null);
     const attempt = making
-      ? await signUp(username, password)
+      ? await signUp(username, email, password)
       : await signIn(username, password);
     setBusy(false);
     if (!attempt.ok) {
@@ -97,6 +97,22 @@ export function SignInScreen({
           disabled={busy}
           onChange={(event) => setUsername(event.target.value)}
         />
+        {/* Only when making one. Signing in is the username and the password:
+            asking for an address you have already given is a field to get
+            wrong on the screen people see most often. */}
+        {making ? (
+          <DoorField
+            label="Email"
+            type="email"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            autoComplete="email"
+            value={email}
+            disabled={busy}
+            onChange={(event) => setEmail(event.target.value)}
+          />
+        ) : null}
         <DoorField
           label="Password"
           type="password"
@@ -107,7 +123,7 @@ export function SignInScreen({
         />
         <DoorButton
           type="submit"
-          disabled={busy || !username || !password}
+          disabled={busy || !username || !password || (making && !email)}
           className="mt-1"
         >
           {busy ? "Just a moment…" : making ? "Create account" : "Sign in"}
@@ -117,8 +133,8 @@ export function SignInScreen({
       {children}
       {making ? (
         <DoorNote>
-          At least {minPasswordLength} characters. There is no email and no way
-          to reset it, so pick one you will remember.
+          At least {minPasswordLength} characters. There is no password reset,
+          so pick one you will remember.
         </DoorNote>
       ) : null}
       {allowSignUp ? (

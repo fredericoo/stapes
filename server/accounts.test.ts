@@ -6,7 +6,6 @@ import {
   SEEDED_ADMIN_USERNAME,
   createAuth,
   seedAdmin,
-  syntheticEmail,
   viewerOf,
   type Auth,
 } from "./auth";
@@ -52,7 +51,9 @@ afterEach(async () => {
 async function makeAccount(username: string): Promise<string> {
   const created = await auth.api.signUpEmail({
     body: {
-      email: syntheticEmail(username),
+      // Typed by the person signing up in the real thing — see
+      // `POST /api/account`. Nothing here reads it back.
+      email: `${username}@example.test`,
       password: "a-long-enough-password",
       name: username,
       username,
@@ -129,7 +130,7 @@ describe("an ordinary account", () => {
     // in the database" true rather than a convention.
     await auth.api.signUpEmail({
       body: {
-        email: syntheticEmail("climber"),
+        email: "climber@example.test",
         password: "a-long-enough-password",
         name: "climber",
         username: "climber",

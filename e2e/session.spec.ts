@@ -21,7 +21,7 @@ import { freshCharacterName } from "./accounts";
 const BOOT_TIMEOUT_MS = 120_000;
 
 test.describe("the front door", () => {
-  test("connects nothing until a character is chosen, and keeps the account through Log out", async ({
+  test("connects nothing until a character is chosen, and keeps the account when one leaves", async ({
     page,
   }) => {
     test.setTimeout(BOOT_TIMEOUT_MS + 180_000);
@@ -55,7 +55,12 @@ test.describe("the front door", () => {
 
     await createAccount.click();
     await page.getByLabel("Username").fill(username);
-    await page.getByLabel("Password").fill("a-long-enough-password");
+    // Asked for once, here, and then only stored — nothing sends to it. Signing
+    // in below never asks again. @see `server/auth.ts`
+    await page.getByLabel("Email").fill(`${username}@example.test`);
+    await page.getByLabel("Password", { exact: true }).fill(
+      "a-long-enough-password",
+    );
     await page.getByRole("button", { name: "Create account" }).click();
 
     // ---- the character ----------------------------------------------------
@@ -79,13 +84,20 @@ test.describe("the front door", () => {
 
     // Nothing in the game offers a way into the editors.
     await expect(page.locator("header nav a")).toHaveCount(0);
+    // And nothing in the game offers the account's own controls: you sign in
+    // and out of an account, a character enters and leaves the world, and the
+    // two are never on the same screen. @see ../app/components/ChangePassword
+    await expect(page.getByRole("button", { name: "Sign out" })).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Change password" }),
+    ).toHaveCount(0);
 
-    // ---- leaving the character, not the account ---------------------------
+    // ---- leaving the world, which is not signing out ----------------------
     // Nothing to confirm out of a fight: the press is the whole of it.
-    await page.getByRole("button", { name: "Log out" }).click();
+    await page.getByRole("button", { name: "Leave world" }).click();
     // Back at the chooser rather than at the account screen, with the character
-    // that was just left on it. @see docs/notes.md, "Logging out leaves the
-    // character, not the account"
+    // that was just left on it. @see docs/notes.md, "Leaving the world is not
+    // signing out"
     await expect(page.getByRole("button", { name: character })).toBeVisible({
       timeout: 30_000,
     });
@@ -108,7 +120,7 @@ test.describe("the front door", () => {
       timeout: 30_000,
     });
 
-    await page.getByRole("button", { name: "Log out" }).click();
+    await page.getByRole("button", { name: "Leave world" }).click();
     const warning = page.getByRole("dialog");
     await expect(warning).toContainText("your body stays in the world", {
       timeout: 30_000,
@@ -117,13 +129,18 @@ test.describe("the front door", () => {
     await warning.getByRole("button", { name: "Stay" }).click();
     await expect(page.locator("canvas").first()).toBeVisible();
 
-    await page.getByRole("button", { name: "Log out" }).click();
-    await warning.getByRole("button", { name: "Log out", exact: true }).click();
+    await page.getByRole("button", { name: "Leave world" }).click();
+    await warning.getByRole("button", { name: "Leave", exact: true }).click();
 
-    // ---- and signing out, which is one step further -----------------------
+    // ---- and signing out, which lives on the chooser and nowhere else -----
     await expect(page.getByRole("button", { name: character })).toBeVisible({
       timeout: 30_000,
     });
+    // Both of the account's controls are here, and this is the only screen
+    // either of them is on.
+    await expect(
+      page.getByRole("button", { name: "Change password" }),
+    ).toBeVisible();
     await page.getByRole("button", { name: "Sign out" }).click();
     await expect(
       page.getByRole("button", { name: "Create an account" }),

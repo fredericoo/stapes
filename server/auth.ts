@@ -33,14 +33,26 @@ export const SEEDED_ADMIN_USERNAME = "admin";
 const SEEDED_ADMIN_PASSWORD = "salem123";
 
 /**
+ * The one address this server writes without anybody having typed it.
+ *
+ * Everybody else gives their own at sign-up. The seeded administrator is
+ * created at boot, before there is anybody to ask, and the column is `NOT NULL`
+ * — so it gets a placeholder rather than a guess at who the operator is.
+ *
+ * `.invalid` is reserved by RFC 2606 precisely for this: it can never be
+ * registered, so a bug that started sending mail would bounce at the first
+ * resolver rather than reaching a stranger who happens to own `stapes.com`.
+ */
+const SEEDED_ADMIN_EMAIL = "admin@stapes.invalid";
+
+/**
  * Accounts, sessions and passwords, over the world's own database.
  *
- * **Username and password only.** There is no email in this game and no
- * recovery: nobody has an address to send a reset to, and a game that asks for
- * one before it will let you walk around has asked for the wrong thing. Better
- * Auth's user table still has an `email` column, because its schema is not
- * optional, so sign-up synthesises one — see {@link syntheticEmail}. Nothing
- * reads it and nothing is ever sent to it.
+ * **Signing in is a username and a password; the email is only stored.** It is
+ * asked for at sign-up and kept, so there is a way to reach somebody about
+ * their account — but nothing sends to it, nothing verifies it, and there is no
+ * reset flow behind it. A game that made you click a link in your inbox before
+ * it would let you walk around has asked for the wrong thing.
  *
  * **The role is not an input.** `input: false` is what keeps it out of every
  * request body Better Auth parses, sign-up included, so the only way to become
@@ -128,19 +140,6 @@ export function createAuth(db: Database, config: Config) {
 export type Auth = ReturnType<typeof createAuth>;
 
 /**
- * An address nobody will ever read, so that a table that demands one is
- * satisfied.
- *
- * `.invalid` is reserved by RFC 2606 precisely for this: it can never be
- * registered, so a bug that started sending mail would bounce at the first
- * resolver rather than reaching a stranger who happens to own the domain
- * somebody's username spells.
- */
-export function syntheticEmail(user: string): string {
-  return `${user.toLowerCase()}@stapes.invalid`;
-}
-
-/**
  * Who this request is, or null.
  *
  * The one way anything here learns an identity: it reads the signed session
@@ -195,7 +194,7 @@ export async function seedAdmin(
 
   await auth.api.signUpEmail({
     body: {
-      email: syntheticEmail(SEEDED_ADMIN_USERNAME),
+      email: SEEDED_ADMIN_EMAIL,
       password: SEEDED_ADMIN_PASSWORD,
       name: SEEDED_ADMIN_USERNAME,
       username: SEEDED_ADMIN_USERNAME,
