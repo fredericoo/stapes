@@ -114,7 +114,7 @@ hostname — so production and every preview share port 443 without conflicting.
 
 **Never use Flexible.** It sends Cloudflare→origin in plaintext, so the traffic
 is encrypted for only half its journey, and the origin would see `http` and stop
-marking the actor cookie `Secure`.
+marking the session cookie `Secure`.
 
 **Delete stale AAAA records when you repoint a hostname.** An `AAAA` left
 pointing at Cloudflare while the `A` moved to the box made Let's Encrypt fail
@@ -196,13 +196,25 @@ DATA_DIR=/data
 BACKUP_DIR=/backups
 PUBLIC_ORIGIN=https://stapes.example.com
 ADMIN_SECRET=<openssl rand -hex 32>
+AUTH_SECRET=<openssl rand -base64 32>
 NODE_ENV=production
 CHECKPOINT_INTERVAL_MS=2000
 ```
 
-Five variables and one secret. `NODE_ENV=production` is what tells the server to
+Six variables and two secrets. `NODE_ENV=production` is what tells the server to
 read authored content from the database rather than from a `data/` directory
 that only exists in a checkout.
+
+**`AUTH_SECRET` is not optional, and the server refuses to start without it.**
+It is what session cookies are signed with; unset, Better Auth falls back to a
+constant it ships in its own source, and every session in the world could be
+forged by anybody who has read it. Any long random string will do, and changing
+it later signs everybody out — which is the emergency lever if one ever leaks.
+
+`PUBLIC_ORIGIN` gains a second job here: it is the only origin allowed to post
+to the account routes, which is the whole of the cross-site request protection.
+Point it at the name people actually type, or sign-in works and changing a
+password does not.
 
 Add a second persistent storage while you are here — name `stapes-backups`,
 destination `/backups`. A backup on the volume it is protecting is not a backup,
@@ -313,10 +325,15 @@ A second Coolify application, same repository, same server:
   before it can crowd the live world.
 - Persistent storage `/data`, same as production. Coolify scopes the volume to
   the pull request, so each gets its own world.
-- Same environment variables, except `PUBLIC_ORIGIN` (any `https://` name under
-  the preview domain — the server only reads its scheme, to decide whether the
-  actor cookie is marked `Secure`) and a **different** `ADMIN_SECRET`, which
-  goes into `PREVIEW_ADMIN_SECRET`.
+- Same environment variables, except `PUBLIC_ORIGIN` — which must be the name
+  the preview is actually served on, not any name under the preview domain. It
+  decides two things now: whether the session cookie is marked `Secure`, and
+  which origin may post to the account routes. A preview whose `PUBLIC_ORIGIN`
+  is somebody else's hostname is one where signing in works and changing a
+  password is refused.
+- And a **different** `ADMIN_SECRET`, which goes into `PREVIEW_ADMIN_SECRET`.
+  `AUTH_SECRET` may be a different value too, and probably should be: a preview
+  is a separate world with a separate `admin` account in it.
 - **Never deploy the base application.** Only its `pr-N` children are wanted;
   the parent exists to hold the settings and to give `{{domain}}` a value.
 
@@ -435,14 +452,39 @@ curl https://stapes.example.com/api/health
 # {"status":"ok","players":0,"build":"<sha>"}
 ```
 
-Then open the site, log in, and redeploy the server by hand from Coolify
-while standing in the world. You should see it pause for a couple of seconds and
-come back **with you where you were standing** — not at spawn, and not on an
-error screen. That is the whole migration working: if position survives a deploy,
-the checkpoint, the drain and the reconnect are all correct.
+### Change the seeded administrator's password. First.
 
-Reset the world if you ever need to (destroys every position, kit, reward and
-mastery):
+A fresh world comes up with one account — `admin`, password `salem123`, both
+written down in this repository and therefore known to everybody. Until it is
+changed, anybody who finds the deployment can author the world.
+
+Open `https://stapes.example.com/admin`, sign in as `admin`, and use
+**Password** in the menu. That is the whole of it: the seed only ever *creates*,
+so the next boot sees `admin` already there and leaves the new password alone.
+Nothing has to be turned off afterwards.
+
+Everybody else makes their own account at the front door, and every one of them
+is a `USER`. **There is no endpoint that grants a role** — that is deliberate,
+so there is nothing to get wrong. To make somebody an administrator, say so in
+the database:
+
+```bash
+# On the box, with the app stopped: exactly one process may hold the file.
+sqlite3 /var/lib/docker/volumes/<volume>/_data/stapes.db \
+  "UPDATE user SET role = 'ADMIN' WHERE username = 'someone';"
+```
+
+### Then check a deploy
+
+Open the site, sign in, make a character, and redeploy the server by hand from
+Coolify while standing in the world. You should see it pause for a couple of
+seconds and come back **with you where you were standing** — not at spawn, and
+not on an error screen. That is the whole migration working: if position
+survives a deploy, the checkpoint, the drain and the reconnect are all correct.
+
+Reset the world if you ever need to. It destroys every position, kit, reward and
+mastery — but **not accounts or characters**, which live in their own tables and
+are not what the world is:
 
 ```bash
 curl -X POST https://stapes.example.com/api/reset \

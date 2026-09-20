@@ -10,10 +10,23 @@ bun run generate   # regenerate tilesets + demo map into data/
 bun dev
 ```
 
-Open http://localhost:5173 — the game, behind a Log in button that is what
-opens the socket. The authoring tools are all under `/admin`, which opens on the
-map editor: the tile database is at `/admin/tiles`, and `/admin/arena` balances
-two fighters without a world in the way. Nothing guards `/admin` yet.
+Open the client URL `bun dev` prints — the game, behind two doors: an account,
+then which of its characters to play. The socket opens on the second one.
+
+The authoring tools are all under `/admin`, which opens on the map editor: the
+tile database is at `/admin/tiles`, and `/admin/arena` balances two fighters
+without a world in the way. **They need an `ADMIN` account.** A fresh database
+seeds one — username `admin`, password `salem123` — and nothing else grants the
+role: to promote somebody, say so in the database.
+
+```sql
+UPDATE user SET role = 'ADMIN' WHERE username = 'someone';
+```
+
+A deployment has one more requirement than development does: `AUTH_SECRET`, a
+long random string that session cookies are signed with. The server refuses to
+start without it rather than falling back to a published constant. See
+[SETUP.md](SETUP.md).
 
 ## Scripts
 
@@ -47,8 +60,9 @@ two fighters without a world in the way. Nothing guards `/admin` yet.
   needed: a fresh one seeds itself on boot
 - `bun run typecheck` — route typegen, then all three tsconfigs
 - `bun run test:unit` — `app/` logic, in vitest
-- `bun run test:server` — the world, on Bun, against a real database file
-- `bun run test:perf` — renderer budgets, in Playwright
+- `bun run test:server` — the world and its accounts, on Bun, against a real
+  database file
+- `bun run test:perf` — renderer budgets and the two doors, in Playwright
 - `bun run build` — the client bundle, which CI pushes to the bucket
 
 Deploying is in [SETUP.md](SETUP.md).
@@ -106,6 +120,10 @@ actually in. It prefers its own checkpoint to the authored content, so a seeded
 map changes nothing anybody can see, and it deliberately carries each player's
 kit, tags and masteries across a save. `POST /api/reset` is the way out — it
 destroys every position, kit, reward and mastery, and needs `ADMIN_SECRET`.
+
+Accounts and characters are a fourth, and none of the above touches them. They
+are their own tables rather than keys in the world's checkpoint, so a reset
+hands everybody a fresh body under the name they already have.
 
 Map edits are in-memory until you hit **Save** (or Cmd/Ctrl+S). Tile DB edits
 save immediately.
