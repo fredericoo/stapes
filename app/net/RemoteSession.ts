@@ -121,6 +121,7 @@ import {
   MAX_CHATS_PER_CELL,
 } from "./chat";
 import { MAX_COMMAND_LENGTH, isCommand } from "../game/commands";
+import { SOCKET_OPEN, type ClientSocket } from "./socket";
 import {
   parseServerMessage,
   type CellPatch,
@@ -504,7 +505,13 @@ export class RemoteSession implements PlaySession {
   private onClockSet: ((minutes: MinutesOfDay) => void) | null = null;
 
   constructor(
-    private readonly socket: WebSocket,
+    /**
+     * Where frames come from and go to — a `WebSocket` online, and a port on
+     * the world running in this tab under `/admin/play`. Nothing below can
+     * tell, which is the point: one client, one wire, two ways of being
+     * connected. @see ./socket
+     */
+    private readonly socket: ClientSocket,
     tiles: TileDef[],
     /**
      * The status catalogue, for the one thing this side has to work out about
@@ -650,7 +657,7 @@ export class RemoteSession implements PlaySession {
     this.socket.removeEventListener("message", this.onMessage);
   }
 
-  private onMessage = (event: MessageEvent) => {
+  private onMessage = (event: { data: unknown }) => {
     if (typeof event.data !== "string") return;
     const message = parseServerMessage(event.data);
     if (!message) return;
@@ -2887,7 +2894,7 @@ export class RemoteSession implements PlaySession {
   }
 
   private sendRaw(payload: string) {
-    if (this.socket.readyState !== WebSocket.OPEN) return;
+    if (this.socket.readyState !== SOCKET_OPEN) return;
     this.socket.send(payload);
   }
 }
