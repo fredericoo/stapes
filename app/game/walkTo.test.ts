@@ -4,12 +4,13 @@ import { constantFormula } from "../lib/formula";
 import { DEFAULT_STATUS_SOURCE } from "../lib/status";
 import type { StatusDef } from "../lib/status";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
-import { HEIGHT_PER_LEVEL, normalizeTileDef } from "../lib/types";
+import { HEIGHT_PER_LEVEL } from "../lib/types";
 import type { GameInput } from "./GameSession";
 import { PLAYER_TILE_ID } from "./constants";
 import { HeldDirections } from "./heldDirections";
 import { noRouteNotice } from "./notices";
 import { WalkTo, standingCellOn, type WalkView } from "./walkTo";
+import { tile } from "../lib/testTile";
 
 /**
  * Walking to a cell that was pointed at.
@@ -24,27 +25,6 @@ import { WalkTo, standingCellOn, type WalkView } from "./walkTo";
  * route is asked afresh so a board that has moved is routed round, and that a
  * cell with no way to it produces a sentence rather than silence.
  */
-
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    ...partial,
-  });
-}
 
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),

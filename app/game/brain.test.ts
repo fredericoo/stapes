@@ -19,8 +19,8 @@ import { group } from "../lib/conditions";
 import { constantFormula } from "../lib/formula";
 import { DEFAULT_STATUS_SOURCE, type StatusDef } from "../lib/status";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
-import type { Coord, Direction, FlatMapFile, MapFile, TileDef } from "../lib/types";
-import { normalizeTileDef, normalizeTiles } from "../lib/types";
+import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
+import { normalizeTiles } from "../lib/types";
 import {
   initialMemory,
   stepBrain,
@@ -38,6 +38,7 @@ import {
 } from "./constants";
 import { GameSession } from "./GameSession";
 import { Rng } from "./rng";
+import { FRAME, tile } from "../lib/testTile";
 
 /**
  * What drives a body when nobody is holding the keys.
@@ -46,27 +47,6 @@ import { Rng } from "./rng";
  * whether it holds together, the machine's own rules against a stub, and the
  * whole thing wandering a board.
  */
-
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    ...partial,
-  });
-}
 
 /** Idle briefly, then wander for good. Short, so a test is a few ticks. */
 const IDLE_MS = 400;
@@ -93,7 +73,7 @@ const tiles: TileDef[] = [
     directional: true,
     affectedByGravity: true,
     walkable: false,
-    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
   }),
   tile({
     id: "deer",

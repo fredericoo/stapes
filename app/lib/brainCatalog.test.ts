@@ -17,6 +17,7 @@ import {
   EFFECT_NAMES,
 } from "./brainCatalog";
 import { normalizeTileDef, type TileDef } from "./types";
+import { FRAME } from "./testTile";
 
 /**
  * The editor authors a brain by name from a catalog, never by hand. Two things
@@ -24,18 +25,13 @@ import { normalizeTileDef, type TileDef } from "./types";
  * will not run, and a brain built from it survives the trip to disk unchanged.
  */
 
-const frame = {
-  sprite: { tilesetId: "basic", rect: { x: 0, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } },
-  durationMs: 200,
-};
-
 function tileWithBrain(brain: BrainDef): TileDef {
   return normalizeTileDef({
     id: "creature",
     name: "creature",
     height: 2,
     directional: false,
-    variants: { default: [frame] },
+    variants: { default: [FRAME] },
     attributes: {},
     actor: true,
     interactions: { brain },

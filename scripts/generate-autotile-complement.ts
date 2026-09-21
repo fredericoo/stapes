@@ -1,6 +1,6 @@
 /**
  * Derives the "inner" companion block for a half-inset autotile.
- * Run: pnpm generate:complement
+ * Run: bun run generate:complement
  *
  * The floor autotiles in `floors.png` are drawn inset: an edge cell paints only
  * the half of itself facing the material, so the run of tiles stops short of its

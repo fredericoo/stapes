@@ -7,11 +7,12 @@ import { DEFAULT_CONTAINER } from "../lib/item";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import { statusesById } from "../lib/status";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
-import { normalizeTileDef, normalizeTiles } from "../lib/types";
+import { normalizeTiles } from "../lib/types";
 import type { ObjectRef } from "./affordances";
 import { BRAIN_TICK_MS, TICK_MS } from "./constants";
 import { TRADE_REFUSED } from "./dialogRuntime";
 import { GameSession } from "./GameSession";
+import { FRAME, tile } from "../lib/testTile";
 
 /**
  * A conversation through the session: Talk pressed on a body, choices and
@@ -22,27 +23,6 @@ import { GameSession } from "./GameSession";
  * plumbing either side of it — reach, who may talk at once, the brain seeing
  * it, and a trade actually moving things.
  */
-
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(partial: Record<string, unknown>): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    height: 0,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    kind: "prop",
-    ...partial,
-  });
-}
 
 const say = (text: string) => ({ kind: "say" as const, text });
 const back = { kind: "goto" as const, name: "main" };
@@ -101,7 +81,7 @@ const tiles: TileDef[] = [
     kind: "battler",
     directional: true,
     walkable: false,
-    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
     interactions: {
       battler: {
         baseHp: 8,

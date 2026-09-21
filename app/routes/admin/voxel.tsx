@@ -23,7 +23,6 @@ import {
   resizeGrid,
   sheetSprites,
   sheetVariants,
-  voxelCount,
   voxelDims,
   voxelIndex,
   type OutlineMode,

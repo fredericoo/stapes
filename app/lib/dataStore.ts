@@ -6,7 +6,7 @@ import { emptyMap, parseMap, serializeMap } from "./mapData";
  * Authored content: the map, tile definitions, tilesets and their PNGs.
  *
  * Keys mirror the paths under the repo's `data/` directory, so a bucket listing
- * reads like the checked-in tree and `pnpm seed` is a straight upload.
+ * reads like the checked-in tree and `bun run seed` is a straight upload.
  */
 const MAP_KEY = "map.json";
 const TILES_KEY = "tiles.json";
@@ -67,7 +67,7 @@ export class DataStore {
    * here would be a second place that has an opinion about what a status is.
    *
    * An absent file is an empty catalogue rather than a failure — a fresh
-   * environment loads blank until `pnpm seed` runs, the same as the map does.
+   * environment loads blank until `bun run seed` runs, the same as the map does.
    */
   async readStatuses(): Promise<unknown[]> {
     const raw = await this.blobs.getText(STATUSES_KEY);

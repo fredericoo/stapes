@@ -11,7 +11,6 @@ import {
   MIN_LEVEL,
   coordKey,
   levelKey,
-  parseCoordKey,
   resolveLightPassing,
 } from "./types";
 import {
@@ -20,7 +19,11 @@ import {
   getStack,
   terrainHeight,
 } from "./mapData";
-import { computeLightingFlood, MAX_LIGHT_LEVEL } from "./lightingFlood";
+import {
+  computeLightingFlood,
+  MAX_LIGHT_LEVEL,
+  parseHexColor,
+} from "./lightingFlood";
 import { resolveLight } from "./tileResolve";
 
 export { MAX_LIGHT_LEVEL };
@@ -30,12 +33,6 @@ export const VERTICAL_FALLOFF = 1;
 
 /** Below this transmission, treat the ray as fully blocked. */
 const TRANSMISSION_EPSILON = 1e-3;
-
-/**
- * How far sky-exposed cells spilled under the old emitter model.
- * @deprecated Flood fill uses {@link MAX_LIGHT_LEVEL} neighbor decay instead.
- */
-export const SKY_SPILL_RADIUS = 8;
 
 export type LevelLightMap = {
   x0: number;
@@ -246,13 +243,6 @@ type Emitter = {
   b: number;
 };
 
-function parseHexColor(hex: string): [number, number, number] {
-  const m = /^#([0-9a-fA-F]{6})$/.exec(hex.trim());
-  if (!m) return [1, 1, 1];
-  const n = Number.parseInt(m[1]!, 16);
-  return [((n >> 16) & 0xff) / 255, ((n >> 8) & 0xff) / 255, (n & 0xff) / 255];
-}
-
 function cellKey(x: number, y: number, z: number): string {
   return `${z}:${coordKey(x, y)}`;
 }
@@ -461,23 +451,6 @@ export function rayTransmission(
   }
 
   return transmission;
-}
-
-/** @deprecated Binary wrapper — prefer {@link rayTransmission}. */
-export function rayBlocked(
-  x0: number,
-  y0: number,
-  z0: number,
-  x1: number,
-  y1: number,
-  z1: number,
-  opaque: Set<string>,
-): boolean {
-  const occlusion = new Map<string, CellOcclusion>();
-  for (const k of opaque) {
-    occlusion.set(k, { opacity: 1, sealsLevel: true });
-  }
-  return rayTransmission(x0, y0, z0, x1, y1, z1, occlusion) < TRANSMISSION_EPSILON;
 }
 
 function accumulateAt(

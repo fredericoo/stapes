@@ -6,8 +6,8 @@ import { chooseStep } from "./stepping";
 import { getStack } from "../lib/mapData";
 import { chunkifyMap } from "../lib/mapData";
 import type { FlatMapFile, MapFile, PlacedTile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
+import { FRAME, tile } from "../lib/testTile";
 
 /**
  * The rule both machines walk by.
@@ -20,27 +20,6 @@ import { tilesByIdFromList } from "../lib/validation";
  * happens to facing when none of them can be walked.
  */
 
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    ...partial,
-  });
-}
-
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
   // Tall and not walkable: the one thing on this board that genuinely stops a
@@ -52,7 +31,7 @@ const tiles: TileDef[] = [
     directional: true,
     affectedByGravity: true,
     walkable: false,
-    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
   }),
 ];
 

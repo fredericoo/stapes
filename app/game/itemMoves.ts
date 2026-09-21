@@ -24,7 +24,6 @@ import {
   type Hand,
   handAccepts,
   handHasRoomFor,
-  otherHand,
   stoneLocked,
   wornAccepts,
 } from "./equipment";

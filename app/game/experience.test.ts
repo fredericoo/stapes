@@ -28,6 +28,7 @@ import {
   XP_PER_DAMAGE,
 } from "./experience";
 import { GameSession } from "./GameSession";
+import { FRAME, tile as baseTile } from "../lib/testTile";
 
 /**
  * What a fight teaches the bodies in it.
@@ -307,24 +308,11 @@ describe("per-target diminishing returns", () => {
  * calls it.
  */
 
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
 function tile(
   partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
 ): TileDef {
   const interactions = partial.interactions as { battler?: unknown } | undefined;
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
+  return baseTile({
     kind: interactions?.battler ? "battler" : "prop",
     ...partial,
   });
@@ -384,7 +372,7 @@ const tiles: TileDef[] = [
     height: 4,
     directional: true,
     walkable: false,
-    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
     interactions: {
       battler: { baseHp: 8, masteries: EVENLY_MATCHED, naturalWeapon: claws({}) },
     },

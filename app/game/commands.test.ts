@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import { MASTERIES, xpForLevel } from "../lib/mastery";
 import type { MapFile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
 import {
   COMMAND_USAGE,
   MAX_COMMAND_HP,
@@ -13,6 +12,7 @@ import { constantFormula } from "../lib/formula";
 import { NO_VFX } from "../lib/statusVfx";
 import type { StatusDef } from "../lib/status";
 import { GameSession } from "./GameSession";
+import { FRAME, tile as baseTile } from "../lib/testTile";
 
 /**
  * Instructions typed where speech goes.
@@ -319,24 +319,11 @@ describe("reading a typed line", () => {
  * people who can be told apart, and one creature to be refused.
  */
 
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
 function tile(
   partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
 ): TileDef {
   const interactions = partial.interactions as { battler?: unknown } | undefined;
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
+  return baseTile({
     kind: interactions?.battler ? "battler" : "prop",
     ...partial,
   });
@@ -368,7 +355,7 @@ const tiles: TileDef[] = [
     height: 4,
     directional: true,
     walkable: false,
-    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
     interactions: { battler: { baseHp: 8, masteries: AUTHORED, naturalWeapon: claws } },
   }),
   tile({

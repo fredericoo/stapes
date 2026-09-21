@@ -15,7 +15,7 @@ import {
 } from "./piles";
 import type { ItemInstance } from "./itemInstance";
 import type { PlacedTile, TileDef } from "./types";
-import { normalizeTileDef } from "./types";
+import { tile } from "./testTile";
 
 /**
  * The arithmetic of several-of-one-thing.
@@ -24,27 +24,6 @@ import { normalizeTileDef } from "./types";
  * may be somewhere at all belongs to `../game/itemMoves`, and the session tests
  * are where the two meet.
  */
-
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(partial: Record<string, unknown>): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    height: 0,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    kind: "prop",
-    ...partial,
-  });
-}
 
 function food(id: string, pile?: number): TileDef {
   return tile({

@@ -10,22 +10,14 @@ import {
   selectorVocabulary,
 } from "./BrainEditor";
 import { CONDITIONS } from "../lib/brainCatalog";
-
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
+import { FRAME } from "../lib/testTile";
 
 function tile(partial: Record<string, unknown> & { id: string }): TileDef {
   return normalizeTileDef({
     name: partial.id,
     height: 2,
     directional: false,
-    variants: { default: [frame] },
+    variants: { default: [FRAME] },
     attributes: {},
     ...partial,
   });

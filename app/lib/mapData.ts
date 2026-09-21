@@ -1217,13 +1217,6 @@ export function chunkKey(cx: number, cy: number): string {
   return `${cx},${cy}`;
 }
 
-export function coordToChunk(x: number, y: number): { cx: number; cy: number } {
-  return {
-    cx: Math.floor(x / CHUNK_SIZE),
-    cy: Math.floor(y / CHUNK_SIZE),
-  };
-}
-
 /** List all occupied coords on a level. */
 export function listCoords(
   map: MapFile,

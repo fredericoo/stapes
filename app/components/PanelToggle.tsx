@@ -4,7 +4,7 @@ import type { Equipment } from "../game/equipment";
 import { equipDestination, type SlotRef } from "../game/itemMoves";
 import { resolveContainer } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
-import type { TileDef, TilesetDef } from "../lib/types";
+import type { TileDef } from "../lib/types";
 import { Tooltip } from "../ui/Tooltip";
 import { ACTION_BUTTON_SIZE_CLASS, type ActionButtonSize } from "./actionButton";
 import type { HeldItem, ItemDrag } from "./useItemDrag";

@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_CONTAINER } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
 import { emptyEquipment, type Equipment } from "./equipment";
 import { carriedCount, hasRoomFor, planTrade } from "./trade";
+import { tile as baseTile } from "../lib/testTile";
 
 /**
  * Paying and being paid, against a kit built by hand.
@@ -15,26 +15,10 @@ import { carriedCount, hasRoomFor, planTrade } from "./trade";
  * exactly as it was instead.
  */
 
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(partial: Record<string, unknown>): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    height: 0,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    kind: "item",
-    intangible: true,
-    ...partial,
-  });
+function tile(
+  partial: Record<string, unknown> & Pick<TileDef, "id">,
+): TileDef {
+  return baseTile({ kind: "item", intangible: true, ...partial });
 }
 
 const shard = tile({ id: "shard", interactions: { item: { type: "artifact", pile: 99 } } });

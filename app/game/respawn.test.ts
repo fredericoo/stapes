@@ -4,7 +4,6 @@ import { resolveRespawn } from "../lib/interactions";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { parseTileTransitions } from "../lib/tileTransition";
-import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { GameSession } from "./GameSession";
 import {
@@ -15,6 +14,7 @@ import {
   type SpawnPoint,
   withMigratedItemIds,
 } from "./respawn";
+import { FRAME, tile } from "../lib/testTile";
 
 /**
  * Where the world grows things back.
@@ -30,27 +30,6 @@ const RESPAWN_FROM_MS = 30_000;
 const RESPAWN_TO_MS = 60_000;
 const RESPAWN = { fromMs: RESPAWN_FROM_MS, toMs: RESPAWN_TO_MS };
 
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    ...partial,
-  });
-}
-
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
   tile({ id: "wall", height: 4 }),
@@ -60,7 +39,7 @@ const tiles: TileDef[] = [
     directional: true,
     affectedByGravity: true,
     walkable: false,
-    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
   }),
   // The motivating creature: a body that comes back.
   tile({
@@ -533,7 +512,7 @@ describe("ways in and out, for bodies and what grows back", () => {
     directional: true,
     walkable: false,
     kind: "battler",
-    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
     interactions: {
       battler: { baseHp: 8, masteries: { toughness: 1 }, naturalWeapon: DEFAULT_WEAPON },
     },

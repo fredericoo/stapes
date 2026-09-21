@@ -4,12 +4,12 @@ import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import {
   HEIGHT_PER_LEVEL,
-  normalizeTileDef,
   normalizeTiles,
   resolveActor,
   resolveLightPassing,
 } from "../lib/types";
 import { hasLineOfSight } from "./sight";
+import { tile } from "../lib/testTile";
 
 /**
  * What a creature can see, on a board with things in the way.
@@ -19,27 +19,6 @@ import { hasLineOfSight } from "./sight";
  * says something an author might not expect: over a crate, through a window,
  * across water.
  */
-
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    ...partial,
-  });
-}
 
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),

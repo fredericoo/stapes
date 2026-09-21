@@ -25,6 +25,7 @@ import {
   type Rect,
   type ScatterRule,
   boundsOf,
+  clamp01,
   columnOf,
   connectionsAlongBorder,
   countOpen,
@@ -227,10 +228,6 @@ const ACCENT_OCTAVES = 2;
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
-}
-
-function clamp01(v: number): number {
-  return Math.max(0, Math.min(1, v));
 }
 
 /** The area a shape may carve into: everything but the rock shell. */

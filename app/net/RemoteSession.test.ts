@@ -7,7 +7,6 @@ import {
   WALK_DURATION_MS,
 } from "../game/constants";
 import type { FlatMapFile, PlacedTile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
 import { emptyEquipment } from "../game/equipment";
 import { STRIKE_RECOVERY_STEPS } from "../game/combat";
 import { CHAT_LIFETIME_MS } from "./chat";
@@ -16,6 +15,7 @@ import type { CellPatch, HpPatch, MotionEvent } from "./protocol";
 import { UNKNOWN_REMAINING_MS } from "../game/statuses";
 import { resolveStatus, type StatusDef } from "../lib/status";
 import { MAX_HELD_TRANSITIONS, MAX_TRANSITION_MS } from "../lib/tileTransition";
+import { FRAME, tile } from "../lib/testTile";
 
 /**
  * The client's half of the shared world: what it draws between the event that
@@ -25,27 +25,6 @@ import { MAX_HELD_TRANSITIONS, MAX_TRANSITION_MS } from "../lib/tileTransition";
  * the lerp ended on its own timer, so for a few frames the sprite was drawn
  * back at the cell the map still had it standing in.
  */
-
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    ...partial,
-  });
-}
 
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
@@ -69,7 +48,7 @@ const tiles: TileDef[] = [
     directional: true,
     affectedByGravity: true,
     walkable: false,
-    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
   }),
   // A body that is not a person, which is the whole of what these fixtures need
   // from it: people share cells and nothing else does, so a creature has to be
@@ -81,7 +60,7 @@ const tiles: TileDef[] = [
     affectedByGravity: true,
     walkable: false,
     actor: true,
-    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
   }),
 ];
 

@@ -2,15 +2,7 @@ import { describe, expect, it } from "vitest";
 import { resolveDialog } from "./dialog";
 import { DIALOG_COMMAND_KINDS, DIALOG_COMMANDS } from "./dialogCatalog";
 import { normalizeTileDef } from "./types";
-
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
+import { FRAME } from "./testTile";
 
 function tileWith(dialog: unknown) {
   return normalizeTileDef({
@@ -18,7 +10,7 @@ function tileWith(dialog: unknown) {
     name: "Seller",
     height: 4,
     directional: false,
-    variants: { default: [frame] },
+    variants: { default: [FRAME] },
     attributes: {},
     kind: "prop",
     interactions: { dialog },

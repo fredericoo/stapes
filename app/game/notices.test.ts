@@ -10,6 +10,7 @@ import { GameSession } from "./GameSession";
 import { tilesByIdFromList } from "../lib/validation";
 import type { ObjectRef } from "./affordances";
 import { masteryNotice, rewardNotice } from "./notices";
+import { FRAME, tile as baseTile } from "../lib/testTile";
 
 /**
  * What crossing a mastery says, and when it is said.
@@ -43,24 +44,11 @@ describe("what a crossing says", () => {
  * that is needed.
  */
 
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
 function tile(
   partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
 ): TileDef {
   const interactions = partial.interactions as { battler?: unknown } | undefined;
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
+  return baseTile({
     kind: interactions?.battler ? "battler" : "prop",
     ...partial,
   });
@@ -94,7 +82,7 @@ const tiles: TileDef[] = [
     height: 4,
     directional: true,
     walkable: false,
-    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
     interactions: {
       battler: { baseHp: 8, masteries: EVENLY_MATCHED, naturalWeapon: claws },
     },
@@ -193,7 +181,7 @@ const named = (id: string, name: string, extra: Record<string, unknown> = {}) =>
     height: 0,
     kind: "prop",
     directional: false,
-    variants: { default: [frame] },
+    variants: { default: [FRAME] },
     attributes: {},
     id,
     ...extra,
@@ -209,7 +197,7 @@ const rewardTiles: TileDef[] = [
     actor: true,
     walkable: false,
     directional: true,
-    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
     interactions: {
       battler: {
         baseHp: 8,

@@ -11,7 +11,7 @@ import {
   statusesById,
 } from "../lib/status";
 import type { MapFile, TileDef } from "../lib/types";
-import { HEIGHT_PER_LEVEL, normalizeTileDef, normalizeTiles } from "../lib/types";
+import { HEIGHT_PER_LEVEL, normalizeTiles } from "../lib/types";
 import {
   ASSAILANT_GRACE_MS,
   attackIntervalMs,
@@ -26,6 +26,7 @@ import type {
   TileTransitionNote,
   Transition,
 } from "../lib/tileTransition";
+import { FRAME, tile as baseTile } from "../lib/testTile";
 
 /**
  * Fighting, on a board.
@@ -34,15 +35,6 @@ import type {
  * may swing at whom, how often, what a blow does to the world, and what happens
  * to a body that runs out of hit points.
  */
-
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
 
 /**
  * A tile for a fight.
@@ -60,14 +52,8 @@ const frame = {
 function tile(
   partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
 ): TileDef {
-  const interactions = partial.interactions as
-    | { battler?: unknown }
-    | undefined;
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
+  const interactions = partial.interactions as { battler?: unknown } | undefined;
+  return baseTile({
     kind: interactions?.battler ? "battler" : "prop",
     ...partial,
   });
@@ -175,7 +161,7 @@ const tiles: TileDef[] = [
     // and would stand on its own shoulders when working out what it can see
     // over. @see ./sight
     lightPassing: true,
-    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
     interactions: {
       battler: {
         baseHp: FIXTURE_BASE_HP,
@@ -1045,7 +1031,7 @@ const bow = claws({
 /**
  * The catalogue every archer here fires out of.
  *
- * Built by hand rather than read off `data/projectiles.json`, on the terms
+ * Built by hand rather than read off `data/tiles.json`, on the terms
  * every other fixture in this file is built: what is being tested is that a
  * shot names an entry and plays its sides, not what the shipped arrow happens
  * to be authored as. @see `../lib/projectile`

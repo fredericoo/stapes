@@ -6,11 +6,9 @@ import {
   depthStackBias,
   drawOrder,
   elevationScreenOffset,
-  PX_PER_HEIGHT,
 } from "../lib/geometry";
 import type {
   ActorSnapshot,
-  ChatBubble,
   DamageNumber,
   GameSnapshot,
   ObjectRef,

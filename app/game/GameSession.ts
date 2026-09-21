@@ -37,16 +37,13 @@ import {
   type WeaponStatus,
   resolveConsumable,
   resolveCharm,
-  resolveStone,
 } from "../lib/item";
 import {
   appendItem,
-  countOf,
   peelOne,
   pourInto,
   stackWithItem,
   stow,
-  withCount,
 } from "../lib/piles";
 import type {
   Coord,
@@ -164,7 +161,6 @@ import {
   PUSH_STEP_MS,
   STRIKE_DURATION_MS,
   TICK_MS,
-  WALK_DURATION_MS,
 } from "./constants";
 import {
   type BattlerDef,
@@ -216,10 +212,8 @@ import {
   handToSwing,
   otherHand,
   spilled,
-  stoneIn,
   stoneLocked,
   weaponInHand,
-  wornInstances,
 } from "./equipment";
 import {
   CAST_SQUARES,

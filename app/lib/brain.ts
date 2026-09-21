@@ -267,32 +267,6 @@ function sameTiles(a: readonly string[], b: readonly string[]): boolean {
   return b.every((tileId) => inA.has(tileId));
 }
 
-/** The slot a `slot` selector reads, or null for the other kinds. */
-export function slotOf(selector: Selector): string | null {
-  return selector.type === "slot" ? selector.data.name : null;
-}
-
-/**
- * A short stable string for one selector — a React key, a dropdown value, a
- * line in a test failure.
- *
- * Presentation only, and deliberately not a format anything parses back: the
- * authored shape is the object, and a second encoding that round-trips would be
- * the string selector growing back with extra steps.
- */
-export function selectorKey(selector: Selector): string {
-  switch (selector.type) {
-    case "nearest":
-      return `nearest:${selector.data.tileIds.join("+")}`;
-    case "thing":
-      return `thing:${selector.data.tileIds.join("+")}`;
-    case "slot":
-      return `$${selector.data.name}`;
-    default:
-      return selector.type;
-  }
-}
-
 /**
  * Whose voice a {@link BrainConditionDef} `heard` counts.
  *

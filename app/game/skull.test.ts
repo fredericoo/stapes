@@ -5,9 +5,9 @@ import { engravedName } from "../lib/engraving";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import { statusesById } from "../lib/status";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
 import { TICK_MS } from "./constants";
 import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
+import { FRAME, tile } from "../lib/testTile";
 
 /**
  * What a person leaves behind.
@@ -20,29 +20,6 @@ import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
 
 /** What the bodies below are authored to leave. */
 const SKULL = "bone-skull";
-
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id">,
-): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    height: 0,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    kind: "prop",
-    ...partial,
-  });
-}
 
 /**
  * Small enough that a burn or a couple of blows finishes it inside the bound
@@ -104,7 +81,7 @@ const tiles: TileDef[] = [
     directional: true,
     walkable: false,
     lightPassing: true,
-    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
     interactions: {
       battler: {
         baseHp: BASE_HP,

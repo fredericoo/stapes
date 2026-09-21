@@ -231,8 +231,9 @@ function nextMessageOfType(
  *
  * No upgrade here: the 101 belongs to `server/index.ts` now, and what the world
  * is handed is an already-open socket and an id. The id still never comes from
- * the client — that check moved out with the upgrade, and is covered in
- * `server/index.test.ts`.
+ * the client — that check moved out with the upgrade, and is covered by
+ * `server/accounts.test.ts`'s "is only ever owned by the account that made
+ * it", which is the query `server/index.ts` looks a character up with.
  */
 async function connect(actorId: string) {
   const pair = new Pair();
@@ -1227,7 +1228,7 @@ describe("replacing the world", () => {
 
   /**
    * Regression: the object chose its storage backend from `env` alone, and
-   * under `pnpm dev` there is nothing in `env` to choose with — `data/` is
+   * under `bun dev` there is nothing in `env` to choose with — `data/` is
    * served from the Vite server's own origin. So the editor's save went to R2
    * while every loader kept reading disk: the save reported success, the
    * revalidation read the untouched file, and the edit vanished.
@@ -3124,7 +3125,7 @@ describe("resetting the world", () => {
 
   /**
    * The checkpoint is preferred to the bucket on every load, which is what
-   * makes a seeded map invisible: `pnpm seed` can replace every byte of the
+   * makes a seeded map invisible: `bun run seed` can replace every byte of the
    * authored world and the object goes on serving the one it has.
    */
   it("starts the board again from the authored map", async () => {

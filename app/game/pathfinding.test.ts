@@ -4,7 +4,7 @@ import { constantFormula } from "../lib/formula";
 import { DEFAULT_STATUS_SOURCE } from "../lib/status";
 import type { StatusDef, StatusTone } from "../lib/status";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
-import { HEIGHT_PER_LEVEL, normalizeTileDef } from "../lib/types";
+import { HEIGHT_PER_LEVEL } from "../lib/types";
 import {
   findPath,
   findRefuge,
@@ -14,6 +14,7 @@ import {
   type PathRefusal,
   type PathStep,
 } from "./pathfinding";
+import { tile } from "../lib/testTile";
 
 /**
  * Finding a way round.
@@ -28,27 +29,6 @@ import {
  * what the board says a body may climb, it walks up to another floor, and it
  * says plainly when there is no way at all rather than setting off hopefully.
  */
-
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    ...partial,
-  });
-}
 
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),

@@ -20,33 +20,11 @@ import {
   replaceStack,
 } from "../lib/mapData";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
-import { MAX_LEVEL, MIN_LEVEL, normalizeTileDef, parseCoordKey } from "../lib/types";
+import { MAX_LEVEL, MIN_LEVEL, parseCoordKey } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { GameSession } from "../game/GameSession";
 import { TICK_MS, WALK_DURATION_MS } from "../game/constants";
-
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: {
-      default: [
-        {
-          sprite: {
-            tilesetId: "basic",
-            rect: { x: 0, y: 0, w: 1, h: 1 },
-            base: { x: 0, y: 0 },
-          },
-          durationMs: 200,
-        },
-      ],
-    },
-    attributes: {},
-    ...partial,
-  });
-}
+import { tile } from "../lib/testTile";
 
 const playerFrames = {
   sprite: {

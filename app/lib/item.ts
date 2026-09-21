@@ -7,7 +7,7 @@ import {
   WEAPON_MASTERIES,
   type WeaponMastery,
 } from "./mastery";
-import { CELL_SIZE, HEIGHT_PER_LEVEL, type TileDef } from "./types";
+import { HEIGHT_PER_LEVEL, type TileDef } from "./types";
 
 /**
  * What it takes to be carried.
@@ -50,7 +50,8 @@ import { CELL_SIZE, HEIGHT_PER_LEVEL, type TileDef } from "./types";
  * and heavy: one Fist number could never have said that, because a higher one
  * would make the harder-hitting animal the faster one by construction.
  *
- * See `./battler` for the derivation and `plans/masteries.md` for the argument.
+ * See `./battler` for the derivation and `docs/notes.md`'s *Fighting is stats
+ * on a tile, and nothing else* for the argument.
  */
 /**
  * How far something reaches: a disc on the plan, a height either side, and
@@ -1152,17 +1153,6 @@ export type ItemDef =
   | CharmItem;
 
 export type ItemType = ItemDef["type"];
-
-export const ITEM_TYPES: ItemType[] = [
-  "weapon",
-  "armor",
-  "shield",
-  "consumable",
-  "container",
-  "artifact",
-  "stone",
-  "charm",
-];
 
 /**
  * Both ends of the 0–100 stats, named so the editor and the schema agree.

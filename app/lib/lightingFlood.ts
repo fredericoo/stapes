@@ -104,7 +104,15 @@ function canEmit(def: TileDef): boolean {
   return known;
 }
 
-function parseHexColor(hex: string): [number, number, number] {
+/**
+ * A `#rrggbb` light colour as 0..1 channels, white for anything else.
+ *
+ * White rather than black is the whole point of the fallback: an unparseable
+ * colour should leave the light it is on untinted, not put it out. That is why
+ * this is not `./palette`'s `hexToRgb01`, which falls back to black because a
+ * palette entry that cannot be read is not a colour at all.
+ */
+export function parseHexColor(hex: string): [number, number, number] {
   const m = /^#([0-9a-fA-F]{6})$/.exec(hex.trim());
   if (!m) return [1, 1, 1];
   const n = Number.parseInt(m[1]!, 16);

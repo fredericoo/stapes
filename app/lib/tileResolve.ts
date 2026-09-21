@@ -9,11 +9,9 @@ import {
   frameAtTime,
   isDirectional,
   nearestCardinal,
-  type Direction,
   type Octant,
   type Frame,
   type LightDef,
-  type MapFile,
   type SpriteState,
   type StateSprites,
   type TileDef,
@@ -182,34 +180,6 @@ export function tileLightSignature(tile: TileDef): string {
     if (sprites) pushState(`${state}/`, sprites);
   }
   return parts.join("|");
-}
-
-export type PlacementLightCtx = {
-  map: MapFile;
-  x: number;
-  y: number;
-  z: number;
-  direction?: Direction;
-  variant?: string;
-  timeMs?: number;
-};
-
-export function resolvePlacementLight(
-  tile: TileDef,
-  ctx: PlacementLightCtx,
-): LightDef | undefined {
-  return resolveLight(
-    tile,
-    {
-      map: ctx.map,
-      x: ctx.x,
-      y: ctx.y,
-      z: ctx.z,
-      direction: ctx.direction,
-      variant: ctx.variant,
-    },
-    ctx.timeMs ?? 0,
-  );
 }
 
 export { isDirectional };

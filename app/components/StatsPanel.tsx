@@ -14,7 +14,7 @@ import type { Vitals } from "../game/GameSession";
 // a count and not a wording.
 import { seconds as inSeconds } from "../lib/duration";
 import { bandLabel, HEADINGS, termLabel, type TermKey } from "../lib/terms";
-import type { TileDef, TilesetDef } from "../lib/types";
+import type { TilesetDef } from "../lib/types";
 import { healthBarColor, healthFraction } from "../render/healthBar";
 import { secondsLeft } from "../game/statuses";
 import { Tooltip } from "../ui";

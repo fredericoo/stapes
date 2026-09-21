@@ -61,7 +61,6 @@ import {
   MIN_LEVEL,
   coordKey,
   normalizeTileDef,
-  resolveLightPassing,
 } from "../app/lib/types";
 import type { Direction, PlacedTile, TileDef } from "../app/lib/types";
 

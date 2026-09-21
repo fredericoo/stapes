@@ -1,6 +1,6 @@
 /**
  * Generates placeholder tilesets and seed data for the Stapes editor.
- * Run: pnpm generate
+ * Run: bun run generate
  */
 import { MAP_FILE_VERSION } from "../app/lib/types";
 import { promises as fs } from "node:fs";
@@ -9,7 +9,6 @@ import { PNG } from "pngjs";
 import type {
   FlatMapFile,
   PlacedTile,
-  TileDef,
   TilesetDef,
 } from "../app/lib/types";
 import { normalizeTiles } from "../app/lib/types";

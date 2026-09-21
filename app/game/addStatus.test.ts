@@ -10,6 +10,7 @@ import { tilesByIdFromList } from "../lib/validation";
 import { canAddStatusFrom, reachableAddStatusAt } from "./affordances";
 import { TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
+import { FRAME, tile } from "../lib/testTile";
 
 /**
  * A tile that puts a condition on whoever sets it off.
@@ -29,27 +30,6 @@ const TICKS_PER_STEP = Math.ceil(WALK_DURATION_MS / TICK_MS) + 1;
  */
 const TICKS_PER_SECOND = Math.round(1_000 / TICK_MS);
 
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(partial: Record<string, unknown>): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    height: 0,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    kind: "prop",
-    ...partial,
-  });
-}
-
 /** Fixed ends, so a roll is a constant and the arithmetic below is exact. */
 const BURN_MS = 4_000;
 
@@ -64,7 +44,7 @@ function body(id: string, extra: Record<string, unknown> = {}): TileDef {
     kind: "battler",
     directional: true,
     walkable: false,
-    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
     interactions: {
       battler: {
         baseHp: PLAYER_BASE_HP,
@@ -141,7 +121,7 @@ const tiles: TileDef[] = [
     directional: true,
     walkable: false,
     affectedByGravity: true,
-    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
   }),
   // The motivating tile: flat, so it neither buries what is under it nor stops
   // anybody standing in it.
@@ -554,7 +534,7 @@ describe("the flame, as authored", () => {
         name: "Flame",
         height: 2,
         directional: false,
-        variants: { default: [frame] },
+        variants: { default: [FRAME] },
         attributes: {},
         interactions: { addStatus: { trigger: "step", statusId: "burned" } },
       }),

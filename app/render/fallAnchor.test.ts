@@ -13,27 +13,10 @@ import { FALL_MS_PER_HEIGHT } from "../game/constants";
 import { GameSession } from "../game/GameSession";
 import { PX_PER_HEIGHT } from "../lib/geometry";
 import { emptyMap, replaceStack } from "../lib/mapData";
-import { normalizeTileDef, type TileDef } from "../lib/types";
+import { type TileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { fallDropPx, standingFootAbs } from "./fallAnchor";
-
-function tile(partial: Record<string, unknown>): TileDef {
-  const frame = {
-    sprite: {
-      tilesetId: "basic",
-      rect: { x: 0, y: 0, w: 1, h: 1 },
-      base: { x: 0, y: 0 },
-    },
-    durationMs: 200,
-  };
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    ...partial,
-  });
-}
+import { tile } from "../lib/testTile";
 
 const directionalFrames = {
   n: [{ sprite: { tilesetId: "basic", rect: { x: 0, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } }, durationMs: 200 }],

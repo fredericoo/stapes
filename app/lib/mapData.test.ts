@@ -22,15 +22,14 @@ import {
   updatePlacedInscription,
 } from "./mapData";
 import { fixtureTown } from "./fixtureTown";
-import type { MapFile, PlacedTile, TileDef } from "./types";
+import type { MapFile, PlacedTile } from "./types";
 import {
   MAP_FILE_VERSION,
-  coordKey,
   levelKey,
-  normalizeTileDef,
   physicalHeight,
 } from "./types";
 import { fitsAtElevation, fitsTile, tilesByIdFromList } from "./validation";
+import { tile } from "./testTile";
 
 const fixtureMap: MapFile = fixtureTown();
 
@@ -390,29 +389,6 @@ describe("fixture town scale", () => {
     expect(quads).toBeGreaterThan(20_000);
   });
 });
-
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: {
-      default: [
-        {
-          sprite: {
-            tilesetId: "basic",
-            rect: { x: 0, y: 0, w: 1, h: 1 },
-            base: { x: 0, y: 0 },
-          },
-          durationMs: 200,
-        },
-      ],
-    },
-    attributes: {},
-    ...partial,
-  });
-}
 
 describe("intangible physical height", () => {
   const tilesById = tilesByIdFromList([
