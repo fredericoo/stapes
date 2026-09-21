@@ -50,10 +50,7 @@ export function TilePickList({
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return tiles;
-    return tiles.filter(
-      (t) =>
-        t.id.toLowerCase().includes(q) || t.name.toLowerCase().includes(q),
-    );
+    return tiles.filter((t) => t.id.toLowerCase().includes(q) || t.name.toLowerCase().includes(q));
   }, [tiles, query]);
 
   return (
@@ -92,11 +89,7 @@ export function TilePickList({
                   isSelected ? "bg-accent text-paper" : "hover:bg-paper",
                 ].join(" ")}
               >
-                <TilePreview
-                  tile={tile}
-                  tilesets={tilesets}
-                  size={PREVIEW_SIZE_PX}
-                />
+                <TilePreview tile={tile} tilesets={tilesets} size={PREVIEW_SIZE_PX} />
                 <span className="truncate font-medium">{tile.name}</span>
                 <span
                   className={[
@@ -110,9 +103,7 @@ export function TilePickList({
             );
           })}
           {matches.length === 0 ? (
-            <p className="px-1.5 py-2 text-[11px] text-muted">
-              No tiles match “{query}”.
-            </p>
+            <p className="px-1.5 py-2 text-[11px] text-muted">No tiles match “{query}”.</p>
           ) : null}
         </div>
       </ScrollArea>
@@ -155,9 +146,7 @@ export function TileIdMultiSelect({
       onChange(selected.has(id) ? [] : [id]);
       return;
     }
-    const next = selected.has(id)
-      ? selectedIds.filter((s) => s !== id)
-      : [...selectedIds, id];
+    const next = selected.has(id) ? selectedIds.filter((s) => s !== id) : [...selectedIds, id];
     onChange(next);
   };
 

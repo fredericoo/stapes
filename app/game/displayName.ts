@@ -121,11 +121,7 @@ export function fightingName(name: string, pvp: boolean): string {
  * Falls back to the bare name for anything with no rating to give: a crate is
  * lookable and has no opinion about fighting.
  */
-export function sizedUpName(
-  name: string,
-  rating: number | null,
-  looking: boolean,
-): string {
+export function sizedUpName(name: string, rating: number | null, looking: boolean): string {
   if (!looking || rating === null) return name;
   return `${name} ${RATING_GLYPH}${rating}`;
 }

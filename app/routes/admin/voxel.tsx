@@ -4,13 +4,7 @@ import type { Route } from "./+types/voxel";
 import { AdminShell } from "../../components/AppShell";
 import { DirectionPreview } from "../../components/voxel/DirectionPreview";
 import { SliceEditor, type SliceTool } from "../../components/voxel/SliceEditor";
-import {
-  fetchTiles,
-  fetchTilesets,
-  saveTiles,
-  saveTilesets,
-  uploadTileset,
-} from "../../lib/api";
+import { fetchTiles, fetchTilesets, saveTiles, saveTilesets, uploadTileset } from "../../lib/api";
 import { readPngSize } from "../../lib/png";
 import { CELL_SIZE, DIRECTIONS } from "../../lib/types";
 import type { TileDef, TileHeight, TilesetDef } from "../../lib/types";
@@ -151,10 +145,7 @@ export default function VoxelPage() {
   const [exportOpen, setExportOpen] = useState(false);
   const toast = useToast();
 
-  const render: RenderOptions = useMemo(
-    () => ({ shadeMode, outline }),
-    [shadeMode, outline],
-  );
+  const render: RenderOptions = useMemo(() => ({ shadeMode, outline }), [shadeMode, outline]);
 
   useEffect(() => {
     const stored = loadStoredProject();
@@ -194,9 +185,7 @@ export default function VoxelPage() {
       size: next,
       frames: p.frames.map((f) => ({
         ...f,
-        voxels: Array.from(
-          resizeGrid(Uint8Array.from(f.voxels), p.size, next),
-        ),
+        voxels: Array.from(resizeGrid(Uint8Array.from(f.voxels), p.size, next)),
       })),
     }));
     setSliceZ((z) => Math.min(z, voxelDims(next).vz - 1));
@@ -363,9 +352,7 @@ export default function VoxelPage() {
             Directional (4 rotations)
             <Switch
               checked={project.directional}
-              onCheckedChange={(directional) =>
-                setProject((p) => ({ ...p, directional }))
-              }
+              onCheckedChange={(directional) => setProject((p) => ({ ...p, directional }))}
               ariaLabel="Toggle directional export"
             />
           </label>
@@ -563,10 +550,7 @@ function FramesPanel({
   const addFrame = (voxels: number[]) => {
     onChange((p) => ({
       ...p,
-      frames: [
-        ...p.frames,
-        { voxels, durationMs: frame?.durationMs ?? DEFAULT_FRAME_DURATION_MS },
-      ],
+      frames: [...p.frames, { voxels, durationMs: frame?.durationMs ?? DEFAULT_FRAME_DURATION_MS }],
     }));
     onSelect(project.frames.length);
   };
@@ -597,10 +581,7 @@ function FramesPanel({
         ))}
       </div>
       <div className="flex gap-1">
-        <Button
-          size="sm"
-          onClick={() => addFrame(Array.from(emptyGrid(project.size)))}
-        >
+        <Button size="sm" onClick={() => addFrame(Array.from(emptyGrid(project.size)))}>
           Blank
         </Button>
         <Button size="sm" onClick={() => addFrame(frame.voxels.slice())}>
@@ -651,24 +632,14 @@ function FrameThumb({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sprite = useMemo(
-    () =>
-      renderGrid(
-        Uint8Array.from(voxels),
-        project.size,
-        project.palette,
-        render,
-      ),
+    () => renderGrid(Uint8Array.from(voxels), project.size, project.palette, render),
     [voxels, project.size, project.palette, render],
   );
 
   useEffect(() => {
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
-    ctx.putImageData(
-      new ImageData(sprite.rgba, sprite.widthPx, sprite.heightPx),
-      0,
-      0,
-    );
+    ctx.putImageData(new ImageData(sprite.rgba, sprite.widthPx, sprite.heightPx), 0, 0);
   }, [sprite]);
 
   return (
@@ -690,10 +661,7 @@ function FrameThumb({
   );
 }
 
-async function sheetPngBlob(
-  project: VoxelProject,
-  render: RenderOptions,
-): Promise<Blob> {
+async function sheetPngBlob(project: VoxelProject, render: RenderOptions): Promise<Blob> {
   const { layout, rgba } = renderSheet(project, render);
   const canvas = document.createElement("canvas");
   canvas.width = layout.widthPx;
@@ -795,11 +763,7 @@ function ExportDialog({
           <Button variant="secondary" onClick={copyVariants}>
             Copy variants JSON
           </Button>
-          <Button
-            variant="primary"
-            onClick={submit}
-            disabled={fetcher.state !== "idle"}
-          >
+          <Button variant="primary" onClick={submit} disabled={fetcher.state !== "idle"}>
             Export
           </Button>
         </>
@@ -831,20 +795,16 @@ function ExportDialog({
           </label>
         ) : null}
         <p className="text-muted">
-          Writes <code>{slugify(name) || "…"}.png</code> to the tilesets folder
-          ({project.directional ? "4 direction rows" : "1 row"} ×{" "}
-          {project.frames.length} frame{project.frames.length === 1 ? "" : "s"}).
+          Writes <code>{slugify(name) || "…"}.png</code> to the tilesets folder (
+          {project.directional ? "4 direction rows" : "1 row"} × {project.frames.length} frame
+          {project.frames.length === 1 ? "" : "s"}).
         </p>
       </div>
     </Dialog>
   );
 }
 
-function buildTileDef(
-  project: VoxelProject,
-  tilesetId: string,
-  tileHeight: string,
-): TileDef {
+function buildTileDef(project: VoxelProject, tilesetId: string, tileHeight: string): TileDef {
   const sheet = sheetSprites(project);
   return {
     id: tilesetId,

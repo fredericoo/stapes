@@ -11,10 +11,7 @@
 import { describe, expect, it } from "vitest";
 import { GameSession } from "../game/GameSession";
 import { TICK_MS, WALK_DURATION_MS } from "../game/constants";
-import {
-  emptyMap,
-  replaceStack,
-} from "../lib/mapData";
+import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { spriteStatesFor } from "./spriteState";
 import { tileInstanceKey } from "./WorldRenderer";

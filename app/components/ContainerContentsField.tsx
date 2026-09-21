@@ -47,18 +47,12 @@ export function setContentCount(
 }
 
 /** One entry gone, and the squares after it closed up. */
-export function removeContent(
-  contents: readonly ItemInstance[],
-  index: number,
-): ItemInstance[] {
+export function removeContent(contents: readonly ItemInstance[], index: number): ItemInstance[] {
   return contents.filter((_item, i) => i !== index);
 }
 
 /** The name to call an entry whose tile has gone from the catalogue. */
-function nameOf(
-  instance: ItemInstance,
-  tilesById: Record<string, TileDef>,
-): string {
+function nameOf(instance: ItemInstance, tilesById: Record<string, TileDef>): string {
   const name = tilesById[instance.tileId]?.name;
   return name ? engravedName(name, instance.engraved) : instance.tileId;
 }
@@ -180,19 +174,11 @@ export function ContainerContentsField({
       </div>
 
       {contents.length === 0 ? (
-        <p
-          ref={emptyRef}
-          tabIndex={-1}
-          className="text-[11px] leading-snug text-muted"
-        >
+        <p ref={emptyRef} tabIndex={-1} className="text-[11px] leading-snug text-muted">
           Empty — whoever opens this finds nothing in it.
         </p>
       ) : (
-        <ul
-          ref={listRef}
-          className="flex flex-col gap-1"
-          aria-label="Contents, in slot order"
-        >
+        <ul ref={listRef} className="flex flex-col gap-1" aria-label="Contents, in slot order">
           {contents.map((item, index) => {
             const def = tilesById[item.tileId];
             const name = nameOf(item, tilesById);
@@ -203,20 +189,11 @@ export function ContainerContentsField({
                 className="flex items-center gap-2 border-2 border-border bg-paper p-1"
               >
                 {def ? (
-                  <TilePreview
-                    tile={def}
-                    tilesets={tilesets}
-                    size={PREVIEW_SIZE_PX}
-                    still
-                  />
+                  <TilePreview tile={def} tilesets={tilesets} size={PREVIEW_SIZE_PX} still />
                 ) : null}
                 <span className="min-w-0 flex-1 truncate font-bold">
                   {name}
-                  {def ? null : (
-                    <span className="ml-1 font-normal text-muted">
-                      (missing)
-                    </span>
-                  )}
+                  {def ? null : <span className="ml-1 font-normal text-muted">(missing)</span>}
                 </span>
                 {/* Only where a pile is a thing this tile can be: a count
                     beside a sword is a box that can never say anything but 1.
@@ -237,9 +214,7 @@ export function ContainerContentsField({
                       max={max}
                       step={1}
                       value={item.count ?? 1}
-                      onChange={(count) =>
-                        onChange(setContentCount(contents, index, count))
-                      }
+                      onChange={(count) => onChange(setContentCount(contents, index, count))}
                     />
                   </span>
                 ) : null}
@@ -252,9 +227,7 @@ export function ContainerContentsField({
                     className="text-muted hover:text-danger"
                     onClick={() => {
                       onChange(removeContent(contents, index));
-                      say(
-                        `${name} removed — ${contents.length - 1} of ${capacity} squares used.`,
-                      );
+                      say(`${name} removed — ${contents.length - 1} of ${capacity} squares used.`);
                       setClaiming(index);
                     }}
                   >
@@ -272,10 +245,9 @@ export function ContainerContentsField({
           were not yet watching. */}
       <p
         role="status"
-        className={[
-          "text-[11px] leading-snug text-danger",
-          said?.refused ? "" : "sr-only",
-        ].join(" ")}
+        className={["text-[11px] leading-snug text-danger", said?.refused ? "" : "sr-only"].join(
+          " ",
+        )}
       >
         {saidText(said)}
       </p>

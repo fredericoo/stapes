@@ -12,16 +12,12 @@ export function SelectionPanel() {
   const currentLevel = useEditorStore((s) => s.currentLevel);
   const tilesById = useEditorStore((s) => s.tilesById);
 
-  const stack = selected
-    ? getStack(map, selected.x, selected.y, currentLevel)
-    : [];
+  const stack = selected ? getStack(map, selected.x, selected.y, currentLevel) : [];
 
   return (
     <div className="min-h-0 flex-1 overflow-auto p-2">
       {!selected ? (
-        <p className="text-xs text-muted">
-          Use Select (V) and click a coordinate.
-        </p>
+        <p className="text-xs text-muted">Use Select (V) and click a coordinate.</p>
       ) : (
         <>
           <div className="mb-2 flex items-center gap-1">
@@ -43,11 +39,7 @@ export function SelectionPanel() {
           {stack.length === 0 ? (
             <p className="text-xs text-muted">No tiles at this coordinate</p>
           ) : (
-            <SelectedStackList
-              stack={stack}
-              tilesById={tilesById}
-              tilesets={tilesets}
-            />
+            <SelectedStackList stack={stack} tilesById={tilesById} tilesets={tilesets} />
           )}
         </>
       )}

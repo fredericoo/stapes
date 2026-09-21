@@ -78,8 +78,6 @@ describe("ApiBlobs", () => {
    * like it had saved.
    */
   it("refuses to author content", async () => {
-    await expect(new ApiBlobs(ORIGIN).put()).rejects.toThrow(
-      "does not author content",
-    );
+    await expect(new ApiBlobs(ORIGIN).put()).rejects.toThrow("does not author content");
   });
 });

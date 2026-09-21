@@ -66,9 +66,7 @@ export type ItemUse =
  * two ends cannot come to hold different ideas of where a cherry can be eaten
  * from.
  */
-export type ConsumeSource =
-  | { kind: "slot"; slot: SlotRef }
-  | { kind: "floor"; ref: ObjectRef };
+export type ConsumeSource = { kind: "slot"; slot: SlotRef } | { kind: "floor"; ref: ObjectRef };
 
 /**
  * Where a weapon goes when it is put away.
@@ -106,9 +104,7 @@ export function itemUseFor(
   // both hands take one at all, since a bag you could hold but never open would
   // be a worse place to keep it than the floor.
   if (resolveContainer(def)) {
-    return slot.kind === "bag" ||
-      slot.kind === "weapon" ||
-      slot.kind === "offhand"
+    return slot.kind === "bag" || slot.kind === "weapon" || slot.kind === "offhand"
       ? { type: "open" }
       : null;
   }
@@ -135,12 +131,7 @@ export function itemUseFor(
     // one — and a move onto the square a thing is already in is a swap with
     // itself. Nothing else is filtered, so a tap that has nowhere to go simply
     // does nothing.
-    const to = equipDestination(
-      equipment,
-      tilesById,
-      instance,
-      (dest) => dest.kind !== slot.kind,
-    );
+    const to = equipDestination(equipment, tilesById, instance, (dest) => dest.kind !== slot.kind);
     return to && to.kind !== slot.kind ? { type: "move", to } : null;
   }
 

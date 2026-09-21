@@ -57,10 +57,7 @@ const OCTANT_RADIANS = (Math.PI * 2) / OCTANTS.length;
  * with no facing draws south: it is the direction a thing faces when nothing has
  * said otherwise.
  */
-export function projectileOctant(
-  flight: ProjectileFlight,
-  to: FlightPoint = flight.to,
-): Octant {
+export function projectileOctant(flight: ProjectileFlight, to: FlightPoint = flight.to): Octant {
   const { dx, dy } = flightScreenDelta(flight.from, to);
   if (dx === 0 && dy === 0) return "s";
 
@@ -120,10 +117,7 @@ export type AimAt = (targetId: string) => FlightPoint | undefined;
  * which is what makes "the arrow still finishes its flight" true rather than
  * merely tolerated — it arrives at where they were standing, and at nobody.
  */
-export function aimedAt(
-  flight: ProjectileFlight,
-  aimAt: AimAt | undefined,
-): FlightPoint {
+export function aimedAt(flight: ProjectileFlight, aimAt: AimAt | undefined): FlightPoint {
   if (!flight.targetId || !aimAt) return flight.to;
   return aimAt(flight.targetId) ?? flight.to;
 }
@@ -261,11 +255,7 @@ export function flightLight(
   const scale = flightLightScale(flight, def);
   if (scale <= 0) return null;
 
-  const at = flightPosition(
-    flight,
-    flight.elapsedMs / flight.durationMs,
-    aimedAt(flight, aimAt),
-  );
+  const at = flightPosition(flight, flight.elapsedMs / flight.durationMs, aimedAt(flight, aimAt));
   return {
     // The logical cell, which is what the overlay marks as self-lit. Floored
     // rather than rounded, because a fractional cell is *in* the cell it is
@@ -300,10 +290,7 @@ export function flightLight(
  * position the cache key already agrees with across frames — stops churning that
  * key every frame. A crossing arrow churns it regardless, because it is moving.
  */
-function flightLightScale(
-  flight: ProjectileFlight,
-  def: TileDef | undefined,
-): number {
+function flightLightScale(flight: ProjectileFlight, def: TileDef | undefined): number {
   const phase = flightPhase(flight, def);
   if (!phase || phase.side === "appear") return 1;
   const landed = flight.elapsedMs - flight.durationMs;

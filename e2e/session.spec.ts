@@ -114,9 +114,7 @@ test.describe("the way in", () => {
     await landsOn("/characters/new");
     // Refused while somebody is still typing, not on the press.
     await page.getByLabel("Name").fill("Ka1n");
-    await expect(
-      page.getByRole("button", { name: "Create and enter" }),
-    ).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Create and enter" })).toBeDisabled();
     await page.getByLabel("Name").fill(character);
     await page.getByRole("button", { name: "Create and enter" }).click();
 
@@ -135,9 +133,7 @@ test.describe("the way in", () => {
     // and out of an account, a character enters and leaves the world, and the
     // two are never on the same screen. @see docs/notes.md
     await expect(page.getByRole("button", { name: "Sign out" })).toHaveCount(0);
-    await expect(
-      page.getByRole("link", { name: "Change password" }),
-    ).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Change password" })).toHaveCount(0);
 
     // ---- leaving the world, which is not signing out ----------------------
     // Nothing to confirm out of a fight: the press is the whole of it.
@@ -216,9 +212,7 @@ test.describe("the way in", () => {
  * unit test would have to stub out entirely.
  */
 test.describe("the editors", () => {
-  test("turns away a browser with no administrator behind it", async ({
-    page,
-  }) => {
+  test("turns away a browser with no administrator behind it", async ({ page }) => {
     test.setTimeout(BOOT_TIMEOUT_MS + 60_000);
 
     await page.goto("/admin/map", { waitUntil: "networkidle" });
@@ -229,9 +223,7 @@ test.describe("the editors", () => {
     await expect(page.locator("canvas")).toHaveCount(0);
     // No offer to make an account: a role is assigned in the database, so one
     // made here would be signed in and refused in the same breath.
-    await expect(
-      page.getByRole("link", { name: "Create an account" }),
-    ).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Create an account" })).toHaveCount(0);
 
     // And the part that is not a courtesy: the page is only a page, so what
     // actually holds is that the server will not hand the map over.

@@ -1,18 +1,7 @@
 import { chunkKeyAt, chunkKeyFor, getChunk, getStack } from "./mapData";
-import {
-  type CellOcclusion,
-  rayTransmission,
-  stackOcclusion,
-} from "./lighting";
+import { type CellOcclusion, rayTransmission, stackOcclusion } from "./lighting";
 import type { ChunkCells, LevelChunks, MapFile, TileDef } from "./types";
-import {
-  CHUNK_SIZE,
-  HEIGHT_PER_LEVEL,
-  MAX_LEVEL,
-  MIN_LEVEL,
-  coordKey,
-  levelKey,
-} from "./types";
+import { CHUNK_SIZE, HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL, coordKey, levelKey } from "./types";
 
 /** Euclidean cell radius around the view anchor for roof-hide checks. */
 export const VIEW_RADIUS = 2.5;
@@ -102,13 +91,7 @@ function buildOcclusion(
 }
 
 /** Levels above `viewZ` at (x, y) that hold anything, nearest first. */
-function contentAbove(
-  map: MapFile,
-  x: number,
-  y: number,
-  viewZ: number,
-  into: number[],
-): number[] {
+function contentAbove(map: MapFile, x: number, y: number, viewZ: number, into: number[]): number[] {
   into.length = 0;
   for (let z = viewZ + 1; z <= MAX_LEVEL; z++) {
     if (getStack(map, x, y, z).length > 0) into.push(z);
@@ -191,22 +174,14 @@ export type RoofCut = {
 };
 
 /** Is this cell one the view has cut away? The only question a cut answers. */
-export function cutHides(
-  cut: RoofCut | undefined,
-  x: number,
-  y: number,
-  z: number,
-): boolean {
+export function cutHides(cut: RoofCut | undefined, x: number, y: number, z: number): boolean {
   if (!cut || z <= cut.floor) return false;
   if (cut.cells === null) return true;
   return cut.cells.get(z)?.has(coordKey(x, y)) === true;
 }
 
 /** Levels this cut takes away in their entirety, so a caller can skip drawing them. */
-export function cutHidesWholeLevel(
-  cut: RoofCut | undefined,
-  z: number,
-): boolean {
+export function cutHidesWholeLevel(cut: RoofCut | undefined, z: number): boolean {
   return cut !== undefined && cut.cells === null && z > cut.floor;
 }
 
@@ -403,11 +378,7 @@ export function roofCutFor(
  * and the whole storey — and a structure that large is already being cut
  * wholesale in practice.
  */
-export function cutProbeChunks(
-  map: MapFile,
-  view: ViewAnchor,
-  radius = VIEW_RADIUS,
-): unknown[] {
+export function cutProbeChunks(map: MapFile, view: ViewAnchor, radius = VIEW_RADIUS): unknown[] {
   const span = Math.ceil(radius);
   const out: unknown[] = [];
   const cx0 = Math.floor((view.x - span) / CHUNK_SIZE);
@@ -427,13 +398,8 @@ export function cutProbeChunks(
 }
 
 /** Do two probe reads name the same chunk records? */
-export function sameProbeChunks(
-  a: readonly unknown[] | undefined,
-  b: readonly unknown[],
-): boolean {
+export function sameProbeChunks(a: readonly unknown[] | undefined, b: readonly unknown[]): boolean {
   if (a === undefined || a.length !== b.length) return false;
   for (let i = 0; i < b.length; i++) if (a[i] !== b[i]) return false;
   return true;
 }
-
-

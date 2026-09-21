@@ -44,9 +44,7 @@ export async function resolveAuthSecret(
   // back below. `server/lock.ts` makes that race impossible today; the row is
   // written once ever, and this is the cheaper thing to get right than to
   // remember.
-  const insert = await db.prepare(
-    "INSERT OR IGNORE INTO auth_secret (id, secret) VALUES (0, ?)",
-  );
+  const insert = await db.prepare("INSERT OR IGNORE INTO auth_secret (id, secret) VALUES (0, ?)");
   await insert.run([minted]);
 
   const settled = await db.prepare("SELECT secret FROM auth_secret WHERE id = 0");

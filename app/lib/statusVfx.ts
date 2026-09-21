@@ -177,10 +177,7 @@ export const statusVfxSchema = v.object({
   light: v.optional(v.nullable(glowSchema), null),
   // Zero-defaulted, so every status authored before this existed keeps its full
   // strength to the last instant exactly as it always did.
-  taperMs: v.optional(
-    v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_TAPER_MS)),
-    0,
-  ),
+  taperMs: v.optional(v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_TAPER_MS)), 0),
 });
 
 export type StatusVfxSource = v.InferOutput<typeof statusVfxSchema>;
@@ -249,10 +246,7 @@ export function taperAt(remainingMs: number, taperMs: number): number {
 }
 
 /** A tint worn as hard as the taper says it still is. */
-export function taperedTint(
-  tint: StatusTint,
-  taper: number,
-): StatusTint {
+export function taperedTint(tint: StatusTint, taper: number): StatusTint {
   if (taper >= 1) return tint;
   return { ...tint, strength: tint.strength * taper };
 }

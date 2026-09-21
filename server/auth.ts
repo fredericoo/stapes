@@ -1,10 +1,6 @@
 import { betterAuth } from "better-auth";
 import { username } from "better-auth/plugins/username";
-import {
-  MAX_USERNAME_LENGTH,
-  MIN_PASSWORD_LENGTH,
-  MIN_USERNAME_LENGTH,
-} from "../app/lib/account";
+import { MAX_USERNAME_LENGTH, MIN_PASSWORD_LENGTH, MIN_USERNAME_LENGTH } from "../app/lib/account";
 import { TursoDialect } from "./authDialect";
 import type { Config } from "./config";
 import type { Database } from "./db";
@@ -149,10 +145,7 @@ export type Auth = ReturnType<typeof createAuth>;
  * read the cookie now calls this instead, and none of them had to learn a new
  * rule about what to trust.
  */
-export async function viewerOf(
-  auth: Auth,
-  headers: Headers,
-): Promise<Viewer | null> {
+export async function viewerOf(auth: Auth, headers: Headers): Promise<Viewer | null> {
   const result = await auth.api.getSession({ headers });
   if (!result?.user) return null;
   const user = result.user as {
@@ -200,9 +193,7 @@ export async function seedAdmin(
       username: SEEDED_ADMIN_USERNAME,
     },
   });
-  const promote = await db.prepare(
-    "UPDATE user SET role = 'ADMIN' WHERE username = ?",
-  );
+  const promote = await db.prepare("UPDATE user SET role = 'ADMIN' WHERE username = ?");
   await promote.run([SEEDED_ADMIN_USERNAME]);
   log(
     `[auth] seeded the ${SEEDED_ADMIN_USERNAME} account — change its password before anybody else can reach this world`,

@@ -39,11 +39,7 @@
  */
 
 import { PX_PER_HEIGHT } from "../lib/geometry";
-import {
-  type ProjectileBlock,
-  projectileEffect,
-  type ProjectileSide,
-} from "../lib/projectile";
+import { type ProjectileBlock, projectileEffect, type ProjectileSide } from "../lib/projectile";
 import { shownFraction, type Transition } from "../lib/tileTransition";
 import { CELL_SIZE, HEIGHT_PER_LEVEL, type TileDef } from "../lib/types";
 import type { ReachPoint } from "./distance";
@@ -171,10 +167,7 @@ export type FlightEffect = {
  * The same projection `../render/strikeMotion` leans along, for the same reason
  * it does: a height unit shifts a thing on both axes.
  */
-export function flightScreenDelta(
-  from: FlightPoint,
-  to: FlightPoint,
-): { dx: number; dy: number } {
+export function flightScreenDelta(from: FlightPoint, to: FlightPoint): { dx: number; dy: number } {
   const elevPx = (to.elevAbs - from.elevAbs) * PX_PER_HEIGHT;
   return {
     dx: (to.x - from.x) * CELL_SIZE - elevPx,
@@ -364,10 +357,7 @@ export type FlightPhase = {
  * the shot going rather than the shot landing. Two numbers, and reading the
  * longer one as the blow's would make a slow dissolve into a delayed hit.
  */
-export function flightLifetimeMs(
-  flight: ProjectileFlight,
-  def: TileDef | undefined,
-): number {
+export function flightLifetimeMs(flight: ProjectileFlight, def: TileDef | undefined): number {
   // `disappear` and never the landing's other side, because this is the life of
   // the *arrow*: `disappear` is the one that plays on it, and a `hit` is thrown
   // at the point it stopped and ages on its own — see {@link flightPhase}. A
@@ -402,11 +392,7 @@ export function flightPhase(
   return {
     side: "disappear",
     transition: going,
-    shown: shownFraction(
-      "disappear",
-      flight.elapsedMs - flight.durationMs,
-      going.durationMs,
-    ),
+    shown: shownFraction("disappear", flight.elapsedMs - flight.durationMs, going.durationMs),
   };
 }
 
@@ -450,8 +436,7 @@ export function ageFlights(
   }
   if (!done) return flights;
   return flights.filter(
-    (flight) =>
-      flight.elapsedMs < flightLifetimeMs(flight, tilesById[flight.tileId]),
+    (flight) => flight.elapsedMs < flightLifetimeMs(flight, tilesById[flight.tileId]),
   );
 }
 
@@ -466,17 +451,12 @@ export function ageFlights(
  * Returns the same array when nothing expired, on the terms {@link ageFlights}
  * does.
  */
-export function ageEffects(
-  effects: FlightEffect[],
-  dtMs: number,
-): FlightEffect[] {
+export function ageEffects(effects: FlightEffect[], dtMs: number): FlightEffect[] {
   let expired = false;
   for (const effect of effects) {
     effect.elapsedMs += dtMs;
     if (effect.elapsedMs >= effect.transition.durationMs) expired = true;
   }
   if (!expired) return effects;
-  return effects.filter(
-    (effect) => effect.elapsedMs < effect.transition.durationMs,
-  );
+  return effects.filter((effect) => effect.elapsedMs < effect.transition.durationMs);
 }

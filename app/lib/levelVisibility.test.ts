@@ -16,9 +16,7 @@ import type { MapFile, TileDef } from "./types";
 import { coordKey, levelKey, normalizeTileDef } from "./types";
 import { tilesByIdFromList } from "./validation";
 
-function tile(
-  partial: Partial<TileDef> & Pick<TileDef, "id">,
-): TileDef {
+function tile(partial: Partial<TileDef> & Pick<TileDef, "id">): TileDef {
   return normalizeTileDef({
     name: partial.id,
     height: 0,
@@ -204,9 +202,7 @@ describe("the roof-cut probe", () => {
       { x: 0, y: 0, z: 0, tiles: ["floor"] },
       { x: 2, y: 1, z: 1, tiles: ["roof"] },
     ]);
-    expect(cuts(map, tilesById, view, VIEW_RADIUS)).toBe(
-      true,
-    );
+    expect(cuts(map, tilesById, view, VIEW_RADIUS)).toBe(true);
   });
 
   it("excludes a roof just outside the Euclidean radius", () => {
@@ -215,9 +211,7 @@ describe("the roof-cut probe", () => {
       { x: 0, y: 0, z: 0, tiles: ["floor"] },
       { x: 2, y: 2, z: 1, tiles: ["roof"] },
     ]);
-    expect(cuts(map, tilesById, view, VIEW_RADIUS)).toBe(
-      false,
-    );
+    expect(cuts(map, tilesById, view, VIEW_RADIUS)).toBe(false);
   });
 
   it("treats stacked halves as a full LOS block like light", () => {
@@ -244,9 +238,7 @@ describe("the roof-cut probe", () => {
  */
 describe("the roof-cut probe with the shipped tiles", () => {
   const mapTiles = tilesByIdFromList(
-    (tilesFile as Array<Parameters<typeof normalizeTileDef>[0]>).map((t) =>
-      normalizeTileDef(t),
-    ),
+    (tilesFile as Array<Parameters<typeof normalizeTileDef>[0]>).map((t) => normalizeTileDef(t)),
   );
   const origin = { x: 0, y: 0, z: 0 };
 
@@ -311,9 +303,7 @@ describe("occluders out at the probe radius", () => {
       { x: 2, y: 0, tiles: ["floor", "wall"] },
       { x: 2, y: 0, z: 1, tiles: ["roof"] },
     ]);
-    expect(
-      cuts(map, tilesById, { x: 0, y: 0, z: 0 }),
-    ).toBe(false);
+    expect(cuts(map, tilesById, { x: 0, y: 0, z: 0 })).toBe(false);
   });
 
   it("still hides when that far cell is see-through", () => {
@@ -323,9 +313,7 @@ describe("occluders out at the probe radius", () => {
       { x: 2, y: 0, tiles: ["floor", "window"] },
       { x: 2, y: 0, z: 1, tiles: ["roof"] },
     ]);
-    expect(
-      cuts(map, tilesById, { x: 0, y: 0, z: 0 }),
-    ).toBe(true);
+    expect(cuts(map, tilesById, { x: 0, y: 0, z: 0 })).toBe(true);
   });
 
   it("a wall midway blocks content above the cell beyond it", () => {
@@ -335,9 +323,7 @@ describe("occluders out at the probe radius", () => {
       { x: 2, y: 0, tiles: ["floor"] },
       { x: 2, y: 0, z: 1, tiles: ["roof"] },
     ]);
-    expect(
-      cuts(map, tilesById, { x: 0, y: 0, z: 0 }),
-    ).toBe(false);
+    expect(cuts(map, tilesById, { x: 0, y: 0, z: 0 })).toBe(false);
   });
 
   it("VIEW_RADIUS reaches at least two cells, which the box must cover", () => {
@@ -388,14 +374,7 @@ describe("roofCutFor picks out one structure", () => {
       ...[0, 1, 2, 3, 4, 5].map((x) => ({ x, y: 0, z: 1, tiles: ["roof"] })),
     ]);
     const cut = roofCutFor(map, tilesById, inside);
-    expect(cutCells(cut)).toEqual([
-      "1:0,0",
-      "1:1,0",
-      "1:2,0",
-      "1:3,0",
-      "1:4,0",
-      "1:5,0",
-    ]);
+    expect(cutCells(cut)).toEqual(["1:0,0", "1:1,0", "1:2,0", "1:3,0", "1:4,0", "1:5,0"]);
   });
 
   it("stops at a gap in the roof", () => {
@@ -472,8 +451,9 @@ describe("roofCutFor falls back to the whole storey", () => {
   it("cuts every level above once the fill runs past its budget", () => {
     const side = 80; // 6400 cells, comfortably past MAX_CUT_CELLS
     expect(side * side).toBeGreaterThan(MAX_CUT_CELLS);
-    const cells: Array<{ x: number; y: number; z?: number; tiles: string[] }> =
-      [{ x: 0, y: 0, tiles: ["floor"] }];
+    const cells: Array<{ x: number; y: number; z?: number; tiles: string[] }> = [
+      { x: 0, y: 0, tiles: ["floor"] },
+    ];
     for (let y = 0; y < side; y++) {
       for (let x = 0; x < side; x++) {
         cells.push({ x, y, z: 1, tiles: ["floor"] });

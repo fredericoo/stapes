@@ -75,21 +75,15 @@ class TursoDriver implements Driver {
   }
 
   async beginTransaction(): Promise<never> {
-    throw new Error(
-      "The auth dialect does not open transactions — see TursoDialect",
-    );
+    throw new Error("The auth dialect does not open transactions — see TursoDialect");
   }
 
   async commitTransaction(): Promise<never> {
-    throw new Error(
-      "The auth dialect does not open transactions — see TursoDialect",
-    );
+    throw new Error("The auth dialect does not open transactions — see TursoDialect");
   }
 
   async rollbackTransaction(): Promise<never> {
-    throw new Error(
-      "The auth dialect does not open transactions — see TursoDialect",
-    );
+    throw new Error("The auth dialect does not open transactions — see TursoDialect");
   }
 
   async releaseConnection(): Promise<void> {}
@@ -130,6 +124,7 @@ class TursoConnection implements DatabaseConnection {
    * whole result into memory would be a table scan wearing a cursor's clothes
    * the first time something did.
    */
+  // oxlint-disable-next-line require-yield -- it exists to refuse, see above
   async *streamQuery<R>(): AsyncIterableIterator<QueryResult<R>> {
     throw new Error("The auth dialect does not stream — see TursoDialect");
   }

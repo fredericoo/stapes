@@ -4,12 +4,7 @@
  * lands on the closest of the entries in STAPES_PALETTE.
  */
 import * as THREE from "three";
-import {
-  PALETTE_SIZE,
-  STAPES_PALETTE,
-  paletteOklab,
-  paletteRgb01,
-} from "../lib/palette";
+import { PALETTE_SIZE, STAPES_PALETTE, paletteOklab, paletteRgb01 } from "../lib/palette";
 
 const PALETTE_RGB01 = paletteRgb01(STAPES_PALETTE);
 const PALETTE_LAB = paletteOklab(STAPES_PALETTE);

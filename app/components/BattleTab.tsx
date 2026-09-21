@@ -1,22 +1,12 @@
 import { useMemo } from "react";
 import type { BattlerDef } from "../lib/battler";
-import {
-  DEFAULT_BATTLER,
-  fightingStats,
-  MAX_BASE_HP,
-  MIN_BASE_HP,
-} from "../lib/battler";
+import { DEFAULT_BATTLER, fightingStats, MAX_BASE_HP, MIN_BASE_HP } from "../lib/battler";
 import { attackIntervalMs, dodgeChance } from "../game/combat";
 import type { Element } from "../lib/element";
 import { hasAnyInteraction, type TileInteractions } from "../lib/interactions";
 import type { WeaponItem } from "../lib/item";
 import { UNNAMED_WEAPON, resolveItem } from "../lib/item";
-import {
-  MAX_MASTERY,
-  type Mastery,
-  masteryLevel,
-  MIN_MASTERY,
-} from "../lib/mastery";
+import { MAX_MASTERY, type Mastery, masteryLevel, MIN_MASTERY } from "../lib/mastery";
 import type { Kit } from "../lib/kit";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
@@ -153,8 +143,7 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {} }: Props) {
 
   const setKit = (kit: Kit) => setBattler({ ...battler, kit });
 
-  const setElements = (elements: Element[]) =>
-    setBattler({ ...battler, elements });
+  const setElements = (elements: Element[]) => setBattler({ ...battler, elements });
 
   // Absent rather than an empty array, on the terms every other optional field
   // on this block is written: a body that takes everything carries no key.
@@ -297,11 +286,7 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {} }: Props) {
             <Derived label="Max HP" value={`${stats.maxHp}`} />
             <Derived label="Damage" value={`${stats.damage}`} />
             <Derived label="Def" value={`${stats.def}`} />
-            <Derived
-              label="Flee"
-              value={`${stats.flee}`}
-              note={describeDodge(stats.flee)}
-            />
+            <Derived label="Flee" value={`${stats.flee}`} note={describeDodge(stats.flee)} />
             <Derived
               label="Speed"
               value={`${stats.spd}`}
@@ -333,9 +318,7 @@ function StatusToggles({
 }) {
   const catalogue = Object.values(statusDefs);
   if (catalogue.length === 0) {
-    return (
-      <p className="text-[11px] text-muted">None authored — see the Statuses page.</p>
-    );
+    return <p className="text-[11px] text-muted">None authored — see the Statuses page.</p>;
   }
 
   const has = new Set(picked);
@@ -347,11 +330,7 @@ function StatusToggles({
             checked={has.has(def.id)}
             ariaLabel={`Immune to ${def.name}`}
             onCheckedChange={(on) =>
-              onChange(
-                on
-                  ? [...picked, def.id]
-                  : picked.filter((id) => id !== def.id),
-              )
+              onChange(on ? [...picked, def.id] : picked.filter((id) => id !== def.id))
             }
           />
           {def.name}
@@ -361,15 +340,7 @@ function StatusToggles({
   );
 }
 
-function Derived({
-  label,
-  value,
-  note,
-}: {
-  label: string;
-  value: string;
-  note?: string;
-}) {
+function Derived({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
     <div className="flex flex-col">
       <dt className="font-bold uppercase text-muted">{label}</dt>

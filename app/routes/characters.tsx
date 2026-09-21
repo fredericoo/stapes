@@ -1,12 +1,6 @@
 import { useState } from "react";
 import { Link, redirect, useLoaderData, useNavigate } from "react-router";
-import {
-  Door,
-  DoorButton,
-  DoorNote,
-  DoorTitle,
-  SYSTEM_MONO,
-} from "../components/door";
+import { Door, DoorButton, DoorNote, DoorTitle, SYSTEM_MONO } from "../components/door";
 import { MAX_CHARACTERS_PER_ACCOUNT } from "../lib/characterName";
 import { fetchMe, signOut } from "../lib/auth";
 import { forgetCharacter, rememberCharacter } from "../lib/playing";
@@ -84,15 +78,12 @@ export default function CharactersPage() {
           ))}
         </ul>
       ) : (
-        <DoorNote>
-          This account has no characters yet. One is all it takes to get in.
-        </DoorNote>
+        <DoorNote>This account has no characters yet. One is all it takes to get in.</DoorNote>
       )}
 
       {full ? (
         <DoorNote>
-          An account holds {MAX_CHARACTERS_PER_ACCOUNT} characters, and this one
-          is full.
+          An account holds {MAX_CHARACTERS_PER_ACCOUNT} characters, and this one is full.
         </DoorNote>
       ) : (
         <DoorLink to="/characters/new" disabled={entering !== null}>
@@ -129,15 +120,7 @@ export default function CharactersPage() {
  * and a screen that lost half its content on a press would read as having
  * navigated somewhere.
  */
-function DoorLink({
-  to,
-  disabled,
-  children,
-}: {
-  to: string;
-  disabled: boolean;
-  children: string;
-}) {
+function DoorLink({ to, disabled, children }: { to: string; disabled: boolean; children: string }) {
   return (
     <Link
       to={to}

@@ -43,11 +43,7 @@ function request(
   };
 }
 
-function boxOf(
-  layout: Map<string, LabelPlacement>,
-  id: string,
-  requests: LabelRequest[],
-) {
+function boxOf(layout: Map<string, LabelPlacement>, id: string, requests: LabelRequest[]) {
   const at = layout.get(id);
   if (!at) throw new Error(`${id} was not placed`);
   const req = requests.find((r) => r.id === id);
@@ -64,9 +60,7 @@ function intersects(
   a: { left: number; right: number; top: number; bottom: number },
   b: { left: number; right: number; top: number; bottom: number },
 ): boolean {
-  return (
-    a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
-  );
+  return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 }
 
 describe("an uncontested label", () => {
@@ -78,9 +72,7 @@ describe("an uncontested label", () => {
   });
 
   it("is lifted clear of the anchor by however much it asked for", () => {
-    const requests = [
-      request("a", "speech", 300, 400, { width: 80, height: 24, lift: 30 }),
-    ];
+    const requests = [request("a", "speech", 300, 400, { width: 80, height: 24, lift: 30 })];
     expect(layoutLabels(requests, VIEW).get("a")).toEqual({
       left: 260,
       top: 346,
@@ -123,10 +115,7 @@ describe("fitting the screen", () => {
 
 describe("two labels at one spot", () => {
   it("stacks the second above the first instead of over it", () => {
-    const requests = [
-      request("first", "speech", 300, 400),
-      request("second", "speech", 300, 400),
-    ];
+    const requests = [request("first", "speech", 300, 400), request("second", "speech", 300, 400)];
     const layout = layoutLabels(requests, VIEW);
 
     const first = boxOf(layout, "first", requests);
@@ -147,9 +136,7 @@ describe("two labels at one spot", () => {
   });
 
   it("keeps a column of many apart", () => {
-    const requests = Array.from({ length: 6 }, (_, i) =>
-      request(`s${i}`, "speech", 300, 500),
-    );
+    const requests = Array.from({ length: 6 }, (_, i) => request(`s${i}`, "speech", 300, 500));
     const layout = layoutLabels(requests, VIEW);
     const boxes = requests.map((r) => boxOf(layout, r.id, requests));
 
@@ -175,10 +162,7 @@ describe("two labels at one spot", () => {
 
 describe("priority", () => {
   it("gives a look the spot and moves the speech, whatever the order", () => {
-    const requests = [
-      request("said", "speech", 300, 400),
-      request("looked", "look", 300, 400),
-    ];
+    const requests = [request("said", "speech", 300, 400), request("looked", "look", 300, 400)];
     const layout = layoutLabels(requests, VIEW);
 
     // The look landed exactly where it would have alone.
@@ -206,10 +190,7 @@ describe("priority", () => {
 
 describe("names", () => {
   it("sits on its anchor and is left to be covered", () => {
-    const requests = [
-      request("name", "name", 300, 400),
-      request("said", "speech", 300, 400),
-    ];
+    const requests = [request("name", "name", 300, 400), request("said", "speech", 300, 400)];
     const layout = layoutLabels(requests, VIEW);
 
     // Both at their ideal height: the speech did not step around the tag.
@@ -218,10 +199,7 @@ describe("names", () => {
   });
 
   it("never pushes a look off its target", () => {
-    const requests = [
-      request("name", "name", 300, 400),
-      request("looked", "look", 300, 400),
-    ];
+    const requests = [request("name", "name", 300, 400), request("looked", "look", 300, 400)];
     const layout = layoutLabels(requests, VIEW);
 
     expect(layout.get("looked")).toEqual(
@@ -235,10 +213,7 @@ describe("names", () => {
    * sneak into the pass as an obstacle either.
    */
   it("is never an obstacle, even to another name", () => {
-    const requests = [
-      request("a", "name", 300, 400),
-      request("b", "name", 300, 400),
-    ];
+    const requests = [request("a", "name", 300, 400), request("b", "name", 300, 400)];
     const layout = layoutLabels(requests, VIEW);
 
     expect(layout.get("a")).toEqual(layout.get("b"));
@@ -253,9 +228,7 @@ describe("a health bar inside a name", () => {
   const BAR = 52;
 
   it("is centred on the anchor, not on the name above it", () => {
-    const requests = [
-      request("name", "name", 300, 400, { width: 200, barWidth: BAR }),
-    ];
+    const requests = [request("name", "name", 300, 400, { width: 200, barWidth: BAR })];
     const layout = layoutLabels(requests, VIEW);
 
     expect(layout.get("name")?.barLeft).toBe(300 - BAR / 2);
@@ -267,9 +240,7 @@ describe("a health bar inside a name", () => {
    * away it reads as belonging to whoever is standing over there.
    */
   it("stays on its target when the name has to slide inside the view", () => {
-    const requests = [
-      request("name", "name", 40, 400, { width: 300, barWidth: BAR }),
-    ];
+    const requests = [request("name", "name", 40, 400, { width: 300, barWidth: BAR })];
     const layout = layoutLabels(requests, VIEW);
 
     // The name gave up its target to stay on screen; the bar did not have to.
@@ -278,19 +249,16 @@ describe("a health bar inside a name", () => {
   });
 
   it("is pulled inside the view by its own width when it has to be", () => {
-    const requests = [
-      request("name", "name", 1, 400, { width: 300, barWidth: BAR }),
-    ];
+    const requests = [request("name", "name", 1, 400, { width: 300, barWidth: BAR })];
     const layout = layoutLabels(requests, VIEW);
 
     // Never touching the edge, and never off it: the bar keeps the same two
     // pixels of air every other label gets.
     expect(layout.get("name")?.barLeft).toBe(2);
     expect(
-      layoutLabels(
-        [request("name", "name", 599, 400, { width: 300, barWidth: BAR })],
-        VIEW,
-      ).get("name")?.barLeft,
+      layoutLabels([request("name", "name", 599, 400, { width: 300, barWidth: BAR })], VIEW).get(
+        "name",
+      )?.barLeft,
     ).toBe(VIEW.width - BAR - 2);
   });
 

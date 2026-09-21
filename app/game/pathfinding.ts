@@ -231,9 +231,7 @@ export type PathRefusal = "unreachable" | "detour" | "budget";
  * distinction predates this type and is the reason it is `ok` with an empty
  * list rather than a fourth refusal.
  */
-export type PathOutcome =
-  | { ok: true; route: PathStep[] }
-  | { ok: false; why: PathRefusal };
+export type PathOutcome = { ok: true; route: PathStep[] } | { ok: false; why: PathRefusal };
 
 export type PathOptions = {
   /**
@@ -488,9 +486,7 @@ export function unsafeToStepOn(
 ): boolean {
   const fires = firesOnStepAt(map, at, tilesById, statusDefs, who);
   if (fires.teleports) return true;
-  return (
-    fires.statusId !== null && statusDefs[fires.statusId]?.tone === "bad"
-  );
+  return fires.statusId !== null && statusDefs[fires.statusId]?.tone === "bad";
 }
 
 /**
@@ -510,8 +506,7 @@ function avoidRule(
   who: string | undefined,
   asked: (cell: Coord) => boolean,
 ): (cell: Coord) => boolean {
-  return (cell) =>
-    !asked(cell) && unsafeToStepOn(map, cell, tilesById, statusDefs, who);
+  return (cell) => !asked(cell) && unsafeToStepOn(map, cell, tilesById, statusDefs, who);
 }
 
 /**
@@ -529,14 +524,7 @@ function neighbours(
   mayDropTo: ((landing: Coord) => boolean) | null,
   avoid: (cell: Coord) => boolean,
 ): PathStep[] {
-  const fromAbs = standingAbs(
-    map,
-    at.x,
-    at.y,
-    at.z,
-    NOBODY_IN_THIS_STACK,
-    tilesById,
-  );
+  const fromAbs = standingAbs(map, at.x, at.y, at.z, NOBODY_IN_THIS_STACK, tilesById);
   const out: PathStep[] = [];
 
   for (const direction of DIRECTIONS) {
@@ -548,13 +536,7 @@ function neighbours(
     // a column scan is the expensive half of a step check, and a ledge nothing
     // is willing to go over is answered here without paying for the other half.
     const grounded =
-      surfacesInClimbBand(
-        map,
-        { x: at.x, y: at.y, abs: fromAbs },
-        x,
-        y,
-        tilesById,
-      ).length > 0;
+      surfacesInClimbBand(map, { x: at.x, y: at.y, abs: fromAbs }, x, y, tilesById).length > 0;
     // Where this leg would have to land to be worth taking, or null when it is
     // not a fall at all or when this search does not take them. One value
     // rather than two, so the question is asked once and answered once.
@@ -632,7 +614,7 @@ class Frontier {
 
   push(node: Node) {
     this.heap.push(node);
-    for (let i = this.heap.length - 1; i > 0; ) {
+    for (let i = this.heap.length - 1; i > 0;) {
       const parent = (i - 1) >> 1;
       if (!this.before(this.heap[i]!, this.heap[parent]!)) break;
       [this.heap[i], this.heap[parent]] = [this.heap[parent]!, this.heap[i]!];
@@ -648,7 +630,7 @@ class Frontier {
     if (this.heap.length === 0) return top;
 
     this.heap[0] = last;
-    for (let i = 0; ; ) {
+    for (let i = 0; ;) {
       const left = i * 2 + 1;
       const right = left + 1;
       let best = i;
@@ -803,13 +785,7 @@ export function findRefuge(
   statusDefs: Record<string, StatusDef>,
   opts: RefugeOptions = {},
 ): PathOutcome {
-  const board = removeTileAt(
-    map,
-    start.self.x,
-    start.self.y,
-    start.self.z,
-    start.self.stackIndex,
-  );
+  const board = removeTileAt(map, start.self.x, start.self.y, start.self.z, start.self.stackIndex);
   const from = { x: start.at.x, y: start.at.y, z: start.at.z };
   // Nothing is ruled out by where the animal is going, because it is not going
   // anywhere in particular: a drop it is allowed to take is allowed wherever it
@@ -819,13 +795,7 @@ export function findRefuge(
   // Nothing is exempt, on the same grounds: there is no goal here, so there is
   // no cell anybody has pointed at. An animal cornered against a fire is
   // cornered — running into it is not an escape. @see avoidRule
-  const avoid = avoidRule(
-    board,
-    tilesById,
-    statusDefs,
-    start.who,
-    NOTHING_ASKED_FOR,
-  );
+  const avoid = avoidRule(board, tilesById, statusDefs, start.who, NOTHING_ASKED_FOR);
 
   const frontier = new Frontier();
   const best = new Map<string, number>();
@@ -857,14 +827,7 @@ export function findRefuge(
       }
     }
 
-    for (const step of neighbours(
-      board,
-      node.at,
-      tileDef,
-      tilesById,
-      mayDropTo,
-      avoid,
-    )) {
+    for (const step of neighbours(board, node.at, tileDef, tilesById, mayDropTo, avoid)) {
       const key = cellKey(step.to);
       const g = node.g + 1;
       if (g >= (best.get(key) ?? Infinity)) continue;
@@ -887,13 +850,7 @@ export function findPath(
   statusDefs: Record<string, StatusDef>,
   opts: PathOptions = {},
 ): PathOutcome {
-  const board = removeTileAt(
-    map,
-    start.self.x,
-    start.self.y,
-    start.self.z,
-    start.self.stackIndex,
-  );
+  const board = removeTileAt(map, start.self.x, start.self.y, start.self.z, start.self.stackIndex);
   const from = { x: start.at.x, y: start.at.y, z: start.at.z };
   const arrive = opts.arrive ?? DEFAULT_ARRIVAL;
   if (arrived(from, goal, arrive)) return { ok: true, route: [] };
@@ -937,14 +894,7 @@ export function findPath(
 
     if (arrived(node.at, goal, arrive)) return { ok: true, route: unwind(node) };
 
-    const legs = neighbours(
-      board,
-      node.at,
-      tileDef,
-      tilesById,
-      mayDropTo,
-      avoid,
-    );
+    const legs = neighbours(board, node.at, tileDef, tilesById, mayDropTo, avoid);
     for (const step of legs) {
       const key = cellKey(step.to);
       const g = node.g + 1;

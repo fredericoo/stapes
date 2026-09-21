@@ -48,12 +48,7 @@ const SHAPES: CaveShape[] = ["caverns", "veins", "tunnels"];
 const RECT: Rect = { x0: -4, y0: 6, x1: 25, y1: 33 };
 
 /** The edits one placement would make, against `on` or against nothing. */
-function asPlan(
-  rect: Rect,
-  config: Partial<CaveConfig> = {},
-  on: MapFile = emptyMap(),
-  z = 0,
-) {
+function asPlan(rect: Rect, config: Partial<CaveConfig> = {}, on: MapFile = emptyMap(), z = 0) {
   const plan = planCave(on, tilesById, rect, z, { ...BASE, ...config });
   if (!plan.ok) throw new Error(plan.reason);
   return plan.edits;
@@ -120,10 +115,7 @@ describe("carveCave", () => {
   it("leaves one cave rather than several", () => {
     for (const shape of SHAPES) {
       for (let seed = 0; seed < 8; seed++) {
-        const grid = carveCave(
-          { minX: 0, maxX: 27, minY: 0, maxY: 27 },
-          { ...BASE, shape, seed },
-        );
+        const grid = carveCave({ minX: 0, maxX: 27, minY: 0, maxY: 27 }, { ...BASE, shape, seed });
         expect(regionsOf(grid)).toHaveLength(1);
       }
     }
@@ -154,13 +146,7 @@ describe("carveCave", () => {
 describe("planCave", () => {
   it("refuses a rectangle too small to hold a cave", () => {
     const small = MIN_CAVE_FOOTPRINT - 1;
-    const plan = planCave(
-      emptyMap(),
-      tilesById,
-      { x0: 0, y0: 0, x1: small - 1, y1: 20 },
-      0,
-      BASE,
-    );
+    const plan = planCave(emptyMap(), tilesById, { x0: 0, y0: 0, x1: small - 1, y1: 20 }, 0, BASE);
     expect(plan.ok).toBe(false);
     expect(!plan.ok && plan.reason).toContain(`${MIN_CAVE_FOOTPRINT}`);
   });
@@ -194,11 +180,7 @@ describe("planCave", () => {
     // The floor goes under the rock as well as under the cave, so carving a
     // wall away by hand later leaves ground rather than a hole.
     const halves = build(RECT, { wallTileId: "half-stone" });
-    expect(ids(halves, RECT.x0, RECT.y0)).toEqual([
-      "dirt",
-      "half-stone",
-      "half-stone",
-    ]);
+    expect(ids(halves, RECT.x0, RECT.y0)).toEqual(["dirt", "half-stone", "half-stone"]);
     const whole = build(RECT, { wallTileId: "stone-wall" });
     expect(ids(whole, RECT.x0, RECT.y0)).toEqual(["dirt", "stone-wall"]);
   });
@@ -213,10 +195,7 @@ describe("planCave", () => {
 
   it("lays the floor under everything you can stand on", () => {
     const map = build(RECT, { floorTileId: "cobblestone" });
-    const grid = carveCave(
-      { minX: RECT.x0, maxX: RECT.x1, minY: RECT.y0, maxY: RECT.y1 },
-      BASE,
-    );
+    const grid = carveCave({ minX: RECT.x0, maxX: RECT.x1, minY: RECT.y0, maxY: RECT.y1 }, BASE);
     let floors = 0;
     eachCell(RECT, (x, y) => {
       if (!isOpen(grid, x, y)) return;
@@ -228,10 +207,7 @@ describe("planCave", () => {
 
   it("takes the low wall only where rock meets floor, and never on the ring", () => {
     const map = build(RECT, { ledgeTileId: "half-stone", ledgeChance: 100 });
-    const grid = carveCave(
-      { minX: RECT.x0, maxX: RECT.x1, minY: RECT.y0, maxY: RECT.y1 },
-      BASE,
-    );
+    const grid = carveCave({ minX: RECT.x0, maxX: RECT.x1, minY: RECT.y0, maxY: RECT.y1 }, BASE);
     let ledges = 0;
     eachCell(RECT, (x, y) => {
       if (isOpen(grid, x, y)) return;
@@ -242,8 +218,7 @@ describe("planCave", () => {
         [0, 1],
         [0, -1],
       ].some(([dx, dy]) => isOpen(grid, x + dx!, y + dy!));
-      const onRing =
-        x === RECT.x0 || x === RECT.x1 || y === RECT.y0 || y === RECT.y1;
+      const onRing = x === RECT.x0 || x === RECT.x1 || y === RECT.y0 || y === RECT.y1;
       expect(stack[0]).toBe("dirt");
       if (touchesFloor && !onRing) {
         expect(stack).toEqual(["dirt", "half-stone"]);
@@ -351,10 +326,7 @@ describe("planCave", () => {
       accentFloorTileId: "cobblestone",
       accentCoverage: 40,
     });
-    const grid = carveCave(
-      { minX: RECT.x0, maxX: RECT.x1, minY: RECT.y0, maxY: RECT.y1 },
-      BASE,
-    );
+    const grid = carveCave({ minX: RECT.x0, maxX: RECT.x1, minY: RECT.y0, maxY: RECT.y1 }, BASE);
     let bare = 0;
     let covered = 0;
     eachCell(RECT, (x, y) => {
@@ -427,8 +399,7 @@ describe("planCave", () => {
     if (!plan.ok) return;
     const map = setStacks(emptyMap(), plan.edits);
     eachCell(RECT, (x, y) => {
-      const onRing =
-        x === RECT.x0 || x === RECT.x1 || y === RECT.y0 || y === RECT.y1;
+      const onRing = x === RECT.x0 || x === RECT.x1 || y === RECT.y0 || y === RECT.y1;
       if (!onRing) return;
       expect(ids(map, x, y)).toContain("half-stone");
     });

@@ -3,11 +3,7 @@ import { create } from "zustand";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import type { ItemInstance } from "../lib/itemInstance";
 import { isDirectional } from "../lib/types";
-import {
-  DEFAULT_EDITOR_MINUTES,
-  type MinutesOfDay,
-  wrapMinutes,
-} from "../lib/clock";
+import { DEFAULT_EDITOR_MINUTES, type MinutesOfDay, wrapMinutes } from "../lib/clock";
 import {
   appendTile,
   clearStack,
@@ -28,32 +24,16 @@ import {
   updatePlacedFoot,
   updatePlacedVariant,
 } from "../lib/mapData";
-import {
-  canPlace,
-  canReplaceStack,
-  fitsFoot,
-  tilesByIdFromList,
-} from "../lib/validation";
+import { canPlace, canReplaceStack, fitsFoot, tilesByIdFromList } from "../lib/validation";
 import type { Rect } from "./generator";
-import {
-  activeConfig,
-  planProcedural,
-  type ProceduralSettings,
-} from "./procedural";
+import { activeConfig, planProcedural, type ProceduralSettings } from "./procedural";
 import {
   DEFAULT_PROCEDURAL_SETTINGS,
   loadProceduralSettings,
   saveProceduralSettings,
 } from "./proceduralSettings";
 
-export type ToolId =
-  | "select"
-  | "erase"
-  | "pencil"
-  | "rect"
-  | "circle"
-  | "bucket"
-  | "procedural";
+export type ToolId = "select" | "erase" | "pencil" | "rect" | "circle" | "bucket" | "procedural";
 
 /** Discrete map zoom steps (canvas px per world px). */
 export const ZOOM_LEVELS = [1, 2, 4, 8] as const;
@@ -188,9 +168,7 @@ export type EditorStore = {
   selectCoord: (x: number, y: number) => void;
   eraseAt: (x: number, y: number) => void;
   stampAt: (x: number, y: number) => { skipped: boolean; reason?: string };
-  stampMany: (
-    coords: Array<{ x: number; y: number }>,
-  ) => { skipped: number; reason?: string };
+  stampMany: (coords: Array<{ x: number; y: number }>) => { skipped: number; reason?: string };
   appendArmed: () => { ok: boolean; reason?: string };
   /**
    * Run the armed generator over `rect` on the current level, as one undoable
@@ -216,18 +194,11 @@ export type EditorStore = {
   setStackDescription: (stackIndex: number, description: string) => void;
   /** Whose one placement is, for a tile whose name has a hole in it. */
   setStackEngraving: (stackIndex: number, engraved: string) => void;
-  setStackReward: (
-    stackIndex: number,
-    tag: string,
-    tileIds: readonly string[],
-  ) => void;
+  setStackReward: (stackIndex: number, tag: string, tileIds: readonly string[]) => void;
   /** Where one placement sends people; `null` clears it. */
   setStackTeleport: (stackIndex: number, to: Coord | null) => void;
   /** What one container placement holds; an empty list clears it. */
-  setStackContents: (
-    stackIndex: number,
-    contents: readonly ItemInstance[],
-  ) => void;
+  setStackContents: (stackIndex: number, contents: readonly ItemInstance[]) => void;
 };
 
 /**
@@ -277,9 +248,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     // The saved generator settings are read here rather than at module load:
     // there is no `localStorage` on the server, and the catalogue they have to
     // be checked against only exists once tiles have arrived.
-    const proceduralSettings = loadProceduralSettings(
-      (id: string) => id in tilesById,
-    );
+    const proceduralSettings = loadProceduralSettings((id: string) => id in tilesById);
     // Revalidation after save produces a new map identity with the same
     // contents — keep history and the current map reference so dirty checks
     // against savedMap stay meaningful.
@@ -308,21 +277,18 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     });
   },
 
-  setTiles: (tiles) =>
-    set({ tiles, tilesById: tilesByIdFromList(tiles) }),
+  setTiles: (tiles) => set({ tiles, tilesById: tilesByIdFromList(tiles) }),
 
   setLevel: (z) => set({ currentLevel: z }),
   setShowOtherLevels: (v) => set({ showOtherLevels: v }),
-  toggleShowOtherLevels: () =>
-    set({ showOtherLevels: !get().showOtherLevels }),
+  toggleShowOtherLevels: () => set({ showOtherLevels: !get().showOtherLevels }),
   setPreviewMode: (v) => set({ previewMode: v }),
   togglePreviewMode: () => set({ previewMode: !get().previewMode }),
   setMinutesOfDay: (m) =>
     set({
       lighting: { ...get().lighting, minutesOfDay: wrapMinutes(Math.floor(m)) },
     }),
-  setLightingEnabled: (v) =>
-    set({ lighting: { ...get().lighting, enabled: v } }),
+  setLightingEnabled: (v) => set({ lighting: { ...get().lighting, enabled: v } }),
   toggleLightingEnabled: () =>
     set({ lighting: { ...get().lighting, enabled: !get().lighting.enabled } }),
   setTool: (tool) => set({ tool }),
@@ -425,8 +391,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   undo: () => {
-    const { past, future, map, currentLevel, mapVersion, savedMap, strokeBase } =
-      get();
+    const { past, future, map, currentLevel, mapVersion, savedMap, strokeBase } = get();
     if (strokeBase || past.length === 0) return;
     const entry = past[past.length - 1]!;
     set({
@@ -440,8 +405,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   redo: () => {
-    const { past, future, map, currentLevel, mapVersion, savedMap, strokeBase } =
-      get();
+    const { past, future, map, currentLevel, mapVersion, savedMap, strokeBase } = get();
     if (strokeBase || future.length === 0) return;
     const entry = future[future.length - 1]!;
     set({
@@ -464,22 +428,14 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   stampAt: (x, y) => {
-    const { map, selected, currentLevel, tilesById, armedTileId, armedVariant } =
-      get();
+    const { map, selected, currentLevel, tilesById, armedTileId, armedVariant } = get();
 
     // With a coordinate selected: copy that cell’s full stack onto the target.
     // Without one: append the armed tile picker tile instead.
     if (selected) {
       const source = getStack(map, selected.x, selected.y, currentLevel);
       const clone: PlacedTile[] = source.map((p) => ({ ...p }));
-      const check = canReplaceStack(
-        map,
-        x,
-        y,
-        currentLevel,
-        clone,
-        tilesById,
-      );
+      const check = canReplaceStack(map, x, y, currentLevel, clone, tilesById);
       if (!check.ok) {
         return { skipped: true, reason: check.reason };
       }
@@ -506,8 +462,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   stampMany: (coords) => {
     let skipped = 0;
     let reason: string | undefined;
-    let { map, selected, currentLevel, tilesById, armedTileId, armedVariant } =
-      get();
+    let { map, selected, currentLevel, tilesById, armedTileId, armedVariant } = get();
     let wrote = false;
 
     if (selected) {
@@ -548,25 +503,15 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   appendArmed: () => {
-    const { map, selected, currentLevel, armedTileId, tilesById, armedVariant } =
-      get();
+    const { map, selected, currentLevel, armedTileId, tilesById, armedVariant } = get();
     if (!selected) return { ok: false, reason: "No coordinate selected" };
     if (!armedTileId) return { ok: false, reason: "No tile armed" };
     const def = tilesById[armedTileId];
     if (!def) return { ok: false, reason: "Unknown tile" };
-    const check = canPlace(
-      map,
-      selected.x,
-      selected.y,
-      currentLevel,
-      def,
-      tilesById,
-    );
+    const check = canPlace(map, selected.x, selected.y, currentLevel, def, tilesById);
     if (!check.ok) return { ok: false, reason: check.reason };
     const placed = armedPlacement(def, armedVariant);
-    get().commitMap(
-      appendTile(map, selected.x, selected.y, currentLevel, placed),
-    );
+    get().commitMap(appendTile(map, selected.x, selected.y, currentLevel, placed));
     return { ok: true };
   },
 
@@ -588,31 +533,20 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   removeFromStack: (stackIndex) => {
     const { map, selected, currentLevel } = get();
     if (!selected) return;
-    get().commitMap(
-      removeTileAt(map, selected.x, selected.y, currentLevel, stackIndex),
-    );
+    get().commitMap(removeTileAt(map, selected.x, selected.y, currentLevel, stackIndex));
   },
 
   reorderSelectedStack: (from, to) => {
     const { map, selected, currentLevel } = get();
     if (!selected) return;
-    get().commitMap(
-      reorderStack(map, selected.x, selected.y, currentLevel, from, to),
-    );
+    get().commitMap(reorderStack(map, selected.x, selected.y, currentLevel, from, to));
   },
 
   setStackDirection: (stackIndex, direction) => {
     const { map, selected, currentLevel } = get();
     if (!selected) return;
     get().commitMap(
-      updatePlacedDirection(
-        map,
-        selected.x,
-        selected.y,
-        currentLevel,
-        stackIndex,
-        direction,
-      ),
+      updatePlacedDirection(map, selected.x, selected.y, currentLevel, stackIndex, direction),
     );
   },
 
@@ -620,14 +554,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const { map, selected, currentLevel } = get();
     if (!selected) return;
     get().commitMap(
-      updatePlacedVariant(
-        map,
-        selected.x,
-        selected.y,
-        currentLevel,
-        stackIndex,
-        variant,
-      ),
+      updatePlacedVariant(map, selected.x, selected.y, currentLevel, stackIndex, variant),
     );
   },
 
@@ -642,15 +569,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
 
     get().commitMap(
-      updatePlacedFoot(
-        map,
-        selected.x,
-        selected.y,
-        currentLevel,
-        stackIndex,
-        foot,
-        tilesById,
-      ),
+      updatePlacedFoot(map, selected.x, selected.y, currentLevel, stackIndex, foot, tilesById),
     );
     return { ok: true };
   },
@@ -659,14 +578,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const { map, selected, currentLevel } = get();
     if (!selected) return;
     get().commitMap(
-      updatePlacedChannel(
-        map,
-        selected.x,
-        selected.y,
-        currentLevel,
-        stackIndex,
-        channel,
-      ),
+      updatePlacedChannel(map, selected.x, selected.y, currentLevel, stackIndex, channel),
     );
   },
 
@@ -674,14 +586,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const { map, selected, currentLevel } = get();
     if (!selected) return;
     get().commitMap(
-      updatePlacedInscription(
-        map,
-        selected.x,
-        selected.y,
-        currentLevel,
-        stackIndex,
-        inscription,
-      ),
+      updatePlacedInscription(map, selected.x, selected.y, currentLevel, stackIndex, inscription),
     );
   },
 
@@ -689,14 +594,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const { map, selected, currentLevel } = get();
     if (!selected) return;
     get().commitMap(
-      updatePlacedDescription(
-        map,
-        selected.x,
-        selected.y,
-        currentLevel,
-        stackIndex,
-        description,
-      ),
+      updatePlacedDescription(map, selected.x, selected.y, currentLevel, stackIndex, description),
     );
   },
 
@@ -704,14 +602,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const { map, selected, currentLevel } = get();
     if (!selected) return;
     get().commitMap(
-      updatePlacedEngraving(
-        map,
-        selected.x,
-        selected.y,
-        currentLevel,
-        stackIndex,
-        engraved,
-      ),
+      updatePlacedEngraving(map, selected.x, selected.y, currentLevel, stackIndex, engraved),
     );
   },
 
@@ -719,15 +610,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const { map, selected, currentLevel } = get();
     if (!selected) return;
     get().commitMap(
-      updatePlacedReward(
-        map,
-        selected.x,
-        selected.y,
-        currentLevel,
-        stackIndex,
-        tag,
-        tileIds,
-      ),
+      updatePlacedReward(map, selected.x, selected.y, currentLevel, stackIndex, tag, tileIds),
     );
   },
 
@@ -735,14 +618,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const { map, selected, currentLevel } = get();
     if (!selected) return;
     get().commitMap(
-      updatePlacedTeleport(
-        map,
-        selected.x,
-        selected.y,
-        currentLevel,
-        stackIndex,
-        to,
-      ),
+      updatePlacedTeleport(map, selected.x, selected.y, currentLevel, stackIndex, to),
     );
   },
 
@@ -750,14 +626,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const { map, selected, currentLevel } = get();
     if (!selected) return;
     get().commitMap(
-      updatePlacedContents(
-        map,
-        selected.x,
-        selected.y,
-        currentLevel,
-        stackIndex,
-        contents,
-      ),
+      updatePlacedContents(map, selected.x, selected.y, currentLevel, stackIndex, contents),
     );
   },
 }));

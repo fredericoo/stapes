@@ -6,26 +6,14 @@ import { MAP_FILE_VERSION } from "../app/lib/types";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { PNG } from "pngjs";
-import type {
-  FlatMapFile,
-  PlacedTile,
-  TilesetDef,
-} from "../app/lib/types";
+import type { FlatMapFile, PlacedTile, TilesetDef } from "../app/lib/types";
 import { normalizeTiles } from "../app/lib/types";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const DATA = path.join(ROOT, "data");
 const TILESETS = path.join(DATA, "tilesets");
 
-function setPixel(
-  png: PNG,
-  x: number,
-  y: number,
-  r: number,
-  g: number,
-  b: number,
-  a = 255,
-) {
+function setPixel(png: PNG, x: number, y: number, r: number, g: number, b: number, a = 255) {
   if (x < 0 || y < 0 || x >= png.width || y >= png.height) return;
   const i = (png.width * y + x) << 2;
   png.data[i] = r;
@@ -52,14 +40,7 @@ function fillRect(
   }
 }
 
-function drawCellBorder(
-  png: PNG,
-  cx: number,
-  cy: number,
-  r: number,
-  g: number,
-  b: number,
-) {
+function drawCellBorder(png: PNG, cx: number, cy: number, r: number, g: number, b: number) {
   const x = cx * 8;
   const y = cy * 8;
   for (let i = 0; i < 8; i++) {
@@ -170,14 +151,7 @@ async function main() {
     },
   ];
 
-  const cell = (
-    x: number,
-    y: number,
-    w = 1,
-    h = 1,
-    baseX = w - 1,
-    baseY = h - 1,
-  ) => ({
+  const cell = (x: number, y: number, w = 1, h = 1, baseX = w - 1, baseY = h - 1) => ({
     tilesetId: "basic",
     rect: { x, y, w, h },
     base: { x: baseX, y: baseY },
@@ -278,12 +252,7 @@ async function main() {
   // Built flat, then grouped — same shape the file on disk uses.
   const map: FlatMapFile = { version: MAP_FILE_VERSION, levels: {} };
 
-  const put = (
-    z: number,
-    x: number,
-    y: number,
-    stack: PlacedTile[],
-  ) => {
+  const put = (z: number, x: number, y: number, stack: PlacedTile[]) => {
     const zk = String(z);
     if (!map.levels[zk]) map.levels[zk] = {};
     map.levels[zk]![`${x},${y}`] = stack;
@@ -320,10 +289,7 @@ async function main() {
     { tileId: "stone-wall" },
     { tileId: "torch", direction: "s" },
   ]);
-  put(0, 3, 5, [
-    { tileId: "grass" },
-    { tileId: "half-stone" },
-  ]);
+  put(0, 3, 5, [{ tileId: "grass" }, { tileId: "half-stone" }]);
 
   // Upper floor sample
   put(1, 2, 5, [{ tileId: "dirt" }]);
@@ -333,18 +299,9 @@ async function main() {
   put(-1, 2, 2, [{ tileId: "dirt" }]);
   put(-1, 3, 2, [{ tileId: "dirt" }, { tileId: "half-stone" }]);
 
-  await fs.writeFile(
-    path.join(DATA, "tilesets.json"),
-    `${JSON.stringify(tilesets, null, 2)}\n`,
-  );
-  await fs.writeFile(
-    path.join(DATA, "tiles.json"),
-    `${JSON.stringify(tiles, null, 2)}\n`,
-  );
-  await fs.writeFile(
-    path.join(DATA, "map.json"),
-    `${JSON.stringify(map, null, 2)}\n`,
-  );
+  await fs.writeFile(path.join(DATA, "tilesets.json"), `${JSON.stringify(tilesets, null, 2)}\n`);
+  await fs.writeFile(path.join(DATA, "tiles.json"), `${JSON.stringify(tiles, null, 2)}\n`);
+  await fs.writeFile(path.join(DATA, "map.json"), `${JSON.stringify(map, null, 2)}\n`);
 
   console.log("Generated data/tilesets/basic.png, tilesets.json, tiles.json, map.json");
 }

@@ -22,19 +22,10 @@
 import { GameSession } from "../app/game/GameSession";
 import { TICK_MS } from "../app/game/constants";
 import type { ActorSnapshot } from "../app/game/GameSession";
-import {
-  changedCellsOnLevel,
-  getStack,
-  parseMap,
-} from "../app/lib/mapData";
+import { changedCellsOnLevel, getStack, parseMap } from "../app/lib/mapData";
 import { statusesById } from "../app/lib/status";
 import { tilesByIdFromList } from "../app/lib/validation";
-import {
-  MAX_LEVEL,
-  MIN_LEVEL,
-  normalizeTileDef,
-  parseCoordKey,
-} from "../app/lib/types";
+import { MAX_LEVEL, MIN_LEVEL, normalizeTileDef, parseCoordKey } from "../app/lib/types";
 import type { Coord, MapFile, TileDef } from "../app/lib/types";
 import type { CellPatch } from "../app/net/protocol";
 
@@ -170,7 +161,14 @@ function runScenario(
     const cells = diffCells(broadcastMap, next);
     const payload =
       cells.length > 0
-        ? JSON.stringify({ type: "patch", cells, events: [], hps: [], carriedLights: [], statusIds: [] })
+        ? JSON.stringify({
+            type: "patch",
+            cells,
+            events: [],
+            hps: [],
+            carriedLights: [],
+            statusIds: [],
+          })
         : "";
     const t2 = performance.now();
     broadcastMap = next;
@@ -215,8 +213,8 @@ async function main() {
   }
 
   const map = parseMap(await Bun.file(MAP_PATH).text());
-  const tiles: TileDef[] = (JSON.parse(await Bun.file(TILES_PATH).text()) as unknown[]).map(
-    (raw) => normalizeTileDef(raw),
+  const tiles: TileDef[] = (JSON.parse(await Bun.file(TILES_PATH).text()) as unknown[]).map((raw) =>
+    normalizeTileDef(raw),
   );
   // Resolved for the same reason the server resolves it once per load.
   tilesByIdFromList(tiles);

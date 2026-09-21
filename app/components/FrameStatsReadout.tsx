@@ -66,8 +66,8 @@ export function FrameStatsReadout({ stats }: { stats: FrameStats | null }) {
           />
         ))}
         <p className="mt-2 text-[10px] leading-tight text-paper/50">
-          Indented phases are inside <code>view</code>. <code>draw</code> is CPU
-          submit only — GPU time lands after it returns.
+          Indented phases are inside <code>view</code>. <code>draw</code> is CPU submit only — GPU
+          time lands after it returns.
         </p>
       </div>
     </details>

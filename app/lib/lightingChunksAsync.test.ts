@@ -20,9 +20,10 @@ import {
 import { PLAYER_TILE_ID } from "../game/constants";
 import type { MapFile, TileDef } from "./types";
 
-const tilesById = Object.fromEntries(
-  (tilesJson as TileDef[]).map((t) => [t.id, t]),
-) as Record<string, TileDef>;
+const tilesById = Object.fromEntries((tilesJson as TileDef[]).map((t) => [t.id, t])) as Record<
+  string,
+  TileDef
+>;
 const omit = new Set([PLAYER_TILE_ID]);
 const base = fixtureTown();
 
@@ -55,9 +56,7 @@ class ManualBaker implements ChunkBaker {
   bake(rect: WorldRect, timeMs: number): Promise<Map<string, BakedChunk>> {
     this.asked.push(rect);
     return new Promise((resolve) => {
-      this.queue.push(() =>
-        resolve(bakeRegion(this.map, tilesById, omit, rect, timeMs)),
-      );
+      this.queue.push(() => resolve(bakeRegion(this.map, tilesById, omit, rect, timeMs)));
     });
   }
 
@@ -83,10 +82,7 @@ class ManualBaker implements ChunkBaker {
 
 function putTorch(m: MapFile): MapFile {
   const stack = getStack(m, EDIT.x, EDIT.y, EDIT.z) ?? [];
-  return replaceStack(m, EDIT.x, EDIT.y, EDIT.z, [
-    ...stack,
-    { tileId: "torch" },
-  ]);
+  return replaceStack(m, EDIT.x, EDIT.y, EDIT.z, [...stack, { tileId: "torch" }]);
 }
 
 function planeOf(grid: { levels: Map<number, { rgba: Uint8Array }> }) {
@@ -264,9 +260,7 @@ describe("off-thread refresh and the animation clock", () => {
     const settled = planeOf(lighting.packedGridFor(lit, WINDOW, DIM_MS));
     expect(settled).not.toEqual(bright);
     // And the phase it fell back to is still there to return to.
-    expect(planeOf(lighting.packedGridFor(lit, WINDOW, BRIGHT_MS))).toEqual(
-      bright,
-    );
+    expect(planeOf(lighting.packedGridFor(lit, WINDOW, BRIGHT_MS))).toEqual(bright);
   });
 
   it("settles on the same light the synchronous cache bakes", async () => {
@@ -291,10 +285,9 @@ describe("off-thread refresh and the animation clock", () => {
     }
 
     for (const timeMs of [BRIGHT_MS, DIM_MS]) {
-      expect(
-        planeOf(async_.packedGridFor(lit, WINDOW, timeMs)),
-        `phase at ${timeMs}ms`,
-      ).toEqual(planeOf(sync.packedGridFor(lit, WINDOW, timeMs)));
+      expect(planeOf(async_.packedGridFor(lit, WINDOW, timeMs)), `phase at ${timeMs}ms`).toEqual(
+        planeOf(sync.packedGridFor(lit, WINDOW, timeMs)),
+      );
     }
   });
 
@@ -320,16 +313,12 @@ describe("off-thread refresh and the animation clock", () => {
     // A second torch goes up nearby. Both phases are wrong now, not just the
     // one the clock happens to be at, so the other must not survive to be drawn
     // when the flicker comes back round to it.
-    const brighter = replaceStack(lit, EDIT.x + 2, EDIT.y, EDIT.z, [
-      { tileId: "torch" },
-    ]);
+    const brighter = replaceStack(lit, EDIT.x + 2, EDIT.y, EDIT.z, [{ tileId: "torch" }]);
     baker.map = brighter;
     lighting.syncTo(lit, brighter);
     lighting.packedGridFor(brighter, WINDOW, DIM_MS);
     await baker.flush();
 
-    expect(
-      planeOf(lighting.packedGridFor(brighter, WINDOW, BRIGHT_MS)),
-    ).not.toEqual(beforeEdit);
+    expect(planeOf(lighting.packedGridFor(brighter, WINDOW, BRIGHT_MS))).not.toEqual(beforeEdit);
   });
 });

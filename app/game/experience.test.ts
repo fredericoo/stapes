@@ -3,17 +3,11 @@ import { type BattlerDef, DEFAULT_BASE_HP, defFrom } from "../lib/battler";
 import { MELEE_REACH } from "../lib/item";
 import shippedTiles from "../../data/tiles.json";
 import { emptyMap, replaceStack } from "../lib/mapData";
-import {
-  levelForXp,
-  MASTERIES,
-  type Mastery,
-  type MasteryXp,
-  xpForLevel,
-} from "../lib/mastery";
+import { levelForXp, MASTERIES, type Mastery, type MasteryXp, xpForLevel } from "../lib/mastery";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import type { AttackOutcome } from "./combat";
-import { guardBand, MIN_GUARD_SHARE } from "./combat";
+import { guardBand } from "./combat";
 import { effectiveBattler, emptyEquipment } from "./equipment";
 import { TICK_MS } from "./constants";
 import {
@@ -136,16 +130,8 @@ describe("what a landed blow teaches the swinger", () => {
    * is what deadlocked the training wall this replaced.
    */
   it("does not discount a weapon that outclasses the wielder", () => {
-    const requirementless = attackerEarnings(
-      landed,
-      { ...sword, requirements: undefined },
-      FLAT,
-    );
-    const demanding = attackerEarnings(
-      landed,
-      { ...sword, requirements: { sharp: 90 } },
-      FLAT,
-    );
+    const requirementless = attackerEarnings(landed, { ...sword, requirements: undefined }, FLAT);
+    const demanding = attackerEarnings(landed, { ...sword, requirements: { sharp: 90 } }, FLAT);
     expect(demanding.sharp).toBe(requirementless.sharp);
   });
 });
@@ -236,10 +222,7 @@ describe("what a blow teaches the body it was aimed at", () => {
  */
 describe("what the defender is wearing", () => {
   const tilesById: Record<string, TileDef> = Object.fromEntries(
-    (shippedTiles as unknown as TileDef[]).map((tile) => [
-      tile.id,
-      normalizeTileDef(tile),
-    ]),
+    (shippedTiles as unknown as TileDef[]).map((tile) => [tile.id, normalizeTileDef(tile)]),
   );
   const body: BattlerDef = {
     baseHp: DEFAULT_BASE_HP,
@@ -308,9 +291,7 @@ describe("per-target diminishing returns", () => {
  * calls it.
  */
 
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
+function tile(partial: Record<string, unknown> & Pick<TileDef, "id" | "height">): TileDef {
   const interactions = partial.interactions as { battler?: unknown } | undefined;
   return baseTile({
     kind: interactions?.battler ? "battler" : "prop",
@@ -412,10 +393,7 @@ function field(): MapFile {
       map = replaceStack(map, x, y, 0, [{ tileId: "grass" }]);
     }
   }
-  map = replaceStack(map, 0, 0, 0, [
-    { tileId: "grass" },
-    { tileId: "player", direction: "e" },
-  ]);
+  map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "e" }]);
   return map;
 }
 
@@ -431,7 +409,10 @@ function advance(session: GameSession, ms: number) {
 
 /** The player, and something standing next to them, already fighting. */
 function sparring(opponent = "sparring-partner", seed = 1) {
-  const session = new GameSession(withBody(field(), 1, opponent), tiles, { actorIds: ["me"], seed: seed });
+  const session = new GameSession(withBody(field(), 1, opponent), tiles, {
+    actorIds: ["me"],
+    seed: seed,
+  });
   const foe = session.actorIds().find((id) => id !== "me")!;
   session.setTarget(foe, "me");
   session.setAttackMode(true, "me");
@@ -539,7 +520,7 @@ describe("what a fight is worth is paced", () => {
    * than the first, or standing still is a strategy.
    */
   it("pays less for each further blow from the same attacker", () => {
-    const { session, foe } = beingHit();
+    const { session } = beingHit();
 
     advance(session, 3000);
     const early = learnt(session.masteryXpOf("me"), "toughness");
@@ -575,8 +556,7 @@ describe("what a fight is worth is paced", () => {
     advance(session, 100);
     session.setAttackMode(true, foe);
     advance(session, 2000);
-    const withoutRest =
-      learnt(session.masteryXpOf("me"), "toughness") - worn - afterRest;
+    const withoutRest = learnt(session.masteryXpOf("me"), "toughness") - worn - afterRest;
 
     expect(afterRest).toBeGreaterThan(withoutRest);
   });

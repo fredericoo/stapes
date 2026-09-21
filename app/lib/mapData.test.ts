@@ -23,11 +23,7 @@ import {
 } from "./mapData";
 import { fixtureTown } from "./fixtureTown";
 import type { MapFile, PlacedTile } from "./types";
-import {
-  MAP_FILE_VERSION,
-  levelKey,
-  physicalHeight,
-} from "./types";
+import { MAP_FILE_VERSION, levelKey, physicalHeight } from "./types";
 import { fitsAtElevation, fitsTile, tilesByIdFromList } from "./validation";
 import { tile } from "./testTile";
 
@@ -37,9 +33,7 @@ describe("mapData copy-on-write", () => {
   it("keeps untouched levels, chunks and cells by reference", () => {
     const z = 0;
     const levelBefore = fixtureMap.levels[levelKey(z)]!;
-    const otherKeys = Object.keys(fixtureMap.levels).filter(
-      (k) => k !== levelKey(z),
-    );
+    const otherKeys = Object.keys(fixtureMap.levels).filter((k) => k !== levelKey(z));
     const otherLevelRefs = otherKeys.map((k) => fixtureMap.levels[k]);
 
     const coords = listCoords(fixtureMap, z);
@@ -63,9 +57,7 @@ describe("mapData copy-on-write", () => {
 
     // Untouched chunk keeps its identity, so an edit copies one chunk rather
     // than the whole floor.
-    expect(
-      next.levels[levelKey(z)]![chunkKeyFor(elsewhere.x, elsewhere.y)],
-    ).toBe(otherChunkBefore);
+    expect(next.levels[levelKey(z)]![chunkKeyFor(elsewhere.x, elsewhere.y)]).toBe(otherChunkBefore);
 
     for (let i = 0; i < otherKeys.length; i++) {
       expect(next.levels[otherKeys[i]!]).toBe(otherLevelRefs[i]);
@@ -87,10 +79,7 @@ describe("mapData copy-on-write", () => {
 
 describe("signal channels", () => {
   it("sets, trims and clears a channel on one placement", () => {
-    const map = replaceStack(emptyMap(), 1, 2, 0, [
-      { tileId: "grass" },
-      { tileId: "door" },
-    ]);
+    const map = replaceStack(emptyMap(), 1, 2, 0, [{ tileId: "grass" }, { tileId: "door" }]);
 
     const wired = updatePlacedChannel(map, 1, 2, 0, 1, "  gate-a  ");
     expect(getStack(wired, 1, 2, 0)).toEqual([
@@ -101,16 +90,11 @@ describe("signal channels", () => {
     // Cleared, not left as an empty string — an unwired placement must read
     // the same whether it was never wired or wired and undone.
     const cleared = updatePlacedChannel(wired, 1, 2, 0, 1, "");
-    expect(getStack(cleared, 1, 2, 0)).toEqual([
-      { tileId: "grass" },
-      { tileId: "door" },
-    ]);
+    expect(getStack(cleared, 1, 2, 0)).toEqual([{ tileId: "grass" }, { tileId: "door" }]);
   });
 
   it("returns the same map when the channel is unchanged", () => {
-    const map = replaceStack(emptyMap(), 1, 2, 0, [
-      { tileId: "door", channel: "gate-a" },
-    ]);
+    const map = replaceStack(emptyMap(), 1, 2, 0, [{ tileId: "door", channel: "gate-a" }]);
 
     // Committed on blur, which fires whether or not anything was typed. A new
     // map object here is an undo entry and a geometry diff for nothing.
@@ -122,9 +106,7 @@ describe("signal channels", () => {
   });
 
   it("lists every channel in the map once, sorted", () => {
-    let map = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "torch", channel: "gate-b" },
-    ]);
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "torch", channel: "gate-b" }]);
     map = replaceStack(map, 1, 0, 0, [
       { tileId: "plate", channel: "gate-a" },
       { tileId: "door", channel: "gate-b" },
@@ -138,10 +120,7 @@ describe("signal channels", () => {
 
 describe("placement inscriptions", () => {
   it("sets, trims and clears an inscription on one placement", () => {
-    const map = replaceStack(emptyMap(), 1, 2, 0, [
-      { tileId: "grass" },
-      { tileId: "sign" },
-    ]);
+    const map = replaceStack(emptyMap(), 1, 2, 0, [{ tileId: "grass" }, { tileId: "sign" }]);
 
     const written = updatePlacedInscription(map, 1, 2, 0, 1, "  To the mill  ");
     expect(getStack(written, 1, 2, 0)).toEqual([
@@ -150,10 +129,7 @@ describe("placement inscriptions", () => {
     ]);
 
     const cleared = updatePlacedInscription(written, 1, 2, 0, 1, "");
-    expect(getStack(cleared, 1, 2, 0)).toEqual([
-      { tileId: "grass" },
-      { tileId: "sign" },
-    ]);
+    expect(getStack(cleared, 1, 2, 0)).toEqual([{ tileId: "grass" }, { tileId: "sign" }]);
   });
 
   /**
@@ -233,10 +209,7 @@ describe("reading a map written before the split", () => {
 
 describe("placement descriptions", () => {
   it("sets, trims and clears a description on one placement", () => {
-    const map = replaceStack(emptyMap(), 1, 2, 0, [
-      { tileId: "grass" },
-      { tileId: "sign" },
-    ]);
+    const map = replaceStack(emptyMap(), 1, 2, 0, [{ tileId: "grass" }, { tileId: "sign" }]);
 
     const written = updatePlacedDescription(map, 1, 2, 0, 1, "  To the mill  ");
     expect(getStack(written, 1, 2, 0)).toEqual([
@@ -247,16 +220,11 @@ describe("placement descriptions", () => {
     // Absent, not empty: the map is hand-edited and version-controlled, so an
     // abandoned description must leave no line behind.
     const cleared = updatePlacedDescription(written, 1, 2, 0, 1, "");
-    expect(getStack(cleared, 1, 2, 0)).toEqual([
-      { tileId: "grass" },
-      { tileId: "sign" },
-    ]);
+    expect(getStack(cleared, 1, 2, 0)).toEqual([{ tileId: "grass" }, { tileId: "sign" }]);
   });
 
   it("returns the same map when the description is unchanged", () => {
-    const map = replaceStack(emptyMap(), 1, 2, 0, [
-      { tileId: "sign", description: "To the mill" },
-    ]);
+    const map = replaceStack(emptyMap(), 1, 2, 0, [{ tileId: "sign", description: "To the mill" }]);
 
     expect(updatePlacedDescription(map, 1, 2, 0, 0, "To the mill")).toBe(map);
     expect(updatePlacedDescription(map, 1, 2, 0, 0, " To the mill ")).toBe(map);
@@ -322,9 +290,7 @@ describe("container contents", () => {
 
     expect(updatePlacedContents(map, 1, 2, 0, 1, held)).toBe(map);
     expect(
-      updatePlacedContents(map, 1, 2, 0, 1, [
-        { id: "itm_a", tileId: "bread", count: 2 },
-      ]),
+      updatePlacedContents(map, 1, 2, 0, 1, [{ id: "itm_a", tileId: "bread", count: 2 }]),
     ).toBe(map);
   });
 
@@ -333,14 +299,10 @@ describe("container contents", () => {
     // Compared on tile and count alone this is no change at all, the dialog
     // closes clean, and the wired lever is still in the crate.
     const map = chestAt([{ id: "itm_a", tileId: "lever", channel: "gate-a" }]);
-    const written = updatePlacedContents(map, 1, 2, 0, 1, [
-      { id: "itm_b", tileId: "lever" },
-    ]);
+    const written = updatePlacedContents(map, 1, 2, 0, 1, [{ id: "itm_b", tileId: "lever" }]);
 
     expect(written).not.toBe(map);
-    expect(getStack(written, 1, 2, 0)[1]!.contents).toEqual([
-      { id: "itm_b", tileId: "lever" },
-    ]);
+    expect(getStack(written, 1, 2, 0)[1]!.contents).toEqual([{ id: "itm_b", tileId: "lever" }]);
   });
 
   it("notices a field that changed on an entry that stayed", () => {
@@ -363,9 +325,7 @@ describe("container contents", () => {
   });
 
   it("leaves the rest of the stack alone", () => {
-    const written = updatePlacedContents(chestAt(), 1, 2, 0, 1, [
-      { id: "itm_a", tileId: "bread" },
-    ]);
+    const written = updatePlacedContents(chestAt(), 1, 2, 0, 1, [{ id: "itm_a", tileId: "bread" }]);
 
     expect(getStack(written, 1, 2, 0)[0]).toEqual({ tileId: "grass" });
   });
@@ -404,66 +364,41 @@ describe("intangible physical height", () => {
   });
 
   it("ignores intangible volume in stackHeight", () => {
-    expect(
-      stackHeight(
-        [{ tileId: "grass" }, { tileId: "door-open" }],
-        tilesById,
-      ),
-    ).toBe(0);
-    expect(
-      stackHeight([{ tileId: "wall" }, { tileId: "torch" }], tilesById),
-    ).toBe(4);
+    expect(stackHeight([{ tileId: "grass" }, { tileId: "door-open" }], tilesById)).toBe(0);
+    expect(stackHeight([{ tileId: "wall" }, { tileId: "torch" }], tilesById)).toBe(4);
   });
 
   it("looks through intangible tops for the solid surface", () => {
-    expect(
-      solidTopOfStack(
-        [{ tileId: "grass" }, { tileId: "door-open" }],
-        tilesById,
-      ),
-    ).toEqual({ tileId: "grass" });
+    expect(solidTopOfStack([{ tileId: "grass" }, { tileId: "door-open" }], tilesById)).toEqual({
+      tileId: "grass",
+    });
 
-    const map = replaceStack(
-      { version: MAP_FILE_VERSION, levels: {} },
-      0,
-      0,
-      0,
-      [{ tileId: "grass" }, { tileId: "door-open" }],
-    );
+    const map = replaceStack({ version: MAP_FILE_VERSION, levels: {} }, 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "door-open" },
+    ]);
     expect(surfaceTileAt(map, 0, 0, 0, tilesById)).toEqual({
       tileId: "grass",
     });
   });
 
   it("lets a full-height body stand through an intangible door", () => {
-    const map = replaceStack(
-      { version: MAP_FILE_VERSION, levels: {} },
-      1,
-      0,
-      0,
-      [{ tileId: "grass" }, { tileId: "door-open" }],
-    );
+    const map = replaceStack({ version: MAP_FILE_VERSION, levels: {} }, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "door-open" },
+    ]);
     const player = tile({ id: "player", height: 4 });
     expect(fitsAtElevation(map, 1, 0, 0, player, tilesById).ok).toBe(true);
     // Same cell with a solid wall still blocks.
-    const blocked = replaceStack(map, 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "wall" },
-    ]);
+    const blocked = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "wall" }]);
     expect(fitsAtElevation(blocked, 1, 0, 0, player, tilesById).ok).toBe(false);
   });
 
   it("places an intangible full-height tile like a height-0 plate", () => {
-    const map = replaceStack(
-      { version: MAP_FILE_VERSION, levels: {} },
-      0,
-      0,
-      0,
-      [{ tileId: "wall" }],
-    );
-    expect(
-      fitsTile(map, 0, 0, 0, tilesById["door-open"]!, tilesById).ok,
-    ).toBe(true);
+    const map = replaceStack({ version: MAP_FILE_VERSION, levels: {} }, 0, 0, 0, [
+      { tileId: "wall" },
+    ]);
+    expect(fitsTile(map, 0, 0, 0, tilesById["door-open"]!, tilesById).ok).toBe(true);
   });
 });
 

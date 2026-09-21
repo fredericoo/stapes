@@ -173,13 +173,7 @@ function SectionSwitch({
   info: string;
 }) {
   return (
-    <SwitchField
-      checked={on}
-      onCheckedChange={onToggle}
-      label={label}
-      info={info}
-      size="section"
-    />
+    <SwitchField checked={on} onCheckedChange={onToggle} label={label} info={info} size="section" />
   );
 }
 
@@ -214,13 +208,7 @@ function ActionLabelField({
  * Ways the player can interact with this tile in play mode. One section per
  * interaction kind.
  */
-export function InteractiveTab({
-  draft,
-  onChange,
-  tiles,
-  tilesets,
-  statusDefs,
-}: Props) {
+export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }: Props) {
   const push = draft.interactions?.push;
   const sw = draft.interactions?.switch;
   const reward = draft.interactions?.reward;
@@ -371,9 +359,7 @@ export function InteractiveTab({
   const patchSlot = (index: number, patch: Partial<ExtractSlot>) => {
     if (!extract) return;
     patchExtract({
-      slots: extract.slots.map((slot, i) =>
-        i === index ? { ...slot, ...patch } : slot,
-      ),
+      slots: extract.slots.map((slot, i) => (i === index ? { ...slot, ...patch } : slot)),
     });
   };
 
@@ -438,17 +424,12 @@ export function InteractiveTab({
   const setDestinationKind = (kind: TeleportDestinationKind) => {
     if (!teleport || teleport.destination.kind === kind) return;
     patchTeleport({
-      destination:
-        kind === "relative"
-          ? { kind, delta: { ...DEFAULT_TELEPORT_DELTA } }
-          : { kind },
+      destination: kind === "relative" ? { kind, delta: { ...DEFAULT_TELEPORT_DELTA } } : { kind },
     });
   };
 
   const delta =
-    teleport?.destination.kind === "relative"
-      ? teleport.destination.delta
-      : DEFAULT_TELEPORT_DELTA;
+    teleport?.destination.kind === "relative" ? teleport.destination.delta : DEFAULT_TELEPORT_DELTA;
 
   const patchDelta = (axis: (typeof DELTA_AXES)[number], value: number) => {
     if (teleport?.destination.kind !== "relative") return;
@@ -478,9 +459,7 @@ export function InteractiveTab({
    */
   const patchDecayBound = (end: "fromMs" | "toMs", seconds: number) => {
     if (!decay) return;
-    const ms = Math.round(
-      Math.min(MAX_DECAY_SECONDS, Math.max(1, seconds)) * MS_PER_SECOND,
-    );
+    const ms = Math.round(Math.min(MAX_DECAY_SECONDS, Math.max(1, seconds)) * MS_PER_SECOND);
     setDecay(
       end === "fromMs"
         ? { ...decay, fromMs: ms, toMs: Math.max(ms, decay.toMs) }
@@ -583,9 +562,7 @@ export function InteractiveTab({
               tiles={others}
               tilesets={tilesets}
               selectedIds={sw.targetTileId ? [sw.targetTileId] : []}
-              onChange={(ids) =>
-                patchSwitch({ targetTileId: ids[0] ?? "" })
-              }
+              onChange={(ids) => patchSwitch({ targetTileId: ids[0] ?? "" })}
               label="Target tile"
               emptyHint="None."
               single
@@ -625,9 +602,7 @@ export function InteractiveTab({
         <SectionSwitch
           on={Boolean(transmute)}
           onToggle={(on) =>
-            setTransmute(
-              on ? { recipes: [...DEFAULT_TRANSMUTE.recipes] } : undefined,
-            )
+            setTransmute(on ? { recipes: [...DEFAULT_TRANSMUTE.recipes] } : undefined)
           }
           label="Transmute"
           info="Spends one carried item and mints the outputs fresh. Repeatable, and only offered while the input is carried. Outputs go where the input came from, spilling to pack then hands, never the floor — with no room the recipe is not offered."
@@ -636,17 +611,10 @@ export function InteractiveTab({
         {transmute ? (
           <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
             {transmute.recipes.map((recipe, index) => (
-              <div
-                key={index}
-                className="flex flex-col gap-3 border-2 border-border bg-paper p-3"
-              >
+              <div key={index} className="flex flex-col gap-3 border-2 border-border bg-paper p-3">
                 <div className="flex items-start justify-between gap-2">
                   <FieldLabel>Recipe {index + 1}</FieldLabel>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeRecipe(index)}
-                  >
+                  <Button variant="ghost" size="sm" onClick={() => removeRecipe(index)}>
                     Remove
                   </Button>
                 </div>
@@ -669,9 +637,7 @@ export function InteractiveTab({
                   tiles={giveable}
                   tilesets={tilesets}
                   selectedIds={recipe.fromTileId ? [recipe.fromTileId] : []}
-                  onChange={(ids) =>
-                    patchRecipe(index, { fromTileId: ids[0] ?? "" })
-                  }
+                  onChange={(ids) => patchRecipe(index, { fromTileId: ids[0] ?? "" })}
                   label="Input"
                   info="Looked for in the player's hands first, then the bag."
                   emptyHint="None."
@@ -711,11 +677,7 @@ export function InteractiveTab({
         <SectionSwitch
           on={Boolean(extract)}
           onToggle={(on) =>
-            setExtract(
-              on
-                ? { ...DEFAULT_EXTRACT, slots: [...DEFAULT_EXTRACT.slots] }
-                : undefined,
-            )
+            setExtract(on ? { ...DEFAULT_EXTRACT, slots: [...DEFAULT_EXTRACT.slots] } : undefined)
           }
           label="Extract"
           info="A use takes time: the player stands there for the whole of it, and a step, a shove or a blow cancels it with nothing handed over. Only when it finishes does it roll every yield slot. Uses are shared — the placement is the same vein for everybody, and a use somebody is part-way through is held out of the count so nobody else can start on it."
@@ -790,11 +752,7 @@ export function InteractiveTab({
                 >
                   <div className="flex items-start justify-between gap-2">
                     <FieldLabel>Slot {index + 1}</FieldLabel>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeSlot(index)}
-                    >
+                    <Button variant="ghost" size="sm" onClick={() => removeSlot(index)}>
                       Remove
                     </Button>
                   </div>
@@ -815,9 +773,7 @@ export function InteractiveTab({
                     tiles={giveable}
                     tilesets={tilesets}
                     selectedIds={slot.tileId ? [slot.tileId] : []}
-                    onChange={(ids) =>
-                      patchSlot(index, { tileId: ids[0] ?? "" })
-                    }
+                    onChange={(ids) => patchSlot(index, { tileId: ids[0] ?? "" })}
                     label="Item"
                     emptyHint="None — the slot is dropped on save."
                     single
@@ -831,8 +787,7 @@ export function InteractiveTab({
                 </Button>
               ) : (
                 <span className="text-[11px] leading-snug text-muted">
-                  Up to {MAX_EXTRACT_SLOTS} slots — the bag must hold every
-                  one at once.
+                  Up to {MAX_EXTRACT_SLOTS} slots — the bag must hold every one at once.
                 </span>
               )}
             </div>
@@ -843,9 +798,7 @@ export function InteractiveTab({
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
         <SectionSwitch
           on={Boolean(teleport)}
-          onToggle={(on) =>
-            setTeleport(on ? { ...DEFAULT_TELEPORT } : undefined)
-          }
+          onToggle={(on) => setTeleport(on ? { ...DEFAULT_TELEPORT } : undefined)}
           label="Teleport"
           info="Moves whoever triggers it. Repeatable, nothing spent. Refused when the traveller would not fit at the far end."
         />
@@ -913,9 +866,7 @@ export function InteractiveTab({
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
         <SectionSwitch
           on={Boolean(addStatus)}
-          onToggle={(on) =>
-            setAddStatus(on ? { ...DEFAULT_ADD_STATUS } : undefined)
-          }
+          onToggle={(on) => setAddStatus(on ? { ...DEFAULT_ADD_STATUS } : undefined)}
           label="Apply status"
           info="Puts a status on whoever triggers it. Only a battler takes one. Repeatable. The duration is the status's own, from the Statuses page."
         />
@@ -967,9 +918,7 @@ export function InteractiveTab({
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
         <SectionSwitch
           on={Boolean(setSpawn)}
-          onToggle={(on) =>
-            setSetSpawn(on ? { ...DEFAULT_SET_SPAWN } : undefined)
-          }
+          onToggle={(on) => setSetSpawn(on ? { ...DEFAULT_SET_SPAWN } : undefined)}
           label="Set respawn"
           info="Whoever triggers it comes back to this placement's cell when they die, instead of to the world's spawn. Solid is fine — a rebirth bubbles outward to the nearest cell with room, the same way a remembered position does. Players only; a creature comes back where it was authored. Repeatable, and the row reads 'You respawn here' and goes grey on the marker somebody is already anchored to."
         />
@@ -1051,9 +1000,7 @@ export function InteractiveTab({
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
         <SectionSwitch
           on={Boolean(plate)}
-          onToggle={(on) =>
-            setPlate(on ? { ...DEFAULT_PRESSURE_PLATE } : undefined)
-          }
+          onToggle={(on) => setPlate(on ? { ...DEFAULT_PRESSURE_PLATE } : undefined)}
           label="Pressure plate"
           info={`Swaps to the target tile whenever the load on its own cell matches. Load is in height units — a stool is 1, a half crate 2, a full level ${HEIGHT_PER_LEVEL}; flat and intangible tiles weigh nothing. Put a plate on both tiles to follow the load (≥ 1 → pressed, ≤ 0 → unpressed); without one on the pressed tile it stays down.`}
         />
@@ -1126,9 +1073,7 @@ export function InteractiveTab({
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
         <SectionSwitch
           on={Boolean(receive)}
-          onToggle={(on) =>
-            setReceive(on ? { ...DEFAULT_RECEIVE } : undefined)
-          }
+          onToggle={(on) => setReceive(on ? { ...DEFAULT_RECEIVE } : undefined)}
           label="Receive"
           info="Swaps to the target tile while its channel reads the chosen value. Pair it like a plate: on → open on the closed door, off → closed on the open one, or it opens once and stays open."
         />

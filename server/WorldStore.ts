@@ -68,9 +68,7 @@ export class WorldStore {
     if (this.pending.has(key)) return this.pending.get(key) as T;
 
     const statement = await this.db.prepare("SELECT value FROM kv WHERE key = ?");
-    const row = (await statement.get([key])) as
-      | { value: Uint8Array | string }
-      | undefined;
+    const row = (await statement.get([key])) as { value: Uint8Array | string } | undefined;
     return row ? (decode(row.value) as T) : undefined;
   }
 
@@ -85,10 +83,10 @@ export class WorldStore {
     const statement = await this.db.prepare(
       "SELECT key, value FROM kv WHERE key >= ? AND key < ? ORDER BY key",
     );
-    const rows = (await statement.all([
-      options.prefix,
-      prefixEnd(options.prefix),
-    ])) as { key: string; value: Uint8Array | string }[];
+    const rows = (await statement.all([options.prefix, prefixEnd(options.prefix)])) as {
+      key: string;
+      value: Uint8Array | string;
+    }[];
 
     const out = new Map<string, T>();
     for (const row of rows) {
@@ -202,9 +200,7 @@ export class WorldStore {
 
   /** Restore the alarm across a restart, before the world starts ticking. */
   async loadAlarm(): Promise<number | null> {
-    const statement = await this.db.prepare(
-      "SELECT at_ms FROM alarm WHERE id = 0",
-    );
+    const statement = await this.db.prepare("SELECT at_ms FROM alarm WHERE id = 0");
     const row = (await statement.get()) as { at_ms: number } | undefined;
     this.alarmAtMs = row?.at_ms ?? null;
     return this.alarmAtMs;
@@ -245,11 +241,9 @@ export class WorldStore {
     this.pendingSql = [];
     this.alarmDirty = false;
 
-    this.flushing = this.commit(entries, deletions, statements, alarm).finally(
-      () => {
-        this.flushing = null;
-      },
-    );
+    this.flushing = this.commit(entries, deletions, statements, alarm).finally(() => {
+      this.flushing = null;
+    });
     await this.flushing;
   }
 
@@ -306,9 +300,7 @@ export class WorldStore {
  */
 function prefixEnd(prefix: string): string {
   if (prefix === "") return "￿";
-  return (
-    prefix.slice(0, -1) + String.fromCharCode(prefix.charCodeAt(prefix.length - 1) + 1)
-  );
+  return prefix.slice(0, -1) + String.fromCharCode(prefix.charCodeAt(prefix.length - 1) + 1);
 }
 
 function encode(value: unknown): Uint8Array {
@@ -316,7 +308,6 @@ function encode(value: unknown): Uint8Array {
 }
 
 function decode(value: Uint8Array | string): unknown {
-  const text =
-    typeof value === "string" ? value : new TextDecoder().decode(value);
+  const text = typeof value === "string" ? value : new TextDecoder().decode(value);
   return JSON.parse(text);
 }

@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  addContent,
-  removeContent,
-  setContentCount,
-} from "./ContainerContentsField";
+import { addContent, removeContent, setContentCount } from "./ContainerContentsField";
 import { DEFAULT_CONTAINER } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { TileDef } from "../lib/types";
@@ -113,19 +109,13 @@ describe("addContent", () => {
 describe("setContentCount", () => {
   it("writes a count above one", () => {
     const contents = addContent([], "bread", 4, tilesById)!;
-    expect(authored(setContentCount(contents, 0, 3))).toEqual([
-      { tileId: "bread", count: 3 },
-    ]);
+    expect(authored(setContentCount(contents, 0, 3))).toEqual([{ tileId: "bread", count: 3 }]);
   });
 
   it("writes a count of one as no count at all", () => {
     // Otherwise `count: 1` spreads through `data/map.json` saying what an
     // absent key already says. See `../lib/piles`' withCount.
-    const contents = setContentCount(
-      addContent([], "bread", 4, tilesById)!,
-      0,
-      3,
-    );
+    const contents = setContentCount(addContent([], "bread", 4, tilesById)!, 0, 3);
     expect(authored(setContentCount(contents, 0, 1))).toEqual([
       { tileId: "bread", count: undefined },
     ]);
@@ -143,8 +133,6 @@ describe("removeContent", () => {
   it("closes the squares up behind what it took", () => {
     let contents = addContent([], "sword", 4, tilesById)!;
     contents = addContent(contents, "bread", 4, tilesById)!;
-    expect(authored(removeContent(contents, 0))).toEqual([
-      { tileId: "bread", count: undefined },
-    ]);
+    expect(authored(removeContent(contents, 0))).toEqual([{ tileId: "bread", count: undefined }]);
   });
 });

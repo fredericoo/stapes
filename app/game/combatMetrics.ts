@@ -1,7 +1,6 @@
 import type { FightingStats } from "../lib/battler";
 import { MAX_PERCENT_STAT, MAX_WEAPON_DAMAGE } from "../lib/item";
 import {
-  damageAfterDefence,
   defenceAgainst,
   dodgeChance,
   guardBand,
@@ -127,10 +126,7 @@ export type GuardOdds = {
  * doing so this walk ends early rather than hanging, on the same guard
  * {@link potentialDamages} keeps.
  */
-export function guardOdds(
-  defender: FightingStats,
-  attacker: FightingStats,
-): GuardOdds[] {
+export function guardOdds(defender: FightingStats, attacker: FightingStats): GuardOdds[] {
   const guardAt = (roll: number) => guardRolled(defender, attacker, roll);
   const { lowest, highest } = guardBand(defender, attacker);
   if (lowest >= highest) return [{ value: highest, chance: 1 }];
@@ -169,11 +165,7 @@ const BISECTION_STEPS = 60;
  * monotonic, so the boundary between one whole number and the next is a single
  * crossing and bisection finds it to the last bit a double can hold.
  */
-function firstDrawAbove(
-  climbing: (draw: number) => number,
-  value: number,
-  from: number,
-): number {
+function firstDrawAbove(climbing: (draw: number) => number, value: number, from: number): number {
   let below = from;
   let above = 1;
   for (let step = 0; step < BISECTION_STEPS; step++) {
@@ -302,10 +294,7 @@ export type SwingOdds = {
  * order, and if that changes, `./combat.test.ts`'s draw-count assertions are
  * what fail first and send somebody here.
  */
-export function swingOdds(
-  attacker: FightingStats,
-  defender: FightingStats,
-): SwingOdds {
+export function swingOdds(attacker: FightingStats, defender: FightingStats): SwingOdds {
   const intervalMs = swingIntervalMs(attacker);
   const attacksPerSecond = 1000 / intervalMs;
 
@@ -351,23 +340,14 @@ export function swingOdds(
     wounded: connected * (1 - absorbedGivenConnect),
     // The weakest blow against the deepest guard, and the reverse: the band's
     // ends are the two draws' ends together, not the damage band's alone.
-    minDamage: Math.max(
-      0,
-      (band[0]?.value ?? 0) - (guards[guards.length - 1]?.value ?? 0),
-    ),
-    maxDamage: Math.max(
-      0,
-      (band[band.length - 1]?.value ?? 0) - (guards[0]?.value ?? 0),
-    ),
+    minDamage: Math.max(0, (band[0]?.value ?? 0) - (guards[guards.length - 1]?.value ?? 0)),
+    maxDamage: Math.max(0, (band[band.length - 1]?.value ?? 0) - (guards[0]?.value ?? 0)),
     meanConnectingDamage,
     meanSwingDamage,
     damagePerSecond,
-    mitigation:
-      meanPotential > 0 ? 1 - meanConnectingDamage / meanPotential : 0,
-    swingsToKill:
-      meanSwingDamage > 0 ? defender.maxHp / meanSwingDamage : null,
-    secondsToKill:
-      damagePerSecond > 0 ? defender.maxHp / damagePerSecond : null,
+    mitigation: meanPotential > 0 ? 1 - meanConnectingDamage / meanPotential : 0,
+    swingsToKill: meanSwingDamage > 0 ? defender.maxHp / meanSwingDamage : null,
+    secondsToKill: damagePerSecond > 0 ? defender.maxHp / damagePerSecond : null,
     // Per *swing* rather than per connecting blow, because that is the rate an
     // author is choosing when they type a chance: a venom on a weapon that
     // lands one blow in five is a venom that takes one swing in fifty, and the

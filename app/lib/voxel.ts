@@ -46,10 +46,7 @@ export function voxelIndex(dims: VoxelDims, x: number, y: number, z: number) {
 }
 
 /** Inverse of {@link voxelIndex}. */
-export function voxelCoords(
-  dims: VoxelDims,
-  index: number,
-): { x: number; y: number; z: number } {
+export function voxelCoords(dims: VoxelDims, index: number): { x: number; y: number; z: number } {
   const sliceSize = dims.vx * dims.vy;
   const z = Math.floor(index / sliceSize);
   const rest = index % sliceSize;
@@ -68,11 +65,7 @@ export function emptyGrid(size: VoxelSize): VoxelGrid {
  * bottom-right corner and the ground (z=0) — matching how sprites are
  * anchored to their base cell, so growing a model pads up/left/top.
  */
-export function resizeGrid(
-  grid: VoxelGrid,
-  from: VoxelSize,
-  to: VoxelSize,
-): VoxelGrid {
+export function resizeGrid(grid: VoxelGrid, from: VoxelSize, to: VoxelSize): VoxelGrid {
   const a = voxelDims(from);
   const b = voxelDims(to);
   const out = new Uint8Array(b.vx * b.vy * b.vz);
@@ -177,11 +170,7 @@ export function parseHexColor(hex: string): Rgb {
 }
 
 function shade([r, g, b]: Rgb, factor: number): Rgb {
-  return [
-    Math.round(r * factor),
-    Math.round(g * factor),
-    Math.round(b * factor),
-  ];
+  return [Math.round(r * factor), Math.round(g * factor), Math.round(b * factor)];
 }
 
 export type RenderedSprite = {
@@ -241,10 +230,7 @@ export function renderGrid(
     const sx = x - z + offsetX;
     const sy = y - z + offsetY;
     if (sx < 0 || sy < 0 || sx >= widthPx || sy >= heightPx) continue;
-    const factor =
-      shadeMode === "flat"
-        ? FACE_SHADE_TOP
-        : visibleFaceShade(grid, dims, x, y, z);
+    const factor = shadeMode === "flat" ? FACE_SHADE_TOP : visibleFaceShade(grid, dims, x, y, z);
     const [r, g, b] = shade(colors[val] ?? MISSING_COLOR, factor);
     const p = (sy * widthPx + sx) * 4;
     rgba[p] = r;
@@ -299,11 +285,7 @@ function applyOutline(
         }
         // Filled pixel sitting well behind its neighbour: separate the shapes
         // by darkening the farther one, so the nearer shape keeps its size.
-        if (
-          mode === "full" &&
-          here !== NO_DEPTH &&
-          there - here >= DEPTH_OUTLINE_THRESHOLD
-        ) {
+        if (mode === "full" && here !== NO_DEPTH && there - here >= DEPTH_OUTLINE_THRESHOLD) {
           targets.push(sy * widthPx + sx);
           break;
         }
@@ -320,13 +302,7 @@ function applyOutline(
   }
 }
 
-function isFilled(
-  grid: VoxelGrid,
-  dims: VoxelDims,
-  x: number,
-  y: number,
-  z: number,
-): boolean {
+function isFilled(grid: VoxelGrid, dims: VoxelDims, x: number, y: number, z: number): boolean {
   if (x < 0 || y < 0 || z < 0 || x >= dims.vx || y >= dims.vy || z >= dims.vz) {
     return false;
   }
@@ -394,8 +370,7 @@ export const voxelProjectSchema = v.pipe(
     "frame voxel data does not match model size",
   ),
   v.check(
-    (p) =>
-      p.frames.every((f) => f.voxels.every((i) => i < p.palette.length)),
+    (p) => p.frames.every((f) => f.voxels.every((i) => i < p.palette.length)),
     "voxel references a palette index that does not exist",
   ),
 );
@@ -426,9 +401,7 @@ export function sheetLayout(project: VoxelProject): SheetLayout {
   });
   const cellsW = Math.max(south.cellsW, rotated.cellsW);
   const cellsH = Math.max(south.cellsH, rotated.cellsH);
-  const keys: (Direction | "default")[] = project.directional
-    ? DIRECTIONS
-    : ["default"];
+  const keys: (Direction | "default")[] = project.directional ? DIRECTIONS : ["default"];
   const columns = project.frames.length;
   return {
     cellsW,
@@ -453,17 +426,8 @@ export function renderSheet(
   layout.rows.forEach((row, rowIdx) => {
     project.frames.forEach((frame, colIdx) => {
       const direction: Direction = row.key === "default" ? "s" : row.key;
-      const faced = gridFacing(
-        Uint8Array.from(frame.voxels),
-        project.size,
-        direction,
-      );
-      const sprite = renderGrid(
-        faced.grid,
-        faced.size,
-        project.palette,
-        options,
-      );
+      const faced = gridFacing(Uint8Array.from(frame.voxels), project.size, direction);
+      const sprite = renderGrid(faced.grid, faced.size, project.palette, options);
       // Bottom-right align inside the slot so the base cell stays put even
       // when a non-square footprint renders smaller for some directions.
       const dx = colIdx * slotW + (slotW - sprite.widthPx);
@@ -496,9 +460,11 @@ function blit(
 }
 
 /** Tile sprites for a TileDef pointing at the exported sheet. */
-export function sheetSprites(
-  project: VoxelProject,
-): { type: "simple" | "directional"; sprite?: TileSprite; sprites?: Partial<Record<Direction, TileSprite>> } {
+export function sheetSprites(project: VoxelProject): {
+  type: "simple" | "directional";
+  sprite?: TileSprite;
+  sprites?: Partial<Record<Direction, TileSprite>>;
+} {
   const layout = sheetLayout(project);
   const rows = layout.rows;
   // Measured from the corner of the exported sheet, which is where an exported

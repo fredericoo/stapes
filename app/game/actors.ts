@@ -50,11 +50,7 @@ export function actorStillAt(
 }
 
 /** Find an actor near where they were last seen, or null to force a sweep. */
-export function findActorNear(
-  map: MapFile,
-  ownerId: string,
-  near: Coord,
-): ActorLocation | null {
+export function findActorNear(map: MapFile, ownerId: string, near: Coord): ActorLocation | null {
   const r = ACTOR_SEARCH_RADIUS;
   for (let z = near.z - r; z <= near.z + r; z++) {
     if (z < MIN_LEVEL || z > MAX_LEVEL) continue;
@@ -74,10 +70,7 @@ export function findActorNear(
  * {@link locateActor}, which reaches this only when someone has genuinely been
  * relocated across the map.
  */
-export function findActorAnywhere(
-  map: MapFile,
-  ownerId: string,
-): ActorLocation | null {
+export function findActorAnywhere(map: MapFile, ownerId: string): ActorLocation | null {
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     for (const { x, y, stack } of listCoords(map, z)) {
       const i = stack.findIndex((p) => isActor(p, ownerId));
@@ -230,9 +223,7 @@ export function residentHome(ownerId: string): Coord | null {
   if (parts.length !== 4) return null;
   const [x, y, z] = parts.map(Number);
   if (x === undefined || y === undefined || z === undefined) return null;
-  return Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)
-    ? { x, y, z }
-    : null;
+  return Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z) ? { x, y, z } : null;
 }
 
 /** Tag a placement as belonging to `ownerId`, keeping its slot in the stack. */

@@ -53,11 +53,7 @@ import { PLAYER_TILE_ID } from "./constants";
  * by hand is the one that would forget the residency and have a player refuse
  * to swing at a deer.
  */
-export function combatantOf(body: {
-  id: string;
-  tileId: string;
-  pvp: boolean;
-}): Combatant {
+export function combatantOf(body: { id: string; tileId: string; pvp: boolean }): Combatant {
   return {
     id: body.id,
     resident: body.tileId !== PLAYER_TILE_ID,

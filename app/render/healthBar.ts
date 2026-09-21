@@ -76,10 +76,7 @@ const MIN_TRACK_BRICKS = 4;
  * bodies move smoothly between cells. That is a moment during a walk rather than
  * the standing case, and no width fixes it.
  */
-export function healthBarTrackBricks(
-  cellCssPx: number,
-  brickCssPx: number,
-): number {
+export function healthBarTrackBricks(cellCssPx: number, brickCssPx: number): number {
   if (!(brickCssPx > 0)) return MIN_TRACK_BRICKS;
   const bricksAcrossCell = Math.floor(cellCssPx / brickCssPx);
   return Math.max(MIN_TRACK_BRICKS, bricksAcrossCell - TRACK_BORDER_BRICKS * 2);
@@ -122,10 +119,7 @@ const MAX_FILL_HEIGHT_BRICKS = 4;
  */
 export function healthBarFillHeightBricks(trackBricks: number): number {
   const wanted = Math.round(trackBricks / TRACK_BRICKS_PER_FILL_BRICK);
-  return Math.max(
-    MIN_FILL_HEIGHT_BRICKS,
-    Math.min(MAX_FILL_HEIGHT_BRICKS, wanted),
-  );
+  return Math.max(MIN_FILL_HEIGHT_BRICKS, Math.min(MAX_FILL_HEIGHT_BRICKS, wanted));
 }
 
 /**

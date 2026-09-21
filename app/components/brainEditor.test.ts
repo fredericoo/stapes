@@ -28,7 +28,10 @@ const LIBRARY: TileDef[] = [
   tile({ id: "stone-wall", height: 4 }),
   tile({ id: "rat", actor: true }),
   tile({ id: "player", height: 4 }),
-  tile({ id: "cat", interactions: { brain: { initial: "i", states: { i: { do: [] } }, transitions: [] } } }),
+  tile({
+    id: "cat",
+    interactions: { brain: { initial: "i", states: { i: { do: [] } }, transitions: [] } },
+  }),
 ];
 
 /**
@@ -77,10 +80,7 @@ describe("renaming a state", () => {
   it("keeps the states in their authored order", () => {
     // Order is not semantic for states, but a rename that reshuffled them would
     // scramble the editor's own list under the author's hands.
-    expect(Object.keys(renamedState(brain, "idle", "resting").states)).toEqual([
-      "resting",
-      "flee",
-    ]);
+    expect(Object.keys(renamedState(brain, "idle", "resting").states)).toEqual(["resting", "flee"]);
   });
 
   it("leaves a wildcard source alone", () => {
@@ -213,9 +213,7 @@ describe("offering selectors", () => {
  */
 describe("editing a parameter", () => {
   /** The text box on `heard noise`, which is authored as optional. */
-  const NOISE_TEXT = CONDITIONS.heard_noise.params.find(
-    (spec) => spec.key === "text",
-  )!;
+  const NOISE_TEXT = CONDITIONS.heard_noise.params.find((spec) => spec.key === "text")!;
 
   it("writes a value somebody typed", () => {
     expect(paramPatch({ cond: "heard_noise", cells: 20 }, NOISE_TEXT, "howl")).toEqual({
@@ -227,11 +225,7 @@ describe("editing a parameter", () => {
 
   /** An empty box on an optional field is "any sound", not a word of no letters. */
   it("takes the key away again when the box is emptied", () => {
-    const patched = paramPatch(
-      { cond: "heard_noise", cells: 20, text: "howl" },
-      NOISE_TEXT,
-      "",
-    );
+    const patched = paramPatch({ cond: "heard_noise", cells: 20, text: "howl" }, NOISE_TEXT, "");
 
     expect(patched).toEqual({ cond: "heard_noise", cells: 20 });
     expect(patched).not.toHaveProperty("text");
@@ -254,9 +248,11 @@ describe("editing a parameter", () => {
   it("authors a false flag as its absence", () => {
     const los = CONDITIONS.heard.params.find((spec) => spec.key === "los")!;
 
-    expect(
-      paramPatch({ cond: "heard", text: "ps", cells: 5, los: true }, los, false),
-    ).toEqual({ cond: "heard", text: "ps", cells: 5 });
+    expect(paramPatch({ cond: "heard", text: "ps", cells: 5, los: true }, los, false)).toEqual({
+      cond: "heard",
+      text: "ps",
+      cells: 5,
+    });
   });
 });
 
@@ -285,13 +281,10 @@ describe("what a selector affords", () => {
     }),
     tile({ id: "boulder", interactions: { push: { climb: "half", moveOnTileIds: [] } } }),
     tile({ id: "hedge", height: 2 }),
-
   ];
 
   function tilesFor(brain: BrainDef, key: string) {
-    const kind = selectorVocabulary(brain, ORCHARD).kinds.find(
-      (one) => one.key === key,
-    );
+    const kind = selectorVocabulary(brain, ORCHARD).kinds.find((one) => one.key === key);
     return kind?.tiles.map((one) => one.tileId);
   }
 

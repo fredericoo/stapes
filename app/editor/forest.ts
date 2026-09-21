@@ -191,14 +191,10 @@ function carvePath(
   const anyX = () => bounds.minX + Math.floor(random() * (lastX - bounds.minX + 1));
   const anyY = () => bounds.minY + Math.floor(random() * (lastY - bounds.minY + 1));
 
-  const entry = horizontal ? (forward ? bounds.minX : lastX) : (forward ? bounds.minY : lastY);
-  const exit = horizontal ? (forward ? lastX : bounds.minX) : (forward ? lastY : bounds.minY);
-  const at = horizontal
-    ? { x: entry, y: anyY() }
-    : { x: anyX(), y: entry };
-  const mark = horizontal
-    ? { x: exit, y: anyY() }
-    : { x: anyX(), y: exit };
+  const entry = horizontal ? (forward ? bounds.minX : lastX) : forward ? bounds.minY : lastY;
+  const exit = horizontal ? (forward ? lastX : bounds.minX) : forward ? lastY : bounds.minY;
+  const at = horizontal ? { x: entry, y: anyY() } : { x: anyX(), y: entry };
+  const mark = horizontal ? { x: exit, y: anyY() } : { x: anyX(), y: exit };
 
   const stamp = (x: number, y: number) => {
     for (let dy = 0; dy < width; dy++) {
@@ -248,9 +244,7 @@ function distanceFromPath(g: CellGrid, path: ReadonlySet<number>): Int32Array {
 }
 
 function inBounds(g: CellGrid, x: number, y: number): boolean {
-  return (
-    x >= g.minX && y >= g.minY && x < g.minX + g.width && y < g.minY + g.height
-  );
+  return x >= g.minX && y >= g.minY && x < g.minX + g.width && y < g.minY + g.height;
 }
 
 /**
@@ -272,12 +266,7 @@ export const MIN_GLADE_CELLS = 14;
 
 /** How far a cell is from the nearest edge of the rectangle, in cells. */
 function distanceFromEdge(bounds: Bounds, x: number, y: number): number {
-  return Math.min(
-    x - bounds.minX,
-    bounds.maxX - x,
-    y - bounds.minY,
-    bounds.maxY - y,
-  );
+  return Math.min(x - bounds.minX, bounds.maxX - x, y - bounds.minY, bounds.maxY - y);
 }
 
 /** A field's swing about 1, so it multiplies the density rather than sets it. */
@@ -318,11 +307,7 @@ export function growForest(
 
   const path = new Set<number>();
   const paths = clamp(Math.round(config.paths), PATH_COUNT_RANGE.min, PATH_COUNT_RANGE.max);
-  const width = clamp(
-    Math.round(config.pathWidth),
-    PATH_WIDTH_RANGE.min,
-    PATH_WIDTH_RANGE.max,
-  );
+  const width = clamp(Math.round(config.pathWidth), PATH_WIDTH_RANGE.min, PATH_WIDTH_RANGE.max);
   for (let index = 0; index < paths; index++) {
     for (const i of carvePath(grid, bounds, config.seed, index, width)) {
       path.add(i);
@@ -333,8 +318,7 @@ export function growForest(
   const density = clamp01(config.density / 100);
   const falloff = Math.max(
     MIN_PATH_FALLOFF,
-    Math.min(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) *
-      PATH_FALLOFF_SHARE,
+    Math.min(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) * PATH_FALLOFF_SHARE,
   );
 
   for (let i = 0; i < grid.cells.length; i++) {
@@ -342,12 +326,18 @@ export function growForest(
     const x = gridX(grid, i);
     const y = gridY(grid, i);
     const fromPath = clamp01((distance[i] ?? falloff) / falloff);
-    const thicket = swing(x, y, config.seed ^ 0x7471, THICKET_SCALE, THICKET_OCTAVES, THICKET_SWING);
+    const thicket = swing(
+      x,
+      y,
+      config.seed ^ 0x7471,
+      THICKET_SCALE,
+      THICKET_OCTAVES,
+      THICKET_SWING,
+    );
     const clump = swing(x, y, config.seed ^ 0xc10b, CLUMP_SCALE, CLUMP_OCTAVES, CLUMP_SWING);
     const edge =
       EDGE_DITHER_FLOOR +
-      (1 - EDGE_DITHER_FLOOR) *
-        clamp01(distanceFromEdge(bounds, x, y) / EDGE_DITHER);
+      (1 - EDGE_DITHER_FLOOR) * clamp01(distanceFromEdge(bounds, x, y) / EDGE_DITHER);
     const chance = density * fromPath * thicket * clump * edge;
     if (randomAt(x, y, config.seed) < chance) grid.cells[i] = 0;
   }
@@ -466,9 +456,7 @@ export function planForest(
 
   // Water takes out whatever it runs through, trees included, exactly as it
   // takes out a cave's rock: a stream does not stop at the tree line.
-  const water = config.waterTileId
-    ? erodeWithWater(grid, bounds, config)
-    : new Set<number>();
+  const water = config.waterTileId ? erodeWithWater(grid, bounds, config) : new Set<number>();
   cutFords(grid, water);
 
   const plantable = openCells(grid).filter((c) => {
@@ -517,11 +505,7 @@ export function planForest(
 }
 
 /** Cut the water's channel through the wood, taking out the trees in its way. */
-function erodeWithWater(
-  grid: CellGrid,
-  bounds: Bounds,
-  config: ForestConfig,
-): Set<number> {
+function erodeWithWater(grid: CellGrid, bounds: Bounds, config: ForestConfig): Set<number> {
   const water = planWater(grid, bounds, config.seed ^ 0x7a7e2, config.waterCoverage);
   for (const i of water) setOpen(grid, gridX(grid, i), gridY(grid, i), true);
   return water;

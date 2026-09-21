@@ -70,10 +70,7 @@ export function transitionAddress(note: {
  * the next cell. An anonymous tile is found by its cell, and a step drops its
  * appear — which costs nothing today, since everything that walks has an owner.
  */
-export function placementIdentity(placed: {
-  owner?: string;
-  itemId?: string;
-}): string | undefined {
+export function placementIdentity(placed: { owner?: string; itemId?: string }): string | undefined {
   if (placed.owner) return `owner:${placed.owner}`;
   if (placed.itemId) return `item:${placed.itemId}`;
   return undefined;
@@ -139,11 +136,7 @@ export function resolveTransitionSlot(
 
 /** How much of the tile is showing now. @see shownFraction */
 export function liveShown(live: LiveTransition, clockMs: number): number {
-  return shownFraction(
-    live.note.side,
-    clockMs - live.startMs,
-    live.transition.durationMs,
-  );
+  return shownFraction(live.note.side, clockMs - live.startMs, live.transition.durationMs);
 }
 
 /** Where a transitioning sprite stands, `shown` of the way to whole. */
@@ -161,10 +154,7 @@ export type TransitionPose = {
  * 0 and whole at 1, and a drop is `levels` up at 0 and landed at 1. So a tile
  * that appears falls in, and one that disappears would rise out.
  */
-export function transitionPose(
-  transition: Transition,
-  shown: number,
-): TransitionPose {
+export function transitionPose(transition: Transition, shown: number): TransitionPose {
   return {
     scale: transition.scale ? shown : 1,
     dropLevels: transition.drop ? transition.drop.levels * (1 - shown) : 0,
@@ -303,11 +293,7 @@ export function appendTransitionEmitters(
  */
 export function fadingLightScale(live: LiveTransition, clockMs: number): number {
   const gridMs = Math.floor(clockMs / LIGHT_FADE_STEP_MS) * LIGHT_FADE_STEP_MS;
-  return shownFraction(
-    "disappear",
-    gridMs - live.startMs,
-    live.transition.durationMs,
-  );
+  return shownFraction("disappear", gridMs - live.startMs, live.transition.durationMs);
 }
 
 /** Values of {@link TransitionUniforms}.uFxPattern. */
@@ -425,11 +411,7 @@ export function writeTransitionUniforms(
   }
 }
 
-function farthestCornerPx(
-  originX: number,
-  originY: number,
-  sprite: TransitionSprite,
-): number {
+function farthestCornerPx(originX: number, originY: number, sprite: TransitionSprite): number {
   const halfW = sprite.w / 2;
   const halfH = sprite.h / 2;
   let farthest = 1;
@@ -445,9 +427,7 @@ function farthestCornerPx(
 
 /** The sRGB transfer curve, undone. */
 function srgbToLinear(channel: number): number {
-  return channel <= 0.04045
-    ? channel / 12.92
-    : ((channel + 0.055) / 1.055) ** 2.4;
+  return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
 }
 
 /**

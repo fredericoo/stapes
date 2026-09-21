@@ -141,20 +141,13 @@ export function ProjectileTab({
           // editor puts its own there: what an author is deciding is whether a
           // spray reads as a hit, and sixteen numbers do not answer that.
           <div className="flex flex-wrap items-start gap-4">
-            <VfxPreview
-              vfx={NO_VFX}
-              tiles={tiles}
-              tilesets={tilesets}
-              transitionPlay={play}
-            />
+            <VfxPreview vfx={NO_VFX} tiles={tiles} tilesets={tilesets} transitionPlay={play} />
             {/* Basis zero rather than content width, so the controls take what
                 the canvas leaves and reflow inside it. */}
             <div className="min-w-0 flex-1 basis-80">
               <ParticleFields
                 particles={block.hit.particles ?? DEFAULT_IMPACT}
-                onChange={(particles) =>
-                  patch({ hit: { ...block.hit!, particles } })
-                }
+                onChange={(particles) => patch({ hit: { ...block.hit!, particles } })}
               />
             </div>
           </div>

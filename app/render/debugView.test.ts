@@ -163,8 +163,6 @@ describe("reach past the play square", () => {
   it("goes negative for a window narrower than the view", () => {
     const play = { x: 0, y: 0 };
     const cells = VIEW_PX / CELL_SIZE;
-    expect(
-      reachInCells({ x0: 3, y0: 3, x1: cells - 3, y1: cells - 3 }, play),
-    ).toBe(-3);
+    expect(reachInCells({ x0: 3, y0: 3, x1: cells - 3, y1: cells - 3 }, play)).toBe(-3);
   });
 });

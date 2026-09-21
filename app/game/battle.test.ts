@@ -5,27 +5,19 @@ import { defFrom, maxHpFrom, resolveBattler } from "../lib/battler";
 import { ATTACKER_SELECTOR, resolveBrain, slot } from "../lib/brain";
 import { conditionLeaves } from "../lib/conditions";
 import { emptyMap, replaceStack } from "../lib/mapData";
-import {
-  COMBAT_DURATION_MS,
-  COMBAT_STATUS_ID,
-  statusesById,
-} from "../lib/status";
+import { COMBAT_DURATION_MS, COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import type { MapFile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, normalizeTiles } from "../lib/types";
 import {
   ASSAILANT_GRACE_MS,
   attackIntervalMs,
   MIN_ATTACK_TICKS,
-  MIN_GUARD_SHARE,
   STRIKE_RECOVERY_STEPS,
   SWING_WINDUP_SHARE,
 } from "./combat";
 import { STRIKE_DURATION_MS, TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
-import type {
-  TileTransitionNote,
-  Transition,
-} from "../lib/tileTransition";
+import type { TileTransitionNote, Transition } from "../lib/tileTransition";
 import { FRAME, tile as baseTile } from "../lib/testTile";
 
 /**
@@ -49,9 +41,7 @@ import { FRAME, tile as baseTile } from "../lib/testTile";
  * Still overridable: a test that wants a stat block the kind refuses passes its
  * own `kind` and gets exactly that.
  */
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
+function tile(partial: Record<string, unknown> & Pick<TileDef, "id" | "height">): TileDef {
   const interactions = partial.interactions as { battler?: unknown } | undefined;
   return baseTile({
     kind: interactions?.battler ? "battler" : "prop",
@@ -71,10 +61,7 @@ const brawlerBrain = {
   states: {
     idle: { do: [{ action: "hold" as const }] },
     fighting: {
-      do: [
-        { action: "attack" as const, of: slot("foe") },
-        { action: "hold" as const },
-      ],
+      do: [{ action: "attack" as const, of: slot("foe") }, { action: "hold" as const }],
     },
   },
   transitions: [
@@ -177,7 +164,11 @@ const tiles: TileDef[] = [
     actor: true,
     walkable: false,
     interactions: {
-      battler: { baseHp: FIXTURE_BASE_HP, masteries: { toughness: DUMMY_TOUGHNESS }, naturalWeapon: claws({}) },
+      battler: {
+        baseHp: FIXTURE_BASE_HP,
+        masteries: { toughness: DUMMY_TOUGHNESS },
+        naturalWeapon: claws({}),
+      },
     },
   }),
   // Armoured past anything the player can do to it. That takes four times the
@@ -193,7 +184,11 @@ const tiles: TileDef[] = [
       // Defence is the weapon's here: nothing is worn, and what a held thing
       // turns aside is its own `def`. Armour is the other source — see
       // `./equipment`'s `wornDefence`.
-      battler: { baseHp: FIXTURE_BASE_HP, masteries: { toughness: 2 }, naturalWeapon: claws({ def: 99 }) },
+      battler: {
+        baseHp: FIXTURE_BASE_HP,
+        masteries: { toughness: 2 },
+        naturalWeapon: claws({ def: 99 }),
+      },
     },
   }),
   tile({
@@ -264,10 +259,7 @@ function field(half = 3): MapFile {
       map = replaceStack(map, x, y, 0, [{ tileId: "grass" }]);
     }
   }
-  map = replaceStack(map, 0, 0, 0, [
-    { tileId: "grass" },
-    { tileId: "player", direction: "e" },
-  ]);
+  map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "e" }]);
   return map;
 }
 
@@ -352,11 +344,7 @@ function self(session: GameSession) {
  * knocks a crate over is the same blow whenever it lands. The ones that *are*
  * about the approach set their own target and do their own ticking.
  */
-function fight(
-  session: GameSession,
-  actorId: string | null,
-  windupMs = CERTAIN_WINDUP_MS,
-) {
+function fight(session: GameSession, actorId: string | null, windupMs = CERTAIN_WINDUP_MS) {
   session.setTarget(actorId);
   session.setAttackMode(true);
   for (let elapsed = 0; elapsed < windupMs; elapsed += TICK_MS) {
@@ -377,7 +365,10 @@ const CERTAIN_WINDUP_MS = attackIntervalMs(CERTAIN.spd) * SWING_WINDUP_SHARE;
 
 describe("hit points", () => {
   it("start full, and only exist on a body that has stats", () => {
-    const session = new GameSession(withBody(withBody(field(), 1, 0, "dummy"), 2, 0, "statue"), tiles);
+    const session = new GameSession(
+      withBody(withBody(field(), 1, 0, "dummy"), 2, 0, "statue"),
+      tiles,
+    );
 
     expect(self(session).hp).toBe(PLAYER_MAX_HP);
     expect(self(session).maxHp).toBe(PLAYER_MAX_HP);
@@ -1331,9 +1322,7 @@ describe("shooting at somebody", () => {
 
     advanceUntil(session, () => !arrows(session).some((f) => f.id === shot.id));
 
-    const receipts = session
-      .drainDamage()
-      .filter((receipt) => receipt.outcome === "hit");
+    const receipts = session.drainDamage().filter((receipt) => receipt.outcome === "hit");
     expect(receipts).toHaveLength(1);
     expect(receipts[0]!.amount).toBe(1);
   });
@@ -1432,9 +1421,7 @@ describe("shooting at somebody", () => {
     let inTheAir: { hit: boolean; remainingMs: number }[] = [];
     for (let elapsed = 0; elapsed < ENOUGH_SHOTS_MS; elapsed += TICK_MS) {
       session.tick(TICK_MS);
-      const landed = session
-        .drainDamage()
-        .some((receipt) => receipt.outcome === "hit");
+      const landed = session.drainDamage().some((receipt) => receipt.outcome === "hit");
 
       const arriving: typeof inTheAir = [];
       const stillFlying: typeof inTheAir = [];
@@ -1641,10 +1628,7 @@ describe("a bow and a knife", () => {
   );
 
   it("shoots at something across the yard", () => {
-    const session = new GameSession(
-      withBody(field(6), 4, 0, "dummy"),
-      duellistTiles,
-    );
+    const session = new GameSession(withBody(field(6), 4, 0, "dummy"), duellistTiles);
     fight(session, bodyOf(session, "dummy")!.id);
 
     advanceUntilShotLands(session);
@@ -1659,10 +1643,7 @@ describe("a bow and a knife", () => {
    * missing.
    */
   it("uses the knife on something in its face, and fires nothing", () => {
-    const session = new GameSession(
-      withBody(field(), 1, 0, "dummy"),
-      duellistTiles,
-    );
+    const session = new GameSession(withBody(field(), 1, 0, "dummy"), duellistTiles);
     fight(session, bodyOf(session, "dummy")!.id);
 
     advance(session, 1000);
@@ -1677,10 +1658,7 @@ describe("a bow and a knife", () => {
    * first blow only if the knife happened to be up first.
    */
   it("keeps swinging the knife rather than stalling on the bow's turn", () => {
-    const session = new GameSession(
-      withBody(field(), 1, 0, "dummy"),
-      duellistTiles,
-    );
+    const session = new GameSession(withBody(field(), 1, 0, "dummy"), duellistTiles);
     fight(session, bodyOf(session, "dummy")!.id);
 
     expect(swingsOver(session, 1000)).toBeGreaterThan(1);
@@ -1693,10 +1671,7 @@ describe("a bow and a knife", () => {
    * skipped hand as an empty one would give every archer a free melee weapon.
    */
   it("does not fall back to its fists when the only weapon is out of range", () => {
-    const session = new GameSession(
-      withBody(field(), 1, 0, "dummy"),
-      bowOnlyTiles,
-    );
+    const session = new GameSession(withBody(field(), 1, 0, "dummy"), bowOnlyTiles);
     fight(session, bodyOf(session, "dummy")!.id);
 
     advance(session, 1000);
@@ -1707,10 +1682,7 @@ describe("a bow and a knife", () => {
 
   /** And the same body, backed off, shoots exactly as it always did. */
   it("shoots once it has the room", () => {
-    const session = new GameSession(
-      withBody(field(6), 4, 0, "dummy"),
-      bowOnlyTiles,
-    );
+    const session = new GameSession(withBody(field(6), 4, 0, "dummy"), bowOnlyTiles);
     fight(session, bodyOf(session, "dummy")!.id);
 
     advanceUntilShotLands(session);
@@ -1817,11 +1789,9 @@ describe("venom", () => {
           })
         : t,
     );
-    const session = new GameSession(
-      withBody(field(), 1, 0, "dummy"),
-      armedPlayer,
-      { statuses: catalogue },
-    );
+    const session = new GameSession(withBody(field(), 1, 0, "dummy"), armedPlayer, {
+      statuses: catalogue,
+    });
     fight(session, bodyOf(session, "dummy")!.id);
 
     advanceUntil(session, () => statusesOn(session, "dummy").length > 0);
@@ -1840,13 +1810,9 @@ describe("venom", () => {
    * that never happens, which is the correct behaviour and an invisible one.
    */
   it("is what the snake in data/tiles.json actually bites with", () => {
-    const snake = normalizeTiles(tilesJson as unknown[]).find(
-      (t) => t.id === "snake",
-    );
+    const snake = normalizeTiles(tilesJson as unknown[]).find((t) => t.id === "snake");
     const bite = resolveBattler(snake!)!.naturalWeapon;
-    expect(bite.statuses).toEqual([
-      { id: "poison", chance: 10, fromMs: 30_000, toMs: 60_000 },
-    ]);
+    expect(bite.statuses).toEqual([{ id: "poison", chance: 10, fromMs: 30_000, toMs: 60_000 }]);
     expect(statusesById(statusesJson as unknown[])).toHaveProperty("poison");
   });
 
@@ -1860,7 +1826,8 @@ describe("venom", () => {
     advance(session, ENOUGH_SWINGS_MS);
 
     expect(bodyOf(session, "dummy")!.hp!).toBeLessThan(DUMMY_MAX_HP);
-    expect(statusesOn(session, "dummy")).toEqual([]);  });
+    expect(statusesOn(session, "dummy")).toEqual([]);
+  });
 });
 
 /**
@@ -2064,10 +2031,7 @@ describe("what a swing costs in footwork", () => {
    * the blow goes out finishes.
    */
   it("never interrupts a walk already in flight", () => {
-    const session = new GameSession(
-      withBody(field(), 1, 0, "anvil"),
-      ponderous(PLODDER_WALK_MS),
-    );
+    const session = new GameSession(withBody(field(), 1, 0, "anvil"), ponderous(PLODDER_WALK_MS));
     session.setInput({ directions: ["n"] });
     session.tick(TICK_MS);
     expect(self(session).walk).not.toBeNull();
@@ -2087,10 +2051,7 @@ describe("what a swing costs in footwork", () => {
    * facing away from the thing it had just hit.
    */
   it("keeps facing what it struck when the step it swung on lands", () => {
-    const session = new GameSession(
-      withBody(field(), 1, 0, "anvil"),
-      quickHanded(PLODDER_WALK_MS),
-    );
+    const session = new GameSession(withBody(field(), 1, 0, "anvil"), quickHanded(PLODDER_WALK_MS));
     session.setInput({ directions: ["w"] });
     session.tick(TICK_MS);
     expect(self(session).walk).not.toBeNull();
@@ -2274,9 +2235,7 @@ describe("being in combat", () => {
   const ONE_SECOND_MS = 1000;
 
   function combatOn(session: GameSession, id: string): boolean {
-    return (session.statusesOf(id) ?? []).some(
-      (status) => status.defId === COMBAT_STATUS_ID,
-    );
+    return (session.statusesOf(id) ?? []).some((status) => status.defId === COMBAT_STATUS_ID);
   }
 
   it("starts on the first swing, for the player and the body swung at", () => {

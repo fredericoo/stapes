@@ -124,11 +124,7 @@ export type ItemDrag = {
   /** Attach to a target's element so the drag can find it under the pointer. */
   register: (key: string, target: DropTarget, el: HTMLElement | null) => void;
   /** A press landed on a slot holding something. */
-  startDrag: (
-    event: React.PointerEvent,
-    slot: SlotRef,
-    instance: ItemInstance,
-  ) => void;
+  startDrag: (event: React.PointerEvent, slot: SlotRef, instance: ItemInstance) => void;
   /**
    * A slot was clicked, tapped, or activated from the keyboard.
    *
@@ -177,9 +173,7 @@ export function useItemDrag({
    */
   world?: {
     /** Carrying this, out here — or null for "no longer over the world". */
-    over: (
-      drag: { held: HeldItem; point: { x: number; y: number } } | null,
-    ) => void;
+    over: (drag: { held: HeldItem; point: { x: number; y: number } } | null) => void;
     drop: (held: HeldItem, point: { x: number; y: number }) => void;
   };
 }): ItemDrag {
@@ -237,13 +231,10 @@ export function useItemDrag({
     [],
   );
 
-  const register = useCallback(
-    (key: string, target: DropTarget, el: HTMLElement | null) => {
-      if (el) slots.current.set(key, { target, el });
-      else slots.current.delete(key);
-    },
-    [],
-  );
+  const register = useCallback((key: string, target: DropTarget, el: HTMLElement | null) => {
+    if (el) slots.current.set(key, { target, el });
+    else slots.current.delete(key);
+  }, []);
 
   /**
    * Which of the targets on screen would take this thing, asked once per lift.
@@ -368,9 +359,7 @@ export function useItemDrag({
     const onPointerMove = (event: PointerEvent) => {
       const pending = armed.current;
       if (pending) {
-        const travelled =
-          Math.abs(event.clientX - pending.x) +
-          Math.abs(event.clientY - pending.y);
+        const travelled = Math.abs(event.clientX - pending.x) + Math.abs(event.clientY - pending.y);
         if (travelled < DRAG_THRESHOLD_PX) return;
         armed.current = null;
         const accepting = findTargets(pending.held);
@@ -420,11 +409,7 @@ export function useItemDrag({
       const entry = landing ? slots.current.get(landing) : null;
       const target = entry ? resolveTarget(entry.target, inHand) : null;
       const point = pointRef.current;
-      const release = releaseTo(
-        target,
-        point ? slotAt(point.x, point.y, inHand) : null,
-        point,
-      );
+      const release = releaseTo(target, point ? slotAt(point.x, point.y, inHand) : null, point);
       if (release.kind === "slot") onMove(inHand.from, release.to);
       else if (release.kind === "world" && point) {
         worldRef.current?.drop(inHand, point);

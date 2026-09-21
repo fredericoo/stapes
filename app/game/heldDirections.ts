@@ -102,10 +102,7 @@ export class HeldDirections {
   }
 
   setModifiers(modifiers: { faceOnly: boolean; preferDescend: boolean }) {
-    if (
-      modifiers.faceOnly === this.faceOnly &&
-      modifiers.preferDescend === this.preferDescend
-    ) {
+    if (modifiers.faceOnly === this.faceOnly && modifiers.preferDescend === this.preferDescend) {
       return;
     }
     this.faceOnly = modifiers.faceOnly;
@@ -123,12 +120,7 @@ export class HeldDirections {
    * The walk reads {@link autoPressed} on its next frame and gives up.
    */
   clear() {
-    if (
-      this.held.length === 0 &&
-      this.auto === null &&
-      !this.faceOnly &&
-      !this.preferDescend
-    ) {
+    if (this.held.length === 0 && this.auto === null && !this.faceOnly && !this.preferDescend) {
       return;
     }
     this.held.length = 0;

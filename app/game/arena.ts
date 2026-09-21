@@ -1,8 +1,4 @@
-import {
-  type BattlerDef,
-  type FightingStats,
-  resolveBattler,
-} from "../lib/battler";
+import { type BattlerDef, type FightingStats, resolveBattler } from "../lib/battler";
 import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
 import { type Masteries, MASTERIES } from "../lib/mastery";
 import type { TileDef } from "../lib/types";
@@ -84,10 +80,7 @@ function emptySlots(): Record<EquipSlot, string | null> {
  * is the shape a form edits. Absent and zero mean the same thing to the
  * simulation — see `../lib/mastery` — so nothing downstream can tell.
  */
-export function fighterForTile(
-  tileId: string,
-  tilesById: Record<string, TileDef>,
-): ArenaFighter {
+export function fighterForTile(tileId: string, tilesById: Record<string, TileDef>): ArenaFighter {
   const def = tilesById[tileId];
   const battler = def ? resolveBattler(def) : null;
   const masteries: Masteries = {};
@@ -126,10 +119,7 @@ export function bodyOf(
  * `restoredEquipment` keep, and for the same reason: the world moved, the setup
  * did not, and neither is corrupt.
  */
-export function equipmentOf(
-  fighter: ArenaFighter,
-  tilesById: Record<string, TileDef>,
-): Equipment {
+export function equipmentOf(fighter: ArenaFighter, tilesById: Record<string, TileDef>): Equipment {
   const equipment = emptyEquipment();
   for (const slot of EQUIP_SLOTS) {
     const tileId = fighter.equipment[slot];
@@ -178,15 +168,11 @@ export function swingsOf(
   const body = bodyOf(fighter, tilesById);
   if (!body) return [];
   const equipment = equipmentOf(fighter, tilesById);
-  const hands = HANDS.filter((hand) =>
-    weaponSwungBy(equipment, tilesById, hand),
-  );
+  const hands = HANDS.filter((hand) => weaponSwungBy(equipment, tilesById, hand));
   // Bare hands are a weapon, so a body with nothing to swing still throws one
   // blow — `effectiveBattler` takes null and means exactly that.
   const rotation: (Hand | null)[] = hands.length > 0 ? hands : [null];
-  return rotation.map((hand) =>
-    effectiveBattler(body, equipment, tilesById, hand),
-  );
+  return rotation.map((hand) => effectiveBattler(body, equipment, tilesById, hand));
 }
 
 /** Every tile that could stand in the ring, in the order the catalogue holds. */

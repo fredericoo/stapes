@@ -28,10 +28,7 @@ const body = (tileId: string) => ({ tileId, owner: "a" });
 
 describe("clumpExtents", () => {
   it("leaves a plain stack alone, one extent per tile", () => {
-    const extents = clumpExtents(
-      [{ tileId: "floor" }, { tileId: "crate" }],
-      tilesById,
-    );
+    const extents = clumpExtents([{ tileId: "floor" }, { tileId: "crate" }], tilesById);
     expect(extents).toEqual([
       { foot: 0, top: 0 },
       { foot: 0, top: HEIGHT_PER_LEVEL / 2 },
@@ -72,10 +69,7 @@ describe("clumpExtents", () => {
   });
 
   it("does not merge a tile resting on a solid one of the same height", () => {
-    const extents = clumpExtents(
-      [{ tileId: "wall" }, { tileId: "crate" }],
-      tilesById,
-    );
+    const extents = clumpExtents([{ tileId: "wall" }, { tileId: "crate" }], tilesById);
     expect(extents[0]).toEqual({ foot: 0, top: HEIGHT_PER_LEVEL });
     expect(extents[1]!.foot).toBe(HEIGHT_PER_LEVEL);
   });
@@ -94,9 +88,7 @@ describe("clumpExtents", () => {
 describe("clumpExtentAt", () => {
   it("answers for one slot the same as the whole stack does", () => {
     const stack = [{ tileId: "floor" }, { tileId: "door-open" }, body("player")];
-    expect(clumpExtentAt(stack, 2, tilesById)).toEqual(
-      clumpExtents(stack, tilesById)[2],
-    );
+    expect(clumpExtentAt(stack, 2, tilesById)).toEqual(clumpExtents(stack, tilesById)[2]);
   });
 
   it("answers for a slot that is not there", () => {
@@ -127,11 +119,7 @@ describe("clumpExtentOnArrival", () => {
   it("rests on a crate rather than joining it", () => {
     const half = HEIGHT_PER_LEVEL / 2;
     expect(
-      clumpExtentOnArrival(
-        [{ tileId: "floor" }, { tileId: "crate" }],
-        player,
-        tilesById,
-      ),
+      clumpExtentOnArrival([{ tileId: "floor" }, { tileId: "crate" }], player, tilesById),
     ).toEqual({ foot: half, top: half + HEIGHT_PER_LEVEL - 1 });
   });
 

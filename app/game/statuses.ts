@@ -2,12 +2,7 @@ import type { FightingStats } from "../lib/battler";
 import type { Element } from "../lib/element";
 import type { FormulaScope } from "../lib/formula";
 import { MAX_PERCENT_STAT } from "../lib/item";
-import {
-  COMBAT_DURATION_MS,
-  COMBAT_STATUS_ID,
-  MODIFIER_KEYS,
-  type StatusDef,
-} from "../lib/status";
+import { COMBAT_DURATION_MS, COMBAT_STATUS_ID, MODIFIER_KEYS, type StatusDef } from "../lib/status";
 import type { Blame } from "./blame";
 import { TICK_MS } from "./constants";
 import type { Rng } from "./rng";
@@ -187,9 +182,7 @@ export function secondsLeft(remainingMs: number): number {
  */
 export function statusReading(statuses: readonly StatusInstance[]): string {
   if (statuses.length === 0) return "";
-  return statuses
-    .map((status) => `${status.defId}:${secondsLeft(status.remainingMs)}`)
-    .join("|");
+  return statuses.map((status) => `${status.defId}:${secondsLeft(status.remainingMs)}`).join("|");
 }
 
 /**
@@ -306,12 +299,7 @@ export function applyStatus(
     if (instance.defId !== def.id) return instance;
     // Rebuilt rather than spread over, so an absent cause genuinely removes the
     // one that was there: spreading would leave the old key untouched.
-    const {
-      causedBy: _wasCausedBy,
-      elements: _wereElements,
-      blame: _wasBlame,
-      ...rest
-    } = instance;
+    const { causedBy: _wasCausedBy, elements: _wereElements, blame: _wasBlame, ...rest } = instance;
     return {
       ...rest,
       remainingMs,
@@ -334,9 +322,7 @@ export function applyStatus(
  * Refreshed to the full minute rather than stacked: the rule is "a minute
  * since you last fought", not "a minute per blow".
  */
-export function enterCombat(
-  current: readonly StatusInstance[],
-): readonly StatusInstance[] {
+export function enterCombat(current: readonly StatusInstance[]): readonly StatusInstance[] {
   const fresh: StatusInstance = {
     defId: COMBAT_STATUS_ID,
     durationMs: COMBAT_DURATION_MS,
@@ -344,9 +330,7 @@ export function enterCombat(
     sinceEffectMs: 0,
   };
   if (!inCombat(current)) return [...current, fresh];
-  return current.map((instance) =>
-    instance.defId === COMBAT_STATUS_ID ? fresh : instance,
-  );
+  return current.map((instance) => (instance.defId === COMBAT_STATUS_ID ? fresh : instance));
 }
 
 /** Whether this list holds the combat flag. See `../lib/status`'s `COMBAT_STATUS`. */
@@ -473,9 +457,7 @@ export function advanceStatuses(
           // answerable is a fact about this application: one status def burns
           // for whoever lit each fire, and on whichever wheel lit it.
           ...(instance.causedBy ? { causedBy: instance.causedBy } : {}),
-          ...(instance.elements?.length
-            ? { elements: instance.elements }
-            : {}),
+          ...(instance.elements?.length ? { elements: instance.elements } : {}),
           ...(instance.blame ? { blame: instance.blame } : {}),
         });
       }
@@ -571,8 +553,7 @@ export function withStatusModifiers(
   if (!any) return stats;
 
   const atLeast = (value: number, floor: number) => Math.max(floor, value);
-  const percent = (value: number) =>
-    Math.max(0, Math.min(MAX_PERCENT_STAT, value));
+  const percent = (value: number) => Math.max(0, Math.min(MAX_PERCENT_STAT, value));
 
   return {
     ...stats,

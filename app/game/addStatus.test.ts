@@ -221,17 +221,11 @@ function whereIs(map: MapFile, tileId: string) {
 
 /** The player at the origin facing east, with one cell of interest beside them. */
 function world(beside: string, tileId = "player"): MapFile {
-  let map = replaceStack(emptyMap(), 0, 0, 0, [
-    { tileId: "grass" },
-    { tileId, direction: "e" },
-  ]);
+  let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId, direction: "e" }]);
   // Every map needs exactly one player tile, so a creature's world still parks
   // one somewhere out of the way.
   if (tileId !== "player") {
-    map = replaceStack(map, 9, 9, 0, [
-      { tileId: "grass" },
-      { tileId: "player", direction: "s" },
-    ]);
+    map = replaceStack(map, 9, 9, 0, [{ tileId: "grass" }, { tileId: "player", direction: "s" }]);
   }
   return replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: beside }]);
 }
@@ -271,26 +265,22 @@ describe("reachableAddStatusAt", () => {
   it("offers coals only from their own cell", () => {
     const map = world("coals");
     expect(reachableAddStatusAt(map, tilesById, actor, ref)).toBeNull();
-    expect(
-      reachableAddStatusAt(map, tilesById, { x: 1, y: 0, z: 0 }, ref),
-    ).toMatchObject({ trigger: "interactOver" });
+    expect(reachableAddStatusAt(map, tilesById, { x: 1, y: 0, z: 0 }, ref)).toMatchObject({
+      trigger: "interactOver",
+    });
   });
 
   it("never offers a fire you walk into, which answers to no press", () => {
     const map = world("fire");
     expect(canAddStatusFrom(map, tilesById, actor, ref)).toBe(false);
-    expect(canAddStatusFrom(map, tilesById, { x: 1, y: 0, z: 0 }, ref)).toBe(
-      false,
-    );
+    expect(canAddStatusFrom(map, tilesById, { x: 1, y: 0, z: 0 }, ref)).toBe(false);
   });
 });
 
 describe("pressing something that grants a status", () => {
   it("puts the condition on whoever pressed it", () => {
     const play = session(world("brazier"));
-    expect(play.activateAddStatus({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(
-      true,
-    );
+    expect(play.activateAddStatus({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(true);
     expect(held(play)).toEqual(["burned"]);
   });
 
@@ -309,9 +299,7 @@ describe("pressing something that grants a status", () => {
 
   it("refuses a fire that answers to no press", () => {
     const play = session(world("fire"));
-    expect(play.activateAddStatus({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(
-      false,
-    );
+    expect(play.activateAddStatus({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(false);
     expect(held(play)).toEqual([]);
   });
 });
@@ -404,9 +392,7 @@ describe("stepping into a fire", () => {
     run(play, TICKS_PER_STEP);
     const arrival = play.statusesOf("npc:0,0,0,1")![0]!.remainingMs;
     run(play, TICKS_PER_SECOND);
-    expect(play.statusesOf("npc:0,0,0,1")![0]!.remainingMs).toBeGreaterThan(
-      arrival,
-    );
+    expect(play.statusesOf("npc:0,0,0,1")![0]!.remainingMs).toBeGreaterThan(arrival);
   });
 
   it("leaves a body with no hit points alone however long it stands there", () => {
@@ -480,9 +466,7 @@ describe("a fire somebody conjured", () => {
     // A flame conjured on a bed of coals: the caster is spared the flame and
     // stands in the coals, which is why the skip is a `continue` rather than a
     // way out of the loop.
-    const play = session(
-      beside({ tileId: "fire" }, { tileId: "fire", castBy: "local" }),
-    );
+    const play = session(beside({ tileId: "fire" }, { tileId: "fire", castBy: "local" }));
     step(play, "e");
     expect(held(play)).toEqual(["burned"]);
   });
@@ -503,10 +487,7 @@ describe("being shoved into a fire", () => {
       { tileId: "grass" },
       { tileId: "player", direction: "e" },
     ]);
-    map = replaceStack(map, 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "shovable", direction: "e" },
-    ]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "shovable", direction: "e" }]);
     return replaceStack(map, 2, 0, 0, [{ tileId: "grass" }, { tileId: "fire" }]);
   }
 
@@ -567,9 +548,7 @@ describe("what a condition coming on says", () => {
 
   it("says it for a brazier that was pressed, too — one door, one sentence", () => {
     const play = session(world("brazier"));
-    expect(play.activateAddStatus({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(
-      true,
-    );
+    expect(play.activateAddStatus({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(true);
     expect(play.drainNotices()).toEqual(["You are Burned"]);
   });
 

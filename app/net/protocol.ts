@@ -1,9 +1,5 @@
 import * as v from "valibot";
-import {
-  CAST_SQUARES,
-  type CastProgress,
-  type CastSlot,
-} from "../game/casting";
+import { CAST_SQUARES, type CastProgress, type CastSlot } from "../game/casting";
 import { MAX_SPELL_NAME_LENGTH } from "../lib/battler";
 import type { Equipment } from "../game/equipment";
 import type { SlotRef } from "../game/itemMoves";
@@ -177,9 +173,7 @@ const pvpPatchSchema = v.object({
 
 const extractionPatchSchema = v.object({
   actorId: v.string(),
-  progress: v.nullable(
-    v.object({ remainingMs: v.number(), durationMs: v.number() }),
-  ),
+  progress: v.nullable(v.object({ remainingMs: v.number(), durationMs: v.number() })),
 });
 
 /**

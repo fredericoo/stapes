@@ -1,8 +1,4 @@
-import {
-  type CheckpointBatch,
-  type Checkpoints,
-  memoryCheckpoints,
-} from "./checkpoints";
+import { type CheckpointBatch, type Checkpoints, memoryCheckpoints } from "./checkpoints";
 
 /**
  * Durable Object storage again, this time in a tab.
@@ -77,9 +73,7 @@ export class LocalStore {
    * and `pruneOldest` walks the result expecting the oldest first.
    */
   list<T>(options: { prefix: string }): Promise<Map<string, T>> {
-    const keys = [...this.values.keys()]
-      .filter((key) => key.startsWith(options.prefix))
-      .sort();
+    const keys = [...this.values.keys()].filter((key) => key.startsWith(options.prefix)).sort();
     const out = new Map<string, T>();
     for (const key of keys) out.set(key, decode(this.values.get(key)!) as T);
     return Promise.resolve(out);
@@ -118,9 +112,7 @@ export class LocalStore {
       this.written.delete(key);
       this.deleted.add(key);
     }
-    return Promise.resolve(
-      typeof keyOrKeys === "string" ? removed > 0 : removed,
-    );
+    return Promise.resolve(typeof keyOrKeys === "string" ? removed > 0 : removed);
   }
 
   /**

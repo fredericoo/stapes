@@ -46,10 +46,7 @@ import type { TileDef } from "./types";
  * natural weapon: there is no gate to explain, and a line saying "100%" where
  * there was never a question would be noise on every fist in the world.
  */
-export function weaponDemand(
-  masteries: Masteries,
-  requirements: Masteries | undefined,
-): string[] {
+export function weaponDemand(masteries: Masteries, requirements: Masteries | undefined): string[] {
   const asked = MASTERIES.filter((mastery) => (requirements?.[mastery] ?? 0) > 0);
   if (asked.length === 0) return [];
 
@@ -80,10 +77,7 @@ export function weaponDemand(
 }
 
 /** The same lines for a tile and a block of earned experience. */
-export function weaponDemandFor(
-  def: TileDef | undefined,
-  masteryXp: MasteryXp,
-): string[] {
+export function weaponDemandFor(def: TileDef | undefined, masteryXp: MasteryXp): string[] {
   const weapon = def ? resolveWeapon(def) : null;
   if (!weapon) return [];
   return weaponDemand(masteriesFromXp(masteryXp), weapon.requirements);

@@ -116,11 +116,7 @@ export const STRIKE_KINDS: StrikeKind[] = ["swing", "dodge"];
  * @param ranged whether the weapon puts something in the air — see
  *   `../lib/item`'s `isRanged`, which is the only place that question is decided.
  */
-export function swingToward(
-  from: ReachPoint,
-  to: ReachPoint,
-  ranged: boolean,
-): StrikeState | null {
+export function swingToward(from: ReachPoint, to: ReachPoint, ranged: boolean): StrikeState | null {
   if (ranged) return null;
   if (!withinReach(from, to, STRIKE_REACH)) return null;
   return leanBetween("swing", from, to);
@@ -139,10 +135,7 @@ export function swingToward(
  * The delta runs from the attacker to the defender, so the defender travels
  * along it — away.
  */
-export function dodgeAway(
-  defender: ReachPoint,
-  attacker: ReachPoint,
-): StrikeState | null {
+export function dodgeAway(defender: ReachPoint, attacker: ReachPoint): StrikeState | null {
   return leanBetween("dodge", attacker, defender);
 }
 
@@ -167,11 +160,7 @@ export function outranksSwing(state: StrikeState | null): boolean {
   return state !== null && state.kind === "dodge" && state.elapsedMs === 0;
 }
 
-function leanBetween(
-  kind: StrikeKind,
-  from: ReachPoint,
-  to: ReachPoint,
-): StrikeState | null {
+function leanBetween(kind: StrikeKind, from: ReachPoint, to: ReachPoint): StrikeState | null {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   const dElev = to.elevAbs - from.elevAbs;

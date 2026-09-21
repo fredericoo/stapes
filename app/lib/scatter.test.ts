@@ -3,10 +3,7 @@ import { resolveScatterIndex, scatterHash } from "./scatter";
 import { getFrames, resolveTileSprite } from "./tileResolve";
 import { allTileSprites, type TileDef, type TileSprite } from "./types";
 
-const grass = (
-  scatter: TileSprite[],
-  extra: Partial<TileDef> = {},
-): TileDef => ({
+const grass = (scatter: TileSprite[], extra: Partial<TileDef> = {}): TileDef => ({
   id: "grass",
   name: "Grass",
   height: 0,
@@ -81,15 +78,9 @@ describe("resolveScatterIndex", () => {
   it("does not repeat along a row, a column or a diagonal", () => {
     // The failure a bad mix produces is stripes, and stripes are what somebody
     // laying a brick road would notice first.
-    const row = Array.from({ length: 16 }, (_, x) =>
-      resolveScatterIndex(x, 0, 0, tile, 4),
-    );
-    const col = Array.from({ length: 16 }, (_, y) =>
-      resolveScatterIndex(0, y, 0, tile, 4),
-    );
-    const diag = Array.from({ length: 16 }, (_, i) =>
-      resolveScatterIndex(i, i, 0, tile, 4),
-    );
+    const row = Array.from({ length: 16 }, (_, x) => resolveScatterIndex(x, 0, 0, tile, 4));
+    const col = Array.from({ length: 16 }, (_, y) => resolveScatterIndex(0, y, 0, tile, 4));
+    const diag = Array.from({ length: 16 }, (_, i) => resolveScatterIndex(i, i, 0, tile, 4));
     for (const line of [row, col, diag]) {
       expect(new Set(line).size).toBeGreaterThan(1);
     }
@@ -102,10 +93,7 @@ describe("resolveScatterIndex", () => {
     const moved = Array.from({ length: 64 }, (_, i) => {
       const x = i % 8;
       const y = Math.floor(i / 8);
-      return (
-        resolveScatterIndex(x, y, 0, tile, 4) !==
-        resolveScatterIndex(x, y, 0, reseeded, 4)
-      );
+      return resolveScatterIndex(x, y, 0, tile, 4) !== resolveScatterIndex(x, y, 0, reseeded, 4);
     }).filter(Boolean).length;
     // Roughly three cells in four should land somewhere else with four faces.
     expect(moved).toBeGreaterThan(32);
@@ -118,10 +106,7 @@ describe("resolveScatterIndex", () => {
     const disagreements = Array.from({ length: 64 }, (_, i) => {
       const x = i % 8;
       const y = Math.floor(i / 8);
-      return (
-        resolveScatterIndex(x, y, 0, tile, 4) !==
-        resolveScatterIndex(x, y, 0, pebbles, 4)
-      );
+      return resolveScatterIndex(x, y, 0, tile, 4) !== resolveScatterIndex(x, y, 0, pebbles, 4);
     }).filter(Boolean).length;
     expect(disagreements).toBeGreaterThan(32);
   });
@@ -177,14 +162,10 @@ describe("resolving a scatter tile's sprite", () => {
     const walking = grass([spriteAt(0), spriteAt(1), spriteAt(2)], {
       states: { moving: { scatter: [spriteAt(10), spriteAt(11)] } },
     });
-    expect(
-      getFrames(walking, { state: "moving", scatterIndex: 1 })?.[0]?.sprite.rect.x,
-    ).toBe(11);
+    expect(getFrames(walking, { state: "moving", scatterIndex: 1 })?.[0]?.sprite.rect.x).toBe(11);
     // Face 2 is unauthored on the state, so it falls back to idle's face 2
     // rather than to one of the state's own.
-    expect(
-      getFrames(walking, { state: "moving", scatterIndex: 2 })?.[0]?.sprite.rect.x,
-    ).toBe(2);
+    expect(getFrames(walking, { state: "moving", scatterIndex: 2 })?.[0]?.sprite.rect.x).toBe(2);
   });
 
   it("is nothing at all when no face is authored", () => {

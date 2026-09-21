@@ -72,9 +72,9 @@ describe("how long a shot is in the air", () => {
 
   it("divides the screen distance by the speed", () => {
     expect(flightDurationMs(at(0, 0), at(4, 0), STEADY)).toBeCloseTo(4 * CELL_MS);
-    expect(
-      flightDurationMs(at(0, 0), at(4, 0), { ...STEADY, cellsPerSecond: 20 }),
-    ).toBeCloseTo(2 * CELL_MS);
+    expect(flightDurationMs(at(0, 0), at(4, 0), { ...STEADY, cellsPerSecond: 20 })).toBeCloseTo(
+      2 * CELL_MS,
+    );
   });
 
   /**
@@ -259,9 +259,7 @@ describe("how long a flight is drawn for", () => {
    * flight disposed of the moment it arrived had nothing left to dissolve.
    */
   it("outlives its arrival by whatever its disappear runs for", () => {
-    expect(
-      flightLifetimeMs(flying({ hit: true }), projectile({ disappear: FADE })),
-    ).toBe(300);
+    expect(flightLifetimeMs(flying({ hit: true }), projectile({ disappear: FADE }))).toBe(300);
   });
 
   /**
@@ -279,8 +277,7 @@ describe("how long a flight is drawn for", () => {
   });
 
   it("is the crossing alone for a projectile that only authored a hit", () => {
-    expect(flightLifetimeMs(flying({ hit: true }), projectile({ hit: FADE })))
-      .toBe(200);
+    expect(flightLifetimeMs(flying({ hit: true }), projectile({ hit: FADE }))).toBe(200);
   });
 });
 
@@ -301,15 +298,11 @@ describe("which side is playing on the arrow", () => {
    * crossing would be a shot that never finished arriving.
    */
   it("wears nothing between the appear and the landing", () => {
-    expect(flightPhase(flying({ elapsedMs: 150 }), projectile({ appear: FADE })))
-      .toBeNull();
+    expect(flightPhase(flying({ elapsedMs: 150 }), projectile({ appear: FADE }))).toBeNull();
   });
 
   it("falls away over the disappear, parked where it stopped", () => {
-    const phase = flightPhase(
-      flying({ elapsedMs: 250 }),
-      projectile({ disappear: FADE }),
-    );
+    const phase = flightPhase(flying({ elapsedMs: 250 }), projectile({ disappear: FADE }));
 
     expect(phase?.side).toBe("disappear");
     expect(phase?.shown).toBe(0.5);

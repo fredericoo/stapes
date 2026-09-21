@@ -70,23 +70,13 @@ function normalizeEntry(path: string): string | null {
   return cleaned;
 }
 
-function readString(
-  decoder: TextDecoder,
-  header: Uint8Array,
-  at: number,
-  length: number,
-): string {
+function readString(decoder: TextDecoder, header: Uint8Array, at: number, length: number): string {
   const field = header.subarray(at, at + length);
   const end = field.indexOf(0);
   return decoder.decode(end === -1 ? field : field.subarray(0, end));
 }
 
-function readOctal(
-  decoder: TextDecoder,
-  header: Uint8Array,
-  at: number,
-  length: number,
-): number {
+function readOctal(decoder: TextDecoder, header: Uint8Array, at: number, length: number): number {
   const text = readString(decoder, header, at, length).trim();
   const value = Number.parseInt(text, 8);
   return Number.isFinite(value) ? value : 0;

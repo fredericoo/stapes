@@ -49,8 +49,19 @@ const dialog: DialogDef = {
             },
           ],
         },
-        { label: "Bless me", then: [{ kind: "add_status", statusId: "luminous" }, { kind: "tag", tag: "blessed" }, say("Shine."), back] },
-        { label: "Cure me", then: [{ kind: "remove_status", statusId: "luminous" }, say("Dim."), back] },
+        {
+          label: "Bless me",
+          then: [
+            { kind: "add_status", statusId: "luminous" },
+            { kind: "tag", tag: "blessed" },
+            say("Shine."),
+            back,
+          ],
+        },
+        {
+          label: "Cure me",
+          then: [{ kind: "remove_status", statusId: "luminous" }, say("Dim."), back],
+        },
       ],
     },
   ],
@@ -65,7 +76,11 @@ const standsToServe: BrainDef = {
   },
   transitions: [
     { from: "idle", if: { cond: "talking" }, to: "serving" },
-    { from: "serving", if: { combinator: "and", not: true, rules: [{ cond: "talking" }] }, to: "idle" },
+    {
+      from: "serving",
+      if: { combinator: "and", not: true, rules: [{ cond: "talking" }] },
+      to: "idle",
+    },
   ],
 };
 
@@ -86,16 +101,44 @@ const tiles: TileDef[] = [
       battler: {
         baseHp: 8,
         masteries: { toughness: 10 },
-        naturalWeapon: { type: "weapon", damage: 5, def: 0, accuracy: 100, variance: 0, spd: 100, mastery: "fist" },
+        naturalWeapon: {
+          type: "weapon",
+          damage: 5,
+          def: 0,
+          accuracy: 100,
+          variance: 0,
+          spd: 100,
+          mastery: "fist",
+        },
         kit: [{ slot: "bag", tileId: "bag", chance: 100 }],
       },
     },
   }),
-  tile({ id: "bag", kind: "item", intangible: true, interactions: { item: { ...DEFAULT_CONTAINER } } }),
-  tile({ id: "shard", kind: "item", intangible: true, interactions: { item: { type: "artifact", pile: 99 } } }),
-  tile({ id: "potion", kind: "item", intangible: true, interactions: { item: { type: "consumable", label: "Drink", hp: 0, pile: 4 } } }),
+  tile({
+    id: "bag",
+    kind: "item",
+    intangible: true,
+    interactions: { item: { ...DEFAULT_CONTAINER } },
+  }),
+  tile({
+    id: "shard",
+    kind: "item",
+    intangible: true,
+    interactions: { item: { type: "artifact", pile: 99 } },
+  }),
+  tile({
+    id: "potion",
+    kind: "item",
+    intangible: true,
+    interactions: { item: { type: "consumable", label: "Drink", hp: 0, pile: 4 } },
+  }),
   tile({ id: "seller", height: 4, walkable: false, interactions: { dialog } }),
-  tile({ id: "server", height: 4, walkable: false, interactions: { dialog, brain: standsToServe } }),
+  tile({
+    id: "server",
+    height: 4,
+    walkable: false,
+    interactions: { dialog, brain: standsToServe },
+  }),
   ...normalizeTiles(tilesJson as unknown[]).filter((t) =>
     [
       "potion-salesman",
@@ -146,7 +189,8 @@ function trade(session: GameSession, amount: number) {
   return session.getSnapshot().conversation;
 }
 
-const lastLine = (session: GameSession) => session.getSnapshot().conversation?.transcript.at(-1)?.text;
+const lastLine = (session: GameSession) =>
+  session.getSnapshot().conversation?.transcript.at(-1)?.text;
 
 /** Run one brain tick's worth of simulation, collecting what was said. */
 function brainTick(session: GameSession): string[] {
@@ -159,9 +203,9 @@ function brainTick(session: GameSession): string[] {
 }
 
 function bagOf(session: GameSession) {
-  return session.getSnapshot().equipment.bag?.contents?.map((i) =>
-    i.count ? `${i.tileId}x${i.count}` : i.tileId,
-  );
+  return session
+    .getSnapshot()
+    .equipment.bag?.contents?.map((i) => (i.count ? `${i.tileId}x${i.count}` : i.tileId));
 }
 
 describe("opening a conversation", () => {
@@ -192,9 +236,17 @@ describe("opening a conversation", () => {
 
   it("talks across a step, and not up a whole level", () => {
     let map = fieldWith("seller");
-    map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }, { tileId: "step" }, { tileId: "seller" }]);
+    map = replaceStack(map, 2, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "step" },
+      { tileId: "seller" },
+    ]);
     expect(new GameSession(map, tiles).canTalk({ x: 2, y: 0, z: 0, stackIndex: 2 })).toBe(true);
-    map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }, { tileId: "block" }, { tileId: "seller" }]);
+    map = replaceStack(map, 2, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "block" },
+      { tileId: "seller" },
+    ]);
     expect(new GameSession(map, tiles).canTalk({ x: 2, y: 0, z: 0, stackIndex: 2 })).toBe(false);
   });
 
@@ -219,7 +271,12 @@ describe("opening a conversation", () => {
 
   it("is a body at all: a tile with only a dialog is adopted", () => {
     const session = new GameSession(fieldWith("seller"), tiles);
-    expect(session.actorSnapshots().map((a) => a.tileId).sort()).toEqual(["player", "seller"]);
+    expect(
+      session
+        .actorSnapshots()
+        .map((a) => a.tileId)
+        .sort(),
+    ).toEqual(["player", "seller"]);
   });
 });
 
@@ -264,7 +321,11 @@ describe("trading through the panel", () => {
     session.drainEquipmentChanges();
     talkTo(session, "seller");
     press(session, 1);
-    expect(trade(session, 1)?.transcript.slice(-2).map((e) => e.text)).toEqual(["Traded ×1.", "Here you go."]);
+    expect(
+      trade(session, 1)
+        ?.transcript.slice(-2)
+        .map((e) => e.text),
+    ).toEqual(["Traded ×1.", "Here you go."]);
     expect(bagOf(session)).toEqual(["potion"]);
     expect(session.drainEquipmentChanges()).toEqual([session.getSnapshot().self.id]);
   });
@@ -290,7 +351,11 @@ describe("trading through the panel", () => {
     expect(session.getSnapshot().equipment.offhand?.tileId).toBe("bag");
     talkTo(session, "seller");
     press(session, 1);
-    expect(lastLine(session)).toBeUndefined;
+    // Solvent, so the press opens the trade rather than refusing it. Written
+    // as `toBeUndefined` without its parentheses until oxlint noticed, so it
+    // never ran — and it was wrong: the transcript echoes the choice you
+    // pressed, so the last line here is "Buy".
+    expect(lastLine(session)).not.toBe(TRADE_REFUSED);
     trade(session, 2);
     expect(session.getSnapshot().equipment.offhand?.contents).toEqual([
       { id: "itm_shards", tileId: "shard", count: 2 },

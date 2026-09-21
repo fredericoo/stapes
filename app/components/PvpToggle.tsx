@@ -80,9 +80,7 @@ export function PvpToggle({
 
   return (
     <>
-      <Tooltip
-        content={changeable ? label : `${label} — cannot change while in combat`}
-      >
+      <Tooltip content={changeable ? label : `${label} — cannot change while in combat`}>
         <button
           type="button"
           aria-pressed={on}
@@ -96,17 +94,11 @@ export function PvpToggle({
             // The world's danger colour, because that is what it means — where
             // the panel buttons beside it are deliberately plain paper, a
             // promise they keep by changing nothing out there.
-            on
-              ? "border-danger bg-danger text-paper"
-              : "border-paper/40 bg-transparent text-paper",
+            on ? "border-danger bg-danger text-paper" : "border-paper/40 bg-transparent text-paper",
             changeable ? "" : "opacity-40",
           ].join(" ")}
         >
-          <IconSkull
-            size={size === "touch" ? 24 : 18}
-            stroke={2}
-            aria-hidden="true"
-          />
+          <IconSkull size={size === "touch" ? 24 : 18} stroke={2} aria-hidden="true" />
         </button>
       </Tooltip>
 

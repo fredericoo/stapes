@@ -31,11 +31,7 @@ export function DirectionPreview({
   const rendered = useMemo(
     () =>
       project.frames.map((frame) => {
-        const faced = gridFacing(
-          Uint8Array.from(frame.voxels),
-          project.size,
-          direction,
-        );
+        const faced = gridFacing(Uint8Array.from(frame.voxels), project.size, direction);
         return renderGrid(faced.grid, faced.size, project.palette, render);
       }),
     [project, direction, render],
@@ -45,8 +41,7 @@ export function DirectionPreview({
 
   useEffect(() => {
     if (project.frames.length <= 1) return;
-    const duration =
-      project.frames[safeIdx]?.durationMs ?? DEFAULT_FRAME_DURATION_MS;
+    const duration = project.frames[safeIdx]?.durationMs ?? DEFAULT_FRAME_DURATION_MS;
     const timer = setTimeout(() => {
       setFrameIdx((i) => (i + 1) % project.frames.length);
     }, duration);
@@ -60,11 +55,7 @@ export function DirectionPreview({
     if (!canvas || !ctx || !sprite) return;
     canvas.width = sprite.widthPx;
     canvas.height = sprite.heightPx;
-    ctx.putImageData(
-      new ImageData(sprite.rgba, sprite.widthPx, sprite.heightPx),
-      0,
-      0,
-    );
+    ctx.putImageData(new ImageData(sprite.rgba, sprite.widthPx, sprite.heightPx), 0, 0);
   }, [rendered, safeIdx]);
 
   const sprite = rendered[safeIdx];
@@ -79,11 +70,7 @@ export function DirectionPreview({
           height: sprite ? sprite.heightPx * zoom : 0,
         }}
       />
-      {label ? (
-        <span className="text-[10px] font-bold uppercase text-muted">
-          {label}
-        </span>
-      ) : null}
+      {label ? <span className="text-[10px] font-bold uppercase text-muted">{label}</span> : null}
     </div>
   );
 }

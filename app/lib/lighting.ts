@@ -1,10 +1,4 @@
-import type {
-  LevelChunks,
-  LightDef,
-  MapFile,
-  PlacedTile,
-  TileDef,
-} from "./types";
+import type { LevelChunks, LightDef, MapFile, PlacedTile, TileDef } from "./types";
 import {
   HEIGHT_PER_LEVEL,
   MAX_LEVEL,
@@ -13,17 +7,8 @@ import {
   levelKey,
   resolveLightPassing,
 } from "./types";
-import {
-  elevationAt,
-  footElevation,
-  getStack,
-  terrainHeight,
-} from "./mapData";
-import {
-  computeLightingFlood,
-  MAX_LIGHT_LEVEL,
-  parseHexColor,
-} from "./lightingFlood";
+import { elevationAt, footElevation, getStack, terrainHeight } from "./mapData";
+import { computeLightingFlood, MAX_LIGHT_LEVEL, parseHexColor } from "./lightingFlood";
 import { resolveLight } from "./tileResolve";
 
 export { MAX_LIGHT_LEVEL };
@@ -139,15 +124,9 @@ export function composeAmbientRgb(
 ): void {
   for (let i = 0, p = 0; i < sky.length; i++, p += 3) {
     const sk = sky[i]! / 255;
-    rgb[p] = Math.round(
-      Math.min(1, sk * ambient[0] + block[p]! / 255) * 255,
-    );
-    rgb[p + 1] = Math.round(
-      Math.min(1, sk * ambient[1] + block[p + 1]! / 255) * 255,
-    );
-    rgb[p + 2] = Math.round(
-      Math.min(1, sk * ambient[2] + block[p + 2]! / 255) * 255,
-    );
+    rgb[p] = Math.round(Math.min(1, sk * ambient[0] + block[p]! / 255) * 255);
+    rgb[p + 1] = Math.round(Math.min(1, sk * ambient[1] + block[p + 1]! / 255) * 255);
+    rgb[p + 2] = Math.round(Math.min(1, sk * ambient[2] + block[p + 2]! / 255) * 255);
   }
 }
 
@@ -160,10 +139,7 @@ export function composeLevelLight(
   return { x0: raw.x0, y0: raw.y0, w: raw.w, h: raw.h, rgb };
 }
 
-export function composeLightGrid(
-  raw: RawLightGrid,
-  ambient: [number, number, number],
-): LightGrid {
+export function composeLightGrid(raw: RawLightGrid, ambient: [number, number, number]): LightGrid {
   const levels = new Map<number, LevelLightMap>();
   for (const [z, level] of raw.levels) {
     levels.set(z, composeLevelLight(level, ambient));
@@ -316,10 +292,7 @@ export function stackOcclusion(
  * Light-passing tiles are skipped here on the same terms, so a window is still
  * glass and a pond is still see-across. @see ../game/sight
  */
-export function stackBlockHeight(
-  stack: PlacedTile[],
-  tilesById: Record<string, TileDef>,
-): number {
+export function stackBlockHeight(stack: PlacedTile[], tilesById: Record<string, TileDef>): number {
   let elev = 0;
   let blockH = 0;
   for (const placed of stack) {
@@ -518,9 +491,7 @@ function castEmitter(
         const dx = tx - e.x;
         const dy = ty - e.y;
         const dz = tz - e.z;
-        const dist = Math.sqrt(
-          dx * dx + dy * dy + (dz * VERTICAL_FALLOFF) * (dz * VERTICAL_FALLOFF),
-        );
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * VERTICAL_FALLOFF * (dz * VERTICAL_FALLOFF));
         if (dist > e.radius) continue;
 
         const isSelf = tx === e.lx && ty === e.ly && tz === e.lz;
@@ -547,18 +518,7 @@ function castEmitter(
         const atten = t * t * e.intensity * transmission;
         if (atten < TRANSMISSION_EPSILON) continue;
 
-        accumulateAt(
-          floats,
-          x0,
-          y0,
-          w,
-          h,
-          tx,
-          ty,
-          e.r * atten,
-          e.g * atten,
-          e.b * atten,
-        );
+        accumulateAt(floats, x0, y0, w, h, tx, ty, e.r * atten, e.g * atten, e.b * atten);
       }
     }
   }
@@ -675,11 +635,7 @@ function collectOverrideEmitters(
 }
 
 /** One light cast from an override's position, whatever it was found by. */
-function pushEmitter(
-  emitters: Emitter[],
-  ov: EmitterOverride,
-  light: LightDef,
-) {
+function pushEmitter(emitters: Emitter[], ov: EmitterOverride, light: LightDef) {
   const [cr, cg, cb] = parseHexColor(light.color);
   emitters.push({
     x: ov.fx,
@@ -769,11 +725,7 @@ function denseOcclusionIn(
  * tile turns up — a level the map does not have costs one lookup for every
  * column, and a level it does have is usually the one with the tile in it.
  */
-function fillDenseVoids(
-  dense: DenseOcclusion,
-  map: MapFile,
-  lowestTileZ: Int32Array,
-) {
+function fillDenseVoids(dense: DenseOcclusion, map: MapFile, lowestTileZ: Int32Array) {
   const { reach, w, h } = dense;
   const levelsBelow: number[] = [];
   for (let z = reach.z0 - 1; z >= MIN_LEVEL; z--) {
@@ -791,12 +743,7 @@ function fillDenseVoids(
   }
 }
 
-function columnHasTileAt(
-  map: MapFile,
-  x: number,
-  y: number,
-  levels: readonly number[],
-): boolean {
+function columnHasTileAt(map: MapFile, x: number, y: number, levels: readonly number[]): boolean {
   for (const z of levels) {
     if (getStack(map, x, y, z).length) return true;
   }
@@ -804,12 +751,7 @@ function columnHasTileAt(
 }
 
 /** Void from the reach's floor up to and including `zTop`. */
-function markVoidColumn(
-  dense: DenseOcclusion,
-  x: number,
-  y: number,
-  zTop: number,
-) {
+function markVoidColumn(dense: DenseOcclusion, x: number, y: number, zTop: number) {
   for (let z = dense.reach.z0; z <= zTop; z++) {
     dense.voids[denseIndex(dense, x, y, z)] = 1;
   }
@@ -1064,9 +1006,7 @@ export function overlayEmitterOverrides(
 }
 
 /** Every (cellKey, stack) on a level, across its chunks. */
-function* allCells(
-  level: LevelChunks,
-): Generator<[string, PlacedTile[]]> {
+function* allCells(level: LevelChunks): Generator<[string, PlacedTile[]]> {
   for (const chunk of Object.values(level)) {
     yield* Object.entries(chunk);
   }
@@ -1077,10 +1017,7 @@ function* allCells(
  * painted dynamically (player). Moving those tiles alone must not invalidate
  * the sky/torch bake.
  */
-export function staticLightingMapKey(
-  map: MapFile,
-  omitLightTileIds: ReadonlySet<string>,
-): string {
+export function staticLightingMapKey(map: MapFile, omitLightTileIds: ReadonlySet<string>): string {
   let h = 2166136261;
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     const level = map.levels[levelKey(z)];

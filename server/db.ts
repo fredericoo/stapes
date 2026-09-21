@@ -193,10 +193,7 @@ const MIGRATIONS: readonly string[] = [
  * window the design already accepts. `FULL` would buy a guarantee against a
  * failure mode a single unreplicated box does not survive anyway.
  */
-export async function openDatabase(
-  path: string,
-  { exclusive = false } = {},
-): Promise<Database> {
+export async function openDatabase(path: string, { exclusive = false } = {}): Promise<Database> {
   await mkdir(dirname(path), { recursive: true });
   const db = await connect(path);
 
@@ -224,24 +221,16 @@ export async function openDatabase(
 }
 
 async function migrate(db: Database): Promise<void> {
-  await db.exec(
-    "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)",
-  );
-  const versions = await db.prepare(
-    "SELECT MAX(version) AS version FROM schema_version",
-  );
-  const row = (await versions.get()) as
-    | { version: number | null }
-    | undefined;
+  await db.exec("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)");
+  const versions = await db.prepare("SELECT MAX(version) AS version FROM schema_version");
+  const row = (await versions.get()) as { version: number | null } | undefined;
   const applied = row?.version ?? 0;
 
   for (let index = applied; index < MIGRATIONS.length; index++) {
     await db.exec("BEGIN");
     try {
       await db.exec(MIGRATIONS[index]!);
-      const record = await db.prepare(
-        "INSERT INTO schema_version (version) VALUES (?)",
-      );
+      const record = await db.prepare("INSERT INTO schema_version (version) VALUES (?)");
       await record.run([index + 1]);
       await db.exec("COMMIT");
     } catch (error) {

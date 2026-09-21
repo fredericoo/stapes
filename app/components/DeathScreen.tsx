@@ -26,13 +26,7 @@ import { Button } from "../ui";
  *   See the loading screen below for why that is a state this screen has rather
  *   than something the button shows.
  */
-export function DeathScreen({
-  onRebirth,
-  pending,
-}: {
-  onRebirth: () => void;
-  pending: boolean;
-}) {
+export function DeathScreen({ onRebirth, pending }: { onRebirth: () => void; pending: boolean }) {
   // A press is answered by the server with a whole `hello`, which is a round
   // trip plus a fresh map plus the frame that rebuilds every chunk of it — long
   // enough that a button which merely stopped responding reads as a button that

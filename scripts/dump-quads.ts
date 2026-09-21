@@ -15,20 +15,9 @@ import {
   spriteWorldOrigin,
   type DepthBox,
 } from "../app/lib/geometry";
-import {
-  footElevation,
-  getStack,
-  parseMap,
-  setStacks,
-} from "../app/lib/mapData";
+import { footElevation, getStack, parseMap, setStacks } from "../app/lib/mapData";
 import { getFrames } from "../app/lib/tileResolve";
-import type {
-  CellRect,
-  MapFile,
-  PlacedTile,
-  TileDef,
-  TilesetDef,
-} from "../app/lib/types";
+import type { CellRect, MapFile, PlacedTile, TileDef, TilesetDef } from "../app/lib/types";
 import { CELL_SIZE, physicalHeight, spriteRect } from "../app/lib/types";
 
 const [x0, x1, y0, y1, zMin, zMax] = process.argv.slice(2, 8).map(Number) as number[];
@@ -37,9 +26,7 @@ const extraArg = process.argv[8];
 let map: MapFile = parseMap(readFileSync("data/map.json", "utf8"));
 const tiles = JSON.parse(readFileSync("data/tiles.json", "utf8")) as TileDef[];
 const tilesets = JSON.parse(readFileSync("data/tilesets.json", "utf8")) as TilesetDef[];
-const tilesById: Record<string, TileDef> = Object.fromEntries(
-  tiles.map((t) => [t.id, t]),
-);
+const tilesById: Record<string, TileDef> = Object.fromEntries(tiles.map((t) => [t.id, t]));
 const tilesetById = new Map(tilesets.map((t) => [t.id, t]));
 
 /** `x,y,z,tileId[,direction]` per tile to add on top of that cell, `;`-joined. */
@@ -92,10 +79,7 @@ for (let z = zMin!; z <= zMax!; z++) {
         if (!frame || !tileset) return;
 
         const foot = absoluteElevation(z, elev);
-        const origin = spriteWorldOrigin(
-          baseCellWorldOrigin(x, y, z, elev),
-          frame.sprite.base,
-        );
+        const origin = spriteWorldOrigin(baseCellWorldOrigin(x, y, z, elev), frame.sprite.base);
         const rect = spriteRect(def.anchor, frame.sprite);
         quads.push({
           id: `${placed.tileId}@${x},${y},${z}#${stackIndex}`,

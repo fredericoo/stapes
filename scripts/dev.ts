@@ -114,7 +114,4 @@ run("client", ["bunx", "vite", "dev", "--host"], {
   STAPES_SERVER_ORIGIN: serverOrigin,
 });
 
-console.log(
-  `\n  stapes  →  http://localhost:${clientPort}` +
-    `\n  server  →  ${serverOrigin}\n`,
-);
+console.log(`\n  stapes  →  http://localhost:${clientPort}` + `\n  server  →  ${serverOrigin}\n`);

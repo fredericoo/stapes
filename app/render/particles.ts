@@ -1,9 +1,5 @@
 import type { DepthBox } from "../lib/geometry";
-import {
-  compileRamp,
-  MAX_LIVE_PARTICLES,
-  type ParticleEmitterDef,
-} from "../lib/particleVfx";
+import { compileRamp, MAX_LIVE_PARTICLES, type ParticleEmitterDef } from "../lib/particleVfx";
 
 /**
  * The particle pool: where every spark on screen is, and where it is going.
@@ -270,8 +266,7 @@ export class ParticleSystem {
       if (state.retired) continue;
       // The taper is spent here and nowhere else for emission: fewer born per
       // second as the status winds down, reaching none exactly as it ends.
-      state.spawnDebt +=
-        state.spec.config.ratePerSecond * state.spec.taper * dtSec;
+      state.spawnDebt += state.spec.config.ratePerSecond * state.spec.taper * dtSec;
       while (state.spawnDebt >= 1) {
         state.spawnDebt -= 1;
         // The debt is spent whether or not the pool had room. Keeping it would
@@ -336,8 +331,7 @@ export class ParticleSystem {
 
     this.x[i] = state.spec.cx + this.signed() * c.spawnRadiusCells;
     this.y[i] = state.spec.cy + this.signed() * c.spawnRadiusCells;
-    this.elev[i] =
-      state.spec.footElev + lerp(c.spawnElevFrom, c.spawnElevTo, r());
+    this.elev[i] = state.spec.footElev + lerp(c.spawnElevFrom, c.spawnElevTo, r());
     this.vx[i] = this.signed() * c.driftCellsPerSecond;
     this.vy[i] = this.signed() * c.driftCellsPerSecond;
     this.vElev[i] = lerp(c.riseFrom, c.riseTo, r());

@@ -87,16 +87,10 @@ describe("effectiveness", () => {
    */
   it("lets an advantage anywhere beat a disadvantage everywhere", () => {
     // Water beats the target's fire; the target's fire would beat nothing here.
-    expect(effectiveness(["fire", "water"], ["fire"])).toBeCloseTo(
-      EFFECTIVENESS_EDGE,
-      6,
-    );
+    expect(effectiveness(["fire", "water"], ["fire"])).toBeCloseTo(EFFECTIVENESS_EDGE, 6);
     // Nature beats the target's water, even though the target's water beats the
     // fire the caster is also throwing.
-    expect(effectiveness(["fire", "nature"], ["water"])).toBeCloseTo(
-      EFFECTIVENESS_EDGE,
-      6,
-    );
+    expect(effectiveness(["fire", "nature"], ["water"])).toBeCloseTo(EFFECTIVENESS_EDGE, 6);
   });
 
   it("never reads an element it was not given", () => {

@@ -24,9 +24,7 @@ function toggleClass(on: boolean, size: ActionButtonSize): string {
     "flex items-center justify-center border-2 shadow-hard",
     ACTION_BUTTON_SIZE_CLASS[size],
     "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-    on
-      ? "border-paper bg-paper text-ink"
-      : "border-paper/40 bg-transparent text-paper",
+    on ? "border-paper bg-paper text-ink" : "border-paper/40 bg-transparent text-paper",
   ].join(" ");
 }
 
@@ -53,11 +51,7 @@ export function StatsToggle({
         {...tap}
         className={toggleClass(open, size)}
       >
-        <IconHeartbeat
-          size={size === "touch" ? 24 : 18}
-          stroke={2}
-          aria-hidden="true"
-        />
+        <IconHeartbeat size={size === "touch" ? 24 : 18} stroke={2} aria-hidden="true" />
       </button>
     </Tooltip>
   );
@@ -114,17 +108,11 @@ export function EquipmentToggle({
   latest.current = { equipment, tilesById };
   const destination = useCallback(
     (held: HeldItem, lands: (to: SlotRef) => boolean) =>
-      equipDestination(
-        latest.current.equipment,
-        latest.current.tilesById,
-        held.instance,
-        lands,
-      ),
+      equipDestination(latest.current.equipment, latest.current.tilesById, held.instance, lands),
     [],
   );
   const attach = useCallback(
-    (el: HTMLElement | null) =>
-      register(EQUIPMENT_BUTTON_TARGET_KEY, destination, el),
+    (el: HTMLElement | null) => register(EQUIPMENT_BUTTON_TARGET_KEY, destination, el),
     [register, destination],
   );
 
@@ -145,21 +133,13 @@ export function EquipmentToggle({
         {...tap}
         className={[
           toggleClass(open, size),
-          isOver
-            ? "border-accent bg-accent/30"
-            : wouldTake
-              ? "border-accent/60"
-              : "",
+          isOver ? "border-accent bg-accent/30" : wouldTake ? "border-accent/60" : "",
         ].join(" ")}
         // Without this a finger dragging over the button scrolls the page
         // instead, and the moves stop arriving — the same reason a slot sets it.
         style={{ touchAction: "none" }}
       >
-        <IconShirt
-          size={size === "touch" ? 24 : 18}
-          stroke={2}
-          aria-hidden="true"
-        />
+        <IconShirt size={size === "touch" ? 24 : 18} stroke={2} aria-hidden="true" />
       </button>
     </Tooltip>
   );
@@ -229,8 +209,7 @@ export function BagButton({
 
   const { register } = drag;
   const attach = useCallback(
-    (el: HTMLElement | null) =>
-      register(BAG_BUTTON_TARGET_KEY, BAG_BUTTON_SLOT, el),
+    (el: HTMLElement | null) => register(BAG_BUTTON_TARGET_KEY, BAG_BUTTON_SLOT, el),
     [register],
   );
 
@@ -255,21 +234,13 @@ export function BagButton({
           "relative",
           toggleClass(open, size),
           bag ? "" : "opacity-40",
-          isOver
-            ? "border-accent bg-accent/30"
-            : wouldTake
-              ? "border-accent/60"
-              : "",
+          isOver ? "border-accent bg-accent/30" : wouldTake ? "border-accent/60" : "",
         ].join(" ")}
         // Without this a finger dragging over the button scrolls the page
         // instead, and the moves stop arriving — the same reason a slot sets it.
         style={{ touchAction: "none" }}
       >
-        <IconBackpack
-          size={size === "touch" ? 24 : 18}
-          stroke={2}
-          aria-hidden="true"
-        />
+        <IconBackpack size={size === "touch" ? 24 : 18} stroke={2} aria-hidden="true" />
         {/* How full it is, in the corner rather than beside it: the strip is a
             row of equal squares and a button that grew a caption would break
             that rank. Hidden from the reader, who has it in the label above,

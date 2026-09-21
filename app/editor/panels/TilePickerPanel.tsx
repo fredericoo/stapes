@@ -18,15 +18,12 @@ export function TilePickerPanel() {
   // face buttons under every variant tile in the library would be a wall of
   // choices for tiles nobody is holding.
   const armedTile = tiles.find((t) => t.id === armedTileId);
-  const armedFaces =
-    armedTile?.type === "variant" ? variantKeys(armedTile) : [];
+  const armedFaces = armedTile?.type === "variant" ? variantKeys(armedTile) : [];
 
   const filteredTiles = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return tiles;
-    return tiles.filter(
-      (t) => t.name.toLowerCase().includes(q) || t.id.includes(q),
-    );
+    return tiles.filter((t) => t.name.toLowerCase().includes(q) || t.id.includes(q));
   }, [tiles, search]);
 
   return (
@@ -63,9 +60,7 @@ export function TilePickerPanel() {
               tile={tile}
               tilesets={tilesets}
               size={40}
-              variantKey={
-                tile.id === armedTileId ? (armedVariant ?? undefined) : undefined
-              }
+              variantKey={tile.id === armedTileId ? (armedVariant ?? undefined) : undefined}
             />
             {/* `max-w-full` is what makes `truncate` bite: the button centres
                 its children, so without it the span is free to size to its text
@@ -76,9 +71,7 @@ export function TilePickerPanel() {
       </div>
       {armedFaces.length > 0 ? (
         <div className="mt-2 flex flex-col gap-1 border-t-2 border-border pt-2">
-          <span className="text-xs font-bold uppercase text-muted">
-            Face for {armedTile!.name}
-          </span>
+          <span className="text-xs font-bold uppercase text-muted">Face for {armedTile!.name}</span>
           <div
             className="flex flex-wrap items-center gap-1"
             role="listbox"
@@ -96,14 +89,10 @@ export function TilePickerPanel() {
                   role="option"
                   aria-selected={active}
                   title={key}
-                  onClick={() =>
-                    useEditorStore.getState().setArmedVariant(key)
-                  }
+                  onClick={() => useEditorStore.getState().setArmedVariant(key)}
                   className={[
                     "flex flex-col items-center gap-0.5 border-2 p-0.5",
-                    active
-                      ? "border-accent bg-paper"
-                      : "border-border bg-panel hover:border-ink",
+                    active ? "border-accent bg-paper" : "border-border bg-panel hover:border-ink",
                   ].join(" ")}
                 >
                   <TilePreview

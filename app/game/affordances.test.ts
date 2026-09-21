@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  DEFAULT_CONTAINER,
-  DEFAULT_SHIELD,
-  DEFAULT_WEAPON,
-} from "../lib/item";
+import { DEFAULT_CONTAINER, DEFAULT_SHIELD, DEFAULT_WEAPON } from "../lib/item";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
@@ -128,10 +124,7 @@ const ME = { x: 0, y: 0, z: 0 };
 const OPEN_AIR = emptyMap();
 
 function mapWith(x: number, y: number, tileId: string, z = 0): MapFile {
-  return replaceStack(emptyMap(), x, y, z, [
-    { tileId: "grass" },
-    { tileId, itemId: "itm_target" },
-  ]);
+  return replaceStack(emptyMap(), x, y, z, [{ tileId: "grass" }, { tileId, itemId: "itm_target" }]);
 }
 
 function ref(x: number, y: number, z = 0, stackIndex = 1): ObjectRef {
@@ -187,9 +180,7 @@ describe("withinReach", () => {
    * through a metre of earth.
    */
   it("refuses a thing one floor down with ground laid over it", () => {
-    const roofed = replaceStack(mapWith(1, 0, "chest", -1), 1, 0, 0, [
-      { tileId: "grass" },
-    ]);
+    const roofed = replaceStack(mapWith(1, 0, "chest", -1), 1, 0, 0, [{ tileId: "grass" }]);
     expect(withinReach(roofed, tilesById, ME, ref(1, 0, -1))).toBe(false);
   });
 
@@ -210,9 +201,7 @@ describe("withinReach", () => {
   });
 
   it("refuses that ledge from under a ceiling", () => {
-    const roofed = replaceStack(mapWith(1, 0, "chest", 1), 0, 0, 1, [
-      { tileId: "grass" },
-    ]);
+    const roofed = replaceStack(mapWith(1, 0, "chest", 1), 0, 0, 1, [{ tileId: "grass" }]);
     expect(withinReach(roofed, tilesById, ME, ref(1, 0, 1))).toBe(false);
   });
 
@@ -240,27 +229,20 @@ describe("canPickUpFrom", () => {
    * already full a hand will take one, which is a choice rather than a rule.
    */
   it("takes a spare pack in hand when the back is full", () => {
-    expect(
-      pickUpDestination(mapWith(1, 0, "bag"), tilesById, ME, ref(1, 0), KIT),
-    ).toEqual({ kind: "slot", slot: "offhand" });
+    expect(pickUpDestination(mapWith(1, 0, "bag"), tilesById, ME, ref(1, 0), KIT)).toEqual({
+      kind: "slot",
+      slot: "offhand",
+    });
     // Bare back, and the "Put on" row owns it instead.
     expect(
-      pickUpDestination(
-        mapWith(1, 0, "bag"),
-        tilesById,
-        ME,
-        ref(1, 0),
-        emptyEquipment(),
-      ),
+      pickUpDestination(mapWith(1, 0, "bag"), tilesById, ME, ref(1, 0), emptyEquipment()),
     ).toBeNull();
   });
 
   /** A chest is opened where it lies, so no hand will take one either. */
   it("never takes a chest at all", () => {
     for (const kit of [KIT, emptyEquipment(), FULL_KIT]) {
-      expect(
-        canPickUpFrom(mapWith(1, 0, "chest"), tilesById, ME, ref(1, 0), kit),
-      ).toBe(false);
+      expect(canPickUpFrom(mapWith(1, 0, "chest"), tilesById, ME, ref(1, 0), kit)).toBe(false);
     }
   });
 
@@ -273,9 +255,10 @@ describe("canPickUpFrom", () => {
       ...FULL_KIT,
       weapon: { id: "itm_held", tileId: "sword" },
     };
-    expect(
-      pickUpDestination(mapWith(1, 0, "sword"), tilesById, ME, ref(1, 0), armed),
-    ).toEqual({ kind: "slot", slot: "offhand" });
+    expect(pickUpDestination(mapWith(1, 0, "sword"), tilesById, ME, ref(1, 0), armed)).toEqual({
+      kind: "slot",
+      slot: "offhand",
+    });
 
     // And the weapon hand once the spare one is taken. A berry, because a
     // sword's own slot is free here and that is the equip row's to offer.
@@ -293,26 +276,14 @@ describe("canPickUpFrom", () => {
    */
   it("leaves the slot a thing belongs in to the equip row", () => {
     expect(
-      pickUpDestination(
-        mapWith(1, 0, "sword"),
-        tilesById,
-        ME,
-        ref(1, 0),
-        emptyEquipment(),
-      ),
+      pickUpDestination(mapWith(1, 0, "sword"), tilesById, ME, ref(1, 0), emptyEquipment()),
     ).toBeNull();
   });
 
   /** A consumable belongs nowhere, so a hand is the first thing it reaches. */
   it("holds a thing with no slot of its own", () => {
     expect(
-      pickUpDestination(
-        mapWith(1, 0, "berry"),
-        tilesById,
-        ME,
-        ref(1, 0),
-        emptyEquipment(),
-      ),
+      pickUpDestination(mapWith(1, 0, "berry"), tilesById, ME, ref(1, 0), emptyEquipment()),
     ).toEqual({ kind: "slot", slot: "offhand" });
   });
 
@@ -322,9 +293,7 @@ describe("canPickUpFrom", () => {
       weapon: { id: "itm_a", tileId: "sword" },
       offhand: { id: "itm_b", tileId: "shield" },
     };
-    expect(
-      canPickUpFrom(mapWith(1, 0, "sword"), tilesById, ME, ref(1, 0), laden),
-    ).toBe(false);
+    expect(canPickUpFrom(mapWith(1, 0, "sword"), tilesById, ME, ref(1, 0), laden)).toBe(false);
   });
 
   it("refuses a tile that is not an item", () => {
@@ -429,23 +398,17 @@ describe("equipSlotFrom", () => {
       { tileId: "sword", itemId: "itm_buried" },
       { tileId: "rock" },
     ]);
-    expect(
-      canEquipFrom(map, tilesById, ME, ref(1, 0), emptyEquipment()),
-    ).toBe(false);
+    expect(canEquipFrom(map, tilesById, ME, ref(1, 0), emptyEquipment())).toBe(false);
   });
 });
 
 describe("canOpenFrom", () => {
   it("opens a bag in reach", () => {
-    expect(canOpenFrom(mapWith(1, 0, "bag"), tilesById, ME, ref(1, 0))).toBe(
-      true,
-    );
+    expect(canOpenFrom(mapWith(1, 0, "bag"), tilesById, ME, ref(1, 0))).toBe(true);
   });
 
   it("opens a chest in reach", () => {
-    expect(canOpenFrom(mapWith(1, 0, "chest"), tilesById, ME, ref(1, 0))).toBe(
-      true,
-    );
+    expect(canOpenFrom(mapWith(1, 0, "chest"), tilesById, ME, ref(1, 0))).toBe(true);
   });
 
   /**
@@ -464,21 +427,15 @@ describe("canOpenFrom", () => {
   });
 
   it("does not open a weapon", () => {
-    expect(canOpenFrom(mapWith(1, 0, "sword"), tilesById, ME, ref(1, 0))).toBe(
-      false,
-    );
+    expect(canOpenFrom(mapWith(1, 0, "sword"), tilesById, ME, ref(1, 0))).toBe(false);
   });
 
   it("does not open something out of reach", () => {
-    expect(canOpenFrom(mapWith(2, 0, "chest"), tilesById, ME, ref(2, 0))).toBe(
-      false,
-    );
+    expect(canOpenFrom(mapWith(2, 0, "chest"), tilesById, ME, ref(2, 0))).toBe(false);
   });
 
   it("reaches a chest on the diagonal", () => {
-    expect(canOpenFrom(mapWith(1, 1, "chest"), tilesById, ME, ref(1, 1))).toBe(
-      true,
-    );
+    expect(canOpenFrom(mapWith(1, 1, "chest"), tilesById, ME, ref(1, 1))).toBe(true);
   });
 });
 
@@ -500,27 +457,17 @@ describe("a body is not a lid", () => {
   }
 
   it("picks up a sword from under your own feet", () => {
-    expect(
-      canPickUpFrom(under("sword", ["rock"]), tilesById, ME, ref(0, 0), KIT),
-    ).toBe(true);
+    expect(canPickUpFrom(under("sword", ["rock"]), tilesById, ME, ref(0, 0), KIT)).toBe(true);
   });
 
   it("opens a chest you are standing on", () => {
-    expect(canOpenFrom(under("chest", ["rock"]), tilesById, ME, ref(0, 0))).toBe(
-      true,
-    );
+    expect(canOpenFrom(under("chest", ["rock"]), tilesById, ME, ref(0, 0))).toBe(true);
   });
 
   it("reaches under two bodies as readily as one", () => {
-    expect(
-      canPickUpFrom(
-        under("sword", ["rock", "rock"]),
-        tilesById,
-        ME,
-        ref(0, 0),
-        KIT,
-      ),
-    ).toBe(true);
+    expect(canPickUpFrom(under("sword", ["rock", "rock"]), tilesById, ME, ref(0, 0), KIT)).toBe(
+      true,
+    );
   });
 
   it("is still buried under something nobody is driving", () => {
@@ -556,56 +503,37 @@ describe("canDropAt", () => {
   const sword = tilesById.sword!;
 
   it("drops at your own feet", () => {
-    expect(canDropAt(field(), tilesById, ME, { x: 0, y: 0, z: 0 }, sword)).toBe(
-      true,
-    );
+    expect(canDropAt(field(), tilesById, ME, { x: 0, y: 0, z: 0 }, sword)).toBe(true);
   });
 
   it("reaches five cells out, and no further", () => {
     const map = field();
     expect(canDropAt(map, tilesById, ME, { x: 5, y: 0, z: 0 }, sword)).toBe(true);
-    expect(canDropAt(map, tilesById, ME, { x: -5, y: 0, z: 0 }, sword)).toBe(
-      true,
-    );
-    expect(canDropAt(map, tilesById, ME, { x: 6, y: 0, z: 0 }, sword)).toBe(
-      false,
-    );
+    expect(canDropAt(map, tilesById, ME, { x: -5, y: 0, z: 0 }, sword)).toBe(true);
+    expect(canDropAt(map, tilesById, ME, { x: 6, y: 0, z: 0 }, sword)).toBe(false);
   });
 
   /** Round, like every other item reach — `3,4` is exactly five away. */
   it("measures the radius round rather than square", () => {
     const map = field();
     expect(canDropAt(map, tilesById, ME, { x: 3, y: 4, z: 0 }, sword)).toBe(true);
-    expect(canDropAt(map, tilesById, ME, { x: 4, y: 4, z: 0 }, sword)).toBe(
-      false,
-    );
+    expect(canDropAt(map, tilesById, ME, { x: 4, y: 4, z: 0 }, sword)).toBe(false);
   });
 
   it("will not throw through a wall", () => {
-    const walled = replaceStack(field(), 2, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "wall" },
-    ]);
-    expect(canDropAt(walled, tilesById, ME, { x: 4, y: 0, z: 0 }, sword)).toBe(
-      false,
-    );
+    const walled = replaceStack(field(), 2, 0, 0, [{ tileId: "grass" }, { tileId: "wall" }]);
+    expect(canDropAt(walled, tilesById, ME, { x: 4, y: 0, z: 0 }, sword)).toBe(false);
     // The same distance the other way, with nothing in between.
-    expect(canDropAt(walled, tilesById, ME, { x: -4, y: 0, z: 0 }, sword)).toBe(
-      true,
-    );
+    expect(canDropAt(walled, tilesById, ME, { x: -4, y: 0, z: 0 }, sword)).toBe(true);
   });
 
   it("refuses a cell with nothing to stand the thing on", () => {
-    expect(
-      canDropAt(emptyMap(), tilesById, ME, { x: 1, y: 0, z: 0 }, sword),
-    ).toBe(false);
+    expect(canDropAt(emptyMap(), tilesById, ME, { x: 1, y: 0, z: 0 }, sword)).toBe(false);
   });
 
   it("refuses a floor further off than a reach can follow", () => {
     const map = field();
-    expect(canDropAt(map, tilesById, ME, { x: 1, y: 0, z: 3 }, sword)).toBe(
-      false,
-    );
+    expect(canDropAt(map, tilesById, ME, { x: 1, y: 0, z: 3 }, sword)).toBe(false);
   });
 
   /**
@@ -617,31 +545,16 @@ describe("canDropAt", () => {
    * a bridge deck, and that is the same stack shape.
    */
   it("refuses a cell nothing could stand on", () => {
-    const hedge = replaceStack(field(), 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "bush" },
-    ]);
-    expect(canDropAt(hedge, tilesById, ME, { x: 1, y: 0, z: 0 }, sword)).toBe(
-      false,
-    );
+    const hedge = replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "bush" }]);
+    expect(canDropAt(hedge, tilesById, ME, { x: 1, y: 0, z: 0 }, sword)).toBe(false);
 
-    const pond = replaceStack(field(), 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "water" },
-    ]);
-    expect(canDropAt(pond, tilesById, ME, { x: 1, y: 0, z: 0 }, sword)).toBe(
-      false,
-    );
+    const pond = replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "water" }]);
+    expect(canDropAt(pond, tilesById, ME, { x: 1, y: 0, z: 0 }, sword)).toBe(false);
   });
 
   it("still drops on a cell that already has something walkable on it", () => {
-    const crate = replaceStack(field(), 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "rock" },
-    ]);
-    expect(canDropAt(crate, tilesById, ME, { x: 1, y: 0, z: 0 }, sword)).toBe(
-      true,
-    );
+    const crate = replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "rock" }]);
+    expect(canDropAt(crate, tilesById, ME, { x: 1, y: 0, z: 0 }, sword)).toBe(true);
   });
 
   /**
@@ -659,9 +572,10 @@ describe("canDropAt", () => {
     }
 
     it("puts a thing inside the container it lands on", () => {
-      expect(
-        dropDestinationAt(chestAt(1), tilesById, ME, { x: 1, y: 0, z: 0 }, sword),
-      ).toEqual({ kind: "contents", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } });
+      expect(dropDestinationAt(chestAt(1), tilesById, ME, { x: 1, y: 0, z: 0 }, sword)).toEqual({
+        kind: "contents",
+        ref: { x: 1, y: 0, z: 0, stackIndex: 1 },
+      });
     });
 
     it("lands on top of a full one instead", () => {
@@ -669,16 +583,16 @@ describe("canDropAt", () => {
         { id: "itm_a", tileId: "sword" },
         { id: "itm_b", tileId: "sword" },
       ]);
-      expect(
-        dropDestinationAt(full, tilesById, ME, { x: 1, y: 0, z: 0 }, sword),
-      ).toEqual({ kind: "stack" });
+      expect(dropDestinationAt(full, tilesById, ME, { x: 1, y: 0, z: 0 }, sword)).toEqual({
+        kind: "stack",
+      });
     });
 
     /** Containers do not nest, so a bag thrown at a chest lands on it. */
     it("lands on top when the thing thrown is itself a container", () => {
-      expect(
-        dropDestinationAt(chestAt(1), tilesById, ME, { x: 1, y: 0, z: 0 }, bag),
-      ).toEqual({ kind: "stack" });
+      expect(dropDestinationAt(chestAt(1), tilesById, ME, { x: 1, y: 0, z: 0 }, bag)).toEqual({
+        kind: "stack",
+      });
     });
 
     it("does not reach a container buried under something", () => {
@@ -687,9 +601,9 @@ describe("canDropAt", () => {
         { tileId: "chest", itemId: "itm_chest" },
         { tileId: "rock" },
       ]);
-      expect(
-        dropDestinationAt(covered, tilesById, ME, { x: 1, y: 0, z: 0 }, sword),
-      ).toEqual({ kind: "stack" });
+      expect(dropDestinationAt(covered, tilesById, ME, { x: 1, y: 0, z: 0 }, sword)).toEqual({
+        kind: "stack",
+      });
     });
 
     it("is caught by a chest with somebody standing on it", () => {
@@ -698,9 +612,10 @@ describe("canDropAt", () => {
         { tileId: "chest", itemId: "itm_chest" },
         { tileId: "rock", owner: "someone" },
       ]);
-      expect(
-        dropDestinationAt(stoodOn, tilesById, ME, { x: 1, y: 0, z: 0 }, sword),
-      ).toEqual({ kind: "contents", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } });
+      expect(dropDestinationAt(stoodOn, tilesById, ME, { x: 1, y: 0, z: 0 }, sword)).toEqual({
+        kind: "contents",
+        ref: { x: 1, y: 0, z: 0, stackIndex: 1 },
+      });
     });
   });
 });
@@ -745,8 +660,6 @@ describe("pushableDefAt", () => {
 
   it("refuses a tile with no push on it", () => {
     const map = column("rock");
-    expect(
-      pushableDefAt(map, pushTilesById, ME, ref(1, 0, 0, 2)),
-    ).toBeNull();
+    expect(pushableDefAt(map, pushTilesById, ME, ref(1, 0, 0, 2))).toBeNull();
   });
 });

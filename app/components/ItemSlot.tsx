@@ -1,11 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ComponentType,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { stoneLocked, takesEffect, type Equipment } from "../game/equipment";
 import { itemCard } from "../game/itemCard";
 import { isBodySlot, slotKey, type SlotRef } from "../game/itemMoves";
@@ -78,9 +71,7 @@ import { TilePreview } from "./TilePreview";
  */
 
 /** Which sprite stands for a tile in a slot — the one facing the reader. */
-const FRONT: "s" = "s";
-
-
+const FRONT = "s" as const;
 
 /**
  * What a surface that has not wired the catalogue gets.
@@ -403,8 +394,7 @@ export function ItemSlot({
   sizePx?: number;
 }) {
   const tile = instance ? (tilesById[instance.tileId] ?? null) : null;
-  const spilledTile =
-    !instance && spilledInto ? (tilesById[spilledInto.tileId] ?? null) : null;
+  const spilledTile = !instance && spilledInto ? (tilesById[spilledInto.tileId] ?? null) : null;
   // What this square *is*, which for a hand a two-hander has reached into is
   // "taken by that weapon" rather than "empty" — a screen reader hearing "empty"
   // over a square nothing may go in would be told the opposite of what is true.
@@ -566,9 +556,7 @@ export function ItemSlot({
    * of every square in it, which is the same as saying nothing.
    */
   const idle =
-    instance != null &&
-    isBodySlot(slot) &&
-    !takesEffect(slot.kind, instance, tilesById, masteries);
+    instance != null && isBodySlot(slot) && !takesEffect(slot.kind, instance, tilesById, masteries);
   // An empty square is not open and is not a toggle, whatever the panel beside
   // it is doing: the state belongs to the *thing* in the slot, and a slot whose
   // thing has been dropped has no state left to be in.
@@ -732,11 +720,7 @@ export function ItemSlot({
     <Tooltip
       content={
         inspected ? (
-          <ItemCard
-            card={inspected.card}
-            tile={inspected.tile}
-            tilesets={tilesets}
-          />
+          <ItemCard card={inspected.card} tile={inspected.tile} tilesets={tilesets} />
         ) : null
       }
       // Above the square: a bag is a grid, and a card hanging downward covers

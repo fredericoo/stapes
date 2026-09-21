@@ -31,8 +31,7 @@ const orNever = (value: number | null, format: (v: number) => string) =>
 const ROWS: Row[] = [
   {
     label: "Attacks / sec",
-    value: (odds) =>
-      `${round(odds.attacksPerSecond, 2)} (${Math.round(odds.intervalMs)}ms)`,
+    value: (odds) => `${round(odds.attacksPerSecond, 2)} (${Math.round(odds.intervalMs)}ms)`,
   },
   { label: "Miss", value: (odds) => percent(odds.missed) },
   { label: "Dodge (of aimed)", value: (odds) => percent(odds.dodgeWhenAimed) },
@@ -108,14 +107,10 @@ export function ArenaMetrics({
             >
               {row.label}
             </th>
-            <td
-              className={`px-2 py-1 text-right tabular-nums ${row.emphasis ? "font-bold" : ""}`}
-            >
+            <td className={`px-2 py-1 text-right tabular-nums ${row.emphasis ? "font-bold" : ""}`}>
               {row.value(aToB)}
             </td>
-            <td
-              className={`px-2 py-1 text-right tabular-nums ${row.emphasis ? "font-bold" : ""}`}
-            >
+            <td className={`px-2 py-1 text-right tabular-nums ${row.emphasis ? "font-bold" : ""}`}>
               {row.value(bToA)}
             </td>
           </tr>
@@ -139,9 +134,7 @@ function StatusRow({ aToB, bToA }: { aToB: SwingOdds; bToA: SwingOdds }) {
   const summary = (odds: SwingOdds) =>
     odds.statuses.length === 0
       ? "—"
-      : odds.statuses
-          .map((status) => `${status.id} ${percent(status.perSwing)}`)
-          .join(", ");
+      : odds.statuses.map((status) => `${status.id} ${percent(status.perSwing)}`).join(", ");
 
   return (
     <tr className="border-t border-border/30">

@@ -5,7 +5,11 @@ import type { MapFile } from "../lib/types";
 import { floodCoords, stacksEqual } from "./tools";
 
 function mapWith(
-  cells: Array<{ x: number; y: number; tiles: Array<{ tileId: string; direction?: "n" | "e" | "s" | "w" }> }>,
+  cells: Array<{
+    x: number;
+    y: number;
+    tiles: Array<{ tileId: string; direction?: "n" | "e" | "s" | "w" }>;
+  }>,
 ): MapFile {
   let map: MapFile = { version: MAP_FILE_VERSION, levels: {} };
   for (const c of cells) {
@@ -114,16 +118,11 @@ describe("floodCoords", () => {
 describe("a variant tile's face is part of what makes two stacks equal", () => {
   it("stops a fill at the seam between two faces of one tile", () => {
     expect(
-      stacksEqual(
-        [{ tileId: "hole", variant: "planks" }],
-        [{ tileId: "hole", variant: "sand" }],
-      ),
+      stacksEqual([{ tileId: "hole", variant: "planks" }], [{ tileId: "hole", variant: "sand" }]),
     ).toBe(false);
   });
 
   it("treats an unnamed face as its own thing, not as any named one", () => {
-    expect(
-      stacksEqual([{ tileId: "hole" }], [{ tileId: "hole", variant: "grass" }]),
-    ).toBe(false);
+    expect(stacksEqual([{ tileId: "hole" }], [{ tileId: "hole", variant: "grass" }])).toBe(false);
   });
 });

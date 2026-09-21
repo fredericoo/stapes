@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  interactionsForSave,
-  resolveReward,
-  resolveRewardDef,
-} from "../lib/interactions";
+import { interactionsForSave, resolveReward, resolveRewardDef } from "../lib/interactions";
 import { DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
 import {
   emptyMap,
@@ -111,10 +107,7 @@ function board(
   ] as const) {
     map = replaceStack(map, x, y, 0, [{ tileId: "grass" }]);
   }
-  map = replaceStack(map, 0, 0, 0, [
-    { tileId: "grass" },
-    { tileId: "player", direction: "s" },
-  ]);
+  map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "s" }]);
   map = replaceStack(map, 1, 0, 0, [
     { tileId: "grass" },
     {
@@ -187,8 +180,7 @@ describe("resolving a reward", () => {
     // Not sorted, unlike `moveOnTileIds`: which thing lands in the bag first is
     // the author's to decide.
     expect(
-      rewardAt(board("quest-chest", REWARD_TAG, ["sword", "torch"]), 1, 0)
-        ?.itemTileIds,
+      rewardAt(board("quest-chest", REWARD_TAG, ["sword", "torch"]), 1, 0)?.itemTileIds,
     ).toEqual(["sword", "torch"]);
   });
 
@@ -207,8 +199,9 @@ describe("a reward tile def", () => {
   });
 
   it("keeps the verb, trimmed", () => {
-    expect(interactionsForSave({ reward: { actionName: " Receive " } })?.reward)
-      .toEqual({ actionName: "Receive" });
+    expect(interactionsForSave({ reward: { actionName: " Receive " } })?.reward).toEqual({
+      actionName: "Receive",
+    });
   });
 });
 
@@ -229,20 +222,14 @@ describe("whether a reward fits", () => {
   });
 
   it("is refused when it would hand over a container", () => {
-    const reward = rewardAt(
-      board("quest-chest", "free-bag", [BAG_TILE_ID]),
-      1,
-      0,
-    )!;
+    const reward = rewardAt(board("quest-chest", "free-bag", [BAG_TILE_ID]), 1, 0)!;
 
     expect(rewardFits(reward, tilesById, bagWith(0))).toBe(false);
   });
 
   it("is refused when an item tile has been renamed out of the world", () => {
     const reward = rewardAt(board(), 1, 0)!;
-    const withoutSword = tilesByIdFromList(
-      tiles.filter((t) => t.id !== "sword"),
-    );
+    const withoutSword = tilesByIdFromList(tiles.filter((t) => t.id !== "sword"));
 
     expect(rewardFits(reward, withoutSword, bagWith(0))).toBe(false);
   });
@@ -256,10 +243,7 @@ describe("taking a reward", () => {
     expect(session.interact(CHEST)).toBe(true);
 
     const snap = session.getSnapshot();
-    expect(snap.equipment.bag?.contents?.map((i) => i.tileId)).toEqual([
-      "torch",
-      "sword",
-    ]);
+    expect(snap.equipment.bag?.contents?.map((i) => i.tileId)).toEqual(["torch", "sword"]);
     // The whole point: nothing on the board moved, so the next player finds the
     // chest as full as this one did.
     expect(session.getMap()).toBe(before);
@@ -270,9 +254,7 @@ describe("taking a reward", () => {
     const session = new GameSession(board(), tiles);
     session.interact(CHEST);
 
-    const ids = session
-      .getSnapshot()
-      .equipment.bag!.contents!.map((i) => i.id);
+    const ids = session.getSnapshot().equipment.bag!.contents!.map((i) => i.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids.every((id) => id.startsWith("itm_"))).toBe(true);
   });
@@ -317,7 +299,11 @@ describe("taking a reward", () => {
 
   it("is not owed to somebody who arrives already carrying the tag", () => {
     const session = new GameSession(board(), tiles);
-    session.spawn("returning", { at: { x: 0, y: 1, z: 0 }, carrying: bagWith(0), tagged: [REWARD_TAG] });
+    session.spawn("returning", {
+      at: { x: 0, y: 1, z: 0 },
+      carrying: bagWith(0),
+      tagged: [REWARD_TAG],
+    });
 
     expect(session.canTakeReward(CHEST, "returning")).toBe(false);
   });
@@ -354,15 +340,11 @@ describe("a reward the actor cannot reach", () => {
     const map = board();
     const far = { x: 3, y: 3, z: 0 };
 
-    expect(
-      canRewardFrom(map, tilesById, far, CHEST, bagWith(0), []),
-    ).toBe(false);
+    expect(canRewardFrom(map, tilesById, far, CHEST, bagWith(0), [])).toBe(false);
   });
 
   it("is offered diagonally, unlike a shove", () => {
-    expect(canRewardFrom(board(), tilesById, ME, OTHER, bagWith(0), [])).toBe(
-      true,
-    );
+    expect(canRewardFrom(board(), tilesById, ME, OTHER, bagWith(0), [])).toBe(true);
   });
 
   it("is not offered under something solid", () => {
@@ -373,9 +355,7 @@ describe("a reward the actor cannot reach", () => {
       { tileId: "sword" },
     ]);
 
-    expect(canRewardFrom(map, tilesById, ME, CHEST, bagWith(0), [])).toBe(
-      false,
-    );
+    expect(canRewardFrom(map, tilesById, ME, CHEST, bagWith(0), [])).toBe(false);
   });
 });
 
@@ -388,9 +368,7 @@ describe("writing a reward onto a placement", () => {
   const at = (map: MapFile) => getStack(map, 1, 0, 0)[1]!;
 
   it("writes the pair together", () => {
-    const next = updatePlacedReward(board("quest-chest", ""), 1, 0, 0, 1, "t", [
-      "sword",
-    ]);
+    const next = updatePlacedReward(board("quest-chest", ""), 1, 0, 0, 1, "t", ["sword"]);
 
     expect(at(next).rewardTag).toBe("t");
     expect(at(next).rewardTileIds).toEqual(["sword"]);
@@ -400,9 +378,7 @@ describe("writing a reward onto a placement", () => {
     const before = board();
     // The dialog commits on every close, so an author who opened it and pressed
     // Done must not mint a map identity, an undo entry and a geometry diff.
-    expect(
-      updatePlacedReward(before, 1, 0, 0, 1, REWARD_TAG, ["torch", "sword"]),
-    ).toBe(before);
+    expect(updatePlacedReward(before, 1, 0, 0, 1, REWARD_TAG, ["torch", "sword"])).toBe(before);
   });
 
   it("clears both halves when either is emptied", () => {

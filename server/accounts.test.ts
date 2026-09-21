@@ -2,13 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  SEEDED_ADMIN_USERNAME,
-  createAuth,
-  seedAdmin,
-  viewerOf,
-  type Auth,
-} from "./auth";
+import { SEEDED_ADMIN_USERNAME, createAuth, seedAdmin, viewerOf, type Auth } from "./auth";
 import { resolveAuthSecret } from "./authSecret";
 import { Characters } from "./characters";
 import { readConfig } from "./config";
@@ -68,10 +62,7 @@ async function makeAccount(username: string): Promise<string> {
 }
 
 /** The headers a signed-in browser would send. */
-async function sessionHeaders(
-  username: string,
-  password: string,
-): Promise<Headers> {
+async function sessionHeaders(username: string, password: string): Promise<Headers> {
   const response = await auth.api.signInUsername({
     body: { username, password },
     asResponse: true,
@@ -145,17 +136,12 @@ describe("the seeded administrator", () => {
         currentPassword: SEEDED_ADMIN_PASSWORD,
         newPassword: "something-else-entirely",
       },
-      headers: await sessionHeaders(
-        SEEDED_ADMIN_USERNAME,
-        SEEDED_ADMIN_PASSWORD,
-      ),
+      headers: await sessionHeaders(SEEDED_ADMIN_USERNAME, SEEDED_ADMIN_PASSWORD),
     });
 
     await seedAdmin(auth, db, () => {});
 
-    await expect(
-      sessionHeaders(SEEDED_ADMIN_USERNAME, SEEDED_ADMIN_PASSWORD),
-    ).rejects.toThrow();
+    await expect(sessionHeaders(SEEDED_ADMIN_USERNAME, SEEDED_ADMIN_PASSWORD)).rejects.toThrow();
     const viewer = await viewerOf(
       auth,
       await sessionHeaders(SEEDED_ADMIN_USERNAME, "something-else-entirely"),
@@ -179,24 +165,16 @@ describe("an ordinary account", () => {
       } as never,
     });
 
-    const viewer = await viewerOf(
-      auth,
-      await sessionHeaders("climber", "a-long-enough-password"),
-    );
+    const viewer = await viewerOf(auth, await sessionHeaders("climber", "a-long-enough-password"));
     expect(viewer?.role).toBe("USER");
   });
 
   it("becomes an administrator when the database says so", async () => {
     await makeAccount("author");
-    const promote = await db.prepare(
-      "UPDATE user SET role = 'ADMIN' WHERE username = ?",
-    );
+    const promote = await db.prepare("UPDATE user SET role = 'ADMIN' WHERE username = ?");
     await promote.run(["author"]);
 
-    const viewer = await viewerOf(
-      auth,
-      await sessionHeaders("author", "a-long-enough-password"),
-    );
+    const viewer = await viewerOf(auth, await sessionHeaders("author", "a-long-enough-password"));
     expect(viewer?.role).toBe("ADMIN");
   });
 });
@@ -241,17 +219,15 @@ describe("characters", () => {
   it(`holds at most ${MAX_CHARACTERS_PER_ACCOUNT}`, async () => {
     const account = await makeAccount("player");
     for (let n = 0; n < MAX_CHARACTERS_PER_ACCOUNT; n++) {
-      expect(await characters.create(account, `Namer${"a".repeat(n)}`)).toEqual(
-        { character: expect.anything() },
-      );
+      expect(await characters.create(account, `Namer${"a".repeat(n)}`)).toEqual({
+        character: expect.anything(),
+      });
     }
 
     expect(await characters.create(account, "Onetoomany")).toEqual({
       error: expect.any(String),
     });
-    expect(await characters.listFor(account)).toHaveLength(
-      MAX_CHARACTERS_PER_ACCOUNT,
-    );
+    expect(await characters.listFor(account)).toHaveLength(MAX_CHARACTERS_PER_ACCOUNT);
   });
 
   /**
@@ -266,9 +242,7 @@ describe("characters", () => {
     const made = await characters.create(mine, "Arthur");
     if (!("character" in made)) throw new Error("expected a character");
 
-    expect(await characters.ownedBy(made.character.id, mine)).toEqual(
-      made.character,
-    );
+    expect(await characters.ownedBy(made.character.id, mine)).toEqual(made.character);
     expect(await characters.ownedBy(made.character.id, theirs)).toBeNull();
   });
 

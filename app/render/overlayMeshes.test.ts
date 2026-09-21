@@ -73,10 +73,7 @@ describe("makeFollowingSpriteOutline", () => {
     uvs.setXY(1, span, 0);
     uvs.setXY(2, 0, span);
     uvs.setXY(3, span, span);
-    const mesh = new THREE.Mesh(
-      geo,
-      new THREE.MeshBasicMaterial({ map: new THREE.Texture() }),
-    );
+    const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: new THREE.Texture() }));
     mesh.position.set(40, 24, 0);
     mesh.updateMatrix();
     mesh.updateMatrixWorld(true);
@@ -97,8 +94,7 @@ describe("makeFollowingSpriteOutline", () => {
 
   /** One texel, worked out from the quad rather than handed in. */
   it("reads the atlas scale off the mesh", () => {
-    const outline =
-      makeFollowingSpriteOutline(sourceMesh(), 0xffffff, materials)!;
+    const outline = makeFollowingSpriteOutline(sourceMesh(), 0xffffff, materials)!;
     const px = (outline.material as THREE.ShaderMaterial).uniforms.uPx!.value;
     expect(px.x).toBeCloseTo(1 / TILESET_PX, 6);
     expect(px.y).toBeCloseTo(1 / TILESET_PX, 6);
@@ -198,10 +194,7 @@ describe("OutlineMaterials", () => {
 
   it("keeps the material when the chrome layer is emptied", () => {
     const materials = new OutlineMaterials();
-    const mesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(8, 8),
-      materials.take(art(), 0xffffff, []),
-    );
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(8, 8), materials.take(art(), 0xffffff, []));
     const freed = watchDispose(mesh.material as THREE.Material);
 
     const group = new THREE.Group();
@@ -290,8 +283,7 @@ describe("makeSpriteOutline, around a heap", () => {
     u1: 1 / 32,
     v1: 1 / 32,
   });
-  const uniformsOf = (mesh: THREE.Mesh) =>
-    (mesh.material as THREE.ShaderMaterial).uniforms;
+  const uniformsOf = (mesh: THREE.Mesh) => (mesh.material as THREE.ShaderMaterial).uniforms;
 
   it("tells a ring how many siblings it has, and where each one is", () => {
     const materials = new OutlineMaterials();
@@ -301,9 +293,7 @@ describe("makeSpriteOutline, around a heap", () => {
     const u = uniformsOf(outline);
     expect(u.uPeerCount!.value).toBe(4);
     expect(
-      (u.uPeer!.value as THREE.Vector2[])
-        .slice(0, 4)
-        .map((v) => ({ dx: v.x, dy: v.y })),
+      (u.uPeer!.value as THREE.Vector2[]).slice(0, 4).map((v) => ({ dx: v.x, dy: v.y })),
     ).toEqual([...ring.peers]);
   });
 
@@ -325,21 +315,14 @@ describe("makeSpriteOutline, around a heap", () => {
     const materials = new OutlineMaterials();
     const group = new THREE.Group();
     group.add(
-      makeSpriteOutline(
-        quad(),
-        0xffffff,
-        materials,
-        pileRings(MAX_PILE_SPRITES)[0]!.peers,
-      ),
+      makeSpriteOutline(quad(), 0xffffff, materials, pileRings(MAX_PILE_SPRITES)[0]!.peers),
     );
     disposeGroupChildren(group, materials);
 
     const lone = makeSpriteOutline(quad(), 0xffffff, materials);
     const u = uniformsOf(lone);
     expect(u.uPeerCount!.value).toBe(0);
-    expect(
-      (u.uPeer!.value as THREE.Vector2[]).every((v) => v.x === 0 && v.y === 0),
-    ).toBe(true);
+    expect((u.uPeer!.value as THREE.Vector2[]).every((v) => v.x === 0 && v.y === 0)).toBe(true);
   });
 
   /** Two rings of one heap are two materials, or they would share a colour. */

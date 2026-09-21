@@ -13,12 +13,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PUSH, isMobileTile } from "../lib/interactions";
-import {
-  changedCellsOnLevel,
-  emptyMap,
-  getStack,
-  replaceStack,
-} from "../lib/mapData";
+import { changedCellsOnLevel, emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL, parseCoordKey } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
@@ -109,12 +104,7 @@ function changedByLevel(prev: MapFile, next: MapFile): Map<number, Set<string>> 
  * Tile ids whose presence in a cell differs between two stacks. Order is
  * ignored: what matters is which tiles came and went, not where in the stack.
  */
-function movedTileIds(
-  prev: MapFile,
-  next: MapFile,
-  z: number,
-  key: string,
-): Set<string> {
+function movedTileIds(prev: MapFile, next: MapFile, z: number, key: string): Set<string> {
   const { x, y } = parseCoordKey(key);
   const before = getStack(prev, x, y, z).map((p) => p.tileId);
   const after = getStack(next, x, y, z).map((p) => p.tileId);
@@ -128,9 +118,7 @@ function movedTileIds(
 
 describe("a walk stays cheap to rebuild", () => {
   /** Run until the map changes, or give up. Returns the map before and after. */
-  function stepUntilMapChanges(
-    session: GameSession,
-  ): { before: MapFile; after: MapFile } | null {
+  function stepUntilMapChanges(session: GameSession): { before: MapFile; after: MapFile } | null {
     // Enough ticks to cover a full step with room to spare.
     const maxTicks = Math.ceil((WALK_DURATION_MS * 3) / TICK_MS);
     for (let i = 0; i < maxTicks; i++) {
@@ -225,9 +213,7 @@ describe("mobility classification", () => {
     // A body moves under its own steam, and saying so explicitly is what keeps
     // one that ignores gravity out of the static bake — baked into the floor,
     // and smearing across it the moment it walked.
-    expect(isMobileTile(tile({ id: "ghost", height: 2, actor: true }))).toBe(
-      true,
-    );
+    expect(isMobileTile(tile({ id: "ghost", height: 2, actor: true }))).toBe(true);
     expect(
       isMobileTile(tile({ id: "crate", height: 2, interactions: { push: DEFAULT_PUSH } })),
     ).toBe(true);

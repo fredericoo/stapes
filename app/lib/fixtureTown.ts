@@ -174,8 +174,10 @@ function houseAt(bx: number, by: number): Rect | null {
     y1: (by + 1) * BLOCK_SIZE - HOUSE_MARGIN,
   };
   const insideTown =
-    house.x0 >= -TOWN_HALF_SPAN && house.y0 >= -TOWN_HALF_SPAN &&
-    house.x1 <= TOWN_HALF_SPAN && house.y1 <= TOWN_HALF_SPAN;
+    house.x0 >= -TOWN_HALF_SPAN &&
+    house.y0 >= -TOWN_HALF_SPAN &&
+    house.x1 <= TOWN_HALF_SPAN &&
+    house.y1 <= TOWN_HALF_SPAN;
   if (!insideTown) return null;
   if (overlaps(house, SQUARE)) return null;
   if (overlaps(house, POND)) return null;

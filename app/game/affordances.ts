@@ -1,9 +1,5 @@
 import { resolveDialog } from "../lib/dialog";
-import {
-  absoluteStandingElevation,
-  getStack,
-  walkableElevInStack,
-} from "../lib/mapData";
+import { absoluteStandingElevation, getStack, walkableElevInStack } from "../lib/mapData";
 import { hasLineOfSight } from "./sight";
 import type {
   AddStatusInteraction,
@@ -22,24 +18,14 @@ import {
   resolveTeleport,
   resolveTransmute,
 } from "../lib/interactions";
-import {
-  armorSlotOf,
-  resolveConsumable,
-  resolveContainer,
-  resolveItem,
-} from "../lib/item";
+import { armorSlotOf, resolveConsumable, resolveContainer, resolveItem } from "../lib/item";
 import type { EquipSlot } from "../lib/kit";
 import { stowFits } from "../lib/piles";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { physicalHeight } from "../lib/types";
 import { canReplaceStack, fitsTile } from "../lib/validation";
 import { PLAYER_TILE_ID } from "./constants";
-import {
-  handAccepts,
-  handHasRoomFor,
-  wornAccepts,
-  type Equipment,
-} from "./equipment";
+import { handAccepts, handHasRoomFor, wornAccepts, type Equipment } from "./equipment";
 import { pushDestination } from "./push";
 
 /** A specific placed tile in the map — cell plus slot in its stack. */
@@ -165,10 +151,7 @@ export function pushableDefAt(
  * Floors are not part of the test — reaching one level up or down is fine
  * (see {@link INTERACT_LEVEL_SLACK}); it is the plan view that must touch.
  */
-export function pushDirectionFrom(
-  actor: Actor,
-  ref: ObjectRef,
-): Direction | null {
+export function pushDirectionFrom(actor: Actor, ref: ObjectRef): Direction | null {
   const dx = ref.x - actor.x;
   const dy = ref.y - actor.y;
   if (Math.abs(dx) + Math.abs(dy) !== 1) return null;
@@ -205,9 +188,7 @@ export function switchWouldFit(
   if (!tilesById[targetTileId]) return false;
   const stack = getStack(map, ref.x, ref.y, ref.z);
   if (!stack[ref.stackIndex]) return false;
-  const next = stack.map((p, i) =>
-    i === ref.stackIndex ? { ...p, tileId: targetTileId } : p,
-  );
+  const next = stack.map((p, i) => (i === ref.stackIndex ? { ...p, tileId: targetTileId } : p));
   return canReplaceStack(map, ref.x, ref.y, ref.z, next, tilesById).ok;
 }
 
@@ -319,7 +300,8 @@ export function canTalkFrom(
   const placed = getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex];
   const def = placed && tilesById[placed.tileId];
   if (!def || !resolveDialog(def)) return false;
-  const rise = standingElevationUnder(map, tilesById, ref) - standingElevationUnder(map, tilesById, self);
+  const rise =
+    standingElevationUnder(map, tilesById, ref) - standingElevationUnder(map, tilesById, self);
   if (Math.abs(rise) > TALK_HEIGHT_SLACK) return false;
   return hasLineOfSight(map, tilesById, self, ref);
 }
@@ -357,10 +339,7 @@ function standingElevationUnder(
  * the game plays by. Without it the round pick-up radius would contradict
  * itself, since it takes in the cell you are standing in on purpose.
  */
-function isLid(
-  placed: PlacedTile | undefined,
-  tilesById: Record<string, TileDef>,
-): boolean {
+function isLid(placed: PlacedTile | undefined, tilesById: Record<string, TileDef>): boolean {
   if (!placed || placed.owner) return false;
   const def = tilesById[placed.tileId];
   return def != null && physicalHeight(def) > 0;
@@ -586,9 +565,7 @@ export function canEquipFrom(
  * A container never goes in the bag, wearable or not: nothing nests. A wearable
  * one can still end up in a hand, since a hand takes anything you can carry.
  */
-export type PickUpDestination =
-  | { kind: "contents" }
-  | { kind: "slot"; slot: "weapon" | "offhand" };
+export type PickUpDestination = { kind: "contents" } | { kind: "slot"; slot: "weapon" | "offhand" };
 
 export function pickUpDestination(
   map: MapFile,
@@ -705,9 +682,7 @@ const DROP_CELLS_SQUARED = DROP_CELLS * DROP_CELLS;
  * The tile rather than the instance, because none of this depends on which
  * particular sword it is — only on how tall it is and what it is made of.
  */
-export type DropDestination =
-  | { kind: "stack" }
-  | { kind: "contents"; ref: ObjectRef };
+export type DropDestination = { kind: "stack" } | { kind: "contents"; ref: ObjectRef };
 
 export function dropDestinationAt(
   map: MapFile,
@@ -955,8 +930,7 @@ export function reachableTeleportAt(
     return pushDirectionFrom(actor, ref) ? teleport : null;
   }
   if (teleport.trigger === "interactOver") {
-    const over =
-      actor.x === ref.x && actor.y === ref.y && actor.z === ref.z;
+    const over = actor.x === ref.x && actor.y === ref.y && actor.z === ref.z;
     return over ? teleport : null;
   }
   return null;

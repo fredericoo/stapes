@@ -25,17 +25,14 @@ import { resolveStatus } from "./status";
  * actually break. The plume next door is pinned exactly, in `./particleVfx.test`.
  */
 
-const near = (a: number, b: number, tolerance = 0.02) =>
-  Math.abs(a - b) <= tolerance;
+const near = (a: number, b: number, tolerance = 0.02) => Math.abs(a - b) <= tolerance;
 
 describe("a tint", () => {
   const purple: StatusTint = { color: "#a884f3", strength: 0.5, keepLuma: 1 };
 
   it("leaves a sprite alone at no strength", () => {
     const sprite = [0.8, 0.2, 0.2] as const;
-    expect(applyTint(sprite, { ...purple, strength: 0 })).toEqual([
-      0.8, 0.2, 0.2,
-    ]);
+    expect(applyTint(sprite, { ...purple, strength: 0 })).toEqual([0.8, 0.2, 0.2]);
   });
 
   it("keeps every shading step when the lightness is kept", () => {

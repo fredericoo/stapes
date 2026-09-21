@@ -69,11 +69,7 @@ export function SignInForm({
           disabled={busy}
           onChange={(event) => setPassword(event.target.value)}
         />
-        <DoorButton
-          type="submit"
-          disabled={busy || !username || !password}
-          className="mt-1"
-        >
+        <DoorButton type="submit" disabled={busy || !username || !password} className="mt-1">
           {busy ? "Just a moment…" : submitLabel}
         </DoorButton>
       </form>

@@ -1,13 +1,6 @@
 import { useState } from "react";
 import { redirect, useNavigate } from "react-router";
-import {
-  Door,
-  DoorButton,
-  DoorError,
-  DoorField,
-  DoorNote,
-  DoorTitle,
-} from "../components/door";
+import { Door, DoorButton, DoorError, DoorField, DoorNote, DoorTitle } from "../components/door";
 import {
   MAX_CHARACTERS_PER_ACCOUNT,
   MAX_CHARACTER_NAME_LENGTH,
@@ -96,10 +89,7 @@ export default function NewCharacterPage() {
           disabled={busy}
           onChange={(event) => setName(event.target.value)}
         />
-        <DoorButton
-          type="submit"
-          disabled={busy || !name || typedProblem !== null}
-        >
+        <DoorButton type="submit" disabled={busy || !name || typedProblem !== null}>
           {busy ? "Just a moment…" : "Create and enter"}
         </DoorButton>
       </form>
@@ -110,8 +100,8 @@ export default function NewCharacterPage() {
         <DoorNote>{typedProblem}</DoorNote>
       ) : (
         <DoorNote>
-          Letters only, up to {MAX_CHARACTER_NAME_LENGTH}. A name is chosen once
-          and cannot be changed.
+          Letters only, up to {MAX_CHARACTER_NAME_LENGTH}. A name is chosen once and cannot be
+          changed.
         </DoorNote>
       )}
       {error ? <DoorError>{error}</DoorError> : null}

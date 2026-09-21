@@ -1,19 +1,10 @@
 import { formatClock, type MinutesOfDay } from "../lib/clock";
 import type { ExtractInteraction, PlacedReward } from "../lib/interactions";
 import { DEFAULT_EXTRACT_VERB } from "../lib/interactions";
-import {
-  MASTERIES,
-  MAX_MASTERY,
-  MIN_MASTERY,
-  type Mastery,
-} from "../lib/mastery";
+import { MASTERIES, MAX_MASTERY, MIN_MASTERY, type Mastery } from "../lib/mastery";
 import type { Coord, TileDef } from "../lib/types";
 import type { CastRefusal } from "./casting";
-import {
-  COMMAND_USAGE,
-  MAX_TILE_COUNT,
-  type CommandRefusal,
-} from "./commands";
+import { COMMAND_USAGE, MAX_TILE_COUNT, type CommandRefusal } from "./commands";
 import type { PathRefusal } from "./pathfinding";
 
 /**
@@ -146,10 +137,7 @@ function verbOf(reward: PlacedReward): string {
  * which is ugly on purpose: a reward handing over something unnamed is a content
  * bug, and a sentence that quietly skipped it would hide the missing item.
  */
-function countedItems(
-  tileIds: string[],
-  tilesById: Record<string, TileDef>,
-): string {
+function countedItems(tileIds: string[], tilesById: Record<string, TileDef>): string {
   const counted = new Map<string, number>();
   for (const tileId of tileIds) {
     counted.set(tileId, (counted.get(tileId) ?? 0) + 1);
@@ -210,11 +198,7 @@ const DEFAULT_EXTRACT_SENTENCE_VERB = DEFAULT_EXTRACT_VERB.toLowerCase();
  * Only a command reaches this. Nothing a player does in a fight can move
  * anybody's masteries but their own.
  */
-export function otherMasteryNotice(
-  name: string,
-  mastery: Mastery,
-  level: number,
-): string {
+export function otherMasteryNotice(name: string, mastery: Mastery, level: number): string {
   return `${name}'s ${mastery} mastery is now ${level}`;
 }
 

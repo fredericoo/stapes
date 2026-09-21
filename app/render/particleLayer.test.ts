@@ -34,7 +34,10 @@ function lightUniforms(): LevelLightUniforms {
 
 function layer() {
   // Dice pinned at the middle of every range, so a spawn is deterministic.
-  return new ParticleLayer(() => lightUniforms(), () => 0.5);
+  return new ParticleLayer(
+    () => lightUniforms(),
+    () => 0.5,
+  );
 }
 
 function emitter(
@@ -62,10 +65,7 @@ function emitter(
 }
 
 /** A cut over exactly the cells named — the shape `roofCutFor` hands back. */
-const cutting = (
-  floor: number,
-  ...cells: Array<{ x: number; y: number; z: number }>
-): RoofCut => {
+const cutting = (floor: number, ...cells: Array<{ x: number; y: number; z: number }>): RoofCut => {
   const byZ = new Map<number, Set<string>>();
   for (const cell of cells) {
     const level = byZ.get(cell.z) ?? new Set<string>();
@@ -101,9 +101,7 @@ describe("what the buffers say", () => {
 
   it("samples the light map at the cell the particle is over", () => {
     const l = layer();
-    l.setEmitters([
-      emitter({ cx: 3.5, cy: 4.5 }, { lit: true, spawnRadiusCells: 0 }),
-    ]);
+    l.setEmitters([emitter({ cx: 3.5, cy: 4.5 }, { lit: true, spawnRadiusCells: 0 })]);
     l.update(1_000, undefined);
 
     const uv = attr(l, "aLightUv").array as Float32Array;
@@ -119,10 +117,7 @@ describe("what the buffers say", () => {
 
   it("gives each level its own draw group and material", () => {
     const l = layer();
-    l.setEmitters([
-      emitter({ id: "ground", z: 0 }),
-      emitter({ id: "upstairs", z: 1 }),
-    ]);
+    l.setEmitters([emitter({ id: "ground", z: 0 }), emitter({ id: "upstairs", z: 1 })]);
     l.update(1_000, undefined);
 
     // Two levels, two groups, two materials — the light map is bound per level,

@@ -101,9 +101,7 @@ export function ArenaStage({
       />
       <div className="flex min-w-12 flex-col items-center justify-center gap-1">
         <span className="text-xs font-bold uppercase text-muted">vs</span>
-        <span className="tabular-nums text-xs text-muted">
-          {(elapsedMs / 1000).toFixed(1)}s
-        </span>
+        <span className="tabular-nums text-xs text-muted">{(elapsedMs / 1000).toFixed(1)}s</span>
       </div>
       <Fighter
         side="b"
@@ -208,17 +206,8 @@ function Fighter({
   );
 }
 
-function FloatingNumber({
-  floater,
-  elapsedMs,
-}: {
-  floater: Floater;
-  elapsedMs: number;
-}) {
-  const life = Math.max(
-    0,
-    Math.min(1, (elapsedMs - floater.bornAtMs) / DAMAGE_NUMBER_LIFETIME_MS),
-  );
+function FloatingNumber({ floater, elapsedMs }: { floater: Floater; elapsedMs: number }) {
+  const life = Math.max(0, Math.min(1, (elapsedMs - floater.bornAtMs) / DAMAGE_NUMBER_LIFETIME_MS));
   return (
     <span
       className={`pointer-events-none absolute inset-x-0 top-2 text-center text-sm font-bold tabular-nums ${TONE_CLASS[floater.tone]}`}

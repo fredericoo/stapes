@@ -36,14 +36,7 @@ import { SLOT_LABELS } from "../lib/kit";
 import { MASTERY_LABELS, WEAPON_MASTERIES } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
-import {
-  FieldLabel,
-  Input,
-  SectionTitle,
-  Segmented,
-  Select,
-  SwitchField,
-} from "../ui";
+import { FieldLabel, Input, SectionTitle, Segmented, Select, SwitchField } from "../ui";
 import { StatField } from "./StatField";
 import { CharmFields } from "./CharmFields";
 import { StatusGrants } from "./StatusGrants";
@@ -75,8 +68,10 @@ type Props = {
  * Named by `SLOT_LABELS` rather than here, so the square a helmet is authored
  * into is called what the kit table calls it — see `../lib/kit`.
  */
-const ARMOR_SLOT_OPTIONS: Array<{ value: ArmorSlot; label: string }> =
-  ARMOR_SLOTS.map((slot) => ({ value: slot, label: SLOT_LABELS[slot] }));
+const ARMOR_SLOT_OPTIONS: Array<{ value: ArmorSlot; label: string }> = ARMOR_SLOTS.map((slot) => ({
+  value: slot,
+  label: SLOT_LABELS[slot],
+}));
 
 const TYPE_OPTIONS: Array<{ value: ItemType; label: string }> = [
   { value: "weapon", label: "Weapon" },
@@ -100,7 +95,8 @@ const TYPE_INFO: Record<ItemType, string> = {
   container: "Holds other items. Containers never nest.",
   artifact:
     "Carried only: goes in the off hand, has no stats and cannot be used. A torch — its light is on the sprite's frames.",
-  stone: "Held or worn on the accessory square, and cast on a cooldown. Every square casts the same spell at the same range.",
+  stone:
+    "Held or worn on the accessory square, and cast on a cooldown. Every square casts the same spell at the same range.",
   charm:
     "Worn on the accessory square, never held and never pressed. Does its thing on its own clock for as long as it is worn.",
 };
@@ -175,9 +171,7 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
 
   // Anything carriable but this tile itself: a potion that left a full potion
   // behind would be a bottle that never empties.
-  const residueTiles = tiles.filter(
-    (tile) => tile.kind === "item" && tile.id !== draft.id,
-  );
+  const residueTiles = tiles.filter((tile) => tile.kind === "item" && tile.id !== draft.id);
 
   const patchContainer = (fields: Partial<ContainerItem>) => {
     if (item.type !== "container") return;
@@ -359,9 +353,7 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
                 max={MAX_PILE}
                 onChange={(pile) => patchConsumable({ pile })}
                 readout={
-                  pileOf(item) > MIN_PILE
-                    ? `Up to ${pileOf(item)} per square.`
-                    : "One per square."
+                  pileOf(item) > MIN_PILE ? `Up to ${pileOf(item)} per square.` : "One per square."
                 }
               />
             </div>
@@ -385,9 +377,7 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
                 className="w-56"
                 ariaLabel="Leaves behind"
                 value={item.leaves ?? ""}
-                onValueChange={(leaves) =>
-                  patchConsumable({ leaves: leaves || undefined })
-                }
+                onValueChange={(leaves) => patchConsumable({ leaves: leaves || undefined })}
                 options={[
                   { value: "", label: "Nothing" },
                   ...residueTiles.map((tile) => ({
@@ -413,18 +403,9 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
             }
           />
         ) : item.type === "stone" ? (
-          <StoneFields
-            stone={item}
-            onChange={patchStone}
-            tiles={tiles}
-            statusDefs={statusDefs}
-          />
+          <StoneFields stone={item} onChange={patchStone} tiles={tiles} statusDefs={statusDefs} />
         ) : item.type === "charm" ? (
-          <CharmFields
-            charm={item}
-            onChange={patchCharm}
-            statusDefs={statusDefs}
-          />
+          <CharmFields charm={item} onChange={patchCharm} statusDefs={statusDefs} />
         ) : item.type === "shield" ? (
           <StatField
             label="Defence"

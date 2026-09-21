@@ -63,12 +63,7 @@ function ids(map: MapFile, x: number, y: number, z: number): string[] {
   return getStack(map, x, y, z).map((p) => p.tileId);
 }
 
-function facing(
-  map: MapFile,
-  x: number,
-  y: number,
-  z: number,
-): string | undefined {
+function facing(map: MapFile, x: number, y: number, z: number): string | undefined {
   const stack = getStack(map, x, y, z);
   return stack[stack.length - 1]?.direction;
 }
@@ -193,9 +188,11 @@ describe("windowsAlong", () => {
         // with an even number of usable cells it has no symmetric home and
         // sits one short of the middle. Everything else matches exactly.
         const slop = at.length === 1 ? 1 : 0;
-        expect({ wall, spacing, off: Math.abs(before - after) <= slop }).toEqual(
-          { wall, spacing, off: true },
-        );
+        expect({ wall, spacing, off: Math.abs(before - after) <= slop }).toEqual({
+          wall,
+          spacing,
+          off: true,
+        });
       }
     }
   });
@@ -223,23 +220,11 @@ describe("planHouse", () => {
   });
 
   it("lays the ground floor on the site rather than in place of it", () => {
-    const map = siteMap(-2, -2, 10, 10, [
-      { tileId: "grass-2" },
-      { tileId: "cobblestone" },
-    ]);
+    const map = siteMap(-2, -2, 10, 10, [{ tileId: "grass-2" }, { tileId: "cobblestone" }]);
     const built = build(map, { x0: 0, y0: 0, x1: 4, y1: 4 });
 
-    expect(ids(built, 0, 0, 0)).toEqual([
-      "grass-2",
-      "cobblestone",
-      "wooden-floor",
-      "sw2",
-    ]);
-    expect(ids(built, 2, 2, 0)).toEqual([
-      "grass-2",
-      "cobblestone",
-      "wooden-floor",
-    ]);
+    expect(ids(built, 0, 0, 0)).toEqual(["grass-2", "cobblestone", "wooden-floor", "sw2"]);
+    expect(ids(built, 2, 2, 0)).toEqual(["grass-2", "cobblestone", "wooden-floor"]);
   });
 
   it("refuses a site that is not level", () => {
@@ -252,28 +237,21 @@ describe("planHouse", () => {
   });
 
   it("builds on a level plinth when the walls still fit a level", () => {
-    const map = siteMap(-2, -2, 10, 10, [
-      { tileId: "dirt" },
-      { tileId: "half-stone" },
-    ]);
-    const built = build(map, { x0: 0, y0: 0, x1: 4, y1: 4 }, {
-      wallTileId: "half-wall",
-      windowTileId: null,
-      doorTileId: null,
-    });
-    expect(ids(built, 0, 0, 0)).toEqual([
-      "dirt",
-      "half-stone",
-      "wooden-floor",
-      "half-wall",
-    ]);
+    const map = siteMap(-2, -2, 10, 10, [{ tileId: "dirt" }, { tileId: "half-stone" }]);
+    const built = build(
+      map,
+      { x0: 0, y0: 0, x1: 4, y1: 4 },
+      {
+        wallTileId: "half-wall",
+        windowTileId: null,
+        doorTileId: null,
+      },
+    );
+    expect(ids(built, 0, 0, 0)).toEqual(["dirt", "half-stone", "wooden-floor", "half-wall"]);
   });
 
   it("says so when the site plus a full-height wall is taller than a level", () => {
-    const map = siteMap(-2, -2, 10, 10, [
-      { tileId: "dirt" },
-      { tileId: "half-stone" },
-    ]);
+    const map = siteMap(-2, -2, 10, 10, [{ tileId: "dirt" }, { tileId: "half-stone" }]);
     const plan = planHouse(map, tilesById, { x0: 0, y0: 0, x1: 4, y1: 4 }, 0, BASE);
     expect(plan.ok).toBe(false);
     if (!plan.ok) expect(plan.reason).toContain("past the 4 a level holds");
@@ -299,9 +277,13 @@ describe("planHouse", () => {
 
   it("tops the walls with nothing when no roof colour is chosen", () => {
     const map = siteMap(-2, -2, 10, 10);
-    const built = build(map, { x0: 0, y0: 0, x1: 4, y1: 4 }, {
-      roofColour: null,
-    });
+    const built = build(
+      map,
+      { x0: 0, y0: 0, x1: 4, y1: 4 },
+      {
+        roofColour: null,
+      },
+    );
     expect(ids(built, 0, 0, 0)).toEqual(["grass-2", "wooden-floor", "sw2"]);
     for (let y = 0; y <= 4; y++) {
       for (let x = 0; x <= 4; x++) {
@@ -312,19 +294,27 @@ describe("planHouse", () => {
 
   it("still stacks storeys under an absent roof", () => {
     const map = siteMap(-2, -2, 12, 12);
-    const built = build(map, { x0: 0, y0: 0, x1: 6, y1: 6 }, {
-      roofColour: null,
-      storeys: 3,
-    });
+    const built = build(
+      map,
+      { x0: 0, y0: 0, x1: 6, y1: 6 },
+      {
+        roofColour: null,
+        storeys: 3,
+      },
+    );
     expect(ids(built, 0, 2, 2)).toEqual(["wooden-floor", "sw2"]);
     expect(getStack(built, 3, 3, 3)).toEqual([]);
   });
 
   it("roofs a five-wide vertical ridge the way the cottage is roofed", () => {
     const map = siteMap(-2, -2, 10, 10);
-    const built = build(map, { x0: 0, y0: 0, x1: 4, y1: 4 }, {
-      roofColour: "blue",
-    });
+    const built = build(
+      map,
+      { x0: 0, y0: 0, x1: 4, y1: 4 },
+      {
+        roofColour: "blue",
+      },
+    );
 
     // West eave faces the ridge, east eave faces back at it, plaster between.
     expect(ids(built, 0, 2, 1)).toEqual(["roof-4"]);
@@ -344,9 +334,13 @@ describe("planHouse", () => {
     const map = siteMap(-2, -2, 20, 20);
     // Nine wide and five deep, so the ridge should run east-west: the north
     // and south rows are the eaves and the roof steps in over y.
-    const built = build(map, { x0: 0, y0: 0, x1: 8, y1: 4 }, {
-      roofOrientation: "auto",
-    });
+    const built = build(
+      map,
+      { x0: 0, y0: 0, x1: 8, y1: 4 },
+      {
+        roofOrientation: "auto",
+      },
+    );
     expect(facing(built, 4, 0, 1)).toBe("s");
     expect(facing(built, 4, 4, 1)).toBe("n");
     // Three roof levels for a five-deep span, and nothing above them.
@@ -356,9 +350,13 @@ describe("planHouse", () => {
 
   it("turns the same roof through ninety degrees", () => {
     const map = siteMap(-2, -2, 10, 10);
-    const built = build(map, { x0: 0, y0: 0, x1: 4, y1: 4 }, {
-      roofOrientation: "horizontal",
-    });
+    const built = build(
+      map,
+      { x0: 0, y0: 0, x1: 4, y1: 4 },
+      {
+        roofOrientation: "horizontal",
+      },
+    );
 
     expect(facing(built, 2, 0, 1)).toBe("s");
     expect(facing(built, 2, 4, 1)).toBe("n");
@@ -378,17 +376,23 @@ describe("planHouse", () => {
 
   it("faces the door out of the house", () => {
     const map = siteMap(-2, -2, 12, 12);
-    const cases: Array<[HouseConfig["doorRow"], HouseConfig["doorColumn"], number, number, string]> = [
+    const cases: Array<
+      [HouseConfig["doorRow"], HouseConfig["doorColumn"], number, number, string]
+    > = [
       ["north", "centre", 3, 0, "n"],
       ["south", "centre", 3, 6, "s"],
       ["centre", "west", 0, 3, "w"],
       ["centre", "east", 6, 3, "e"],
     ];
     for (const [doorRow, doorColumn, x, y, face] of cases) {
-      const built = build(map, { x0: 0, y0: 0, x1: 6, y1: 6 }, {
-        doorRow,
-        doorColumn,
-      });
+      const built = build(
+        map,
+        { x0: 0, y0: 0, x1: 6, y1: 6 },
+        {
+          doorRow,
+          doorColumn,
+        },
+      );
       expect(ids(built, x, y, 0)).toContain("door-closed");
       expect(facing(built, x, y, 0)).toBe(face);
     }
@@ -405,9 +409,13 @@ describe("planHouse", () => {
 
   it("faces a window at the visible side of the wall it is set into", () => {
     const map = siteMap(-2, -2, 12, 12);
-    const built = build(map, { x0: 0, y0: 0, x1: 6, y1: 6 }, {
-      doorTileId: null,
-    });
+    const built = build(
+      map,
+      { x0: 0, y0: 0, x1: 6, y1: 6 },
+      {
+        doorTileId: null,
+      },
+    );
 
     // An east-west wall shows its south face; a north-south wall its east one.
     expect(ids(built, 3, 0, 0)).toEqual(["grass-2", "wooden-floor", "window-1"]);
@@ -418,14 +426,22 @@ describe("planHouse", () => {
 
   it("spaces windows by the setting rather than by a fixed number", () => {
     const map = siteMap(-2, -2, 12, 12);
-    const tight = build(map, { x0: 0, y0: 0, x1: 10, y1: 10 }, {
-      doorTileId: null,
-      windowSpacing: 2,
-    });
-    const loose = build(map, { x0: 0, y0: 0, x1: 10, y1: 10 }, {
-      doorTileId: null,
-      windowSpacing: 5,
-    });
+    const tight = build(
+      map,
+      { x0: 0, y0: 0, x1: 10, y1: 10 },
+      {
+        doorTileId: null,
+        windowSpacing: 2,
+      },
+    );
+    const loose = build(
+      map,
+      { x0: 0, y0: 0, x1: 10, y1: 10 },
+      {
+        doorTileId: null,
+        windowSpacing: 5,
+      },
+    );
     const northWindows = (m: MapFile) => {
       const out: number[] = [];
       for (let x = 0; x <= 10; x++) {
@@ -439,9 +455,13 @@ describe("planHouse", () => {
 
   it("leaves the walls blank when no window tile is chosen", () => {
     const map = siteMap(-2, -2, 12, 12);
-    const built = build(map, { x0: 0, y0: 0, x1: 6, y1: 6 }, {
-      windowTileId: null,
-    });
+    const built = build(
+      map,
+      { x0: 0, y0: 0, x1: 6, y1: 6 },
+      {
+        windowTileId: null,
+      },
+    );
     for (let x = 0; x <= 6; x++) {
       expect(ids(built, x, 0, 0)).not.toContain("window-1");
     }
@@ -449,9 +469,13 @@ describe("planHouse", () => {
 
   it("never puts a window in a corner", () => {
     const map = siteMap(-2, -2, 12, 12);
-    const built = build(map, { x0: 0, y0: 0, x1: 6, y1: 6 }, {
-      doorTileId: null,
-    });
+    const built = build(
+      map,
+      { x0: 0, y0: 0, x1: 6, y1: 6 },
+      {
+        doorTileId: null,
+      },
+    );
     for (const [x, y] of [
       [0, 0],
       [6, 0],
@@ -472,13 +496,7 @@ describe("planHouse", () => {
 
   it("writes every cell once, so a commit is one undo", () => {
     const map = siteMap(-2, -2, 12, 12);
-    const plan = planHouse(
-      map,
-      tilesById,
-      { x0: 0, y0: 0, x1: 6, y1: 6 },
-      0,
-      BASE,
-    );
+    const plan = planHouse(map, tilesById, { x0: 0, y0: 0, x1: 6, y1: 6 }, 0, BASE);
     expect(plan.ok).toBe(true);
     if (!plan.ok) return;
     const seen = new Set(plan.edits.map((e) => `${e.z}:${e.x},${e.y}`));

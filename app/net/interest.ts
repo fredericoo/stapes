@@ -25,18 +25,9 @@
  * somewhere it has been told about.
  */
 import { chunkKeyAt, chunkKeyFor, getChunk, listChunkKeys } from "../lib/mapData";
-import {
-  LIGHT_APRON,
-  LIGHT_CHUNK_SIZE,
-  LIGHT_WINDOW_MARGIN,
-} from "../lib/lightingChunks";
+import { LIGHT_APRON, LIGHT_CHUNK_SIZE, LIGHT_WINDOW_MARGIN } from "../lib/lightingChunks";
 import { MAX_LIGHT_LEVEL } from "../lib/types";
-import {
-  CHUNK_SIZE,
-  MAX_LEVEL,
-  MIN_LEVEL,
-  levelKey,
-} from "../lib/types";
+import { CHUNK_SIZE, MAX_LEVEL, MIN_LEVEL, levelKey } from "../lib/types";
 import { MAP_FILE_VERSION } from "../lib/types";
 import type { FlatMapFile, MapFile, PlacedTile } from "../lib/types";
 import { MESH_WINDOW_MARGIN, VIEW_CELLS } from "../lib/view";
@@ -114,8 +105,7 @@ export const INTEREST_REACH_CHUNKS = Math.ceil(INTEREST_REACH_CELLS / CHUNK_SIZE
  * is measured against, and `interest.test.ts` pins it.
  */
 /** The same reach between two bodies on one storey, before the skew below. */
-export const BODY_REACH_ON_LEVEL =
-  Math.ceil(VIEW_CELLS / 2) + MESH_WINDOW_MARGIN + MAX_LIGHT_LEVEL;
+export const BODY_REACH_ON_LEVEL = Math.ceil(VIEW_CELLS / 2) + MESH_WINDOW_MARGIN + MAX_LIGHT_LEVEL;
 
 export const BODY_REACH_CELLS = BODY_REACH_ON_LEVEL + (MAX_LEVEL - MIN_LEVEL);
 
@@ -168,19 +158,12 @@ export function interestChunks(x: number, y: number): Set<string> {
 }
 
 /** Is this cell one the holder of `chunks` has been sent? */
-export function covers(
-  chunks: ReadonlySet<string>,
-  x: number,
-  y: number,
-): boolean {
+export function covers(chunks: ReadonlySet<string>, x: number, y: number): boolean {
   return chunks.has(chunkKeyFor(x, y));
 }
 
 /** Do two subscriptions name the same chunks? */
-export function sameChunks(
-  a: ReadonlySet<string> | undefined,
-  b: ReadonlySet<string>,
-): boolean {
+export function sameChunks(a: ReadonlySet<string> | undefined, b: ReadonlySet<string>): boolean {
   if (a === undefined || a.size !== b.size) return false;
   for (const key of b) if (!a.has(key)) return false;
   return true;
@@ -227,10 +210,7 @@ export function chunksEntered(
  * Returns the stack itself when there is nothing to take out, which is the
  * ordinary case — a cell with no body in it at all.
  */
-export function visibleStack(
-  stack: PlacedTile[],
-  held: ReadonlySet<string>,
-): PlacedTile[] {
+export function visibleStack(stack: PlacedTile[], held: ReadonlySet<string>): PlacedTile[] {
   let out: PlacedTile[] | null = null;
   for (let i = 0; i < stack.length; i++) {
     const placed = stack[i]!;

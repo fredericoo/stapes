@@ -80,7 +80,15 @@ const tiles: TileDef[] = [
       battler: {
         baseHp: PLAYER_BASE_HP,
         masteries: { toughness: PLAYER_TOUGHNESS },
-        naturalWeapon: { type: "weapon", damage: 5, def: 0, accuracy: 100, variance: 0, spd: 100, mastery: "fist" },
+        naturalWeapon: {
+          type: "weapon",
+          damage: 5,
+          def: 0,
+          accuracy: 100,
+          variance: 0,
+          spd: 100,
+          mastery: "fist",
+        },
         // Where the bag on a player's back comes from — see `app/lib/kit.ts`.
         kit: [{ slot: "bag", tileId: BAG_TILE_ID, chance: 100 }],
       },
@@ -135,7 +143,15 @@ const tiles: TileDef[] = [
     kind: "item",
     intangible: true,
     interactions: {
-      item: { type: "weapon", damage: 1, def: 0, accuracy: 100, variance: 0, spd: 50, mastery: "sharp" },
+      item: {
+        type: "weapon",
+        damage: 1,
+        def: 0,
+        accuracy: 100,
+        variance: 0,
+        spd: 50,
+        mastery: "sharp",
+      },
     },
   }),
   tile({
@@ -154,17 +170,11 @@ function field(half = 4): MapFile {
       map = replaceStack(map, x, y, 0, [{ tileId: "grass" }]);
     }
   }
-  return replaceStack(map, 0, 0, 0, [
-    { tileId: "grass" },
-    { tileId: "player", direction: "e" },
-  ]);
+  return replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "e" }]);
 }
 
 function withItem(x: number, y: number, tileId: string): GameSession {
-  const map = replaceStack(field(), x, y, 0, [
-    { tileId: "grass" },
-    { tileId },
-  ]);
+  const map = replaceStack(field(), x, y, 0, [{ tileId: "grass" }, { tileId }]);
   return new GameSession(map, tiles);
 }
 
@@ -174,9 +184,7 @@ function refAt(session: GameSession, x: number, y: number) {
 }
 
 function hpOf(session: GameSession): number | null {
-  return (
-    session.actorSnapshots().find((a) => a.tileId === "player")?.hp ?? null
-  );
+  return session.actorSnapshots().find((a) => a.tileId === "player")?.hp ?? null;
 }
 
 function tilesAt(session: GameSession, x: number, y: number): string[] {
@@ -188,9 +196,7 @@ describe("eating off the floor", () => {
     const session = withItem(1, 0, "cherry");
     session.drainEquipmentChanges();
 
-    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(
-      true,
-    );
+    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(true);
     expect(tilesAt(session, 1, 0)).toEqual(["grass"]);
     expect(session.getSnapshot().equipment.bag?.contents).toEqual([]);
     // Nothing entered the kit, so there is nothing to announce.
@@ -212,9 +218,7 @@ describe("eating off the floor", () => {
 
   it("never heals past full, and still spends the item", () => {
     const session = withItem(1, 0, "cherry");
-    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(
-      true,
-    );
+    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(true);
     expect(hpOf(session)).toBe(PLAYER_MAX_HP);
     expect(tilesAt(session, 1, 0)).toEqual(["grass"]);
   });
@@ -232,9 +236,7 @@ describe("eating off the floor", () => {
 
   it("kills through the same death every blow uses", () => {
     const session = withItem(1, 0, "hemlock");
-    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(
-      true,
-    );
+    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(true);
 
     expect(session.actorSnapshots()).toEqual([]);
     // The body is off the board too, not just the runtime. Nothing is lying
@@ -245,9 +247,7 @@ describe("eating off the floor", () => {
 
   it("refuses one two cells away", () => {
     const session = withItem(2, 0, "cherry");
-    expect(session.consume({ kind: "floor", ref: refAt(session, 2, 0) })).toBe(
-      false,
-    );
+    expect(session.consume({ kind: "floor", ref: refAt(session, 2, 0) })).toBe(false);
     expect(tilesAt(session, 2, 0)).toEqual(["grass", "cherry"]);
   });
 
@@ -258,24 +258,20 @@ describe("eating off the floor", () => {
       { tileId: "crate" },
     ]);
     const session = new GameSession(map, tiles);
-    expect(
-      session.consume({ kind: "floor", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } }),
-    ).toBe(false);
+    expect(session.consume({ kind: "floor", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } })).toBe(
+      false,
+    );
   });
 
   it("refuses a thing that is not a consumable", () => {
     const session = withItem(1, 0, "sword");
-    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(
-      false,
-    );
+    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(false);
     expect(tilesAt(session, 1, 0)).toEqual(["grass", "sword"]);
   });
 
   it("has nothing to say for an actor who is not here", () => {
     const session = withItem(1, 0, "cherry");
-    expect(
-      session.consume({ kind: "floor", ref: refAt(session, 1, 0) }, "nobody"),
-    ).toBe(false);
+    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) }, "nobody")).toBe(false);
   });
 });
 
@@ -285,13 +281,9 @@ describe("eating out of a slot", () => {
     session.pickUp(refAt(session, 1, 0));
     session.drainEquipmentChanges();
 
-    expect(session.consume({ kind: "slot", slot: { kind: "contents", index: 0 } })).toBe(
-      true,
-    );
+    expect(session.consume({ kind: "slot", slot: { kind: "contents", index: 0 } })).toBe(true);
     expect(session.getSnapshot().equipment.bag?.contents).toEqual([]);
-    expect(session.drainEquipmentChanges()).toEqual([
-      session.getSnapshot().self.id,
-    ]);
+    expect(session.drainEquipmentChanges()).toEqual([session.getSnapshot().self.id]);
   });
 
   it("moves the hit points exactly as a floor meal does", () => {
@@ -359,17 +351,13 @@ describe("eating out of a slot", () => {
     const session = withItem(1, 0, "sword");
     session.pickUp(refAt(session, 1, 0));
 
-    expect(
-      session.consume({ kind: "slot", slot: { kind: "contents", index: 0 } }),
-    ).toBe(false);
+    expect(session.consume({ kind: "slot", slot: { kind: "contents", index: 0 } })).toBe(false);
     expect(session.getSnapshot().equipment.bag?.contents).toHaveLength(1);
   });
 
   it("refuses an empty slot", () => {
     const session = new GameSession(field(), tiles);
-    expect(
-      session.consume({ kind: "slot", slot: { kind: "contents", index: 0 } }),
-    ).toBe(false);
+    expect(session.consume({ kind: "slot", slot: { kind: "contents", index: 0 } })).toBe(false);
   });
 });
 
@@ -517,24 +505,16 @@ describe("the noise a consumable makes", () => {
  * wasted on a body the number cannot land on.
  */
 describe("a consumer with no hit points", () => {
-  const ghostTiles = tiles.map((t) =>
-    t.id === "player" ? { ...t, kind: "prop" as const } : t,
-  );
+  const ghostTiles = tiles.map((t) => (t.id === "player" ? { ...t, kind: "prop" as const } : t));
 
   it("refuses, and the thing is still there", () => {
-    const map = replaceStack(field(), 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "cherry" },
-    ]);
+    const map = replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "cherry" }]);
     const session = new GameSession(map, ghostTiles);
 
-    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(
-      false,
-    );
+    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(false);
     expect(tilesAt(session, 1, 0)).toEqual(["grass", "cherry"]);
   });
 });
-
 
 /**
  * A consumable that hands over a status instead of moving hit points.
@@ -594,10 +574,7 @@ describe("eating something that grants a status", () => {
    * something.
    */
   function fedWorld(): GameSession {
-    let map = replaceStack(field(), 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "berry" },
-    ]);
+    let map = replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "berry" }]);
     map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "poison" }]);
     return new GameSession(map, tiles, { statuses: catalogue });
   }
@@ -717,10 +694,7 @@ describe("eating something that grants a status", () => {
    * stack with each other.
    */
   it("takes the item's duration over the status's own", () => {
-    const map = replaceStack(field(), 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "bread" },
-    ]);
+    const map = replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "bread" }]);
     const session = new GameSession(map, tiles, { statuses: catalogue });
 
     session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
@@ -752,10 +726,7 @@ describe("eating something that grants a status", () => {
    * that will not start — the same rule a reward naming a missing tile is under.
    */
   it("eats an item naming a status nobody authored, and does nothing", () => {
-    const map = replaceStack(field(), 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "mystery-fruit" },
-    ]);
+    const map = replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "mystery-fruit" }]);
     const session = new GameSession(map, tiles, { statuses: catalogue });
     expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(true);
     expect(session.statusesOf("local")).toEqual([]);
@@ -772,18 +743,13 @@ describe("drinking the green potion, as authored", () => {
   const catalogue = statusesById(statusesJson);
 
   function potionWorld(): GameSession {
-    const map = replaceStack(field(), 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "green-potion" },
-    ]);
+    const map = replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "green-potion" }]);
     return new GameSession(map, tiles, { statuses: catalogue });
   }
 
   it("grants poison and spends the bottle", () => {
     const session = potionWorld();
-    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(
-      true,
-    );
+    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(true);
     expect(tilesAt(session, 1, 0)).toEqual(["grass"]);
     const held = session.statusesOf("local");
     expect(held?.map((s) => s.defId)).toEqual(["poison"]);
@@ -812,14 +778,19 @@ describe("a drink that leaves its bottle", () => {
   const BAG_SLOT = { kind: "contents", index: 0 } as const;
 
   function bagOf(session: GameSession) {
-    return session.getSnapshot().equipment.bag?.contents?.map((i) =>
-      i.count ? `${i.tileId}x${i.count}` : i.tileId,
-    );
+    return session
+      .getSnapshot()
+      .equipment.bag?.contents?.map((i) => (i.count ? `${i.tileId}x${i.count}` : i.tileId));
   }
 
   /** The bag filled with swords, so nothing else fits in it. */
   function fillBag(session: GameSession) {
-    for (const [x, y] of [[-1, 0], [-1, 1], [0, -1], [-1, -1]] as const) {
+    for (const [x, y] of [
+      [-1, 0],
+      [-1, 1],
+      [0, -1],
+      [-1, -1],
+    ] as const) {
       session.pickUp(refAt(session, x, y));
     }
   }
@@ -827,7 +798,12 @@ describe("a drink that leaves its bottle", () => {
   /** Swords on four cells within reach, and a potion on a fifth. */
   function armoury(): GameSession {
     let map = field();
-    for (const [x, y] of [[-1, 0], [-1, 1], [0, -1], [-1, -1]] as const) {
+    for (const [x, y] of [
+      [-1, 0],
+      [-1, 1],
+      [0, -1],
+      [-1, -1],
+    ] as const) {
       map = replaceStack(map, x, y, 0, [{ tileId: "grass" }, { tileId: "sword" }]);
     }
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "potion" }]);
@@ -901,9 +877,9 @@ describe("a drink that leaves its bottle", () => {
     ]);
     const session = new GameSession(map, tiles);
     const chest = refAt(session, 1, 0);
-    expect(
-      session.consume({ kind: "slot", slot: { kind: "ground", ref: chest, index: 0 } }),
-    ).toBe(true);
+    expect(session.consume({ kind: "slot", slot: { kind: "ground", ref: chest, index: 0 } })).toBe(
+      true,
+    );
     expect(getStack(session.getMap(), 1, 0, 0)[1]!.contents?.map((i) => i.tileId)).toEqual([
       "bottle",
     ]);
@@ -915,7 +891,12 @@ describe("a drink that leaves its bottle", () => {
     // there is genuinely nowhere for the bottle. A sword would not do for the
     // second hand — a pickup refuses a thing that has a slot of its own.
     let map = field();
-    for (const [x, y] of [[-1, 0], [-1, 1], [0, -1], [-1, -1]] as const) {
+    for (const [x, y] of [
+      [-1, 0],
+      [-1, 1],
+      [0, -1],
+      [-1, -1],
+    ] as const) {
       map = replaceStack(map, x, y, 0, [{ tileId: "grass" }, { tileId: "sword" }]);
     }
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "potion", count: 2 }]);
@@ -1021,16 +1002,11 @@ describe("eating raw meat, as authored", () => {
   /** The wolf as authored, plus the two tiles a test board needs. */
   const carnivores: TileDef[] = [
     ...tiles,
-    ...normalizeTiles(tilesJson as unknown[]).filter((t) =>
-      ["raw-meat", "wolf"].includes(t.id),
-    ),
+    ...normalizeTiles(tilesJson as unknown[]).filter((t) => ["raw-meat", "wolf"].includes(t.id)),
   ];
 
   function meatWorld(seed: number, eater = "player"): GameSession {
-    let map = replaceStack(field(), 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "raw-meat" },
-    ]);
+    let map = replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "raw-meat" }]);
     if (eater !== "player") {
       map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: eater }]);
     }
@@ -1045,9 +1021,7 @@ describe("eating raw meat, as authored", () => {
     const session = meatWorld(1);
     const before = hpOf(session);
 
-    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(
-      true,
-    );
+    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(true);
 
     expect(heldBy(session, "local")).toContain("fed");
     expect(hpOf(session)).toBe(before);
@@ -1077,9 +1051,7 @@ describe("eating raw meat, as authored", () => {
   it("never makes a wolf ill, whatever the dice say", () => {
     for (const seed of [...Array(20).keys()]) {
       const session = meatWorld(seed, "wolf");
-      const wolf = session
-        .actorIds()
-        .find((id) => id !== "local" && id !== "alice")!;
+      const wolf = session.actorIds().find((id) => id !== "local" && id !== "alice")!;
       session.consume({ kind: "floor", ref: refAt(session, 1, 0) }, wolf);
 
       expect(heldBy(session, wolf)).toEqual(["fed"]);

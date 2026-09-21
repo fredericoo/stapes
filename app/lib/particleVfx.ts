@@ -274,30 +274,15 @@ export const DEFAULT_IMPACT: ParticleEmitterDef = {
  * of the same two and already depends on this module for the emitter. Two
  * spellings of "is a hex colour" is how one of them ends up accepting `#fff`.
  */
-export const hexColorSchema = v.pipe(
-  v.string(),
-  v.regex(/^#[0-9a-fA-F]{6}$/),
-);
+export const hexColorSchema = v.pipe(v.string(), v.regex(/^#[0-9a-fA-F]{6}$/));
 
-export const unitIntervalSchema = v.pipe(
-  v.number(),
-  v.minValue(0),
-  v.maxValue(1),
-);
+export const unitIntervalSchema = v.pipe(v.number(), v.minValue(0), v.maxValue(1));
 
-const particleTtlMs = v.pipe(
-  v.number(),
-  v.minValue(0),
-  v.maxValue(MAX_PARTICLE_TTL_MS),
-);
+const particleTtlMs = v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_PARTICLE_TTL_MS));
 
 const wind = v.pipe(v.number(), v.minValue(-32), v.maxValue(32));
 
-const radiusPx = v.pipe(
-  v.number(),
-  v.minValue(0),
-  v.maxValue(MAX_PARTICLE_RADIUS_PX),
-);
+const radiusPx = v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_PARTICLE_RADIUS_PX));
 
 export const particleEmitterSchema = v.pipe(
   v.object({

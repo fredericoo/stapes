@@ -2,12 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { BattlerDef } from "../lib/battler";
 import { DEFAULT_BASE_HP } from "../lib/battler";
 import { constantFormula } from "../lib/formula";
-import {
-  MELEE_REACH,
-  type ItemDef,
-  type Reach,
-  type WeaponItem,
-} from "../lib/item";
+import { MELEE_REACH, type ItemDef, type Reach, type WeaponItem } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { DEFAULT_STATUS_SOURCE, type StatusDef } from "../lib/status";
 import { normalizeTileDef, type TileDef } from "../lib/types";
@@ -195,10 +190,7 @@ describe("the walk row", () => {
    * the figure here is the tile's own pace and not `walkDurationOf`'s.
    */
   it("is the pace the body is authored at, as a rate", () => {
-    expect(readingOf().walkPace).toBeCloseTo(
-      1000 / walkDurationMsFor(BODY_TILE, 0),
-      6,
-    );
+    expect(readingOf().walkPace).toBeCloseTo(1000 / walkDurationMsFor(BODY_TILE, 0), 6);
   });
 
   it("counts whatever is slowing the body", () => {
@@ -213,10 +205,7 @@ describe("the walk row", () => {
       statuses: [{ defId: "chill", remainingMs: 5000, durationMs: 5000, sinceEffectMs: 0 }],
       statusDefs: { chill },
     });
-    expect(reading.walkPace).toBeCloseTo(
-      1000 / walkDurationMsFor(BODY_TILE, -50),
-      6,
-    );
+    expect(reading.walkPace).toBeCloseTo(1000 / walkDurationMsFor(BODY_TILE, -50), 6);
     expect(reading.walkPace).toBeLessThan(readingOf().walkPace);
   });
 });
@@ -231,9 +220,7 @@ describe("statuses", () => {
       modifiers: { def: constantFormula(7) },
     };
     const reading = readingOf({
-      statuses: [
-        { defId: "guarded", remainingMs: 5000, durationMs: 5000, sinceEffectMs: 0 },
-      ],
+      statuses: [{ defId: "guarded", remainingMs: 5000, durationMs: 5000, sinceEffectMs: 0 }],
       statusDefs: { guarded },
     });
     expect(reading.def).toBe(readingOf().def + 7);
@@ -241,9 +228,7 @@ describe("statuses", () => {
 
   it("are ignored when the catalogue has lost them", () => {
     const reading = readingOf({
-      statuses: [
-        { defId: "gone", remainingMs: 5000, durationMs: 5000, sinceEffectMs: 0 },
-      ],
+      statuses: [{ defId: "gone", remainingMs: 5000, durationMs: 5000, sinceEffectMs: 0 }],
       statusDefs: {},
     });
     expect(reading).toEqual(readingOf());

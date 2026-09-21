@@ -31,8 +31,6 @@ import { StatusStrip } from "./StatusStrip";
 import { useItemDrag } from "./useItemDrag";
 import { useNoZoom } from "./useNoZoom";
 
-
-
 /** Nobody is under anything, which is almost everybody almost always. */
 const NO_STATUSES: ActiveStatus[] = [];
 
@@ -237,9 +235,7 @@ export function GameViewport({
    * the camera and this component has no view of it. Whoever owns the renderer
    * resolves it, and draws the ghost.
    */
-  onDragOverWorld?: (
-    drag: { from: SlotRef; tileId: string; x: number; y: number } | null,
-  ) => void;
+  onDragOverWorld?: (drag: { from: SlotRef; tileId: string; x: number; y: number } | null) => void;
   /** A drag was let go over the world at this point. */
   onDropOnWorld?: (from: SlotRef, point: { x: number; y: number }) => void;
   /**
@@ -273,19 +269,16 @@ export function GameViewport({
    * different panels: taking a sword out of a chest and putting it in your bag
    * is one gesture crossing a boundary neither component can see across.
    */
-  const move = useCallback(
-    (from: SlotRef, to: SlotRef) => onMoveItem?.(from, to),
-    [onMoveItem],
-  );
-  const cast = useCallback(
-    (slot: CastSlot) => onCast?.(slot),
-    [onCast],
-  );
+  const move = useCallback((from: SlotRef, to: SlotRef) => onMoveItem?.(from, to), [onMoveItem]);
+  const cast = useCallback((slot: CastSlot) => onCast?.(slot), [onCast]);
   const stopCast = useCallback(() => onStopCast?.(), [onStopCast]);
   const world = useMemo(
     () => ({
       over: (
-        over: { held: { instance: ItemInstance; from: SlotRef }; point: { x: number; y: number } } | null,
+        over: {
+          held: { instance: ItemInstance; from: SlotRef };
+          point: { x: number; y: number };
+        } | null,
       ) =>
         onDragOverWorld?.(
           over
@@ -297,10 +290,8 @@ export function GameViewport({
               }
             : null,
         ),
-      drop: (
-        held: { instance: ItemInstance; from: SlotRef },
-        point: { x: number; y: number },
-      ) => onDropOnWorld?.(held.from, point),
+      drop: (held: { instance: ItemInstance; from: SlotRef }, point: { x: number; y: number }) =>
+        onDropOnWorld?.(held.from, point),
     }),
     [onDragOverWorld, onDropOnWorld],
   );
@@ -338,9 +329,7 @@ export function GameViewport({
   const showBag = bagOpen ?? !coarse;
   const showStats = statsOpen;
   /** The pack in that hand, or null once it is no longer a pack in that hand. */
-  const heldContainer = openHand
-    ? (equipment[openHand] ?? null)
-    : null;
+  const heldContainer = openHand ? (equipment[openHand] ?? null) : null;
 
   /**
    * On a phone the two panels want the same space, so opening one closes the
@@ -432,17 +421,10 @@ export function GameViewport({
    */
   const panelCoversList =
     coarse &&
-    (showEquipment ||
-      showBag ||
-      showStats ||
-      heldContainer != null ||
-      openedContainer != null);
+    (showEquipment || showBag || showStats || heldContainer != null || openedContainer != null);
   const press = useCallback(onDirectionPress, [onDirectionPress]);
   const release = useCallback(onDirectionRelease, [onDirectionRelease]);
-  const noteTyping = useCallback(
-    (typing: boolean) => onTypingChange?.(typing),
-    [onTypingChange],
-  );
+  const noteTyping = useCallback((typing: boolean) => onTypingChange?.(typing), [onTypingChange]);
 
   const talkPanel = conversation ? (
     <ConversationPanel
@@ -508,10 +490,7 @@ export function GameViewport({
             onChange={onPvp}
             size={size}
           />
-          <span
-            className="h-8 w-px shrink-0 bg-paper/20"
-            aria-hidden="true"
-          />
+          <span className="h-8 w-px shrink-0 bg-paper/20" aria-hidden="true" />
         </>
       ) : null}
       <StatsToggle open={showStats} onChange={openStats} size={size} />
@@ -618,9 +597,7 @@ export function GameViewport({
           equipment={equipment}
           tiles={tiles}
           tilesets={tilesets}
-          title={
-            tilesById[openedContainer.instance.tileId]?.name ?? "Container"
-          }
+          title={tilesById[openedContainer.instance.tileId]?.name ?? "Container"}
           onClose={() => onOpenContainer?.(null)}
           drag={drag}
           masteryXp={masteryXp}
@@ -668,10 +645,7 @@ export function GameViewport({
           // that is square, and a shrunk box is not.
           style={{ containerType: "size" }}
         >
-          <div
-            className="relative"
-            style={{ width: "100cqmin", height: "100cqmin" }}
-          >
+          <div className="relative" style={{ width: "100cqmin", height: "100cqmin" }}>
             <canvas
               ref={canvasRef}
               className="block h-full w-full touch-none"
@@ -694,10 +668,7 @@ export function GameViewport({
                 {/* Ruled off from the panels beside it, because they are a
                     different kind of button: this one puts words into the world
                     and those only open something. */}
-                <span
-                  className="h-8 w-px shrink-0 bg-paper/20"
-                  aria-hidden="true"
-                />
+                <span className="h-8 w-px shrink-0 bg-paper/20" aria-hidden="true" />
               </>
             ) : null}
             {panelButtons("touch")}
@@ -768,18 +739,13 @@ export function GameViewport({
                 // inset is the home indicator, which is what is left to avoid
                 // when they have. Taking the sum instead would push the arrows
                 // a toolbar's height up a screen that has no toolbar showing.
-                marginBottom:
-                  "max(env(safe-area-inset-bottom), calc(100lvh - 100dvh))",
+                marginBottom: "max(env(safe-area-inset-bottom), calc(100lvh - 100dvh))",
               }}
             >
               {/* Rendered whether or not anything is running: a lane that
                   appeared on the first berry would push the pad down out from
                   under the thumb steering with it. */}
-              <StatusStrip
-                statuses={statuses}
-                interactive={false}
-                tilesets={tilesets}
-              />
+              <StatusStrip statuses={statuses} interactive={false} tilesets={tilesets} />
               {/* Shoved to the far end of the column rather than sat under the
                   lane, so the two are as far apart as the space allows. They are
                   one cluster to *read* and must not be one to *hit*: a thumb
@@ -855,15 +821,9 @@ export function GameViewport({
               // route hands it: `../routes/game` puts a connection chip beside
               // the hour, and two readings in a narrow column want a second row
               // rather than a horizontal scrollbar.
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                {readouts}
-              </div>
+              <div className="flex min-w-0 flex-wrap items-center gap-2">{readouts}</div>
             ) : null}
-            <StatusStrip
-              statuses={statuses}
-              interactive
-              tilesets={tilesets}
-            />
+            <StatusStrip statuses={statuses} interactive tilesets={tilesets} />
           </div>
           {/* What you can open, above the list and ruled off from it. */}
           <div className="flex shrink-0 items-center gap-1 border-b-2 border-paper/20 pb-2">

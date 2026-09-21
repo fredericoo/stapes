@@ -45,9 +45,7 @@ describe("the placement ↔ instance round trip", () => {
   });
 
   it("keeps a container's contents", () => {
-    const contents: ItemInstance[] = [
-      { id: "itm_b", tileId: "rusty-sword" },
-    ];
+    const contents: ItemInstance[] = [{ id: "itm_b", tileId: "rusty-sword" }];
     const placed: PlacedTile = {
       tileId: "basic-bag",
       itemId: "itm_a",
@@ -61,10 +59,7 @@ describe("the placement ↔ instance round trip", () => {
   it("omits absent fields rather than setting them undefined", () => {
     const instance = instanceFromPlacement({ tileId: "t", itemId: "itm_1" })!;
     expect(Object.keys(instance).sort()).toEqual(["id", "tileId"]);
-    expect(Object.keys(placementFromInstance(instance)).sort()).toEqual([
-      "itemId",
-      "tileId",
-    ]);
+    expect(Object.keys(placementFromInstance(instance)).sort()).toEqual(["itemId", "tileId"]);
   });
 
   it("is null for a placement with no identity", () => {
@@ -101,9 +96,7 @@ describe("sameInstance", () => {
   it("sees a field the tile and the count do not", () => {
     // The whole reason this walks the object rather than naming fields: two
     // levers of the same tile, one wired and one not, are not interchangeable.
-    expect(
-      sameInstance(lever, { id: "itm_a", tileId: "lever", channel: "gate" }),
-    ).toBe(false);
+    expect(sameInstance(lever, { id: "itm_a", tileId: "lever", channel: "gate" })).toBe(false);
   });
 
   it("sees a different identity", () => {

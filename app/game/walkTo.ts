@@ -1,12 +1,7 @@
 import type { HeldDirections } from "./heldDirections";
 import { listStandingSurfaces, standingAbs } from "./movement";
 import { noRouteNotice } from "./notices";
-import {
-  dropLanding,
-  findPath,
-  type PathOptions,
-  type PathRefusal,
-} from "./pathfinding";
+import { dropLanding, findPath, type PathOptions, type PathRefusal } from "./pathfinding";
 import { absoluteStandingElevation, getStack } from "../lib/mapData";
 import type { StatusDef } from "../lib/status";
 import type { Coord, MapFile, TileDef } from "../lib/types";
@@ -564,40 +559,23 @@ export class WalkTo {
  * everywhere else and pointing at the foot of a wall is still not a request to
  * stand there.
  */
-export function standingCellOn(
-  view: WalkView,
-  on: Coord & { stackIndex: number },
-): Coord | null {
+export function standingCellOn(view: WalkView, on: Coord & { stackIndex: number }): Coord | null {
   if (getStack(view.map, on.x, on.y, view.at.z).length === 0) {
     return dropLanding(
       view.map,
       on.x,
       on.y,
-      standingAbs(
-        view.map,
-        view.at.x,
-        view.at.y,
-        view.at.z,
-        view.at.stackIndex,
-        view.tilesById,
-      ),
+      standingAbs(view.map, view.at.x, view.at.y, view.at.z, view.at.stackIndex, view.tilesById),
       view.def,
       view.tilesById,
     );
   }
 
   const stack = getStack(view.map, on.x, on.y, on.z);
-  const top = absoluteStandingElevation(
-    on.z,
-    stack.slice(0, on.stackIndex + 1),
-    view.tilesById,
+  const top = absoluteStandingElevation(on.z, stack.slice(0, on.stackIndex + 1), view.tilesById);
+  const surface = listStandingSurfaces(view.map, on.x, on.y, view.tilesById).find(
+    (standing) => standing.abs === top,
   );
-  const surface = listStandingSurfaces(
-    view.map,
-    on.x,
-    on.y,
-    view.tilesById,
-  ).find((standing) => standing.abs === top);
   return surface ? { x: on.x, y: on.y, z: surface.z } : null;
 }
 

@@ -7,13 +7,7 @@ import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { equipmentForBody, equipmentFromKit } from "./battlerKit";
 import type { Equipment, Hand } from "./equipment";
-import {
-  effectiveBattler,
-  emptyEquipment,
-  HANDS,
-  handToSwing,
-  wornInstances,
-} from "./equipment";
+import { effectiveBattler, emptyEquipment, HANDS, handToSwing, wornInstances } from "./equipment";
 
 /**
  * The hand a body starts a fight on, which is what nearly every case here means.
@@ -25,10 +19,7 @@ import {
  * `handToSwing` fall back to bare hands on its own. The cases that *are* about
  * the rotation name their hand outright.
  */
-function firstHand(
-  equipment: Equipment | null,
-  tiles: Record<string, TileDef>,
-): Hand | null {
+function firstHand(equipment: Equipment | null, tiles: Record<string, TileDef>): Hand | null {
   return handToSwing(equipment, tiles, HANDS[0]);
 }
 
@@ -120,17 +111,13 @@ describe("rolling a kit", () => {
   it("never lands something authored at nothing", () => {
     const kit: Kit = [{ slot: "weapon", tileId: "sword", chance: 0 }];
 
-    expect(equipmentFromKit(kit, tiles, dice([HIT]).random)).toEqual(
-      emptyEquipment(),
-    );
+    expect(equipmentFromKit(kit, tiles, dice([HIT]).random)).toEqual(emptyEquipment());
   });
 
   it("reads a chance as a percent, floats included", () => {
     const kit: Kit = [{ slot: "weapon", tileId: "sword", chance: 0.5 }];
 
-    expect(equipmentFromKit(kit, tiles, dice([0.004]).random).weapon).not.toBe(
-      null,
-    );
+    expect(equipmentFromKit(kit, tiles, dice([0.004]).random).weapon).not.toBe(null);
     expect(equipmentFromKit(kit, tiles, dice([0.006]).random).weapon).toBeNull();
   });
 
@@ -270,9 +257,7 @@ describe("what a slot will take from a kit", () => {
   it("refuses a hand the one container nobody may carry", () => {
     const kit: Kit = [{ slot: "weapon", tileId: "chest", chance: 100 }];
 
-    expect(
-      equipmentFromKit(kit, tiles, dice([HIT]).random).weapon,
-    ).toBeNull();
+    expect(equipmentFromKit(kit, tiles, dice([HIT]).random).weapon).toBeNull();
   });
 
   it("refuses a slot to a tile that is not an item at all", () => {
@@ -293,17 +278,13 @@ describe("what a slot will take from a kit", () => {
       { slot: "armor", tileId: "bag", chance: 100 },
     ];
 
-    expect(
-      equipmentFromKit(kit, tiles, dice([HIT, HIT, HIT]).random).armor,
-    ).toBeNull();
+    expect(equipmentFromKit(kit, tiles, dice([HIT, HIT, HIT]).random).armor).toBeNull();
   });
 
   it("dresses a body authored to be wearing something", () => {
     const kit: Kit = [{ slot: "armor", tileId: "mail", chance: 100 }];
 
-    expect(equipmentFromKit(kit, tiles, dice([HIT]).random).armor?.tileId).toBe(
-      "mail",
-    );
+    expect(equipmentFromKit(kit, tiles, dice([HIT]).random).armor?.tileId).toBe("mail");
   });
 });
 
@@ -340,7 +321,12 @@ describe("a body born in armour", () => {
 
   it("gets the whole of what it is wearing", () => {
     const kit = equipmentForBody("goblin", world, dice([HIT]).random);
-    const bare = effectiveBattler(body, emptyEquipment(), world, firstHand(emptyEquipment(), world));
+    const bare = effectiveBattler(
+      body,
+      emptyEquipment(),
+      world,
+      firstHand(emptyEquipment(), world),
+    );
     const dressed = effectiveBattler(body, kit, world, firstHand(kit, world));
 
     expect(kit.armor?.tileId).toBe("mail");
@@ -474,15 +460,11 @@ describe("what a body of a given kind carries", () => {
   ]);
 
   it("rolls the kit on its battler block", () => {
-    expect(
-      equipmentForBody("armed", bodies, dice([HIT]).random).weapon?.tileId,
-    ).toBe("sword");
+    expect(equipmentForBody("armed", bodies, dice([HIT]).random).weapon?.tileId).toBe("sword");
   });
 
   it("carries nothing when the block authors no kit", () => {
-    expect(equipmentForBody("bare", bodies, dice([]).random)).toEqual(
-      emptyEquipment(),
-    );
+    expect(equipmentForBody("bare", bodies, dice([]).random)).toEqual(emptyEquipment());
   });
 
   /**
@@ -491,14 +473,10 @@ describe("what a body of a given kind carries", () => {
    * two different ones.
    */
   it("carries nothing when the tile is not a battler", () => {
-    expect(equipmentForBody("scenery", bodies, dice([]).random)).toEqual(
-      emptyEquipment(),
-    );
+    expect(equipmentForBody("scenery", bodies, dice([]).random)).toEqual(emptyEquipment());
   });
 
   it("carries nothing when the catalogue has lost the tile", () => {
-    expect(equipmentForBody("no-such-body", bodies, dice([]).random)).toEqual(
-      emptyEquipment(),
-    );
+    expect(equipmentForBody("no-such-body", bodies, dice([]).random)).toEqual(emptyEquipment());
   });
 });

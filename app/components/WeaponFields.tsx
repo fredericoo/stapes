@@ -9,10 +9,7 @@ import {
 } from "../lib/battler";
 import { TICK_MS } from "../game/constants";
 import type { Reach, WeaponItem } from "../lib/item";
-import {
-  projectileTiles,
-  resolveProjectile,
-} from "../lib/projectile";
+import { projectileTiles, resolveProjectile } from "../lib/projectile";
 import {
   DEFAULT_WEAPON_STATUS_CHANCE,
   MAX_PERCENT_STAT,
@@ -198,10 +195,7 @@ export function describeReachHeight(height: number): string {
  * choosing a speed for. A readout that could disagree with the formula is worse
  * than none.
  */
-export function describeFlight(
-  reach: Reach,
-  projectile: { cellsPerSecond: number },
-): string {
+export function describeFlight(reach: Reach, projectile: { cellsPerSecond: number }): string {
   const ms = flightDurationMs(
     { x: 0, y: 0, elevAbs: 0 },
     { x: reach.cells, y: 0, elevAbs: 0 },
@@ -243,8 +237,7 @@ export function WeaponFields({
   // weapon in `tiles.json` is one. Patching through it too, so half a reach
   // never reaches the draft.
   const reach = reachOf(weapon);
-  const patchReach = (fields: Partial<Reach>) =>
-    onChange({ reach: { ...reach, ...fields } });
+  const patchReach = (fields: Partial<Reach>) => onChange({ reach: { ...reach, ...fields } });
   // Every projectile tile, plus whatever this weapon already names even if the
   // catalogue has since changed its mind about it — an id silently dropped from
   // the picker is an author being told their arrow does not exist while it sits
@@ -364,25 +357,19 @@ export function WeaponFields({
             <Select
               className="w-56"
               value={projectile ?? ""}
-              onValueChange={(id) =>
-                onChange({ projectile: id ? id : undefined })
-              }
+              onValueChange={(id) => onChange({ projectile: id ? id : undefined })}
               options={[{ value: "", label: "Nothing (melee)" }, ...projectileOptions]}
             />
           </label>
           {flies ? (
-            <span className="self-end text-[11px] text-muted">
-              {describeFlight(reach, flies)}
-            </span>
+            <span className="self-end text-[11px] text-muted">{describeFlight(reach, flies)}</span>
           ) : null}
         </div>
       </div>
       <StatusGrants
         statuses={weapon.statuses ?? []}
         statusDefs={statusDefs}
-        onChange={(statuses) =>
-          onChange({ statuses: statuses.length ? statuses : undefined })
-        }
+        onChange={(statuses) => onChange({ statuses: statuses.length ? statuses : undefined })}
         blank={(id) => ({ id, chance: DEFAULT_WEAPON_STATUS_CHANCE })}
         info="Rolled once per entry on every blow that lands. A miss or a dodge leaves nothing; armour eating the damage does not stop it. No mastery moves the chance."
       />
@@ -410,9 +397,8 @@ export function WeaponFields({
           })}
         </div>
         <p className="max-w-lg text-[11px] leading-snug text-muted">
-          Mastery adds up to {DAMAGE_AT_MAX_MASTERY} damage and{" "}
-          {ACCURACY_AT_MAX_MASTERY} accuracy flat, plus a quarter of the
-          weapon&rsquo;s own.
+          Mastery adds up to {DAMAGE_AT_MAX_MASTERY} damage and {ACCURACY_AT_MAX_MASTERY} accuracy
+          flat, plus a quarter of the weapon&rsquo;s own.
         </p>
       </div>
     </div>

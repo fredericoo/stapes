@@ -25,23 +25,14 @@ export type PushFrom = Coord & { stackIndex: number };
  * Exported because the affordance layer asks the same question a step earlier,
  * to find out whether the riders are things that *can* be carried at all.
  */
-export function pushedColumn(
-  map: MapFile,
-  from: PushFrom,
-): PlacedTile[] {
+export function pushedColumn(map: MapFile, from: PushFrom): PlacedTile[] {
   return getStack(map, from.x, from.y, from.z).slice(from.stackIndex);
 }
 
 /** Absolute elevation of the surface the slot at `from` is resting on. */
-function pushedFeetAbs(
-  map: MapFile,
-  from: PushFrom,
-  tilesById: Record<string, TileDef>,
-): number {
+function pushedFeetAbs(map: MapFile, from: PushFrom, tilesById: Record<string, TileDef>): number {
   const stack = getStack(map, from.x, from.y, from.z);
-  return (
-    from.z * HEIGHT_PER_LEVEL + elevationAt(stack, from.stackIndex, tilesById)
-  );
+  return from.z * HEIGHT_PER_LEVEL + elevationAt(stack, from.stackIndex, tilesById);
 }
 
 /**
@@ -52,10 +43,7 @@ function pushedFeetAbs(
  * go — see `../lib/mapData`'s `landedPlacement`. The column arrives stacked
  * solid however it was authored in the cell it left.
  */
-function pushedHeight(
-  column: readonly PlacedTile[],
-  tilesById: Record<string, TileDef>,
-): number {
+function pushedHeight(column: readonly PlacedTile[], tilesById: Record<string, TileDef>): number {
   let total = 0;
   for (const placed of column) {
     const def = tilesById[placed.tileId];
@@ -130,9 +118,7 @@ function landingBelow(
     return { ok: false, reason: "Nothing below to land on" };
   }
 
-  const surface = listStandingSurfaces(map, x, y, tilesById).find(
-    (s) => s.abs === landingAbs,
-  );
+  const surface = listStandingSurfaces(map, x, y, tilesById).find((s) => s.abs === landingAbs);
   if (!surface) {
     return { ok: false, reason: "Landing surface is not walkable" };
   }
@@ -194,14 +180,7 @@ export function pushDestination(
   if (stepped) return { ok: true, to: stepped };
 
   // No surface in reach — enter the cell in open air, if the volume is clear.
-  const clear = fitsHeightAtElevation(
-    map,
-    destX,
-    destY,
-    fromAbs,
-    height,
-    tilesById,
-  );
+  const clear = fitsHeightAtElevation(map, destX, destY, fromAbs, height, tilesById);
   if (!clear.ok) return clear;
 
   // Without gravity there is nothing to bring it down and no way to represent

@@ -160,9 +160,7 @@ export function layoutLabels(
  * over in — which is what makes speech oldest-first rather than shuffled.
  */
 function byPriority(requests: LabelRequest[]): LabelRequest[] {
-  return [...requests].sort(
-    (a, b) => PLACEMENT_ORDER[a.kind] - PLACEMENT_ORDER[b.kind],
-  );
+  return [...requests].sort((a, b) => PLACEMENT_ORDER[a.kind] - PLACEMENT_ORDER[b.kind]);
 }
 
 /**
@@ -175,10 +173,7 @@ function byPriority(requests: LabelRequest[]): LabelRequest[] {
  * slightly off its mark. Rounded, because the font's bricks have to land on
  * whole pixels or the browser antialiases a pixel font.
  */
-function wantedRect(
-  request: LabelRequest,
-  view: { width: number; height: number },
-): Rect | null {
+function wantedRect(request: LabelRequest, view: { width: number; height: number }): Rect | null {
   const { anchorX, anchorY, width, height } = request;
   if (anchorX < 0 || anchorX > view.width) return null;
   if (anchorY < 0 || anchorY > view.height) return null;
@@ -277,8 +272,7 @@ function slide(
     if (!fitsVertically(top, height, view)) return null;
     const hit = taken.find((rect) => overlaps({ ...wanted, top, bottom: top + height }, rect));
     if (!hit) return top;
-    top =
-      direction < 0 ? hit.top - LABEL_GAP_PX - height : hit.bottom + LABEL_GAP_PX;
+    top = direction < 0 ? hit.top - LABEL_GAP_PX - height : hit.bottom + LABEL_GAP_PX;
   }
 
   return null;
@@ -294,9 +288,7 @@ function fitsVertically(
 
 /** Touching edges are not an overlap; the gap above is what keeps them apart. */
 function overlaps(a: Rect, b: Rect): boolean {
-  return (
-    a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
-  );
+  return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 }
 
 /**

@@ -10,8 +10,7 @@ const variantClass: Record<Variant, string> = {
   secondary: "bg-panel text-ink border-border hover:bg-paper",
   danger: "bg-danger text-paper border-border hover:brightness-110",
   ghost: "bg-transparent text-ink border-transparent hover:bg-panel",
-  "ghost-inverse":
-    "bg-transparent text-paper border-transparent hover:bg-paper/20",
+  "ghost-inverse": "bg-transparent text-paper border-transparent hover:bg-paper/20",
 };
 
 const defaultPressedClass = "bg-ink text-paper border-border hover:brightness-125";
@@ -50,16 +49,12 @@ export function Button({
         "transition-none select-none",
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         "disabled:cursor-not-allowed disabled:opacity-50",
-        raised && !active
-          ? "shadow-hard active:shadow-none disabled:active:shadow-hard"
-          : "",
+        raised && !active ? "shadow-hard active:shadow-none disabled:active:shadow-hard" : "",
         raised
           ? "active:translate-x-[2px] active:translate-y-[2px] disabled:active:translate-x-0 disabled:active:translate-y-0"
           : "",
         raised && active ? "translate-x-[2px] translate-y-[2px]" : "",
-        active
-          ? (pressedClass[variant] ?? defaultPressedClass)
-          : variantClass[variant],
+        active ? (pressedClass[variant] ?? defaultPressedClass) : variantClass[variant],
         sizeClass[size],
         className,
       ]

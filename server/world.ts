@@ -61,9 +61,7 @@ export class World {
     // `data/map.json` as a reviewable diff. Deployed, it lives in the database —
     // and seeds itself from the image on first boot, which is what makes a
     // fresh environment come up playable with no seed step in the pipeline.
-    const blobs = config.deployed
-      ? new SqliteBlobs(db)
-      : new DiskBlobs(config.SEED_DIR);
+    const blobs = config.deployed ? new SqliteBlobs(db) : new DiskBlobs(config.SEED_DIR);
     if (blobs instanceof SqliteBlobs && (await blobs.isEmpty())) {
       await seedFromDirectory(blobs, config.SEED_DIR);
     }
@@ -79,11 +77,7 @@ export class World {
     // Configured, or generated on the first boot and kept in the database.
     // A deployment whose environment nobody has touched still comes up — see
     // `./authSecret`, which is also where the reason that matters is.
-    const auth = createAuth(
-      db,
-      config,
-      await resolveAuthSecret(db, config.AUTH_SECRET),
-    );
+    const auth = createAuth(db, config, await resolveAuthSecret(db, config.AUTH_SECRET));
     const characters = new Characters(db);
     // Before anything is served, so the first request to arrive at a fresh
     // deployment already has somebody it could be. Create-only — see

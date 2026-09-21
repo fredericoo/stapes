@@ -5,12 +5,7 @@ import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
-import {
-  channelPowered,
-  findWiredCells,
-  readChannels,
-  settleSignals,
-} from "./signals";
+import { channelPowered, findWiredCells, readChannels, settleSignals } from "./signals";
 import { tile } from "../lib/testTile";
 
 /** Ticks a started walk needs to reach its destination and commit. */
@@ -185,10 +180,7 @@ const tilesById = tilesByIdFromList(tiles);
 
 /** Player parked away from the action; every map needs exactly one. */
 function withIdlePlayer(map: MapFile): MapFile {
-  return replaceStack(map, 9, 9, 0, [
-    { tileId: "grass" },
-    { tileId: "player", direction: "s" },
-  ]);
+  return replaceStack(map, 9, 9, 0, [{ tileId: "grass" }, { tileId: "player", direction: "s" }]);
 }
 
 function stackIds(map: MapFile, x: number, y: number, z = 0): string[] {
@@ -209,9 +201,7 @@ function step(session: GameSession, direction: Direction) {
 
 describe("findWiredCells", () => {
   it("finds channelled placements across levels and skips the rest", () => {
-    let map = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "plate", channel: "gate-a" },
-    ]);
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "plate", channel: "gate-a" }]);
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
     // Emits, but wired to nothing.
     map = replaceStack(map, 2, 0, 0, [{ tileId: "torch-lit" }]);
@@ -225,24 +215,16 @@ describe("findWiredCells", () => {
 
   it("keeps a cell whose current tile neither emits nor receives", () => {
     // The channel is the wiring; the tile filling the slot is not.
-    const map = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "latch-open", channel: "gate-a" },
-    ]);
+    const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "latch-open", channel: "gate-a" }]);
     expect(findWiredCells(map)).toEqual([{ x: 0, y: 0, z: 0 }]);
   });
 });
 
 describe("readChannels", () => {
   it("tallies emitters per channel", () => {
-    let map = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "torch-lit", channel: "gate-a" },
-    ]);
-    map = replaceStack(map, 1, 0, 0, [
-      { tileId: "torch-unlit", channel: "gate-a" },
-    ]);
-    map = replaceStack(map, 2, 0, 0, [
-      { tileId: "torch-lit", channel: "gate-b" },
-    ]);
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "torch-lit", channel: "gate-a" }]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "torch-unlit", channel: "gate-a" }]);
+    map = replaceStack(map, 2, 0, 0, [{ tileId: "torch-lit", channel: "gate-b" }]);
 
     const state = readChannels(map, findWiredCells(map), tilesById);
     expect(state.get("gate-a")).toEqual({ on: 1, total: 2 });
@@ -250,9 +232,7 @@ describe("readChannels", () => {
   });
 
   it("ignores receivers and channel-less emitters", () => {
-    let map = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "door", channel: "gate-a" },
-    ]);
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "door", channel: "gate-a" }]);
     map = replaceStack(map, 1, 0, 0, [{ tileId: "torch-lit" }]);
 
     const state = readChannels(map, findWiredCells(map), tilesById);
@@ -285,27 +265,16 @@ describe("channelPowered", () => {
 
 describe("settleSignals", () => {
   it("opens a receiver its channel powers", () => {
-    let map = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "torch-lit", channel: "gate-a" },
-    ]);
-    map = replaceStack(map, 5, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "door", channel: "gate-a" },
-    ]);
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "torch-lit", channel: "gate-a" }]);
+    map = replaceStack(map, 5, 0, 0, [{ tileId: "grass" }, { tileId: "door", channel: "gate-a" }]);
 
-    const { map: next, changed } = settleSignals(
-      map,
-      findWiredCells(map),
-      tilesById,
-    );
+    const { map: next, changed } = settleSignals(map, findWiredCells(map), tilesById);
     expect(stackIds(next, 5, 0)).toEqual(["grass", "door-open"]);
     expect(changed).toEqual([{ x: 5, y: 0, z: 0 }]);
   });
 
   it("leaves a receiver on another channel alone", () => {
-    let map = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "torch-lit", channel: "gate-a" },
-    ]);
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "torch-lit", channel: "gate-a" }]);
     map = replaceStack(map, 5, 0, 0, [{ tileId: "door", channel: "gate-b" }]);
 
     const { map: next } = settleSignals(map, findWiredCells(map), tilesById);
@@ -313,38 +282,23 @@ describe("settleSignals", () => {
   });
 
   it("holds an all-mode receiver until every emitter is on", () => {
-    let map = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "torch-lit", channel: "gate-a" },
-    ]);
-    map = replaceStack(map, 1, 0, 0, [
-      { tileId: "torch-unlit", channel: "gate-a" },
-    ]);
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "torch-lit", channel: "gate-a" }]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "torch-unlit", channel: "gate-a" }]);
     map = replaceStack(map, 5, 0, 0, [{ tileId: "gate", channel: "gate-a" }]);
 
     const partial = settleSignals(map, findWiredCells(map), tilesById);
     expect(stackIds(partial.map, 5, 0)).toEqual(["gate"]);
 
-    const lit = replaceStack(map, 1, 0, 0, [
-      { tileId: "torch-lit", channel: "gate-a" },
-    ]);
+    const lit = replaceStack(map, 1, 0, 0, [{ tileId: "torch-lit", channel: "gate-a" }]);
     const full = settleSignals(lit, findWiredCells(lit), tilesById);
     expect(stackIds(full.map, 5, 0)).toEqual(["gate-open"]);
   });
 
   it("refuses a swap that would not fit the stack", () => {
-    let map = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "torch-lit", channel: "gate-a" },
-    ]);
-    map = replaceStack(map, 5, 0, 0, [
-      { tileId: "swell", channel: "gate-a" },
-      { tileId: "crate" },
-    ]);
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "torch-lit", channel: "gate-a" }]);
+    map = replaceStack(map, 5, 0, 0, [{ tileId: "swell", channel: "gate-a" }, { tileId: "crate" }]);
 
-    const { map: next, changed } = settleSignals(
-      map,
-      findWiredCells(map),
-      tilesById,
-    );
+    const { map: next, changed } = settleSignals(map, findWiredCells(map), tilesById);
     expect(stackIds(next, 5, 0)).toEqual(["swell", "crate"]);
     expect(changed).toEqual([]);
   });
@@ -352,9 +306,7 @@ describe("settleSignals", () => {
   it("reads every channel before any swap lands", () => {
     // Two doors on one channel must agree, whichever order the sweep visits
     // them in — neither may see the other's swap.
-    let map = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "torch-lit", channel: "gate-a" },
-    ]);
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "torch-lit", channel: "gate-a" }]);
     map = replaceStack(map, 5, 0, 0, [{ tileId: "door", channel: "gate-a" }]);
     map = replaceStack(map, 6, 0, 0, [{ tileId: "door", channel: "gate-a" }]);
 
@@ -364,9 +316,7 @@ describe("settleSignals", () => {
   });
 
   it("preserves the channel across a swap", () => {
-    let map = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "torch-lit", channel: "gate-a" },
-    ]);
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "torch-lit", channel: "gate-a" }]);
     map = replaceStack(map, 5, 0, 0, [{ tileId: "door", channel: "gate-a" }]);
 
     const { map: next } = settleSignals(map, findWiredCells(map), tilesById);
@@ -380,32 +330,16 @@ describe("GameSession signals", () => {
     for (let x = 0; x <= 3; x++) {
       map = replaceStack(map, x, 0, 0, [{ tileId: "grass" }]);
     }
-    map = replaceStack(map, 2, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "plate", channel: "gate-a" },
-    ]);
-    map = replaceStack(map, 6, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "door", channel: "gate-a" },
-    ]);
-    map = replaceStack(map, 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "player", direction: "e" },
-    ]);
+    map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }, { tileId: "plate", channel: "gate-a" }]);
+    map = replaceStack(map, 6, 0, 0, [{ tileId: "grass" }, { tileId: "door", channel: "gate-a" }]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "e" }]);
 
     const session = new GameSession(map, tiles);
-    expect(stackIds(session.getSnapshot().map, 6, 0)).toEqual([
-      "grass",
-      "door",
-    ]);
+    expect(stackIds(session.getSnapshot().map, 6, 0)).toEqual(["grass", "door"]);
 
     step(session, "e");
     const pressed = session.getSnapshot().map;
-    expect(stackIds(pressed, 2, 0)).toEqual([
-      "grass",
-      "plate-pressed",
-      "player",
-    ]);
+    expect(stackIds(pressed, 2, 0)).toEqual(["grass", "plate-pressed", "player"]);
     expect(stackIds(pressed, 6, 0)).toEqual(["grass", "door-open"]);
 
     step(session, "e");
@@ -430,10 +364,7 @@ describe("GameSession signals", () => {
 
   it("opens a door when the player switches a wired torch", () => {
     let map = emptyMap();
-    map = replaceStack(map, 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "player", direction: "e" },
-    ]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "e" }]);
     map = replaceStack(map, 2, 0, 0, [
       { tileId: "grass" },
       { tileId: "torch-unlit", channel: "gate-a" },
@@ -456,14 +387,8 @@ describe("GameSession signals", () => {
     for (let x = 0; x <= 4; x++) {
       map = replaceStack(map, x, 0, 0, [{ tileId: "grass" }]);
     }
-    map = replaceStack(map, 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "player", direction: "e" },
-    ]);
-    map = replaceStack(map, 2, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "crate", channel: "gate-a" },
-    ]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "e" }]);
+    map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }, { tileId: "crate", channel: "gate-a" }]);
 
     const session = new GameSession(map, tiles);
     expect(session.interact({ x: 2, y: 0, z: 0, stackIndex: 1 })).toBe(true);
@@ -477,14 +402,8 @@ describe("GameSession signals", () => {
     for (let x = 0; x <= 3; x++) {
       map = replaceStack(map, x, 0, 0, [{ tileId: "grass" }]);
     }
-    map = replaceStack(map, 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "player", direction: "e" },
-    ]);
-    map = replaceStack(map, 2, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "plate", channel: "gate-a" },
-    ]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "e" }]);
+    map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }, { tileId: "plate", channel: "gate-a" }]);
     map = replaceStack(map, 6, 0, 0, [{ tileId: "latch", channel: "gate-a" }]);
 
     const session = new GameSession(map, tiles);
@@ -523,10 +442,7 @@ describe("GameSession signals", () => {
     for (let x = 0; x <= 2; x++) {
       map = replaceStack(map, x, 0, 0, [{ tileId: "grass" }]);
     }
-    map = replaceStack(map, 0, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "player", direction: "e" },
-    ]);
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "e" }]);
     // Wired to a channel nothing drives, so the door's answer is always shut.
     map = replaceStack(map, 1, 0, 0, [
       { tileId: "grass" },
@@ -558,19 +474,13 @@ describe("GameSession signals", () => {
       { tileId: "grass" },
       { tileId: "player", direction: "e" },
     ]);
-    map = replaceStack(map, 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "door-closed" },
-    ]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "door-closed" }]);
 
     const session = new GameSession(map, tiles);
     expect(session.interact({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(true);
     run(session, 2);
 
-    expect(stackIds(session.getSnapshot().map, 1, 0)).toEqual([
-      "grass",
-      "door-swing",
-    ]);
+    expect(stackIds(session.getSnapshot().map, 1, 0)).toEqual(["grass", "door-swing"]);
   });
 
   it("oscillates rather than spinning on a self-defeating wire", () => {

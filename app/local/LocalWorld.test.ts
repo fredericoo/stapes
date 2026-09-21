@@ -23,7 +23,6 @@ import { LocalWorld } from "./LocalWorld";
  * walkability are exactly what a step is about. @see CLAUDE.md
  */
 
-const JSON_TYPE = "application/json";
 /** Long enough for a tick at 30Hz to have happened several times over. */
 const MESSAGE_TIMEOUT_MS = 5000;
 
@@ -31,10 +30,7 @@ const MESSAGE_TIMEOUT_MS = 5000;
 function authoredMap(): FlatMapFile {
   const levels: Record<string, Record<string, unknown[]>> = { "0": {} };
   for (let x = 0; x < 8; x++) levels["0"]![`${x},0`] = [{ tileId: "grass" }];
-  levels["0"]!["0,0"] = [
-    { tileId: "grass" },
-    { tileId: PLAYER_TILE_ID, direction: "s" },
-  ];
+  levels["0"]!["0,0"] = [{ tileId: "grass" }, { tileId: PLAYER_TILE_ID, direction: "s" }];
   return { version: MAP_FILE_VERSION, levels } as FlatMapFile;
 }
 
@@ -66,8 +62,7 @@ class MemoryBlobs implements Blobs {
 function recording(): Checkpoints {
   let world: StoredWorld = { values: new Map(), alarmAtMs: null };
   return {
-    load: () =>
-      Promise.resolve({ values: new Map(world.values), alarmAtMs: world.alarmAtMs }),
+    load: () => Promise.resolve({ values: new Map(world.values), alarmAtMs: world.alarmAtMs }),
     commit: (batch: CheckpointBatch) => {
       for (const [key, value] of batch.writes) world.values.set(key, value);
       for (const key of batch.deletions) world.values.delete(key);
@@ -130,9 +125,7 @@ type Cell = { x: number; y: number; z: number; stack: { tileId: string }[] };
 
 /** Where a body stands in a map as it goes over the wire. */
 function playerCells(map: FlatMapFile): string[] {
-  const level = (map.levels as Record<string, Record<string, { tileId: string }[]>>)[
-    "0"
-  ];
+  const level = (map.levels as Record<string, Record<string, { tileId: string }[]>>)["0"];
   return Object.entries(level ?? {})
     .filter(([, stack]) => stack.some((placed) => placed.tileId === PLAYER_TILE_ID))
     .map(([cell]) => cell);
@@ -254,10 +247,7 @@ describe("the world in a tab", () => {
  * A step is answered over several ticks — the walk is announced, then
  * committed — so what the test waits for is the cell, not the next frame.
  */
-async function untilCommittedAt(
-  connection: Connection,
-  x: number,
-): Promise<boolean> {
+async function untilCommittedAt(connection: Connection, x: number): Promise<boolean> {
   const deadline = Date.now() + MESSAGE_TIMEOUT_MS;
   while (Date.now() < deadline) {
     const patch = await connection.next("patch");

@@ -12,8 +12,7 @@ import { cutMaskFor } from "./cutMask";
  * a byte grid.
  */
 
-const cells = (...at: Array<[number, number]>) =>
-  new Set(at.map(([x, y]) => coordKey(x, y)));
+const cells = (...at: Array<[number, number]>) => new Set(at.map(([x, y]) => coordKey(x, y)));
 
 /** The mask as rows of 0/1, which is what makes a wrong index self-evident. */
 function grid(mask: NonNullable<ReturnType<typeof cutMaskFor>>): string[] {
@@ -71,16 +70,8 @@ describe("cutMaskFor", () => {
   it("covers a gap inside the bounding box without cutting it", () => {
     // A roof with a courtyard: the hole is inside the rect and has to read as
     // "not cut", or the courtyard lifts with the roof around it.
-    const mask = cutMaskFor(
-      cells([0, 0], [1, 0], [2, 0], [0, 1], [2, 1], [0, 2], [1, 2], [2, 2]),
-    )!;
+    const mask = cutMaskFor(cells([0, 0], [1, 0], [2, 0], [0, 1], [2, 1], [0, 2], [1, 2], [2, 2]))!;
 
-    expect(grid(mask)).toEqual([
-      "00000",
-      "01110",
-      "01010",
-      "01110",
-      "00000",
-    ]);
+    expect(grid(mask)).toEqual(["00000", "01110", "01010", "01110", "00000"]);
   });
 });

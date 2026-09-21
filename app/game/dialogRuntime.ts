@@ -144,7 +144,11 @@ export function chooseOption(
   const option = waiting.options[index];
   if (!option) return null;
   const said = [...conversation.transcript, { who: "you" as const, text: option.label }];
-  return run(dialog, { ...conversation, pc: [...conversation.pc, index, 0], transcript: said }, view);
+  return run(
+    dialog,
+    { ...conversation, pc: [...conversation.pc, index, 0], transcript: said },
+    view,
+  );
 }
 
 /**
@@ -169,7 +173,11 @@ export function acceptTrade(
     return { ...conversation, transcript: [...conversation.transcript, note] };
   }
   const note = { who: "note" as const, text: `Traded ×${amount}.` };
-  const at = { ...conversation, pc: [...conversation.pc, 0, 0], transcript: [...conversation.transcript, note] };
+  const at = {
+    ...conversation,
+    pc: [...conversation.pc, 0, 0],
+    transcript: [...conversation.transcript, note],
+  };
   return run(dialog, at, view);
 }
 

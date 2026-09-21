@@ -82,21 +82,14 @@ export class DamageNumberLayer {
    * rising from where the blow landed even after that body has walked away or
    * been deleted.
    */
-  set(
-    numbers: DamageNumberView[],
-    camera: { x: number; y: number },
-    cssScale: number,
-  ) {
+  set(numbers: DamageNumberView[], camera: { x: number; y: number }, cssScale: number) {
     const live = new Set<string>();
 
     for (const number of numbers) {
       live.add(number.id);
       const entry = this.entry(number);
       const anchor = labelScreenPosition(number.x, number.y, camera, cssScale);
-      const progress = Math.min(
-        1,
-        Math.max(0, number.elapsedMs / DAMAGE_NUMBER_LIFETIME_MS),
-      );
+      const progress = Math.min(1, Math.max(0, number.elapsedMs / DAMAGE_NUMBER_LIFETIME_MS));
       // No fade and no shrink — it simply travels and stops existing, which is
       // what keeps a small number as readable in its last frame as its first.
       const top = Math.round(anchor.top - START_LIFT_PX - RISE_PX * progress);

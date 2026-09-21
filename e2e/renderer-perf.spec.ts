@@ -95,9 +95,7 @@ test.describe("editor renderer perf", () => {
     // somebody builds a town and a failure can only mean the renderer started
     // emitting more geometry per tile. There used to be a flat `maxTriangles`
     // beside it; see `PERF_BUDGETS.maxTrianglesPerQuad` for why it is gone.
-    const triangleBudget = Math.round(
-      result.placedQuads * PERF_BUDGETS.maxTrianglesPerQuad,
-    );
+    const triangleBudget = Math.round(result.placedQuads * PERF_BUDGETS.maxTrianglesPerQuad);
     const perQuad = result.triangles / result.placedQuads;
 
     expect(

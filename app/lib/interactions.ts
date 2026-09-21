@@ -5,19 +5,9 @@ import type { DialogDef } from "./dialog";
 import { ELEMENTS } from "./element";
 import type { ItemDef } from "./item";
 import { kitForSave } from "./kit";
-import {
-  itemForSave,
-  stoneForSave,
-  MAX_CONTAINER_SIZE,
-  resolveItem,
-  weaponForSave,
-} from "./item";
+import { itemForSave, stoneForSave, MAX_CONTAINER_SIZE, resolveItem, weaponForSave } from "./item";
 import { MASTERIES } from "./mastery";
-import {
-  MAX_PROJECTILE_SPEED,
-  MIN_PROJECTILE_SPEED,
-  type ProjectileBlock,
-} from "./projectile";
+import { MAX_PROJECTILE_SPEED, MIN_PROJECTILE_SPEED, type ProjectileBlock } from "./projectile";
 import type { Coord, PlacedTile, SpriteState, TileDef } from "./types";
 import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL, resolveActor } from "./types";
 
@@ -159,19 +149,9 @@ export type RespawnInteraction = {
 /** How a plate's authored {@link PressurePlateInteraction.height} reads its load. */
 export type PlateComparison = "eq" | "neq" | "gt" | "gte" | "lt" | "lte";
 
-export const PLATE_COMPARISONS: PlateComparison[] = [
-  "eq",
-  "neq",
-  "gt",
-  "gte",
-  "lt",
-  "lte",
-];
+export const PLATE_COMPARISONS: PlateComparison[] = ["eq", "neq", "gt", "gte", "lt", "lte"];
 
-const COMPARATORS: Record<
-  PlateComparison,
-  (load: number, height: number) => boolean
-> = {
+const COMPARATORS: Record<PlateComparison, (load: number, height: number) => boolean> = {
   eq: (load, height) => load === height,
   neq: (load, height) => load !== height,
   gt: (load, height) => load > height,
@@ -262,11 +242,7 @@ export type ReceiveInteraction = {
  */
 export type ActivationTrigger = "step" | "interact" | "interactOver";
 
-export const ACTIVATION_TRIGGERS: ActivationTrigger[] = [
-  "step",
-  "interact",
-  "interactOver",
-];
+export const ACTIVATION_TRIGGERS: ActivationTrigger[] = ["step", "interact", "interactOver"];
 
 /**
  * Where a teleport leads, and — the point of the union — *which half of the
@@ -535,7 +511,6 @@ export type PlacedReward = {
   tag: string;
   itemTileIds: string[];
 };
-
 
 /**
  * One thing this tile turns into others: spend that, get these.
@@ -939,10 +914,7 @@ export const DEFAULT_RECEIVE: ReceiveInteraction = {
 };
 
 /** Does the load resting on this plate satisfy its authored comparison? */
-export function plateTriggers(
-  plate: PressurePlateInteraction,
-  load: number,
-): boolean {
+export function plateTriggers(plate: PressurePlateInteraction, load: number): boolean {
   return COMPARATORS[plate.type](load, plate.height);
 }
 
@@ -1042,10 +1014,7 @@ export function resolveRewardDef(def: TileDef): RewardInteraction | null {
  */
 const placedRewardCache = new WeakMap<PlacedTile, PlacedReward | null>();
 
-export function resolveReward(
-  placed: PlacedTile,
-  def: TileDef | undefined,
-): PlacedReward | null {
+export function resolveReward(placed: PlacedTile, def: TileDef | undefined): PlacedReward | null {
   const cached = placedRewardCache.get(placed);
   if (cached !== undefined) return cached;
 
@@ -1056,17 +1025,10 @@ export function resolveReward(
 
 const placedRewardSchema = v.object({
   rewardTag: v.pipe(v.string(), v.trim(), v.minLength(1)),
-  rewardTileIds: v.pipe(
-    v.array(v.string()),
-    v.minLength(1),
-    v.maxLength(MAX_REWARD_ITEMS),
-  ),
+  rewardTileIds: v.pipe(v.array(v.string()), v.minLength(1), v.maxLength(MAX_REWARD_ITEMS)),
 });
 
-function readPlacedReward(
-  placed: PlacedTile,
-  def: TileDef,
-): PlacedReward | null {
+function readPlacedReward(placed: PlacedTile, def: TileDef): PlacedReward | null {
   const gesture = resolveRewardDef(def);
   if (!gesture) return null;
   const parsed = v.safeParse(placedRewardSchema, placed);
@@ -1089,11 +1051,7 @@ function readPlacedReward(
 const transmutationSchema = v.object({
   verb: v.optional(v.string()),
   fromTileId: v.pipe(v.string(), v.trim(), v.minLength(1)),
-  toTileIds: v.pipe(
-    v.array(v.string()),
-    v.minLength(1),
-    v.maxLength(MAX_TRANSMUTATION_OUTPUTS),
-  ),
+  toTileIds: v.pipe(v.array(v.string()), v.minLength(1), v.maxLength(MAX_TRANSMUTATION_OUTPUTS)),
 });
 
 /**
@@ -1135,8 +1093,7 @@ export function resolveTransmute(def: TileDef): TransmuteInteraction | null {
 
   const raw = def.interactions?.transmute;
   const parsed = raw == null ? null : v.safeParse(transmuteSchema, raw);
-  const transmute =
-    parsed?.success && parsed.output.recipes.length > 0 ? parsed.output : null;
+  const transmute = parsed?.success && parsed.output.recipes.length > 0 ? parsed.output : null;
   transmuteCache.set(def, transmute);
   return transmute;
 }
@@ -1174,9 +1131,7 @@ const extractSchema = v.object({
   slots: v.pipe(
     v.array(v.fallback(v.nullable(extractSlotSchema), null)),
     v.transform((slots) =>
-      slots
-        .filter((slot): slot is ExtractSlot => slot != null)
-        .slice(0, MAX_EXTRACT_SLOTS),
+      slots.filter((slot): slot is ExtractSlot => slot != null).slice(0, MAX_EXTRACT_SLOTS),
     ),
   ),
 });
@@ -1198,8 +1153,7 @@ export function resolveExtract(def: TileDef): ExtractInteraction | null {
 
   const raw = def.interactions?.extract;
   const parsed = raw == null ? null : v.safeParse(extractSchema, raw);
-  const extract =
-    parsed?.success && parsed.output.slots.length > 0 ? parsed.output : null;
+  const extract = parsed?.success && parsed.output.slots.length > 0 ? parsed.output : null;
   extractCache.set(def, extract);
   return extract;
 }
@@ -1227,10 +1181,7 @@ export const DEFAULT_EXTRACT_VERB = "Gather";
  * every vein in the world, including the ones somebody has already started on,
  * rather than leaving a handful of placements richer than any new one.
  */
-export function extractsLeft(
-  placed: PlacedTile,
-  extract: ExtractInteraction,
-): number {
+export function extractsLeft(placed: PlacedTile, extract: ExtractInteraction): number {
   const left = placed.extractsLeft;
   if (typeof left !== "number" || !Number.isFinite(left)) {
     return extract.durability;
@@ -1535,18 +1486,13 @@ const pressurePlateSchema = v.object({
   height: v.pipe(v.number(), v.integer(), v.minValue(0)),
 });
 
-const pressurePlateCache = new WeakMap<
-  TileDef,
-  PressurePlateInteraction | null
->();
+const pressurePlateCache = new WeakMap<TileDef, PressurePlateInteraction | null>();
 
 /**
  * Parsed pressure plate config per tile def. Same trust model as
  * {@link resolvePush}: malformed or targetless → not a plate.
  */
-export function resolvePressurePlate(
-  def: TileDef,
-): PressurePlateInteraction | null {
+export function resolvePressurePlate(def: TileDef): PressurePlateInteraction | null {
   const cached = pressurePlateCache.get(def);
   if (cached !== undefined) return cached;
 
@@ -1602,10 +1548,7 @@ export function resolveReceive(def: TileDef): ReceiveInteraction | null {
 }
 
 /** Does the channel reading satisfy this receiver's authored condition? */
-export function receiveTriggers(
-  receive: ReceiveInteraction,
-  powered: boolean,
-): boolean {
+export function receiveTriggers(receive: ReceiveInteraction, powered: boolean): boolean {
   return powered === (receive.when === "on");
 }
 
@@ -1717,11 +1660,7 @@ function pressable(gesture: { trigger: ActivationTrigger } | null): boolean {
  * floor geometry, and smearing across it the moment it moved.
  */
 export function isMobileTile(def: TileDef): boolean {
-  return (
-    def.affectedByGravity === true ||
-    resolveActor(def) ||
-    resolvePush(def) !== null
-  );
+  return def.affectedByGravity === true || resolveActor(def) || resolvePush(def) !== null;
 }
 
 /**
@@ -1780,27 +1719,25 @@ export function isInteractive(def: TileDef): boolean {
  * over {@link isInteractive} when the question is "is this tile inert?" rather
  * than "can the player act on it?".
  */
-export function hasAnyInteraction(
-  interactions: TileInteractions | undefined,
-): boolean {
+export function hasAnyInteraction(interactions: TileInteractions | undefined): boolean {
   return Boolean(
     interactions?.brain ||
-      interactions?.dialog ||
-      interactions?.battler ||
-      interactions?.item ||
-      interactions?.projectile ||
-      interactions?.push ||
-      interactions?.switch ||
-      interactions?.reward ||
-      interactions?.transmute ||
-      interactions?.extract ||
-      interactions?.teleport ||
-      interactions?.addStatus ||
-      interactions?.decay ||
-      interactions?.respawn ||
-      interactions?.pressurePlate ||
-      interactions?.emit ||
-      interactions?.receive,
+    interactions?.dialog ||
+    interactions?.battler ||
+    interactions?.item ||
+    interactions?.projectile ||
+    interactions?.push ||
+    interactions?.switch ||
+    interactions?.reward ||
+    interactions?.transmute ||
+    interactions?.extract ||
+    interactions?.teleport ||
+    interactions?.addStatus ||
+    interactions?.decay ||
+    interactions?.respawn ||
+    interactions?.pressurePlate ||
+    interactions?.emit ||
+    interactions?.receive,
   );
 }
 
@@ -1865,8 +1802,7 @@ export function interactionsForSave(
     // what an absent key already says.
     return [{ ...(verb ? { verb } : {}), fromTileId, toTileIds }];
   });
-  const savedTransmute =
-    savedRecipes.length > 0 ? { recipes: savedRecipes } : undefined;
+  const savedTransmute = savedRecipes.length > 0 ? { recipes: savedRecipes } : undefined;
   // Rebuilt slot by slot and the blank ones dropped on the way out, exactly as
   // a recipe's rows are: a slot somebody added and never filled in is one the
   // resolver would refuse anyway, and writing it to `data/tiles.json` would
@@ -2003,20 +1939,20 @@ export function interactionsForSave(
   // question they did not, and it would grow every creature's block by five
   // lines saying nothing.
   const savedKit = kitForSave(battler?.kit);
-  const savedImmunities = (battler?.immuneTo ?? [])
-    .map((id) => id.trim())
-    .filter(Boolean);
+  const savedImmunities = (battler?.immuneTo ?? []).map((id) => id.trim()).filter(Boolean);
   // A spell with no name is one nothing could ever point at — a row somebody
   // started and did not finish — so it is dropped rather than written out to
   // fail the schema on the way back in.
   const savedSpells = (battler?.spells ?? []).flatMap((spell) => {
     const name = spell.name?.trim();
     return name
-      ? [{
-          ...stoneForSave(spell),
-          name,
-          ...(spell.icon ? { icon: { ...spell.icon } } : {}),
-        }]
+      ? [
+          {
+            ...stoneForSave(spell),
+            name,
+            ...(spell.icon ? { icon: { ...spell.icon } } : {}),
+          },
+        ]
       : [];
   });
   const savedBattler = battler
@@ -2026,13 +1962,12 @@ export function interactionsForSave(
         // block saved without one would not parse as a battler at all.
         baseHp: battler.baseHp ?? DEFAULT_BATTLER.baseHp,
         masteries: Object.fromEntries(
-          MASTERIES.filter((mastery) => (battler.masteries?.[mastery] ?? 0) > 0).map(
-            (mastery) => [mastery, battler.masteries[mastery]],
-          ),
+          MASTERIES.filter((mastery) => (battler.masteries?.[mastery] ?? 0) > 0).map((mastery) => [
+            mastery,
+            battler.masteries[mastery],
+          ]),
         ),
-        naturalWeapon: weaponForSave(
-          battler.naturalWeapon ?? DEFAULT_BATTLER.naturalWeapon,
-        ),
+        naturalWeapon: weaponForSave(battler.naturalWeapon ?? DEFAULT_BATTLER.naturalWeapon),
         sight: {
           up: battler.sight?.up ?? DEFAULT_BATTLER.sight.up,
           down: battler.sight?.down ?? DEFAULT_BATTLER.sight.down,
@@ -2049,9 +1984,7 @@ export function interactionsForSave(
         // chose the same two produce the same file.
         ...(battler.elements?.length
           ? {
-              elements: ELEMENTS.filter((element) =>
-                battler.elements?.includes(element),
-              ),
+              elements: ELEMENTS.filter((element) => battler.elements?.includes(element)),
             }
           : {}),
         // Trimmed entry by entry, and the block dropped when none survive.

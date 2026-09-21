@@ -69,7 +69,8 @@ describe("resolving a dialog", () => {
   });
 
   it("refuses a blank line, choices with no buttons, a trade of nothing, and an inverted range", () => {
-    const bad = (command: Record<string, unknown>) => resolveDialog(tileWith({ script: [command] }));
+    const bad = (command: Record<string, unknown>) =>
+      resolveDialog(tileWith({ script: [command] }));
     expect(bad({ kind: "say", text: "" })).toBeNull();
     expect(bad({ kind: "choices", options: [] })).toBeNull();
     expect(bad({ ...trade, take: [], give: [] })).toBeNull();
@@ -90,7 +91,9 @@ describe("resolving a dialog", () => {
 describe("walking the script", () => {
   it("finds lists and commands by path, and nothing off the end", () => {
     expect(listAt(shop, [])).toBe(shop.script);
-    expect(listAt(shop, [2, 0])).toBe(shop.script[2]!.kind === "choices" ? shop.script[2].options[0]!.then : null);
+    expect(listAt(shop, [2, 0])).toBe(
+      shop.script[2]!.kind === "choices" ? shop.script[2].options[0]!.then : null,
+    );
     expect(listAt(shop, [2, 0, 1, 1])).toEqual([say("Fine.")]);
     expect(listAt(shop, [2, 9])).toBeNull();
     expect(commandAt(shop, [2, 0, 1])).toBe(trade);
@@ -115,14 +118,27 @@ describe("walking the script", () => {
 
   it("visits every command root first", () => {
     expect(walkCommands(shop).map((w) => w.path.join("."))).toEqual([
-      "0", "1", "2", "2.0.0", "2.0.1", "2.0.1.0.0", "2.0.1.1.0", "2.1.0", "2.1.1",
+      "0",
+      "1",
+      "2",
+      "2.0.0",
+      "2.0.1",
+      "2.0.1.0.0",
+      "2.0.1.1.0",
+      "2.1.0",
+      "2.1.1",
     ]);
   });
 
   it("finds an anchor anywhere, first one winning", () => {
     expect(anchorPath(shop, "main")).toEqual([1]);
     expect(anchorPath(shop, "nowhere")).toBeNull();
-    const twice: DialogDef = { script: [{ kind: "anchor", name: "a" }, { kind: "anchor", name: "a" }] };
+    const twice: DialogDef = {
+      script: [
+        { kind: "anchor", name: "a" },
+        { kind: "anchor", name: "a" },
+      ],
+    };
     expect(anchorPath(twice, "a")).toEqual([0]);
     expect(anchorNames(twice)).toEqual(["a"]);
   });
@@ -147,7 +163,11 @@ describe("validating a dialog", () => {
 
   it("errors on a goto with no anchor, and warns about a doubled anchor", () => {
     const issues = validateDialog({
-      script: [{ kind: "anchor", name: "a" }, { kind: "anchor", name: "a" }, { kind: "goto", name: "b" }],
+      script: [
+        { kind: "anchor", name: "a" },
+        { kind: "anchor", name: "a" },
+        { kind: "goto", name: "b" },
+      ],
     });
     expect(issues).toEqual([
       { severity: "warn", message: expect.stringContaining('"a" appears 2 times') },
@@ -157,7 +177,16 @@ describe("validating a dialog", () => {
 
   it("errors on two buttons reading the same, and a blank one", () => {
     const issues = validateDialog({
-      script: [{ kind: "choices", options: [{ label: "Yes", then: [] }, { label: "yes", then: [] }, { label: " ", then: [] }] }],
+      script: [
+        {
+          kind: "choices",
+          options: [
+            { label: "Yes", then: [] },
+            { label: "yes", then: [] },
+            { label: " ", then: [] },
+          ],
+        },
+      ],
     });
     expect(issues.map((i) => i.message)).toEqual([
       expect.stringContaining('two buttons reading "yes"'),
@@ -167,7 +196,9 @@ describe("validating a dialog", () => {
 
   it("errors on a trade opening outside its own range", () => {
     const issues = validateDialog({ script: [{ ...trade, default: 9 }] });
-    expect(issues.map((i) => i.message)).toEqual([expect.stringContaining("outside its own range")]);
+    expect(issues.map((i) => i.message)).toEqual([
+      expect.stringContaining("outside its own range"),
+    ]);
   });
 
   it("warns past the depth an outline can follow", () => {
@@ -188,7 +219,10 @@ describe("validating a dialog", () => {
 
     it("names ids nothing answers to", () => {
       const dialog: DialogDef = {
-        script: [{ ...trade, take: [{ tileId: "shard", count: 1 }] }, { kind: "add_status", statusId: "glowing" }],
+        script: [
+          { ...trade, take: [{ tileId: "shard", count: 1 }] },
+          { kind: "add_status", statusId: "glowing" },
+        ],
       };
       expect(validateDialog(dialog)).toEqual([]);
       expect(validateDialog(dialog, catalogue).map((i) => i.message)).toEqual([
@@ -198,8 +232,13 @@ describe("validating a dialog", () => {
     });
 
     it("refuses a container on either side of a trade", () => {
-      const issues = validateDialog({ script: [{ ...trade, take: [], give: [{ tileId: "bag", count: 1 }] }] }, catalogue);
-      expect(issues).toEqual([{ severity: "error", message: expect.stringContaining("bag, and a container") }]);
+      const issues = validateDialog(
+        { script: [{ ...trade, take: [], give: [{ tileId: "bag", count: 1 }] }] },
+        catalogue,
+      );
+      expect(issues).toEqual([
+        { severity: "error", message: expect.stringContaining("bag, and a container") },
+      ]);
     });
   });
 });

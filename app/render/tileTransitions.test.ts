@@ -54,10 +54,7 @@ const sweep = sideOf({
 
 const shrink = sideOf({ durationMs: DURATION_MS, scale: {} });
 
-function note(
-  id: string,
-  side: TileTransitionNote["side"] = "appear",
-): TileTransitionNote {
+function note(id: string, side: TileTransitionNote["side"] = "appear"): TileTransitionNote {
   return { id, side, tileId: "flame", x: 1, y: 2, z: 0, stackIndex: 1 };
 }
 
@@ -83,9 +80,7 @@ describe("admitTransitions", () => {
   });
 
   it("drops one this client has nothing authored for", () => {
-    expect(
-      admitTransitions([heard("a")], intake({ transitionOf: () => undefined })),
-    ).toEqual([]);
+    expect(admitTransitions([heard("a")], intake({ transitionOf: () => undefined }))).toEqual([]);
   });
 
   it("drops one that has already had its whole duration", () => {
@@ -93,15 +88,11 @@ describe("admitTransitions", () => {
   });
 
   it("drops one nobody could see", () => {
-    expect(admitTransitions([heard("a")], intake({ inWindow: () => false }))).toEqual(
-      [],
-    );
+    expect(admitTransitions([heard("a")], intake({ inWindow: () => false }))).toEqual([]);
   });
 
   it("stops at the cap, counting what is already playing, oldest first", () => {
-    const many = Array.from({ length: MAX_LIVE_TRANSITIONS }, (_, i) =>
-      heard(`t${i}`),
-    );
+    const many = Array.from({ length: MAX_LIVE_TRANSITIONS }, (_, i) => heard(`t${i}`));
     const admitted = admitTransitions(many, intake({ live: 2 }));
     expect(admitted).toHaveLength(MAX_LIVE_TRANSITIONS - 2);
     expect(admitted[0]?.note.id).toBe("t0");
@@ -149,9 +140,7 @@ describe("fadingLightScale", () => {
     }
 
     expect(changedAt.length).toBeGreaterThan(0);
-    expect(changedAt.every((clockMs) => clockMs % LIGHT_FADE_STEP_MS === 0)).toBe(
-      true,
-    );
+    expect(changedAt.every((clockMs) => clockMs % LIGHT_FADE_STEP_MS === 0)).toBe(true);
   });
 
   it("is full before the fade's first grid line and gone after its last", () => {
@@ -169,10 +158,7 @@ describe("transitionUniforms", () => {
   const sprite = { centreX: 100, centreY: 200, w: 16, h: 16 };
 
   it("starts a sweep a cell from the sprite's middle, and spans to its far corner", () => {
-    const u = transitionUniforms(
-      { note: note("a"), transition: sweep, startMs: 0 },
-      sprite,
-    );
+    const u = transitionUniforms({ note: note("a"), transition: sweep, startMs: 0 }, sprite);
     expect(u.uFxEnabled.value).toBe(1);
     expect(u.uFxOriginPx.value.x).toBe(100 - CELL_SIZE);
     expect(u.uFxOriginPx.value.y).toBe(200 - CELL_SIZE);
@@ -191,18 +177,12 @@ describe("transitionUniforms", () => {
   });
 
   it("hands the edge colour over in linear light", () => {
-    const u = transitionUniforms(
-      { note: note("a"), transition: sweep, startMs: 0 },
-      sprite,
-    );
+    const u = transitionUniforms({ note: note("a"), transition: sweep, startMs: 0 }, sprite);
     expect(u.uFxEdgeColor.value.toArray()).toEqual([1, 1, 1]);
   });
 
   it("dissolves nothing for a transition that only scales", () => {
-    const u = transitionUniforms(
-      { note: note("a"), transition: shrink, startMs: 0 },
-      sprite,
-    );
+    const u = transitionUniforms({ note: note("a"), transition: shrink, startMs: 0 }, sprite);
     expect(u.uFxEnabled.value).toBe(1);
     expect(u.uFxPattern.value).toBe(0);
   });
@@ -330,7 +310,11 @@ describe("appendTransitionEmitters", () => {
   });
 
   it("thins a forming tile's own plume in with it, without touching the chunk's spec", () => {
-    for (const [clockMs, shown] of [[0, 0], [DURATION_MS / 2, 0.5], [DURATION_MS, 1]] as const) {
+    for (const [clockMs, shown] of [
+      [0, 0],
+      [DURATION_MS / 2, 0.5],
+      [DURATION_MS, 1],
+    ] as const) {
       const own = spec("plume:0:1,2#1");
       const out = [own];
       appendTransitionEmitters(
@@ -344,7 +328,11 @@ describe("appendTransitionEmitters", () => {
   });
 
   it("carries a dissolving tile's plume on under an id of its own, winding down", () => {
-    for (const [clockMs, shown] of [[0, 1], [DURATION_MS / 2, 0.5], [DURATION_MS, 0]] as const) {
+    for (const [clockMs, shown] of [
+      [0, 1],
+      [DURATION_MS / 2, 0.5],
+      [DURATION_MS, 0],
+    ] as const) {
       const out: ReturnType<typeof spec>[] = [spec("plume:0:1,2#1")];
       appendTransitionEmitters(
         out,

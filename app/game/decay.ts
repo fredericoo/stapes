@@ -8,11 +8,7 @@ import { getStack, listCoords, replaceStack, setStacks } from "../lib/mapData";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import { canReplaceStack } from "../lib/validation";
-import {
-  carriedInstances,
-  EQUIPMENT_SLOTS,
-  type Equipment,
-} from "./equipment";
+import { carriedInstances, EQUIPMENT_SLOTS, type Equipment } from "./equipment";
 import { type SlotKind, slotAccepts } from "./itemMoves";
 import { cellKey } from "./pressurePlates";
 import type { Rng } from "./rng";
@@ -88,17 +84,12 @@ export function cellHasDecay(
   return getStack(map, cell.x, cell.y, cell.z).some((placed) => {
     if (decayOf(placed.tileId, tilesById)) return true;
     // A crate of apples is a cell that decays even when the crate does not.
-    return (placed.contents ?? []).some((held) =>
-      decayOf(held.tileId, tilesById),
-    );
+    return (placed.contents ?? []).some((held) => decayOf(held.tileId, tilesById));
   });
 }
 
 /** This tile's decay, or null when it has none and none that parses. */
-function decayOf(
-  tileId: string,
-  tilesById: Record<string, TileDef>,
-): DecayInteraction | null {
+function decayOf(tileId: string, tilesById: Record<string, TileDef>): DecayInteraction | null {
   const def = tilesById[tileId];
   return def ? resolveDecay(def) : null;
 }
@@ -108,10 +99,7 @@ function decayOf(
  * once at load rather than per tick — the same discipline plates and wires are
  * indexed under.
  */
-export function findDecayCells(
-  map: MapFile,
-  tilesById: Record<string, TileDef>,
-): Coord[] {
+export function findDecayCells(map: MapFile, tilesById: Record<string, TileDef>): Coord[] {
   const out: Coord[] = [];
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     for (const { x, y } of listCoords(map, z)) {
@@ -241,11 +229,7 @@ export class DecayIndex {
     }
   }
 
-  private armPlacement(
-    cell: Coord,
-    tileId: string,
-    tilesById: Record<string, TileDef>,
-  ) {
+  private armPlacement(cell: Coord, tileId: string, tilesById: Record<string, TileDef>) {
     const decay = decayOf(tileId, tilesById);
     if (!decay) return;
     const key = entryKey(cell, tileId);
@@ -258,11 +242,7 @@ export class DecayIndex {
     });
   }
 
-  private armItem(
-    itemId: string | undefined,
-    tileId: string,
-    tilesById: Record<string, TileDef>,
-  ) {
+  private armItem(itemId: string | undefined, tileId: string, tilesById: Record<string, TileDef>) {
     // An anonymous item is one the minting pass missed. It gets no clock rather
     // than a key shared with every other anonymous thing in the world.
     if (!itemId) return;
@@ -477,17 +457,12 @@ export function applyDecay(
   }
 
   const turned = swapped.map(({ cell, tileId, fromIndex, after }) => {
-    const stackIndex = after
-      ? getStack(next, cell.x, cell.y, cell.z).indexOf(after)
-      : -1;
+    const stackIndex = after ? getStack(next, cell.x, cell.y, cell.z).indexOf(after) : -1;
     return {
       cell,
       tileId,
       fromIndex,
-      into:
-        after && stackIndex >= 0
-          ? { tileId: after.tileId, stackIndex }
-          : undefined,
+      into: after && stackIndex >= 0 ? { tileId: after.tileId, stackIndex } : undefined,
     };
   });
   return { map: next, changed, turned };
@@ -598,9 +573,7 @@ function turnOf(
     ? { id: thing.id, tileId: decay.tileId }
     : { ...thing, tileId: decay.tileId };
   if (!isItem(target) || !slotAccepts(site, next, tilesById)) return STAYS;
-  return pile
-    ? { kind: "peeled", tileId: decay.tileId }
-    : { kind: "turned", tileId: decay.tileId };
+  return pile ? { kind: "peeled", tileId: decay.tileId } : { kind: "turned", tileId: decay.tileId };
 }
 
 /** How many things fit in this tile, or none when it holds nothing. */
@@ -664,11 +637,7 @@ function decayedContents(
   let out = next;
   for (const { at, shed } of peels) {
     const stowed = stow(out, shed, capacity, tilesById);
-    out =
-      stowed ??
-      out.map((held, i) =>
-        i === at ? withCount(held, countOf(held) + 1) : held,
-      );
+    out = stowed ?? out.map((held, i) => (i === at ? withCount(held, countOf(held) + 1) : held));
   }
   return out;
 }

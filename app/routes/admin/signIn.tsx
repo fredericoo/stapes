@@ -52,8 +52,8 @@ export default function AdminSignIn() {
       />
       {signedIn ? (
         <DoorNote>
-          This browser is signed in as {signedIn.username}, who is not an
-          administrator. Roles are set in the database.{" "}
+          This browser is signed in as {signedIn.username}, who is not an administrator. Roles are
+          set in the database.{" "}
           <button
             type="button"
             className="underline underline-offset-4 hover:text-paper"

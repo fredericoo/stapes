@@ -1,22 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { defFrom, maxHpFrom } from "../lib/battler";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
-import {
-  masteriesFromXp,
-  masteryLevel,
-  xpForLevel,
-} from "../lib/mastery";
+import { masteriesFromXp, masteryLevel, xpForLevel } from "../lib/mastery";
 import { COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import type { Coord, MapFile, TileDef } from "../lib/types";
 import { naturalSlot, squareSlot } from "./casting";
 import { guardBand, MIN_GUARD_SHARE } from "./combat";
 import { TICK_MS } from "./constants";
-import {
-  casterEarnings,
-  practiceEarnings,
-  XP_PER_CAST,
-  XP_PER_DAMAGE,
-} from "./experience";
+import { casterEarnings, practiceEarnings, XP_PER_CAST, XP_PER_DAMAGE } from "./experience";
 import { GameSession } from "./GameSession";
 import type { SlotRef } from "./itemMoves";
 import { FLIGHT_BODY_SHARE } from "./projectile";
@@ -161,10 +152,7 @@ const MAILED_THROUGH = {
 };
 
 /** A bolt that got through a guard, whichever rung it drew. */
-function expectThrough(
-  took: number,
-  band: { least: number; most: number } = BOLT_THROUGH,
-): void {
+function expectThrough(took: number, band: { least: number; most: number } = BOLT_THROUGH): void {
   expect(took).toBeGreaterThanOrEqual(band.least);
   expect(took).toBeLessThanOrEqual(band.most);
 }
@@ -229,9 +217,7 @@ function body(
           spd: 1,
           mastery: "fist",
         },
-        ...(kit.length
-          ? { kit: kit.map((entry) => ({ ...entry, chance: 100 })) }
-          : {}),
+        ...(kit.length ? { kit: kit.map((entry) => ({ ...entry, chance: 100 })) } : {}),
       },
     },
     ...extra,
@@ -263,11 +249,7 @@ const props: TileDef[] = [
   // the burns below is which side of the wheel each one is on.
   body("nature-rat", RAT_TOUGHNESS, { actor: true }, [], ["nature"]),
   body("water-rat", RAT_TOUGHNESS, { actor: true }, [], ["water"]),
-  body("even-rat", RAT_TOUGHNESS, { actor: true }, [], [
-    "fire",
-    "water",
-    "nature",
-  ]),
+  body("even-rat", RAT_TOUGHNESS, { actor: true }, [], ["fire", "water", "nature"]),
   // Neutral in itself, and born wearing something that is not — the equipped
   // half of what a body counts as.
   body("robed-rat", RAT_TOUGHNESS, { actor: true }, [
@@ -275,20 +257,14 @@ const props: TileDef[] = [
   ]),
   // The same tunic in the bag rather than on the body, which must count for
   // nothing: what is in a bag is in a bag.
-  body("packing-rat", RAT_TOUGHNESS, { actor: true }, [
-    { slot: "bag", tileId: "satchel" },
-  ]),
+  body("packing-rat", RAT_TOUGHNESS, { actor: true }, [{ slot: "bag", tileId: "satchel" }]),
   // A rat in mail warded against magic, and one that is simply hard to hit: the
   // two halves a bolt treats differently, since a cast is mitigated and never
   // dodged.
-  body("mailed-rat", RAT_TOUGHNESS, { actor: true }, [
-    { slot: "armor", tileId: "warding-mail" },
-  ]),
+  body("mailed-rat", RAT_TOUGHNESS, { actor: true }, [{ slot: "armor", tileId: "warding-mail" }]),
   // And one warded deeper than any bolt below is worth *even at the shallowest
   // draw*, for the case where nothing gets through at all.
-  body("walled-rat", RAT_TOUGHNESS, { actor: true }, [
-    { slot: "armor", tileId: "walling-mail" },
-  ]),
+  body("walled-rat", RAT_TOUGHNESS, { actor: true }, [{ slot: "armor", tileId: "walling-mail" }]),
   nimbleRat(),
   stoneTile("mend-stone", {
     effect: { kind: "bolt", damage: -MEND_HP, on: "caster" },
@@ -671,9 +647,10 @@ function session(
   carrying: Partial<Record<Square, string>> = {},
   map: MapFile = world(),
 ): GameSession {
-  const kit = (Object.entries(carrying) as Array<[Square, string]>).map(
-    ([slot, tileId]) => ({ slot, tileId }),
-  );
+  const kit = (Object.entries(carrying) as Array<[Square, string]>).map(([slot, tileId]) => ({
+    slot,
+    tileId,
+  }));
   return new GameSession(map, catalogueWith(kit), { statuses: catalogue });
 }
 
@@ -713,8 +690,7 @@ function runUntilNothingIsFlying(play: GameSession) {
 
 /** Which way the caster is looking, read off the body at the origin. */
 function facingOfCaster(play: GameSession): string | undefined {
-  return getStack(play.getMap(), 0, 0, 0).find((p) => p.tileId === "player")
-    ?.direction;
+  return getStack(play.getMap(), 0, 0, 0).find((p) => p.tileId === "player")?.direction;
 }
 
 function hpOf(play: GameSession, id = "local"): number | null {
@@ -893,9 +869,7 @@ describe("a cooling stone is locked in its square", () => {
 
     // Nothing still owed: the whole kit reached the floor.
     expect(deaths[0]!.equipment.charm).toBeNull();
-    expect(getStack(play.getMap(), 0, 0, 0).map((p) => p.tileId)).toContain(
-      "mend-stone",
-    );
+    expect(getStack(play.getMap(), 0, 0, 0).map((p) => p.tileId)).toContain("mend-stone");
   });
 
   /** And the stone that lands is ready, because a placement carries no clock. */
@@ -904,9 +878,7 @@ describe("a cooling stone is locked in its square", () => {
     play.runCommand("/health 0");
     play.drainDeaths();
 
-    const placed = getStack(play.getMap(), 0, 0, 0).find(
-      (p) => p.tileId === "mend-stone",
-    );
+    const placed = getStack(play.getMap(), 0, 0, 0).find((p) => p.tileId === "mend-stone");
     expect(placed).toBeDefined();
     expect(placed as Record<string, unknown>).not.toHaveProperty("cooldownMs");
   });
@@ -1088,9 +1060,7 @@ describe("casterEarnings", () => {
    * finds beneath it. @see `../lib/mastery`'s `standingIn`
    */
   it("weighs arcane and each element separately", () => {
-    const earned = casterEarnings(5, ["fire"], (mastery) =>
-      mastery === "fire" ? 2 : 0,
-    );
+    const earned = casterEarnings(5, ["fire"], (mastery) => (mastery === "fire" ? 2 : 0));
     expect(earned.fire).toBe(XP_PER_DAMAGE * 5 * 2);
     expect(earned.arcane).toBe(0);
   });
@@ -1101,9 +1071,7 @@ describe("conjuring", () => {
     const play = session({ weapon: "flame-stone" });
 
     expect(play.cast(squareSlot("weapon"))).toBe(true);
-    expect(getStack(play.getMap(), 1, 0, 0).map((p) => p.tileId)).toContain(
-      "conjured-flame",
-    );
+    expect(getStack(play.getMap(), 1, 0, 0).map((p) => p.tileId)).toContain("conjured-flame");
   });
 
   it("announces the flame it placed, when that flame has a way in authored", () => {
@@ -1138,35 +1106,24 @@ describe("conjuring", () => {
     // a cast lands between them, so its hand-over has to outlive one.
     run(play, 1);
 
-    expect(play.takeTransitions().map((held) => held.note.tileId)).toEqual([
-      "formed-flame",
-    ]);
+    expect(play.takeTransitions().map((held) => held.note.tileId)).toEqual(["formed-flame"]);
     expect(play.takeTransitions()).toEqual([]);
   });
 
   it("places it at the target's cell instead, when there is one", () => {
-    const play = session(
-      { weapon: "flame-stone" },
-      spawnRat(world(), { x: 3, y: 0, z: 0 }),
-    );
+    const play = session({ weapon: "flame-stone" }, spawnRat(world(), { x: 3, y: 0, z: 0 }));
     play.setTarget(ratAt(play, { x: 3, y: 0, z: 0 }));
 
     expect(play.cast(squareSlot("weapon"))).toBe(true);
-    expect(getStack(play.getMap(), 3, 0, 0).map((p) => p.tileId)).toContain(
-      "conjured-flame",
-    );
-    expect(getStack(play.getMap(), 1, 0, 0).map((p) => p.tileId)).not.toContain(
-      "conjured-flame",
-    );
+    expect(getStack(play.getMap(), 3, 0, 0).map((p) => p.tileId)).toContain("conjured-flame");
+    expect(getStack(play.getMap(), 1, 0, 0).map((p) => p.tileId)).not.toContain("conjured-flame");
   });
 
   it("marks the placement with whoever cast it", () => {
     const play = session({ weapon: "flame-stone" });
     play.cast(squareSlot("weapon"));
 
-    const placed = getStack(play.getMap(), 1, 0, 0).find(
-      (p) => p.tileId === "conjured-flame",
-    );
+    const placed = getStack(play.getMap(), 1, 0, 0).find((p) => p.tileId === "conjured-flame");
     expect(placed?.castBy).toBe("local");
     // Never the field that says whose *body* this is — that lookup is what finds
     // a connection's actor.
@@ -1178,9 +1135,7 @@ describe("conjuring", () => {
     play.cast(squareSlot("weapon"));
 
     run(play, TICKS_PER_SECOND * 9);
-    expect(getStack(play.getMap(), 1, 0, 0).map((p) => p.tileId)).not.toContain(
-      "conjured-flame",
-    );
+    expect(getStack(play.getMap(), 1, 0, 0).map((p) => p.tileId)).not.toContain("conjured-flame");
   });
 
   /**
@@ -1189,10 +1144,7 @@ describe("conjuring", () => {
    * press that visibly did nothing reads as a dropped key.
    */
   it("refuses to conjure into a wall, and spends nothing", () => {
-    const map = replaceStack(world(), 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "wall" },
-    ]);
+    const map = replaceStack(world(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "wall" }]);
     const play = session({ weapon: "flame-stone" }, map);
 
     expect(play.cast(squareSlot("weapon"))).toBe(false);
@@ -1214,12 +1166,8 @@ describe("conjuring", () => {
     expect(play.requestStep("local", "e")).toBe("started");
 
     expect(play.cast(squareSlot("weapon"))).toBe(true);
-    expect(getStack(play.getMap(), 1, 0, 0).map((p) => p.tileId)).not.toContain(
-      "conjured-flame",
-    );
-    expect(getStack(play.getMap(), 2, 0, 0).map((p) => p.tileId)).toContain(
-      "conjured-flame",
-    );
+    expect(getStack(play.getMap(), 1, 0, 0).map((p) => p.tileId)).not.toContain("conjured-flame");
+    expect(getStack(play.getMap(), 2, 0, 0).map((p) => p.tileId)).toContain("conjured-flame");
 
     run(play, TICKS_PER_SECOND);
     expect(play.statusesOf("local")).toEqual([]);
@@ -1237,15 +1185,11 @@ describe("conjuring", () => {
     play.faceActor("local", "w");
     run(play, TICKS_PER_SECOND);
 
-    const player = getStack(play.getMap(), 1, 0, 0).find(
-      (p) => p.tileId === "player",
-    );
+    const player = getStack(play.getMap(), 1, 0, 0).find((p) => p.tileId === "player");
     expect(player?.direction).toBe("w");
 
     expect(play.cast(squareSlot("weapon"))).toBe(true);
-    expect(getStack(play.getMap(), 0, 0, 0).map((p) => p.tileId)).toContain(
-      "conjured-flame",
-    );
+    expect(getStack(play.getMap(), 0, 0, 0).map((p) => p.tileId)).toContain("conjured-flame");
   });
 });
 
@@ -1356,9 +1300,7 @@ describe("a stone above the caster's mastery", () => {
 
     play.runCommand("/mastery arcane 10");
     play.drainNotices();
-    expect(play.spells().map((spell) => spell.slot)).toEqual([
-      squareSlot("charm"),
-    ]);
+    expect(play.spells().map((spell) => spell.slot)).toEqual([squareSlot("charm")]);
   });
 });
 
@@ -1397,10 +1339,7 @@ describe("an elemental spell", () => {
    * so a single tick of it is the whole of what the wheel has to say.
    */
   function burnPerSecond(stone: string, victim: string): number {
-    const play = session(
-      { weapon: stone },
-      spawnRat(world(), RAT_CELL, victim),
-    );
+    const play = session({ weapon: stone }, spawnRat(world(), RAT_CELL, victim));
     const target = bodyAt(play, RAT_CELL, victim);
     play.setTarget(target);
     expect(play.cast(squareSlot("weapon"))).toBe(true);
@@ -1412,9 +1351,7 @@ describe("an elemental spell", () => {
   }
 
   it("lands harder on what it has the better of", () => {
-    expect(burnPerSecond("ember-stone", "nature-rat")).toBeGreaterThan(
-      BURN_PER_SECOND,
-    );
+    expect(burnPerSecond("ember-stone", "nature-rat")).toBeGreaterThan(BURN_PER_SECOND);
   });
 
   it("lands softer on what has the better of it", () => {
@@ -1439,9 +1376,7 @@ describe("an elemental spell", () => {
    * born as".
    */
   it("reads what the body is wearing as well as what it is", () => {
-    expect(burnPerSecond("ember-stone", "robed-rat")).toBeGreaterThan(
-      BURN_PER_SECOND,
-    );
+    expect(burnPerSecond("ember-stone", "robed-rat")).toBeGreaterThan(BURN_PER_SECOND);
   });
 
   /** And what is in the bag is in the bag. */
@@ -1479,16 +1414,8 @@ describe("an elemental spell", () => {
    * once cancels to neutral on the wheel — so raising Nature alone would pass
    * whichever model were in force and prove nothing.
    */
-  const NATURE_ADEPT = [
-    "/mastery fire 0",
-    "/mastery water 0",
-    "/mastery nature 40",
-  ];
-  const WATER_ADEPT = [
-    "/mastery fire 0",
-    "/mastery nature 0",
-    "/mastery water 40",
-  ];
+  const NATURE_ADEPT = ["/mastery fire 0", "/mastery water 0", "/mastery nature 40"];
+  const WATER_ADEPT = ["/mastery fire 0", "/mastery nature 0", "/mastery water 40"];
 
   /**
    * A fire burn the caster puts on themselves, with the training applied
@@ -1522,9 +1449,7 @@ describe("an elemental spell", () => {
 
   /** An advantage anywhere: the water half beats nothing, the fire half wins. */
   it("weighs every element a two-element spell is made of", () => {
-    expect(burnPerSecond("storm-stone", "nature-rat")).toBeGreaterThan(
-      BURN_PER_SECOND,
-    );
+    expect(burnPerSecond("storm-stone", "nature-rat")).toBeGreaterThan(BURN_PER_SECOND);
   });
 
   /**
@@ -1533,10 +1458,7 @@ describe("an elemental spell", () => {
    * good against nature as a fire thrown by hand.
    */
   it("carries the element onto what it conjures", () => {
-    const lit = session(
-      { weapon: "ember-flame-stone" },
-      spawnRat(world(), RAT_CELL, "nature-rat"),
-    );
+    const lit = session({ weapon: "ember-flame-stone" }, spawnRat(world(), RAT_CELL, "nature-rat"));
     const target = bodyAt(lit, RAT_CELL, "nature-rat");
     lit.setTarget(target);
     expect(lit.cast(squareSlot("weapon"))).toBe(true);
@@ -1551,7 +1473,10 @@ describe("an elemental spell", () => {
 describe("a bolt thrown at somebody", () => {
   const RAT_CELL = { x: 2, y: 0, z: 0 };
 
-  function boltAt(stone: string, victim = "rat"): {
+  function boltAt(
+    stone: string,
+    victim = "rat",
+  ): {
     play: GameSession;
     target: string;
     before: number;
@@ -1641,15 +1566,11 @@ describe("a bolt thrown at somebody", () => {
   it("is weighed on the wheel against what the target is made of", () => {
     const strong = boltAt("ember-bolt-stone", "nature-rat");
     expect(strong.play.cast(squareSlot("weapon"))).toBe(true);
-    expect(took(strong.play, strong.target, strong.before)).toBeGreaterThan(
-      BOLT_THROUGH.most,
-    );
+    expect(took(strong.play, strong.target, strong.before)).toBeGreaterThan(BOLT_THROUGH.most);
 
     const weak = boltAt("ember-bolt-stone", "water-rat");
     expect(weak.play.cast(squareSlot("weapon"))).toBe(true);
-    expect(took(weak.play, weak.target, weak.before)).toBeLessThan(
-      BOLT_THROUGH.least,
-    );
+    expect(took(weak.play, weak.target, weak.before)).toBeLessThan(BOLT_THROUGH.least);
   });
 
   /**
@@ -1757,9 +1678,7 @@ describe("a bolt thrown at somebody", () => {
     expect(play.cast(squareSlot("weapon"))).toBe(true);
     runUntilNothingIsFlying(play);
 
-    expect(
-      play.drainTransitions().find((note) => note.struckBy)?.side,
-    ).toBe("appear");
+    expect(play.drainTransitions().find((note) => note.struckBy)?.side).toBe("appear");
   });
 
   /** And nothing flies at your own body, which has no distance to cross. */
@@ -1787,9 +1706,7 @@ describe("a bolt thrown at somebody", () => {
     // stone is the half that is already in the ledger by now, which is why the
     // comparison is against `before + XP_PER_CAST` rather than `before`.
     runUntilNothingIsFlying(play);
-    expect(play.masteryXpOf("local")?.arcane ?? 0).toBeGreaterThan(
-      before + XP_PER_CAST,
-    );
+    expect(play.masteryXpOf("local")?.arcane ?? 0).toBeGreaterThan(before + XP_PER_CAST);
   });
 
   /**
@@ -1908,14 +1825,8 @@ describe("what a spell is worth in a trained hand", () => {
    * What belongs here is that the session actually consults it — the two used to
    * be a stone that did what it said whoever pressed it.
    */
-  function tookFrom(
-    masteries: readonly string[],
-    stone = "ember-bolt-stone",
-  ): number {
-    const play = session(
-      { weapon: stone },
-      spawnRat(world(), RAT_CELL, "rat"),
-    );
+  function tookFrom(masteries: readonly string[], stone = "ember-bolt-stone"): number {
+    const play = session({ weapon: stone }, spawnRat(world(), RAT_CELL, "rat"));
     for (const command of masteries) play.runCommand(command);
     play.drainNotices();
     const target = bodyAt(play, RAT_CELL, "rat");
@@ -2192,9 +2103,7 @@ describe("what a mend floats", () => {
     const before = numbersOf(play).length;
 
     expect(play.cast(squareSlot("weapon"))).toBe(true);
-    expect(mends(play, before)).toMatchObject([
-      { outcome: "heal", amount: MEND_HP },
-    ]);
+    expect(mends(play, before)).toMatchObject([{ outcome: "heal", amount: MEND_HP }]);
   });
 
   it("floats one for a charm's tick, and none once the wearer is full", () => {
@@ -2313,9 +2222,7 @@ describe("a cast that takes time", () => {
     // cast came out of is the one that can stop it.
     expect(play.cast(squareSlot("offhand"))).toBe(false);
     expect(play.cast(squareSlot("weapon"))).toBe(false);
-    expect(
-      play.spells().map((spell) => spell.castability),
-    ).toEqual([
+    expect(play.spells().map((spell) => spell.castability)).toEqual([
       { ok: false, reason: "underway" },
       { ok: false, reason: "casting" },
     ]);
@@ -2369,8 +2276,7 @@ describe("a cast that takes time", () => {
     const play = session({ charm: "slow-mend-stone" });
     play.cast(squareSlot("charm"));
 
-    const casting = () =>
-      play.actorSnapshots().find((actor) => actor.id === "local")?.casting;
+    const casting = () => play.actorSnapshots().find((actor) => actor.id === "local")?.casting;
     // Which button travels with the clock, for the caster's own row: the
     // button the cast came out of is the one that stops it.
     expect(casting()).toEqual({
@@ -2450,9 +2356,7 @@ describe("a cast that takes time", () => {
     run(play, CAST_TICKS);
 
     const stack = getStack(play.getMap(), 1, 0, 0);
-    expect(stack.some((placed) => placed.tileId === "conjured-flame")).toBe(
-      false,
-    );
+    expect(stack.some((placed) => placed.tileId === "conjured-flame")).toBe(false);
     expect(coolingIn(play, "charm")).toBeUndefined();
     // And nothing heard: a whoosh with no fire behind it would be a press the
     // player could not tell from one that worked.
@@ -2614,9 +2518,7 @@ describe("a spell a body has of its own", () => {
 
   it("is in the row, after the squares", () => {
     const play = withSpells();
-    expect(play.spells().map((spell) => spell.slot)).toEqual([
-      naturalSlot("Second wind"),
-    ]);
+    expect(play.spells().map((spell) => spell.slot)).toEqual([naturalSlot("Second wind")]);
   });
 
   /**
@@ -2760,9 +2662,13 @@ describe("what a bolt tells the body it lands on", () => {
       { tileId: "grass" },
       { tileId: "skittish", direction: "w" },
     ]);
-    return new GameSession(map, [...props, playerTile([{ slot: "charm", tileId: stoneId }]), skittishTile()], {
-      statuses: catalogue,
-    });
+    return new GameSession(
+      map,
+      [...props, playerTile([{ slot: "charm", tileId: stoneId }]), skittishTile()],
+      {
+        statuses: catalogue,
+      },
+    );
   }
 
   const skittish = (play: GameSession) =>
@@ -2937,9 +2843,7 @@ describe("a creature casting a spell of its own", () => {
     const play = burning();
     run(play, TICKS_PER_SECOND);
 
-    const burner = play
-      .actorSnapshots()
-      .find((actor) => actor.tileId === "burner")!;
+    const burner = play.actorSnapshots().find((actor) => actor.tileId === "burner")!;
     // Cooling rather than exactly a full cooldown: a second of winding has
     // already happened by the time the blow lands, and what this is about is
     // that the clock is on the body at all.

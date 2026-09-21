@@ -101,8 +101,8 @@ export default function SignUpPage() {
       </form>
       {error ? <DoorError>{error}</DoorError> : null}
       <DoorNote>
-        At least {MIN_PASSWORD_LENGTH} characters. There is no password reset,
-        so pick one you will remember.
+        At least {MIN_PASSWORD_LENGTH} characters. There is no password reset, so pick one you will
+        remember.
       </DoorNote>
       <DoorNote>
         <Link

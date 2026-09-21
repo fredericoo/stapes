@@ -16,9 +16,7 @@ import { MAX_LIGHT_LEVEL } from "./lightingFlood";
 import type { MapFile, TileDef } from "./types";
 import { coordKey, levelKey, normalizeTileDef } from "./types";
 
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id">,
-): TileDef {
+function tile(partial: Record<string, unknown> & Pick<TileDef, "id">): TileDef {
   return normalizeTileDef({
     name: partial.id,
     height: 0,
@@ -101,10 +99,7 @@ describe("stackOcclusion", () => {
   it("maps blocking height to opacity (half = 0.5, full = 1)", () => {
     expect(stackOcclusion([{ tileId: "half" }], tilesById).opacity).toBe(0.5);
     expect(stackOcclusion([{ tileId: "wall" }], tilesById).opacity).toBe(1);
-    expect(
-      stackOcclusion([{ tileId: "half" }, { tileId: "half" }], tilesById)
-        .opacity,
-    ).toBe(1);
+    expect(stackOcclusion([{ tileId: "half" }, { tileId: "half" }], tilesById).opacity).toBe(1);
   });
 
   it("ignores light-passing tiles", () => {
@@ -135,9 +130,7 @@ describe("isSkyExposed", () => {
   });
 
   it("is blocked by a floor plate above", () => {
-    const occlusion = new Map([
-      ["1:0,0", { opacity: 0, sealsLevel: true }],
-    ]);
+    const occlusion = new Map([["1:0,0", { opacity: 0, sealsLevel: true }]]);
     expect(isSkyExposed(0, 0, 0, occlusion)).toBe(false);
     expect(isSkyExposed(0, 0, 1, occlusion)).toBe(true);
   });
@@ -149,41 +142,35 @@ describe("rayTransmission", () => {
   });
 
   it("hard-blocks at a full wall", () => {
-    const occlusion = new Map([
-      ["0:1,0", { opacity: 1, sealsLevel: true }],
-    ]);
+    const occlusion = new Map([["0:1,0", { opacity: 1, sealsLevel: true }]]);
     expect(rayTransmission(0, 0, 0, 3, 0, 0, occlusion)).toBe(0);
   });
 
   it("half-decays through a half-block", () => {
-    const occlusion = new Map([
-      ["0:1,0", { opacity: 0.5, sealsLevel: true }],
-    ]);
+    const occlusion = new Map([["0:1,0", { opacity: 0.5, sealsLevel: true }]]);
     expect(rayTransmission(0, 0, 0, 3, 0, 0, occlusion)).toBeCloseTo(0.5);
   });
 
   it("seals vertical travel through a floor plate", () => {
-    const occlusion = new Map([
-      ["1:0,0", { opacity: 0, sealsLevel: true }],
-    ]);
+    const occlusion = new Map([["1:0,0", { opacity: 0, sealsLevel: true }]]);
     expect(rayTransmission(0, 0, 0, 0, 0, 2, occlusion)).toBe(0);
   });
 
   it("seals vertical travel through a half-block too", () => {
     // Half a level tall is half a wall to look across and a whole lid to fall
     // through: the ray meets the tile's footprint however short it stands.
-    const occlusion = new Map([
-      ["1:0,0", { opacity: 0.5, sealsLevel: true }],
-    ]);
+    const occlusion = new Map([["1:0,0", { opacity: 0.5, sealsLevel: true }]]);
     expect(rayTransmission(0, 0, 0, 0, 0, 2, occlusion)).toBe(0);
   });
 });
 
 describe("emitterCenter", () => {
   it("emits from the cell centre at floor level for a flat lit tile", () => {
-    expect(
-      emitterCenter(3, 4, 0, [{ tileId: "torch" }], 0, tilesById),
-    ).toEqual({ fx: 3.5, fy: 4.5, fz: 0 });
+    expect(emitterCenter(3, 4, 0, [{ tileId: "torch" }], 0, tilesById)).toEqual({
+      fx: 3.5,
+      fy: 4.5,
+      fz: 0,
+    });
   });
 
   it("raises Z by half the tile height", () => {
@@ -208,22 +195,17 @@ describe("emitterCenter", () => {
       light: { radius: 4, intensity: 1, color: "#ffffff" },
     });
     const byId = { ...tilesById, "ghost-lamp": lamp };
-    expect(
-      emitterCenter(0, 0, 0, [{ tileId: "ghost-lamp" }], 0, byId),
-    ).toEqual({ fx: 0.5, fy: 0.5, fz: 0.5 });
+    expect(emitterCenter(0, 0, 0, [{ tileId: "ghost-lamp" }], 0, byId)).toEqual({
+      fx: 0.5,
+      fy: 0.5,
+      fz: 0.5,
+    });
   });
 
   it("accounts for standing on a half-block base", () => {
-    expect(
-      emitterCenter(
-        0,
-        0,
-        0,
-        [{ tileId: "half" }, { tileId: "torch" }],
-        1,
-        tilesById,
-      ),
-    ).toEqual({ fx: 0.5, fy: 0.5, fz: 0.5 });
+    expect(emitterCenter(0, 0, 0, [{ tileId: "half" }, { tileId: "torch" }], 1, tilesById)).toEqual(
+      { fx: 0.5, fy: 0.5, fz: 0.5 },
+    );
   });
 });
 
@@ -331,8 +313,7 @@ describe("computeLighting flood fill", () => {
   });
 
   it("daytime: open cells get full sky; sealed caves stay dark", () => {
-    const cells: Array<{ x: number; y: number; z?: number; tiles: string[] }> =
-      [];
+    const cells: Array<{ x: number; y: number; z?: number; tiles: string[] }> = [];
     for (let x = 0; x <= 2; x++) {
       for (let y = 0; y <= 2; y++) {
         cells.push({ x, y, z: 0, tiles: ["floor"] });
@@ -353,22 +334,21 @@ describe("computeLighting flood fill", () => {
   });
 
   it("daytime: skylight hole is bright and spills to roofed neighbours", () => {
-    const cells: Array<{ x: number; y: number; z?: number; tiles: string[] }> =
-      [
-        { x: 0, y: 0, z: 0, tiles: ["floor"] },
-        { x: 1, y: 0, z: 0, tiles: ["floor"] },
-        { x: 2, y: 0, z: 0, tiles: ["floor"] },
-        { x: 0, y: 0, z: 1, tiles: ["floor"] },
-        { x: 2, y: 0, z: 1, tiles: ["floor"] },
-        { x: 0, y: 1, z: 0, tiles: ["wall"] },
-        { x: 1, y: 1, z: 0, tiles: ["wall"] },
-        { x: 2, y: 1, z: 0, tiles: ["wall"] },
-        { x: 0, y: -1, z: 0, tiles: ["wall"] },
-        { x: 1, y: -1, z: 0, tiles: ["wall"] },
-        { x: 2, y: -1, z: 0, tiles: ["wall"] },
-        { x: -1, y: 0, z: 0, tiles: ["wall"] },
-        { x: 3, y: 0, z: 0, tiles: ["wall"] },
-      ];
+    const cells: Array<{ x: number; y: number; z?: number; tiles: string[] }> = [
+      { x: 0, y: 0, z: 0, tiles: ["floor"] },
+      { x: 1, y: 0, z: 0, tiles: ["floor"] },
+      { x: 2, y: 0, z: 0, tiles: ["floor"] },
+      { x: 0, y: 0, z: 1, tiles: ["floor"] },
+      { x: 2, y: 0, z: 1, tiles: ["floor"] },
+      { x: 0, y: 1, z: 0, tiles: ["wall"] },
+      { x: 1, y: 1, z: 0, tiles: ["wall"] },
+      { x: 2, y: 1, z: 0, tiles: ["wall"] },
+      { x: 0, y: -1, z: 0, tiles: ["wall"] },
+      { x: 1, y: -1, z: 0, tiles: ["wall"] },
+      { x: 2, y: -1, z: 0, tiles: ["wall"] },
+      { x: -1, y: 0, z: 0, tiles: ["wall"] },
+      { x: 3, y: 0, z: 0, tiles: ["wall"] },
+    ];
     const map = mapAt(cells);
     const grid = computeLighting(map, tilesById, AMBIENT_PRESETS.day);
     const level = grid.levels.get(0)!;
@@ -406,8 +386,7 @@ describe("computeLighting flood fill", () => {
   });
 
   it("night: outdoor sky still glows dimly; buried caves are darker", () => {
-    const cells: Array<{ x: number; y: number; z?: number; tiles: string[] }> =
-      [];
+    const cells: Array<{ x: number; y: number; z?: number; tiles: string[] }> = [];
     for (let x = 0; x <= 2; x++) {
       for (let y = 0; y <= 2; y++) {
         cells.push({ x, y, z: 0, tiles: ["floor"] });
@@ -423,18 +402,14 @@ describe("computeLighting flood fill", () => {
 
     const map = mapAt(cells);
     const grid = computeLighting(map, tilesById, AMBIENT_PRESETS.night);
-    expect(sampleLevelLight(grid.levels.get(1)!, 1, 1)[0]).toBeCloseTo(
-      AMBIENT_PRESETS.night[0],
-      1,
-    );
+    expect(sampleLevelLight(grid.levels.get(1)!, 1, 1)[0]).toBeCloseTo(AMBIENT_PRESETS.night[0], 1);
     expect(sampleLevelLight(grid.levels.get(0)!, 1, 1)[0]).toBeLessThan(
       AMBIENT_PRESETS.night[0] * 0.5 + 0.02,
     );
   });
 
   it("torch still lights a buried cave at night", () => {
-    const cells: Array<{ x: number; y: number; z?: number; tiles: string[] }> =
-      [];
+    const cells: Array<{ x: number; y: number; z?: number; tiles: string[] }> = [];
     for (let x = 0; x <= 2; x++) {
       for (let y = 0; y <= 2; y++) {
         cells.push({ x, y, z: 0, tiles: ["floor"] });
@@ -490,9 +465,7 @@ describe("computeLighting flood fill", () => {
     const level = painted.levels.get(0)!;
     expect(sampleLevelLight(level, 3, 0)[0]).toBeGreaterThan(0);
     // Falls off with distance rather than ending abruptly.
-    expect(sampleLevelLight(level, 1, 0)[0]).toBeGreaterThan(
-      sampleLevelLight(level, 3, 0)[0],
-    );
+    expect(sampleLevelLight(level, 1, 0)[0]).toBeGreaterThan(sampleLevelLight(level, 3, 0)[0]);
   });
 
   it("overlayEmitterOverrides adds an omitted player-style light", () => {
@@ -506,9 +479,7 @@ describe("computeLighting flood fill", () => {
     const painted = overlayEmitterOverrides(staticGrid, map, tilesById, [
       { x: 0, y: 0, z: 0, fx: 0.5, fy: 0.5, fz: 0 },
     ]);
-    expect(sampleLevelLight(painted.levels.get(0)!, 0, 0)[0]).toBeGreaterThan(
-      0.5,
-    );
+    expect(sampleLevelLight(painted.levels.get(0)!, 0, 0)[0]).toBeGreaterThan(0.5);
   });
 
   // A torch in somebody's bag is not on the board — that is the whole item
@@ -534,9 +505,7 @@ describe("computeLighting flood fill", () => {
         lights: [{ radius: 4, intensity: 1, color: "#ffffff" }],
       },
     ]);
-    expect(sampleLevelLight(painted.levels.get(0)!, 0, 0)[0]).toBeGreaterThan(
-      0.5,
-    );
+    expect(sampleLevelLight(painted.levels.get(0)!, 0, 0)[0]).toBeGreaterThan(0.5);
     expect(sampleLevelLight(painted.levels.get(0)!, 1, 0)[0]).toBeGreaterThan(0);
   });
 
@@ -548,9 +517,7 @@ describe("computeLighting flood fill", () => {
     const dim = { radius: 4, intensity: 0.2, color: "#ffffff" };
     const at = { x: 0, y: 0, z: 0, fx: 0.5, fy: 0.5, fz: 0 };
 
-    const one = overlayEmitterOverrides(staticGrid, map, tilesById, [
-      { ...at, lights: [dim] },
-    ]);
+    const one = overlayEmitterOverrides(staticGrid, map, tilesById, [{ ...at, lights: [dim] }]);
     const two = overlayEmitterOverrides(staticGrid, map, tilesById, [
       { ...at, lights: [dim, dim] },
     ]);
@@ -596,8 +563,7 @@ describe("computeLighting flood fill", () => {
 describe("daylight through the surface into a room below", () => {
   /** 3×3 of ground at L0 over a 1-cell room at L-1, walled in all round. */
   function roomUnder(surface: string[]): MapFile {
-    const cells: Array<{ x: number; y: number; z: number; tiles: string[] }> =
-      [];
+    const cells: Array<{ x: number; y: number; z: number; tiles: string[] }> = [];
     for (let x = -1; x <= 1; x++) {
       for (let y = -1; y <= 1; y++) {
         const middle = x === 0 && y === 0;

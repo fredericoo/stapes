@@ -22,8 +22,6 @@ import { Rng } from "./rng";
 const SAMPLES = 200_000;
 
 /** Enough draws that a share settles to about three decimal places. */
-const SHARE_TOLERANCE = 0.005;
-
 function statsOf(over: Partial<FightingStats>): FightingStats {
   return {
     maxHp: 20,
@@ -202,10 +200,7 @@ describe("swing odds", () => {
    * `./combat`'s `MIN_GUARD_SHARE`, which is what "deep enough" now means.
    */
   it("has nothing to say about time to kill when nothing can get through", () => {
-    const odds = swingOdds(
-      statsOf({ damage: 2, variance: 0, hitChance: 1 }),
-      statsOf({ def: 50 }),
-    );
+    const odds = swingOdds(statsOf({ damage: 2, variance: 0, hitChance: 1 }), statsOf({ def: 50 }));
     expect(odds.absorbed).toBeCloseTo(odds.connected, 10);
     expect(odds.secondsToKill).toBeNull();
     expect(odds.swingsToKill).toBeNull();
@@ -274,8 +269,7 @@ describe("what the closed form assumes about the dice", () => {
    */
   it("averages two of the world's draws into a triangular distribution", () => {
     const rng = new Rng(2024);
-    const cdf = (mean: number) =>
-      mean <= 0.5 ? 2 * mean * mean : 1 - 2 * (1 - mean) * (1 - mean);
+    const cdf = (mean: number) => (mean <= 0.5 ? 2 * mean * mean : 1 - 2 * (1 - mean) * (1 - mean));
     const means: number[] = [];
     for (let i = 0; i < SAMPLES; i++) means.push((rng.next() + rng.next()) / 2);
 

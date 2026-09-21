@@ -15,12 +15,7 @@ import type {
   PlaySession,
 } from "../game/GameSession";
 import { PLAYER_TILE_ID } from "../game/constants";
-import {
-  bodyNameFor,
-  bodyNameIn,
-  fightingName,
-  sizedUpName,
-} from "../game/displayName";
+import { bodyNameFor, bodyNameIn, fightingName, sizedUpName } from "../game/displayName";
 import type { Equipment } from "../game/equipment";
 import type { Conversation } from "../game/dialogRuntime";
 import type { MasteryXp } from "../lib/mastery";
@@ -45,12 +40,7 @@ import { WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
 import { slideTileMotions } from "./slideMotion";
-import {
-  type AimAt,
-  flightEmitter,
-  flightLight,
-  projectileViews,
-} from "./projectileMotion";
+import { type AimAt, flightEmitter, flightLight, projectileViews } from "./projectileMotion";
 import { strikeOffset } from "./strikeMotion";
 import { isCellVisible } from "./cameraSight";
 import { labelHeadroomPx } from "./labelHeadroom";
@@ -63,12 +53,7 @@ import {
 } from "../game/heldDirections";
 import { WalkTo, type WalkView } from "../game/walkTo";
 import type { EmitterOverride } from "../lib/lighting";
-import {
-  DEFAULT_PLAY_MINUTES,
-  clockAfter,
-  wrapMinutes,
-  type MinutesOfDay,
-} from "../lib/clock";
+import { DEFAULT_PLAY_MINUTES, clockAfter, wrapMinutes, type MinutesOfDay } from "../lib/clock";
 import { emitterCenter } from "../lib/lighting";
 import { DWELL_MS } from "../lib/useDwell";
 import { elevationAt, getStack, stackHeight } from "../lib/mapData";
@@ -83,57 +68,29 @@ import {
   sameProbeChunks,
   viewAnchorFor,
 } from "../lib/levelVisibility";
-import type {
-  Coord,
-  LightDef,
-  MapFile,
-  PlacedTile,
-  TileDef,
-  TilesetDef,
-} from "../lib/types";
+import type { Coord, LightDef, MapFile, PlacedTile, TileDef, TilesetDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, tileCanEmitLight } from "../lib/types";
 import { clumpExtentAt, steppingClumpHeight } from "./depthClump";
 import { resolveLight } from "../lib/tileResolve";
 import { tilesByIdFromList } from "../lib/validation";
-import {
-  type OverlaySpec,
-  type TileMotion,
-  tileInstanceKey,
-  WorldRenderer,
-} from "./WorldRenderer";
+import { type OverlaySpec, type TileMotion, tileInstanceKey, WorldRenderer } from "./WorldRenderer";
 import type { ParticleEmitterSpec } from "./particles";
 import type { StatusDef } from "../lib/status";
-import {
-  taperAt,
-  taperedGlow,
-  taperedTint,
-  type StatusTint,
-} from "../lib/statusVfx";
+import { taperAt, taperedGlow, taperedTint, type StatusTint } from "../lib/statusVfx";
 import { SmoothedRemaining, taperKey } from "./statusTaper";
 import { spriteStatesFor } from "./spriteState";
-import {
-  pickBodyAt,
-  pickInteractiveAt,
-  pickTileAt,
-} from "./pick";
+import { pickBodyAt, pickInteractiveAt, pickTileAt } from "./pick";
 import { DamageNumberLayer, type DamageNumberView } from "./damageNumbers";
 import { NoticeQueue, NotificationLayer } from "./notifications";
 import { healthBarColor, healthFraction } from "./healthBar";
 import { fitViewport, VIEW_PX, type ViewportFit } from "./viewport";
-import {
-  clampZoomOut,
-  debugSpanPx,
-  DEBUG_ZOOM_OUT,
-  playSquareOrigin,
-} from "./debugView";
+import { clampZoomOut, debugSpanPx, DEBUG_ZOOM_OUT, playSquareOrigin } from "./debugView";
 import { DebugPanel } from "./debugPanel";
 
 /** Do two references point at the same slot in the same cell? */
 function sameRef(a: ObjectRef | null, b: ObjectRef | null): boolean {
   if (!a || !b) return false;
-  return (
-    a.x === b.x && a.y === b.y && a.z === b.z && a.stackIndex === b.stackIndex
-  );
+  return a.x === b.x && a.y === b.y && a.z === b.z && a.stackIndex === b.stackIndex;
 }
 
 /**
@@ -473,9 +430,7 @@ export class GameRenderer {
    * for the first of them and never start the second. @see `GameSnapshot.nextBlow`
    */
   private interactionsNextBlow: Progress | null = null;
-  private onOpenedContainer:
-    | ((container: OpenedContainer | null) => void)
-    | null = null;
+  private onOpenedContainer: ((container: OpenedContainer | null) => void) | null = null;
   /** Which floor container the panel is showing, if any. */
   private openedRef: ObjectRef | null = null;
   /**
@@ -492,9 +447,7 @@ export class GameRenderer {
   private openedFrom = "";
   /** Last value handed on. `undefined` means "nothing said yet". */
   private openedSent: OpenedContainer | null | undefined = undefined;
-  private onInteractions:
-    | ((options: InteractionOption[]) => void)
-    | null = null;
+  private onInteractions: ((options: InteractionOption[]) => void) | null = null;
   /** Board and cell the held list was derived from. @see pushInteractionOptions */
   private interactionsMap: MapFile | null = null;
   private interactionsAt = "";
@@ -518,9 +471,8 @@ export class GameRenderer {
    * it. Routing a ghost through React state would re-render the page around the
    * game to move one translucent sprite.
    */
-  private dropDrag:
-    | { from: SlotRef; tileId: string; point: { x: number; y: number } }
-    | null = null;
+  private dropDrag: { from: SlotRef; tileId: string; point: { x: number; y: number } } | null =
+    null;
   private profiler = new FrameProfiler();
   private disposed = false;
   private raf = 0;
@@ -1029,13 +981,7 @@ export class GameRenderer {
     this.openedPlacement = placed ?? null;
     this.openedFrom = from;
 
-    const read = readOpenedContainer(
-      snap.map,
-      this.tilesById,
-      snap.self,
-      ref,
-      this.openedItemId,
-    );
+    const read = readOpenedContainer(snap.map, this.tilesById, snap.self, ref, this.openedItemId);
     if (read.kind === "closed") {
       // The reference is dropped rather than merely reporting null, which is
       // what makes closed stay closed: walking back into range does not reopen
@@ -1091,9 +1037,7 @@ export class GameRenderer {
   /** The hovered row's option as it stands this frame, or null. */
   private listHoverOption(): InteractionOption | null {
     if (this.listHoverId === null) return null;
-    return (
-      this.interactionsSent.find((o) => o.id === this.listHoverId) ?? null
-    );
+    return this.interactionsSent.find((o) => o.id === this.listHoverId) ?? null;
   }
 
   start() {
@@ -1272,11 +1216,7 @@ export class GameRenderer {
     // A finger on its way somewhere is not a finger asking a question. The
     // gesture is hold *then* drag, so travel before the wait is up calls it off
     // and leaves the press an ordinary tap. @see onPointerDown
-    if (
-      this.lookHold !== null &&
-      this.touchDownAt &&
-      e.pointerId === this.touchId
-    ) {
+    if (this.lookHold !== null && this.touchDownAt && e.pointerId === this.touchId) {
       const dx = this.lastPointer.x - this.touchDownAt.x;
       const dy = this.lastPointer.y - this.touchDownAt.y;
       if (dx * dx + dy * dy > LOOK_HOLD_SLOP_PX * LOOK_HOLD_SLOP_PX) {
@@ -1325,10 +1265,7 @@ export class GameRenderer {
    * so `canInteract` says no — and gating on it left a box that the list was
    * offering to open sitting in the world unclickable.
    */
-  private pickAt(
-    point: { x: number; y: number },
-    snap: GameSnapshot,
-  ): ObjectRef | null {
+  private pickAt(point: { x: number; y: number }, snap: GameSnapshot): ObjectRef | null {
     return pickInteractiveAt(
       {
         map: snap.map,
@@ -1518,10 +1455,7 @@ export class GameRenderer {
    * there would have whatever respawns set off for a cell clicked before the
    * death.
    */
-  private walkView(
-    snap: GameSnapshot,
-    camera: { x: number; y: number },
-  ): WalkView | null {
+  private walkView(snap: GameSnapshot, camera: { x: number; y: number }): WalkView | null {
     const def = this.tilesById[PLAYER_TILE_ID];
     if (!def) return null;
     const self = snap.self;
@@ -1589,10 +1523,7 @@ export class GameRenderer {
    * the mouse crosses the middle of the screen is noise around something the
    * session refuses to target anyway.
    */
-  private bodyAt(
-    point: { x: number; y: number },
-    snap: GameSnapshot,
-  ): ObjectRef | null {
+  private bodyAt(point: { x: number; y: number }, snap: GameSnapshot): ObjectRef | null {
     const found = pickBodyAt(
       {
         map: snap.map,
@@ -1663,17 +1594,13 @@ export class GameRenderer {
    * starts on a panel and crosses the canvas — and this is the one place that
    * already knows where the canvas is.
    */
-  setDropGhost(
-    drag: { from: SlotRef; tileId: string; clientX: number; clientY: number } | null,
-  ) {
+  setDropGhost(drag: { from: SlotRef; tileId: string; clientX: number; clientY: number } | null) {
     if (!drag) {
       this.dropDrag = null;
       return;
     }
     const point = this.canvasPoint(drag.clientX, drag.clientY);
-    this.dropDrag = point
-      ? { from: drag.from, tileId: drag.tileId, point }
-      : null;
+    this.dropDrag = point ? { from: drag.from, tileId: drag.tileId, point } : null;
   }
 
   /**
@@ -1691,10 +1618,7 @@ export class GameRenderer {
   }
 
   /** Client point in canvas pixels, or null when it is not over the canvas. */
-  private canvasPoint(
-    clientX: number,
-    clientY: number,
-  ): { x: number; y: number } | null {
+  private canvasPoint(clientX: number, clientY: number): { x: number; y: number } | null {
     const rect = this.canvas.getBoundingClientRect();
     const x = clientX - rect.left;
     const y = clientY - rect.top;
@@ -1703,10 +1627,7 @@ export class GameRenderer {
   }
 
   /** Whatever tile is drawn under a point, interactive or not. */
-  private lookAt(
-    point: { x: number; y: number },
-    snap: GameSnapshot,
-  ): ObjectRef | null {
+  private lookAt(point: { x: number; y: number }, snap: GameSnapshot): ObjectRef | null {
     return pickTileAt(
       {
         map: snap.map,
@@ -1752,11 +1673,7 @@ export class GameRenderer {
    * never lights up, and no second cue is needed to explain why.
    */
   private overlaysFor(snap: GameSnapshot): OverlaySpec[] {
-    const outline = (
-      ref: ObjectRef,
-      color: number,
-      pulse = false,
-    ): OverlaySpec => ({
+    const outline = (ref: ObjectRef, color: number, pulse = false): OverlaySpec => ({
       kind: "objectOutline",
       ...ref,
       color,
@@ -1783,13 +1700,7 @@ export class GameRenderer {
     // draw its steady outline over the pulsing one.
     const target = this.targetOutline(snap);
     if (target) {
-      specs.push(
-        outline(
-          target,
-          snap.attacking ? ATTACK_TARGET_COLOR : TARGET_COLOR,
-          true,
-        ),
-      );
+      specs.push(outline(target, snap.attacking ? ATTACK_TARGET_COLOR : TARGET_COLOR, true));
     }
     // One outline for the pointer, in the colour its own row wears — the same
     // function the list hover uses, because a row lit under a finger and a
@@ -1893,7 +1804,6 @@ export class GameRenderer {
     };
   }
 
-
   /**
    * What is being looked at right now, resolved against the board.
    *
@@ -1957,10 +1867,7 @@ export class GameRenderer {
    * The object pick is skipped entirely when a body answered, which is the one
    * place this saves work over asking both.
    */
-  private pickRefAt(
-    point: { x: number; y: number },
-    snap: GameSnapshot,
-  ): ObjectRef | null {
+  private pickRefAt(point: { x: number; y: number }, snap: GameSnapshot): ObjectRef | null {
     const body = this.bodyAt(point, snap);
     if (body && topInteractionAt(this.interactionsSent, body)) return body;
     return this.pickAt(point, snap);
@@ -1986,10 +1893,7 @@ export class GameRenderer {
    * a radius in cells, because "on my screen" is what a player actually means,
    * and the view is square and known.
    */
-  private enforceTargetVisibility(
-    snap: GameSnapshot,
-    camera: { x: number; y: number },
-  ) {
+  private enforceTargetVisibility(snap: GameSnapshot, camera: { x: number; y: number }) {
     if (snap.targetId === null) return;
     const actor = snap.actors.find((a) => a.id === snap.targetId);
     if (!actor) {
@@ -2172,19 +2076,11 @@ export class GameRenderer {
    * behind. Accepted for now — see plans/looking-and-signs.md.
    */
   private pushPointerLabel(snap: GameSnapshot, into: WorldLabel[]) {
-    const said = this.lookMode
-      ? this.lookLines(snap)
-      : this.pointerLines(snap);
+    const said = this.lookMode ? this.lookLines(snap) : this.pointerLines();
     if (!said) return;
 
     const { ref, height, lines, color } = said;
-    const ground = this.cellWorldCenter(
-      ref.x,
-      ref.y,
-      ref.z,
-      snap.map,
-      ref.stackIndex,
-    );
+    const ground = this.cellWorldCenter(ref.x, ref.y, ref.z, snap.map, ref.stackIndex);
     const head = elevationScreenOffset(height);
 
     into.push({
@@ -2259,7 +2155,7 @@ export class GameRenderer {
    * Read off the same option the outline is drawn from and the click will run,
    * so the words cannot describe an action other than the one that happens.
    */
-  private pointerLines(snap: GameSnapshot): PointerLabel | null {
+  private pointerLines(): PointerLabel | null {
     const option = this.pointerOption();
     if (!option) return null;
     const def = this.tilesById[option.tileId];
@@ -2485,16 +2381,8 @@ export class GameRenderer {
     const held = this.speechAnchors.get(chat.id);
     if (held) return held;
 
-    const ground = this.cellWorldCenter(
-      chat.x,
-      chat.y,
-      chat.z,
-      map,
-      chat.stackIndex,
-    );
-    const head = elevationScreenOffset(
-      this.tilesById[PLAYER_TILE_ID]?.height ?? 0,
-    );
+    const ground = this.cellWorldCenter(chat.x, chat.y, chat.z, map, chat.stackIndex);
+    const head = elevationScreenOffset(this.tilesById[PLAYER_TILE_ID]?.height ?? 0);
     const at = { x: ground.x + head.x, y: ground.y + head.y };
     this.speechAnchors.set(chat.id, at);
     return at;
@@ -2686,9 +2574,7 @@ export class GameRenderer {
       // what stops every window in the renderer growing with the zoom-out and
       // leaving nothing to look at. @see ./debugView
       playSquare:
-        this.debugZoomOut === null
-          ? undefined
-          : { ...this.playSquareFor(camera), sizePx: VIEW_PX },
+        this.debugZoomOut === null ? undefined : { ...this.playSquareFor(camera), sizePx: VIEW_PX },
     });
 
     this.world.setOverlays(this.overlaysFor(snap));
@@ -2703,11 +2589,7 @@ export class GameRenderer {
     // Written from inside the render loop's own rAF, so the style change and the
     // canvas paint land in the same commit — which is what stops DOM text from
     // trailing the sprite it belongs to.
-    this.labelLayer?.set(
-      this.labelsFor(snap, camera, cut),
-      camera,
-      fit.cssScale,
-    );
+    this.labelLayer?.set(this.labelsFor(snap, camera, cut), camera, fit.cssScale);
     this.damageLayer?.set(this.damageFor(snap, cut), camera, fit.cssScale);
     // Driven by the frame, not the pointer: walking away from an object
     // revokes the affordance without the pointer having moved at all.
@@ -2906,10 +2788,7 @@ export class GameRenderer {
    * blow struck anywhere in the world: without this a fight two storeys down
    * would rain numbers over the room you are standing in.
    */
-  private damageFor(
-    snap: GameSnapshot,
-    cut: RoofCut | undefined,
-  ): DamageNumberView[] {
+  private damageFor(snap: GameSnapshot, cut: RoofCut | undefined): DamageNumberView[] {
     if (snap.damage.length === 0) return [];
 
     const out: DamageNumberView[] = [];
@@ -2939,23 +2818,12 @@ export class GameRenderer {
    * it — and then never asked again. Both halves of that matter; see
    * {@link damageFor} for what recomputing it did.
    */
-  private damageAnchor(
-    hit: DamageNumber,
-    map: MapFile,
-  ): { x: number; y: number } {
+  private damageAnchor(hit: DamageNumber, map: MapFile): { x: number; y: number } {
     const held = this.damageAnchors.get(hit.id);
     if (held) return held;
 
-    const ground = this.cellWorldCenter(
-      hit.x,
-      hit.y,
-      hit.z,
-      map,
-      hit.stackIndex,
-    );
-    const head = elevationScreenOffset(
-      this.bodyOwnHeight(map, hit, hit.stackIndex),
-    );
+    const ground = this.cellWorldCenter(hit.x, hit.y, hit.z, map, hit.stackIndex);
+    const head = elevationScreenOffset(this.bodyOwnHeight(map, hit, hit.stackIndex));
     const at = { x: ground.x + head.x, y: ground.y + head.y };
     this.damageAnchors.set(hit.id, at);
     return at;
@@ -3008,10 +2876,7 @@ export class GameRenderer {
         if (!vfx) continue;
 
         const taper = taperAt(
-          this.remaining.read(
-            taperKey(actor.id, instance.defId),
-            instance.remainingMs,
-          ),
+          this.remaining.read(taperKey(actor.id, instance.defId), instance.remainingMs),
           vfx.taperMs,
         );
 
@@ -3027,9 +2892,7 @@ export class GameRenderer {
           if (!strongest || worn.strength > strongest.strength) strongest = worn;
         }
         if (!vfx.particles) continue;
-        (emitters ??= []).push(
-          this.emitterFor(snap, actor, instance.defId, vfx.particles, taper),
-        );
+        (emitters ??= []).push(this.emitterFor(snap, actor, instance.defId, vfx.particles, taper));
       }
 
       if (strongest) {
@@ -3070,10 +2933,7 @@ export class GameRenderer {
     taper: number,
   ): ParticleEmitterSpec {
     const stack = getStack(snap.map, actor.x, actor.y, actor.z);
-    const foot = absoluteElevation(
-      actor.z,
-      elevationAt(stack, actor.stackIndex, this.tilesById),
-    );
+    const foot = absoluteElevation(actor.z, elevationAt(stack, actor.stackIndex, this.tilesById));
     const bodyHeight = this.tilesById[actor.tileId]?.height ?? HEIGHT_PER_LEVEL;
     const top = foot + bodyHeight;
     return {
@@ -3117,9 +2977,7 @@ export class GameRenderer {
     return out;
   }
 
-  private emitterOverridesFor(
-    snap: GameSnapshot,
-  ): EmitterOverride[] | undefined {
+  private emitterOverridesFor(snap: GameSnapshot): EmitterOverride[] | undefined {
     if (!this.lightingEnabled) return undefined;
     const playerDef = this.tilesById[PLAYER_TILE_ID];
     if (!playerDef) return undefined;
@@ -3216,10 +3074,7 @@ export class GameRenderer {
       // forward this frame, and aging them twice would run a taper at double
       // speed. A status with no plume and no tint was still read there.
       const taper = taperAt(
-        this.remaining.read(
-          taperKey(actor.id, instance.defId),
-          instance.remainingMs,
-        ),
+        this.remaining.read(taperKey(actor.id, instance.defId), instance.remainingMs),
         vfx.taperMs,
       );
       (lights ??= []).push(taperedGlow(vfx.light, taper));
@@ -3246,11 +3101,7 @@ export class GameRenderer {
     for (const tileId of actor.carriedLights) {
       const def = this.tilesById[tileId];
       if (!def) continue;
-      const light = resolveLight(
-        def,
-        { direction: actor.direction },
-        this.world.animTimeMs,
-      );
+      const light = resolveLight(def, { direction: actor.direction }, this.world.animTimeMs);
       if (light) lights.push(light);
     }
     return lights.length > 0 ? lights : undefined;
@@ -3280,8 +3131,7 @@ export class GameRenderer {
     return (targetId) => {
       const actor = snap.actors.find((a) => a.id === targetId);
       if (!actor) return undefined;
-      const height =
-        this.tilesById[actor.tileId]?.height ?? HEIGHT_PER_LEVEL;
+      const height = this.tilesById[actor.tileId]?.height ?? HEIGHT_PER_LEVEL;
       const at = this.actorEmitter(snap.map, actor, height);
       return {
         x: at.fx - CELL_CENTRE,
@@ -3296,11 +3146,7 @@ export class GameRenderer {
    * the tile centre so the static bake can omit actors and never re-run on a
    * step.
    */
-  private actorEmitter(
-    map: MapFile,
-    actor: ActorSnapshot,
-    actorHeight: number,
-  ): EmitterOverride {
+  private actorEmitter(map: MapFile, actor: ActorSnapshot, actorHeight: number): EmitterOverride {
     if (actor.walk) {
       const { from, to } = actor.walk;
       const t = actor.walkProgress;
@@ -3342,14 +3188,7 @@ export class GameRenderer {
     }
 
     const { x, y, z, stackIndex } = actor;
-    const center = emitterCenter(
-      x,
-      y,
-      z,
-      getStack(map, x, y, z),
-      stackIndex,
-      this.tilesById,
-    );
+    const center = emitterCenter(x, y, z, getStack(map, x, y, z), stackIndex, this.tilesById);
     return { x, y, z, fx: center.fx, fy: center.fy, fz: center.fz };
   }
 
@@ -3389,25 +3228,14 @@ export class GameRenderer {
    * a box that travelled half a cell into the target would put the two bodies on
    * the boundary where their sort order flips, for 150ms, every swing.
    */
-  private actorMotion(
-    map: MapFile,
-    actor: ActorSnapshot,
-  ): TileMotion | null {
-    const lean = actor.strike
-      ? strikeOffset(actor.strike, actor.strikeProgress)
-      : null;
+  private actorMotion(map: MapFile, actor: ActorSnapshot): TileMotion | null {
+    const lean = actor.strike ? strikeOffset(actor.strike, actor.strikeProgress) : null;
 
     if (actor.walk) {
       const { from, to } = actor.walk;
       const stackIndex = actor.stackIndex;
       const visual = this.actorVisualWorld(map, actor);
-      const fromCenter = this.cellWorldCenter(
-        from.x,
-        from.y,
-        from.z,
-        map,
-        stackIndex,
-      );
+      const fromCenter = this.cellWorldCenter(from.x, from.y, from.z, map, stackIndex);
       const originFoot = this.standingFootAbs(map, from, stackIndex);
       const destFoot = this.surfaceFootAbs(map, to.x, to.y, to.z);
       const destStack = getStack(map, to.x, to.y, to.z);
@@ -3503,12 +3331,7 @@ export class GameRenderer {
    */
   private slideMotions(map: MapFile, actor: ActorSnapshot): TileMotion[] {
     if (!actor.slide) return [];
-    return slideTileMotions(
-      map,
-      this.tilesById,
-      actor.slide,
-      actor.slideProgress,
-    );
+    return slideTileMotions(map, this.tilesById, actor.slide, actor.slideProgress);
   }
 
   /** Height of the tile at a stack slot — the mover is not always the player. */
@@ -3551,15 +3374,8 @@ export class GameRenderer {
   }
 
   /** Absolute elevation of a cell's standing surface (scenery only). */
-  private surfaceFootAbs(
-    map: MapFile,
-    x: number,
-    y: number,
-    z: number,
-  ): number {
-    return (
-      z * HEIGHT_PER_LEVEL + stackHeight(getStack(map, x, y, z), this.tilesById)
-    );
+  private surfaceFootAbs(map: MapFile, x: number, y: number, z: number): number {
+    return z * HEIGHT_PER_LEVEL + stackHeight(getStack(map, x, y, z), this.tilesById);
   }
 
   /**
@@ -3570,10 +3386,7 @@ export class GameRenderer {
    * once for the camera and reusing it as everyone's offset — which is what the
    * single-player version did — silently pins every other actor to the viewer.
    */
-  private actorVisualWorld(
-    map: MapFile,
-    actor: ActorSnapshot,
-  ): { x: number; y: number } {
+  private actorVisualWorld(map: MapFile, actor: ActorSnapshot): { x: number; y: number } {
     if (actor.walk) {
       const a = this.cellWorldCenter(
         actor.walk.from.x,
@@ -3582,12 +3395,7 @@ export class GameRenderer {
         map,
         actor.stackIndex,
       );
-      const b = this.surfaceWorldCenter(
-        actor.walk.to.x,
-        actor.walk.to.y,
-        actor.walk.to.z,
-        map,
-      );
+      const b = this.surfaceWorldCenter(actor.walk.to.x, actor.walk.to.y, actor.walk.to.z, map);
       const t = actor.walkProgress;
       return snapToWholePixels({
         x: a.x + (b.x - a.x) * t,
@@ -3595,13 +3403,7 @@ export class GameRenderer {
       });
     }
 
-    const base = this.cellWorldCenter(
-      actor.x,
-      actor.y,
-      actor.z,
-      map,
-      actor.stackIndex,
-    );
+    const base = this.cellWorldCenter(actor.x, actor.y, actor.z, map, actor.stackIndex);
     if (actor.fall) {
       const drop = fallDropPx(map, this.tilesById, actor);
       return snapToWholePixels({ x: base.x + drop, y: base.y + drop });
@@ -3628,10 +3430,7 @@ export class GameRenderer {
     map: MapFile,
     stackIndex: number,
   ): { x: number; y: number } {
-    const elev = stackHeight(
-      sceneryStack(map, x, y, z, stackIndex),
-      this.tilesById,
-    );
+    const elev = stackHeight(sceneryStack(map, x, y, z, stackIndex), this.tilesById);
     const origin = baseCellWorldOrigin(x, y, z, elev);
     return { x: origin.x + 4, y: origin.y + 4 };
   }

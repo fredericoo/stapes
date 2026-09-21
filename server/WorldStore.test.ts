@@ -101,7 +101,7 @@ describe("listing", () => {
     // The listing is a range scan so the primary key index does the work. An
     // off-by-one in the upper bound would quietly pull in neighbouring keys —
     // `chunk:` reading `chunkX:` — and reassemble a board from them.
-    await store.put({ "chunk:1": [1], "chunkX:1": [2], "chunj": [3] });
+    await store.put({ "chunk:1": [1], "chunkX:1": [2], chunj: [3] });
     await store.flush();
 
     const listed = await store.list({ prefix: "chunk:" });
@@ -186,9 +186,7 @@ describe("deleteAll", () => {
   it("leaves tables made through sql alone", async () => {
     // The key-value side only, which is what it replaced. `GameServer` drops
     // its chat table by name for exactly this reason.
-    store.sql.exec(
-      "INSERT INTO chat (at, actor, x, y, z, text) VALUES (1,'a',0,0,0,'hi')",
-    );
+    store.sql.exec("INSERT INTO chat (at, actor, x, y, z, text) VALUES (1,'a',0,0,0,'hi')");
     await store.flush();
 
     await store.deleteAll();

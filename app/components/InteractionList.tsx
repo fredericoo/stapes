@@ -79,7 +79,7 @@ import { useTap } from "./useTap";
  */
 
 /** Which sprite stands for a tile in a list — the one facing the reader. */
-const FRONT: "s" = "s";
+const FRONT = "s" as const;
 
 const ICONS: Record<InteractionAction, typeof IconTarget> = {
   target: IconTarget,
@@ -169,10 +169,7 @@ export function InteractionList({
 
   return (
     <div
-      className={[
-        "flex flex-col gap-1 overflow-y-auto overscroll-contain",
-        className,
-      ]
+      className={["flex flex-col gap-1 overflow-y-auto overscroll-contain", className]
         .filter(Boolean)
         .join(" ")}
       // Announced, because it changes without the player having touched it:
@@ -243,10 +240,7 @@ function litClass(option: InteractionOption): string {
  * box exists. Which is also why it is a tint rather than the full lit
  * treatment: it must not read as the box being selected.
  */
-function boxClass(
-  group: InteractionGroup,
-  active: InteractionOption | null,
-): string {
+function boxClass(group: InteractionGroup, active: InteractionOption | null): string {
   if (active) return litClass(active);
   if (group.options.some((option) => option.action === "reward")) {
     return "border-reward/60 bg-reward/10 text-paper hover:border-reward";

@@ -67,7 +67,11 @@ function pretendPartner(
   return {
     name: () => PRETEND_NAME,
     attempt: (effects) => {
-      const next = { equipment: pretend.equipment, tags: new Set(pretend.tags), statuses: new Set(pretend.statuses) };
+      const next = {
+        equipment: pretend.equipment,
+        tags: new Set(pretend.tags),
+        statuses: new Set(pretend.statuses),
+      };
       for (const effect of effects) {
         if (!applyEffect(next, effect, tilesById, statusDefs)) return false;
       }
@@ -146,7 +150,10 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
 
       <div className="flex flex-col gap-1 border-2 border-border p-1.5 text-xs">
         <span className="text-[10px] font-bold uppercase text-muted">
-          Pretend bag{bag ? ` — ${bag.name}, ${contents.length}/${resolveContainer(bag)?.size ?? 0}` : " — no wearable bag in the catalogue"}
+          Pretend bag
+          {bag
+            ? ` — ${bag.name}, ${contents.length}/${resolveContainer(bag)?.size ?? 0}`
+            : " — no wearable bag in the catalogue"}
         </span>
         {contents.map((instance) => (
           <div key={instance.id} className="flex items-center gap-2">
@@ -163,7 +170,12 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
             className="min-w-[9rem]"
             ariaLabel="Thing to add to the pretend bag"
           />
-          <Button size="sm" variant="secondary" disabled={!adding} onClick={() => adding && addOne(adding)}>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={!adding}
+            onClick={() => adding && addOne(adding)}
+          >
             +1
           </Button>
           <Button
@@ -172,7 +184,10 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
             onClick={() =>
               setPretend({
                 ...pretend,
-                equipment: { ...pretend.equipment, bag: pretend.equipment.bag && { ...pretend.equipment.bag, contents: [] } },
+                equipment: {
+                  ...pretend.equipment,
+                  bag: pretend.equipment.bag && { ...pretend.equipment.bag, contents: [] },
+                },
               })
             }
           >
@@ -186,7 +201,12 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
             onChange={(e) =>
               setPretend({
                 ...pretend,
-                tags: new Set(e.target.value.split(",").map((t) => t.trim()).filter(Boolean)),
+                tags: new Set(
+                  e.target.value
+                    .split(",")
+                    .map((t) => t.trim())
+                    .filter(Boolean),
+                ),
               })
             }
             className="w-40"
@@ -203,7 +223,9 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
                 size="sm"
                 variant="secondary"
                 active={pretend.statuses.has(def.id)}
-                onClick={() => setPretend({ ...pretend, statuses: toggled(pretend.statuses, def.id) })}
+                onClick={() =>
+                  setPretend({ ...pretend, statuses: toggled(pretend.statuses, def.id) })
+                }
               >
                 {def.name}
               </Button>

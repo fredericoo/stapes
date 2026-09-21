@@ -10,8 +10,7 @@ const OVERSHOOT_MS = 100;
 
 describe("how far through something is", () => {
   it("runs from nothing to done", () => {
-    const at = (remainingMs: number) =>
-      progressFraction({ remainingMs, durationMs: WHOLE_MS });
+    const at = (remainingMs: number) => progressFraction({ remainingMs, durationMs: WHOLE_MS });
 
     expect(at(WHOLE_MS)).toBe(0);
     expect(at(WHOLE_MS / 4)).toBe(0.75);
@@ -19,8 +18,7 @@ describe("how far through something is", () => {
   });
 
   it("stays inside the bar when a clock overshoots", () => {
-    const at = (remainingMs: number) =>
-      progressFraction({ remainingMs, durationMs: WHOLE_MS });
+    const at = (remainingMs: number) => progressFraction({ remainingMs, durationMs: WHOLE_MS });
 
     expect(at(-OVERSHOOT_MS)).toBe(1);
     expect(at(WHOLE_MS + OVERSHOOT_MS)).toBe(0);

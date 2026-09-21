@@ -1,11 +1,6 @@
 import { MAP_FILE_VERSION } from "../../lib/types";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import {
-  fetchMapText,
-  fetchTiles,
-  fetchTilesets,
-  saveMapText,
-} from "../../lib/api";
+import { fetchMapText, fetchTiles, fetchTilesets, saveMapText } from "../../lib/api";
 import { parseMap, serializeMap } from "../../lib/mapData";
 import { requireAdmin } from "../../lib/auth";
 import { useFetcher, useLoaderData } from "react-router";
@@ -21,11 +16,7 @@ import type { Route } from "./+types/map";
 import { AdminShell } from "../../components/AppShell";
 import { LightingToggle } from "../../components/LightingToggle";
 import { MapPanels } from "../../editor/panels/MapPanels";
-import {
-  useEditorStore,
-  ZOOM_LEVELS,
-  snapZoom,
-} from "../../editor/store";
+import { useEditorStore, ZOOM_LEVELS, snapZoom } from "../../editor/store";
 import { formatClock, MINUTES_PER_DAY } from "../../lib/clock";
 import type { MapFile } from "../../lib/types";
 import { MAX_LEVEL, MIN_LEVEL, clampLevel } from "../../lib/types";
@@ -183,9 +174,7 @@ export default function MapPage() {
                 variant="ghost-inverse"
                 aria-label="Level down"
                 onClick={() =>
-                  useEditorStore
-                    .getState()
-                    .setLevel(Math.max(MIN_LEVEL, currentLevel - 1))
+                  useEditorStore.getState().setLevel(Math.max(MIN_LEVEL, currentLevel - 1))
                 }
               >
                 <IconArrowDown size={16} aria-hidden="true" />
@@ -213,9 +202,7 @@ export default function MapPage() {
                 variant="ghost-inverse"
                 aria-label="Level up"
                 onClick={() =>
-                  useEditorStore
-                    .getState()
-                    .setLevel(Math.min(MAX_LEVEL, currentLevel + 1))
+                  useEditorStore.getState().setLevel(Math.min(MAX_LEVEL, currentLevel + 1))
                 }
               >
                 <IconArrowUp size={16} aria-hidden="true" />
@@ -236,9 +223,7 @@ export default function MapPage() {
             <Tooltip content="Isolate to current level (I) — drop the floors above, which are otherwise ghosted into one fade. Underground that fade stops at -1">
               <Toggle
                 pressed={!showOtherLevels}
-                onPressedChange={(v) =>
-                  useEditorStore.getState().setShowOtherLevels(!v)
-                }
+                onPressedChange={(v) => useEditorStore.getState().setShowOtherLevels(!v)}
                 ariaLabel="Isolate to current level"
               >
                 <IconStackBackward size={16} stroke={2} aria-hidden="true" />
@@ -247,9 +232,7 @@ export default function MapPage() {
             <Tooltip content="Preview (W) — every level solid, as play draws it, with no grid or selection in the way">
               <Toggle
                 pressed={previewMode}
-                onPressedChange={(v) =>
-                  useEditorStore.getState().setPreviewMode(v)
-                }
+                onPressedChange={(v) => useEditorStore.getState().setPreviewMode(v)}
                 ariaLabel="Preview"
               >
                 <IconEye size={16} stroke={2} aria-hidden="true" />
@@ -266,10 +249,7 @@ export default function MapPage() {
               sky while there is light to go with it — so the slider goes with it
               rather than sitting there doing nothing. */}
           <div
-            className={[
-              "flex items-center gap-2",
-              lightingEnabled ? "" : "opacity-50",
-            ].join(" ")}
+            className={["flex items-center gap-2", lightingEnabled ? "" : "opacity-50"].join(" ")}
           >
             <span className="text-xs uppercase text-paper/70">Time</span>
             <input
@@ -279,11 +259,7 @@ export default function MapPage() {
               step={1}
               value={minutesOfDay}
               disabled={!lightingEnabled}
-              onChange={(e) =>
-                useEditorStore
-                  .getState()
-                  .setMinutesOfDay(Number(e.target.value))
-              }
+              onChange={(e) => useEditorStore.getState().setMinutesOfDay(Number(e.target.value))}
               aria-label="Time of day"
               aria-valuetext={formatClock(minutesOfDay)}
               className="hard-slider w-28"
@@ -338,12 +314,7 @@ export default function MapPage() {
               </Button>
             </Tooltip>
           </div>
-          <Button
-            size="sm"
-            variant="primary"
-            onClick={save}
-            disabled={fetcher.state !== "idle"}
-          >
+          <Button size="sm" variant="primary" onClick={save} disabled={fetcher.state !== "idle"}>
             Save{dirty ? " *" : ""}
           </Button>
         </>

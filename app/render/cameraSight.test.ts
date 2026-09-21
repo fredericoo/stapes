@@ -22,10 +22,7 @@ import { tile } from "../lib/testTile";
  */
 
 /** A cut over exactly the cells named — the shape `roofCutFor` hands back. */
-function cutting(
-  floor: number,
-  ...cells: Array<{ x: number; y: number; z: number }>
-): RoofCut {
+function cutting(floor: number, ...cells: Array<{ x: number; y: number; z: number }>): RoofCut {
   const byZ = new Map<number, Set<string>>();
   for (const cell of cells) {
     const level = byZ.get(cell.z) ?? new Set<string>();
@@ -57,13 +54,7 @@ function field(z = 0): MapFile {
   return map;
 }
 
-function put(
-  map: MapFile,
-  x: number,
-  y: number,
-  z: number,
-  tileId: string,
-): MapFile {
+function put(map: MapFile, x: number, y: number, z: number, tileId: string): MapFile {
   return replaceStack(map, x, y, z, [{ tileId }]);
 }
 
@@ -71,9 +62,7 @@ const origin = { x: 0, y: 0, z: 0 };
 
 describe("camera sight", () => {
   it("sees a body under open sky", () => {
-    expect(isHiddenFromCamera(field(), tilesById, origin, origin.z, undefined)).toBe(
-      false,
-    );
+    expect(isHiddenFromCamera(field(), tilesById, origin, origin.z, undefined)).toBe(false);
   });
 
   /**
@@ -101,12 +90,10 @@ describe("camera sight", () => {
       }
     }
 
-    expect(isHiddenFromCamera(map, tilesById, { x: 0, y: 0, z: -1 }, -1, undefined))
-      .toBe(true);
+    expect(isHiddenFromCamera(map, tilesById, { x: 0, y: 0, z: -1 }, -1, undefined)).toBe(true);
     // And the one cell that *is* under the hole is seen, which is what makes
     // the assertion above about the ray rather than about the roof.
-    expect(isHiddenFromCamera(map, tilesById, { x: 1, y: 1, z: -1 }, -1, undefined))
-      .toBe(false);
+    expect(isHiddenFromCamera(map, tilesById, { x: 1, y: 1, z: -1 }, -1, undefined)).toBe(false);
   });
 
   it("is not fooled by a ceiling one cell off the ray", () => {
@@ -155,9 +142,7 @@ describe("camera sight", () => {
     const map = put(field(), 1, 1, 1, "wall");
     const elsewhere = cutting(0, { x: 5, y: 5, z: 1 });
 
-    expect(
-      isHiddenFromCamera(map, tilesById, origin, origin.z, elsewhere),
-    ).toBe(true);
+    expect(isHiddenFromCamera(map, tilesById, origin, origin.z, elsewhere)).toBe(true);
   });
 
   it("is never hidden by its own cell", () => {
@@ -217,8 +202,7 @@ describe("isCellVisible", () => {
     // floor overhead says no.
     const map = put(field(-1), 0, 0, 0, "floor");
 
-    expect(isCellVisible(map, tilesById, { x: 0, y: 0, z: -1 }, 0, undefined))
-      .toBe(false);
+    expect(isCellVisible(map, tilesById, { x: 0, y: 0, z: -1 }, 0, undefined)).toBe(false);
   });
 
   it("still shows a storey down that is open to the sky", () => {
@@ -226,7 +210,6 @@ describe("isCellVisible", () => {
     // in a sunken courtyard is in plain view from the edge of it.
     const map = field(-1);
 
-    expect(isCellVisible(map, tilesById, { x: 0, y: 0, z: -1 }, 0, undefined))
-      .toBe(true);
+    expect(isCellVisible(map, tilesById, { x: 0, y: 0, z: -1 }, 0, undefined)).toBe(true);
   });
 });

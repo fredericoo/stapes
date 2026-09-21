@@ -106,9 +106,7 @@ function assertRegionFree(png: PNG, dest: Block, sourceIsDest: boolean) {
       const x0 = (dest.x + col) * CELL_SIZE;
       const y0 = (dest.y + row) * CELL_SIZE;
       if (x0 + CELL_SIZE > png.width || y0 + CELL_SIZE > png.height) {
-        throw new Error(
-          `destination block at ${dest.x},${dest.y} runs off the sheet`,
-        );
+        throw new Error(`destination block at ${dest.x},${dest.y} runs off the sheet`);
       }
     }
   }
@@ -118,11 +116,7 @@ async function main() {
   for (const job of JOBS) {
     const file = path.join(TILESETS, job.file);
     const png = await readPng(file);
-    assertRegionFree(
-      png,
-      job.dest,
-      job.source.x === job.dest.x && job.source.y === job.dest.y,
-    );
+    assertRegionFree(png, job.dest, job.source.x === job.dest.x && job.source.y === job.dest.y);
     const painted = complementBlock(png, job.source, job.dest);
     await fs.writeFile(file, PNG.sync.write(png));
     console.log(

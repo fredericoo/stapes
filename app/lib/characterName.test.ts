@@ -59,11 +59,8 @@ describe("refusing a typed name", () => {
   });
 
   it("refuses a name too short to call anybody across a square", () => {
-    expect(characterNameProblem("a".repeat(MIN_CHARACTER_NAME_LENGTH - 1)))
-      .toBeTruthy();
-    expect(
-      characterNameProblem("a".repeat(MIN_CHARACTER_NAME_LENGTH)),
-    ).toBeNull();
+    expect(characterNameProblem("a".repeat(MIN_CHARACTER_NAME_LENGTH - 1))).toBeTruthy();
+    expect(characterNameProblem("a".repeat(MIN_CHARACTER_NAME_LENGTH))).toBeNull();
   });
 
   /**
@@ -71,17 +68,12 @@ describe("refusing a typed name", () => {
    * the tile grid, and a long name covers the body standing beside it.
    */
   it("refuses a name longer than a tag can hold", () => {
-    expect(
-      characterNameProblem("a".repeat(MAX_CHARACTER_NAME_LENGTH)),
-    ).toBeNull();
-    expect(characterNameProblem("a".repeat(MAX_CHARACTER_NAME_LENGTH + 1)))
-      .toBeTruthy();
+    expect(characterNameProblem("a".repeat(MAX_CHARACTER_NAME_LENGTH))).toBeNull();
+    expect(characterNameProblem("a".repeat(MAX_CHARACTER_NAME_LENGTH + 1))).toBeTruthy();
   });
 
   /** The trim happens before the count, so trailing space is not a letter. */
   it("measures what would be stored, not what was typed", () => {
-    expect(
-      characterNameProblem(` ${"a".repeat(MAX_CHARACTER_NAME_LENGTH)} `),
-    ).toBeNull();
+    expect(characterNameProblem(` ${"a".repeat(MAX_CHARACTER_NAME_LENGTH)} `)).toBeNull();
   });
 });

@@ -20,7 +20,7 @@ import { TilePreview } from "./TilePreview";
  */
 
 /** Which sprite stands for a tile in hand — the one facing the reader. */
-const FRONT: "s" = "s";
+const FRONT = "s" as const;
 
 const DRAGGED_SIZE_PX = 40;
 

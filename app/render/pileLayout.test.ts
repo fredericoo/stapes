@@ -49,9 +49,7 @@ describe("the die faces", () => {
   });
 
   it("draws four as the corners", () => {
-    expect(new Set(pileOffsets(4).map(lattice))).toEqual(
-      new Set(["-1,-1", "1,-1", "-1,1", "1,1"]),
-    );
+    expect(new Set(pileOffsets(4).map(lattice))).toEqual(new Set(["-1,-1", "1,-1", "-1,1", "1,1"]));
   });
 
   it("draws five as the corners and the middle", () => {
@@ -125,10 +123,10 @@ describe("every count it will draw", () => {
   it("stays centred on the cell rather than drifting to one side", () => {
     for (const n of EVERY_COUNT) {
       const offsets = pileOffsets(n);
-      const sum = offsets.reduce(
-        (acc, o) => ({ dx: acc.dx + o.dx, dy: acc.dy + o.dy }),
-        { dx: 0, dy: 0 },
-      );
+      const sum = offsets.reduce((acc, o) => ({ dx: acc.dx + o.dx, dy: acc.dy + o.dy }), {
+        dx: 0,
+        dy: 0,
+      });
       // Within one pixel per sprite: a die face is exactly balanced, and the
       // greedy fill past six is balanced to a pixel or two rather than exactly.
       expect(Math.abs(sum.dx)).toBeLessThanOrEqual(offsets.length);

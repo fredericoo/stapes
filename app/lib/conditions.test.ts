@@ -92,17 +92,11 @@ describe("evaluating", () => {
    */
   it("stops asking as soon as the answer is settled", () => {
     const asked: string[] = [];
-    evaluateCondition(
-      group("and", [leaf("a"), leaf("b")]),
-      asking([], asked),
-    );
+    evaluateCondition(group("and", [leaf("a"), leaf("b")]), asking([], asked));
     expect(asked).toEqual(["a"]);
 
     const alsoAsked: string[] = [];
-    evaluateCondition(
-      group("or", [leaf("a"), leaf("b")]),
-      asking(["a"], alsoAsked),
-    );
+    evaluateCondition(group("or", [leaf("a"), leaf("b")]), asking(["a"], alsoAsked));
     expect(alsoAsked).toEqual(["a"]);
   });
 
@@ -168,12 +162,7 @@ describe("editing the tree", () => {
 
   it("adds to the end of the group a path names", () => {
     const next = appendTo(tree, [1], leaf("d"));
-    expect(conditionLeaves(next)).toEqual([
-      leaf("a"),
-      leaf("b"),
-      leaf("c"),
-      leaf("d"),
-    ]);
+    expect(conditionLeaves(next)).toEqual([leaf("a"), leaf("b"), leaf("c"), leaf("d")]);
   });
 
   it("will not add to a leaf, which has nothing to add to", () => {
@@ -230,9 +219,7 @@ describe("parsing", () => {
    * never. Refusing is the only answer that does not silently pick one.
    */
   it("refuses a group with nothing in it", () => {
-    expect(v.safeParse(schema, { combinator: "and", rules: [] }).success).toBe(
-      false,
-    );
+    expect(v.safeParse(schema, { combinator: "and", rules: [] }).success).toBe(false);
   });
 
   it("refuses a combinator it does not have", () => {

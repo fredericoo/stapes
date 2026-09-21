@@ -61,8 +61,7 @@ export function MapToolbar() {
     setDialogOpen(false);
   };
 
-  const activeGenerator =
-    GENERATORS.find((g) => g.id === settings.active) ?? GENERATORS[0]!;
+  const activeGenerator = GENERATORS.find((g) => g.id === settings.active) ?? GENERATORS[0]!;
   const ActiveIcon = GENERATOR_ICONS[activeGenerator.id];
 
   // Chain wheel to the map whenever the strip can't absorb it (no overflow,

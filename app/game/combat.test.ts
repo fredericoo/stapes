@@ -1,12 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FightingStats } from "../lib/battler";
-import {
-  DEFAULT_BATTLER,
-  fightingStats,
-  fleeFrom,
-  MAX_CHANCE,
-  MIN_CHANCE,
-} from "../lib/battler";
+import { DEFAULT_BATTLER, fightingStats, fleeFrom, MAX_CHANCE, MIN_CHANCE } from "../lib/battler";
 import {
   MAX_ATTACK_TICKS,
   MIN_ATTACK_TICKS,
@@ -66,9 +60,7 @@ describe("attack speed", () => {
 
   it("never gets slower as speed goes up", () => {
     for (let spd = 1; spd <= 100; spd++) {
-      expect(attackIntervalMs(spd)).toBeLessThanOrEqual(
-        attackIntervalMs(spd - 1),
-      );
+      expect(attackIntervalMs(spd)).toBeLessThanOrEqual(attackIntervalMs(spd - 1));
     }
   });
 
@@ -83,9 +75,7 @@ describe("attack speed", () => {
     expect(halfway).toBeLessThan(linear / 4);
     // The geometric mean of the two bounds, which is what "halfway along a
     // curve" means — and stays true whatever the bounds are scaled to.
-    expect(halfway / TICK_MS).toBe(
-      Math.round(Math.sqrt(MIN_ATTACK_TICKS * MAX_ATTACK_TICKS)),
-    );
+    expect(halfway / TICK_MS).toBe(Math.round(Math.sqrt(MIN_ATTACK_TICKS * MAX_ATTACK_TICKS)));
   });
 
   it("clamps a stat somebody hand-edited out of range", () => {
@@ -153,7 +143,11 @@ describe("the approach", () => {
 
 describe("the damage band", () => {
   it("is a single point when nothing varies", () => {
-    for (const roll of [[0, 0], [0.5, 0.5], [1, 1]] as const) {
+    for (const roll of [
+      [0, 0],
+      [0.5, 0.5],
+      [1, 1],
+    ] as const) {
       expect(damageFraction(0, [...roll])).toBe(1);
     }
   });
@@ -410,10 +404,7 @@ describe("being outnumbered", () => {
   /** Hit points are whole, so what is subtracted from them has to be. */
   it("leaves a whole number of armour behind", () => {
     for (let assailants = 1; assailants <= 12; assailants++) {
-      const crowded = underPressure(
-        battler({ def: 17, resist: { blunt: 5 } }),
-        assailants,
-      );
+      const crowded = underPressure(battler({ def: 17, resist: { blunt: 5 } }), assailants);
       expect(Number.isInteger(crowded.def)).toBe(true);
       expect(Number.isInteger(crowded.resist.blunt ?? 0)).toBe(true);
     }
@@ -654,11 +645,7 @@ describe("resisting a kind of blow", () => {
     const after = reference.save();
 
     const rng = new Rng(11);
-    rollAttack(
-      battler({ mastery: "sharp" }),
-      battler({ resist: { sharp: 40, blunt: 3 } }),
-      rng,
-    );
+    rollAttack(battler({ mastery: "sharp" }), battler({ resist: { sharp: 40, blunt: 3 } }), rng);
     expect(rng.save()).toBe(after);
   });
 });
@@ -796,10 +783,7 @@ describe("statuses a weapon inflicts", () => {
     for (let seed = 0; seed < 50; seed++) {
       const outcome = rollAttack(attacker, defender, new Rng(seed));
       if (outcome.missed || outcome.dodged) continue;
-      expect(outcome.inflicted.map((status) => status.id)).toEqual([
-        "poison",
-        "fed",
-      ]);
+      expect(outcome.inflicted.map((status) => status.id)).toEqual(["poison", "fed"]);
     }
   });
 });

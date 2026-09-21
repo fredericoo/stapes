@@ -24,13 +24,7 @@ function push(over: Partial<PushInteraction> = {}): PushInteraction {
   return { ...DEFAULT_PUSH, ...over };
 }
 
-function place(
-  map: MapFile,
-  x: number,
-  y: number,
-  z: number,
-  tileIds: string[],
-): MapFile {
+function place(map: MapFile, x: number, y: number, z: number, tileIds: string[]): MapFile {
   return replaceStack(
     map,
     x,
@@ -90,14 +84,7 @@ describe("pushDestination climb", () => {
     const from = at(map, 0, 0, 0);
 
     expect(
-      pushDestination(
-        map,
-        from,
-        "e",
-        tilesById.crate!,
-        push({ climb: "half" }),
-        tilesById,
-      ).ok,
+      pushDestination(map, from, "e", tilesById.crate!, push({ climb: "half" }), tilesById).ok,
     ).toBe(false);
 
     const full = pushDestination(
@@ -248,14 +235,7 @@ describe("pushDestination physics", () => {
 
   it("refuses a push off the edge of the world", () => {
     const map = grassStrip(2);
-    const check = pushDestination(
-      map,
-      at(map, 0, 0, 0),
-      "w",
-      tilesById.crate!,
-      push(),
-      tilesById,
-    );
+    const check = pushDestination(map, at(map, 0, 0, 0), "w", tilesById.crate!, push(), tilesById);
     expect(check.ok).toBe(false);
   });
 });
@@ -315,16 +295,15 @@ describe("pushDestination with a rider", () => {
     let map = grassStrip(2);
     map = place(map, 0, 0, 0, ["grass", "crate", "crate", "statue"]);
 
-    expect(
-      pushedColumn(map, { x: 0, y: 0, z: 0, stackIndex: 1 }).map(
-        (p) => p.tileId,
-      ),
-    ).toEqual(["crate", "crate", "statue"]);
-    expect(
-      pushedColumn(map, { x: 0, y: 0, z: 0, stackIndex: 2 }).map(
-        (p) => p.tileId,
-      ),
-    ).toEqual(["crate", "statue"]);
+    expect(pushedColumn(map, { x: 0, y: 0, z: 0, stackIndex: 1 }).map((p) => p.tileId)).toEqual([
+      "crate",
+      "crate",
+      "statue",
+    ]);
+    expect(pushedColumn(map, { x: 0, y: 0, z: 0, stackIndex: 2 }).map((p) => p.tileId)).toEqual([
+      "crate",
+      "statue",
+    ]);
   });
 
   it("measures the step up from the shoved slot, not from the ground", () => {

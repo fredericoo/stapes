@@ -2,23 +2,10 @@ import { getStack, replaceStack } from "../lib/mapData";
 import type { ItemDef } from "../lib/item";
 import { resolveContainer, resolveItem } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
-import {
-  countOf,
-  fuses,
-  peelOne,
-  pourInto,
-  stow,
-  stowFits,
-  withCount,
-} from "../lib/piles";
+import { countOf, fuses, peelOne, pourInto, stow, stowFits, withCount } from "../lib/piles";
 import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
-import {
-  equipSlotsFor,
-  reachableItemDefAt,
-  type Actor,
-  type ObjectRef,
-} from "./affordances";
+import { equipSlotsFor, reachableItemDefAt, type Actor, type ObjectRef } from "./affordances";
 import {
   type Equipment,
   type Hand,
@@ -166,9 +153,7 @@ export function slotIn(container: ContainerRef, index: number): SlotRef {
  * One place, because "absent means the bag" is a default and a default written
  * out at six call sites is six chances to forget it.
  */
-function contentsHolder(slot: {
-  of?: "weapon" | "offhand";
-}): "bag" | "weapon" | "offhand" {
+function contentsHolder(slot: { of?: "weapon" | "offhand" }): "bag" | "weapon" | "offhand" {
   return slot.of ?? "bag";
 }
 
@@ -233,10 +218,7 @@ function sameContainer(a: SlotRef, b: SlotRef): boolean {
 }
 
 /** How many things fit in this instance, or 0 when it is not a container. */
-export function capacityOf(
-  instance: ItemInstance,
-  tilesById: Record<string, TileDef>,
-): number {
+export function capacityOf(instance: ItemInstance, tilesById: Record<string, TileDef>): number {
   const def = tilesById[instance.tileId];
   return def ? (resolveContainer(def)?.size ?? 0) : 0;
 }
@@ -372,12 +354,7 @@ function slotHasRoom(
   if (slot.kind === "contents") {
     const holder = equipment[contentsHolder(slot)];
     if (!holder) return false;
-    return stowFits(
-      holder.contents ?? [],
-      instance,
-      capacityOf(holder, tilesById),
-      tilesById,
-    );
+    return stowFits(holder.contents ?? [], instance, capacityOf(holder, tilesById), tilesById);
   }
   const placed = groundContainerAt(map, tilesById, actor, slot.ref);
   if (!placed) return false;
@@ -411,9 +388,7 @@ export function bodySlotHasRoom(
   const held = equipment[kind];
   if (held) return fuses(held, instance, tilesById);
   const def = tilesById[instance.tileId];
-  return isHand(kind) && def
-    ? handHasRoomFor(equipment, tilesById, kind, def)
-    : true;
+  return isHand(kind) && def ? handHasRoomFor(equipment, tilesById, kind, def) : true;
 }
 
 /**
@@ -584,15 +559,9 @@ function belongsRank(homes: readonly EquipSlot[], kind: EquipSlot): number {
 }
 
 /** Rewrite a ground container's contents, leaving the rest of its slot alone. */
-function withGroundContents(
-  map: MapFile,
-  ref: ObjectRef,
-  contents: ItemInstance[],
-): MapFile {
+function withGroundContents(map: MapFile, ref: ObjectRef, contents: ItemInstance[]): MapFile {
   const stack = getStack(map, ref.x, ref.y, ref.z);
-  const next = stack.map((placed, i) =>
-    i === ref.stackIndex ? { ...placed, contents } : placed,
-  );
+  const next = stack.map((placed, i) => (i === ref.stackIndex ? { ...placed, contents } : placed));
   return replaceStack(map, ref.x, ref.y, ref.z, next);
 }
 
@@ -685,21 +654,12 @@ export function applyItemMove(
   // places. See {@link swapInto}, and note that a container destination has no
   // version of this — it appends, so it is never "taken" to begin with.
   if (!slotHasRoom(map, tilesById, actor, equipment, to, instance)) {
-    return isBodySlot(to)
-      ? swapInto(map, tilesById, actor, equipment, from, to, instance)
-      : null;
+    return isBodySlot(to) ? swapInto(map, tilesById, actor, equipment, from, to, instance) : null;
   }
 
   const emptied = clearSlot(map, tilesById, actor, equipment, from);
   if (!emptied) return null;
-  return fillSlot(
-    emptied.map,
-    tilesById,
-    actor,
-    emptied.equipment,
-    to,
-    instance,
-  );
+  return fillSlot(emptied.map, tilesById, actor, emptied.equipment, to, instance);
 }
 
 /** Whether a move would be honoured, without working out what it leaves behind. */
@@ -758,10 +718,7 @@ function swapInto(
   // trying to add to. Told apart from a genuine trade by there being more than
   // one of something, which is what a pile *is*; two single swords of one tile
   // are still two swords, and one of them may be written on.
-  if (
-    displaced.tileId === instance.tileId &&
-    countOf(displaced) + countOf(instance) > 2
-  ) {
+  if (displaced.tileId === instance.tileId && countOf(displaced) + countOf(instance) > 2) {
     return null;
   }
   if (stoneLocked(displaced, tilesById)) return null;
@@ -775,29 +732,13 @@ function swapInto(
   if (!slotHasRoom(both.map, tilesById, actor, both.equipment, to, instance)) {
     return null;
   }
-  const filled = fillSlot(
-    both.map,
-    tilesById,
-    actor,
-    both.equipment,
-    to,
-    instance,
-  );
+  const filled = fillSlot(both.map, tilesById, actor, both.equipment, to, instance);
   if (!filled) return null;
 
-  if (
-    !slotHasRoom(filled.map, tilesById, actor, filled.equipment, from, displaced)
-  ) {
+  if (!slotHasRoom(filled.map, tilesById, actor, filled.equipment, from, displaced)) {
     return null;
   }
-  return fillSlot(
-    filled.map,
-    tilesById,
-    actor,
-    filled.equipment,
-    from,
-    displaced,
-  );
+  return fillSlot(filled.map, tilesById, actor, filled.equipment, from, displaced);
 }
 
 /**
@@ -885,11 +826,7 @@ export function peelSlot(
   const contents = placed?.contents;
   if (!contents) return null;
   return {
-    map: withGroundContents(
-      map,
-      slot.ref,
-      replaceAt(contents, slot.index, left),
-    ),
+    map: withGroundContents(map, slot.ref, replaceAt(contents, slot.index, left)),
     equipment,
   };
 }

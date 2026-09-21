@@ -38,33 +38,10 @@ import {
   resolveConsumable,
   resolveCharm,
 } from "../lib/item";
-import {
-  appendItem,
-  peelOne,
-  pourInto,
-  stackWithItem,
-  stow,
-} from "../lib/piles";
-import type {
-  Coord,
-  Direction,
-  MapFile,
-  PlacedTile,
-  TileDef,
-} from "../lib/types";
-import {
-  HEIGHT_PER_LEVEL,
-  MAX_LEVEL,
-  MIN_LEVEL,
-  isDirectional,
-  resolveActor,
-} from "../lib/types";
-import {
-  canPlace,
-  canReplaceStack,
-  fitsAtElevation,
-  tilesByIdFromList,
-} from "../lib/validation";
+import { appendItem, peelOne, pourInto, stackWithItem, stow } from "../lib/piles";
+import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
+import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL, isDirectional, resolveActor } from "../lib/types";
+import { canPlace, canReplaceStack, fitsAtElevation, tilesByIdFromList } from "../lib/validation";
 import {
   actorDirection,
   adoptAuthoredPlayer,
@@ -244,12 +221,7 @@ import {
   practiceEarnings,
 } from "./experience";
 import { mintItemIds } from "./itemIds";
-import {
-  dodgeAway,
-  outranksSwing,
-  swingToward,
-  type StrikeState,
-} from "./strike";
+import { dodgeAway, outranksSwing, swingToward, type StrikeState } from "./strike";
 import type { ReachPoint } from "./distance";
 import {
   ageEffects,
@@ -262,11 +234,7 @@ import {
   type ProjectileFlight,
 } from "./projectile";
 import { pushedColumn } from "./push";
-import {
-  isSpawnFilled,
-  type RespawnOutcome,
-  type SpawnPoint,
-} from "./respawn";
+import { isSpawnFilled, type RespawnOutcome, type SpawnPoint } from "./respawn";
 import {
   applyItemMove,
   canMoveItem,
@@ -280,11 +248,7 @@ import {
   type SlotRef,
 } from "./itemMoves";
 import type { ItemInstance } from "../lib/itemInstance";
-import {
-  instanceFromPlacement,
-  mintItemId,
-  placementFromInstance,
-} from "../lib/itemInstance";
+import { instanceFromPlacement, mintItemId, placementFromInstance } from "../lib/itemInstance";
 import {
   cellForFeetAbs,
   cellHasLooseGravity,
@@ -309,12 +273,7 @@ import {
   surfacesInClimbBand,
   walkDurationMsFor,
 } from "./movement";
-import {
-  dropLanding,
-  findPath,
-  findRefuge,
-  unsafeToStepOn,
-} from "./pathfinding";
+import { dropLanding, findPath, findRefuge, unsafeToStepOn } from "./pathfinding";
 import { brainReach, resolveBrain } from "../lib/brain";
 import { resolveDialog } from "../lib/dialog";
 import {
@@ -357,30 +316,11 @@ import {
 import { hasLineOfSight } from "./sight";
 import { Rng } from "./rng";
 import { chooseStep, type StepRequest } from "./stepping";
-import {
-  cellHasPlate,
-  cellKey,
-  findPlateCells,
-  settlePlates,
-} from "./pressurePlates";
-import {
-  cellIsWired,
-  findWiredCells,
-  settleSignals,
-  type ExtraEmitter,
-} from "./signals";
+import { cellHasPlate, cellKey, findPlateCells, settlePlates } from "./pressurePlates";
+import { cellIsWired, findWiredCells, settleSignals, type ExtraEmitter } from "./signals";
 import type { ItemDecay, PlacementDecay } from "./decay";
-import {
-  DecayIndex,
-  applyDecay,
-  applyItemDecay,
-  findDecayCells,
-} from "./decay";
-import {
-  COMBAT_STATUS,
-  COMBAT_STATUS_ID,
-  type StatusDef,
-} from "../lib/status";
+import { DecayIndex, applyDecay, applyItemDecay, findDecayCells } from "./decay";
+import { COMBAT_STATUS, COMBAT_STATUS_ID, type StatusDef } from "../lib/status";
 import { projectileEffect, resolveProjectile } from "../lib/projectile";
 import {
   advanceStatuses,
@@ -1045,10 +985,7 @@ const NO_ACTORS: readonly string[] = [];
  * interface in the simulation. It is also the rule that keeps a state which
  * howls on entry from howling forever at itself.
  */
-function soundsHeardBy(
-  sounds: readonly Sound[],
-  actorId: string,
-): readonly Sound[] {
+function soundsHeardBy(sounds: readonly Sound[], actorId: string): readonly Sound[] {
   if (sounds.length === 0) return EMPTY_SOUNDS;
   return sounds.filter((sound) => sound.sourceId !== actorId);
 }
@@ -2716,8 +2653,7 @@ export class GameSession implements PlaySession {
     // rolled one: coming back with a bag *and* a fresh one is a bag from
     // nowhere, once per reconnect.
     const equipment =
-      opts.carrying ??
-      (opts.bodyTileId ? this.rollKit(opts.bodyTileId) : emptyEquipment());
+      opts.carrying ?? (opts.bodyTileId ? this.rollKit(opts.bodyTileId) : emptyEquipment());
     // The kit's first and only arming that does not go through
     // {@link setEquipment}: a returning player's berries have been ripening in
     // storage as far as they know, and start their lifetime again here.
@@ -2921,9 +2857,7 @@ export class GameSession implements PlaySession {
     // Only a body that was not on the board arrives. A wake re-seats
     // somebody onto the body the checkpoint kept, which nobody saw leave.
     if (!findActorAnywhere(this.map, id)) {
-      const cell = at
-        ? findEntryCell(this.map, this.tilesById, at, this.spawnAt)
-        : this.spawnAt;
+      const cell = at ? findEntryCell(this.map, this.tilesById, at, this.spawnAt) : this.spawnAt;
       const stackIndex = getStack(this.map, cell.x, cell.y, cell.z).length;
       this.map = spawnActor(this.map, id, cell, at?.direction);
       if (announce) this.noteTransition("appear", PLAYER_TILE_ID, cell, stackIndex);
@@ -3280,11 +3214,7 @@ export class GameSession implements PlaySession {
     }
 
     if (this.plateCells.size > 0) {
-      const { map, changed } = settlePlates(
-        this.map,
-        this.plateCells.values(),
-        this.tilesById,
-      );
+      const { map, changed } = settlePlates(this.map, this.plateCells.values(), this.tilesById);
       this.map = map;
       this.reindexCells(changed);
     }
@@ -3339,11 +3269,7 @@ export class GameSession implements PlaySession {
       x: loc.x,
       y: loc.y,
       z: loc.z,
-      elevAbs: absoluteStandingElevation(
-        loc.z,
-        stack.slice(0, loc.stackIndex),
-        this.tilesById,
-      ),
+      elevAbs: absoluteStandingElevation(loc.z, stack.slice(0, loc.stackIndex), this.tilesById),
     };
   }
 
@@ -3502,12 +3428,8 @@ export class GameSession implements PlaySession {
     const due = this.decay.takeDue();
     if (due.length === 0) return;
 
-    const placements = due.filter(
-      (entry): entry is PlacementDecay => entry.kind === "placement",
-    );
-    const items = due.filter(
-      (entry): entry is ItemDecay => entry.kind === "item",
-    );
+    const placements = due.filter((entry): entry is PlacementDecay => entry.kind === "placement");
+    const items = due.filter((entry): entry is ItemDecay => entry.kind === "item");
 
     const turned = applyDecay(this.map, placements, this.tilesById);
     this.map = turned.map;
@@ -3517,12 +3439,7 @@ export class GameSession implements PlaySession {
     for (const swap of turned.turned) {
       this.noteTransition("disappear", swap.tileId, swap.cell, swap.fromIndex);
       if (swap.into) {
-        this.noteTransition(
-          "appear",
-          swap.into.tileId,
-          swap.cell,
-          swap.into.stackIndex,
-        );
+        this.noteTransition("appear", swap.into.tileId, swap.cell, swap.into.stackIndex);
       }
     }
 
@@ -3814,10 +3731,7 @@ export class GameSession implements PlaySession {
    * option whose whole point was the status did nothing at all. Saying `else`
    * is the honest reading.
    */
-  private attemptDialogEffects(
-    actorId: string,
-    effects: readonly DialogEffectDef[],
-  ): boolean {
+  private attemptDialogEffects(actorId: string, effects: readonly DialogEffectDef[]): boolean {
     const partner = this.actors.get(actorId);
     if (!partner) return false;
 
@@ -3923,15 +3837,9 @@ export class GameSession implements PlaySession {
     if (this.pendingHurt.has(actor.id)) return true;
     const loc = this.tryLocate(actor);
     if (!loc) return false;
-    const reach = Math.max(
-      BRAIN_ATTENTION_FLOOR_CELLS,
-      this.reachOf(this.defFor(actor)),
-    );
+    const reach = Math.max(BRAIN_ATTENTION_FLOOR_CELLS, this.reachOf(this.defFor(actor)));
     for (const player of players) {
-      if (
-        Math.abs(player.x - loc.x) <= reach &&
-        Math.abs(player.y - loc.y) <= reach
-      ) {
+      if (Math.abs(player.x - loc.x) <= reach && Math.abs(player.y - loc.y) <= reach) {
         return true;
       }
     }
@@ -3955,11 +3863,7 @@ export class GameSession implements PlaySession {
     return out;
   }
 
-  private tickOneBrain(
-    actor: ActorRuntime,
-    sounds: readonly Sound[],
-    tickMs: number,
-  ) {
+  private tickOneBrain(actor: ActorRuntime, sounds: readonly Sound[], tickMs: number) {
     // Nothing left to decide with. An actor outlives its body for as long as it
     // takes something to notice — a creature killed by a status, or one that
     // fell out of the world — and until then it is still in {@link actors} and
@@ -4008,13 +3912,10 @@ export class GameSession implements PlaySession {
       thingStillThere: (at, tileId) => this.thingStillThere(at, tileId),
       positionOf: (id) => this.actorCell(id),
       wouldDrop: (direction) => this.stepLeavesGround(loc, direction),
-      wouldStepIntoHazard: (direction) =>
-        this.stepLandsInHazard(actor, loc, direction),
-      step: (direction) =>
-        this.applyStepRequest(actor, { directions: [direction] }),
+      wouldStepIntoHazard: (direction) => this.stepLandsInHazard(actor, loc, direction),
+      step: (direction) => this.applyStepRequest(actor, { directions: [direction] }),
       walkTo: (goal, allowDrops) => this.setWalkOrder(actor, goal, allowDrops),
-      fleeFrom: (threat, allowDrops) =>
-        this.setFleeOrder(actor, loc, threat, allowDrops),
+      fleeFrom: (threat, allowDrops) => this.setFleeOrder(actor, loc, threat, allowDrops),
       say: (text) => this.recordSpeech(actor, loc, text),
       noise: (text) => this.recordNoise(actor.id, loc, text),
       canSee: (at) => this.canSeeFrom(actor, loc, at),
@@ -4052,10 +3953,7 @@ export class GameSession implements PlaySession {
     if (!actor) return null;
     const loc = this.tryLocate(actor);
     if (!loc) return null;
-    return bodyNameFor(
-      { tileId: loc.placed.tileId, name: actor.name },
-      this.tilesById,
-    );
+    return bodyNameFor({ tileId: loc.placed.tileId, name: actor.name }, this.tilesById);
   }
 
   /**
@@ -4127,9 +4025,7 @@ export class GameSession implements PlaySession {
       if (noise.elapsedMs >= NOISE_LIFETIME_MS) expired = true;
     }
     if (expired) {
-      this.liveNoise = this.liveNoise.filter(
-        (noise) => noise.elapsedMs < NOISE_LIFETIME_MS,
-      );
+      this.liveNoise = this.liveNoise.filter((noise) => noise.elapsedMs < NOISE_LIFETIME_MS);
     }
   }
 
@@ -4228,12 +4124,7 @@ export class GameSession implements PlaySession {
    * costs the wire nothing — which is what keeps a fight's worth of drying blood
    * from becoming a fight's worth of events.
    */
-  private noteTransition(
-    side: TransitionSide,
-    tileId: string,
-    cell: Coord,
-    stackIndex: number,
-  ) {
+  private noteTransition(side: TransitionSide, tileId: string, cell: Coord, stackIndex: number) {
     if (!transitionOf(this.tilesById[tileId], side)) return;
     const note: TileTransitionNote = {
       id: `transition-${this.nextTransitionId++}`,
@@ -4485,8 +4376,7 @@ export class GameSession implements PlaySession {
     const stack = getStack(this.map, run.ref.x, run.ref.y, run.ref.z);
     const placed = stack[run.ref.stackIndex];
     if (!placed || placed.tileId !== run.tileId) return false;
-    return reachableExtractAt(this.map, this.tilesById, this.locate(actor), run.ref)
-      != null;
+    return reachableExtractAt(this.map, this.tilesById, this.locate(actor), run.ref) != null;
   }
 
   /**
@@ -4571,9 +4461,7 @@ export class GameSession implements PlaySession {
 
     // Whole steps only; whatever is left over rides on to the next tick, so the
     // clock never drifts against the loop.
-    const steps = Math.floor(
-      (this.stoneClockMs + COOLDOWN_EPSILON_MS) / COOLDOWN_STEP_MS,
-    );
+    const steps = Math.floor((this.stoneClockMs + COOLDOWN_EPSILON_MS) / COOLDOWN_STEP_MS);
     this.stoneClockMs -= steps * COOLDOWN_STEP_MS;
     const spent = steps * COOLDOWN_STEP_MS;
 
@@ -4660,10 +4548,7 @@ export class GameSession implements PlaySession {
       // tick that does not divide the interval. Bounded by one interval a tick,
       // which is what stops a world resumed after an hour paying out an hour of
       // healing in a frame.
-      clock.elapsedMs = Math.min(
-        charm.item.everyMs,
-        clock.elapsedMs - charm.item.everyMs,
-      );
+      clock.elapsedMs = Math.min(charm.item.everyMs, clock.elapsedMs - charm.item.everyMs);
       this.spendCharm(actor, charm.item);
     }
   }
@@ -4674,9 +4559,7 @@ export class GameSession implements PlaySession {
    * The id travels with it because the clock is keyed on it, and reading the
    * square twice is how the two come to disagree about which charm is on.
    */
-  private wornCharm(
-    actor: ActorRuntime,
-  ): { itemId: string; item: CharmItem } | null {
+  private wornCharm(actor: ActorRuntime): { itemId: string; item: CharmItem } | null {
     const held = actor.equipment.charm;
     if (!held) return null;
     const def = this.tilesById[held.tileId];
@@ -4822,8 +4705,7 @@ export class GameSession implements PlaySession {
       // Straight off the parsed weapon: `resolveWeapon` has already applied the
       // schema's melee default, so there is no draft here for `reachOf` to
       // rescue — and the class has a `reachOf` of its own about brains.
-      (weapon) =>
-        canReach(this.map, this.tilesById, fromPoint, toPoint, weapon.reach),
+      (weapon) => canReach(this.map, this.tilesById, fromPoint, toPoint, weapon.reach),
     );
     // An armed body whose weapons all fall short does not start punching. A
     // held weapon *replaces* the natural one — see `./equipment`'s
@@ -4936,11 +4818,7 @@ export class GameSession implements PlaySession {
     // Unless this body has just got out of somebody else's way, which is the one
     // thing that outranks its own swing. @see outranksSwing
     if (!outranksSwing(attacker.strike)) {
-      attacker.strike = swingToward(
-        fromPoint,
-        toPoint,
-        isRanged(attackerStats),
-      );
+      attacker.strike = swingToward(fromPoint, toPoint, isRanged(attackerStats));
     }
 
     // Turning into the blow, so a body that swings at something is looking at
@@ -4970,11 +4848,7 @@ export class GameSession implements PlaySession {
     // receipt for hit points somebody else already collected. Paid out as well
     // as floated, so an archer loosing three arrows at a body with four left
     // would have been paid for three kills. @see `./combat`'s `cappedToHealth`
-    const rolled = rollAttack(
-      attackerStats,
-      underPressure(targetStats, assailants),
-      this.rng,
-    );
+    const rolled = rollAttack(attackerStats, underPressure(targetStats, assailants), this.rng);
     // Beside the lean rather than instead of it, and on the same terms: the two
     // are the same announcement — *this body attacked that one* — made by
     // whichever half of the pair the weapon has. Loosed whatever the dice said,
@@ -5085,13 +4959,7 @@ export class GameSession implements PlaySession {
     // already under one line further on.
     const attacker = this.actors.get(blow.attackerId);
     if (attacker) {
-      this.awardExperience(
-        attacker,
-        target,
-        outcome,
-        blow.swung,
-        blow.targetMaxHp,
-      );
+      this.awardExperience(attacker, target, outcome, blow.swung, blow.targetMaxHp);
     }
 
     if (outcome.missed) {
@@ -5212,11 +5080,7 @@ export class GameSession implements PlaySession {
    * Silently does nothing for a body that cannot be located, which is the honest
    * answer: a receipt has to hang somewhere, and there is nowhere to hang it.
    */
-  private floatSwing(
-    target: ActorRuntime,
-    outcome: SwingOutcome,
-    amount: number,
-  ) {
+  private floatSwing(target: ActorRuntime, outcome: SwingOutcome, amount: number) {
     const loc = this.tryLocate(target);
     if (!loc) return;
 
@@ -5501,11 +5365,7 @@ export class GameSession implements PlaySession {
    * rule wants and handing out the map is handing out something a caller can
    * quietly hold past the tick it was true in.
    */
-  private noteAssailant(
-    target: ActorRuntime,
-    attackerId: string,
-    swingMs: number,
-  ): number {
+  private noteAssailant(target: ActorRuntime, attackerId: string, swingMs: number): number {
     const onMe = (target.assailants ??= new Map());
     onMe.set(attackerId, swingMs + ASSAILANT_GRACE_MS);
     return onMe.size;
@@ -5714,9 +5574,7 @@ export class GameSession implements PlaySession {
 
     // After the despawn, so the pile lands in the room the corpse just made
     // rather than being refused for the volume the body was still taking up.
-    const equipment = loc
-      ? this.dropKit(target.equipment, loc)
-      : target.equipment;
+    const equipment = loc ? this.dropKit(target.equipment, loc) : target.equipment;
 
     // Beside the kit and not part of it: a kit refused for want of room is a
     // kit the dead still own and come back carrying, where a skull refused is a
@@ -5834,10 +5692,7 @@ export class GameSession implements PlaySession {
         // Minted here like any other thing coming into the world, so one
         // player's two skulls are two things and can be told apart.
         itemId: mintItemId(),
-        engraved: bodyNameFor(
-          { tileId: at.placed.tileId, name: target.name },
-          this.tilesById,
-        ),
+        engraved: bodyNameFor({ tileId: at.placed.tileId, name: target.name }, this.tilesById),
         ...(blame ? { description: causeOfDeath(blame) } : {}),
       },
     ]);
@@ -6132,9 +5987,7 @@ export class GameSession implements PlaySession {
     // compare against: `applyStatus` stacks and refreshes in place, so a body
     // that was already burning and one that has just caught fire come back
     // holding the same one instance.
-    const already = actor.statuses.some(
-      (instance) => instance.defId === def.id,
-    );
+    const already = actor.statuses.some((instance) => instance.defId === def.id);
     // The item's range where it states one, and the status's own otherwise —
     // see `../lib/item`'s `StatusGrant`. Both ends or neither, so this
     // cannot end up ordering one source's floor against another's ceiling.
@@ -6142,15 +5995,7 @@ export class GameSession implements PlaySession {
       grant.fromMs === undefined || grant.toMs === undefined
         ? def
         : { fromMs: grant.fromMs, toMs: grant.toMs };
-    actor.statuses = applyStatus(
-      actor.statuses,
-      def,
-      this.rng,
-      range,
-      causedBy,
-      elements,
-      blame,
-    );
+    actor.statuses = applyStatus(actor.statuses, def, this.rng, range, causedBy, elements, blame);
     // **Only the arrival speaks.** A fire re-grants Burned on every standing
     // period and a second berry is a longer helping of Fed, neither of which is
     // news: what a player has to be told is that they are now under something
@@ -6216,11 +6061,7 @@ export class GameSession implements PlaySession {
 
       for (const change of hpChanges) {
         if (change.amount < 0) {
-          const damage = this.elementalDamage(
-            actor,
-            -change.amount,
-            change.elements,
-          );
+          const damage = this.elementalDamage(actor, -change.amount, change.elements);
           this.applyDamage(actor, damage, change.blame);
           // Paid before the death check below, on the same terms a killing blow
           // pays for itself: the arcanist who lit the fire earns from the last
@@ -6228,17 +6069,10 @@ export class GameSession implements PlaySession {
           // has nobody to pay. Paid on what the wheel made of it rather than on
           // what the formula said, so a caster who picked the right element is
           // paid for having picked it.
-          this.awardCausedDamage(
-            actor,
-            change.causedBy,
-            damage,
-            change.elements ?? NO_ELEMENTS,
-          );
+          this.awardCausedDamage(actor, change.causedBy, damage, change.elements ?? NO_ELEMENTS);
           // The caster of a flame that is still burning somebody is dealing
           // that damage, a minute after they lit it or not.
-          const causer = change.causedBy
-            ? this.actors.get(change.causedBy)
-            : undefined;
+          const causer = change.causedBy ? this.actors.get(change.causedBy) : undefined;
           if (causer && damage > 0) this.flagCombat(causer);
           // A body that has just died is off the board, and everything after
           // this would be arithmetic on a corpse.
@@ -6317,9 +6151,7 @@ export class GameSession implements PlaySession {
     // The target is honoured only if it is still somebody: a slot pointing at a
     // body that has died reads as no target at all, which is the same answer
     // `runAutoAttacks` gives before it clears the slot.
-    const targetActor = actor.targetId
-      ? this.actors.get(actor.targetId)
-      : undefined;
+    const targetActor = actor.targetId ? this.actors.get(actor.targetId) : undefined;
     const to = targetActor ? this.tryLocate(targetActor) : null;
 
     const body = this.bodyOf(actor);
@@ -6353,7 +6185,6 @@ export class GameSession implements PlaySession {
   private spellsOf(actor: ActorRuntime): readonly NaturalSpell[] {
     return resolveBattler(this.defFor(actor))?.spells ?? NO_SPELLS;
   }
-
 
   private castPointOf(loc: ActorLocation): CastPoint {
     return { ...this.reachPointOf(loc), stackIndex: loc.stackIndex };
@@ -6666,11 +6497,7 @@ export class GameSession implements PlaySession {
    * screen so the button dims, and it has to be written down so a reconnection
    * does not clear it.
    */
-  private spendCooldown(
-    actor: ActorRuntime,
-    slot: CastSlot,
-    stone: ArcaneStoneItem,
-  ) {
+  private spendCooldown(actor: ActorRuntime, slot: CastSlot, stone: ArcaneStoneItem) {
     // A body's own spell has no instance to write a cooldown onto, so it goes
     // on the body — which is also why it is written in place rather than
     // through `setEquipment`: nothing is watching this record for a new object,
@@ -6730,7 +6557,9 @@ export class GameSession implements PlaySession {
     // target landed on its wearer the moment it was worn as a charm.
     const onTarget = effect.on === "target";
     const subject = onTarget
-      ? (actor.targetId ? this.actors.get(actor.targetId) : undefined)
+      ? actor.targetId
+        ? this.actors.get(actor.targetId)
+        : undefined
       : actor;
     if (!subject) return;
 
@@ -6879,8 +6708,7 @@ export class GameSession implements PlaySession {
     // world the bolt actually landed in. A caster who has left the world is
     // nobody to ask, and their bolt lands as every bolt did before this existed.
     // @see ./pvp
-    const harmless =
-      bolt.move?.kind === "harm" && actor && !this.mayHarm(actor, subject);
+    const harmless = bolt.move?.kind === "harm" && actor && !this.mayHarm(actor, subject);
     if (bolt.move && !harmless) {
       this.applyHealthMove(bolt.move, subject, actor, bolt);
     }
@@ -6940,9 +6768,7 @@ export class GameSession implements PlaySession {
     // its draws up front. A mend reads neither.
     const roll: [number, number] = [this.rng.next(), this.rng.next()];
     const guardRoll = this.rng.next();
-    const rolled = Math.round(
-      power * damageFraction(effect.variance ?? 0, roll),
-    );
+    const rolled = Math.round(power * damageFraction(effect.variance ?? 0, roll));
 
     // A mend, and the sign is the whole of what says so. @see HealthMove
     if (rolled <= 0) return { kind: "mend", amount: -rolled };
@@ -6952,12 +6778,7 @@ export class GameSession implements PlaySession {
     // decided after what got through the mail. Read as an arcane blow, because
     // that is what it is — a stone answers to Arcane, so a breastplate warded
     // against magic turns one aside. @see `./combat`'s `defenceAgainst`
-    const through = damageAfterDefence(
-      rolled,
-      context.stats,
-      ARCANE_BLOW,
-      guardRoll,
-    );
+    const through = damageAfterDefence(rolled, context.stats, ARCANE_BLOW, guardRoll);
     return {
       kind: "harm",
       amount: this.elementalDamage(subject, through, elements),
@@ -7015,12 +6836,7 @@ export class GameSession implements PlaySession {
     // caster who has mended a troll has mended somebody, not beaten them.
     // Flat, because a mend is not an exchange with anybody: there is no second
     // body whose Rating could say how far above or below this was.
-    this.grantCasting(
-      actor,
-      restored,
-      context.elements,
-      () => SELF_SPELL_MULTIPLIER,
-    );
+    this.grantCasting(actor, restored, context.elements, () => SELF_SPELL_MULTIPLIER);
   }
 
   /**
@@ -7040,9 +6856,7 @@ export class GameSession implements PlaySession {
    * cast makes is now taken up front, which is the property `rollAttack` has
    * protected all along. @see GameSession.blowsInFlight
    */
-  private boltInflicts(
-    statuses: readonly WeaponStatus[] | undefined,
-  ): readonly StatusGrant[] {
+  private boltInflicts(statuses: readonly WeaponStatus[] | undefined): readonly StatusGrant[] {
     if (!statuses?.length) return NOTHING_INFLICTED;
     return inflictedBy(
       statuses,
@@ -7104,7 +6918,6 @@ export class GameSession implements PlaySession {
     // exactly as a swing does. @see fireProjectile
     return this.fireProjectile(projectileTileId, start, end, true);
   }
-
 
   /**
    * Put a conjured tile on the board — at the target's cell, or in front of the
@@ -7182,9 +6995,8 @@ export class GameSession implements PlaySession {
     // useless against exactly the thing it is aimed at. The rule is the tile's
     // own either way — `statusOnArrival` reads the stack below the body and
     // honours whatever it finds, caster included.
-    const stood = where.under != null && actor.targetId
-      ? this.actors.get(actor.targetId)
-      : undefined;
+    const stood =
+      where.under != null && actor.targetId ? this.actors.get(actor.targetId) : undefined;
     if (stood) this.statusOnArrival(stood);
   }
 
@@ -7200,9 +7012,7 @@ export class GameSession implements PlaySession {
    * The cadence accumulator is dropped rather than sent: it is bookkeeping about
    * when the next payout is due, and no client pays anything out.
    */
-  statusPatchesOf(
-    id: string,
-  ): { defId: string; remainingMs: number; durationMs: number }[] | null {
+  statusPatchesOf(id: string): { defId: string; remainingMs: number; durationMs: number }[] | null {
     const statuses = this.actors.get(id)?.statuses;
     if (!statuses) return null;
     return statuses.map(({ defId, remainingMs, durationMs }) => ({
@@ -7421,14 +7231,7 @@ export class GameSession implements PlaySession {
    */
   private stepLeavesGround(loc: ActorLocation, direction: Direction): boolean {
     const { dx, dy } = DIR_DELTA[direction];
-    const fromAbs = standingAbs(
-      this.map,
-      loc.x,
-      loc.y,
-      loc.z,
-      loc.stackIndex,
-      this.tilesById,
-    );
+    const fromAbs = standingAbs(this.map, loc.x, loc.y, loc.z, loc.stackIndex, this.tilesById);
     return (
       surfacesInClimbBand(
         this.map,
@@ -7478,13 +7281,7 @@ export class GameSession implements PlaySession {
     if (!landing) return false;
     // Whose step this is, because a tile this body conjured is not a hazard to
     // it. @see ./conjured's `sparesStander`
-    return unsafeToStepOn(
-      this.map,
-      landing,
-      this.tilesById,
-      this.statusDefs,
-      actor.id,
-    );
+    return unsafeToStepOn(this.map, landing, this.tilesById, this.statusDefs, actor.id);
   }
 
   /**
@@ -7505,14 +7302,7 @@ export class GameSession implements PlaySession {
       this.map,
       loc.x + dx,
       loc.y + dy,
-      standingAbs(
-        this.map,
-        loc.x,
-        loc.y,
-        loc.z,
-        loc.stackIndex,
-        this.tilesById,
-      ),
+      standingAbs(this.map, loc.x, loc.y, loc.z, loc.stackIndex, this.tilesById),
       def,
       this.tilesById,
     );
@@ -7628,13 +7418,7 @@ export class GameSession implements PlaySession {
       return "blocked";
     }
 
-    const direction = this.routeStep(
-      actor,
-      loc,
-      at,
-      order.allowDrops,
-      order.arrive,
-    );
+    const direction = this.routeStep(actor, loc, at, order.allowDrops, order.arrive);
     if (direction === null || direction === "arrived") {
       actor.walkOrder = null;
       return direction === "arrived" ? "arrived" : "blocked";
@@ -7710,11 +7494,7 @@ export class GameSession implements PlaySession {
   }
 
   /** Is this still somewhere worth running to? @see setFleeOrder */
-  private stillWorthRunningTo(
-    refuge: Coord | null,
-    here: Coord,
-    threat: Coord,
-  ): boolean {
+  private stillWorthRunningTo(refuge: Coord | null, here: Coord, threat: Coord): boolean {
     if (!refuge) return false;
     if (refuge.x === here.x && refuge.y === here.y && refuge.z === here.z) {
       return false;
@@ -7760,8 +7540,7 @@ export class GameSession implements PlaySession {
       this.statusDefs,
       {
         drops: allowDrops ? "anywhere" : "never",
-        seenFrom: (cell) =>
-          hasLineOfSight(this.map, this.tilesById, threat, cell, def.height),
+        seenFrom: (cell) => hasLineOfSight(this.map, this.tilesById, threat, cell, def.height),
       },
     );
     // An empty route is an animal with nowhere better than where it stands, on
@@ -7793,11 +7572,7 @@ export class GameSession implements PlaySession {
    * the same order that already decides who wins a contested cell, which keeps
    * the answer reproducible rather than dependent on a map sweep's traversal.
    */
-  private nearestOnTile(
-    selfId: string,
-    from: Coord,
-    tileIds: readonly string[],
-  ): string | null {
+  private nearestOnTile(selfId: string, from: Coord, tileIds: readonly string[]): string | null {
     let best: string | null = null;
     let bestSteps = Infinity;
     // Across the whole list rather than the first tile that answers: the list is
@@ -7941,11 +7716,7 @@ export class GameSession implements PlaySession {
    * {@link extractKey}'s terms: an index shifts when anything is placed under
    * it, and the tile is what the commitment was ever about.
    */
-  private extractForBrain(
-    actor: ActorRuntime,
-    at: Coord,
-    tileId: string,
-  ): boolean {
+  private extractForBrain(actor: ActorRuntime, at: Coord, tileId: string): boolean {
     const run = actor.extraction;
     if (
       run &&
@@ -7974,16 +7745,10 @@ export class GameSession implements PlaySession {
    * Through {@link consume} rather than beside it, so an animal eating a poison
    * berry takes the damage, the status and the sound a player would.
    */
-  private consumeForBrain(
-    actor: ActorRuntime,
-    tileId: string | undefined,
-  ): boolean {
+  private consumeForBrain(actor: ActorRuntime, tileId: string | undefined): boolean {
     const index = this.edibleInBag(actor, tileId);
     if (index === null) return false;
-    return this.consume(
-      { kind: "slot", slot: { kind: "contents", index } },
-      actor.id,
-    );
+    return this.consume({ kind: "slot", slot: { kind: "contents", index } }, actor.id);
   }
 
   /**
@@ -7994,19 +7759,12 @@ export class GameSession implements PlaySession {
    * wall or from under a crate. The stack slot is found from the tile rather
    * than remembered, on {@link extractForBrain}'s terms.
    */
-  private consumeOnGround(
-    actor: ActorRuntime,
-    at: Coord,
-    tileId: string,
-  ): boolean {
+  private consumeOnGround(actor: ActorRuntime, at: Coord, tileId: string): boolean {
     const stackIndex = getStack(this.map, at.x, at.y, at.z).findIndex(
       (placed) => placed.tileId === tileId,
     );
     if (stackIndex < 0) return false;
-    return this.consume(
-      { kind: "floor", ref: { ...at, stackIndex } },
-      actor.id,
-    );
+    return this.consume({ kind: "floor", ref: { ...at, stackIndex } }, actor.id);
   }
 
   /**
@@ -8037,15 +7795,10 @@ export class GameSession implements PlaySession {
    * statuses are *applied* to the numbers: what this asks is whether one is
    * there, and the arithmetic it feeds is nothing to do with it.
    */
-  private hasStatus(
-    actor: ActorRuntime,
-    id: string,
-    atLeastMs: number | undefined,
-  ): boolean {
+  private hasStatus(actor: ActorRuntime, id: string, atLeastMs: number | undefined): boolean {
     return actor.statuses.some(
       (instance) =>
-        instance.defId === id &&
-        (atLeastMs === undefined || instance.remainingMs >= atLeastMs),
+        instance.defId === id && (atLeastMs === undefined || instance.remainingMs >= atLeastMs),
     );
   }
 
@@ -8126,10 +7879,7 @@ export class GameSession implements PlaySession {
    * not is an authored mistake, and answering with its square would spend a turn
    * on a {@link consume} that refuses.
    */
-  private edibleInBag(
-    actor: ActorRuntime,
-    tileId: string | undefined,
-  ): number | null {
+  private edibleInBag(actor: ActorRuntime, tileId: string | undefined): number | null {
     const contents = actor.equipment.bag?.contents ?? [];
     for (const [index, instance] of contents.entries()) {
       if (tileId !== undefined && instance.tileId !== tileId) continue;
@@ -8161,9 +7911,7 @@ export class GameSession implements PlaySession {
    * point of naming the tile is that the commitment to it ends by itself.
    */
   private thingStillThere(at: Coord, tileId: string): boolean {
-    return getStack(this.map, at.x, at.y, at.z).some(
-      (placed) => placed.tileId === tileId,
-    );
+    return getStack(this.map, at.x, at.y, at.z).some((placed) => placed.tileId === tileId);
   }
 
   private buildTileIndex(): Map<string, string[]> {
@@ -8217,21 +7965,13 @@ export class GameSession implements PlaySession {
     if (!to || !direction) return false;
 
     // The shove is what turns the actor, so facing lands before the motion.
-    this.map = setEntityDirection(
-      this.map,
-      loc.x,
-      loc.y,
-      loc.z,
-      loc.stackIndex,
-      direction,
-    );
+    this.map = setEntityDirection(this.map, loc.x, loc.y, loc.z, loc.stackIndex, direction);
 
     const from = { x: ref.x, y: ref.y, z: ref.z };
     // Who was shoved, if it was a somebody rather than a something. Read before
     // the write, because afterwards the slot named by `ref` holds whatever the
     // column left behind.
-    const shovedOwner = getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex]
-      ?.owner;
+    const shovedOwner = getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex]?.owner;
     // Whatever is stacked on the shoved object rides with it, in one write —
     // see `moveColumn`, and `pushDestination` for the room the column needs.
     const count = pushedColumn(this.map, ref).length;
@@ -8263,13 +8003,7 @@ export class GameSession implements PlaySession {
   canPickUp(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.idle(actor)) return false;
-    return canPickUpFrom(
-      this.map,
-      this.tilesById,
-      this.locate(actor),
-      ref,
-      actor.equipment,
-    );
+    return canPickUpFrom(this.map, this.tilesById, this.locate(actor), ref, actor.equipment);
   }
 
   /**
@@ -8332,13 +8066,7 @@ export class GameSession implements PlaySession {
   canEquip(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.idle(actor)) return false;
-    return canEquipFrom(
-      this.map,
-      this.tilesById,
-      this.locate(actor),
-      ref,
-      actor.equipment,
-    );
+    return canEquipFrom(this.map, this.tilesById, this.locate(actor), ref, actor.equipment);
   }
 
   /**
@@ -8356,13 +8084,7 @@ export class GameSession implements PlaySession {
     const actor = this.actor(id);
     if (!this.idle(actor)) return false;
 
-    const slot = equipSlotFrom(
-      this.map,
-      this.tilesById,
-      this.locate(actor),
-      ref,
-      actor.equipment,
-    );
+    const slot = equipSlotFrom(this.map, this.tilesById, this.locate(actor), ref, actor.equipment);
     if (!slot) return false;
 
     const instance = this.takeFromBoard(ref);
@@ -8490,10 +8212,7 @@ export class GameSession implements PlaySession {
   }
 
   /** Take a consumable placement off the board. Null when refused. */
-  private consumeFromFloor(
-    actor: ActorRuntime,
-    ref: ObjectRef,
-  ): Eaten | null {
+  private consumeFromFloor(actor: ActorRuntime, ref: ObjectRef): Eaten | null {
     if (!this.idle(actor)) return null;
     const loc = this.tryLocate(actor);
     if (!loc) return null;
@@ -8568,14 +8287,7 @@ export class GameSession implements PlaySession {
   ): ItemMoveResult | null {
     const residue = this.residueOf(consumable);
     if (!residue) return emptied;
-    const landed = leaveResidue(
-      emptied.map,
-      this.tilesById,
-      loc,
-      emptied.equipment,
-      from,
-      residue,
-    );
+    const landed = leaveResidue(emptied.map, this.tilesById, loc, emptied.equipment, from, residue);
     if (landed) return landed;
     this.say(actor.id, noRoomToLeaveNotice(this.tilesById[residue.tileId]!.name));
     return null;
@@ -8597,20 +8309,11 @@ export class GameSession implements PlaySession {
   }
 
   /** Take a consumable out of a slot and destroy it. Null when refused. */
-  private consumeFromSlot(
-    actor: ActorRuntime,
-    slot: SlotRef,
-  ): Eaten | null {
+  private consumeFromSlot(actor: ActorRuntime, slot: SlotRef): Eaten | null {
     const loc = this.tryLocate(actor);
     if (!loc) return null;
 
-    const instance = itemInSlot(
-      this.map,
-      this.tilesById,
-      loc,
-      actor.equipment,
-      slot,
-    );
+    const instance = itemInSlot(this.map, this.tilesById, loc, actor.equipment, slot);
     const def = instance && this.tilesById[instance.tileId];
     const consumable = def ? resolveConsumable(def) : null;
     if (!consumable || !def) return null;
@@ -8634,23 +8337,12 @@ export class GameSession implements PlaySession {
     return { consumable, name: def.name };
   }
 
-  canMoveItem(
-    from: SlotRef,
-    to: SlotRef,
-    id: string = LOCAL_ACTOR_ID,
-  ): boolean {
+  canMoveItem(from: SlotRef, to: SlotRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actors.get(id);
     if (!actor) return false;
     const loc = this.tryLocate(actor);
     if (!loc) return false;
-    return canMoveItem(
-      this.map,
-      this.tilesById,
-      loc,
-      actor.equipment,
-      from,
-      to,
-    );
+    return canMoveItem(this.map, this.tilesById, loc, actor.equipment, from, to);
   }
 
   /**
@@ -8693,14 +8385,7 @@ export class GameSession implements PlaySession {
     // there is not in the way of anything.
     if (isBodySlot(to) && this.noteCoolingRefusal(actor, loc, to)) return false;
 
-    const moved = applyItemMove(
-      this.map,
-      this.tilesById,
-      loc,
-      actor.equipment,
-      from,
-      to,
-    );
+    const moved = applyItemMove(this.map, this.tilesById, loc, actor.equipment, from, to);
     if (!moved) return false;
 
     this.map = moved.map;
@@ -8712,11 +8397,7 @@ export class GameSession implements PlaySession {
     return true;
   }
 
-  canDrop(
-    from: SlotRef,
-    to: Coord,
-    id: string = LOCAL_ACTOR_ID,
-  ): boolean {
+  canDrop(from: SlotRef, to: Coord, id: string = LOCAL_ACTOR_ID): boolean {
     return this.dropCandidate(from, to, id) != null;
   }
 
@@ -8732,26 +8413,11 @@ export class GameSession implements PlaySession {
    * thing rather than the place: put it in the other hand and it would refuse
    * from there too.
    */
-  private noteCoolingRefusal(
-    actor: ActorRuntime,
-    loc: ActorLocation,
-    from: SlotRef,
-  ): boolean {
-    const instance = itemInSlot(
-      this.map,
-      this.tilesById,
-      loc,
-      actor.equipment,
-      from,
-    );
+  private noteCoolingRefusal(actor: ActorRuntime, loc: ActorLocation, from: SlotRef): boolean {
+    const instance = itemInSlot(this.map, this.tilesById, loc, actor.equipment, from);
     if (!instance || !stoneLocked(instance, this.tilesById)) return false;
     const def = this.tilesById[instance.tileId];
-    this.say(
-      actor.id,
-      coolingNotice(
-        instance.inscription?.trim() || def?.name || instance.tileId,
-      ),
-    );
+    this.say(actor.id, coolingNotice(instance.inscription?.trim() || def?.name || instance.tileId));
     return true;
   }
 
@@ -8776,13 +8442,7 @@ export class GameSession implements PlaySession {
     const loc = this.tryLocate(actor);
     if (!loc) return null;
 
-    const instance = itemInSlot(
-      this.map,
-      this.tilesById,
-      loc,
-      actor.equipment,
-      from,
-    );
+    const instance = itemInSlot(this.map, this.tilesById, loc, actor.equipment, from);
     if (!instance) return null;
 
     const def = this.tilesById[instance.tileId];
@@ -8821,25 +8481,14 @@ export class GameSession implements PlaySession {
     if (!candidate) return false;
     const { actor, instance, destination } = candidate;
 
-    const emptied = clearSlot(
-      this.map,
-      this.tilesById,
-      this.locate(actor),
-      actor.equipment,
-      from,
-    );
+    const emptied = clearSlot(this.map, this.tilesById, this.locate(actor), actor.equipment, from);
     if (!emptied) return false;
 
     // The board first and the kit second, so there is no order in which the
     // thing can leave a slot without arriving somewhere.
     const landed =
       destination.kind === "contents"
-        ? stashInContainer(
-            emptied.map,
-            this.tilesById,
-            destination.ref,
-            instance,
-          )
+        ? stashInContainer(emptied.map, this.tilesById, destination.ref, instance)
         : // Through the pouring append, so a pile of berries thrown at a cell
           // that already has berries in it lands as more of that pile rather
           // than beside it. See `../lib/piles`'s `appendItem`.
@@ -9025,8 +8674,7 @@ export class GameSession implements PlaySession {
 
     // Read before anything is written, because the notice names the giver and
     // `reachableRewardAt` has already proved the slot holds one.
-    const giverDef =
-      this.tilesById[getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex].tileId];
+    const giverDef = this.tilesById[getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex].tileId];
     if (!giverDef) return false;
 
     const bag = actor.equipment.bag!;
@@ -9048,11 +8696,7 @@ export class GameSession implements PlaySession {
     return true;
   }
 
-  canTransmute(
-    ref: ObjectRef,
-    recipe: number,
-    id: string = LOCAL_ACTOR_ID,
-  ): boolean {
+  canTransmute(ref: ObjectRef, recipe: number, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.idle(actor)) return false;
     return canTransmuteFrom(
@@ -9082,11 +8726,7 @@ export class GameSession implements PlaySession {
    * but it is one you reach out and do to something in the world, and a player
    * mid-stride is not standing next to it yet.
    */
-  transmute(
-    ref: ObjectRef,
-    recipe: number,
-    id: string = LOCAL_ACTOR_ID,
-  ): boolean {
+  transmute(ref: ObjectRef, recipe: number, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.idle(actor)) return false;
 
@@ -9374,10 +9014,7 @@ export class GameSession implements PlaySession {
   }
 
   /** One arm per verb, each answering with a refusal or with nothing. */
-  private runParsedCommand(
-    command: Command,
-    id: string,
-  ): CommandRefusal | null {
+  private runParsedCommand(command: Command, id: string): CommandRefusal | null {
     switch (command.name) {
       case MASTERY_COMMAND:
         return this.runMasteryCommand(command, id);
@@ -9432,14 +9069,7 @@ export class GameSession implements PlaySession {
       (candidate) => candidate.z === to.z,
     );
     if (!surface) return false;
-    return fitsAtElevation(
-      this.map,
-      to.x,
-      to.y,
-      surface.abs,
-      def,
-      this.tilesById,
-    ).ok;
+    return fitsAtElevation(this.map, to.x, to.y, surface.abs, def, this.tilesById).ok;
   }
 
   /**
@@ -9507,11 +9137,7 @@ export class GameSession implements PlaySession {
    * A second kind of relocation is how the two come to disagree about what a
    * body mid-step is.
    */
-  private putBodyAt(
-    actor: ActorRuntime,
-    loc: ActorLocation,
-    to: Coord,
-  ): CommandRefusal | null {
+  private putBodyAt(actor: ActorRuntime, loc: ActorLocation, to: Coord): CommandRefusal | null {
     if (to.x === loc.x && to.y === loc.y && to.z === loc.z) return null;
     if (!this.canStandIn(actor, to)) return { kind: "noRoom", at: to };
 
@@ -9537,10 +9163,7 @@ export class GameSession implements PlaySession {
    * here — the gate exists to stop a genuinely empty block sticking, and an
    * admin command is not the reason to weaken it.
    */
-  private runMasteryCommand(
-    command: MasteryCommand,
-    id: string,
-  ): CommandRefusal | null {
+  private runMasteryCommand(command: MasteryCommand, id: string): CommandRefusal | null {
     const { mastery, level, target } = command;
     const targetId = target ?? id;
     const actor = this.actors.get(targetId);
@@ -9557,10 +9180,7 @@ export class GameSession implements PlaySession {
 
     this.say(actor.id, masteryNotice(mastery, level));
     if (actor.id !== id) {
-      this.say(
-        id,
-        otherMasteryNotice(this.bodyName(actor.id) ?? actor.id, mastery, level),
-      );
+      this.say(id, otherMasteryNotice(this.bodyName(actor.id) ?? actor.id, mastery, level));
     }
     return null;
   }
@@ -9587,10 +9207,7 @@ export class GameSession implements PlaySession {
    * putting a creature in the world, and the sweep only exists because an
    * authored map arrives with its residents already on the board.
    */
-  private runTileCommand(
-    command: TileCommand,
-    id: string,
-  ): CommandRefusal | null {
+  private runTileCommand(command: TileCommand, id: string): CommandRefusal | null {
     const actor = this.actors.get(id);
     const from = actor ? this.tryLocate(actor) : null;
     // Refused even for three absolute coordinates, which need no origin: a
@@ -9711,9 +9328,7 @@ export class GameSession implements PlaySession {
     alsoTaken: ReadonlySet<string> = new Set(),
   ): string {
     const home = residentOwnerId(at);
-    return this.actors.has(home) || alsoTaken.has(home)
-      ? `${home},${crypto.randomUUID()}`
-      : home;
+    return this.actors.has(home) || alsoTaken.has(home) ? `${home},${crypto.randomUUID()}` : home;
   }
 
   /**
@@ -9731,10 +9346,7 @@ export class GameSession implements PlaySession {
    * The catalogue is checked here rather than in the parser for the reason
    * `noSuchTarget` is: it is the world's, and the parser has never seen it.
    */
-  private runStatusCommand(
-    command: StatusCommand,
-    authorId: string,
-  ): CommandRefusal | null {
+  private runStatusCommand(command: StatusCommand, authorId: string): CommandRefusal | null {
     const targetId = command.target ?? authorId;
     const actor = this.actors.get(targetId);
     if (!actor) return { kind: "noSuchTarget", typed: targetId };
@@ -9773,10 +9385,7 @@ export class GameSession implements PlaySession {
       // debugging acknowledgement, not something that happened in the world, and
       // a deer announcing that it is on fire because somebody set it on fire
       // from a console is a bubble the room should not see.
-      this.say(
-        authorId,
-        otherStatusNotice(this.bodyName(targetId) ?? targetId, def.name),
-      );
+      this.say(authorId, otherStatusNotice(this.bodyName(targetId) ?? targetId, def.name));
     } else if (outcome === "refreshed") {
       // Already under it, so the grant refreshed rather than arrived and
       // nothing announced it. A command that shows as nothing occurring is
@@ -9802,10 +9411,7 @@ export class GameSession implements PlaySession {
    * is what somebody typing a big number meant, and making them look the ceiling
    * up first would be a worse debugging tool.
    */
-  private runHealthCommand(
-    command: HealthCommand,
-    authorId: string,
-  ): CommandRefusal | null {
+  private runHealthCommand(command: HealthCommand, authorId: string): CommandRefusal | null {
     const targetId = command.target ?? authorId;
     const actor = this.actors.get(targetId);
     if (!actor) return { kind: "noSuchTarget", typed: targetId };
@@ -9856,11 +9462,7 @@ export class GameSession implements PlaySession {
    * and it has no runtime block to write to, which is exactly what the null here
    * means. @see ActorRuntime.masteryXp
    */
-  private setMastery(
-    actor: ActorRuntime,
-    mastery: Mastery,
-    level: number,
-  ): boolean {
+  private setMastery(actor: ActorRuntime, mastery: Mastery, level: number): boolean {
     this.bodyOf(actor);
     const xp = actor.masteryXp;
     if (!xp) return false;
@@ -9954,13 +9556,7 @@ export class GameSession implements PlaySession {
   canTeleport(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.idle(actor)) return false;
-    return canTeleportFrom(
-      this.map,
-      this.tilesById,
-      this.locate(actor),
-      ref,
-      this.defFor(actor),
-    );
+    return canTeleportFrom(this.map, this.tilesById, this.locate(actor), ref, this.defFor(actor));
   }
 
   /**
@@ -10213,23 +9809,15 @@ export class GameSession implements PlaySession {
       // Whoever conjured the tile, if anybody did — which is what makes a flame
       // an arcanist lit pay them when somebody walks into it, and leaves every
       // hearth in the world attributed to nobody exactly as it was.
-      this.grantStatus(
-        actor,
-        { id: addStatus.statusId },
-        placed.castBy,
-        placed.castElements,
-        {
-          source: this.statusName(addStatus.statusId),
-          // The tile as it is named on screen — which is what makes one
-          // `arcane-flame` def read as "Green Fox's Arcane Flame" where a stone
-          // lit it and as plain "Arcane Flame" where a hearth did. The same
-          // call the look label and the interaction row go through, so a skull
-          // names the fire the way the player saw it named.
-          by: conjuredName(def?.name ?? placed.tileId, placed, (id) =>
-            this.bodyName(id),
-          ),
-        },
-      );
+      this.grantStatus(actor, { id: addStatus.statusId }, placed.castBy, placed.castElements, {
+        source: this.statusName(addStatus.statusId),
+        // The tile as it is named on screen — which is what makes one
+        // `arcane-flame` def read as "Green Fox's Arcane Flame" where a stone
+        // lit it and as plain "Arcane Flame" where a hearth did. The same
+        // call the look label and the interaction row go through, so a skull
+        // names the fire the way the player saw it named.
+        by: conjuredName(def?.name ?? placed.tileId, placed, (id) => this.bodyName(id)),
+      });
       return;
     }
   }
@@ -10501,9 +10089,7 @@ export class GameSession implements PlaySession {
       // one lerp, and the tick that commits a unit lands after the unit's time
       // is up. Clamping there froze the sprite for a tick at every boundary and
       // then lurched it. Past 1 is exactly what the next step will confirm.
-      fallProgress: actor.fall
-        ? (actor.fall.elapsedMs + visualExtra) / FALL_MS_PER_HEIGHT
-        : 0,
+      fallProgress: actor.fall ? (actor.fall.elapsedMs + visualExtra) / FALL_MS_PER_HEIGHT : 0,
       // Handed over by reference, exactly as `walk` and `fall` are: it is
       // mutated in place as it advances, so the same slide across two ticks is
       // the same object and the server can tell a continuing push from a new one.
@@ -10826,10 +10412,7 @@ export class GameSession implements PlaySession {
    * asked for" to "what the actor does", whether the asking is a held key in
    * `/play` or a step a networked client has already predicted.
    */
-  private applyStepRequest(
-    actor: ActorRuntime,
-    request: StepRequest,
-  ): boolean {
+  private applyStepRequest(actor: ActorRuntime, request: StepRequest): boolean {
     const loc = this.locate(actor);
     const choice = chooseStep(
       this.map,
@@ -10977,30 +10560,14 @@ export class GameSession implements PlaySession {
    * announced to every client as a second step. @see GameServer's
    * `collectMotionEvents`
    */
-  private turnActor(
-    actor: ActorRuntime,
-    loc: ActorLocation,
-    direction: Direction,
-  ) {
+  private turnActor(actor: ActorRuntime, loc: ActorLocation, direction: Direction) {
     if (actor.walk) actor.walk.direction = direction;
-    this.map = setEntityDirection(
-      this.map,
-      loc.x,
-      loc.y,
-      loc.z,
-      loc.stackIndex,
-      direction,
-    );
+    this.map = setEntityDirection(this.map, loc.x, loc.y, loc.z, loc.stackIndex, direction);
   }
 
   private maybeStartFall(actor: ActorRuntime) {
     const loc = this.locate(actor);
-    const pull = gravityPullOn(
-      this.map,
-      loc,
-      this.defFor(actor),
-      this.tilesById,
-    );
+    const pull = gravityPullOn(this.map, loc, this.defFor(actor), this.tilesById);
     if (pull.kind === "stand") return;
     if (pull.kind === "settle") {
       this.land(actor, pull.landingAbs);
@@ -11041,16 +10608,7 @@ export class GameSession implements PlaySession {
     const loc = this.locate(actor);
     const exclude = { z: loc.z, stackIndex: loc.stackIndex };
 
-    if (
-      !isWalkableSurfaceAt(
-        this.map,
-        loc.x,
-        loc.y,
-        landingAbs,
-        this.tilesById,
-        exclude,
-      )
-    ) {
+    if (!isWalkableSurfaceAt(this.map, loc.x, loc.y, landingAbs, this.tilesById, exclude)) {
       this.commitLandAt(actor, landingAbs);
       const after = this.locate(actor);
       const facing = actorDirection(after);
@@ -11116,14 +10674,7 @@ export class GameSession implements PlaySession {
       if (stack.length === 0) continue;
       const top = absoluteStandingElevation(zTry, stack, this.tilesById);
       if (top === landingAbs) {
-        this.map = placeEntityOnSurface(
-          next,
-          loc.x,
-          loc.y,
-          zTry,
-          placed,
-          this.tilesById,
-        );
+        this.map = placeEntityOnSurface(next, loc.x, loc.y, zTry, placed, this.tilesById);
         return;
       }
     }
@@ -11142,14 +10693,7 @@ export class GameSession implements PlaySession {
     const destStack = getStack(next, loc.x, loc.y, newZ);
     const destTop = absoluteStandingElevation(newZ, destStack, this.tilesById);
     if (destStack.length > 0 && destTop === feetAbs) {
-      next = placeEntityOnSurface(
-        next,
-        loc.x,
-        loc.y,
-        newZ,
-        placed,
-        this.tilesById,
-      );
+      next = placeEntityOnSurface(next, loc.x, loc.y, newZ, placed, this.tilesById);
     } else {
       next = appendTile(next, loc.x, loc.y, newZ, placed);
     }

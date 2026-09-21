@@ -541,11 +541,7 @@ export const NOBODY = "someone";
  * spoken, and a sentence whose subject can change between the state deciding to
  * say it and the words appearing is not a sentence anybody meant to author.
  */
-function fillSlots(
-  text: string,
-  memory: BrainMemory,
-  ctx: BrainContext,
-): string {
+function fillSlots(text: string, memory: BrainMemory, ctx: BrainContext): string {
   // The overwhelmingly common line has no placeholder at all, and this keeps it
   // from touching the regex on every state entry in the world.
   if (!text.includes("{")) return text;
@@ -609,11 +605,7 @@ function footing(
  * `attack: home` fall through and `bind: { x: home }` clear its slot, without
  * either needing a case.
  */
-function identify(
-  selector: Selector,
-  memory: BrainMemory,
-  ctx: BrainContext,
-): Bound | null {
+function identify(selector: Selector, memory: BrainMemory, ctx: BrainContext): Bound | null {
   switch (selector.type) {
     case "slot":
       return memory.blackboard[selector.data.name] ?? null;
@@ -629,9 +621,7 @@ function identify(
       // thing has to remember is the one standing there, so a wolf that bound
       // "the nearest carcass or haunch" is committed to the particular thing it
       // found rather than to either of them.
-      return found === null
-        ? null
-        : { kind: "thing", at: found.at, tileId: found.tileId };
+      return found === null ? null : { kind: "thing", at: found.at, tileId: found.tileId };
     }
     case "home":
       return null;
@@ -644,11 +634,7 @@ function asBody(id: string | null): Bound | null {
 }
 
 /** Where a selector's subject is, or null when there is nothing to point at. */
-function locate(
-  selector: Selector,
-  memory: BrainMemory,
-  ctx: BrainContext,
-): Coord | null {
+function locate(selector: Selector, memory: BrainMemory, ctx: BrainContext): Coord | null {
   // The one selector that is a place the session holds rather than one a bind
   // wrote down.
   if (selector.type === "home") return ctx.home;
@@ -682,11 +668,7 @@ function whereIs(bound: Bound | null, ctx: BrainContext): Coord | null {
  * is still checked first, so a creature does not set off across a field towards
  * a bush that has since been picked.
  */
-function aim(
-  selector: Selector,
-  memory: BrainMemory,
-  ctx: BrainContext,
-): WalkGoal | null {
+function aim(selector: Selector, memory: BrainMemory, ctx: BrainContext): WalkGoal | null {
   // The one selector that is a place the session holds, on {@link locate}'s
   // terms.
   if (selector.type === "home") {
@@ -695,9 +677,7 @@ function aim(
   const bound = identify(selector, memory, ctx);
   if (!bound) return null;
   if (bound.kind === "body") return { of: "body", id: bound.id };
-  return ctx.thingStillThere(bound.at, bound.tileId)
-    ? { of: "cell", at: bound.at }
-    : null;
+  return ctx.thingStillThere(bound.at, bound.tileId) ? { of: "cell", at: bound.at } : null;
 }
 
 /** Steps apart on the plan, ignoring elevation. */
@@ -719,23 +699,14 @@ function stepsApart(a: Coord, b: Coord): number {
  * crow flies — a creature that thinks in cells it could walk is a creature whose
  * behaviour matches the board, and every authored `cells` already means that.
  */
-export function within(
-  self: Coord,
-  other: Coord,
-  cells: number,
-  sight: SightLevels,
-): boolean {
+export function within(self: Coord, other: Coord, cells: number, sight: SightLevels): boolean {
   const dz = other.z - self.z;
   if (dz > sight.up || -dz > sight.down) return false;
   return stepsApart(self, other) <= cells;
 }
 
 /** Within `cells` and with nothing in the way. */
-function inSight(
-  at: Coord | null,
-  cells: number,
-  ctx: BrainContext,
-): at is Coord {
+function inSight(at: Coord | null, cells: number, ctx: BrainContext): at is Coord {
   return at !== null && within(ctx.self, at, cells, ctx.sight) && ctx.canSee(at);
 }
 
@@ -846,11 +817,7 @@ function voiceCounts(
  * Putting back what was there, rather than clearing, is what keeps a sibling's
  * legitimate match from being wiped by a negated one asked after it.
  */
-function holds(
-  condition: BrainCondition,
-  memory: BrainMemory,
-  ctx: BrainContext,
-): boolean {
+function holds(condition: BrainCondition, memory: BrainMemory, ctx: BrainContext): boolean {
   return evaluateCondition(condition, (leaf, negated) => {
     if (!negated) return leafHolds(leaf, memory, ctx);
 
@@ -863,11 +830,7 @@ function holds(
   });
 }
 
-function leafHolds(
-  condition: BrainConditionDef,
-  memory: BrainMemory,
-  ctx: BrainContext,
-): boolean {
+function leafHolds(condition: BrainConditionDef, memory: BrainMemory, ctx: BrainContext): boolean {
   switch (condition.cond) {
     case "after":
       return memory.msInState >= condition.ms;
@@ -988,10 +951,7 @@ function fleeAlongRoute(
  * up if it is blocked" would leave a creature in a corridor standing still
  * three times out of four.
  */
-function stepAnywhere(
-  allowDrops: boolean | undefined,
-  ctx: BrainContext,
-): boolean {
+function stepAnywhere(allowDrops: boolean | undefined, ctx: BrainContext): boolean {
   const options = footing(ctx.rng.shuffle([...DIRECTIONS]), allowDrops, ctx);
   for (const direction of options) {
     if (ctx.step(direction)) return true;
@@ -1121,11 +1081,7 @@ function firstMatch(
  * condition reading it would keep answering about somebody who is no longer
  * relevant.
  */
-function applyBind(
-  transition: BrainTransitionDef,
-  memory: BrainMemory,
-  ctx: BrainContext,
-) {
+function applyBind(transition: BrainTransitionDef, memory: BrainMemory, ctx: BrainContext) {
   if (!transition.bind) return;
   for (const [slot, selector] of Object.entries(transition.bind)) {
     const bound = identify(selector, memory, ctx);

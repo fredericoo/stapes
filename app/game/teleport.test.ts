@@ -150,14 +150,15 @@ describe("resolveTeleport", () => {
   });
 
   it("counts the tile's delta from the placement, not from the traveller", () => {
-    expect(resolveTeleport({ tileId: "ladder" }, tilesById.ladder, at)?.to).toEqual(
-      { x: 4, y: 4, z: 1 },
-    );
+    expect(resolveTeleport({ tileId: "ladder" }, tilesById.ladder, at)?.to).toEqual({
+      x: 4,
+      y: 4,
+      z: 1,
+    });
     // The same tile, dropped somewhere else, makes the same journey. This is
     // the whole reason a ladder's delta belongs to the def.
     expect(
-      resolveTeleport({ tileId: "ladder" }, tilesById.ladder, { x: -3, y: 8, z: 2 })
-        ?.to,
+      resolveTeleport({ tileId: "ladder" }, tilesById.ladder, { x: -3, y: 8, z: 2 })?.to,
     ).toEqual({ x: -3, y: 8, z: 3 });
   });
 
@@ -178,11 +179,7 @@ describe("resolveTeleport", () => {
   it("is nothing without the half that carries the numbers", () => {
     // A tile that does not teleport, however the placement is written.
     expect(
-      resolveTeleport(
-        { tileId: "grass", teleportTo: { x: 1, y: 1, z: 0 } },
-        tilesById.grass,
-        at,
-      ),
+      resolveTeleport({ tileId: "grass", teleportTo: { x: 1, y: 1, z: 0 } }, tilesById.grass, at),
     ).toBeNull();
     // An absolute tile with nothing written on the slot.
     expect(resolveTeleport({ tileId: "portal" }, tilesById.portal, at)).toBeNull();
@@ -195,9 +192,7 @@ describe("resolveTeleport", () => {
   });
 
   it("refuses a trip that ends where it started", () => {
-    expect(
-      resolveTeleport({ tileId: "still" }, tilesById.still, at),
-    ).toBeNull();
+    expect(resolveTeleport({ tileId: "still" }, tilesById.still, at)).toBeNull();
   });
 });
 
@@ -221,24 +216,20 @@ describe("reachableTeleportAt", () => {
   it("offers an `interact` portal from the next square over", () => {
     const map = doorway("interact");
     const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
-    expect(
-      reachableTeleportAt(map, tilesById, { x: 0, y: 0, z: 0 }, ref)?.to,
-    ).toEqual({ x: 5, y: 5, z: 0 });
+    expect(reachableTeleportAt(map, tilesById, { x: 0, y: 0, z: 0 }, ref)?.to).toEqual({
+      x: 5,
+      y: 5,
+      z: 0,
+    });
     // Diagonally is not "squarely beside", exactly as it is not for a switch.
-    expect(
-      reachableTeleportAt(map, tilesById, { x: 0, y: 1, z: 0 }, ref),
-    ).toBeNull();
+    expect(reachableTeleportAt(map, tilesById, { x: 0, y: 1, z: 0 }, ref)).toBeNull();
   });
 
   it("offers an `interactOver` ladder only from its own cell", () => {
     const map = doorway("interactOver");
     const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
-    expect(
-      reachableTeleportAt(map, tilesById, { x: 0, y: 0, z: 0 }, ref),
-    ).toBeNull();
-    expect(
-      reachableTeleportAt(map, tilesById, { x: 1, y: 0, z: 0 }, ref),
-    ).not.toBeNull();
+    expect(reachableTeleportAt(map, tilesById, { x: 0, y: 0, z: 0 }, ref)).toBeNull();
+    expect(reachableTeleportAt(map, tilesById, { x: 1, y: 0, z: 0 }, ref)).not.toBeNull();
   });
 
   /**
@@ -257,9 +248,7 @@ describe("reachableTeleportAt", () => {
       { tileId: "portal", teleportTo: { x: 5, y: 5, z: 0 } },
     ]);
     const ref = { x: 1, y: 0, z: -1, stackIndex: 1 };
-    expect(
-      reachableTeleportAt(map, tilesById, { x: 0, y: 0, z: 0 }, ref),
-    ).toBeNull();
+    expect(reachableTeleportAt(map, tilesById, { x: 0, y: 0, z: 0 }, ref)).toBeNull();
   });
 
   /** And the same doorway with a hole in the floor above it. */
@@ -273,9 +262,11 @@ describe("reachableTeleportAt", () => {
       { tileId: "portal", teleportTo: { x: 5, y: 5, z: 0 } },
     ]);
     const ref = { x: 1, y: 0, z: -1, stackIndex: 1 };
-    expect(
-      reachableTeleportAt(map, tilesById, { x: 0, y: 0, z: 0 }, ref)?.to,
-    ).toEqual({ x: 5, y: 5, z: 0 });
+    expect(reachableTeleportAt(map, tilesById, { x: 0, y: 0, z: 0 }, ref)?.to).toEqual({
+      x: 5,
+      y: 5,
+      z: 0,
+    });
   });
 
   it("never offers a `step` pad, which answers to no press", () => {
@@ -283,16 +274,19 @@ describe("reachableTeleportAt", () => {
       { tileId: "grass" },
       { tileId: "player", direction: "e" },
     ]);
-    map = replaceStack(map, 1, 0, 0, [
-      { tileId: "pad", teleportTo: { x: 5, y: 5, z: 0 } },
-    ]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "pad", teleportTo: { x: 5, y: 5, z: 0 } }]);
     expect(
-      reachableTeleportAt(map, tilesById, { x: 0, y: 0, z: 0 }, {
-        x: 1,
-        y: 0,
-        z: 0,
-        stackIndex: 0,
-      }),
+      reachableTeleportAt(
+        map,
+        tilesById,
+        { x: 0, y: 0, z: 0 },
+        {
+          x: 1,
+          y: 0,
+          z: 0,
+          stackIndex: 0,
+        },
+      ),
     ).toBeNull();
   });
 
@@ -310,9 +304,7 @@ describe("reachableTeleportAt", () => {
     const actor = { x: 0, y: 0, z: 0 };
     // The trip is authored — it is the far end that refuses it.
     expect(reachableTeleportAt(map, tilesById, actor, ref)).not.toBeNull();
-    expect(
-      canTeleportFrom(map, tilesById, actor, ref, tilesById.player!),
-    ).toBe(false);
+    expect(canTeleportFrom(map, tilesById, actor, ref, tilesById.player!)).toBe(false);
   });
 
   /**
@@ -335,14 +327,10 @@ describe("reachableTeleportAt", () => {
     ]);
     const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
     const actor = { x: 0, y: 0, z: 0 };
-    expect(
-      canTeleportFrom(map, tilesById, actor, ref, tilesById.player!),
-    ).toBe(true);
+    expect(canTeleportFrom(map, tilesById, actor, ref, tilesById.player!)).toBe(true);
     // A deer that walks onto the same pad is stopped by them, as it is by
     // anything else standing in the way.
-    expect(canTeleportFrom(map, tilesById, actor, ref, tilesById.deer!)).toBe(
-      false,
-    );
+    expect(canTeleportFrom(map, tilesById, actor, ref, tilesById.deer!)).toBe(false);
   });
 });
 
@@ -363,9 +351,7 @@ describe("GameSession teleport", () => {
       world({ tileId: "portal", teleportTo: { x: 5, y: 5, z: 0 } }),
       tiles,
     );
-    expect(session.activateTeleport({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(
-      true,
-    );
+    expect(session.activateTeleport({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(true);
     expect(stackIds(session.getMap(), 0, 0)).toEqual(["grass"]);
     expect(stackIds(session.getMap(), 5, 5)).toEqual(["grass", "player"]);
   });
@@ -384,9 +370,7 @@ describe("GameSession teleport", () => {
     let map = world({ tileId: "portal", teleportTo: { x: 5, y: 5, z: 0 } });
     map = replaceStack(map, 5, 5, 0, [{ tileId: "wall" }]);
     const session = new GameSession(map, tiles);
-    expect(session.activateTeleport({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(
-      false,
-    );
+    expect(session.activateTeleport({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(false);
     expect(stackIds(session.getMap(), 0, 0)).toEqual(["grass", "player"]);
   });
 
@@ -417,9 +401,7 @@ describe("GameSession teleport", () => {
     ]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "grass" }]);
     const session = new GameSession(map, tiles);
-    expect(session.activateTeleport({ x: 0, y: 0, z: 0, stackIndex: 1 })).toBe(
-      true,
-    );
+    expect(session.activateTeleport({ x: 0, y: 0, z: 0, stackIndex: 1 })).toBe(true);
     expect(stackIds(session.getMap(), 0, 0, 1)).toEqual(["grass", "player"]);
   });
 });
@@ -427,16 +409,10 @@ describe("GameSession teleport", () => {
 describe("stepping onto a pad", () => {
   /** Pad one cell east of the player, with floor at the far end. */
   function padWorld(to: { x: number; y: number; z: number }, tileId = "player") {
-    let map = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "grass" },
-      { tileId, direction: "e" },
-    ]);
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId, direction: "e" }]);
     // Every map needs exactly one player tile, so a deer's world still parks one.
     if (tileId !== "player") {
-      map = replaceStack(map, 9, 9, 0, [
-        { tileId: "grass" },
-        { tileId: "player", direction: "s" },
-      ]);
+      map = replaceStack(map, 9, 9, 0, [{ tileId: "grass" }, { tileId: "player", direction: "s" }]);
     }
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "pad", teleportTo: to }]);
     map = replaceStack(map, to.x, to.y, to.z, [{ tileId: "grass" }]);
@@ -503,14 +479,8 @@ describe("being shoved onto a pad", () => {
       { tileId: "grass" },
       { tileId: "player", direction: "e" },
     ]);
-    map = replaceStack(map, 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "shovable", direction: "e" },
-    ]);
-    map = replaceStack(map, 2, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "pad", teleportTo: to },
-    ]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "shovable", direction: "e" }]);
+    map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }, { tileId: "pad", teleportTo: to }]);
     return replaceStack(map, to.x, to.y, to.z, [{ tileId: "grass" }]);
   }
 
@@ -548,9 +518,7 @@ describe("climbing onto an intangible ladder top", () => {
 
   it("climbs, and stays up there", () => {
     const session = new GameSession(ladderColumn(flooredTop), tiles);
-    expect(session.activateTeleport({ x: 0, y: 0, z: 0, stackIndex: 1 })).toBe(
-      true,
-    );
+    expect(session.activateTeleport({ x: 0, y: 0, z: 0, stackIndex: 1 })).toBe(true);
     run(session, 30);
     expect(whereIs(session.getMap(), "player")).toMatchObject({
       x: 0,
@@ -561,9 +529,7 @@ describe("climbing onto an intangible ladder top", () => {
 
   it("drops back down through a top with no floor under it", () => {
     const session = new GameSession(ladderColumn(floorlessTop), tiles);
-    expect(session.activateTeleport({ x: 0, y: 0, z: 0, stackIndex: 1 })).toBe(
-      true,
-    );
+    expect(session.activateTeleport({ x: 0, y: 0, z: 0, stackIndex: 1 })).toBe(true);
     run(session, 30);
     expect(whereIs(session.getMap(), "player")).toMatchObject({ z: 0 });
   });

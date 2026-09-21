@@ -284,14 +284,13 @@ type Flat = {
   levels: Record<string, Record<string, Placed[]>>;
 };
 const map: Flat = JSON.parse(await Bun.file(MAP_PATH).text());
-const tiles: TileDef[] = (
-  JSON.parse(await Bun.file(TILES_PATH).text()) as unknown[]
-).map((raw) => normalizeTileDef(raw));
+const tiles: TileDef[] = (JSON.parse(await Bun.file(TILES_PATH).text()) as unknown[]).map((raw) =>
+  normalizeTileDef(raw),
+);
 const tilesById = tilesByIdFromList(tiles);
 
 const level = (z: number) => (map.levels[String(z)] ??= {});
-const getStack = (z: number, x: number, y: number): Placed[] =>
-  level(z)[coordKey(x, y)] ?? [];
+const getStack = (z: number, x: number, y: number): Placed[] => level(z)[coordKey(x, y)] ?? [];
 const setStack = (z: number, x: number, y: number, stack: Placed[]) => {
   if (stack.length === 0) delete level(z)[coordKey(x, y)];
   else level(z)[coordKey(x, y)] = stack;
@@ -340,8 +339,7 @@ const cellX = (i: number) => (i % W) + X0;
 const cellY = (i: number) => Math.floor(i / W) + Y0;
 const at = (i: number): Cell => ({ x: cellX(i), y: cellY(i) });
 const inBounds = (x: number, y: number) => x >= X0 && x <= X1 && y >= Y0 && y <= Y1;
-const chebyshev = (a: Cell, b: Cell) =>
-  Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
+const chebyshev = (a: Cell, b: Cell) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 
 type Mask = Uint8Array;
 const newMask = () => new Uint8Array(W * H);
@@ -422,12 +420,7 @@ const INSIDE_THE_MAP: Mask = (() => {
   const mask = newMask();
   for (let i = 0; i < mask.length; i++) {
     const here = at(i);
-    const fromEdge = Math.min(
-      here.x - X0,
-      X1 - here.x,
-      here.y - Y0,
-      Y1 - here.y,
-    );
+    const fromEdge = Math.min(here.x - X0, X1 - here.x, here.y - Y0, Y1 - here.y);
     mask[i] = fromEdge >= DAYLIGHT_LID_REACH ? 1 : 0;
   }
   return mask;
@@ -521,8 +514,7 @@ function generateCave(seed: number, candidates: Mask): Mask {
       }
       const here = at(i);
       const crowded = rockAround(rock, here.x, here.y, 1) >= ROCK_CROWDING;
-      const sprawling =
-        pass < SPRAWL_PASSES && rockAround(rock, here.x, here.y, 2) <= OPEN_SPRAWL;
+      const sprawling = pass < SPRAWL_PASSES && rockAround(rock, here.x, here.y, 2) <= OPEN_SPRAWL;
       next[i] = crowded || sprawling ? 1 : 0;
     }
     rock = next;
@@ -907,9 +899,7 @@ function carveSystem(): Carved {
       .map((key) => at(Number(key.split(":")[1])));
 
     const nooks = shuffled(
-      standable.filter(
-        (c) => rockAround(floor.rock, cellX(c), cellY(c), 1) >= CRYSTAL_NOOK_ROCK,
-      ),
+      standable.filter((c) => rockAround(floor.rock, cellX(c), cellY(c), 1) >= CRYSTAL_NOOK_ROCK),
       random,
     );
     const chosen: number[] = [];
@@ -937,9 +927,7 @@ function carveSystem(): Carved {
       crystals.push({ z: floor.z, cell: c, tileId: kinds[Math.floor(random() * kinds.length)]! });
     }
 
-    const arrivals = ramps
-      .filter((r) => Math.abs(r.z - floor.z) <= 1)
-      .map((r) => at(r.cell));
+    const arrivals = ramps.filter((r) => Math.abs(r.z - floor.z) <= 1).map((r) => at(r.cell));
     const habitable = standable.filter(
       (c) =>
         !filled.has(`${floor.z}:${c}`) &&
@@ -1042,7 +1030,11 @@ function writeSystem(carved: Carved) {
   for (const floor of carved.floors) {
     for (let c = 0; c < floor.open.length; c++) {
       if (!floor.open[c]) continue;
-      carve(floor.z, c, CAVE_FLOOR.map((t) => ({ ...t })));
+      carve(
+        floor.z,
+        c,
+        CAVE_FLOOR.map((t) => ({ ...t })),
+      );
       placed.floor++;
     }
 
@@ -1055,7 +1047,12 @@ function writeSystem(carved: Carved) {
       if (carved.rampHoles.has(`${floor.z}:${c}`) || carved.pits.has(`${floor.z}:${c}`)) continue;
       const here = at(c);
       if (getStack(floor.z, here.x, here.y).length > 0) continue;
-      setStack(floor.z, here.x, here.y, ROCK.map((t) => ({ ...t })));
+      setStack(
+        floor.z,
+        here.x,
+        here.y,
+        ROCK.map((t) => ({ ...t })),
+      );
       placed.rock++;
     }
   }
@@ -1080,10 +1077,7 @@ function writeSystem(carved: Carved) {
     placed.crystals++;
   }
   for (const creature of carved.creatures) {
-    carve(creature.z, creature.cell, [
-      ...CAVE_FLOOR,
-      { tileId: creature.tileId, direction: "s" },
-    ]);
+    carve(creature.z, creature.cell, [...CAVE_FLOOR, { tileId: creature.tileId, direction: "s" }]);
     placed.creatures++;
   }
 
@@ -1117,7 +1111,12 @@ function writeSystem(carved: Carved) {
     if (SEALED_ROOF[c] || !nearCaves[c]) continue;
     const here = at(c);
     if (getStack(lidLevel, here.x, here.y).length > 0) continue;
-    setStack(lidLevel, here.x, here.y, ROCK.map((t) => ({ ...t })));
+    setStack(
+      lidLevel,
+      here.x,
+      here.y,
+      ROCK.map((t) => ({ ...t })),
+    );
     placed.lid++;
   }
 
@@ -1240,10 +1239,7 @@ function checkWritten(carved?: Carved): string[] {
   for (const cell of denCells) {
     const [x, y, z] = cell.split(",").map(Number) as [number, number, number];
     // The mouth is meant to let the day in, and to spill a little way inside.
-    const fromMouth = Math.max(
-      Math.abs(x - SYSTEM.mouth.x),
-      Math.abs(y - SYSTEM.mouth.y),
-    );
+    const fromMouth = Math.max(Math.abs(x - SYSTEM.mouth.x), Math.abs(y - SYSTEM.mouth.y));
     if (fromMouth <= MAX_LIGHT_LEVEL) continue;
     const lv = flood.levels.get(z);
     if (!lv) continue;
@@ -1301,8 +1297,7 @@ function checkWritten(carved?: Carved): string[] {
     );
   };
   const feetAt = (x: number, y: number, z: number) =>
-    listStandingSurfaces(live, x, y, tilesById).find((s) => s.z === z)?.abs ??
-    z * HEIGHT_PER_LEVEL;
+    listStandingSurfaces(live, x, y, tilesById).find((s) => s.z === z)?.abs ?? z * HEIGHT_PER_LEVEL;
 
   const approach = {
     x: SYSTEM.mouth.x - STEP[SYSTEM.mouthDescent].x,

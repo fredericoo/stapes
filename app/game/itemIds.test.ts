@@ -31,14 +31,15 @@ const tiles = [
 const tilesById = tilesByIdFromList(tiles);
 
 function mapWith(stacks: Array<{ x: number; y: number; stack: PlacedTile[] }>): MapFile {
-  return setStacks({ version: MAP_FILE_VERSION, levels: {} }, stacks.map((s) => ({ ...s, z: 0 })));
+  return setStacks(
+    { version: MAP_FILE_VERSION, levels: {} },
+    stacks.map((s) => ({ ...s, z: 0 })),
+  );
 }
 
 describe("mintItemIds", () => {
   it("gives every item an identity", () => {
-    const map = mapWith([
-      { x: 0, y: 0, stack: [{ tileId: "grass" }, { tileId: "rusty-sword" }] },
-    ]);
+    const map = mapWith([{ x: 0, y: 0, stack: [{ tileId: "grass" }, { tileId: "rusty-sword" }] }]);
     const next = mintItemIds(map, tilesById);
     const stack = getStack(next, 0, 0, 0);
     expect(stack[0].itemId).toBeUndefined();
@@ -62,17 +63,13 @@ describe("mintItemIds", () => {
    * re-minting would make yesterday's sword a different sword.
    */
   it("leaves an identity it has already given alone", () => {
-    const map = mapWith([
-      { x: 0, y: 0, stack: [{ tileId: "rusty-sword", itemId: "itm_known" }] },
-    ]);
+    const map = mapWith([{ x: 0, y: 0, stack: [{ tileId: "rusty-sword", itemId: "itm_known" }] }]);
     const next = mintItemIds(map, tilesById);
     expect(getStack(next, 0, 0, 0)[0].itemId).toBe("itm_known");
   });
 
   it("is idempotent — a second pass changes nothing at all", () => {
-    const map = mapWith([
-      { x: 0, y: 0, stack: [{ tileId: "basic-bag" }] },
-    ]);
+    const map = mapWith([{ x: 0, y: 0, stack: [{ tileId: "basic-bag" }] }]);
     const once = mintItemIds(map, tilesById);
     const twice = mintItemIds(once, tilesById);
     // Same object, not merely equal: a pass with nothing to do must not copy

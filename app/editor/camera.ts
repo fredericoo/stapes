@@ -51,14 +51,8 @@ export function cameraForCenter(
   viewport: Viewport,
 ): { x: number; y: number } {
   return {
-    x:
-      (cell.x + CELL_CENTRE) * CELL_SIZE -
-      CELL_SIZE * cell.z -
-      viewport.width / 2 / zoom,
-    y:
-      (cell.y + CELL_CENTRE) * CELL_SIZE -
-      CELL_SIZE * cell.z -
-      viewport.height / 2 / zoom,
+    x: (cell.x + CELL_CENTRE) * CELL_SIZE - CELL_SIZE * cell.z - viewport.width / 2 / zoom,
+    y: (cell.y + CELL_CENTRE) * CELL_SIZE - CELL_SIZE * cell.z - viewport.height / 2 / zoom,
   };
 }
 

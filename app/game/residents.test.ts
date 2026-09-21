@@ -47,10 +47,7 @@ function strip(width: number): MapFile {
   for (let x = 0; x < width; x++) {
     map = replaceStack(map, x, 0, 0, [{ tileId: "grass" }]);
   }
-  map = replaceStack(map, 0, 0, 0, [
-    { tileId: "grass" },
-    { tileId: "player", direction: "e" },
-  ]);
+  map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "e" }]);
   return map;
 }
 
@@ -95,10 +92,7 @@ describe("adopting residents", () => {
     const session = new GameSession(withBody(strip(4), 2, "deer"), tiles, { actorIds: [] });
 
     expect(session.actorIds()).toEqual(["npc:2,0,0,1"]);
-    expect(ownersAt(session.getMap(), 2, 0, 0)).toEqual([
-      undefined,
-      "npc:2,0,0,1",
-    ]);
+    expect(ownersAt(session.getMap(), 2, 0, 0)).toEqual([undefined, "npc:2,0,0,1"]);
   });
 
   it("tells two bodies in one cell apart", () => {
@@ -140,12 +134,15 @@ describe("adopting residents", () => {
     const first = new GameSession(withBody(strip(4), 2, "deer"), tiles, { actorIds: [] });
     const id = first.actorIds()[0]!;
 
-    const resumed = new GameSession(first.getMap(), tiles, { actorIds: [], spawnAt: {
-      x: 0,
-      y: 0,
-      z: 0,
-      stackIndex: 1,
-    } });
+    const resumed = new GameSession(first.getMap(), tiles, {
+      actorIds: [],
+      spawnAt: {
+        x: 0,
+        y: 0,
+        z: 0,
+        stackIndex: 1,
+      },
+    });
 
     expect(resumed.actorIds()).toEqual([id]);
     // And exactly one body, rather than the original plus a fresh one.
@@ -160,10 +157,9 @@ describe("residents and the reaper", () => {
    * of who is present — and reaping on that alone emptied the world.
    */
   it("keeps residents while removing players nobody is driving", () => {
-    const session = new GameSession(withBody(strip(4), 2, "deer"), tiles, { actorIds: [
-      "alice",
-      "bob",
-    ] });
+    const session = new GameSession(withBody(strip(4), 2, "deer"), tiles, {
+      actorIds: ["alice", "bob"],
+    });
 
     session.reapAbsentActors(["alice"]);
 
@@ -202,9 +198,7 @@ describe("a resident is its own tile", () => {
 
     // Landed on the grass a level down, and left nothing behind.
     expect(placedAt(session.getMap(), 2, 0, 1)).toHaveLength(0);
-    expect(
-      placedAt(session.getMap(), 2, 0, 0).map((p) => p.tileId),
-    ).toContain("deer");
+    expect(placedAt(session.getMap(), 2, 0, 0).map((p) => p.tileId)).toContain("deer");
   });
 
   it("presses a pressure plate by standing on it", () => {
@@ -213,9 +207,7 @@ describe("a resident is its own tile", () => {
 
     const session = new GameSession(map, tiles, { actorIds: [] });
 
-    expect(placedAt(session.getMap(), 2, 0, 0)[0]!.tileId).toBe(
-      "plate-pressed",
-    );
+    expect(placedAt(session.getMap(), 2, 0, 0)[0]!.tileId).toBe("plate-pressed");
   });
 });
 

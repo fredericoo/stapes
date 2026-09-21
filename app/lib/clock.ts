@@ -31,6 +31,7 @@ export type IlluminationKeyframe = {
  */
 export const ILLUMINATION_KEYFRAMES: readonly IlluminationKeyframe[] = [
   // Night plateau (held through midnight via matching 19:00 / 04:00 keys)
+  // oxlint-disable-next-line erasing-op -- an hour like every key below it
   { at: 0 * 60, ambient: [0.04, 0.05, 0.1] },
   { at: 4 * 60, ambient: [0.04, 0.05, 0.1] },
   { at: 6 * 60, ambient: [0.35, 0.32, 0.4] },
@@ -68,10 +69,7 @@ export function formatClock(minutes: MinutesOfDay): string {
  * summed frame by frame runs slow by however long it spent unfocused. Two
  * clients that started in agreement would then quietly stop agreeing.
  */
-export function clockAfter(
-  minutes: MinutesOfDay,
-  elapsedMs: number,
-): MinutesOfDay {
+export function clockAfter(minutes: MinutesOfDay, elapsedMs: number): MinutesOfDay {
   return wrapMinutes(minutes + elapsedMs / MS_PER_CLOCK_MINUTE);
 }
 

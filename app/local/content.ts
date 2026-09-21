@@ -34,9 +34,7 @@ export class ApiBlobs implements Blobs {
       return this.json<{ map: string }>("/api/map", (body) => body.map);
     }
     if (key === "tiles.json") {
-      return this.json<{ tiles: unknown[] }>("/api/tiles", (body) =>
-        JSON.stringify(body.tiles),
-      );
+      return this.json<{ tiles: unknown[] }>("/api/tiles", (body) => JSON.stringify(body.tiles));
     }
     if (key === "statuses.json") {
       return this.json<{ statuses: unknown[] }>("/api/statuses", (body) =>
@@ -54,9 +52,7 @@ export class ApiBlobs implements Blobs {
   async getBytes(key: string): Promise<Uint8Array<ArrayBuffer> | null> {
     if (!key.startsWith("tilesets/")) return null;
     const file = key.slice("tilesets/".length);
-    const response = await fetch(
-      `${this.origin}/api/tilesets/${encodeURIComponent(file)}`,
-    );
+    const response = await fetch(`${this.origin}/api/tilesets/${encodeURIComponent(file)}`);
     if (!response.ok) return null;
     return new Uint8Array(await response.arrayBuffer()) as Uint8Array<ArrayBuffer>;
   }
@@ -69,9 +65,7 @@ export class ApiBlobs implements Blobs {
    * would look like it had saved.
    */
   put(): Promise<void> {
-    return Promise.reject(
-      new Error("A world running in the browser does not author content"),
-    );
+    return Promise.reject(new Error("A world running in the browser does not author content"));
   }
 
   private async json<T>(path: string, pick: (body: T) => string): Promise<string> {

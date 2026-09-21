@@ -2,12 +2,7 @@ import type { ItemInstance } from "../lib/itemInstance";
 import type { MapFile, TileDef } from "../lib/types";
 import type { Actor } from "./affordances";
 import type { Equipment } from "./equipment";
-import {
-  placeInSlot,
-  slotKey,
-  type ItemMoveResult,
-  type SlotRef,
-} from "./itemMoves";
+import { placeInSlot, slotKey, type ItemMoveResult, type SlotRef } from "./itemMoves";
 
 /**
  * Where what a drink leaves behind goes.

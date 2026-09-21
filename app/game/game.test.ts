@@ -10,17 +10,8 @@ import {
 } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL } from "../lib/types";
-import {
-  canReplaceStack,
-  fitsTile,
-  tilesByIdFromList,
-} from "../lib/validation";
-import {
-  FALL_MS_PER_HEIGHT,
-  PUSH_STEP_MS,
-  TICK_MS,
-  WALK_DURATION_MS,
-} from "./constants";
+import { canReplaceStack, fitsTile, tilesByIdFromList } from "../lib/validation";
+import { FALL_MS_PER_HEIGHT, PUSH_STEP_MS, TICK_MS, WALK_DURATION_MS } from "./constants";
 import { resolveStatus } from "../lib/status";
 import { GameSession } from "./GameSession";
 import { findLandingAbs, isSupported } from "./gravity";
@@ -256,13 +247,8 @@ describe("fitsTile", () => {
     expect(fitsTile(full, 0, 0, 0, tilesById.grass!, tilesById).ok).toBe(true);
     expect(fitsTile(full, 0, 0, 0, tilesById.roof!, tilesById).ok).toBe(true);
 
-    const overflow = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "slab" },
-      { tileId: "wall" },
-    ]);
-    expect(fitsTile(overflow, 0, 0, 0, tilesById.grass!, tilesById).ok).toBe(
-      true,
-    );
+    const overflow = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "slab" }, { tileId: "wall" }]);
+    expect(fitsTile(overflow, 0, 0, 0, tilesById.grass!, tilesById).ok).toBe(true);
   });
 
   it("rejects overflow under an occupied level above", () => {
@@ -287,10 +273,7 @@ describe("a body is not terrain", () => {
     for (let i = 0; i < 3; i++) {
       map = replaceStack(map, i, 0, 0, [{ tileId: "grass" }]);
     }
-    return replaceStack(map, x, 0, 0, [
-      { tileId: "grass" },
-      { tileId, direction: "s", owner },
-    ]);
+    return replaceStack(map, x, 0, 0, [{ tileId: "grass" }, { tileId, direction: "s", owner }]);
   }
 
   it("weighs nothing in the stack it stands in", () => {
@@ -321,9 +304,7 @@ describe("a body is not terrain", () => {
   });
 
   it("does not hold up a body above it in the stack", () => {
-    let map = replaceStack(emptyMap(), 0, 0, 1, [
-      { tileId: "player", direction: "s", owner: "a" },
-    ]);
+    let map = replaceStack(emptyMap(), 0, 0, 1, [{ tileId: "player", direction: "s", owner: "a" }]);
     map = appendTile(map, 0, 0, 1, {
       tileId: "player",
       direction: "s",
@@ -348,13 +329,7 @@ describe("a body is not terrain", () => {
 
   it("stops a creature walking into the cell it is standing in", () => {
     const map = withBodyAt(1);
-    const walk = canWalk(
-      map,
-      { x: 0, y: 0, z: 0, stackIndex: 1 },
-      "e",
-      tilesById.deer!,
-      tilesById,
-    );
+    const walk = canWalk(map, { x: 0, y: 0, z: 0, stackIndex: 1 }, "e", tilesById.deer!, tilesById);
     expect(walk.ok).toBe(false);
   });
 
@@ -388,9 +363,7 @@ describe("a body is not terrain", () => {
     // "level above is occupied", which refused the person joining them on the
     // slab below for a reason nothing on screen could explain.
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "slab" }]);
-    map = replaceStack(map, 0, 0, 1, [
-      { tileId: "player", direction: "s", owner: "a" },
-    ]);
+    map = replaceStack(map, 0, 0, 1, [{ tileId: "player", direction: "s", owner: "a" }]);
     // slab(1) + player(2) = 3, which needs the level above to be free of
     // anything an author put there — and a body is not that.
     expect(
@@ -402,9 +375,7 @@ describe("a body is not terrain", () => {
 
   it("still stops an object being built through its legs", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "slab" }]);
-    map = replaceStack(map, 0, 0, 1, [
-      { tileId: "player", direction: "s", owner: "a" },
-    ]);
+    map = replaceStack(map, 0, 0, 1, [{ tileId: "player", direction: "s", owner: "a" }]);
     // The same overflow, asked by something that is not a person.
     expect(fitsTile(map, 0, 0, 0, tilesById.wall!, tilesById).ok).toBe(false);
   });
@@ -442,9 +413,7 @@ describe("a body is not terrain", () => {
 
   it("is nothing to land on", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
-    map = replaceStack(map, 0, 0, 1, [
-      { tileId: "player", direction: "s", owner: "a" },
-    ]);
+    map = replaceStack(map, 0, 0, 1, [{ tileId: "player", direction: "s", owner: "a" }]);
     // Falling from level 2, the only floor is the grass — not the head of the
     // person standing a level below it.
     expect(findLandingAbs(map, 0, 0, 4, tilesById)).toBe(0);
@@ -469,14 +438,7 @@ describe("canReplaceStack", () => {
   it("rejects a height-adding tile after the stack is already full", () => {
     const map = emptyMap();
     expect(
-      canReplaceStack(
-        map,
-        0,
-        0,
-        0,
-        [{ tileId: "wall" }, { tileId: "slab" }],
-        tilesById,
-      ).ok,
+      canReplaceStack(map, 0, 0, 0, [{ tileId: "wall" }, { tileId: "slab" }], tilesById).ok,
     ).toBe(false);
   });
 
@@ -523,12 +485,7 @@ describe("canReplaceStack", () => {
           0,
           0,
           0,
-          [
-            { tileId: "grass" },
-            { tileId: "door-tall" },
-            body("a"),
-            body("b"),
-          ],
+          [{ tileId: "grass" }, { tileId: "door-tall" }, body("a"), body("b")],
           tilesById,
         ).ok,
       ).toBe(false);
@@ -560,21 +517,11 @@ describe("canReplaceStack", () => {
     it("still measures the one body against the scenery under it", () => {
       // slab(1) + player(2) = 3, which overflows and needs the level above
       // free — the same answer a lone body has always got here.
-      let map = replaceStack(emptyMap(), 0, 0, 0, [
-        { tileId: "grass" },
-        body("a"),
-      ]);
+      let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, body("a")]);
       map = replaceStack(map, 0, 0, 1, [{ tileId: "roof" }]);
-      expect(
-        canReplaceStack(
-          map,
-          0,
-          0,
-          0,
-          [{ tileId: "slab" }, body("a")],
-          tilesById,
-        ).ok,
-      ).toBe(false);
+      expect(canReplaceStack(map, 0, 0, 0, [{ tileId: "slab" }, body("a")], tilesById).ok).toBe(
+        false,
+      );
     });
   });
 });
@@ -610,10 +557,7 @@ describe("canWalk climb", () => {
 
   it("walks through a full-height intangible door", () => {
     let map = mapWithPlayer({ x: 0, y: 0 });
-    map = replaceStack(map, 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "door-ajar" },
-    ]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "door-ajar" }]);
     const loc = requireSinglePlayer(map);
     const check = canWalk(
       map,
@@ -720,11 +664,7 @@ describe("canWalk climb", () => {
     // Mimics map (2,1): dirt + 2× half-height fillers on z=-1, grass on z=0.
     // Both surfaces share abs 0; the upper level must own the plane.
     let map = mapWithPlayer({ x: 0, y: 0 });
-    map = replaceStack(map, 1, 0, -1, [
-      { tileId: "dirt" },
-      { tileId: "slab" },
-      { tileId: "slab" },
-    ]);
+    map = replaceStack(map, 1, 0, -1, [{ tileId: "dirt" }, { tileId: "slab" }, { tileId: "slab" }]);
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
     const loc = requireSinglePlayer(map);
 
@@ -748,15 +688,10 @@ describe("canWalk climb", () => {
       { tileId: "player", direction: "n" },
     ]);
     map = replaceStack(map, 0, 0, 0, [{ tileId: "ramp", direction: "s" }]);
-    map = replaceStack(map, 0, -1, 0, [
-      { tileId: "slab" },
-      { tileId: "ramp", direction: "s" },
-    ]);
+    map = replaceStack(map, 0, -1, 0, [{ tileId: "slab" }, { tileId: "ramp", direction: "s" }]);
 
     const loc = requireSinglePlayer(map);
-    expect(standingAbs(map, loc.x, loc.y, loc.z, loc.stackIndex, tilesById)).toBe(
-      0,
-    );
+    expect(standingAbs(map, loc.x, loc.y, loc.z, loc.stackIndex, tilesById)).toBe(0);
 
     const ontoRamp = canWalk(
       map,
@@ -776,9 +711,7 @@ describe("canWalk climb", () => {
       { tileId: "player", direction: "n" },
     ]);
     const onRamp = requireSinglePlayer(map);
-    expect(
-      standingAbs(map, onRamp.x, onRamp.y, onRamp.z, onRamp.stackIndex, tilesById),
-    ).toBe(2);
+    expect(standingAbs(map, onRamp.x, onRamp.y, onRamp.z, onRamp.stackIndex, tilesById)).toBe(2);
 
     const ontoHalfRamp = canWalk(
       map,
@@ -808,9 +741,7 @@ describe("canWalk climb", () => {
       { tileId: "plaster" },
     ]);
     const loc = requireSinglePlayer(map);
-    expect(standingAbs(map, loc.x, loc.y, loc.z, loc.stackIndex, tilesById)).toBe(
-      4,
-    );
+    expect(standingAbs(map, loc.x, loc.y, loc.z, loc.stackIndex, tilesById)).toBe(4);
 
     const check = canWalk(
       map,
@@ -834,14 +765,7 @@ describe("canWalk climb", () => {
     const snap = session.getSnapshot();
     expect(snap.self.x).toBe(1);
     expect(
-      standingAbs(
-        snap.map,
-        snap.self.x,
-        snap.self.y,
-        snap.self.z,
-        snap.self.stackIndex,
-        tilesById,
-      ),
+      standingAbs(snap.map, snap.self.x, snap.self.y, snap.self.z, snap.self.stackIndex, tilesById),
     ).toBe(6);
   });
 });
@@ -872,19 +796,13 @@ describe("gravity support", () => {
   it("is supported with a tile underfoot", () => {
     const map = mapWithPlayer({ x: 0, y: 0 });
     const loc = requireSinglePlayer(map);
-    expect(
-      isSupported(map, loc.x, loc.y, loc.z, loc.stackIndex, tilesById),
-    ).toBe(true);
+    expect(isSupported(map, loc.x, loc.y, loc.z, loc.stackIndex, tilesById)).toBe(true);
   });
 
   it("is unsupported when alone over void", () => {
-    const map = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "player", direction: "s" },
-    ]);
+    const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "player", direction: "s" }]);
     const loc = requireSinglePlayer(map);
-    expect(
-      isSupported(map, loc.x, loc.y, loc.z, loc.stackIndex, tilesById),
-    ).toBe(false);
+    expect(isSupported(map, loc.x, loc.y, loc.z, loc.stackIndex, tilesById)).toBe(false);
   });
 
   it("finds a landing surface below", () => {
@@ -921,9 +839,7 @@ describe("GameSession walk", () => {
     snap = session.getSnapshot();
     expect(snap.self.x).toBe(1);
     expect(snap.self.y).toBe(0);
-    expect(getStack(snap.map, 0, 0, 0).some((p) => p.tileId === "player")).toBe(
-      false,
-    );
+    expect(getStack(snap.map, 0, 0, 0).some((p) => p.tileId === "player")).toBe(false);
   });
 
   /**
@@ -1043,9 +959,7 @@ describe("the ground's say in a pace", () => {
   });
 
   it("is nothing in open air", () => {
-    const map = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "player", direction: "e" },
-    ]);
+    const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "player", direction: "e" }]);
     expect(groundWalkSpeedPercent(map, at(0, 0, 0, 0), by)).toBe(0);
   });
 
@@ -1056,13 +970,8 @@ describe("the ground's say in a pace", () => {
    */
   it("never reads the walking body's own tile", () => {
     const boggy = [...tiles, tile({ id: "slug", height: 2, actor: true, walkSpeedPercent: -90 })];
-    const map = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "slug" },
-    ]);
-    expect(
-      groundWalkSpeedPercent(map, at(0, 0, 0, 1), tilesByIdFromList(boggy)),
-    ).toBe(0);
+    const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "slug" }]);
+    expect(groundWalkSpeedPercent(map, at(0, 0, 0, 1), tilesByIdFromList(boggy))).toBe(0);
   });
 });
 
@@ -1089,14 +998,7 @@ describe("GameSession fall", () => {
     expect(snap.self.fall).toBeNull();
     expect(snap.self.z).toBe(0);
     expect(
-      isSupported(
-        snap.map,
-        snap.self.x,
-        snap.self.y,
-        snap.self.z,
-        snap.self.stackIndex,
-        tilesById,
-      ),
+      isSupported(snap.map, snap.self.x, snap.self.y, snap.self.z, snap.self.stackIndex, tilesById),
     ).toBe(true);
   });
 
@@ -1105,10 +1007,7 @@ describe("GameSession fall", () => {
     // tree instead made the meadow an unwalkable hole, and a lander dropped
     // through it into the cave. The wall is there so the alternative to
     // landing is falling rather than sliding out of shot.
-    let map = replaceStack(emptyMap(), 0, 0, -1, [
-      { tileId: "dirt" },
-      { tileId: "tree" },
-    ]);
+    let map = replaceStack(emptyMap(), 0, 0, -1, [{ tileId: "dirt" }, { tileId: "tree" }]);
     map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }]);
     map = replaceStack(map, 0, 1, 0, [{ tileId: "wall" }]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "player", direction: "s" }]);
@@ -1214,10 +1113,7 @@ describe("walkable surfaces", () => {
    */
   it("does not let walkable ground under water make the water walkable", () => {
     let map = mapWithPlayer({ x: 0, y: 0 });
-    map = replaceStack(map, 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "water" },
-    ]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "water" }]);
     const loc = requireSinglePlayer(map);
     expect(
       canWalk(
@@ -1302,10 +1198,7 @@ describe("walkable surfaces", () => {
 
   it("still walks onto a dropped item lying on ordinary ground", () => {
     let map = mapWithPlayer({ x: 0, y: 0 });
-    map = replaceStack(map, 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "berry" },
-    ]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "berry" }]);
     const loc = requireSinglePlayer(map);
     expect(
       canWalk(
@@ -1487,14 +1380,8 @@ function mapWithCrate(crateX: number, width = 5): MapFile {
     map = replaceStack(map, x, 0, 0, [{ tileId: "grass" }]);
     map = replaceStack(map, x, 1, 0, [{ tileId: "grass" }]);
   }
-  map = replaceStack(map, 0, 0, 0, [
-    { tileId: "grass" },
-    { tileId: "player", direction: "e" },
-  ]);
-  map = replaceStack(map, crateX, 0, 0, [
-    { tileId: "grass" },
-    { tileId: "crate" },
-  ]);
+  map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "e" }]);
+  map = replaceStack(map, crateX, 0, 0, [{ tileId: "grass" }, { tileId: "crate" }]);
   return map;
 }
 
@@ -1555,10 +1442,7 @@ describe("GameSession canInteract", () => {
    */
   it("ignores a switch a floor below the ground it is standing on", () => {
     let map = mapWithCrate(3);
-    map = replaceStack(map, 1, 0, -1, [
-      { tileId: "grass" },
-      { tileId: "door-closed" },
-    ]);
+    map = replaceStack(map, 1, 0, -1, [{ tileId: "grass" }, { tileId: "door-closed" }]);
     const session = new GameSession(map, tiles);
     const ref = { x: 1, y: 0, z: -1, stackIndex: 1 };
 
@@ -1594,10 +1478,7 @@ describe("GameSession canInteract", () => {
 
   it("hovers an adjacent switch", () => {
     let map = mapWithCrate(3);
-    map = replaceStack(map, 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "door-closed" },
-    ]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "door-closed" }]);
     const session = new GameSession(map, tiles);
     expect(session.canInteract(crateRef(1))).toBe(true);
   });
@@ -1648,27 +1529,22 @@ describe("GameSession push", () => {
 
     const map = session.getSnapshot().map;
     expect(getStack(map, 1, 0, 0).map((p) => p.tileId)).toEqual(["grass"]);
-    expect(getStack(map, 2, 0, 0).map((p) => p.tileId)).toEqual([
-      "grass",
-      "crate",
-    ]);
+    expect(getStack(map, 2, 0, 0).map((p) => p.tileId)).toEqual(["grass", "crate"]);
   });
 
   it("pushes away from the player, whichever side they stand on", () => {
     // Player east of the crate this time — it should travel west, not east.
     let map = mapWithCrate(1);
     map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }]);
-    map = replaceStack(map, 2, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "player", direction: "w" },
-    ]);
+    map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "w" }]);
     const session = new GameSession(map, tiles);
     expect(session.push(crateRef(1))).toBe(true);
     runSlide(session);
 
-    expect(
-      getStack(session.getSnapshot().map, 0, 0, 0).map((p) => p.tileId),
-    ).toEqual(["grass", "crate"]);
+    expect(getStack(session.getSnapshot().map, 0, 0, 0).map((p) => p.tileId)).toEqual([
+      "grass",
+      "crate",
+    ]);
   });
 
   it("turns the player toward the object they shove", () => {
@@ -1703,9 +1579,10 @@ describe("GameSession push", () => {
     const session = new GameSession(map, tiles);
     expect(session.push({ x: 1, y: 0, z: -1, stackIndex: 1 })).toBe(true);
     runSlide(session);
-    expect(
-      getStack(session.getSnapshot().map, 2, 0, -1).map((p) => p.tileId),
-    ).toEqual(["grass", "crate"]);
+    expect(getStack(session.getSnapshot().map, 2, 0, -1).map((p) => p.tileId)).toEqual([
+      "grass",
+      "crate",
+    ]);
   });
 
   it("refuses an object two floors away", () => {
@@ -1731,11 +1608,7 @@ describe("GameSession push", () => {
     expect(session.push({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(true);
     const snap = session.getSnapshot();
     expect(getStack(snap.map, 1, 0, 0).map((p) => p.tileId)).toEqual(["grass"]);
-    expect(getStack(snap.map, 2, 0, 0).map((p) => p.tileId)).toEqual([
-      "grass",
-      "crate",
-      "slab",
-    ]);
+    expect(getStack(snap.map, 2, 0, 0).map((p) => p.tileId)).toEqual(["grass", "crate", "slab"]);
     // Both travelling tiles are named, so the sprite for the rider slides with
     // the crate rather than snapping to the new cell.
     expect(snap.self.slide?.object).toEqual({ x: 2, y: 0, z: 0, stackIndex: 1 });
@@ -1761,15 +1634,15 @@ describe("GameSession push", () => {
     expect(session.push({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(false);
   });
 
-
   it("does nothing when the cell behind the object is blocked", () => {
     let map = mapWithCrate(1);
     map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }, { tileId: "tree" }]);
     const session = new GameSession(map, tiles);
     expect(session.push(crateRef(1))).toBe(false);
-    expect(
-      getStack(session.getSnapshot().map, 1, 0, 0).map((p) => p.tileId),
-    ).toEqual(["grass", "crate"]);
+    expect(getStack(session.getSnapshot().map, 1, 0, 0).map((p) => p.tileId)).toEqual([
+      "grass",
+      "crate",
+    ]);
   });
 
   it("pushes an object over a ledge down to the floor below", () => {
@@ -1780,9 +1653,10 @@ describe("GameSession push", () => {
     const session = new GameSession(map, tiles);
     expect(session.push(crateRef(1))).toBe(true);
     runSlide(session);
-    expect(
-      getStack(session.getSnapshot().map, 2, 0, -1).map((p) => p.tileId),
-    ).toEqual(["grass", "crate"]);
+    expect(getStack(session.getSnapshot().map, 2, 0, -1).map((p) => p.tileId)).toEqual([
+      "grass",
+      "crate",
+    ]);
   });
 
   it("commits the move up front and slides only the sprite", () => {
@@ -1793,10 +1667,7 @@ describe("GameSession push", () => {
     // animation is outstanding.
     const snap = session.getSnapshot();
     expect(getStack(snap.map, 1, 0, 0).map((p) => p.tileId)).toEqual(["grass"]);
-    expect(getStack(snap.map, 2, 0, 0).map((p) => p.tileId)).toEqual([
-      "grass",
-      "crate",
-    ]);
+    expect(getStack(snap.map, 2, 0, 0).map((p) => p.tileId)).toEqual(["grass", "crate"]);
     expect(snap.self.slide).not.toBeNull();
     expect(snap.self.slide?.from).toEqual({ x: 1, y: 0, z: 0 });
     expect(snap.self.slide?.object).toEqual({ x: 2, y: 0, z: 0, stackIndex: 1 });
@@ -1884,10 +1755,7 @@ describe("GameSession switch", () => {
     for (let x = 0; x < 3; x++) {
       map = replaceStack(map, x, 0, 0, [{ tileId: "grass" }]);
     }
-    map = replaceStack(map, 0, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "player", direction: "e" },
-    ]);
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "e" }]);
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId }]);
     return map;
   }
@@ -1897,18 +1765,20 @@ describe("GameSession switch", () => {
   it("replaces the tile with its switch target", () => {
     const session = new GameSession(mapWithSwitchable("door-closed"), tiles);
     expect(session.activateSwitch(doorRef)).toBe(true);
-    expect(
-      getStack(session.getSnapshot().map, 1, 0, 0).map((p) => p.tileId),
-    ).toEqual(["grass", "door-open"]);
+    expect(getStack(session.getSnapshot().map, 1, 0, 0).map((p) => p.tileId)).toEqual([
+      "grass",
+      "door-open",
+    ]);
   });
 
   it("toggles back when the target also has switch", () => {
     const session = new GameSession(mapWithSwitchable("door-closed"), tiles);
     expect(session.activateSwitch(doorRef)).toBe(true);
     expect(session.activateSwitch(doorRef)).toBe(true);
-    expect(
-      getStack(session.getSnapshot().map, 1, 0, 0).map((p) => p.tileId),
-    ).toEqual(["grass", "door-closed"]);
+    expect(getStack(session.getSnapshot().map, 1, 0, 0).map((p) => p.tileId)).toEqual([
+      "grass",
+      "door-closed",
+    ]);
   });
 
   it("preserves placement direction", () => {
@@ -1928,43 +1798,34 @@ describe("GameSession switch", () => {
   it("refuses when the taller target would not fit", () => {
     // slab(1)+switch(1)=2 → swapping in door-tall(2) overflows (3); roof above blocks.
     let map = mapWithSwitchable("switch-to-tall");
-    map = replaceStack(map, 1, 0, 0, [
-      { tileId: "slab" },
-      { tileId: "switch-to-tall" },
-    ]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "slab" }, { tileId: "switch-to-tall" }]);
     map = replaceStack(map, 1, 0, 1, [{ tileId: "roof" }]);
     const session = new GameSession(map, tiles);
     expect(session.activateSwitch(doorRef)).toBe(false);
-    expect(
-      getStack(session.getSnapshot().map, 1, 0, 0).map((p) => p.tileId),
-    ).toEqual(["slab", "switch-to-tall"]);
+    expect(getStack(session.getSnapshot().map, 1, 0, 0).map((p) => p.tileId)).toEqual([
+      "slab",
+      "switch-to-tall",
+    ]);
   });
 
   it("allows a taller target when overflow headroom is free", () => {
     let map = mapWithSwitchable("switch-to-tall");
-    map = replaceStack(map, 1, 0, 0, [
-      { tileId: "slab" },
-      { tileId: "switch-to-tall" },
-    ]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "slab" }, { tileId: "switch-to-tall" }]);
     const session = new GameSession(map, tiles);
     expect(session.activateSwitch(doorRef)).toBe(true);
-    expect(
-      getStack(session.getSnapshot().map, 1, 0, 0).map((p) => p.tileId),
-    ).toEqual(["slab", "door-tall"]);
+    expect(getStack(session.getSnapshot().map, 1, 0, 0).map((p) => p.tileId)).toEqual([
+      "slab",
+      "door-tall",
+    ]);
   });
 
   it("refuses out of reach", () => {
     let map = mapWithSwitchable("door-closed");
-    map = replaceStack(map, 2, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "door-closed" },
-    ]);
+    map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }, { tileId: "door-closed" }]);
     // Move the adjacent door away — only the far one remains switchable.
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
     const session = new GameSession(map, tiles);
-    expect(
-      session.activateSwitch({ x: 2, y: 0, z: 0, stackIndex: 1 }),
-    ).toBe(false);
+    expect(session.activateSwitch({ x: 2, y: 0, z: 0, stackIndex: 1 })).toBe(false);
   });
 
   it("refuses while a pushed object is still travelling", () => {
@@ -1984,9 +1845,7 @@ describe("GameSession switch", () => {
       { tileId: "slab" },
     ]);
     const session = new GameSession(map, tiles);
-    expect(
-      session.activateSwitch({ x: 1, y: 0, z: 0, stackIndex: 1 }),
-    ).toBe(false);
+    expect(session.activateSwitch({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(false);
   });
 });
 

@@ -87,9 +87,7 @@ describe("LocalStore", () => {
 
     expect(await store.delete("actor:alice")).toBe(true);
     expect(await store.delete("actor:nobody")).toBe(false);
-    expect([...(await store.list({ prefix: "actor:" })).keys()]).toEqual([
-      "actor:bob",
-    ]);
+    expect([...(await store.list({ prefix: "actor:" })).keys()]).toEqual(["actor:bob"]);
   });
 
   it("counts a batch delete", async () => {

@@ -25,15 +25,11 @@ describe("slotAppearance", () => {
   });
 
   it("draws an open container as open, over merely being full", () => {
-    expect(
-      slotAppearance({ ...NOTHING_HAPPENING, filled: true, isOpen: true }),
-    ).toBe("open");
+    expect(slotAppearance({ ...NOTHING_HAPPENING, filled: true, isOpen: true })).toBe("open");
   });
 
   it("draws a cooling stone as locked, over merely being full", () => {
-    expect(
-      slotAppearance({ ...NOTHING_HAPPENING, filled: true, locked: true }),
-    ).toBe("locked");
+    expect(slotAppearance({ ...NOTHING_HAPPENING, filled: true, locked: true })).toBe("locked");
   });
 
   /**
@@ -62,9 +58,7 @@ describe("slotAppearance", () => {
    * is asking about at the moment they are true.
    */
   it("draws a square whose contents nothing reads as idle", () => {
-    expect(slotAppearance({ ...NOTHING_HAPPENING, filled: true, idle: true })).toBe(
-      "idle",
-    );
+    expect(slotAppearance({ ...NOTHING_HAPPENING, filled: true, idle: true })).toBe("idle");
     expect(
       slotAppearance({
         ...NOTHING_HAPPENING,
@@ -76,8 +70,6 @@ describe("slotAppearance", () => {
   });
 
   it("puts the square under the pointer above the rest of the legal ones", () => {
-    expect(
-      slotAppearance({ ...NOTHING_HAPPENING, isOver: true, wouldTake: true }),
-    ).toBe("landing");
+    expect(slotAppearance({ ...NOTHING_HAPPENING, isOver: true, wouldTake: true })).toBe("landing");
   });
 });

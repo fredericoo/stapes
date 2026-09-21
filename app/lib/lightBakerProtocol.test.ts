@@ -33,9 +33,7 @@ describe("light baker map mirror", () => {
   it("sends the whole map when there is no baseline", () => {
     const patch = diffMapChunks(null, base);
     expect(patch).not.toBeNull();
-    expect(Object.keys(patch!.levels).sort()).toEqual(
-      Object.keys(base.levels).sort(),
-    );
+    expect(Object.keys(patch!.levels).sort()).toEqual(Object.keys(base.levels).sort());
   });
 
   it("tracks placements, replacements and removals", () => {
@@ -55,21 +53,15 @@ describe("light baker map mirror", () => {
     const versions = [base, a, b, c, d, e];
     for (let i = 1; i < versions.length; i++) {
       const mirror = mirrorThrough(versions.slice(0, i + 1));
-      expect(JSON.stringify(mirror), `after edit ${i}`).toEqual(
-        JSON.stringify(versions[i]),
-      );
+      expect(JSON.stringify(mirror), `after edit ${i}`).toEqual(JSON.stringify(versions[i]));
     }
   });
 
   it("drops a level the map no longer has", () => {
-    const withLevel = replaceStack(base, 300, 300, 6, [
-      { tileId: "stone-wall" },
-    ]);
+    const withLevel = replaceStack(base, 300, 300, 6, [{ tileId: "stone-wall" }]);
     const gone: MapFile = {
       ...withLevel,
-      levels: Object.fromEntries(
-        Object.entries(withLevel.levels).filter(([lz]) => lz !== "6"),
-      ),
+      levels: Object.fromEntries(Object.entries(withLevel.levels).filter(([lz]) => lz !== "6")),
     };
     const mirror = mirrorThrough([withLevel, gone]);
     expect(mirror.levels["6"]).toBeUndefined();

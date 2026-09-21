@@ -265,9 +265,7 @@ describe("interactionsForSave", () => {
   });
 
   it("omits an empty switch target", () => {
-    expect(
-      interactionsForSave({ switch: { targetTileId: "" } }),
-    ).toBeUndefined();
+    expect(interactionsForSave({ switch: { targetTileId: "" } })).toBeUndefined();
   });
 
   it("omits the field when nothing is enabled", () => {
@@ -302,8 +300,7 @@ describe("interactionsForSave", () => {
    */
   it("carries a base far off the default through a save", () => {
     expect(
-      interactionsForSave({ battler: { ...DEFAULT_BATTLER, baseHp: 400 } })
-        ?.battler?.baseHp,
+      interactionsForSave({ battler: { ...DEFAULT_BATTLER, baseHp: 400 } })?.battler?.baseHp,
     ).toBe(400);
   });
 
@@ -314,9 +311,9 @@ describe("interactionsForSave", () => {
    */
   it("writes a base for a draft that predates the field", () => {
     const { baseHp: _dropped, ...old } = DEFAULT_BATTLER;
-    expect(
-      interactionsForSave({ battler: old as BattlerDef })?.battler?.baseHp,
-    ).toBe(DEFAULT_BATTLER.baseHp);
+    expect(interactionsForSave({ battler: old as BattlerDef })?.battler?.baseHp).toBe(
+      DEFAULT_BATTLER.baseHp,
+    );
   });
 
   /**
@@ -425,9 +422,9 @@ describe("interactionsForSave", () => {
   });
 
   it("omits immunities nobody authored", () => {
-    expect(
-      interactionsForSave({ battler: { ...DEFAULT_BATTLER } })?.battler,
-    ).not.toHaveProperty("immuneTo");
+    expect(interactionsForSave({ battler: { ...DEFAULT_BATTLER } })?.battler).not.toHaveProperty(
+      "immuneTo",
+    );
   });
 
   /** Same standing cost as the kit: forgotten here, dropped on the next save. */
@@ -442,12 +439,11 @@ describe("interactionsForSave", () => {
   /** A field somebody opened and cleared is a body that leaves nothing. */
   it("omits remains nobody authored", () => {
     expect(
-      interactionsForSave({ battler: { ...DEFAULT_BATTLER, remains: "  " } })
-        ?.battler,
+      interactionsForSave({ battler: { ...DEFAULT_BATTLER, remains: "  " } })?.battler,
     ).not.toHaveProperty("remains");
-    expect(
-      interactionsForSave({ battler: { ...DEFAULT_BATTLER } })?.battler,
-    ).not.toHaveProperty("remains");
+    expect(interactionsForSave({ battler: { ...DEFAULT_BATTLER } })?.battler).not.toHaveProperty(
+      "remains",
+    );
   });
 
   /**

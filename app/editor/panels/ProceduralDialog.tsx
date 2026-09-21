@@ -2,14 +2,7 @@ import { useMemo, useState } from "react";
 import { TilePreview } from "../../components/TilePreview";
 import { E, W, blobMaskToSlice } from "../../lib/autotile";
 import type { Direction, TileDef, TilesetDef } from "../../lib/types";
-import {
-  Button,
-  Dialog,
-  FieldLabel,
-  Input,
-  NumberInput,
-  Segmented,
-} from "../../ui";
+import { Button, Dialog, FieldLabel, Input, NumberInput, Segmented } from "../../ui";
 import { CAVE_DENSITY_RANGE, CAVE_SHAPES, type CaveConfig, type CaveShape } from "../cave";
 import {
   FOREST_DENSITY_RANGE,
@@ -109,11 +102,7 @@ function TileChoiceRow({
   autotileSlice?: number;
 }) {
   return (
-    <div
-      className="flex flex-wrap items-stretch gap-1"
-      role="radiogroup"
-      aria-label={label}
-    >
+    <div className="flex flex-wrap items-stretch gap-1" role="radiogroup" aria-label={label}>
       {allowNone ? (
         <button
           type="button"
@@ -122,9 +111,7 @@ function TileChoiceRow({
           onClick={() => onChange(null)}
           className={[
             "flex w-16 flex-col items-center justify-center gap-1 border-2 p-1 text-[10px]",
-            value === null
-              ? "border-accent bg-paper"
-              : "border-border bg-panel hover:bg-paper",
+            value === null ? "border-accent bg-paper" : "border-border bg-panel hover:bg-paper",
           ].join(" ")}
         >
           <span className="flex h-10 items-center text-muted">None</span>
@@ -145,9 +132,7 @@ function TileChoiceRow({
             onClick={() => onChange(id)}
             className={[
               "flex w-16 flex-col items-center gap-1 border-2 p-1 text-[10px]",
-              active
-                ? "border-accent bg-paper"
-                : "border-border bg-panel hover:bg-paper",
+              active ? "border-accent bg-paper" : "border-border bg-panel hover:bg-paper",
             ].join(" ")}
           >
             <TilePreview
@@ -196,9 +181,7 @@ function RoofColourRow({
         onClick={() => onChange(null)}
         className={[
           "flex w-16 flex-col items-center justify-center gap-1 border-2 p-1 text-[10px]",
-          value === null
-            ? "border-accent bg-paper"
-            : "border-border bg-panel hover:bg-paper",
+          value === null ? "border-accent bg-paper" : "border-border bg-panel hover:bg-paper",
         ].join(" ")}
       >
         <span className="flex h-10 items-center text-muted">None</span>
@@ -219,9 +202,7 @@ function RoofColourRow({
             onClick={() => onChange(colour)}
             className={[
               "flex flex-col items-center gap-1 border-2 p-1 text-[10px]",
-              active
-                ? "border-accent bg-paper"
-                : "border-border bg-panel hover:bg-paper",
+              active ? "border-accent bg-paper" : "border-border bg-panel hover:bg-paper",
             ].join(" ")}
           >
             <span className="flex items-end gap-0.5">
@@ -267,11 +248,7 @@ function DoorPlacementGrid({
   disabled: boolean;
 }) {
   return (
-    <div
-      className="grid w-max grid-cols-3 gap-0.5"
-      role="radiogroup"
-      aria-label="Door placement"
-    >
+    <div className="grid w-max grid-cols-3 gap-0.5" role="radiogroup" aria-label="Door placement">
       {DOOR_ROWS.map((r) =>
         DOOR_COLUMNS.map((c) => {
           const key = doorSpotKey(r, c);
@@ -329,9 +306,7 @@ function TileGridPicker({
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return tiles;
-    return tiles.filter(
-      (t) => t.name.toLowerCase().includes(q) || t.id.includes(q),
-    );
+    return tiles.filter((t) => t.name.toLowerCase().includes(q) || t.id.includes(q));
   }, [tiles, search]);
 
   return (
@@ -381,16 +356,8 @@ function TileGridPicker({
                   : "border-transparent hover:border-border hover:bg-paper",
               ].join(" ")}
             >
-              <TilePreview
-                tile={tile}
-                tilesets={tilesets}
-                size={32}
-                chrome={false}
-                still
-              />
-              <span className="max-w-full truncate text-[9px]">
-                {tile.name}
-              </span>
+              <TilePreview tile={tile} tilesets={tilesets} size={32} chrome={false} still />
+              <span className="max-w-full truncate text-[9px]">{tile.name}</span>
             </button>
           );
         })}
@@ -578,8 +545,8 @@ function HouseForm({
       </div>
 
       <p className="text-xs text-muted">
-        Drag a rectangle on the map to place it. The site has to be level and
-        nothing may stand above it.
+        Drag a rectangle on the map to place it. The site has to be level and nothing may stand
+        above it.
       </p>
     </>
   );
@@ -626,18 +593,10 @@ function ScatterRules({
               onClick={() => setSelected(index)}
               className={[
                 "flex w-16 flex-col items-center gap-1 border-2 p-1 text-[10px]",
-                active
-                  ? "border-accent bg-paper"
-                  : "border-border bg-panel hover:bg-paper",
+                active ? "border-accent bg-paper" : "border-border bg-panel hover:bg-paper",
               ].join(" ")}
             >
-              <TilePreview
-                tile={tile}
-                tilesets={tilesets}
-                size={40}
-                chrome={false}
-                still
-              />
+              <TilePreview tile={tile} tilesets={tilesets} size={40} chrome={false} still />
               <span className="max-w-full truncate">{r.chancePercent}%</span>
             </button>
           );
@@ -665,9 +624,7 @@ function ScatterRules({
               <PercentInput
                 label="Scatter frequency"
                 value={rule.chancePercent}
-                onChange={(chancePercent) =>
-                  replace(selected, { ...rule, chancePercent })
-                }
+                onChange={(chancePercent) => replace(selected, { ...rule, chancePercent })}
               />
             </div>
             <Button
@@ -683,9 +640,7 @@ function ScatterRules({
           <TileGridPicker
             label="Scattered tile"
             value={rule.tileId}
-            onChange={(tileId) =>
-              replace(selected, { ...rule, tileId: tileId ?? rule.tileId })
-            }
+            onChange={(tileId) => replace(selected, { ...rule, tileId: tileId ?? rule.tileId })}
             tiles={tiles}
             tilesets={tilesets}
           />
@@ -696,13 +651,7 @@ function ScatterRules({
 }
 
 /** Seed plus its Re-roll, which every generator with noise in it wants. */
-function SeedField({
-  value,
-  onChange,
-}: {
-  value: number;
-  onChange: (seed: number) => void;
-}) {
+function SeedField({ value, onChange }: { value: number; onChange: (seed: number) => void }) {
   return (
     <div className="flex flex-col items-start gap-1">
       <FieldLabel info="The same rectangle and the same seed always come out the same. Re-roll for a different one.">
@@ -800,9 +749,7 @@ function ForestForm({
       </div>
 
       <div className="flex flex-col gap-1">
-        <FieldLabel info="Laid under every cell of the rectangle.">
-          Ground
-        </FieldLabel>
+        <FieldLabel info="Laid under every cell of the rectangle.">Ground</FieldLabel>
         <TileGridPicker
           label="Ground tile"
           value={draft.groundTileId}
@@ -888,9 +835,9 @@ function ForestForm({
       </div>
 
       <p className="text-xs text-muted">
-        Drag a rectangle on the map to grow it. Everything on the current level
-        inside the rectangle is replaced. Lay it against ground of the same kind
-        and a lane is cleared through to it, so a big wood can be several drags.
+        Drag a rectangle on the map to grow it. Everything on the current level inside the rectangle
+        is replaced. Lay it against ground of the same kind and a lane is cleared through to it, so
+        a big wood can be several drags.
       </p>
     </>
   );
@@ -983,9 +930,7 @@ function CaveForm({
       </div>
 
       <div className="flex flex-col gap-1">
-        <FieldLabel info="Laid under every cell you can stand on.">
-          Floor
-        </FieldLabel>
+        <FieldLabel info="Laid under every cell you can stand on.">Floor</FieldLabel>
         <TileGridPicker
           label="Floor tile"
           value={draft.floorTileId}
@@ -1039,9 +984,9 @@ function CaveForm({
       </div>
 
       <p className="text-xs text-muted">
-        Drag a rectangle on the map to carve it. Everything on the current level
-        inside the rectangle is replaced. Land it a couple of cells over another
-        cave with the same floor and the two are notched through to each other.
+        Drag a rectangle on the map to carve it. Everything on the current level inside the
+        rectangle is replaced. Land it a couple of cells over another cave with the same floor and
+        the two are notched through to each other.
       </p>
     </>
   );
@@ -1118,36 +1063,19 @@ export function ProceduralDialog({
           <Segmented
             ariaLabel="Generator"
             value={draft.active}
-            onChange={(active: GeneratorId) =>
-              setDraft((prev) => ({ ...prev, active }))
-            }
+            onChange={(active: GeneratorId) => setDraft((prev) => ({ ...prev, active }))}
             options={GENERATORS.map((g) => ({ value: g.id, label: g.label }))}
           />
         </div>
 
         {draft.active === "house" ? (
-          <HouseForm
-            draft={draft.house}
-            patch={patchHouse}
-            tiles={tiles}
-            tilesets={tilesets}
-          />
+          <HouseForm draft={draft.house} patch={patchHouse} tiles={tiles} tilesets={tilesets} />
         ) : null}
         {draft.active === "cave" ? (
-          <CaveForm
-            draft={draft.cave}
-            patch={patchCave}
-            tiles={tiles}
-            tilesets={tilesets}
-          />
+          <CaveForm draft={draft.cave} patch={patchCave} tiles={tiles} tilesets={tilesets} />
         ) : null}
         {draft.active === "forest" ? (
-          <ForestForm
-            draft={draft.forest}
-            patch={patchForest}
-            tiles={tiles}
-            tilesets={tilesets}
-          />
+          <ForestForm draft={draft.forest} patch={patchForest} tiles={tiles} tilesets={tilesets} />
         ) : null}
       </div>
     </Dialog>

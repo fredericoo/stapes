@@ -100,10 +100,7 @@ const tilesById = tilesByIdFromList(tiles);
 
 /** Player parked away from the action; every map needs exactly one. */
 function withIdlePlayer(map: MapFile): MapFile {
-  return replaceStack(map, 9, 9, 0, [
-    { tileId: "grass" },
-    { tileId: "player", direction: "s" },
-  ]);
+  return replaceStack(map, 9, 9, 0, [{ tileId: "grass" }, { tileId: "player", direction: "s" }]);
 }
 
 function stackIds(map: MapFile, x: number, y: number, z = 0): string[] {
@@ -128,21 +125,13 @@ function step(session: GameSession, direction: Direction, id?: string) {
 
 describe("loadAbove", () => {
   it("sums only what sits above the index", () => {
-    const stack = [
-      { tileId: "grass" },
-      { tileId: "plate" },
-      { tileId: "crate" },
-    ];
+    const stack = [{ tileId: "grass" }, { tileId: "plate" }, { tileId: "crate" }];
     expect(loadAbove(stack, 1, tilesById)).toBe(2);
     expect(loadAbove(stack, 2, tilesById)).toBe(0);
   });
 
   it("ignores flat and intangible tiles", () => {
-    const stack = [
-      { tileId: "plate" },
-      { tileId: "rug" },
-      { tileId: "ghost" },
-    ];
+    const stack = [{ tileId: "plate" }, { tileId: "rug" }, { tileId: "ghost" }];
     expect(loadAbove(stack, 0, tilesById)).toBe(0);
   });
 });
@@ -161,17 +150,12 @@ describe("findPlateCells", () => {
 
 describe("settlePlates", () => {
   it("presses under a load and releases without one", () => {
-    const loaded = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "plate" },
-      { tileId: "crate" },
-    ]);
+    const loaded = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "plate" }, { tileId: "crate" }]);
     const pressed = settlePlates(loaded, [{ x: 0, y: 0, z: 0 }], tilesById);
     expect(stackIds(pressed.map, 0, 0)).toEqual(["plate-pressed", "crate"]);
     expect(pressed.changed).toEqual([{ x: 0, y: 0, z: 0 }]);
 
-    const bare = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "plate-pressed" },
-    ]);
+    const bare = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "plate-pressed" }]);
     const released = settlePlates(bare, [{ x: 0, y: 0, z: 0 }], tilesById);
     expect(stackIds(released.map, 0, 0)).toEqual(["plate"]);
   });
@@ -199,10 +183,7 @@ describe("settlePlates", () => {
   });
 
   it("refuses a swap that would not fit under its own load", () => {
-    const map = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "swell" },
-      { tileId: "crate" },
-    ]);
+    const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "swell" }, { tileId: "crate" }]);
     const result = settlePlates(map, [{ x: 0, y: 0, z: 0 }], tilesById);
     expect(stackIds(result.map, 0, 0)).toEqual(["swell", "crate"]);
   });
@@ -218,16 +199,10 @@ describe("settlePlates", () => {
 
 describe("GameSession pressure plates", () => {
   it("opens in the state the authored load implies", () => {
-    let map = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "plate" },
-      { tileId: "crate" },
-    ]);
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "plate" }, { tileId: "crate" }]);
     map = withIdlePlayer(map);
     const session = new GameSession(map, tiles);
-    expect(stackIds(session.getMap(), 0, 0)).toEqual([
-      "plate-pressed",
-      "crate",
-    ]);
+    expect(stackIds(session.getMap(), 0, 0)).toEqual(["plate-pressed", "crate"]);
   });
 
   it("presses when a crate is shoved on and releases when it leaves", () => {
@@ -271,11 +246,7 @@ describe("GameSession pressure plates", () => {
 
     step(session, "e", "a");
     step(session, "e", "b");
-    expect(stackIds(session.getMap(), 1, 0)).toEqual([
-      "plate-pressed",
-      "player",
-      "player",
-    ]);
+    expect(stackIds(session.getMap(), 1, 0)).toEqual(["plate-pressed", "player", "player"]);
 
     // And it comes back up once both of them are off it.
     step(session, "e", "a");
@@ -329,11 +300,7 @@ describe("GameSession pressure plates", () => {
     // Walking onto it must still press it, from the cell it moved to.
     step(session, "e");
     step(session, "e");
-    expect(stackIds(session.getMap(), 2, 0)).toEqual([
-      "grass",
-      "plate-pressed",
-      "player",
-    ]);
+    expect(stackIds(session.getMap(), 2, 0)).toEqual(["grass", "plate-pressed", "player"]);
   });
 
   it("does not make a plate hoverable or clickable", () => {

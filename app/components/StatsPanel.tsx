@@ -129,9 +129,7 @@ export function StatsPanel({
           {HEADINGS.masteries}
         </h3>
         {earned.length === 0 ? (
-          <p className="px-1 py-1 text-xs text-paper/50">
-            Nothing practised yet. Hit something.
-          </p>
+          <p className="px-1 py-1 text-xs text-paper/50">Nothing practised yet. Hit something.</p>
         ) : (
           <ul className="flex flex-col gap-1">
             {earned.map(({ mastery, level, progress }) => (
@@ -229,8 +227,7 @@ const STATS_BODY_MAX_HEIGHT = 200;
 function Combat({ attributes }: { attributes: Attributes | null }) {
   if (!attributes) return null;
 
-  const { minDamage, maxDamage, swingMs, hitChance, def, flee, reach, walkPace } =
-    attributes;
+  const { minDamage, maxDamage, swingMs, hitChance, def, flee, reach, walkPace } = attributes;
 
   return (
     <>
@@ -305,13 +302,7 @@ function Reading({ term, value }: { term: TermKey; value: string }) {
  * masteries below print a sentence when empty because "nothing practised yet" is
  * itself something to act on; "no effects" is not.
  */
-function Effects({
-  statuses,
-  tilesets,
-}: {
-  statuses: ActiveStatus[];
-  tilesets: TilesetDef[];
-}) {
+function Effects({ statuses, tilesets }: { statuses: ActiveStatus[]; tilesets: TilesetDef[] }) {
   if (statuses.length === 0) return null;
 
   // The same comparator the strip sorts by, so the two can never disagree about
@@ -339,13 +330,7 @@ function Effects({
  * than a second judgement made here — so a status that survives an overflow
  * because it is bad is also the one printed in the colour that says so.
  */
-function EffectRow({
-  status,
-  tilesets,
-}: {
-  status: ActiveStatus;
-  tilesets: TilesetDef[];
-}) {
+function EffectRow({ status, tilesets }: { status: ActiveStatus; tilesets: TilesetDef[] }) {
   const seconds = secondsLeft(status.remainingMs);
 
   return (
@@ -360,15 +345,9 @@ function EffectRow({
           className="grid shrink-0 place-items-center"
           style={{ width: STATUS_ICON_SIZE_PX, height: STATUS_ICON_SIZE_PX }}
         >
-          <SpritePreview
-            sprite={status.icon}
-            tilesets={tilesets}
-            size={STATUS_ICON_SIZE_PX}
-          />
+          <SpritePreview sprite={status.icon} tilesets={tilesets} size={STATUS_ICON_SIZE_PX} />
         </span>
-        <span
-          className={`truncate ${status.tone === "bad" ? "text-danger" : "text-paper/80"}`}
-        >
+        <span className={`truncate ${status.tone === "bad" ? "text-danger" : "text-paper/80"}`}>
           {status.name}
         </span>
         {/* Not live text, on exactly the terms `MasteryProgress` is: a reading
@@ -445,10 +424,7 @@ function MasteryProgress({
       aria-label={`${mastery} ${level}, ${Math.round(progress * 100)}% towards the next`}
       className="flex h-1 w-full border border-paper/25 bg-ink"
     >
-      <span
-        className="bg-paper/60"
-        style={{ width: `${Math.round(progress * 100)}%` }}
-      />
+      <span className="bg-paper/60" style={{ width: `${Math.round(progress * 100)}%` }} />
     </span>
   );
 }

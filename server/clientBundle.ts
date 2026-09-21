@@ -56,11 +56,7 @@ export class ClientBundle {
    * to a blank site.
    */
   async restore(preferred?: string): Promise<void> {
-    const candidates = [
-      await this.readPointer(),
-      preferred,
-      (await this.stored()).at(-1),
-    ];
+    const candidates = [await this.readPointer(), preferred, (await this.stored()).at(-1)];
     for (const candidate of candidates) {
       if (!candidate) continue;
       try {
@@ -163,7 +159,10 @@ export class ClientBundle {
     const assets = new Map<string, Asset>();
 
     for (const path of await walk(directory)) {
-      const relative = path.slice(directory.length + 1).split(sep).join("/");
+      const relative = path
+        .slice(directory.length + 1)
+        .split(sep)
+        .join("/");
       assets.set(relative, {
         bytes: new Uint8Array(await readFile(path)),
         contentType: contentTypeFor(relative),
@@ -303,9 +302,7 @@ function toResponse(asset: Asset, path: string): Response {
   return new Response(asset.bytes as unknown as BodyInit, {
     headers: {
       "Content-Type": asset.contentType,
-      "Cache-Control": immutable
-        ? "public, max-age=31536000, immutable"
-        : "no-store",
+      "Cache-Control": immutable ? "public, max-age=31536000, immutable" : "no-store",
     },
   });
 }

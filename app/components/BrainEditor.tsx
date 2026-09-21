@@ -323,18 +323,14 @@ export function selectorVocabulary(
 
   const describe = (selector: Selector): SelectorNames | null => {
     const tileIds =
-      selector.type === "slot"
-        ? slotTiles(brain, selector.data.name)
-        : tilesNamedBy(selector);
+      selector.type === "slot" ? slotTiles(brain, selector.data.name) : tilesNamedBy(selector);
     if (tileIds.length === 0) return null;
     return {
       tiles: tileIds.map(nameOf),
       // The union, because a wolf offered "deer or rabbit" can do to either
       // whatever it can do to both — and a verb that only one of them affords
       // is exactly the mismatch worth showing.
-      affords: [
-        ...new Set(tileIds.flatMap((tileId) => affordancesOf(tileId, tiles))),
-      ],
+      affords: [...new Set(tileIds.flatMap((tileId) => affordancesOf(tileId, tiles)))],
     };
   };
 
@@ -360,13 +356,7 @@ export function selectorVocabulary(
 
 /** Pull the item at `from` out and drop it back in at `to`. */
 export function arrayMove<T>(list: T[], from: number, to: number): T[] {
-  if (
-    from === to ||
-    from < 0 ||
-    to < 0 ||
-    from >= list.length ||
-    to >= list.length
-  ) {
+  if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) {
     return list;
   }
   const next = [...list];
@@ -383,9 +373,7 @@ export function arrayMove<T>(list: T[], from: number, to: number): T[] {
  * semantics being edited.
  */
 function onSortEnd<T>(
-  event: Parameters<
-    NonNullable<React.ComponentProps<typeof DragDropProvider>["onDragEnd"]>
-  >[0],
+  event: Parameters<NonNullable<React.ComponentProps<typeof DragDropProvider>["onDragEnd"]>>[0],
   list: T[],
   apply: (next: T[]) => void,
 ) {
@@ -415,19 +403,13 @@ export function renamedState(brain: BrainDef, oldName: string, newName: string):
   };
 }
 
-export function BrainEditor({
-  brain,
-  tiles,
-  statusDefs,
-  spells = [],
-  onChange,
-}: Props) {
+export function BrainEditor({ brain, tiles, statusDefs, spells = [], onChange }: Props) {
   if (!brain) {
     return (
       <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
         <p className="text-[11px] leading-snug text-muted">
-          None. A brain is a state machine that drives the body when nobody is
-          connected to it, and makes the tile an Actor.
+          None. A brain is a state machine that drives the body when nobody is connected to it, and
+          makes the tile an Actor.
         </p>
         <Button size="sm" className="w-fit" onClick={() => onChange(EMPTY_BRAIN)}>
           Add brain
@@ -498,12 +480,7 @@ export function BrainEditor({
         onChange={(transitions) => onChange({ ...brain, transitions })}
       />
 
-      <Button
-        size="sm"
-        variant="danger"
-        className="w-fit"
-        onClick={() => onChange(undefined)}
-      >
+      <Button size="sm" variant="danger" className="w-fit" onClick={() => onChange(undefined)}>
         Remove brain
       </Button>
     </div>
@@ -549,10 +526,7 @@ function StateCard({
         ) : null}
       </div>
 
-      <EmitField
-        emit={state.emit}
-        onChange={(emit) => onChange({ ...state, emit })}
-      />
+      <EmitField emit={state.emit} onChange={(emit) => onChange({ ...state, emit })} />
 
       <VerbList
         title="On enter (effects)"
@@ -591,9 +565,7 @@ function EmitField({
       <label className="flex items-center gap-2 text-xs font-bold">
         <Switch
           checked={Boolean(emit)}
-          onCheckedChange={(on) =>
-            onChange(on ? { channel: "alarm", value: "on" } : undefined)
-          }
+          onCheckedChange={(on) => onChange(on ? { channel: "alarm", value: "on" } : undefined)}
           ariaLabel="Emit a signal while in this state"
         />
         Emit while in this state
@@ -713,9 +685,7 @@ function VerbRow<T extends BrainActionDef | BrainEffectDef>({
       ].join(" ")}
     >
       <DragHandle handleRef={handleRef} label={`Drag to reorder line ${index + 1}`} />
-      <span className="w-5 text-center font-mono text-[11px] text-muted">
-        {index + 1}
-      </span>
+      <span className="w-5 text-center font-mono text-[11px] text-muted">{index + 1}</span>
       <Select
         value={current}
         onValueChange={(v) => v && onChange(registry[v]!.make())}
@@ -809,41 +779,28 @@ function TransitionRow({
   return (
     <div
       ref={ref}
-      className={[
-        "flex flex-col gap-1.5 bg-panel p-1.5",
-        isDragging ? "opacity-60" : "",
-      ].join(" ")}
+      className={["flex flex-col gap-1.5 bg-panel p-1.5", isDragging ? "opacity-60" : ""].join(" ")}
     >
       <div className="flex flex-wrap items-center gap-2">
-      <DragHandle
-        handleRef={handleRef}
-        label={`Drag to reorder transition ${index + 1}`}
-      />
-      <span className="w-5 text-center font-mono text-[11px] text-muted">
-        {index + 1}
-      </span>
-      <span className="text-[10px] uppercase text-muted">from</span>
-      <Select
-        value={transition.from}
-        onValueChange={(v) => v && onChange({ ...transition, from: v })}
-        options={fromOptions}
-        className="min-w-[6rem]"
-      />
-      <BindField transition={transition} vocab={vocab} onChange={onChange} />
-      <span className="text-[10px] uppercase text-muted">to</span>
-      <Select
-        value={transition.to || null}
-        onValueChange={(v) => v && onChange({ ...transition, to: v })}
-        options={toOptions}
-        className="min-w-[6rem]"
-        placeholder="…"
-      />
-        <Button
-          size="sm"
-          variant="danger"
-          onClick={onRemove}
-          aria-label="Remove transition"
-        >
+        <DragHandle handleRef={handleRef} label={`Drag to reorder transition ${index + 1}`} />
+        <span className="w-5 text-center font-mono text-[11px] text-muted">{index + 1}</span>
+        <span className="text-[10px] uppercase text-muted">from</span>
+        <Select
+          value={transition.from}
+          onValueChange={(v) => v && onChange({ ...transition, from: v })}
+          options={fromOptions}
+          className="min-w-[6rem]"
+        />
+        <BindField transition={transition} vocab={vocab} onChange={onChange} />
+        <span className="text-[10px] uppercase text-muted">to</span>
+        <Select
+          value={transition.to || null}
+          onValueChange={(v) => v && onChange({ ...transition, to: v })}
+          options={toOptions}
+          className="min-w-[6rem]"
+          placeholder="…"
+        />
+        <Button size="sm" variant="danger" onClick={onRemove} aria-label="Remove transition">
           ✕
         </Button>
       </div>
@@ -898,9 +855,7 @@ function LeafFields({
     <>
       <Select
         value={leaf.cond}
-        onValueChange={(v) =>
-          v && onChange(CONDITIONS[v as BrainConditionDef["cond"]].make())
-        }
+        onValueChange={(v) => v && onChange(CONDITIONS[v as BrainConditionDef["cond"]].make())}
         options={CONDITION_NAMES.map((n) => ({
           value: n,
           label: CONDITIONS[n].label,
@@ -1014,9 +969,7 @@ function SelectorPicker({
         <TileChips
           picked={tilesNamedBy(value)}
           options={kind.tiles}
-          onChange={(tileIds) =>
-            onChange({ ...value, data: { tileIds } } as Selector)
-          }
+          onChange={(tileIds) => onChange({ ...value, data: { tileIds } } as Selector)}
         />
       ) : null}
       <Affordances names={vocab.describe(value)} />
@@ -1182,11 +1135,7 @@ function ParamField({
   if (spec.kind === "boolean") {
     return (
       <label className="flex items-center gap-1 text-[10px] uppercase text-muted">
-        <Switch
-          checked={Boolean(value)}
-          onCheckedChange={onChange}
-          ariaLabel={spec.label}
-        />
+        <Switch checked={Boolean(value)} onCheckedChange={onChange} ariaLabel={spec.label} />
         {spec.label}
       </label>
     );
@@ -1230,11 +1179,7 @@ function ParamField({
     // toggles do when nothing is authored: a picker with nothing in it looks
     // like a picker that has not loaded.
     if (vocab.spells.length === 0) {
-      return (
-        <span className="text-[10px] uppercase text-muted">
-          no spells on this body
-        </span>
-      );
+      return <span className="text-[10px] uppercase text-muted">no spells on this body</span>;
     }
     return (
       <label className="flex items-center gap-1 text-[10px] uppercase text-muted">
@@ -1327,9 +1272,7 @@ function GroundField({
         ariaLabel={spec.label}
         onCheckedChange={(on) => onChange(on ? DEFAULT_THING : undefined)}
       />
-      {value ? (
-        <SelectorPicker value={value} vocab={vocab} onChange={onChange} />
-      ) : null}
+      {value ? <SelectorPicker value={value} vocab={vocab} onChange={onChange} /> : null}
     </label>
   );
 }
@@ -1432,4 +1375,3 @@ function SpeakerFilterField({
     </label>
   );
 }
-

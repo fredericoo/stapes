@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  constantFormula,
-  type FormulaScope,
-  integerise,
-  parseFormula,
-} from "./formula";
+import { constantFormula, type FormulaScope, integerise, parseFormula } from "./formula";
 
 const scope: FormulaScope = {
   DURATION_SEC: 30,

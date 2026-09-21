@@ -38,10 +38,7 @@ const brawlerBrain = {
   states: {
     idle: { do: [{ action: "hold" as const }] },
     fighting: {
-      do: [
-        { action: "attack" as const, of: slot("foe") },
-        { action: "hold" as const },
-      ],
+      do: [{ action: "attack" as const, of: slot("foe") }, { action: "hold" as const }],
     },
   },
   transitions: [
@@ -195,10 +192,7 @@ function field(stack: PlacedTile[] = [{ tileId: "grass" }]): MapFile {
       map = replaceStack(map, x, y, 0, [{ tileId: "grass" }]);
     }
   }
-  map = replaceStack(map, 0, 0, 0, [
-    ...stack,
-    { tileId: "player", direction: "e" },
-  ]);
+  map = replaceStack(map, 0, 0, 0, [...stack, { tileId: "player", direction: "e" }]);
   return map;
 }
 
@@ -258,9 +252,7 @@ describe("a player who dies", () => {
 
     advanceUntilDead(session);
 
-    expect(skullAt(session, 0, 0)?.description).toBe(
-      "Cause of death: Burned by Hearth",
-    );
+    expect(skullAt(session, 0, 0)?.description).toBe("Cause of death: Burned by Hearth");
   });
 
   /**
@@ -288,9 +280,7 @@ describe("a player who dies", () => {
 
     // Named after its tile rather than out of the name generator, which is what
     // `./displayName` already decides for everything a creature is called.
-    expect(skullAt(session, 0, 0)?.description).toBe(
-      "Cause of death: Fangs by Wolf",
-    );
+    expect(skullAt(session, 0, 0)?.description).toBe("Cause of death: Fangs by Wolf");
   });
 
   /**
@@ -298,20 +288,13 @@ describe("a player who dies", () => {
    * read as a sentence rather than trail off into the attribution.
    */
   it("names an unnamed blow something rather than nothing", () => {
-    const session = new GameSession(
-      withBody(field(), 1, 0, "nameless-wolf"),
-      tiles,
-    );
-    const wolf = session
-      .actorSnapshots()
-      .find((a) => a.tileId === "nameless-wolf")!;
+    const session = new GameSession(withBody(field(), 1, 0, "nameless-wolf"), tiles);
+    const wolf = session.actorSnapshots().find((a) => a.tileId === "nameless-wolf")!;
     fight(session, wolf.id);
 
     advanceUntilDead(session);
 
-    expect(skullAt(session, 0, 0)?.description).toBe(
-      "Cause of death: A blow by Wolf",
-    );
+    expect(skullAt(session, 0, 0)?.description).toBe("Cause of death: A blow by Wolf");
   });
 
   /**

@@ -123,7 +123,14 @@ describe("withSpritePhase", () => {
   });
 
   it("leaves a tile with no sprites alone", () => {
-    const bare = { id: "x", name: "X", height: 0, type: "simple", kind: "prop", attributes: {} } as unknown as TileDef;
+    const bare = {
+      id: "x",
+      name: "X",
+      height: 0,
+      type: "simple",
+      kind: "prop",
+      attributes: {},
+    } as unknown as TileDef;
     expect(withSpritePhase(bare, { x: 1, y: 0 })).toEqual(bare);
   });
 });

@@ -531,11 +531,7 @@ export function clampChance(chance: number): number {
  * `../lib/mastery`'s business to refuse, and a curve that flattened out here
  * would be a second ceiling quietly beating the schema's.
  */
-function acceleratingTotal(
-  level: number,
-  atMax: number,
-  acceleration: number,
-): number {
+function acceleratingTotal(level: number, atMax: number, acceleration: number): number {
   const reach = Math.max(0, level);
   const first = (2 * atMax) / (MAX_MASTERY * (acceleration + 1));
   const curve = (first * (acceleration - 1)) / (2 * MAX_MASTERY);
@@ -568,10 +564,7 @@ export const HP_AT_MAX_TOUGHNESS =
  */
 export function maxHpFrom(baseHp: number, toughness: number): number {
   return (
-    baseHp +
-    Math.round(
-      acceleratingTotal(toughness, HP_AT_MAX_TOUGHNESS, MASTERY_ACCELERATION),
-    )
+    baseHp + Math.round(acceleratingTotal(toughness, HP_AT_MAX_TOUGHNESS, MASTERY_ACCELERATION))
   );
 }
 
@@ -591,9 +584,7 @@ export function maxHpFrom(baseHp: number, toughness: number): number {
  * share, and the three sum. Whole numbers, because damage is.
  */
 export function defFrom(toughness: number): number {
-  return Math.round(
-    acceleratingTotal(toughness, DEF_AT_MAX_TOUGHNESS, MASTERY_ACCELERATION),
-  );
+  return Math.round(acceleratingTotal(toughness, DEF_AT_MAX_TOUGHNESS, MASTERY_ACCELERATION));
 }
 
 /**
@@ -622,9 +613,7 @@ export const HASTE_AT_MAX_AGILITY = 2;
  * gives it Agility.
  */
 export function hasteFrom(agility: number): number {
-  return (
-    1 + acceleratingTotal(agility, HASTE_AT_MAX_AGILITY, MASTERY_ACCELERATION)
-  );
+  return 1 + acceleratingTotal(agility, HASTE_AT_MAX_AGILITY, MASTERY_ACCELERATION);
 }
 
 /**
@@ -776,9 +765,7 @@ export const ACCURACY_AT_MAX_MASTERY = 5;
 export function damageAtMastery(weapon: WeaponItem, level: number): number {
   if (weapon.damage <= 0) return 0;
   const skill = level / MAX_MASTERY;
-  return (
-    weapon.damage * (1 + skill * MASTERY_DAMAGE_BONUS) + skill * DAMAGE_AT_MAX_MASTERY
-  );
+  return weapon.damage * (1 + skill * MASTERY_DAMAGE_BONUS) + skill * DAMAGE_AT_MAX_MASTERY;
 }
 
 /**
@@ -860,16 +847,11 @@ export function bodyDefence(battler: BattlerDef): number {
  * Hit points and flee are untouched by the weapon, which is the other half of
  * the split: what a body *is* cannot be picked up or put down.
  */
-export function fightingStats(
-  battler: BattlerDef,
-  weapon: WeaponItem,
-): FightingStats {
+export function fightingStats(battler: BattlerDef, weapon: WeaponItem): FightingStats {
   // How much of what the weapon asks this body brings, and how well it therefore
   // handles right now. Falling short makes a weapon clumsier and slower and
   // leaves its damage alone — see {@link MIN_HANDLING}.
-  const handling = weaponHandling(
-    requirementShortfall(battler.masteries, weapon.requirements),
-  );
+  const handling = weaponHandling(requirementShortfall(battler.masteries, weapon.requirements));
 
   // The mastery the weapon itself answers to, read at its absolute level. This
   // is the "you are simply good with blades" term, and it is deliberately not a
@@ -886,10 +868,7 @@ export function fightingStats(
   // Through {@link damageAtMastery} rather than worked out here, because the
   // editor shows an author the same figure and a readout it could disagree with
   // is worse than none.
-  const damage = damageAtMastery(
-    weapon,
-    masteryLevel(battler.masteries, weapon.mastery),
-  );
+  const damage = damageAtMastery(weapon, masteryLevel(battler.masteries, weapon.mastery));
   // **Handling gates the skill bonus too, flat part included.** It is the
   // outermost factor rather than something applied to the weapon's own accuracy
   // and then added to, and that placement is the whole rule: what mastery buys
@@ -899,14 +878,10 @@ export function fightingStats(
   // strongest players stand.
   const accuracy =
     handling *
-    (weapon.accuracy * (1 + skill * MASTERY_ACCURACY_BONUS) +
-      skill * ACCURACY_AT_MAX_MASTERY);
+    (weapon.accuracy * (1 + skill * MASTERY_ACCURACY_BONUS) + skill * ACCURACY_AT_MAX_MASTERY);
 
   return {
-    maxHp: maxHpFrom(
-      battler.baseHp,
-      masteryLevel(battler.masteries, "toughness"),
-    ),
+    maxHp: maxHpFrom(battler.baseHp, masteryLevel(battler.masteries, "toughness")),
     flee: fleeFrom(masteryLevel(battler.masteries, "agility")),
     damage: Math.round(damage),
     // The weapon's own plus the body's, which is the first time defence has had
@@ -995,10 +970,7 @@ export const NO_RESISTANCES: WeaponResistances = {};
  * term anyway would be a factor that can never be anything but one, sitting in
  * the formula inviting somebody to believe it does something.
  */
-export function castingSkill(
-  masteries: Masteries,
-  requirements: Masteries | undefined,
-): number {
+export function castingSkill(masteries: Masteries, requirements: Masteries | undefined): number {
   const elements = spellElements(requirements);
   let total = masteryLevel(masteries, "arcane");
   for (const element of elements) total += masteryLevel(masteries, element);
@@ -1035,8 +1007,7 @@ export function spellPower(
   if (damage === 0) return 0;
   const skill = castingSkill(masteries, requirements);
   const magnitude =
-    Math.abs(damage) * (1 + skill * MASTERY_DAMAGE_BONUS) +
-    skill * DAMAGE_AT_MAX_MASTERY;
+    Math.abs(damage) * (1 + skill * MASTERY_DAMAGE_BONUS) + skill * DAMAGE_AT_MAX_MASTERY;
   return damage < 0 ? -magnitude : magnitude;
 }
 
@@ -1089,12 +1060,10 @@ const iconSchema = v.pipe(
       }),
     ),
   }),
-  v.transform(
-    (raw): AnchoredSprite => ({
-      ...raw,
-      base: raw.base ?? defaultBase(raw.rect),
-    }),
-  ),
+  v.transform((raw): AnchoredSprite => ({
+    ...raw,
+    base: raw.base ?? defaultBase(raw.rect),
+  })),
 );
 
 const battlerSchema = v.object({
@@ -1106,12 +1075,7 @@ const battlerSchema = v.object({
   //
   // Whole hit points, because that is the only unit health is counted in — see
   // {@link maxHpFrom}, which rounds the mastery's share for the same reason.
-  baseHp: v.pipe(
-    v.number(),
-    v.integer(),
-    v.minValue(MIN_BASE_HP),
-    v.maxValue(MAX_BASE_HP),
-  ),
+  baseHp: v.pipe(v.number(), v.integer(), v.minValue(MIN_BASE_HP), v.maxValue(MAX_BASE_HP)),
   masteries: masteriesSchema,
   naturalWeapon: weaponSchema,
   // `range` used to sit here, and it is gone rather than tolerated: a body's
@@ -1153,12 +1117,7 @@ const battlerSchema = v.object({
         ...stoneSchema.entries,
         // Required where a weapon's name is optional, because a brain names the
         // spell it casts: an unnamed one is a spell nothing can point at.
-        name: v.pipe(
-          v.string(),
-          v.trim(),
-          v.minLength(1),
-          v.maxLength(MAX_SPELL_NAME_LENGTH),
-        ),
+        name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(MAX_SPELL_NAME_LENGTH)),
         icon: v.optional(iconSchema),
       }),
     ),

@@ -348,18 +348,15 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
        * either stores the whole thing or throws, and the build does not become
        * the live page until it is activated separately.
        */
-      .post(
-        "/backup",
-        async ({ headers, status }) => {
-          if (!(await authorized(headers.authorization, config))) {
-            return status(404, "Not found");
-          }
-          // Taken from inside this process because nothing outside it can open
-          // the database — see `World.snapshot`.
-          const path = await world.snapshot(config.BACKUP_DIR);
-          return { ok: true as const, path };
-        },
-      )
+      .post("/backup", async ({ headers, status }) => {
+        if (!(await authorized(headers.authorization, config))) {
+          return status(404, "Not found");
+        }
+        // Taken from inside this process because nothing outside it can open
+        // the database — see `World.snapshot`.
+        const path = await world.snapshot(config.BACKUP_DIR);
+        return { ok: true as const, path };
+      })
       .post(
         "/client/upload",
         async ({ headers, body, status }) => {
@@ -419,10 +416,7 @@ function refusalFrom(error: unknown): string {
  * never meant to have these endpoints. The callers answer 404 rather than 403
  * for the same reason: an environment with no reset should not advertise one.
  */
-async function authorized(
-  header: string | undefined,
-  config: Config,
-): Promise<boolean> {
+async function authorized(header: string | undefined, config: Config): Promise<boolean> {
   const expected = config.ADMIN_SECRET;
   if (!expected) return false;
   if (!header?.startsWith("Bearer ")) return false;

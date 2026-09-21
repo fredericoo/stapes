@@ -49,10 +49,7 @@ const REF: ObjectRef = { x: 1, y: 0, z: 0, stackIndex: 1 };
 const CHEST_ID = "itm_chest";
 
 /** A chest one cell east, holding one thing. */
-function board(
-  tileId = "chest",
-  itemId: string | undefined = CHEST_ID,
-): MapFile {
+function board(tileId = "chest", itemId: string | undefined = CHEST_ID): MapFile {
   return replaceStack(emptyMap(), 1, 0, 0, [
     { tileId: "grass" },
     { tileId, itemId, contents: [{ id: "itm_loot", tileId: "sword" }] },
@@ -85,16 +82,12 @@ describe("walking away", () => {
   const FAR = { x: 4, y: 0, z: 0 };
 
   it("closes the panel", () => {
-    expect(readOpenedContainer(board(), tilesById, FAR, REF, CHEST_ID).kind).toBe(
-      "closed",
-    );
+    expect(readOpenedContainer(board(), tilesById, FAR, REF, CHEST_ID).kind).toBe("closed");
   });
 
   it("closes on the floor below as readily as across the room", () => {
     const below = { x: 1, y: 0, z: -2 };
-    expect(readOpenedContainer(board(), tilesById, below, REF, CHEST_ID).kind).toBe(
-      "closed",
-    );
+    expect(readOpenedContainer(board(), tilesById, below, REF, CHEST_ID).kind).toBe("closed");
   });
 });
 
@@ -107,39 +100,26 @@ describe("walking away", () => {
 describe("a box that is not that box any more", () => {
   it("is closed once somebody has taken it", () => {
     const taken = replaceStack(emptyMap(), 1, 0, 0, [{ tileId: "grass" }]);
-    expect(readOpenedContainer(taken, tilesById, ME, REF, CHEST_ID).kind).toBe(
-      "closed",
-    );
+    expect(readOpenedContainer(taken, tilesById, ME, REF, CHEST_ID).kind).toBe("closed");
   });
 
   it("is closed when another container has taken its slot", () => {
     const swapped = board("bag", "itm_somebody_elses");
-    expect(readOpenedContainer(swapped, tilesById, ME, REF, CHEST_ID).kind).toBe(
-      "closed",
-    );
+    expect(readOpenedContainer(swapped, tilesById, ME, REF, CHEST_ID).kind).toBe("closed");
   });
 
   it("is closed when the same kind of box with another identity is there", () => {
     const twin = board("chest", "itm_other_chest");
-    expect(readOpenedContainer(twin, tilesById, ME, REF, CHEST_ID).kind).toBe(
-      "closed",
-    );
+    expect(readOpenedContainer(twin, tilesById, ME, REF, CHEST_ID).kind).toBe("closed");
   });
 
   it("is closed when the slot holds something with no identity at all", () => {
-    const scenery = replaceStack(emptyMap(), 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "rock" },
-    ]);
-    expect(readOpenedContainer(scenery, tilesById, ME, REF, CHEST_ID).kind).toBe(
-      "closed",
-    );
+    const scenery = replaceStack(emptyMap(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "rock" }]);
+    expect(readOpenedContainer(scenery, tilesById, ME, REF, CHEST_ID).kind).toBe("closed");
   });
 
   it("is closed for an empty cell", () => {
-    expect(
-      readOpenedContainer(emptyMap(), tilesById, ME, REF, CHEST_ID).kind,
-    ).toBe("closed");
+    expect(readOpenedContainer(emptyMap(), tilesById, ME, REF, CHEST_ID).kind).toBe("closed");
   });
 });
 
@@ -154,9 +134,7 @@ describe("a box that is covered", () => {
       },
       { tileId: "rock", owner: "somebody" },
     ]);
-    expect(readOpenedContainer(trodden, tilesById, ME, REF, CHEST_ID).kind).toBe(
-      "open",
-    );
+    expect(readOpenedContainer(trodden, tilesById, ME, REF, CHEST_ID).kind).toBe("open");
   });
 
   it("closes under a crate, which is", () => {
@@ -165,8 +143,6 @@ describe("a box that is covered", () => {
       { tileId: "chest", itemId: CHEST_ID, contents: [] },
       { tileId: "rock" },
     ]);
-    expect(readOpenedContainer(buried, tilesById, ME, REF, CHEST_ID).kind).toBe(
-      "closed",
-    );
+    expect(readOpenedContainer(buried, tilesById, ME, REF, CHEST_ID).kind).toBe("closed");
   });
 });

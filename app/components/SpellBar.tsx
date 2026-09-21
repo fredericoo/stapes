@@ -84,7 +84,7 @@ const MS_PER_SECOND = 1000;
 const SPRITE_SHARE = 0.55;
 
 /** Which sprite stands for a stone in a button — the one facing the reader. */
-const FRONT: "s" = "s";
+const FRONT = "s" as const;
 
 /**
  * The size the sprite is drawn against, in pixels.
@@ -239,9 +239,7 @@ export function SpellBar({
       // appears want different answers: above the pad it is centred on the thing
       // it belongs to, and in a desktop column it lines up with the buttons
       // above it. See the two call sites in `./GameViewport`.
-      className={["flex w-full items-stretch gap-1", className]
-        .filter(Boolean)
-        .join(" ")}
+      className={["flex w-full items-stretch gap-1", className].filter(Boolean).join(" ")}
     >
       {spells.map((spell, index) => (
         <SpellSquare
@@ -401,10 +399,7 @@ function SpellSquare({
         ) : null}
 
         {spell.cooldownMs > 0 ? (
-          <CooldownRing
-            remainingMs={spell.cooldownMs}
-            totalMs={spell.cooldownTotalMs}
-          />
+          <CooldownRing remainingMs={spell.cooldownMs} totalMs={spell.cooldownTotalMs} />
         ) : null}
       </button>
     </Tooltip>
@@ -448,13 +443,7 @@ const APPEARANCE_CLASSES: Record<SpellAppearance, string> = {
  * layered over it is what is on screen. @see SpellBar for why it aims one step
  * ahead.
  */
-function CooldownRing({
-  remainingMs,
-  totalMs,
-}: {
-  remainingMs: number;
-  totalMs: number;
-}) {
+function CooldownRing({ remainingMs, totalMs }: { remainingMs: number; totalMs: number }) {
   const arcRef = useRef<SVGCircleElement>(null);
   const animationRef = useRef<Animation | null>(null);
 
@@ -467,9 +456,7 @@ function CooldownRing({
     // reached rather than the figure the attribute was just set to.
     const fromOffset = getComputedStyle(arc).strokeDashoffset;
     animationRef.current?.cancel();
-    const toOffset = arcOffset(
-      cooldownShare(remainingMs - COOLDOWN_STEP_MS, totalMs),
-    );
+    const toOffset = arcOffset(cooldownShare(remainingMs - COOLDOWN_STEP_MS, totalMs));
     animationRef.current = arc.animate(
       [{ strokeDashoffset: fromOffset }, { strokeDashoffset: `${toOffset}` }],
       // Held at the target when it finishes, so a figure that arrives late

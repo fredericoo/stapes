@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  extractsLeft,
-  interactionsForSave,
-  resolveExtract,
-} from "../lib/interactions";
+import { extractsLeft, interactionsForSave, resolveExtract } from "../lib/interactions";
 import { DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
 import { emptyMap, getStack, replaceStack, serializeMap } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
@@ -20,10 +16,7 @@ import {
   type Extraction,
 } from "./extract";
 import { GameSession } from "./GameSession";
-import {
-  listInteractionOptions,
-  topInteractionAt,
-} from "./interactionOptions";
+import { listInteractionOptions, topInteractionAt } from "./interactionOptions";
 
 /**
  * A resource is the one interaction you are *part-way through*, and nearly
@@ -138,11 +131,7 @@ const BUSH: ObjectRef = { x: 1, y: 0, z: 0, stackIndex: 1 };
 const NOTHING_EXTRACTING: Extraction | null = null;
 
 /** One pull in progress, as its owner holds it. */
-function pulling(
-  key: string,
-  remainingMs = 2_000,
-  durationMs = EXTRACT_MS,
-): Extraction {
+function pulling(key: string, remainingMs = 2_000, durationMs = EXTRACT_MS): Extraction {
   return { key, remainingMs, durationMs };
 }
 
@@ -155,20 +144,14 @@ function board(resource = "bush"): MapFile {
   ] as const) {
     map = replaceStack(map, x, y, 0, [{ tileId: "grass" }]);
   }
-  map = replaceStack(map, 0, 0, 0, [
-    { tileId: "grass" },
-    { tileId: "player", direction: "s" },
-  ]);
+  map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "s" }]);
   map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: resource }]);
   return map;
 }
 
 /** The same board with one pull left in the bush, and nothing free once taken. */
 function lastPullBoard(): MapFile {
-  return replaceStack(board(), 1, 0, 0, [
-    { tileId: "grass" },
-    { tileId: "bush", extractsLeft: 1 },
-  ]);
+  return replaceStack(board(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "bush", extractsLeft: 1 }]);
 }
 
 function bagWith(count: number): Equipment {
@@ -192,9 +175,7 @@ function stackAt(map: MapFile, x: number, y: number) {
 }
 
 function bagTileIds(session: GameSession): string[] {
-  return (
-    session.getSnapshot().equipment.bag?.contents?.map((i) => i.tileId) ?? []
-  );
+  return session.getSnapshot().equipment.bag?.contents?.map((i) => i.tileId) ?? [];
 }
 
 describe("resolving an extract", () => {
@@ -249,9 +230,7 @@ describe("resolving an extract", () => {
       },
     });
 
-    expect(resolveExtract(typo)?.slots).toEqual([
-      { tileId: "berry", chance: 100 },
-    ]);
+    expect(resolveExtract(typo)?.slots).toEqual([{ tileId: "berry", chance: 100 }]);
   });
 });
 
@@ -277,25 +256,21 @@ describe("what is left in a placement", () => {
 
 describe("whether a pull is on offer", () => {
   it("is yes beside a full resource with room to carry what comes out", () => {
-    expect(
-      canBeginExtract(board(), tilesById, ME, bagWith(0), BUSH, NOTHING_EXTRACTING),
-    ).toBe(true);
+    expect(canBeginExtract(board(), tilesById, ME, bagWith(0), BUSH, NOTHING_EXTRACTING)).toBe(
+      true,
+    );
   });
 
   it("is no while this player is already pulling at this very placement", () => {
     const mine = pulling(extractKey(BUSH, "bush"));
 
-    expect(canBeginExtract(board(), tilesById, ME, bagWith(0), BUSH, mine)).toBe(
-      false,
-    );
+    expect(canBeginExtract(board(), tilesById, ME, bagWith(0), BUSH, mine)).toBe(false);
   });
 
   it("is yes while they are pulling at the same tile in a different cell", () => {
     const elsewhere = pulling(extractKey({ x: 5, y: 5, z: 0 }, "bush"));
 
-    expect(
-      canBeginExtract(board(), tilesById, ME, bagWith(0), BUSH, elsewhere),
-    ).toBe(true);
+    expect(canBeginExtract(board(), tilesById, ME, bagWith(0), BUSH, elsewhere)).toBe(true);
   });
 
   it("is no once everything left in it is somebody else's pull", () => {
@@ -306,9 +281,7 @@ describe("whether a pull is on offer", () => {
       { tileId: "bush", extractsReserved: 2 },
     ]);
 
-    expect(
-      canBeginExtract(map, tilesById, ME, bagWith(0), BUSH, NOTHING_EXTRACTING),
-    ).toBe(false);
+    expect(canBeginExtract(map, tilesById, ME, bagWith(0), BUSH, NOTHING_EXTRACTING)).toBe(false);
   });
 
   it("is yes while somebody else holds one of two", () => {
@@ -318,21 +291,14 @@ describe("whether a pull is on offer", () => {
       { tileId: "bush", extractsReserved: 1 },
     ]);
 
-    expect(
-      canBeginExtract(map, tilesById, ME, bagWith(0), BUSH, NOTHING_EXTRACTING),
-    ).toBe(true);
+    expect(canBeginExtract(map, tilesById, ME, bagWith(0), BUSH, NOTHING_EXTRACTING)).toBe(true);
   });
 
   it("is no on a placement whose pulls are spent", () => {
     let map = board();
-    map = replaceStack(map, 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "bush", extractsLeft: 0 },
-    ]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "bush", extractsLeft: 0 }]);
 
-    expect(
-      canBeginExtract(map, tilesById, ME, bagWith(0), BUSH, NOTHING_EXTRACTING),
-    ).toBe(false);
+    expect(canBeginExtract(map, tilesById, ME, bagWith(0), BUSH, NOTHING_EXTRACTING)).toBe(false);
   });
 
   it("pours into a pile already in the bag rather than asking for a square", () => {
@@ -352,9 +318,7 @@ describe("whether a pull is on offer", () => {
       },
     };
 
-    expect(canBeginExtract(board(), tilesById, ME, bag, BUSH, NOTHING_EXTRACTING)).toBe(
-      true,
-    );
+    expect(canBeginExtract(board(), tilesById, ME, bag, BUSH, NOTHING_EXTRACTING)).toBe(true);
   });
 
   it("is no when the pile it would pour into is already full", () => {
@@ -374,9 +338,7 @@ describe("whether a pull is on offer", () => {
       },
     };
 
-    expect(canBeginExtract(board(), tilesById, ME, bag, BUSH, NOTHING_EXTRACTING)).toBe(
-      false,
-    );
+    expect(canBeginExtract(board(), tilesById, ME, bag, BUSH, NOTHING_EXTRACTING)).toBe(false);
   });
 
   it("is no with no room for everything the pull could hand back", () => {
@@ -404,14 +366,7 @@ describe("whether a pull is on offer", () => {
 
   it("is no with no bag at all", () => {
     expect(
-      canBeginExtract(
-        board(),
-        tilesById,
-        ME,
-        emptyEquipment(),
-        BUSH,
-        NOTHING_EXTRACTING,
-      ),
+      canBeginExtract(board(), tilesById, ME, emptyEquipment(), BUSH, NOTHING_EXTRACTING),
     ).toBe(false);
   });
 
@@ -571,9 +526,7 @@ describe("making a pull", () => {
 
     expect(session.interact(BUSH)).toBe(true);
 
-    expect(stackAt(session.getMap(), 1, 0).map((p) => p.tileId)).toEqual([
-      "grass",
-    ]);
+    expect(stackAt(session.getMap(), 1, 0).map((p) => p.tileId)).toEqual(["grass"]);
   });
 
   /**
@@ -763,9 +716,7 @@ describe("losing a pull", () => {
 
     expect(stackAt(session.getMap(), 1, 0)[1]?.extractsReserved).toBeUndefined();
     expect(stackAt(session.getMap(), 0, 1)[1]?.extractsReserved).toBe(1);
-    expect(session.getSnapshot().extracting?.key).toBe(
-      extractKey(other, "bush"),
-    );
+    expect(session.getSnapshot().extracting?.key).toBe(extractKey(other, "bush"));
   });
 
   it("gives it back when the body leaves the board", () => {
@@ -824,9 +775,7 @@ describe("what it says afterwards", () => {
     const session = new GameSession(board("crystal"), stingy);
     session.interact(BUSH);
 
-    expect(session.drainNotices()).toEqual([
-      "You mine Arcane Crystal and find nothing",
-    ]);
+    expect(session.drainNotices()).toEqual(["You mine Arcane Crystal and find nothing"]);
   });
 
   it("counts a pile rather than listing it", () => {
@@ -862,9 +811,7 @@ describe("the row it offers", () => {
   }
 
   function rowsFor(session: GameSession, equipment?: Equipment) {
-    return optionsFor(session, equipment).filter(
-      (option) => option.action === "extract",
-    );
+    return optionsFor(session, equipment).filter((option) => option.action === "extract");
   }
 
   it("is named by the author", () => {
@@ -1001,24 +948,15 @@ describe("the row it offers", () => {
     const session = new GameSession(board(), tiles);
 
     expect(rowsFor(session, bagWith(4))).toHaveLength(1);
-    expect(
-      canBeginExtract(
-        board(),
-        tilesById,
-        ME,
-        bagWith(4),
-        BUSH,
-        NOTHING_EXTRACTING,
-      ),
-    ).toBe(false);
+    expect(canBeginExtract(board(), tilesById, ME, bagWith(4), BUSH, NOTHING_EXTRACTING)).toBe(
+      false,
+    );
   });
 
   it("is passed over by the tap while the bag is full", () => {
     const session = new GameSession(board(), tiles);
 
-    expect(
-      topInteractionAt(optionsFor(session, bagWith(4)), BUSH),
-    ).toBeNull();
+    expect(topInteractionAt(optionsFor(session, bagWith(4)), BUSH)).toBeNull();
   });
 
   /**

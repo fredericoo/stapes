@@ -3,12 +3,7 @@ import { describe, expect, it } from "vitest";
 import { chunkifyMap, getStack, listCoords, replaceStack } from "./mapData";
 import { fixtureTown } from "./fixtureTown";
 import tiles from "../../data/tiles.json";
-import {
-  AMBIENT_PRESETS,
-  composeLightGrid,
-  computeLighting,
-  sampleLevelLight,
-} from "./lighting";
+import { AMBIENT_PRESETS, composeLightGrid, computeLighting, sampleLevelLight } from "./lighting";
 import { computeLightingFlood } from "./lightingFlood";
 import {
   ChunkedLighting,
@@ -28,9 +23,10 @@ import {
   normalizeTileDef,
 } from "./types";
 
-const tilesById = Object.fromEntries(
-  (tiles as TileDef[]).map((t) => [t.id, t]),
-) as Record<string, TileDef>;
+const tilesById = Object.fromEntries((tiles as TileDef[]).map((t) => [t.id, t])) as Record<
+  string,
+  TileDef
+>;
 const mapFile = fixtureTown();
 const omit = new Set([PLAYER_TILE_ID]);
 
@@ -194,9 +190,7 @@ describe("chunked lighting", () => {
         id: "tame",
         height: 2,
         sprite: {
-          frames: [
-            { sprite, durationMs: 100, light: { ...wildLight, radius: 6 } },
-          ],
+          frames: [{ sprite, durationMs: 100, light: { ...wildLight, radius: 6 } }],
         },
       });
       expect(radiiOf(def)).toEqual([6]);
@@ -211,9 +205,7 @@ describe("chunked lighting", () => {
     it("leaves every shipped tile untouched", () => {
       for (const def of Object.values(tilesById)) {
         for (const radius of radiiOf(def)) {
-          expect(radius, `${def.id} emits past the apron`).toBeLessThanOrEqual(
-            LIGHT_APRON,
-          );
+          expect(radius, `${def.id} emits past the apron`).toBeLessThanOrEqual(LIGHT_APRON);
         }
       }
     });
@@ -263,10 +255,7 @@ describe("chunked lighting", () => {
           cells[coordKey(x, y)] = [{ tileId: floor.id }];
         }
       }
-      cells[coordKey(lampAt.x, lampAt.y)] = [
-        { tileId: floor.id },
-        { tileId: lamp.id },
-      ];
+      cells[coordKey(lampAt.x, lampAt.y)] = [{ tileId: floor.id }, { tileId: lamp.id }];
       const lit = chunkifyMap({
         version: MAP_FILE_VERSION,
         levels: { [levelKey(0)]: cells },
@@ -300,14 +289,10 @@ describe("chunked lighting", () => {
       }
 
       // Light has to reach the chunk at all, or the comparison holds vacuously.
-      expect(
-        brightest,
-        "lamp light never reached the chunk under test",
-      ).toBeGreaterThan(0);
-      expect(
-        differing,
-        `${differing} samples differ, max delta ${maxDelta.toFixed(1)}/255`,
-      ).toBe(0);
+      expect(brightest, "lamp light never reached the chunk under test").toBeGreaterThan(0);
+      expect(differing, `${differing} samples differ, max delta ${maxDelta.toFixed(1)}/255`).toBe(
+        0,
+      );
     });
   });
 
@@ -419,8 +404,7 @@ describe("chunked lighting", () => {
      * drops the chunk the light spills into.
      */
     function cellNearChunkEdge(z: number): { x: number; y: number } {
-      const offset = (x: number) =>
-        ((x % LIGHT_CHUNK_SIZE) + LIGHT_CHUNK_SIZE) % LIGHT_CHUNK_SIZE;
+      const offset = (x: number) => ((x % LIGHT_CHUNK_SIZE) + LIGHT_CHUNK_SIZE) % LIGHT_CHUNK_SIZE;
       const found = listCoords(mapFile, z).find(
         ({ x }) => offset(x) >= EDGE_OFFSET_LO && offset(x) <= EDGE_OFFSET_HI,
       );
@@ -437,9 +421,7 @@ describe("chunked lighting", () => {
       const cold = new ChunkedLighting(tilesById, omit);
       const want = cold.gridFor(edited, ambient, rect);
 
-      expect([...got.levels.keys()].sort()).toEqual(
-        [...want.levels.keys()].sort(),
-      );
+      expect([...got.levels.keys()].sort()).toEqual([...want.levels.keys()].sort());
       for (const [z, wantLevel] of want.levels) {
         const gotLevel = got.levels.get(z)!;
         expect({ z, rgb: [...gotLevel.rgb] }).toEqual({
@@ -681,10 +663,9 @@ describe("chunked lighting prefetch and eviction", () => {
     }
 
     expect(crossed).toBeGreaterThan(0);
-    expect(
-      bakedOnCrossing,
-      "prefetch should have covered every chunk the window walked into",
-    ).toBe(0);
+    expect(bakedOnCrossing, "prefetch should have covered every chunk the window walked into").toBe(
+      0,
+    );
   });
 
   it("does not prefetch on a call that already had to bake", () => {
@@ -728,17 +709,12 @@ describe("chunked lighting prefetch and eviction", () => {
 
 describe("packed grid matches CPU-composed output", () => {
   /** What the fragment shader does: `min(1, a * ambient + rgb)`. */
-  function composeLikeShader(
-    rgba: Uint8Array,
-    ambient: [number, number, number],
-  ): Uint8Array {
+  function composeLikeShader(rgba: Uint8Array, ambient: [number, number, number]): Uint8Array {
     const rgb = new Uint8Array((rgba.length / 4) * 3);
     for (let i = 0, p = 0; i < rgba.length; i += 4, p += 3) {
       const sky = rgba[i + 3]! / 255;
       for (let c = 0; c < 3; c++) {
-        rgb[p + c] = Math.round(
-          Math.min(1, sky * ambient[c]! + rgba[i + c]! / 255) * 255,
-        );
+        rgb[p + c] = Math.round(Math.min(1, sky * ambient[c]! + rgba[i + c]! / 255) * 255);
       }
     }
     return rgb;
@@ -749,19 +725,10 @@ describe("packed grid matches CPU-composed output", () => {
   for (const [name, ambient] of Object.entries(AMBIENT_PRESETS)) {
     it(`is identical to the composed grid at ${name}`, () => {
       const amb = [...ambient] as [number, number, number];
-      const composed = new ChunkedLighting(tilesById, omit).gridFor(
-        mapFile,
-        amb,
-        rect,
-      );
-      const packed = new ChunkedLighting(tilesById, omit).packedGridFor(
-        mapFile,
-        rect,
-      );
+      const composed = new ChunkedLighting(tilesById, omit).gridFor(mapFile, amb, rect);
+      const packed = new ChunkedLighting(tilesById, omit).packedGridFor(mapFile, rect);
 
-      expect([...packed.levels.keys()].sort()).toEqual(
-        [...composed.levels.keys()].sort(),
-      );
+      expect([...packed.levels.keys()].sort()).toEqual([...composed.levels.keys()].sort());
 
       let differing = 0;
       let total = 0;
@@ -819,12 +786,7 @@ describe("a flickering emitter", () => {
       lit,
       FLICKER_FRAME_MS,
     );
-    const bright = new ChunkedLighting(tilesById, omit).gridFor(
-      mapFile,
-      ambient,
-      lit,
-      0,
-    );
+    const bright = new ChunkedLighting(tilesById, omit).gridFor(mapFile, ambient, lit, 0);
     expect(rgbOf(dim)).not.toEqual(rgbOf(bright));
   });
 
@@ -832,14 +794,7 @@ describe("a flickering emitter", () => {
     // Parity, but off frame 0 — a chunk bakes with an apron, so an emitter one
     // cell outside the window has to reach in at the phase the window is at.
     const mono = composeLightGrid(
-      computeLightingFlood(
-        mapFile,
-        tilesById,
-        undefined,
-        omit,
-        undefined,
-        FLICKER_FRAME_MS,
-      ),
+      computeLightingFlood(mapFile, tilesById, undefined, omit, undefined, FLICKER_FRAME_MS),
       ambient,
     );
     const chunked = new ChunkedLighting(tilesById, omit).gridFor(

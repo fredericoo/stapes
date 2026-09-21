@@ -371,12 +371,13 @@ body {
 .world-label,
 .notice {
   text-shadow:
-    var(--o1n) var(--o1n) 0 #000, 0 var(--o1n) 0 #000,
+    var(--o1n) var(--o1n) 0 #000,
+    0 var(--o1n) 0 #000,
     var(--o1) var(--o1n) 0 #000,
-
-    var(--o1n) 0 0 #000, var(--o1) 0 0 #000,
-
-    var(--o1n) var(--o1) 0 #000, 0 var(--o1) 0 #000,
+    var(--o1n) 0 0 #000,
+    var(--o1) 0 0 #000,
+    var(--o1n) var(--o1) 0 #000,
+    0 var(--o1) 0 #000,
     var(--o1) var(--o1) 0 #000;
 }
 
@@ -405,23 +406,29 @@ body {
 .world-label--noise,
 .damage-number {
   text-shadow:
-    var(--o2n) var(--o2n) 0 #000, var(--o1n) var(--o2n) 0 #000,
-    0 var(--o2n) 0 #000, var(--o1) var(--o2n) 0 #000,
+    var(--o2n) var(--o2n) 0 #000,
+    var(--o1n) var(--o2n) 0 #000,
+    0 var(--o2n) 0 #000,
+    var(--o1) var(--o2n) 0 #000,
     var(--o2) var(--o2n) 0 #000,
-
-    var(--o2n) var(--o1n) 0 #000, var(--o1n) var(--o1n) 0 #000,
-    0 var(--o1n) 0 #000, var(--o1) var(--o1n) 0 #000,
+    var(--o2n) var(--o1n) 0 #000,
+    var(--o1n) var(--o1n) 0 #000,
+    0 var(--o1n) 0 #000,
+    var(--o1) var(--o1n) 0 #000,
     var(--o2) var(--o1n) 0 #000,
-
-    var(--o2n) 0 0 #000, var(--o1n) 0 0 #000,
-    var(--o1) 0 0 #000, var(--o2) 0 0 #000,
-
-    var(--o2n) var(--o1) 0 #000, var(--o1n) var(--o1) 0 #000,
-    0 var(--o1) 0 #000, var(--o1) var(--o1) 0 #000,
+    var(--o2n) 0 0 #000,
+    var(--o1n) 0 0 #000,
+    var(--o1) 0 0 #000,
+    var(--o2) 0 0 #000,
+    var(--o2n) var(--o1) 0 #000,
+    var(--o1n) var(--o1) 0 #000,
+    0 var(--o1) 0 #000,
+    var(--o1) var(--o1) 0 #000,
     var(--o2) var(--o1) 0 #000,
-
-    var(--o2n) var(--o2) 0 #000, var(--o1n) var(--o2) 0 #000,
-    0 var(--o2) 0 #000, var(--o1) var(--o2) 0 #000,
+    var(--o2n) var(--o2) 0 #000,
+    var(--o1n) var(--o2) 0 #000,
+    0 var(--o2) 0 #000,
+    var(--o1) var(--o2) 0 #000,
     var(--o2) var(--o2) 0 #000;
 }
 

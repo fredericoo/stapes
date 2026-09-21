@@ -36,10 +36,7 @@ import { PLAYER_TILE_ID, TICK_MS } from "../game/constants";
 import { dynamicLightTileIds } from "./WorldRenderer";
 
 const tiles = tilesJson as TileDef[];
-const tilesById = Object.fromEntries(tiles.map((t) => [t.id, t])) as Record<
-  string,
-  TileDef
->;
+const tilesById = Object.fromEntries(tiles.map((t) => [t.id, t])) as Record<string, TileDef>;
 
 /** Wide enough to hold the creatures the fixture puts around the square. */
 const WINDOW_HALF_W = 30;

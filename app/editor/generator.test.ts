@@ -53,10 +53,7 @@ function rowsOf(g: CellGrid): string[] {
 describe("columnOf", () => {
   it("stacks a tile to fill the height exactly", () => {
     const column = columnOf("half-stone", 4, tilesById);
-    expect(column.ok && column.stack).toEqual([
-      { tileId: "half-stone" },
-      { tileId: "half-stone" },
-    ]);
+    expect(column.ok && column.stack).toEqual([{ tileId: "half-stone" }, { tileId: "half-stone" }]);
   });
 
   it("takes one tile when one is the whole level", () => {
@@ -120,23 +117,9 @@ describe("widenToTwo", () => {
 
   it("runs to a fixed point, so filling one neck exposing another closes both", () => {
     // A spur off a spur: taking the tip out leaves the stem one wide too.
-    const g = gridOf([
-      "######",
-      "#..###",
-      "#..###",
-      "#.####",
-      "#.####",
-      "######",
-    ]);
+    const g = gridOf(["######", "#..###", "#..###", "#.####", "#.####", "######"]);
     widenToTwo(g);
-    expect(rowsOf(g)).toEqual([
-      "######",
-      "#..###",
-      "#..###",
-      "######",
-      "######",
-      "######",
-    ]);
+    expect(rowsOf(g)).toEqual(["######", "#..###", "#..###", "######", "######", "######"]);
   });
 });
 
@@ -159,9 +142,7 @@ describe("planWater and cutFords", () => {
   it("dries a crossing wherever water would seal a passage", () => {
     const g = gridOf(HOURGLASS);
     // Flood the whole waist: without a ford the two halves are separate.
-    const water = new Set(
-      [3, 4].flatMap((y) => [3, 4].map((x) => gridIndex(g, x, y))),
-    );
+    const water = new Set([3, 4].flatMap((y) => [3, 4].map((x) => gridIndex(g, x, y))));
     cutFords(g, water);
 
     const dry = new Uint8Array(g.cells);
@@ -253,21 +234,9 @@ describe("planScatter", () => {
 
   it("drops a prop too tall to stand on the floor it is given", () => {
     // A four-unit tree on a two-unit floor is five units into a level of four.
-    const onFlat = planScatter(
-      cells,
-      [{ tileId: "tree", chancePercent: 100 }],
-      7,
-      0,
-      tilesById,
-    );
+    const onFlat = planScatter(cells, [{ tileId: "tree", chancePercent: 100 }], 7, 0, tilesById);
     expect(onFlat.size).toBe(cells.length);
-    const onPlinth = planScatter(
-      cells,
-      [{ tileId: "tree", chancePercent: 100 }],
-      7,
-      2,
-      tilesById,
-    );
+    const onPlinth = planScatter(cells, [{ tileId: "tree", chancePercent: 100 }], 7, 2, tilesById);
     expect(onPlinth.size).toBe(0);
   });
 
@@ -298,9 +267,7 @@ describe("connectionsAlongBorder", () => {
     // Ground along the west side, outside cells (-1, 2) to (-1, 6).
     const joinable = (x: number, y: number) => x === -1 && y >= 2 && y <= 6;
     const found = connectionsAlongBorder(BOUNDS, joinable);
-    expect(found).toEqual([
-      { x: 0, y: 4, inward: { dx: 1, dy: 0 } },
-    ]);
+    expect(found).toEqual([{ x: 0, y: 4, inward: { dx: 1, dy: 0 } }]);
   });
 
   it("gives each run of ground its own way in", () => {
@@ -320,7 +287,12 @@ describe("isJoinableGround", () => {
   const map = setStacks(emptyMap(), [
     { x: 0, y: 0, z: 0, stack: [{ tileId: "dirt" }] },
     // A cave's rock stands on the same floor its cave does.
-    { x: 1, y: 0, z: 0, stack: [{ tileId: "dirt" }, { tileId: "half-stone" }, { tileId: "half-stone" }] },
+    {
+      x: 1,
+      y: 0,
+      z: 0,
+      stack: [{ tileId: "dirt" }, { tileId: "half-stone" }, { tileId: "half-stone" }],
+    },
     { x: 2, y: 0, z: 0, stack: [{ tileId: "dirt" }, { tileId: "small-bush" }] },
     { x: 3, y: 0, z: 0, stack: [{ tileId: "dirt" }, { tileId: "water" }] },
     { x: 4, y: 0, z: 0, stack: [{ tileId: "grass-2" }] },
@@ -348,14 +320,7 @@ describe("isJoinableGround", () => {
 
 describe("openConnection", () => {
   it("cuts two cells wide, and stops where it meets open ground", () => {
-    const g = gridOf([
-      "########",
-      "########",
-      "##....##",
-      "##....##",
-      "########",
-      "########",
-    ]);
+    const g = gridOf(["########", "########", "##....##", "##....##", "########", "########"]);
     openConnection(
       g,
       { minX: 0, maxX: 7, minY: 0, maxY: 5 },
@@ -375,23 +340,13 @@ describe("openConnection", () => {
   it("stops at the depth it is given when it meets nothing", () => {
     // `maxDepth` counts steps inward, and the brush is two cells deep, so two
     // steps reach four cells in.
-    const g = gridOf([
-      "######",
-      "######",
-      "######",
-      "######",
-    ]);
+    const g = gridOf(["######", "######", "######", "######"]);
     openConnection(
       g,
       { minX: 0, maxX: 5, minY: 0, maxY: 3 },
       { x: 0, y: 1, inward: { dx: 1, dy: 0 } },
       2,
     );
-    expect(rowsOf(g)).toEqual([
-      "######",
-      "....##",
-      "....##",
-      "######",
-    ]);
+    expect(rowsOf(g)).toEqual(["######", "....##", "....##", "######"]);
   });
 });

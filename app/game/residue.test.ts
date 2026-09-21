@@ -15,9 +15,7 @@ import { tile as baseTile } from "../lib/testTile";
  * are tried in and the refusals, against a kit built by hand.
  */
 
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id">,
-): TileDef {
+function tile(partial: Record<string, unknown> & Pick<TileDef, "id">): TileDef {
   return baseTile({ kind: "item", intangible: true, ...partial });
 }
 
@@ -28,7 +26,15 @@ const bottle = tile({
 const sword = tile({
   id: "sword",
   interactions: {
-    item: { type: "weapon", damage: 1, def: 0, accuracy: 100, variance: 0, spd: 50, mastery: "sharp" },
+    item: {
+      type: "weapon",
+      damage: 1,
+      def: 0,
+      accuracy: 100,
+      variance: 0,
+      spd: 50,
+      mastery: "sharp",
+    },
   },
 });
 const bag = tile({
@@ -101,18 +107,29 @@ describe("leaving the residue", () => {
   it("lands in the bag the potion came out of", () => {
     const kit = wearing([]);
     const map = board();
-    const landed = leaveResidue(map, tilesById, actor, kit, { kind: "contents", index: 0 }, instance("bottle"));
+    const landed = leaveResidue(
+      map,
+      tilesById,
+      actor,
+      kit,
+      { kind: "contents", index: 0 },
+      instance("bottle"),
+    );
     expect(landed?.equipment.bag?.contents?.map((i) => i.tileId)).toEqual(["bottle"]);
     // The board is untouched, and identically so: nothing here reindexes.
     expect(landed?.map).toBe(map);
   });
 
   it("pours onto a bottle pile already in the bag, needing no square", () => {
-    const kit = wearing([
-      { id: "itm_b", tileId: "bottle", count: 3 },
-      instance("sword"),
-    ]);
-    const landed = leaveResidue(board(), tilesById, actor, kit, { kind: "contents", index: 1 }, instance("bottle"));
+    const kit = wearing([{ id: "itm_b", tileId: "bottle", count: 3 }, instance("sword")]);
+    const landed = leaveResidue(
+      board(),
+      tilesById,
+      actor,
+      kit,
+      { kind: "contents", index: 1 },
+      instance("bottle"),
+    );
     expect(landed?.equipment.bag?.contents).toEqual([
       { id: "itm_b", tileId: "bottle", count: 4 },
       kit.bag!.contents![1],
@@ -121,13 +138,27 @@ describe("leaving the residue", () => {
 
   it("lands in the hand that held the last of the pile", () => {
     const kit = wearing([instance("sword"), instance("sword")]);
-    const landed = leaveResidue(board(), tilesById, actor, kit, { kind: "offhand" }, instance("bottle"));
+    const landed = leaveResidue(
+      board(),
+      tilesById,
+      actor,
+      kit,
+      { kind: "offhand" },
+      instance("bottle"),
+    );
     expect(landed?.equipment.offhand?.tileId).toBe("bottle");
   });
 
   it("falls past a hand still holding the rest of the pile, into the bag", () => {
     const kit = wearing([], { offhand: { id: "itm_p", tileId: "sword" } });
-    const landed = leaveResidue(board(), tilesById, actor, kit, { kind: "offhand" }, instance("bottle"));
+    const landed = leaveResidue(
+      board(),
+      tilesById,
+      actor,
+      kit,
+      { kind: "offhand" },
+      instance("bottle"),
+    );
     expect(landed?.equipment.offhand?.tileId).toBe("sword");
     expect(landed?.equipment.bag?.contents?.map((i) => i.tileId)).toEqual(["bottle"]);
   });
@@ -135,7 +166,14 @@ describe("leaving the residue", () => {
   it("stays in the chest the potion was drunk out of", () => {
     const map = board([]);
     const chestRef = { x: 1, y: 0, z: 0, stackIndex: 1 };
-    const landed = leaveResidue(map, tilesById, actor, wearing([]), { kind: "ground", ref: chestRef, index: 0 }, instance("bottle"));
+    const landed = leaveResidue(
+      map,
+      tilesById,
+      actor,
+      wearing([]),
+      { kind: "ground", ref: chestRef, index: 0 },
+      instance("bottle"),
+    );
     expect(landed?.map.levels).not.toBe(map.levels);
     expect(landed?.equipment).toEqual(wearing([]));
   });
@@ -146,7 +184,14 @@ describe("leaving the residue", () => {
       offhand: instance("sword"),
     });
     expect(
-      leaveResidue(board(), tilesById, actor, kit, { kind: "contents", index: 0 }, instance("bottle")),
+      leaveResidue(
+        board(),
+        tilesById,
+        actor,
+        kit,
+        { kind: "contents", index: 0 },
+        instance("bottle"),
+      ),
     ).toBeNull();
   });
 });

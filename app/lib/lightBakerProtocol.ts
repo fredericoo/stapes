@@ -58,10 +58,7 @@ export type BakerResponse =
  * entirely — this runs on every frame that carries a new map, and the
  * overwhelming majority of them changed nothing the worker cares about.
  */
-export function diffMapChunks(
-  prev: MapFile | null,
-  next: MapFile,
-): MapPatch | null {
+export function diffMapChunks(prev: MapFile | null, next: MapFile): MapPatch | null {
   if (prev === next) return null;
   const levels: MapPatch["levels"] = {};
   let any = false;

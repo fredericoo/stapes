@@ -35,10 +35,7 @@ function mapTable<T extends Partial<Record<never, TileSprite>>>(
  * live on the tile itself, and a state override is the same five fields one
  * level down. Spreading the holder keeps whatever else it was carrying.
  */
-function mapSprites<T extends StateSprites>(
-  holder: T,
-  f: (sprite: TileSprite) => TileSprite,
-): T {
+function mapSprites<T extends StateSprites>(holder: T, f: (sprite: TileSprite) => TileSprite): T {
   const out: T = { ...holder };
   if (holder.sprite) out.sprite = f(holder.sprite);
   if (holder.sprites) out.sprites = mapTable(holder.sprites, f);

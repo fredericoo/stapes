@@ -1,17 +1,6 @@
 import type { ArenaFighter } from "../game/arena";
-import {
-  bodyOf,
-  equipmentOf,
-  fighterForTile,
-  swingsOf,
-  tilesForSlot,
-} from "../game/arena";
-import {
-  type Hand,
-  HANDS,
-  weaponInHand,
-  weaponSwungBy,
-} from "../game/equipment";
+import { bodyOf, equipmentOf, fighterForTile, swingsOf, tilesForSlot } from "../game/arena";
+import { type Hand, HANDS, weaponInHand, weaponSwungBy } from "../game/equipment";
 import {
   ACCURACY_AT_MAX_MASTERY,
   type BattlerDef,
@@ -229,9 +218,7 @@ function Equipment({
             />
             {/* The slot's own name, so a slot added to the game names itself
                 here rather than waiting for somebody to write a label for it. */}
-            <span className="w-20 shrink-0 text-[11px] uppercase text-muted">
-              {slot}
-            </span>
+            <span className="w-20 shrink-0 text-[11px] uppercase text-muted">{slot}</span>
             <Select
               value={held ?? EMPTY_SLOT}
               onValueChange={(tileId) =>
@@ -302,9 +289,7 @@ function WeaponsInHand({
   // holding a sword. A fighter with one in each hand is showing the first of the
   // two, which the Arena's own equipment rows say outright beside it.
   const equipment = equipmentOf(fighter, tilesById);
-  const hands = HANDS.filter((hand) =>
-    weaponSwungBy(equipment, tilesById, hand),
-  );
+  const hands = HANDS.filter((hand) => weaponSwungBy(equipment, tilesById, hand));
   // Bare hands are a weapon, so a body swinging nothing still has one row.
   const rotation: (Hand | null)[] = hands.length > 0 ? hands : [null];
 
@@ -368,20 +353,10 @@ function WeaponBlock({
  * numbers, not as a sentence about what they do. `../lib/weaponDemand` says the
  * same thing to a player looking at the same weapon in the world.
  */
-function MasteryDemand({
-  fighter,
-  weapon,
-}: {
-  fighter: ArenaFighter;
-  weapon: WeaponItem;
-}) {
-  const asked = MASTERIES.filter(
-    (mastery) => (weapon.requirements?.[mastery] ?? 0) > 0,
-  );
+function MasteryDemand({ fighter, weapon }: { fighter: ArenaFighter; weapon: WeaponItem }) {
+  const asked = MASTERIES.filter((mastery) => (weapon.requirements?.[mastery] ?? 0) > 0);
   const share = requirementShare(fighter.masteries, weapon.requirements);
-  const handling = weaponHandling(
-    requirementShortfall(fighter.masteries, weapon.requirements),
-  );
+  const handling = weaponHandling(requirementShortfall(fighter.masteries, weapon.requirements));
   const skill = fighter.masteries[weapon.mastery] ?? 0;
 
   return (
@@ -433,9 +408,7 @@ function DerivedStats({
         <Figure
           label="reach"
           value={
-            stats.reach.min
-              ? `${stats.reach.min}–${stats.reach.cells}c`
-              : `${stats.reach.cells}c`
+            stats.reach.min ? `${stats.reach.min}–${stats.reach.cells}c` : `${stats.reach.cells}c`
           }
         />
         <Figure label="haste" value={`${stats.haste.toFixed(2)}×`} />

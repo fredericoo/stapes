@@ -77,9 +77,7 @@ describe("hasSpriteStates", () => {
   });
 
   it("is true once a state is authored", () => {
-    expect(hasSpriteStates(deer({ moving: { sprites: { n: spriteAt(9) } } }))).toBe(
-      true,
-    );
+    expect(hasSpriteStates(deer({ moving: { sprites: { n: spriteAt(9) } } }))).toBe(true);
   });
 });
 
@@ -106,12 +104,8 @@ describe("resolveTileSprite with a state", () => {
   });
 
   it("reads idle when no state is asked for", () => {
-    expect(resolveTileSprite(walking, { direction: "n" })).toBe(
-      walking.sprites?.n,
-    );
-    expect(resolveTileSprite(walking, { state: "idle", direction: "n" })).toBe(
-      walking.sprites?.n,
-    );
+    expect(resolveTileSprite(walking, { direction: "n" })).toBe(walking.sprites?.n);
+    expect(resolveTileSprite(walking, { state: "idle", direction: "n" })).toBe(walking.sprites?.n);
   });
 
   it("resolves states on a simple tile", () => {
@@ -143,22 +137,16 @@ describe("resolveTileSprite with a state", () => {
       slices: { 0: spriteAt(0), 5: spriteAt(1) },
       states: { moving: { slices: { 5: spriteAt(7) } } },
     };
-    expect(
-      getFrames(water, { state: "moving", autotileSlice: 5 })?.[0]?.sprite.rect.x,
-    ).toBe(7);
+    expect(getFrames(water, { state: "moving", autotileSlice: 5 })?.[0]?.sprite.rect.x).toBe(7);
     // Slice 0 is unauthored on the state, so it falls back to idle's slice 0
     // rather than to the state's slice 5.
-    expect(
-      getFrames(water, { state: "moving", autotileSlice: 0 })?.[0]?.sprite.rect.x,
-    ).toBe(0);
+    expect(getFrames(water, { state: "moving", autotileSlice: 0 })?.[0]?.sprite.rect.x).toBe(0);
   });
 });
 
 describe("state sprites are visible to the light scan", () => {
   const lit = (radius: number): TileSprite => ({
-    frames: [
-      { ...frameAt(0), light: { radius, intensity: 1, color: "#ffcc88" } },
-    ],
+    frames: [{ ...frameAt(0), light: { radius, intensity: 1, color: "#ffcc88" } }],
   });
 
   it("counts a light authored only on a non-idle state", () => {
@@ -175,8 +163,6 @@ describe("state sprites are visible to the light scan", () => {
   it("gives a state's light its own place in the signature", () => {
     const idleOnly = deer();
     const withState = deer({ moving: { sprites: { n: lit(6) } } });
-    expect(tileLightSignature(withState)).not.toBe(
-      tileLightSignature(idleOnly),
-    );
+    expect(tileLightSignature(withState)).not.toBe(tileLightSignature(idleOnly));
   });
 });

@@ -76,9 +76,7 @@ describe("whether an anchor fits the sheet", () => {
       sprites: { n: sprite(-2, 0) },
       states: undefined,
     };
-    expect(anchorFits(reachingBack, reachingBack.anchor, [CHARS])).toMatch(
-      /top or left/,
-    );
+    expect(anchorFits(reachingBack, reachingBack.anchor, [CHARS])).toMatch(/top or left/);
   });
 
   it("refuses a sheet that is not in the library", () => {

@@ -2,23 +2,13 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_BASE_HP, fightingStats } from "../lib/battler";
 import { MELEE_REACH, type ItemDef, type WeaponItem } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
-import {
-  MASTERY_LABELS,
-  masteriesFromXp,
-  xpForLevel,
-  type MasteryXp,
-} from "../lib/mastery";
+import { MASTERY_LABELS, masteriesFromXp, xpForLevel, type MasteryXp } from "../lib/mastery";
 import { constantFormula } from "../lib/formula";
 import type { StatusDef } from "../lib/status";
 import { bandLabel, termLabel, type TermKey } from "../lib/terms";
 import { weaponDemandFor } from "../lib/weaponDemand";
 import type { TileDef } from "../lib/types";
-import {
-  attackIntervalMs,
-  damageBand,
-  damageBandOf,
-  swingIntervalMs,
-} from "./combat";
+import { attackIntervalMs, damageBand, damageBandOf, swingIntervalMs } from "./combat";
 import { itemCard, type ItemCardStat } from "./itemCard";
 
 /**
@@ -204,9 +194,7 @@ describe("itemCard", () => {
     const hastened = swingIntervalMs(fightingStats(bodyWith(quick), SWORD));
 
     expect(statAt(card.stats, "swing").tone).toBe("good");
-    expect(statAt(card.stats, "swing").value).toBe(
-      `${Number((hastened / 1000).toFixed(1))}s`,
-    );
+    expect(statAt(card.stats, "swing").value).toBe(`${Number((hastened / 1000).toFixed(1))}s`);
     expect(hastened).toBeLessThan(attackIntervalMs(SWORD.spd));
   });
 
@@ -402,9 +390,7 @@ describe("itemCard", () => {
       expect(statAt(card.stats, term).tone).toBe("bad");
     }
 
-    expect(card.requirements).toEqual([
-      { mastery: "sharp", required: GATE, have: 10, met: false },
-    ]);
+    expect(card.requirements).toEqual([{ mastery: "sharp", required: GATE, have: 10, met: false }]);
     // No percentage anywhere, drawn or spoken.
     expect(card.speech).not.toMatch(/\d+% accuracy/);
   });
@@ -424,11 +410,7 @@ describe("itemCard", () => {
 
   describe("something worn", () => {
     it("says what it is and what it stops", () => {
-      const card = itemCard(
-        tileWith({ type: "armor", def: 4 }),
-        null,
-        NOTHING_LEARNT,
-      )!;
+      const card = itemCard(tileWith({ type: "armor", def: 4 }), null, NOTHING_LEARNT)!;
       // The caption on the square it goes in — see
       // `../components/EquipmentPanel` — rather than a sentence about a body.
       expect(card.kind).toBe("Armour");
@@ -493,11 +475,7 @@ describe("itemCard", () => {
   });
 
   it("says a poison costs you rather than restores you", () => {
-    const card = itemCard(
-      tileWith({ type: "consumable", hp: -6 }),
-      null,
-      NOTHING_LEARNT,
-    )!;
+    const card = itemCard(tileWith({ type: "consumable", hp: -6 }), null, NOTHING_LEARNT)!;
     // Signed rather than worded, on the terms `../render/damageNumbers`' mend
     // sign is: a reader who cannot separate the red from the green still has
     // the arithmetic written down.
@@ -666,9 +644,7 @@ describe("itemCard", () => {
       // The requirements are reported because they decide whether it fires at
       // all, and there is nothing partial about an unmet stone: it refuses the
       // cast rather than weakening it.
-      expect(card.requirements).toEqual([
-        { mastery: "arcane", required: 12, have: 4, met: false },
-      ]);
+      expect(card.requirements).toEqual([{ mastery: "arcane", required: 12, have: 4, met: false }]);
     });
 
     it("reads a mending stone as mending rather than as negative damage", () => {
@@ -690,12 +666,10 @@ describe("itemCard", () => {
       expect(statAt(card.stats, "subject").value).toBe("You");
     });
 
-      it("heads the list with the act that causes it", () => {
+    it("heads the list with the act that causes it", () => {
       // A stone's grants carry a chance just as a weapon's do, so a heading
       // picked from the chance alone would say a necklace burns people "on hit".
-      expect(itemCard(tileWith(SWORD), null, NOTHING_LEARNT)!.effectsTitle).toBe(
-        "On hit",
-      );
+      expect(itemCard(tileWith(SWORD), null, NOTHING_LEARNT)!.effectsTitle).toBe("On hit");
       expect(
         itemCard(
           tileWith({
@@ -708,12 +682,11 @@ describe("itemCard", () => {
         )!.effectsTitle,
       ).toBe("On cast");
       expect(
-        itemCard(tileWith({ type: "consumable", hp: 1 }), null, NOTHING_LEARNT)!
-          .effectsTitle,
+        itemCard(tileWith({ type: "consumable", hp: 1 }), null, NOTHING_LEARNT)!.effectsTitle,
       ).toBe("Grants");
     });
 
-  it("names what a stone leaves behind, wherever its kind keeps the list", () => {
+    it("names what a stone leaves behind, wherever its kind keeps the list", () => {
       const venom: StatusDef = {
         id: "venom",
         name: "Venom",
@@ -749,17 +722,11 @@ describe("itemCard", () => {
   });
 
   it("names what holding it attunes you to", () => {
-    const card = itemCard(
-      tileWith({ ...SWORD, elements: ["fire"] }),
-      null,
-      NOTHING_LEARNT,
-    )!;
+    const card = itemCard(tileWith({ ...SWORD, elements: ["fire"] }), null, NOTHING_LEARNT)!;
     expect(card.elements).toEqual(["fire"]);
     expect(card.speech).toContain("Attuned to fire");
     // Only the kinds a fight can see carry them.
-    expect(
-      itemCard(tileWith({ type: "artifact" }), null, NOTHING_LEARNT)!.elements,
-    ).toEqual([]);
+    expect(itemCard(tileWith({ type: "artifact" }), null, NOTHING_LEARNT)!.elements).toEqual([]);
   });
 
   it("puts the count beside the name rather than in a row", () => {
@@ -843,8 +810,7 @@ describe("itemCard", () => {
         statuses: [{ id: "venom", fromMs: 5_000, toMs: 20_000 }],
       };
       expect(
-        itemCard(tileWith(snack), null, NOTHING_LEARNT, { venom: VENOM })!.effects[0]!
-          .duration,
+        itemCard(tileWith(snack), null, NOTHING_LEARNT, { venom: VENOM })!.effects[0]!.duration,
       ).toBe("5s–20s");
 
       const brief: ItemDef = {
@@ -853,8 +819,7 @@ describe("itemCard", () => {
         statuses: [{ id: "venom", fromMs: 1_500, toMs: 1_500 }],
       };
       expect(
-        itemCard(tileWith(brief), null, NOTHING_LEARNT, { venom: VENOM })!.effects[0]!
-          .duration,
+        itemCard(tileWith(brief), null, NOTHING_LEARNT, { venom: VENOM })!.effects[0]!.duration,
       ).toBe("1.5s");
 
       // Past a minute, seconds stop being a unit anybody reads in: an hour-long
@@ -865,8 +830,7 @@ describe("itemCard", () => {
         statuses: [{ id: "venom", fromMs: 3_600_000, toMs: 3_600_000 }],
       };
       expect(
-        itemCard(tileWith(blessing), null, NOTHING_LEARNT, { venom: VENOM })!.effects[0]!
-          .duration,
+        itemCard(tileWith(blessing), null, NOTHING_LEARNT, { venom: VENOM })!.effects[0]!.duration,
       ).toBe("60m");
     });
 
@@ -877,9 +841,7 @@ describe("itemCard", () => {
      */
     it("says nothing about a status the world no longer has", () => {
       const fang: WeaponItem = { ...SWORD, statuses: [{ id: "gone", chance: 10 }] };
-      expect(itemCard(tileWith(fang), null, NOTHING_LEARNT, { venom: VENOM })!.effects).toEqual(
-        [],
-      );
+      expect(itemCard(tileWith(fang), null, NOTHING_LEARNT, { venom: VENOM })!.effects).toEqual([]);
     });
   });
 

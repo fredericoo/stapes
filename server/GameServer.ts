@@ -6,7 +6,7 @@ import {
   type ActorSnapshot,
   type Death,
 } from "../app/game/GameSession";
-import { TICK_MS, WALK_DURATION_MS } from "../app/game/constants";
+import { TICK_MS } from "../app/game/constants";
 import {
   cellsOfChunks,
   chunksEntered,
@@ -17,12 +17,7 @@ import {
   visibleStack,
   withinBodyReach,
 } from "../app/net/interest";
-import {
-  cellsInScope,
-  eventsInScope,
-  patchesInScope,
-  type ScopedCell,
-} from "../app/net/scope";
+import { cellsInScope, eventsInScope, patchesInScope, type ScopedCell } from "../app/net/scope";
 import { cellKey } from "../app/game/pressurePlates";
 import {
   findSpawnPoints,
@@ -42,11 +37,7 @@ import { DEFAULT_FACING } from "../app/game/actors";
 import type { CastProgress, CastSlot } from "../app/game/casting";
 import type { Progress } from "../app/game/progress";
 import { resolveRespawn } from "../app/lib/interactions";
-import {
-  minutesOfDayAt,
-  wrapMinutes,
-  type MinutesOfDay,
-} from "../app/lib/clock";
+import { minutesOfDayAt, wrapMinutes, type MinutesOfDay } from "../app/lib/clock";
 import { masteryXpBlockSchema, type MasteryXp } from "../app/lib/mastery";
 import {
   changedCellsOnLevel,
@@ -236,9 +227,7 @@ function boardKey(levelKey: string, chunkKey: string): string {
  * a signed integer and a chunk key is a pair of them — so the first colon after
  * the prefix is the only separator there can be.
  */
-function parseBoardKey(
-  key: string,
-): { levelKey: string; chunkKey: string } | null {
+function parseBoardKey(key: string): { levelKey: string; chunkKey: string } | null {
   if (!key.startsWith(CHUNK_KEY_PREFIX)) return null;
   const rest = key.slice(CHUNK_KEY_PREFIX.length);
   const at = rest.indexOf(":");
@@ -395,8 +384,7 @@ function actorsInReach(
 ): ActorSnapshot[] {
   if (!at) return actors.filter((actor) => actor.id === self);
   return actors.filter(
-    (actor) =>
-      actor.id === self || withinBodyReach(at, actor.x, actor.y, actor.z),
+    (actor) => actor.id === self || withinBodyReach(at, actor.x, actor.y, actor.z),
   );
 }
 
@@ -767,9 +755,7 @@ type WrittenActor = {
 
 /** Whether two positions describe the same standing place, facing the same way. */
 function samePosition(a: ActorPosition, b: ActorPosition): boolean {
-  return (
-    a.x === b.x && a.y === b.y && a.z === b.z && a.direction === b.direction
-  );
+  return a.x === b.x && a.y === b.y && a.z === b.z && a.direction === b.direction;
 }
 
 /** A step a client says it has taken, waiting for this side to agree. */
@@ -956,10 +942,7 @@ export class GameServer {
    * nothing on the wire. Same discipline as {@link broadcastMap}: everyone is at
    * the same version, so one diff serves every socket.
    */
-  private sentHp = new Map<
-    string,
-    { hp: number; maxHp: number; rating: number }
-  >();
+  private sentHp = new Map<string, { hp: number; maxHp: number; rating: number }>();
   /**
    * The carried lights each client has been told about, joined into one string
    * per actor.
@@ -975,10 +958,7 @@ export class GameServer {
    * compared by. Both, so the list is walked once a tick rather than twice.
    * @see diffStatusIds
    */
-  private sentStatusIds = new Map<
-    string,
-    { defIds: string[]; key: string }
-  >();
+  private sentStatusIds = new Map<string, { defIds: string[]; key: string }>();
   /** Last broadcast switch per actor. @see diffPvp */
   private sentPvp = new Map<string, boolean>();
   /**
@@ -1242,9 +1222,7 @@ export class GameServer {
    * this object like it is working. Falling back to the authored map costs
    * everybody their position once and leaves a world that is actually there.
    */
-  private async checkpointedBoard(
-    checkpoint: Checkpoint,
-  ): Promise<MapFile | null> {
+  private async checkpointedBoard(checkpoint: Checkpoint): Promise<MapFile | null> {
     if (checkpoint.map) return chunkifyMap(checkpoint.map);
 
     const stored = await this.ctx.storage.list<ChunkCells>({
@@ -1306,23 +1284,16 @@ export class GameServer {
     // copy can be behind on: the pass above is only a migration if it sticks.
     this.persistRespawnPoints();
 
-    const pending = await this.ctx.storage.get<Record<string, number>>(
-      RESPAWN_PENDING_KEY,
-    );
+    const pending = await this.ctx.storage.get<Record<string, number>>(RESPAWN_PENDING_KEY);
     this.respawnPending = new Map(
-      Object.entries(pending ?? {}).filter(([key]) =>
-        this.respawnPoints.has(key),
-      ),
+      Object.entries(pending ?? {}).filter(([key]) => this.respawnPoints.has(key)),
     );
 
     const nowMs = Date.now();
     for (const point of this.respawnPoints.values()) {
       if (this.respawnPending.has(point.key)) continue;
       if (isSpawnFilled(session.getMap(), point)) continue;
-      this.respawnPending.set(
-        point.key,
-        nowMs + rollRespawnDelayMs(point.respawn),
-      );
+      this.respawnPending.set(point.key, nowMs + rollRespawnDelayMs(point.respawn));
     }
     this.persistRespawnPending();
     this.scheduleRespawnAlarm();
@@ -1382,9 +1353,7 @@ export class GameServer {
    */
   private scheduleRespawnAlarm() {
     if (this.respawnPending.size === 0) {
-      this.ctx.storage
-        .deleteAlarm()
-        .catch(GameServer.reportWriteFailure("respawn alarm clear"));
+      this.ctx.storage.deleteAlarm().catch(GameServer.reportWriteFailure("respawn alarm clear"));
       return;
     }
     this.ctx.storage
@@ -1650,9 +1619,7 @@ export class GameServer {
   private async rememberSpawn(actorId: string): Promise<void> {
     if (this.spawns.has(actorId)) return;
 
-    const saved = await this.ctx.storage.get<SavedSpawn>(
-      this.spawnKey(actorId),
-    );
+    const saved = await this.ctx.storage.get<SavedSpawn>(this.spawnKey(actorId));
     if (saved) {
       this.spawns.set(actorId, {
         x: saved.x,
@@ -1722,12 +1689,8 @@ export class GameServer {
    * Undefined for somebody new, which {@link GameSession.spawn} reads as "seed
    * them from the body they arrive in".
    */
-  private async lastMasteriesOf(
-    actorId: string,
-  ): Promise<MasteryXp | undefined> {
-    const saved = await this.ctx.storage.get<SavedMasteries>(
-      this.masteriesKey(actorId),
-    );
+  private async lastMasteriesOf(actorId: string): Promise<MasteryXp | undefined> {
+    const saved = await this.ctx.storage.get<SavedMasteries>(this.masteriesKey(actorId));
     if (!saved?.masteries) return undefined;
     const parsed = v.safeParse(masteryXpBlockSchema, saved.masteries);
     return parsed.success ? parsed.output : undefined;
@@ -1745,12 +1708,8 @@ export class GameServer {
    * terms a malformed mastery block is: half a remembered condition is a worse
    * answer than none, and none is one a player can act on.
    */
-  private async lastStatusesOf(
-    actorId: string,
-  ): Promise<StatusInstance[] | undefined> {
-    const saved = await this.ctx.storage.get<SavedStatuses>(
-      this.statusesKey(actorId),
-    );
+  private async lastStatusesOf(actorId: string): Promise<StatusInstance[] | undefined> {
+    const saved = await this.ctx.storage.get<SavedStatuses>(this.statusesKey(actorId));
     if (!saved?.statuses) return undefined;
     const parsed = v.safeParse(savedStatusesSchema, saved.statuses);
     return parsed.success ? parsed.output : undefined;
@@ -1794,12 +1753,8 @@ export class GameServer {
    * with. Undefined for somebody new, which {@link GameSession.spawn} reads as
    * "give them the starting kit".
    */
-  private async lastEquipmentOf(
-    actorId: string,
-  ): Promise<Equipment | undefined> {
-    const saved = await this.ctx.storage.get<SavedEquipment>(
-      this.equipmentKey(actorId),
-    );
+  private async lastEquipmentOf(actorId: string): Promise<Equipment | undefined> {
+    const saved = await this.ctx.storage.get<SavedEquipment>(this.equipmentKey(actorId));
     if (!saved?.equipment) return undefined;
     return restoredEquipment(saved.equipment, tilesByIdFromList(this.tiles));
   }
@@ -1810,12 +1765,8 @@ export class GameServer {
    * Undefined for somebody new, and undefined is exactly right: {@link spawn}
    * reads it as "no wish", and puts them in at the spawn point.
    */
-  private async lastPositionOf(
-    actorId: string,
-  ): Promise<ActorPosition | undefined> {
-    const saved = await this.ctx.storage.get<SavedPosition>(
-      this.positionKey(actorId),
-    );
+  private async lastPositionOf(actorId: string): Promise<ActorPosition | undefined> {
+    const saved = await this.ctx.storage.get<SavedPosition>(this.positionKey(actorId));
     if (!saved) return undefined;
     return { x: saved.x, y: saved.y, z: saved.z, direction: saved.direction };
   }
@@ -1913,11 +1864,7 @@ export class GameServer {
       // write exists to prevent, and it is what a `weapon || offhand || bag`
       // guard did to anybody who emptied their pockets. Naming no slot at all
       // is also the last way to leave the off hand out of one.
-      if (
-        equipment &&
-        !session.isResident(actorId) &&
-        equipment !== written?.equipment
-      ) {
+      if (equipment && !session.isResident(actorId) && equipment !== written?.equipment) {
         entries[this.equipmentKey(actorId)] = { equipment, savedAt };
       }
       // In the same batch again, and here the pairing is not merely tidy: the
@@ -1970,8 +1917,7 @@ export class GameServer {
       // so nothing would ever read either row.
       if (!session.isResident(actorId)) {
         const lastStatuses = written?.statuses ?? null;
-        const bothEmpty =
-          (statuses?.length ?? 0) === 0 && (lastStatuses?.length ?? 0) === 0;
+        const bothEmpty = (statuses?.length ?? 0) === 0 && (lastStatuses?.length ?? 0) === 0;
         // Identity, like the kit and the tags: `advanceStatuses` replaces the
         // list wholesale, so a fresh array *is* a tick having passed.
         if (!bothEmpty && statuses !== lastStatuses) {
@@ -2171,12 +2117,8 @@ export class GameServer {
     const stored = await this.ctx.storage.list<{ savedAt: number }>({ prefix });
     if (stored.size <= MAX_REMEMBERED_ACTORS) return;
 
-    const oldestFirst = [...stored].sort(
-      ([, a], [, b]) => a.savedAt - b.savedAt,
-    );
-    const doomed = oldestFirst
-      .slice(0, stored.size - MAX_REMEMBERED_ACTORS)
-      .map(([key]) => key);
+    const oldestFirst = [...stored].sort(([, a], [, b]) => a.savedAt - b.savedAt);
+    const doomed = oldestFirst.slice(0, stored.size - MAX_REMEMBERED_ACTORS).map(([key]) => key);
     await this.ctx.storage.delete(doomed);
   }
 
@@ -2194,11 +2136,7 @@ export class GameServer {
    * checkpoint was keeping for them, and put them back at spawn. Messages
    * arriving in the gap are safe: {@link webSocketMessage} loads for itself.
    */
-  async join(
-    socket: GameSocket,
-    actorId: string,
-    { admin }: { admin: boolean },
-  ): Promise<void> {
+  async join(socket: GameSocket, actorId: string, { admin }: { admin: boolean }): Promise<void> {
     this.displaceSockets(actorId);
     this.ctx.acceptWebSocket(socket);
     socket.serializeAttachment({ actorId, admin } satisfies Attachment);
@@ -2303,11 +2241,7 @@ export class GameServer {
     // The bodies near enough to be worth drawing, and no others: a client told
     // about a body it holds no cell for cannot draw it, and pays a sweep of its
     // whole board every frame looking for it. @see `../app/net/scope`
-    const actors = actorsInReach(
-      session.actorSnapshots(),
-      session.actorPosition(actorId),
-      actorId,
-    );
+    const actors = actorsInReach(session.actorSnapshots(), session.actorPosition(actorId), actorId);
     // Everything named below is a body this socket now knows about, so none of
     // it is news to announce. @see announcedActors
     const held = new Set(actors.map((actor) => actor.id));
@@ -2364,7 +2298,7 @@ export class GameServer {
       // Theirs alone, beside the kit and the tags, and in full for the same
       // reason all three are: a joiner has nothing to patch against, and the
       // panel showing it is on screen before the first blow.
-      masteryXp: { ...(session.masteryXpOf(actorId) ?? {}) },
+      masteryXp: { ...session.masteryXpOf(actorId) },
       // Theirs alone again, and in full on arrival for the reason all of these
       // are: there is nothing to patch against, and the lane that draws them is
       // on screen before the first berry.
@@ -3049,11 +2983,7 @@ export class GameServer {
    * pass that starts that step, cast from the cell the step is walking into,
    * which is where the client was standing when it pressed.
    */
-  private drainIntents(
-    session: GameSession,
-    actorId: string,
-    queue: QueuedIntent[],
-  ) {
+  private drainIntents(session: GameSession, actorId: string, queue: QueuedIntent[]) {
     while (queue.length > 0) {
       const intent = queue[0]!;
       if (intent.kind !== "step") {
@@ -3276,10 +3206,7 @@ export class GameServer {
       at.z,
       text,
     );
-    sql.exec(
-      "DELETE FROM chat WHERE id <= (SELECT MAX(id) FROM chat) - ?",
-      CHAT_LOG_MAX_ROWS,
-    );
+    sql.exec("DELETE FROM chat WHERE id <= (SELECT MAX(id) FROM chat) - ?", CHAT_LOG_MAX_ROWS);
   }
 
   async webSocketClose(ws: GameSocket) {
@@ -3327,10 +3254,7 @@ export class GameServer {
       // board the drain checkpoints.
       this.saveActors([attachment.actorId], true);
       this.session.standIdle(attachment.actorId);
-      this.lingering.set(
-        attachment.actorId,
-        Date.now() + GameServer.MAX_LINGER_MS,
-      );
+      this.lingering.set(attachment.actorId, Date.now() + GameServer.MAX_LINGER_MS);
       // The minute only runs down while the world ticks.
       this.wake();
       return;
@@ -3475,10 +3399,7 @@ export class GameServer {
    * editor's save deliberately does not pass it, so an author watching their
    * own edit still sees the world start over.
    */
-  async replaceWorld(
-    flat: FlatMapFile,
-    options: { keepPositions?: boolean } = {},
-  ): Promise<void> {
+  async replaceWorld(flat: FlatMapFile, options: { keepPositions?: boolean } = {}): Promise<void> {
     const store = this.store();
     const tiles = await store.readTiles();
     // Re-read rather than reused, on exactly the terms the tiles are: a save is
@@ -3565,9 +3486,7 @@ export class GameServer {
     // exist again — the author placed the creature back by hand — owes
     // nothing. Read off the new session rather than the incoming file so the
     // creature identities are the adopted ones.
-    this.setRespawnPoints(
-      findSpawnPoints(session.getMap(), tilesByIdFromList(tiles)),
-    );
+    this.setRespawnPoints(findSpawnPoints(session.getMap(), tilesByIdFromList(tiles)));
     this.respawnPending.clear();
     this.persistRespawnPoints();
     this.persistRespawnPending();
@@ -3649,13 +3568,10 @@ export class GameServer {
           // bubbles outward and gives up at the new spawn, so a position kept
           // across a deploy can never seat somebody inside a wall.
           at: standing.get(actorId),
-          carrying: kit
-            ? restoredEquipment(kit, tilesById)
-            : await this.lastEquipmentOf(actorId),
+          carrying: kit ? restoredEquipment(kit, tilesById) : await this.lastEquipmentOf(actorId),
           tagged: taken.get(actorId) ?? (await this.lastTagsOf(actorId)),
           earned: learnt.get(actorId) ?? (await this.lastMasteriesOf(actorId)),
-          statuses:
-            running.get(actorId) ?? (await this.lastStatusesOf(actorId)),
+          statuses: running.get(actorId) ?? (await this.lastStatusesOf(actorId)),
           hp: health.get(actorId) ?? (await this.lastHpOf(actorId)),
           pvp: fighting.has(actorId) || (await this.lastPvpOf(actorId)),
         },
@@ -3781,7 +3697,6 @@ export class GameServer {
    * has never met.
    */
   async resetWorld(): Promise<void> {
-
     // The tick and the session go together, and *before the first await*.
     // A flush is the one thing here that writes the world back out, and one
     // landing between the wipe and the reload would restore the very checkpoint
@@ -3891,10 +3806,7 @@ export class GameServer {
       this.consecutiveTickFailures += 1;
       const n = this.consecutiveTickFailures;
       if (n === 1 || n % TICK_FAILURE_LOG_INTERVAL === 0) {
-        console.error(
-          `[world] tick failed (${n} in a row, still ticking)`,
-          error,
-        );
+        console.error(`[world] tick failed (${n} in a row, still ticking)`, error);
       }
     }
   }
@@ -4614,7 +4526,7 @@ export class GameServer {
     if (!session) return;
     const map = session.getMap();
     const sent = new Set<string>();
-    for (const [ws, actorId] of this.seated()) {
+    for (const [, actorId] of this.seated()) {
       // Two tabs on one body are owed the same ground, and the first of them
       // through here has already moved the subscription on. Sending to both
       // would be right; computing it twice would not.
@@ -4643,11 +4555,7 @@ export class GameServer {
       // Stripped of the bodies this client is not being told about, which is
       // every body in ground this far out: the handover reaches five chunks and
       // a body is announced at two and a half. @see `../app/net/interest`
-      const cells = cellsOfChunks(
-        map,
-        take,
-        this.announcedActors.get(actorId) ?? NO_ACTORS,
-      );
+      const cells = cellsOfChunks(map, take, this.announcedActors.get(actorId) ?? NO_ACTORS);
       if (cells.length === 0) continue;
       this.sendToEverySocketOf(actorId, {
         type: "patch",
@@ -4732,9 +4640,7 @@ export class GameServer {
                 ...wholePatch(patch),
               }));
         } else {
-          payload = isEmptyPatch(mine)
-            ? null
-            : JSON.stringify({ type: "patch", ...mine });
+          payload = isEmptyPatch(mine) ? null : JSON.stringify({ type: "patch", ...mine });
         }
         payloads.set(actorId, payload);
       }
@@ -4851,22 +4757,18 @@ export class GameServer {
       // to avoid. A `despawned` before an event about the same body would be
       // undone by it.
       events: [
-        ...arrivals.map(
-          (actor): MotionEvent => ({
-            kind: "spawned",
-            actorId: actor.id,
-            at: {
-              x: actor.x,
-              y: actor.y,
-              z: actor.z,
-              stackIndex: actor.stackIndex,
-            },
-          }),
-        ),
+        ...arrivals.map((actor): MotionEvent => ({
+          kind: "spawned",
+          actorId: actor.id,
+          at: {
+            x: actor.x,
+            y: actor.y,
+            z: actor.z,
+            stackIndex: actor.stackIndex,
+          },
+        })),
         ...events,
-        ...(departed ?? []).map(
-          (id): MotionEvent => ({ kind: "despawned", actorId: id }),
-        ),
+        ...(departed ?? []).map((id): MotionEvent => ({ kind: "despawned", actorId: id })),
       ],
       // The arrival's state in full, ahead of the diffs: this client has nothing
       // to patch against for a body it has just been told about, exactly as a
