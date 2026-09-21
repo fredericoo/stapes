@@ -19,8 +19,10 @@ export const ADMIN_PASSWORD = "salem123";
  * request shares the page's cookie jar, so what follows is an ordinary
  * navigation as somebody signed in.
  *
- * `e2e/session.spec.ts` deliberately does *not* use this: the door is what that
- * file is a claim about, so it presses the buttons.
+ * `e2e/session.spec.ts`'s walk through the doors deliberately does *not* use
+ * this: the door is what that test is a claim about, so it presses the buttons.
+ * The mid-fight test in the same file does, because it is not about the door —
+ * it is about a button that only appears once you are through one.
  */
 export async function signInAsAdmin(page: Page): Promise<void> {
   const response = await page.request.post("/api/auth/sign-in/username", {
