@@ -937,7 +937,10 @@ export class GameServer {
    * nothing on the wire. Same discipline as {@link broadcastMap}: everyone is at
    * the same version, so one diff serves every socket.
    */
-  private sentHp = new Map<string, { hp: number; rating: number }>();
+  private sentHp = new Map<
+    string,
+    { hp: number; maxHp: number; rating: number }
+  >();
   /**
    * The carried lights each client has been told about, joined into one string
    * per actor.
@@ -948,8 +951,15 @@ export class GameServer {
    * somebody moved a sword between two pockets.
    */
   private sentCarriedLights = new Map<string, string>();
-  /** Last broadcast status ids per actor, joined. @see diffStatusIds */
-  private sentStatusIds = new Map<string, string>();
+  /**
+   * Last broadcast status ids per actor, with the joined string they are
+   * compared by. Both, so the list is walked once a tick rather than twice.
+   * @see diffStatusIds
+   */
+  private sentStatusIds = new Map<
+    string,
+    { defIds: string[]; key: string }
+  >();
   /** Last broadcast switch per actor. @see diffPvp */
   private sentPvp = new Map<string, boolean>();
   /**
@@ -958,12 +968,14 @@ export class GameServer {
    * Compared by identity, unlike its neighbours, because identity is exactly
    * the answer here: the runtime winds one object in place for the whole pull
    * and replaces it only when a pull starts or ends. Comparing the numbers
-   * would see a change on every tick of every pull. @see diffExtractions
+   * would see a change on every tick of every pull.
+   *
+   * Holds a null for a body that is not pulling, rather than no entry at all —
+   * which reads the same to the compare, and means one entry per live actor on
+   * the terms {@link sentPvp} and {@link sentCarriedLights} already hold one.
+   * {@link diffPerActor} sweeps them all the same way. @see diffExtractions
    */
-  private sentExtractions = new Map<
-    string,
-    NonNullable<ActorSnapshot["extracting"]>
-  >();
+  private sentExtractions = new Map<string, ActorSnapshot["extracting"]>();
   /**
    * The wait each attached player was last *addressed* about.
    *
@@ -978,10 +990,7 @@ export class GameServer {
    * The cast each actor was last broadcast as making, compared by identity on
    * {@link sentExtractions}' terms and for its reason. @see diffCastings
    */
-  private sentCastings = new Map<
-    string,
-    NonNullable<ActorSnapshot["casting"]>
-  >();
+  private sentCastings = new Map<string, ActorSnapshot["casting"]>();
   private events: MotionEvent[] = [];
   /** Steps, turns and casts clients have sent, oldest first, per actor. */
   private readonly queuedIntents = new Map<string, QueuedIntent[]>();
@@ -4314,62 +4323,105 @@ export class GameServer {
   }
 
   /**
+   * Diff one reading per actor against what was last broadcast, and forget the
+   * actors that have left.
+   *
+   * Six diffs were this same loop, ending in the same sweep: **an actor no
+   * longer on the board is dropped from the map of what was sent.**
+   *
+   * That sweep is about memory rather than about the wire, and the comments
+   * this replaces had it wrong. They claimed a returning player would otherwise
+   * be diffed against the body they died in — back on their old hit points, or
+   * carrying the lantern their corpse is still holding. It is not reachable:
+   * {@link scopedPatchFor} puts a body nobody has been told about into
+   * `entered` and announces it with its whole snapshot, never through a diff.
+   * What the sweep buys is what {@link noteDeaths} says beside its own
+   * `sentHp.delete` — or the map grows a row per body the world has ever
+   * killed, and a world that respawns creatures kills a great many.
+   *
+   * `read` returning undefined leaves an actor out altogether, which is not the
+   * same as having nothing to say about them: an actor left out is never added
+   * to the live set, so the sweep forgets them exactly as it forgets a body that
+   * has gone. That is what {@link diffHps} wants for a crate.
+   *
+   * `same` is handed `undefined` for a body nothing has been sent about yet, and
+   * every caller decides for itself what that counts as. The defaults are not
+   * cosmetic: a body that arrives carrying no lights and has never been
+   * broadcast must read as unchanged, or every actor that ever walks into view
+   * is announced as having put a torch down.
+   */
+  private diffPerActor<S, P>(
+    actors: ActorSnapshot[],
+    sent: Map<string, S>,
+    read: (actor: ActorSnapshot) => S | undefined,
+    same: (was: S | undefined, now: S) => boolean,
+    patch: (actor: ActorSnapshot, now: S) => P,
+  ): P[] {
+    const out: P[] = [];
+    const live = new Set<string>();
+    for (const actor of actors) {
+      const now = read(actor);
+      if (now === undefined) continue;
+      live.add(actor.id);
+      if (same(sent.get(actor.id), now)) continue;
+      sent.set(actor.id, now);
+      out.push(patch(actor, now));
+    }
+    for (const id of sent.keys()) {
+      if (!live.has(id)) sent.delete(id);
+    }
+    return out;
+  }
+
+  /**
    * Hit points that changed since the last broadcast.
    *
    * Only battlers are tracked, so a world of scenery costs one `null` check per
-   * actor. An actor who has left is forgotten here too — otherwise their entry
-   * would sit in the map forever, and a returning player would silently inherit
-   * the reading their previous body died on.
+   * actor and leaves nothing behind. @see diffPerActor
    */
   private diffHps(actors: ActorSnapshot[]): HpPatch[] {
-    const out: HpPatch[] = [];
-    const live = new Set<string>();
-    for (const actor of actors) {
-      if (actor.hp === null || actor.maxHp === null) continue;
-      live.add(actor.id);
+    return this.diffPerActor(
+      actors,
+      this.sentHp,
+      // Undefined for anything that is not a battler, so a world of scenery
+      // costs one check per actor and leaves no entries behind.
+      (actor) =>
+        actor.hp === null || actor.maxHp === null
+          ? undefined
+          : { hp: actor.hp, maxHp: actor.maxHp, rating: actor.rating ?? 0 },
       // Either number moving is worth a message, and the ⭐ is why this is a
       // pair rather than a single reading: a creature's never moves and a
-      // player's moves without their hit points doing so.
-      const rating = actor.rating ?? 0;
-      const sent = this.sentHp.get(actor.id);
-      if (sent?.hp === actor.hp && sent.rating === rating) continue;
-      this.sentHp.set(actor.id, { hp: actor.hp, rating });
-      out.push({
+      // player's moves without their hit points doing so. `maxHp` rides along
+      // to be sent and is deliberately not compared.
+      (was, now) => was?.hp === now.hp && was.rating === now.rating,
+      (actor, now) => ({
         actorId: actor.id,
-        hp: actor.hp,
-        maxHp: actor.maxHp,
-        rating,
-      });
-    }
-    for (const id of this.sentHp.keys()) {
-      if (!live.has(id)) this.sentHp.delete(id);
-    }
-    return out;
+        hp: now.hp,
+        maxHp: now.maxHp,
+        rating: now.rating,
+      }),
+    );
   }
 
   /**
    * Carried lights that changed since the last broadcast.
    *
    * Almost always empty, and that is the shape to protect: this runs on every
-   * tick of every world, and a torch is picked up once. Forgetting an actor who
-   * has left matters here for the same reason it does for hit points — a
-   * returning player with a fresh kit would otherwise be diffed against the
-   * lantern their last body was holding, and the room would stay lit by nothing.
+   * tick of every world, and a torch is picked up once.
+   *
+   * A string rather than the array, because the question is "the same answer as
+   * last time" and the array is rebuilt whenever a kit changes — comparing by
+   * identity would re-broadcast a lantern every time somebody moved a sword
+   * between two pockets.
    */
   private diffCarriedLights(actors: ActorSnapshot[]): CarriedLightsPatch[] {
-    const out: CarriedLightsPatch[] = [];
-    const live = new Set<string>();
-    for (const actor of actors) {
-      live.add(actor.id);
-      const joined = actor.carriedLights.join(",");
-      if ((this.sentCarriedLights.get(actor.id) ?? "") === joined) continue;
-      this.sentCarriedLights.set(actor.id, joined);
-      out.push({ actorId: actor.id, tileIds: actor.carriedLights });
-    }
-    for (const id of this.sentCarriedLights.keys()) {
-      if (!live.has(id)) this.sentCarriedLights.delete(id);
-    }
-    return out;
+    return this.diffPerActor(
+      actors,
+      this.sentCarriedLights,
+      (actor) => actor.carriedLights.join(","),
+      (was, now) => (was ?? "") === now,
+      (actor) => ({ actorId: actor.id, tileIds: actor.carriedLights }),
+    );
   }
 
   /**
@@ -4378,48 +4430,37 @@ export class GameServer {
    * A diff of its own rather than a read of `drainStatusChanges`, and the two
    * must not be confused: that queue is drained to send the viewer their *own*
    * countdown, and reading it here would take the message out of their mouth.
-   * This compares what was last broadcast, on exactly the terms
-   * {@link diffCarriedLights} does — including forgetting a body that has left,
-   * so a returning one is diffed against nothing rather than against whatever
-   * its last life was under.
+   * This compares what was last broadcast instead.
    */
   private diffStatusIds(actors: ActorSnapshot[]): StatusIdsPatch[] {
-    const out: StatusIdsPatch[] = [];
-    const live = new Set<string>();
-    for (const actor of actors) {
-      live.add(actor.id);
-      const defIds = statusIdsOf(actor);
-      const joined = defIds.join(",");
-      if ((this.sentStatusIds.get(actor.id) ?? "") === joined) continue;
-      this.sentStatusIds.set(actor.id, joined);
-      out.push({ actorId: actor.id, defIds });
-    }
-    for (const id of this.sentStatusIds.keys()) {
-      if (!live.has(id)) this.sentStatusIds.delete(id);
-    }
-    return out;
+    return this.diffPerActor(
+      actors,
+      this.sentStatusIds,
+      // The ids and the string they are compared by, together, so the list is
+      // walked once per actor per tick rather than once to compare and again
+      // to send.
+      (actor) => {
+        const defIds = statusIdsOf(actor);
+        return { defIds, key: defIds.join(",") };
+      },
+      (was, now) => (was?.key ?? "") === now.key,
+      (actor, now) => ({ actorId: actor.id, defIds: now.defIds }),
+    );
   }
 
   /**
    * Whose switch moved since the last patch. @see `../app/net/protocol`'s PvpPatch
    *
-   * A diff on {@link diffStatusIds}' terms, down to forgetting a body that has
-   * left — so somebody who comes back is diffed against nothing and is marked,
-   * or unmarked, on the frame they arrive.
+   * A diff on {@link diffStatusIds}' terms.
    */
   private diffPvp(actors: ActorSnapshot[]): PvpPatch[] {
-    const out: PvpPatch[] = [];
-    const live = new Set<string>();
-    for (const actor of actors) {
-      live.add(actor.id);
-      if ((this.sentPvp.get(actor.id) ?? false) === actor.pvp) continue;
-      this.sentPvp.set(actor.id, actor.pvp);
-      out.push({ actorId: actor.id, on: actor.pvp });
-    }
-    for (const id of this.sentPvp.keys()) {
-      if (!live.has(id)) this.sentPvp.delete(id);
-    }
-    return out;
+    return this.diffPerActor(
+      actors,
+      this.sentPvp,
+      (actor) => actor.pvp,
+      (was, now) => (was ?? false) === now,
+      (actor, now) => ({ actorId: actor.id, on: now }),
+    );
   }
 
   /**
@@ -4430,24 +4471,21 @@ export class GameServer {
    * player their own pull, key and all, and reading it here would take the
    * message out of their mouth.
    *
-   * A body that has left is forgotten without a patch. Its tile is off the
-   * board in the same frame's cells, so there is nothing left to hang a bar on.
+   * A body that has left is forgotten without a patch, which is right rather
+   * than merely cheap: its tile is off the board in the same frame's cells, so
+   * there is nothing left to hang a bar on.
    */
   private diffExtractions(actors: ActorSnapshot[]): ExtractionPatch[] {
-    const out: ExtractionPatch[] = [];
-    const live = new Set<string>();
-    for (const actor of actors) {
-      live.add(actor.id);
-      const now = actor.extracting;
-      if ((this.sentExtractions.get(actor.id) ?? null) === now) continue;
-      if (now) this.sentExtractions.set(actor.id, now);
-      else this.sentExtractions.delete(actor.id);
-      out.push({ actorId: actor.id, progress: now ? progressOf(now) : null });
-    }
-    for (const id of this.sentExtractions.keys()) {
-      if (!live.has(id)) this.sentExtractions.delete(id);
-    }
-    return out;
+    return this.diffPerActor(
+      actors,
+      this.sentExtractions,
+      (actor) => actor.extracting,
+      (was, now) => (was ?? null) === now,
+      (actor, now) => ({
+        actorId: actor.id,
+        progress: now ? progressOf(now) : null,
+      }),
+    );
   }
 
   /**
@@ -4459,23 +4497,16 @@ export class GameServer {
    * spell in the world.
    */
   private diffCastings(actors: ActorSnapshot[]): CastingPatch[] {
-    const out: CastingPatch[] = [];
-    const live = new Set<string>();
-    for (const actor of actors) {
-      live.add(actor.id);
-      const now = actor.casting;
-      if ((this.sentCastings.get(actor.id) ?? null) === now) continue;
-      if (now) this.sentCastings.set(actor.id, now);
-      else this.sentCastings.delete(actor.id);
-      out.push({
+    return this.diffPerActor(
+      actors,
+      this.sentCastings,
+      (actor) => actor.casting,
+      (was, now) => (was ?? null) === now,
+      (actor, now) => ({
         actorId: actor.id,
         progress: now ? castProgressOf(now) : null,
-      });
-    }
-    for (const id of this.sentCastings.keys()) {
-      if (!live.has(id)) this.sentCastings.delete(id);
-    }
-    return out;
+      }),
+    );
   }
 
   /**
