@@ -23,6 +23,7 @@ import {
   type ProjectileFlight,
 } from "../game/projectile";
 import { resolveProjectile } from "../lib/projectile";
+import { haptic } from "../lib/haptics";
 
 import {
   MAX_HELD_TRANSITIONS,
@@ -1361,6 +1362,25 @@ export class RemoteSession implements PlaySession {
     }
 
     if (event.kind === "damage") {
+      // Vibrate the phone, where there is a native shell to do it.
+      //
+      // Only for a landed blow, and only on this client's own body: a miss
+      // carries `amount: 0`, a heal is not something to be thumped by, and
+      // somebody else's fight two cells away is not this player's business.
+      //
+      // Scaled by how much of this body the blow took rather than by the raw
+      // number, because the number means nothing on its own — eight off a rat
+      // and eight off a player who has come up are not the same event. A body
+      // whose `maxHp` this client has not been sent yet is a battler nothing is
+      // known about, so it gets the full thump rather than none.
+      if (
+        event.targetId === this.selfId &&
+        event.outcome === "hit" &&
+        event.amount > 0
+      ) {
+        const maxHp = this.hps.get(this.selfId)?.maxHp;
+        haptic("hit", maxHp ? event.amount / maxHp : 1);
+      }
       this.damage.push({
         id: event.id,
         targetId: event.targetId,

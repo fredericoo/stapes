@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Stapes</string>
+    <string name="offline_title">Can\'t reach the world</string>
+    <string name="offline_retry">Try again</string>
+</resources>
