@@ -9,9 +9,10 @@ android {
 
     defaultConfig {
         applicationId = "app.stapes"
-        // 26 is where a launcher reads an adaptive icon, which is what lets
-        // the icon be the one vector in `res/drawable` rather than a bitmap per
-        // density that somebody has to regenerate.
+        // 26 is where a launcher reads an adaptive icon, and also where
+        // `VibrationEffect` arrives — below it the haptic would have to be a
+        // bare duration in milliseconds, which is what `app/lib/haptics.ts`
+        // exists to avoid.
         minSdk = 26
         targetSdk = 35
         versionCode = 1

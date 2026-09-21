@@ -43,6 +43,7 @@ struct GameScreen: View {
             // thing on screen, so this never holds the display awake for an app
             // in the background.
             UIApplication.shared.isIdleTimerDisabled = phase == .active
+            if phase == .active { Haptics.prepare() }
         }
     }
 

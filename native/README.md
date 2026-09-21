@@ -1,9 +1,9 @@
 # The native shells
 
 Two apps, one game. Each is a window that loads `https://your-domain/` and
-does the handful of things a web page cannot do for itself: keep the screen
-awake, hold the session across launches, and say something useful when the
-world cannot be reached.
+does the handful of things a web page cannot do for itself: vibrate when
+something hits you, keep the screen awake, hold the session across launches,
+and say something useful when the world cannot be reached.
 
 **Neither shell contains a copy of the game.** That is the decision everything
 else here follows from, and `docs/notes.md` has the long version under "The
@@ -55,6 +55,18 @@ There is no Gradle wrapper checked in. Run `gradle wrapper` once in
 `native/android` with a local Gradle, or open the directory in Android Studio
 and let it do the same.
 
+## The haptic
+
+The only bridge either shell installs. `app/lib/haptics.ts` is the whole of the
+web side and the shells are its two implementations — the page names *what
+happened* and each platform decides the waveform, because a duration in
+milliseconds chosen in TypeScript would be worse than the stock patterns on
+both.
+
+It fires from one place: `app/net/RemoteSession.ts`, when a landed blow names
+this client's own body, scaled by how much of that body it took. Adding a second
+occasion means adding a `HapticKind` and answering for it in three files.
+
 ## Getting it approved
 
 Guideline 4.2 is what rejects a webview wrapper, and it is not satisfied by
@@ -64,6 +76,8 @@ arguing. What is in here because of it:
   blank window or Chromium's own error page, and neither offers a way to try
   again. Both shells put a native screen in front with a retry button. This is
   the single most likely thing to go wrong on a reviewer's connection.
+- **Haptics.** A capability a browser tab does not have, on an event the game
+  already had.
 - **The screen stays awake** while the app is in front, because nobody taps for
   minutes at a time during a fight.
 - **Links leave.** Anything off-origin opens in the system browser rather than

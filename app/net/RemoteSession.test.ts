@@ -1,5 +1,5 @@
 import { MAP_FILE_VERSION } from "../lib/types";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   FALL_MS_PER_HEIGHT,
   PLAYER_TILE_ID,
@@ -1969,5 +1969,106 @@ describe("RemoteSession tile transitions", () => {
     const taken = session.takeTransitions();
     expect(taken).toHaveLength(MAX_HELD_TRANSITIONS);
     expect(taken[0]?.note.id).toBe("transition-1");
+  });
+});
+
+/**
+ * The one event the page hands to the platform underneath it.
+ *
+ * Worth a test rather than a glance, because every one of these is a case where
+ * the shell would buzz for something that did not happen to you — and a phone
+ * that thumps when a rat two cells away is missed is worse than one that never
+ * thumps at all.
+ */
+describe("the haptic a blow plays", () => {
+  const OTHER = "somebody-else";
+
+  function felt(): Array<{ kind: string; intensity: number }> {
+    const played: Array<{ kind: string; intensity: number }> = [];
+    (globalThis as { window?: unknown }).window = {
+      StapesNative: {
+        haptic: (kind: string, intensity: number) =>
+          played.push({ kind, intensity }),
+      },
+    };
+    return played;
+  }
+
+  afterEach(() => {
+    delete (globalThis as { window?: unknown }).window;
+  });
+
+  /** A landed blow on `targetId`, as the server reports it. */
+  function blow(
+    targetId: string,
+    amount: number,
+    outcome: "hit" | "miss" | "heal" = "hit",
+  ): MotionEvent {
+    return {
+      kind: "damage",
+      id: `blow-${targetId}-${amount}-${outcome}`,
+      targetId,
+      outcome,
+      amount,
+      x: 0,
+      y: 0,
+      z: 0,
+      stackIndex: 1,
+    };
+  }
+
+  /** Hit points for our own body, so there is something to scale against. */
+  const ownHp: HpPatch[] = [
+    { actorId: SELF, hp: 40, maxHp: 40, rating: 1 },
+  ];
+
+  it("scales the thump by how much of this body the blow took", () => {
+    const played = felt();
+    const { socket } = connected();
+    socket.deliver(patch([], [], ownHp));
+
+    socket.deliver(patch([], [blow(SELF, 10)]));
+
+    expect(played).toEqual([{ kind: "hit", intensity: 0.25 }]);
+  });
+
+  it("gives the full thump before this client has been told its own maximum", () => {
+    const played = felt();
+    const { socket } = connected();
+
+    socket.deliver(patch([], [blow(SELF, 3)]));
+
+    expect(played).toEqual([{ kind: "hit", intensity: 1 }]);
+  });
+
+  it("stays quiet for a blow that landed on somebody else", () => {
+    const played = felt();
+    const { socket } = connected();
+    socket.deliver(patch([], [], ownHp));
+
+    socket.deliver(patch([], [blow(OTHER, 20)]));
+
+    expect(played).toEqual([]);
+  });
+
+  it("stays quiet for a miss and for a heal", () => {
+    const played = felt();
+    const { socket } = connected();
+    socket.deliver(patch([], [], ownHp));
+
+    // A miss and a dodge both carry `amount: 0`, and a heal carries a real one.
+    socket.deliver(patch([], [blow(SELF, 0, "miss")]));
+    socket.deliver(patch([], [blow(SELF, 8, "heal")]));
+
+    expect(played).toEqual([]);
+  });
+
+  it("draws the damage number in a tab with no shell under it", () => {
+    const { socket, session } = connected();
+    socket.deliver(patch([], [], ownHp));
+
+    socket.deliver(patch([], [blow(SELF, 10)]));
+
+    expect(session.getSnapshot().damage).toHaveLength(1);
   });
 });

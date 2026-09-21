@@ -660,8 +660,26 @@ until they do. Loading the origin keeps the existing deploy story exactly as it
 is: CI posts the build, the pointer flips, the app reloads.
 
 What is left for the shells is the short list of things a page genuinely cannot
-do: hold the display awake, persist a cookie across launches, and put something
-other than a blank window on screen when the origin cannot be reached.
+do: vibrate, hold the display awake, persist a cookie across launches, and put
+something other than a blank window on screen when the origin cannot be reached.
+
+### A blow is the one event the page hands to the platform
+
+`app/lib/haptics.ts` is the whole of the web side. It names *what happened* —
+`hit`, with how much of the body the blow took — and never a waveform, because
+both platforms have a vocabulary of feedback patterns tuned to their own
+hardware and a duration in milliseconds picked in TypeScript would be worse than
+either. The two shells answer for it in `Haptics.swift` and `Haptics.kt`.
+
+It fires from `RemoteSession`'s `damage` handler, on the frame the damage
+numbers are queued, and only when the target is this client's own body and the
+outcome is a landed `hit` — a miss carries `amount: 0` and a heal is not a thing
+to be thumped by.
+
+**Nothing here reaches `navigator.vibrate`.** Chrome on Android implements it
+and Safari does not, so using it would mean the same game buzzing in one mobile
+browser and not the other, with nobody having chosen either. A shell that
+installs a bridge has opted in; a tab has not.
 
 ### The page is given the whole screen and is not inset
 

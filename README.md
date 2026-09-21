@@ -77,9 +77,9 @@ Deploying is in [SETUP.md](SETUP.md).
 `native/` holds an iOS and an Android shell. Each is a window that loads the
 deployed origin — neither carries a copy of the client, so a client deploy
 reaches both without an App Store round trip. What they add is the short list a
-page cannot do for itself: a screen that stays awake, a session that survives a
-relaunch, and something other than a blank window when the world is
-unreachable.
+page cannot do for itself: a vibration when something hits you, a screen that
+stays awake, a session that survives a relaunch, and something other than a
+blank window when the world is unreachable.
 
 ```bash
 brew install xcodegen && cd native/ios && xcodegen generate   # then open Stapes.xcodeproj

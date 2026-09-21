@@ -52,6 +52,9 @@ struct GameWebView: UIViewRepresentable {
         // information rather than a lie.
         configuration.applicationNameForUserAgent = Config.userAgentSuffix
 
+        configuration.userContentController.add(
+            context.coordinator, name: "stapesHaptics")
+
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         context.coordinator.webView = webView
@@ -81,7 +84,7 @@ struct GameWebView: UIViewRepresentable {
         webView.load(URLRequest(url: Config.origin))
     }
 
-    final class Coordinator: NSObject, WKNavigationDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         private let state: Binding<LoadState>
         weak var webView: WKWebView?
 
@@ -165,6 +168,20 @@ struct GameWebView: UIViewRepresentable {
         /// no amount of tapping fixes, because nothing is left to redraw.
         func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
             webView.load(URLRequest(url: Config.origin))
+        }
+
+        // MARK: The bridge
+
+        func userContentController(
+            _ userContentController: WKUserContentController,
+            didReceive message: WKScriptMessage
+        ) {
+            guard message.name == "stapesHaptics",
+                  let body = message.body as? [String: Any],
+                  let kind = body["kind"] as? String
+            else { return }
+            let intensity = body["intensity"] as? Double ?? 1
+            Haptics.play(kind: kind, intensity: intensity)
         }
     }
 }

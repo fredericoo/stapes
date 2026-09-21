@@ -89,6 +89,7 @@ class MainActivity : AppCompatActivity() {
         webView.keepScreenOn = true
         webView.setBackgroundColor(INK)
 
+        webView.addJavascriptInterface(Haptics(this), "StapesNative")
         webView.webViewClient = GameClient()
 
         if (savedInstanceState == null) {
