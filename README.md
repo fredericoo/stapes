@@ -62,6 +62,12 @@ It is the path to open when the question is whether the game still works.
   so this only exists to keep the file readable
 - `bun run seed` — load `data/` into a database that already has content. Rarely
   needed: a fresh one seeds itself on boot
+- `bun run lint` — oxlint. Four rules are off and `.oxlintrc.json` says why
+  each one is wrong about this codebase rather than inconvenient
+- `bun run format` — oxfmt, at a print width of 100. `bun run format:check`
+  is the same question without writing, which is what CI asks. Markdown is not
+  formatted, and neither are `data/map.json` or `data/tiles.json`, whose
+  writers own their shape — `.oxfmtrc.json` has a paragraph on each
 - `bun run typecheck` — route typegen, then all three tsconfigs
 - `bun run test:unit` — `app/` logic, in vitest
 - `bun run test:server` — the world and its accounts, on Bun, against a real

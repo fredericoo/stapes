@@ -28,8 +28,21 @@ an oblique cabinet projection with Three.js.
   React Router).
 - **`.claude/skills/pull-request-standards/`** — how to write a PR description here.
 - **`README.md`** — every script, and what it is for.
+- **`.oxlintrc.json` and `.oxfmtrc.json`** — the lint and format rules, and a
+  paragraph per exception saying why the rule is wrong here. A rule turned off
+  without that paragraph is one nobody can turn back on.
 
 `CLAUDE.md` is a symlink to this file.
+
+## Run the formatter before you finish
+
+`bun run format` writes, `bun run format:check` asks, and CI asks first —
+before the typecheck, so a branch that only needs reformatting is told in
+seconds rather than after three suites. `bun run lint` is beside it.
+
+Neither is a matter of taste any more, which is the point of having them: the
+argument about where a line wraps was had once, and `printWidth` is where it
+landed.
 
 ## No unit test reads `data/map.json`
 
