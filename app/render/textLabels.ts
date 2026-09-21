@@ -304,9 +304,17 @@ type LabelEntry = {
  * re-measure a box that cannot have changed. The same goes for a pull: whether
  * one is drawn counts, which changes twice a pull, and how far along it is does
  * not.
+ *
+ * The two delimiters are written as escapes rather than typed in. They are
+ * control characters — no name a player types can contain one, which is why
+ * they separate — and as literal bytes they made this whole file read as
+ * binary: `file` called it data and every `grep -r` across the repo skipped it
+ * silently. The escapes are the same two characters and leave the file text.
  */
 function signatureOf(label: WorldLabel): string {
-  const lines = label.lines.map((line) => `${line.id} ${line.text}`).join("");
+  const lines = label.lines
+    .map((line) => `${line.id}\u0000${line.text}`)
+    .join("\u0001");
   const bar = label.bar ? "|bar" : "";
   const progress = label.progress ? "|progress" : "";
   return `${lines}${bar}${progress}`;
