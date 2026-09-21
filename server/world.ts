@@ -190,9 +190,18 @@ export class World {
    * time this runs — see `server/index.ts`. Nothing below re-asks, because
    * nothing below could: the socket is open and there is no longer a request
    * to read a cookie off.
+   *
+   * `admin` travels for that reason and no other. It is the account's role,
+   * read off the same viewer the character was looked up against, and it is
+   * what decides whether this connection may run a command — see
+   * `GameServer`'s `Attachment`.
    */
-  async join(socket: GameSocket, characterId: string): Promise<void> {
-    await this.server.join(socket, characterId);
+  async join(
+    socket: GameSocket,
+    characterId: string,
+    { admin }: { admin: boolean },
+  ): Promise<void> {
+    await this.server.join(socket, characterId, { admin });
   }
 
   async message(socket: GameSocket, raw: string): Promise<void> {

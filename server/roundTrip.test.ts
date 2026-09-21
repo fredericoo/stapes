@@ -98,7 +98,7 @@ async function play(actorId: string) {
     statuses,
     () => clock,
   );
-  await harness.server.join(pair.server, actorId);
+  await harness.server.join(pair.server, actorId, { admin: true });
   // The `hello` is sent inside `join`, so by here the client has a world.
   expect(remote.isReady()).toBe(true);
 

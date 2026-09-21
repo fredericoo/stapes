@@ -9336,11 +9336,13 @@ export class GameSession implements PlaySession {
    * session can answer — is there a body by that name, does it learn, does the
    * catalogue hold that tile, and is there room for it.
    *
-   * **Nobody is checked.** Any player may set any mastery on anybody and call
-   * anything into the world, which is deliberate and temporary; see the note at
-   * the top of `./commands`. When that changes, this is the method that grows
-   * the gate — one place, ahead of the work, because a command is a request
-   * until something acts on it.
+   * **Whether this body may run one is settled before it gets here**, by
+   * `server/GameServer.webSocketMessage`, off the account on the socket. It is
+   * not asked in this method and could not be: a session is the simulation, and
+   * the simulation has never known what an account is — it is handed a
+   * character's *name* rather than reading the table, and the same line holds
+   * for a character's role. A caller that has no business running one calls
+   * {@link refuseCommand} instead.
    */
   runCommand(raw: string, id: string = LOCAL_ACTOR_ID) {
     const parsed = parseCommand(raw);
@@ -9355,6 +9357,20 @@ export class GameSession implements PlaySession {
     // reminds you there was something left to tell them.
     const refusal = this.runParsedCommand(parsed.command, id);
     if (refusal) this.say(id, commandRefusalNotice(refusal));
+  }
+
+  /**
+   * Tell somebody they may not run commands at all.
+   *
+   * {@link runCommand}'s other door rather than a flag on it, and the split is
+   * the point: this one never parses, so nothing about the line is read and
+   * nothing about the grammar is said back. A player who may not set a mastery
+   * is owed the same sentence whether they typed `/mastery sharp 100` or
+   * `/masteyr`, and answering the second with "there is no /masteyr command"
+   * would be the world coaching somebody towards a door it has locked.
+   */
+  refuseCommand(id: string = LOCAL_ACTOR_ID) {
+    this.say(id, commandRefusalNotice({ kind: "notAdmin" }));
   }
 
   /** One arm per verb, each answering with a refusal or with nothing. */

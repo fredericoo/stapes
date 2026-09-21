@@ -19,14 +19,22 @@ import type { Coord } from "../lib/types";
  * message — would work, but it would put a rule about *what a player meant* in
  * the middle of the fan-out, and a bug there is a private line said out loud.
  *
- * ## Nobody is checked
+ * ## Only an administrator runs one
  *
- * These are admin commands with no admin: any connected player may run any of
- * them, on themselves or on anybody else. That is deliberate for now and it is
- * the first thing that has to change before this world is anything but a
- * playground — the shape here is ready for it, because a command is parsed into
- * a request before anything acts on it, and a permission check is one gate at
- * the point of acting.
+ * Every verb below sets a mastery, moves a body, mints a tile or moves the
+ * world's clock, so a world where anybody may type one is a world with no
+ * progression worth having. The gate is `server/GameServer.webSocketMessage`,
+ * which reads `admin` off the socket attachment — settled at the upgrade from
+ * the signed session cookie, beside the character ownership check and on the
+ * same terms: the account is the one thing a page cannot claim to be.
+ *
+ * **It is not in `parseCommand` and not in `GameSession.runCommand`.** Parsing
+ * is grammar and the session is the simulation, and neither has ever known what
+ * an account is — `GameServer` injects a character's name rather than letting
+ * the session read the table, for exactly this reason. What the session gets is
+ * {@link CommandRefusal}'s `notAdmin`, so the sentence a refused player reads
+ * comes out of `./notices` with every other refusal rather than being written
+ * twice.
  *
  * ## Parsing says what it could not understand, and stops there
  *
@@ -278,6 +286,16 @@ export type HealthChange =
  * which module was in a position to notice.
  */
 export type CommandRefusal =
+  /**
+   * The one refusal that is about who typed it rather than what they typed.
+   *
+   * Raised by `server/GameServer`, which is the only thing that knows what an
+   * account is, and carried here so the sentence is written where every other
+   * refusal's is. Nothing about the command travels with it: a player who may
+   * not run one is owed the same answer whichever verb they reached for, and
+   * naming it back would be the world describing a door it has just locked.
+   */
+  | { kind: "notAdmin" }
   | { kind: "unknownCommand"; typed: string }
   | { kind: "badArguments"; command: CommandName }
   | { kind: "unknownMastery"; typed: string }

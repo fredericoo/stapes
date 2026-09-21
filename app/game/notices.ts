@@ -259,6 +259,12 @@ export function castRefusalNotice(refusal: CastRefusal): string | null {
  */
 export function commandRefusalNotice(refusal: CommandRefusal): string {
   switch (refusal.kind) {
+    case "notAdmin":
+      // Says what the rule is rather than what was typed, because it is the
+      // same answer for every verb — see the `notAdmin` note in `./commands`.
+      // "Commands" plural, so somebody who reached for one of the seven does
+      // not go looking for the six that might have worked.
+      return "Only an administrator can run commands";
     case "unknownCommand":
       return `There is no ${refusal.typed} command`;
     case "badArguments":

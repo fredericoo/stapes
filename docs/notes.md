@@ -370,6 +370,12 @@ endpoint, on purpose: it is the kind of endpoint that is quietly wrong for
 months. Becoming an `ADMIN` is `UPDATE user SET role = 'ADMIN' WHERE username =
 …`, run by somebody who can already reach the box.
 
+What the role grants is the authoring routes in `server/api.ts` — the map read
+and every content write — and, since commands were gated, every slash command on
+the socket. Those are the two doors, and they are both server-side checks; the
+`/admin` route guard in the client is a courtesy to somebody who mistyped a URL,
+because the pages behind it are static files anybody can fetch.
+
 A fresh database seeds one account — `admin` / `salem123`, both written down in
 this repository and therefore known to everybody. **The seed creates and never
 updates**, which is the whole reason it is safe to leave in: change that
@@ -6024,12 +6030,36 @@ The verbs are `/mastery`, `/tile`, `/status`, `/health`, `/goto`, `/move` and
 `/time`; `COMMAND_USAGE` in `app/game/commands.ts` is the grammar of each, and
 is the line a player is shown when they get one wrong.
 
-- **Nobody is checked.** Any connected player may set any mastery on anybody and
-  put anything anywhere. That is deliberate and temporary: it is a world with no
-  accounts and no administrators yet, so a permissions model would be guessing
-  at a shape that does not exist. When it does, the gate goes in `runCommand`,
-  ahead of the work and after the parse — which is the reason a command is a
-  *request* before anything acts on it.
+- **Only an administrator runs one.** The gate is in
+  `GameServer.webSocketMessage`, on the `command` arm, and it reads `admin` off
+  the socket attachment — put there at the upgrade by `server/index.ts` from the
+  same viewer the character was looked up against. A `USER` gets "Only an
+  administrator can run commands" and the board is untouched.
+  - **It is the one gate in the protocol that is about who is asking.** Every
+    other message is re-validated against the world — reach, capacity, a
+    cooldown — and a fabricated frame gets the same answer an honest one would,
+    because the question is about the board rather than about the sender. A
+    command is not like that: `/mastery sharp 100` is a legal request from an
+    administrator and the shortest path to a mastery nobody fought for from
+    anybody else, and only the account tells the two apart.
+  - **It is not in `runCommand`**, which is where an earlier version of this
+    note said it would go. A session is the simulation and the simulation has
+    never known what an account is — `nameOf` is injected precisely so the
+    session does not read the character table — and a role is more of the same.
+    What the session has instead is `refuseCommand`, so the sentence still comes
+    out of `app/game/notices.ts` with every other refusal rather than being
+    written twice.
+  - **It runs before the parse**, so every line gets one answer. Telling
+    somebody there is no `/masteyr` command would be the world coaching them
+    towards a door it has locked, and it is the reason `notAdmin` is the one
+    refusal that carries nothing about what was typed.
+  - **The attachment holds it, not the actor.** A role belongs to the account
+    rather than to the body, and a checkpoint that held one would hand a
+    privilege back to whoever the row was restored onto.
+  - **`/admin/play` seats its one body as an administrator**, because there is
+    nothing on that side to keep anybody out of: the world is the tab's own
+    IndexedDB and the only person in it is the one looking at the screen. A
+    local world that refused `/tile` would refuse the reason it was built.
 - **The slash is sorted on the client**, in `RemoteSession.say`, which sends a
   `command` frame instead of a `say` one. Deciding it at the point of broadcast
   instead would put a rule about what a player *meant* in the middle of the

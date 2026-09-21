@@ -112,7 +112,14 @@ const app = new Elysia({
         // already gone, and nothing would take it off the board until the next
         // load reaped it.
         if (socket.closed) return;
-        await world.join(socket, character.id);
+        // The role rides with the seating, from the same viewer the character
+        // was looked up against. It is what lets the world tell an
+        // administrator's `/mastery` from a fabricated frame — see
+        // `GameServer`'s `Attachment`, which is where it is kept and why it is
+        // kept there rather than on the body.
+        await world.join(socket, character.id, {
+          admin: viewer.role === "ADMIN",
+        });
       })();
     },
 
