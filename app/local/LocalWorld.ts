@@ -151,8 +151,22 @@ export class LocalWorld {
     );
   }
 
+  /**
+   * Seat the one body in this world, as an administrator.
+   *
+   * Not a hole in the gate the online world grew: there is nothing on this side
+   * to keep anybody out of. The world is this tab's IndexedDB, the only body in
+   * it is the person looking at the screen, and `/admin/play` exists to try
+   * `/tile`, `/goto` and `/health` against the real simulation — a local world
+   * that refused them would refuse the reason it was built.
+   *
+   * The route is behind `ADMIN` in the client either way, which here is the
+   * courtesy it has always been rather than a check: static files, no server
+   * rendering, nothing to enforce. @see `server/api.ts`, where the same
+   * sentence is about a check that *is* load-bearing.
+   */
   async join(socket: GameSocket, actorId: string): Promise<void> {
-    await this.server.join(socket, actorId);
+    await this.server.join(socket, actorId, { admin: true });
   }
 
   async message(socket: GameSocket, raw: string): Promise<void> {

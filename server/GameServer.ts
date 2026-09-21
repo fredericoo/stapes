@@ -711,7 +711,21 @@ const savedStatusSchema = v.object({
 
 const savedStatusesSchema = v.array(savedStatusSchema);
 
-type Attachment = { actorId: string };
+/**
+ * What a connection carries, settled at the upgrade and never re-asked.
+ *
+ * Both halves come from the signed session cookie — see `server/index.ts`,
+ * which looks the character up *for that account* and reads the role off the
+ * same viewer. Neither is anything the page said about itself, which is what
+ * makes them safe to hang here: once the socket is open there is no longer a
+ * request to read a cookie off, so anything not settled by now cannot be.
+ *
+ * `admin` is the whole of who may run a command. It is a property of the
+ * account rather than of the body, so it lives beside the actor id rather than
+ * on the actor — a role is not a thing the checkpoint should ever hold, and
+ * a body restored from one must not come back with a privilege in it.
+ */
+type Attachment = { actorId: string; admin: boolean };
 
 /**
  * What was last written down about one actor, so a flush can skip the rows that
@@ -2180,10 +2194,14 @@ export class GameServer {
    * checkpoint was keeping for them, and put them back at spawn. Messages
    * arriving in the gap are safe: {@link webSocketMessage} loads for itself.
    */
-  async join(socket: GameSocket, actorId: string): Promise<void> {
+  async join(
+    socket: GameSocket,
+    actorId: string,
+    { admin }: { admin: boolean },
+  ): Promise<void> {
     this.displaceSockets(actorId);
     this.ctx.acceptWebSocket(socket);
-    socket.serializeAttachment({ actorId } satisfies Attachment);
+    socket.serializeAttachment({ actorId, admin } satisfies Attachment);
 
     await this.ensureLoaded();
 
@@ -2374,7 +2392,7 @@ export class GameServer {
     if (!message) return;
 
     const session = this.session!;
-    const { actorId } = attachment;
+    const { actorId, admin } = attachment;
 
     // Ahead of the gate below, and the only message that is. That gate is "does
     // this actor have a runtime", and a death deletes it — so every other
@@ -2483,13 +2501,26 @@ export class GameServer {
       // that may both be a round trip old.
       session.transmute(message.ref, message.recipe, actorId);
     } else if (message.type === "command") {
-      // Nothing is checked here beyond the schema, and nothing about the sender
-      // either: every command in the game is an admin command with no admin —
-      // see `app/game/commands`. The flushes below are why this sits in the
-      // chain rather than returning early like `say` does: a command answers
-      // with a notice and, depending on the verb, a mastery block or a cell of
-      // the board — and all of them go out on that tail.
-      session.runCommand(message.text, actorId);
+      // **The one gate in the protocol that is about who is asking rather than
+      // about the board.** Every other message is re-validated against the
+      // world — reach, capacity, a cooldown — and a client that made one up
+      // gets the same answer an honest one would. A command is not like that:
+      // `/mastery sharp 100` is a legal request from an administrator and a
+      // fabricated frame from everybody else, and only the account tells them
+      // apart. It is read off the attachment rather than looked up, because the
+      // cookie was read once at the upgrade and there is no request left here.
+      //
+      // Refused rather than dropped: a command is typed blind, so silence is
+      // indistinguishable from a server that stopped listening. @see
+      // `app/game/commands`, where the same argument is the reason every
+      // refusal has a sentence.
+      //
+      // The flushes below are why this sits in the chain rather than returning
+      // early like `say` does: a command answers with a notice and, depending
+      // on the verb, a mastery block or a cell of the board — and all of them
+      // go out on that tail.
+      if (admin) session.runCommand(message.text, actorId);
+      else session.refuseCommand(actorId);
     } else if (message.type === "drop") {
       // Range, sight and room in the stack, all re-asked. The client drew a
       // ghost from these same rules, but it drew it on a board that may be a

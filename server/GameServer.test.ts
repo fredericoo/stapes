@@ -234,8 +234,13 @@ function nextMessageOfType(
  * the client — that check moved out with the upgrade, and is covered by
  * `server/accounts.test.ts`'s "is only ever owned by the account that made
  * it", which is the query `server/index.ts` looks a character up with.
+ *
+ * Seated as an administrator unless a test says otherwise, because most of this
+ * file reaches for `/tile` and `/health` to build the scenario it is really
+ * about — a fight, a pile, a respawn — and those are setup rather than the
+ * thing under test. The tests that *are* about the gate pass `admin: false`.
  */
-async function connect(actorId: string) {
+async function connect(actorId: string, { admin = true } = {}) {
   const pair = new Pair();
   const ws = pair.client();
   // The client half talks back through here. `server/index.ts` does the same
@@ -247,7 +252,7 @@ async function connect(actorId: string) {
     harness.hub.drop(pair.server);
     void stub().webSocketClose(pair.server);
   };
-  const joined = stub().join(pair.server, actorId);
+  const joined = stub().join(pair.server, actorId, { admin });
   const hello = await nextMessage(ws);
   await joined;
   return { ws, hello, pair };
@@ -4245,6 +4250,88 @@ describe("commands", () => {
     // belt and braces on the wire's side of that rule — a private line read out
     // to the room is the failure nobody would notice until it happened.
     expect(await chatWithin(onlooker.ws, QUIET_MS)).toBeNull();
+  });
+
+  /**
+   * The gate, from the only side that can test it.
+   *
+   * A fabricated `command` frame is the shortest path there has ever been to a
+   * mastery nobody fought for, and the account it needs is a fact about the
+   * socket — so this is the pool that can answer it and `app/game` is not. What
+   * is checked is both halves of a refusal: the body is untouched, *and* the
+   * player is told why. Either alone is the bug the other hides.
+   */
+  describe("only an administrator runs one", () => {
+    it("refuses a player who is not one, and says so", async () => {
+      const who = freshPlayer();
+      const { ws } = await connect(who, { admin: false });
+
+      send(ws, { type: "command", text: "/mastery sharp 100" });
+
+      const notice = await nextMessageOfType(ws, "notice");
+      expect(notice.text).toBe("Only an administrator can run commands");
+    });
+
+    it("leaves the masteries it named exactly where they were", async () => {
+      const who = freshPlayer();
+      const { ws } = await connect(who, { admin: false });
+
+      send(ws, { type: "command", text: "/mastery sharp 100" });
+      await nextMessageOfType(ws, "notice");
+
+      // Read off the store rather than off the wire, because "no `masteries`
+      // message arrived" is also what a dropped frame looks like. The row is
+      // what a reconnect would restore, and it is the thing that must not have
+      // moved.
+      let stored: unknown;
+      await runInDurableObject(stub(), async (_instance, state) => {
+        stored = await state.storage.get(`mast:${who}`);
+      });
+      expect(stored).toBeUndefined();
+    });
+
+    it("does not let one player harm another", async () => {
+      const victim = freshPlayer();
+      await connect(victim);
+      const { ws } = await connect(freshPlayer(), { admin: false });
+
+      send(ws, { type: "command", text: `/health -1 ${victim}` });
+      await nextMessageOfType(ws, "notice");
+      await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
+
+      // Health is written down only when a body is short of full — see "writes
+      // no health down for a body that is not hurt" above — so the absence of
+      // the row is the assertion that nothing reached them.
+      let stored: unknown;
+      await runInDurableObject(stub(), async (_instance, state) => {
+        stored = await state.storage.get(`hp:${victim}`);
+      });
+      expect(stored).toBeUndefined();
+    });
+
+    it("still refuses a line that would not have parsed", async () => {
+      const { ws } = await connect(freshPlayer(), { admin: false });
+
+      send(ws, { type: "command", text: "/masteyr sharp" });
+
+      // One answer for every line, because the gate runs before the grammar
+      // does. Telling somebody there is no `/masteyr` command would be coaching
+      // them towards a door that is locked either way.
+      const notice = await nextMessageOfType(ws, "notice");
+      expect(notice.text).toBe("Only an administrator can run commands");
+    });
+
+    it("says nothing out loud either", async () => {
+      const { ws } = await connect(freshPlayer(), { admin: false });
+      const onlooker = await connect(freshPlayer());
+
+      send(ws, { type: "command", text: "/mastery sharp 100" });
+      await nextMessageOfType(ws, "notice");
+
+      // A refusal is still a notice, not a bubble. The room has no business
+      // hearing what somebody tried.
+      expect(await chatWithin(onlooker.ws, QUIET_MS)).toBeNull();
+    });
   });
 });
 
