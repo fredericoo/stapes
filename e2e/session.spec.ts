@@ -1,5 +1,5 @@
-import { expect, test } from "@playwright/test";
-import { freshCharacterName } from "./accounts";
+import { expect, test, type Page } from "@playwright/test";
+import { ADMIN_USERNAME, freshCharacterName, signInAsAdmin } from "./accounts";
 
 /**
  * The screens a player meets, against a real world.
@@ -12,10 +12,12 @@ import { freshCharacterName } from "./accounts";
  * asserts is which URL you land on and what is on it, neither of which an
  * afternoon's authoring can move.
  *
- * It makes its own account rather than using the seeded administrator, because
- * what it is describing is what an ordinary player does. The names are unique
- * per run for the reason {@link freshCharacterName} gives: a character name can
- * never be reused, so a fixed one would pass once and fail every time after.
+ * The walk through the doors makes its own account rather than using the seeded
+ * administrator, because what it is describing is what an ordinary player does.
+ * Only the mid-fight test below needs a role, and it says why. The names are
+ * unique per run for the reason {@link freshCharacterName} gives: a character
+ * name can never be reused, so a fixed one would pass once and fail every time
+ * after.
  */
 
 /** The app booting on a cold Vite cache. @see ./renderer-perf.spec.ts */
@@ -148,36 +150,9 @@ test.describe("the way in", () => {
     // Still the same account — leaving is not signing out.
     await expect(page.getByText(`Signed in as ${username}`)).toBeVisible();
 
-    await page.getByRole("button", { name: character }).click();
-    await expect(live).toBeVisible({ timeout: BOOT_TIMEOUT_MS });
-
-    // ---- the one case that asks -------------------------------------------
-    // Losing hit points to anything flags combat, `/health -n` included, which
-    // is the only way to be in a fight here that does not depend on a creature
-    // happening to be in reach.
-    const say = page.getByPlaceholder("Say something");
-    await say.fill("/health -3");
-    await say.press("Enter");
-    // Waited for rather than slept past: the button reads the vitals the server
-    // pushes, and the strip is those same vitals drawn. @see StatusStrip
-    await expect(page.getByRole("img", { name: /^In combat\./ })).toBeVisible({
-      timeout: 30_000,
-    });
-
-    await page.getByRole("button", { name: "Leave world" }).click();
-    const warning = page.getByRole("dialog");
-    await expect(warning).toContainText("your body stays in the world", {
-      timeout: 30_000,
-    });
-
-    await warning.getByRole("button", { name: "Stay" }).click();
-    await expect(page.locator("canvas").first()).toBeVisible();
-
-    await page.getByRole("button", { name: "Leave world" }).click();
-    await warning.getByRole("button", { name: "Leave", exact: true }).click();
-    await expect(page.getByRole("button", { name: character })).toBeVisible({
-      timeout: 30_000,
-    });
+    // Leaving *mid-fight* is the one press that asks first, and it is its own
+    // test below: getting into a fight on demand takes a command, and a
+    // command is not this account's to run.
 
     // ---- the password, which is its own route too -------------------------
     await page.getByRole("link", { name: "Change password" }).click();
@@ -203,6 +178,91 @@ test.describe("the way in", () => {
     });
   });
 });
+
+/**
+ * The one press in the game that asks before it does anything.
+ *
+ * **Its own test on its own account, because getting into a fight on demand
+ * takes a command.** Losing hit points to anything flags combat and `/health
+ * -n` is the only way to lose some that does not wait on a creature happening
+ * to be in reach — and a command is something only an administrator may run,
+ * so the player in the test above types one and is told no. Waiting for a
+ * creature instead would make this a claim about what is authored at spawn,
+ * which is the thing `data/map.json` moves every afternoon.
+ * @see `docs/notes.md`, "A command is typed where speech goes"
+ *
+ * The role changes nothing else on the screen: `/` hands `WorldPage` no editor
+ * destinations for anybody, which is what the test above asserts.
+ */
+test.describe("leaving mid-fight", () => {
+  test("warns before a character walks out of a fight, and stays if told to", async ({ page }) => {
+    test.setTimeout(BOOT_TIMEOUT_MS + 120_000);
+
+    await enterWorldAsAdmin(page);
+
+    const say = page.getByPlaceholder("Say something");
+    await say.fill("/health -3");
+    await say.press("Enter");
+    // Waited for rather than slept past: the button reads the vitals the server
+    // pushes, and the strip is those same vitals drawn. @see StatusStrip
+    await expect(page.getByRole("img", { name: /^In combat\./ })).toBeVisible({
+      timeout: 30_000,
+    });
+
+    await page.getByRole("button", { name: "Leave world" }).click();
+    const warning = page.getByRole("dialog");
+    await expect(warning).toContainText("your body stays in the world", {
+      timeout: 30_000,
+    });
+
+    // Staying is staying: the same world, still on the world's own route.
+    await warning.getByRole("button", { name: "Stay" }).click();
+    await expect(page.locator("canvas").first()).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe("/");
+
+    await page.getByRole("button", { name: "Leave world" }).click();
+    await warning.getByRole("button", { name: "Leave", exact: true }).click();
+    await expect(page.getByText(`Signed in as ${ADMIN_USERNAME}`)).toBeVisible({
+      timeout: 30_000,
+    });
+  });
+});
+
+/**
+ * Sign in as the seeded administrator and put one of its characters in the world.
+ *
+ * The cookie rather than the form, because the door is what the test above is a
+ * claim about and this one is not.
+ *
+ * **It reuses a character before it makes one.** An account holds three and a
+ * name can never be taken twice, so a helper that always created one would work
+ * for three runs against a given database and fail on the fourth — which CI,
+ * starting from an empty world every time, would never have said. The rows on
+ * the chooser are the characters; everything else on that screen is a link.
+ */
+async function enterWorldAsAdmin(page: Page): Promise<void> {
+  await signInAsAdmin(page);
+  await page.goto("/characters", { waitUntil: "networkidle" });
+  await expect(page.getByText(`Signed in as ${ADMIN_USERNAME}`)).toBeVisible({
+    timeout: BOOT_TIMEOUT_MS,
+  });
+
+  const characters = page.locator("ul li button");
+  if ((await characters.count()) > 0) {
+    await characters.first().click();
+  } else {
+    await page.getByRole("link", { name: "New character" }).click();
+    await page.getByLabel("Name").fill(freshCharacterName("Admin"));
+    await page.getByRole("button", { name: "Create and enter" }).click();
+  }
+
+  // The chip, not the canvas: the canvas is mounted as soon as the world route
+  // is, well before `hello`, so a command typed against it is one the world
+  // never hears.
+  await expect(page.getByText("live", { exact: true }).first()).toBeVisible({
+    timeout: BOOT_TIMEOUT_MS,
+  });
+}
 
 /**
  * The editors are a permission now, not just a place.

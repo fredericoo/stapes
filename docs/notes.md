@@ -9829,6 +9829,21 @@ It also types a name nothing else will take. A character name is unique for the
 life of a world and can never be changed, so a fixed one is a test that passes
 once and fails every run after — `e2e/accounts.ts` derives one from the clock.
 
+**A test that uses a command to set a scenario up is a test with a role in it.**
+The warning shown when a character leaves mid-fight used to be asserted inside
+that same walk: the player it had just made typed `/health -3`, and the strip
+said "In combat". Gating commands turned that into a refusal, and the walk went
+red on a step that was only ever scaffolding. It is its own test now, on the
+seeded administrator, and the walk types no command at all. The general form —
+when only an administrator can do a thing, every test that leant on it to reach
+a state needs an account that may, or another way to reach the state.
+
+That test reuses one of the administrator's characters and only makes one when
+the account has none. An account holds three and a name can never be taken
+twice, so always creating one works for three runs against a given database and
+fails on the fourth. CI starts from an empty world each time and would never
+have said so; a person running the suite twice in one worktree would.
+
 Two rules learned the hard way, which still hold:
 
 - **Revert one fix at a time when proving a test can fail.** Reverting all three
