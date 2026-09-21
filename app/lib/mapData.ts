@@ -1323,18 +1323,36 @@ function authoredPlacement(placed: PlacedTile): PlacedTile {
  * exactly the identities above. Everything that keeps them — the wire, the
  * checkpoint — uses {@link flattenMap} directly, because a running world very
  * much does need to know which sword is which.
+ *
+ * **One line per cell, and the structure above it indented.** Written out by
+ * hand rather than with `JSON.stringify`'s indent, which has only one setting
+ * for the whole document: at two spaces it put every placement and every field
+ * of it on a line of its own, so a cell holding one tile cost four lines and
+ * `data/map.json` was 8 MB of mostly punctuation. The cell is the unit somebody
+ * edits and the unit a diff should show, so the cell is the line. Everything
+ * the file says is the same; it says it in about a quarter of the bytes.
+ *
+ * It must stay deterministic, because two places depend on re-serializing an
+ * untouched map coming out byte for byte the same — `app/editor/store.ts`
+ * compares two of these to decide whether anything changed, and the editor's
+ * save sends text so that saving a map nobody touched does not rewrite the
+ * file. `flattenMap` sorts the cells; key order within a placement is the
+ * insertion order `authoredPlacement` gives it, which is the order it was
+ * parsed in.
  */
 export function serializeMap(map: MapFile): string {
   const flat = flattenMap(map);
-  const levels: FlatMapFile["levels"] = {};
-  for (const [zk, cells] of Object.entries(flat.levels)) {
-    const out: Record<string, PlacedTile[]> = {};
-    for (const [ck, stack] of Object.entries(cells)) {
-      out[ck] = stack.map(authoredPlacement);
-    }
-    levels[zk] = out;
-  }
-  return `${JSON.stringify({ ...flat, levels }, null, 2)}\n`;
+  const levels = Object.entries(flat.levels).map(([zk, cells]) => {
+    const rows = Object.entries(cells).map(
+      ([ck, stack]) =>
+        `      ${JSON.stringify(ck)}: ${JSON.stringify(stack.map(authoredPlacement))}`,
+    );
+    return `    ${JSON.stringify(zk)}: {\n${rows.join(",\n")}\n    }`;
+  });
+  // A map with nothing on it still has to be readable back, and an empty object
+  // is not the same text as one holding a blank line.
+  const body = levels.length ? `{\n${levels.join(",\n")}\n  }` : "{}";
+  return `{\n  "version": ${flat.version},\n  "levels": ${body}\n}\n`;
 }
 
 /**
