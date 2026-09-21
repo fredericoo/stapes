@@ -19,7 +19,11 @@ import {
   getStack,
   terrainHeight,
 } from "./mapData";
-import { computeLightingFlood, MAX_LIGHT_LEVEL } from "./lightingFlood";
+import {
+  computeLightingFlood,
+  MAX_LIGHT_LEVEL,
+  parseHexColor,
+} from "./lightingFlood";
 import { resolveLight } from "./tileResolve";
 
 export { MAX_LIGHT_LEVEL };
@@ -238,13 +242,6 @@ type Emitter = {
   g: number;
   b: number;
 };
-
-function parseHexColor(hex: string): [number, number, number] {
-  const m = /^#([0-9a-fA-F]{6})$/.exec(hex.trim());
-  if (!m) return [1, 1, 1];
-  const n = Number.parseInt(m[1]!, 16);
-  return [((n >> 16) & 0xff) / 255, ((n >> 8) & 0xff) / 255, (n & 0xff) / 255];
-}
 
 function cellKey(x: number, y: number, z: number): string {
   return `${z}:${coordKey(x, y)}`;

@@ -24,6 +24,7 @@ import {
   type Rect,
   type ScatterRule,
   boundsOf,
+  clamp01,
   connectionsAlongBorder,
   countOpen,
   cutFords,
@@ -154,10 +155,6 @@ const STEPS = [
   { dx: 0, dy: 1 },
   { dx: -1, dy: 0 },
 ] as const;
-
-function clamp01(v: number): number {
-  return Math.max(0, Math.min(1, v));
-}
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));

@@ -124,6 +124,11 @@ export function newGrid(bounds: Bounds): CellGrid {
   };
 }
 
+/** A fraction, held inside the range a fraction can be. */
+export function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v));
+}
+
 export function inGrid(g: CellGrid, x: number, y: number): boolean {
   return (
     x >= g.minX &&
