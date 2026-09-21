@@ -5091,6 +5091,208 @@ describe("the pvp switch", () => {
 });
 
 /**
+ * What `GameServer.diffPerActor` promises.
+ *
+ * Six patch fields are built by one loop now, and these are the three things
+ * about that loop nothing else in this file was pinning. Each was checked by
+ * breaking the thing it guards and watching it go red — a diff test that passes
+ * against a broken diff is worse than none.
+ */
+describe("what each client is told has changed", () => {
+  /** The next patch entry about this body's switch, or null if none comes. */
+  function pvpFor(
+    ws: TestSocket,
+    actorId: string,
+  ): Promise<{ actorId: string; on: boolean } | null> {
+    return new Promise((resolve) => {
+      const done = (value: { actorId: string; on: boolean } | null) => {
+        clearTimeout(timer);
+        ws.removeEventListener("message", onMessage);
+        resolve(value);
+      };
+      const onMessage = (event: { data: string }) => {
+        const message = JSON.parse(event.data) as Record<string, unknown>;
+        if (message.type !== "patch") return;
+        const entries = (message.pvp ?? []) as Array<{
+          actorId: string;
+          on: boolean;
+        }>;
+        const entry = entries.find((e) => e.actorId === actorId);
+        if (entry) done(entry);
+      };
+      const timer = setTimeout(() => done(null), MESSAGE_TIMEOUT_MS);
+      ws.addEventListener("message", onMessage);
+    });
+  }
+
+  async function kill(actorId: string) {
+    await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as {
+        session: {
+          actors: Map<string, unknown>;
+          applyDamage(actor: unknown, amount: number): void;
+        };
+        tick(): void;
+      };
+      const body = internals.session.actors.get(actorId);
+      expect(body).toBeDefined();
+      internals.session.applyDamage(body, 10_000);
+      internals.tick();
+    });
+  }
+
+  /** Which bodies the world still remembers having broadcast a switch for. */
+  async function rememberedPvp(): Promise<string[]> {
+    let ids: string[] = [];
+    await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as {
+        sentPvp: Map<string, boolean>;
+      };
+      ids = [...internals.sentPvp.keys()];
+    });
+    return ids;
+  }
+
+  /**
+   * What the sweep is for, which is **not** what the comments it replaced said.
+   *
+   * Five of them claimed a returning player would otherwise be diffed against
+   * the body they died in and come back carrying its lantern. That cannot
+   * happen, and the reason is `scopedPatchFor`: a body nobody has been told
+   * about yet is in `entered`, and an arrival is announced with its whole
+   * snapshot rather than through a diff. Take the sweep out entirely and all
+   * 212 tests in this file still pass — checked.
+   *
+   * What it actually buys is the thing `noteDeaths` says out loud one line
+   * below its own `sentHp.delete`: *or the map grows a row per body the world
+   * has ever killed, and a world that respawns creatures kills a great many.*
+   * Six maps, one row per body that has ever existed, for the life of the
+   * world. That is worth one loop in one place, and it is worth being tested
+   * for what it is.
+   */
+  it("forgets a body that has left the board", async () => {
+    const alice = await connect("alice");
+    await connect("bob");
+
+    send(alice.ws, { type: "pvp", enabled: true });
+    expect(await pvpFor(alice.ws, "alice")).toEqual({
+      actorId: "alice",
+      on: true,
+    });
+    expect(await rememberedPvp()).toContain("alice");
+
+    await kill("alice");
+
+    expect(await rememberedPvp()).not.toContain("alice");
+  });
+
+  /**
+   * The other half of the same question, and what the `same` defaults are for.
+   *
+   * A body nothing has been sent about yet is compared against `undefined`, and
+   * every field decides for itself what that counts as — an unset switch is
+   * `false`, an empty light list is `""`, no pull is `null`. Get one wrong and
+   * every actor who walks into view is announced as having changed something
+   * they have never had, on every tick of every world.
+   */
+  it("says nothing about a body that arrives with nothing to say", async () => {
+    const alice = await connect("alice");
+
+    const seen = record(alice.ws);
+    await connect("bob");
+    // Long enough for several ticks to have gone out.
+    await wait(200);
+
+    const patches = seen.of("patch");
+    expect(patches.length).toBeGreaterThan(0);
+    const about = patches.flatMap((message) => [
+      ...((message.pvp ?? []) as Array<{ actorId: string }>),
+      ...((message.extractions ?? []) as Array<{ actorId: string }>),
+      ...((message.castings ?? []) as Array<{ actorId: string }>),
+      ...((message.carriedLights ?? []) as Array<{ actorId: string }>),
+    ]);
+    expect(about.filter((entry) => entry.actorId === "bob")).toEqual([]);
+  });
+
+  /**
+   * The reading a health bar is drawn from, in a patch rather than a hello.
+   *
+   * `maxHp` rides along with the hit points and is deliberately not part of
+   * what decides whether to send them — a bar's *size* moving is not news, its
+   * fill is. Nothing was checking that it still arrives, so corrupting it
+   * passed all 212 tests here.
+   */
+  it("carries the maximum along with the hit points", async () => {
+    const alice = await connect("alice");
+    const bob = await connect("bob");
+    const authored = (
+      bob.hello.hps as Array<{ actorId: string; maxHp: number }>
+    ).find((entry) => entry.actorId === "alice");
+    expect(authored).toBeDefined();
+
+    const hurt = new Promise<{ hp: number; maxHp: number } | null>((resolve) => {
+      const done = (value: { hp: number; maxHp: number } | null) => {
+        clearTimeout(timer);
+        bob.ws.removeEventListener("message", onMessage);
+        resolve(value);
+      };
+      const onMessage = (event: { data: string }) => {
+        const message = JSON.parse(event.data) as Record<string, unknown>;
+        if (message.type !== "patch") return;
+        const entries = (message.hps ?? []) as Array<{
+          actorId: string;
+          hp: number;
+          maxHp: number;
+        }>;
+        const entry = entries.find((e) => e.actorId === "alice");
+        if (entry) done(entry);
+      };
+      const timer = setTimeout(() => done(null), MESSAGE_TIMEOUT_MS);
+      bob.ws.addEventListener("message", onMessage);
+    });
+
+    await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as {
+        session: {
+          actors: Map<string, unknown>;
+          applyDamage(actor: unknown, amount: number): void;
+        };
+        tick(): void;
+      };
+      internals.session.applyDamage(internals.session.actors.get("alice"), 1);
+      internals.tick();
+    });
+
+    const patched = await hurt;
+    expect(patched).not.toBeNull();
+    expect(patched!.hp).toBeLessThan(authored!.maxHp);
+    expect(patched!.maxHp).toBe(authored!.maxHp);
+  });
+
+  /**
+   * A body that never pulls and never casts is never mentioned in either field.
+   *
+   * These two are compared by identity and now remember a null for a body doing
+   * neither, where they used to remember nothing at all. The two read the same
+   * to the compare, and this is what says so: a world full of people standing
+   * about puts no `extractions` and no `castings` on the wire at all.
+   */
+  it("keeps quiet about a body that is doing neither", async () => {
+    const alice = await connect("alice");
+    const bob = await connect("bob");
+
+    const seen = record(alice.ws);
+    step(bob.ws, 1, "e");
+    await wait(300);
+
+    const patches = seen.of("patch");
+    expect(patches.length).toBeGreaterThan(0);
+    expect(patches.flatMap((m) => (m.extractions ?? []) as unknown[])).toEqual([]);
+    expect(patches.flatMap((m) => (m.castings ?? []) as unknown[])).toEqual([]);
+  });
+});
+
+/**
  * What one client is told about.
  *
  * A client is sent the chunks its view can reach, and until this it was then

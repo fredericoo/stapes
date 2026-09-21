@@ -51,6 +51,9 @@ import {
   serializeMap,
 } from "../app/lib/mapData";
 import { canWalk, listStandingSurfaces } from "../app/game/movement";
+// The editor's generators seed themselves with the same stream, and a cave
+// carved here has to match one previewed there.
+import { mulberry32 } from "../app/editor/generator";
 import { isSkyExposed, stackOcclusion } from "../app/lib/lighting";
 import { computeLightingFlood } from "../app/lib/lightingFlood";
 import { fitsHeightAtElevation, tilesByIdFromList } from "../app/lib/validation";
@@ -305,17 +308,6 @@ const DIRS: Direction[] = ["n", "e", "s", "w"];
 /** Walking `dir` up a ramp needs the ramp facing the way you came from. */
 const RAMP_FACING: Record<Direction, Direction> = { n: "s", e: "w", s: "n", w: "e" };
 const OPPOSITE = RAMP_FACING;
-
-/** Deterministic PRNG — a cave system is a pure function of its seeds. */
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 function shuffled<T>(items: readonly T[], random: () => number): T[] {
   const out = items.slice();

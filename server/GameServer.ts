@@ -852,10 +852,15 @@ type SentMotion = {
 export class GameServer {
   /**
    * Named `ctx` and `env` because that is what they were called when a platform
-   * base class supplied them. Several hundred `this.ctx.storage.*` and
-   * `this.ctx.getWebSockets()` call sites below are unchanged as a result, and
-   * so is the suite that guards them — which matters more than the names do,
-   * since that suite is the only reason to believe this file still works.
+   * base class supplied them. Renaming them would touch every `this.ctx.*` call
+   * site below and the suite that guards them, and that suite is the only
+   * reason to believe this file still works — which matters more than the names
+   * do.
+   *
+   * `this.ctx.storage.*` is the bulk of what is left, at thirty-odd sites.
+   * Sockets are down to two: {@link seated}, which every caller that wants the
+   * actor behind a connection goes through, and {@link broadcast}, which is
+   * deliberately not one of them.
    */
   constructor(
     protected readonly ctx: WorldContext,
@@ -937,7 +942,10 @@ export class GameServer {
    * nothing on the wire. Same discipline as {@link broadcastMap}: everyone is at
    * the same version, so one diff serves every socket.
    */
-  private sentHp = new Map<string, { hp: number; rating: number }>();
+  private sentHp = new Map<
+    string,
+    { hp: number; maxHp: number; rating: number }
+  >();
   /**
    * The carried lights each client has been told about, joined into one string
    * per actor.
@@ -948,8 +956,15 @@ export class GameServer {
    * somebody moved a sword between two pockets.
    */
   private sentCarriedLights = new Map<string, string>();
-  /** Last broadcast status ids per actor, joined. @see diffStatusIds */
-  private sentStatusIds = new Map<string, string>();
+  /**
+   * Last broadcast status ids per actor, with the joined string they are
+   * compared by. Both, so the list is walked once a tick rather than twice.
+   * @see diffStatusIds
+   */
+  private sentStatusIds = new Map<
+    string,
+    { defIds: string[]; key: string }
+  >();
   /** Last broadcast switch per actor. @see diffPvp */
   private sentPvp = new Map<string, boolean>();
   /**
@@ -958,12 +973,14 @@ export class GameServer {
    * Compared by identity, unlike its neighbours, because identity is exactly
    * the answer here: the runtime winds one object in place for the whole pull
    * and replaces it only when a pull starts or ends. Comparing the numbers
-   * would see a change on every tick of every pull. @see diffExtractions
+   * would see a change on every tick of every pull.
+   *
+   * Holds a null for a body that is not pulling, rather than no entry at all —
+   * which reads the same to the compare, and means one entry per live actor on
+   * the terms {@link sentPvp} and {@link sentCarriedLights} already hold one.
+   * {@link diffPerActor} sweeps them all the same way. @see diffExtractions
    */
-  private sentExtractions = new Map<
-    string,
-    NonNullable<ActorSnapshot["extracting"]>
-  >();
+  private sentExtractions = new Map<string, ActorSnapshot["extracting"]>();
   /**
    * The wait each attached player was last *addressed* about.
    *
@@ -978,10 +995,7 @@ export class GameServer {
    * The cast each actor was last broadcast as making, compared by identity on
    * {@link sentExtractions}' terms and for its reason. @see diffCastings
    */
-  private sentCastings = new Map<
-    string,
-    NonNullable<ActorSnapshot["casting"]>
-  >();
+  private sentCastings = new Map<string, ActorSnapshot["casting"]>();
   private events: MotionEvent[] = [];
   /** Steps, turns and casts clients have sent, oldest first, per actor. */
   private readonly queuedIntents = new Map<string, QueuedIntent[]>();
@@ -1525,10 +1539,7 @@ export class GameServer {
    */
   private async restoreActors() {
     const live: string[] = [];
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (attachment) live.push(attachment.actorId);
-    }
+    for (const [, actorId] of this.seated()) live.push(actorId);
     this.session?.reapAbsentActors(live);
     for (const id of live) {
       // A socket belonging to somebody who died stays open and stays empty.
@@ -2207,10 +2218,41 @@ export class GameServer {
    * {@link dropSocket} ignores its close when it lands — correct, because the
    * actor has not gone anywhere.
    */
-  private displaceSockets(actorId: string) {
+  /**
+   * Every socket with an actor on it, and which actor that is.
+   *
+   * The attachment read and its cast were written out at twenty-odd call sites,
+   * and every one of them had to remember the same thing: a socket can be
+   * attached to nothing. One accepted and not yet seated is, and so is one
+   * {@link displaceSockets} has just cleared ahead of a close. Skipping those
+   * is all the copies ever did.
+   *
+   * Deliberately not used by {@link broadcast}, which is the one loop that must
+   * *not* read an attachment. It walks every socket and asks who is behind one
+   * only while somebody is silenced, because an attachment read per socket per
+   * tick is a cost that loop cannot take on. @see isSilenced
+   */
+  private *seated(): Generator<[GameSocket, string]> {
     for (const ws of this.ctx.getWebSockets()) {
       const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (attachment?.actorId !== actorId) continue;
+      if (attachment) yield [ws, attachment.actorId];
+    }
+  }
+
+  /**
+   * Every socket seated on one actor.
+   *
+   * Plural because it is: {@link displaceSockets} closes the old connection
+   * from the new one's `join`, so for the length of that call a body has two.
+   */
+  private *socketsOf(actorId: string): Generator<GameSocket> {
+    for (const [ws, id] of this.seated()) {
+      if (id === actorId) yield ws;
+    }
+  }
+
+  private displaceSockets(actorId: string) {
+    for (const ws of this.socketsOf(actorId)) {
       ws.serializeAttachment(null);
       ws.close(CLOSE_REPLACED, "replaced");
     }
@@ -2228,10 +2270,9 @@ export class GameServer {
    */
   private playerCount(excluding?: GameSocket): number {
     const ids = new Set<string>();
-    for (const ws of this.ctx.getWebSockets()) {
+    for (const [ws, actorId] of this.seated()) {
       if (ws === excluding) continue;
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (attachment) ids.add(attachment.actorId);
+      ids.add(actorId);
     }
     return ids.size;
   }
@@ -2553,6 +2594,43 @@ export class GameServer {
   }
 
   /**
+   * Send one actor-shaped message to each player a queue names.
+   *
+   * Six flushes were this same dozen lines: drain a queue of actor ids, bail if
+   * it is empty, then walk the attached sockets and send the one whose id is in
+   * it. Only two things ever differed — which queue, and what to put on the
+   * wire — so those are what a caller supplies.
+   *
+   * **A null message means the body is gone**, and that case is why this is a
+   * builder rather than a message. An actor can die between the change being
+   * queued and this running — the blow that taught them something was also the
+   * one that killed them — and every copy of this loop had to remember to check
+   * for it separately. Here there is one place to forget, and it does not.
+   *
+   * Addressed rather than broadcast, which is what all six have in common and
+   * what keeps them cheap: a kit, a tag, an experience block and a status list
+   * are facts about one player that nothing else on any client draws, so a room
+   * of twenty people fighting is twenty small sends rather than twenty
+   * serializations of everybody's.
+   */
+  private flushPerActor(
+    drain: (session: GameSession) => readonly string[],
+    message: (session: GameSession, actorId: string) => ServerMessage | null,
+  ) {
+    const session = this.session;
+    if (!session) return;
+    const changed = drain(session);
+    if (changed.length === 0) return;
+
+    const wanted = new Set(changed);
+    for (const [ws, actorId] of this.seated()) {
+      if (!wanted.has(actorId)) continue;
+      const out = message(session, actorId);
+      if (out) ws.send(JSON.stringify(out));
+    }
+  }
+
+  /**
    * Tell anybody whose kit changed what they are carrying now.
    *
    * One message per affected socket rather than a field on the broadcast patch,
@@ -2568,39 +2646,23 @@ export class GameServer {
    * lookup and sends nothing.
    */
   private flushEquipment() {
-    const session = this.session;
-    if (!session) return;
-    const changed = session.drainEquipmentChanges();
-    if (changed.length === 0) return;
-
-    const wanted = new Set(changed);
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (!attachment || !wanted.has(attachment.actorId)) continue;
-      const equipment = session.equipmentOf(attachment.actorId);
-      // Gone between the change and the flush — a body that died still had its
-      // kit changed, and there is nobody left to tell.
-      if (!equipment) continue;
-      ws.send(
-        JSON.stringify({
+    this.flushPerActor(
+      (session) => session.drainEquipmentChanges(),
+      (session, actorId) => {
+        const equipment = session.equipmentOf(actorId);
+        if (!equipment) return null;
+        return {
           type: "equipment",
           equipment,
           // Beside the kit because it is the same fact about the same caster —
           // see `GameSession.spellCooldownsOf`. Empty for every body with no
           // spells of its own, which is almost every body.
-          spellCooldowns: session.spellCooldownsOf(attachment.actorId) ?? {},
-        } satisfies ServerMessage),
-      );
-    }
+          spellCooldowns: session.spellCooldownsOf(actorId) ?? {},
+        };
+      },
+    );
   }
 
-  /**
-   * Tell anybody whose tags changed what they have taken now.
-   *
-   * Its own drain and its own message, sent from the same places the kit is —
-   * they change together today, and the two queues are what keeps that a fact
-   * about rewards rather than an assumption in the plumbing.
-   */
   /**
    * Tell whoever started or stopped a pull what they are now working.
    *
@@ -2611,22 +2673,15 @@ export class GameServer {
    * would put a tag list on the wire every time somebody finished mining.
    */
   private flushExtracting() {
-    const session = this.session;
-    if (!session) return;
-    const changed = session.drainExtractionChanges();
-    if (changed.length === 0) return;
-
-    const wanted = new Set(changed);
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (!attachment || !wanted.has(attachment.actorId)) continue;
-      ws.send(
-        JSON.stringify({
-          type: "extracting",
-          extracting: session.extractionOf(attachment.actorId),
-        } satisfies ServerMessage),
-      );
-    }
+    this.flushPerActor(
+      (session) => session.drainExtractionChanges(),
+      // Null is the message here rather than the absence of one: it is how the
+      // bar learns to go away.
+      (session, actorId) => ({
+        type: "extracting",
+        extracting: session.extractionOf(actorId),
+      }),
+    );
   }
 
   /**
@@ -2656,10 +2711,7 @@ export class GameServer {
     const session = this.session;
     if (!session) return;
     const live = new Set<string>();
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (!attachment) continue;
-      const actorId = attachment.actorId;
+    for (const [ws, actorId] of this.seated()) {
       live.add(actorId);
       const now = session.nextBlowOf(actorId);
       // `has` before the compare, so the first flush after a hello says nothing:
@@ -2683,52 +2735,39 @@ export class GameServer {
     }
   }
 
+  /**
+   * Tell anybody whose tags changed what they have taken now.
+   *
+   * Its own drain and its own message, sent from the same places the kit is —
+   * they change together today, and the two queues are what keeps that a fact
+   * about rewards rather than an assumption in the plumbing.
+   */
   private flushTags() {
-    const session = this.session;
-    if (!session) return;
-    const changed = session.drainTagChanges();
-    if (changed.length === 0) return;
-
-    const wanted = new Set(changed);
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (!attachment || !wanted.has(attachment.actorId)) continue;
-      const tags = session.tagsOf(attachment.actorId);
-      // Gone between the change and the flush, exactly as a kit can be.
-      if (!tags) continue;
-      ws.send(
-        JSON.stringify({
-          type: "tags",
-          tags: [...tags],
-        } satisfies ServerMessage),
-      );
-    }
+    this.flushPerActor(
+      (session) => session.drainTagChanges(),
+      (session, actorId) => {
+        const tags = session.tagsOf(actorId);
+        if (!tags) return null;
+        return { type: "tags", tags: [...tags] };
+      },
+    );
   }
 
   /**
    * Tell each player whose conversation changed where they now stand in it.
    *
-   * Shaped exactly like {@link flushTags}, because it is the same kind of
-   * thing: per-player state, sent whole to the one socket it is about. Null is
-   * sent too — it is how the panel learns to close.
+   * A separate queue from {@link flushTags} rather than a flag on it, because
+   * a conversation moves on ticks a tag never does.
    */
   private flushConversations() {
-    const session = this.session;
-    if (!session) return;
-    const changed = session.drainConversationChanges();
-    if (changed.length === 0) return;
-
-    const wanted = new Set(changed);
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (!attachment || !wanted.has(attachment.actorId)) continue;
-      ws.send(
-        JSON.stringify({
-          type: "conversation",
-          conversation: session.conversationOf(attachment.actorId),
-        } satisfies ServerMessage),
-      );
-    }
+    this.flushPerActor(
+      (session) => session.drainConversationChanges(),
+      // Null is sent too — it is how the panel learns to close.
+      (session, actorId) => ({
+        type: "conversation",
+        conversation: session.conversationOf(actorId),
+      }),
+    );
   }
 
   /**
@@ -2747,10 +2786,8 @@ export class GameServer {
     const session = this.session;
     if (!session) return;
 
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (!attachment) continue;
-      for (const text of session.drainNotices(attachment.actorId)) {
+    for (const [ws, actorId] of this.seated()) {
+      for (const text of session.drainNotices(actorId)) {
         ws.send(JSON.stringify({ type: "notice", text } satisfies ServerMessage));
       }
     }
@@ -2839,43 +2876,28 @@ export class GameServer {
   /**
    * Tell anybody whose experience moved what they have learnt now.
    *
-   * The busiest of the three by a long way — roughly one message per landed
-   * blow, to one socket — and cheap for the same reason the others are: it is
-   * addressed rather than broadcast, so a room of twenty people fighting is
-   * twenty small sends rather than twenty serializations of everybody's.
-   *
-   * Copied on the way out, because what the session hands back is the live block
-   * it goes on adding to.
+   * The busiest of these queues by a long way — roughly one message per landed
+   * blow. @see flushPerActor for why that is affordable.
    */
   private flushMasteries() {
-    const session = this.session;
-    if (!session) return;
-    const changed = session.drainMasteryChanges();
-    if (changed.length === 0) return;
-
-    const wanted = new Set(changed);
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (!attachment || !wanted.has(attachment.actorId)) continue;
-      const masteryXp = session.masteryXpOf(attachment.actorId);
-      // Gone between the change and the flush — the blow that taught them
-      // something was also the one that killed them.
-      if (!masteryXp) continue;
-      ws.send(
-        JSON.stringify({
-          type: "masteries",
-          masteryXp: { ...masteryXp },
-        } satisfies ServerMessage),
-      );
-    }
+    this.flushPerActor(
+      (session) => session.drainMasteryChanges(),
+      (session, actorId) => {
+        const masteryXp = session.masteryXpOf(actorId);
+        if (!masteryXp) return null;
+        // Copied on the way out, because what the session hands back is the
+        // live block it goes on adding to.
+        return { type: "masteries", masteryXp: { ...masteryXp } };
+      },
+    );
   }
 
   /**
    * Tell anybody whose statuses have moved what is running on them now.
    *
-   * The fourth of these, and the only one whose queue fills on its own: a kit,
-   * a tag and a mastery all change because somebody did something, and this
-   * changes because time passed. `GameSession` compares a **reading** rather
+   * The only one of these queues that fills on its own: a kit, a tag and a
+   * mastery all change because somebody did something, and this changes
+   * because time passed. `GameSession` compares a **reading** rather
    * than the list, which is what keeps a status that runs for an hour to about
    * thirty-six hundred small sends instead of a hundred thousand.
    *
@@ -2884,21 +2906,14 @@ export class GameServer {
    * any use for them.
    */
   private flushStatuses() {
-    const session = this.session;
-    if (!session) return;
-    const changed = session.drainStatusChanges();
-    if (changed.length === 0) return;
-
-    const wanted = new Set(changed);
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (!attachment || !wanted.has(attachment.actorId)) continue;
-      const statuses = session.statusPatchesOf(attachment.actorId);
-      // Gone between the change and the flush — the poison that ticked was also
-      // the one that killed them.
-      if (!statuses) continue;
-      ws.send(JSON.stringify({ type: "statuses", statuses } satisfies ServerMessage));
-    }
+    this.flushPerActor(
+      (session) => session.drainStatusChanges(),
+      (session, actorId) => {
+        const statuses = session.statusPatchesOf(actorId);
+        if (!statuses) return null;
+        return { type: "statuses", statuses };
+      },
+    );
   }
 
   /**
@@ -3039,9 +3054,7 @@ export class GameServer {
   /** Send to one actor's socket, if they still have one. */
   private sendTo(actorId: string, message: ServerMessage) {
     const payload = JSON.stringify(message);
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (attachment?.actorId !== actorId) continue;
+    for (const ws of this.socketsOf(actorId)) {
       try {
         ws.send(payload);
       } catch {
@@ -3180,10 +3193,8 @@ export class GameServer {
   ) {
     const whereById = new Map(actors.map((actor) => [actor.id, actor]));
     const payload = JSON.stringify(message);
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (!attachment) continue;
-      const viewer = whereById.get(attachment.actorId);
+    for (const [ws, actorId] of this.seated()) {
+      const viewer = whereById.get(actorId);
       // The storey test stays as it was: a client takes one of these as already
       // theirs to draw, and a bubble from the floor below would be drawn
       // through it. The reach is what is new.
@@ -3393,10 +3404,7 @@ export class GameServer {
    */
   private presentActorIds(): Set<string> {
     const ids = new Set(this.lingering.keys());
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (attachment) ids.add(attachment.actorId);
-    }
+    for (const [, actorId] of this.seated()) ids.add(actorId);
     return ids;
   }
 
@@ -3623,10 +3631,7 @@ export class GameServer {
         { announce: false },
       );
     }
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (attachment) this.sendHello(ws, attachment.actorId);
-    }
+    for (const [ws, actorId] of this.seated()) this.sendHello(ws, actorId);
     this.wake();
   }
 
@@ -3711,10 +3716,7 @@ export class GameServer {
     // What it cannot fix is the client's own catalogue, which reaches a browser
     // only when the page loads. An author still reloads to see their new art;
     // what they no longer have to do is reload to make the *world* obey them.
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (attachment) this.sendHello(ws, attachment.actorId);
-    }
+    for (const [ws, actorId] of this.seated()) this.sendHello(ws, actorId);
     this.wake();
   }
 
@@ -3816,10 +3818,7 @@ export class GameServer {
     // the spawn point, with the starting kit, no rewards taken, and exactly the
     // masteries their tile says they have.
     await this.ensureLoaded();
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (attachment) this.sendHello(ws, attachment.actorId);
-    }
+    for (const [ws, actorId] of this.seated()) this.sendHello(ws, actorId);
     this.wake();
   }
 
@@ -4206,11 +4205,7 @@ export class GameServer {
   private async rebirth(actorId: string) {
     if (!this.dead.has(actorId)) return;
     await this.seatActor(actorId);
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (attachment?.actorId !== actorId) continue;
-      this.sendHello(ws, actorId);
-    }
+    for (const ws of this.socketsOf(actorId)) this.sendHello(ws, actorId);
     // A body appearing moves the board, so it has to be broadcast even though
     // nobody pressed anything.
     this.wake();
@@ -4225,10 +4220,8 @@ export class GameServer {
    *   its attachment, which is indistinguishable from the ones that are staying.
    */
   private hasSocket(actorId: string, excluding?: GameSocket): boolean {
-    for (const ws of this.ctx.getWebSockets()) {
-      if (ws === excluding) continue;
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (attachment?.actorId === actorId) return true;
+    for (const ws of this.socketsOf(actorId)) {
+      if (ws !== excluding) return true;
     }
     return false;
   }
@@ -4335,62 +4328,105 @@ export class GameServer {
   }
 
   /**
+   * Diff one reading per actor against what was last broadcast, and forget the
+   * actors that have left.
+   *
+   * Six diffs were this same loop, ending in the same sweep: **an actor no
+   * longer on the board is dropped from the map of what was sent.**
+   *
+   * That sweep is about memory rather than about the wire, and the comments
+   * this replaces had it wrong. They claimed a returning player would otherwise
+   * be diffed against the body they died in — back on their old hit points, or
+   * carrying the lantern their corpse is still holding. It is not reachable:
+   * {@link scopedPatchFor} puts a body nobody has been told about into
+   * `entered` and announces it with its whole snapshot, never through a diff.
+   * What the sweep buys is what {@link noteDeaths} says beside its own
+   * `sentHp.delete` — or the map grows a row per body the world has ever
+   * killed, and a world that respawns creatures kills a great many.
+   *
+   * `read` returning undefined leaves an actor out altogether, which is not the
+   * same as having nothing to say about them: an actor left out is never added
+   * to the live set, so the sweep forgets them exactly as it forgets a body that
+   * has gone. That is what {@link diffHps} wants for a crate.
+   *
+   * `same` is handed `undefined` for a body nothing has been sent about yet, and
+   * every caller decides for itself what that counts as. The defaults are not
+   * cosmetic: a body that arrives carrying no lights and has never been
+   * broadcast must read as unchanged, or every actor that ever walks into view
+   * is announced as having put a torch down.
+   */
+  private diffPerActor<S, P>(
+    actors: ActorSnapshot[],
+    sent: Map<string, S>,
+    read: (actor: ActorSnapshot) => S | undefined,
+    same: (was: S | undefined, now: S) => boolean,
+    patch: (actor: ActorSnapshot, now: S) => P,
+  ): P[] {
+    const out: P[] = [];
+    const live = new Set<string>();
+    for (const actor of actors) {
+      const now = read(actor);
+      if (now === undefined) continue;
+      live.add(actor.id);
+      if (same(sent.get(actor.id), now)) continue;
+      sent.set(actor.id, now);
+      out.push(patch(actor, now));
+    }
+    for (const id of sent.keys()) {
+      if (!live.has(id)) sent.delete(id);
+    }
+    return out;
+  }
+
+  /**
    * Hit points that changed since the last broadcast.
    *
    * Only battlers are tracked, so a world of scenery costs one `null` check per
-   * actor. An actor who has left is forgotten here too — otherwise their entry
-   * would sit in the map forever, and a returning player would silently inherit
-   * the reading their previous body died on.
+   * actor and leaves nothing behind. @see diffPerActor
    */
   private diffHps(actors: ActorSnapshot[]): HpPatch[] {
-    const out: HpPatch[] = [];
-    const live = new Set<string>();
-    for (const actor of actors) {
-      if (actor.hp === null || actor.maxHp === null) continue;
-      live.add(actor.id);
+    return this.diffPerActor(
+      actors,
+      this.sentHp,
+      // Undefined for anything that is not a battler, so a world of scenery
+      // costs one check per actor and leaves no entries behind.
+      (actor) =>
+        actor.hp === null || actor.maxHp === null
+          ? undefined
+          : { hp: actor.hp, maxHp: actor.maxHp, rating: actor.rating ?? 0 },
       // Either number moving is worth a message, and the ⭐ is why this is a
       // pair rather than a single reading: a creature's never moves and a
-      // player's moves without their hit points doing so.
-      const rating = actor.rating ?? 0;
-      const sent = this.sentHp.get(actor.id);
-      if (sent?.hp === actor.hp && sent.rating === rating) continue;
-      this.sentHp.set(actor.id, { hp: actor.hp, rating });
-      out.push({
+      // player's moves without their hit points doing so. `maxHp` rides along
+      // to be sent and is deliberately not compared.
+      (was, now) => was?.hp === now.hp && was.rating === now.rating,
+      (actor, now) => ({
         actorId: actor.id,
-        hp: actor.hp,
-        maxHp: actor.maxHp,
-        rating,
-      });
-    }
-    for (const id of this.sentHp.keys()) {
-      if (!live.has(id)) this.sentHp.delete(id);
-    }
-    return out;
+        hp: now.hp,
+        maxHp: now.maxHp,
+        rating: now.rating,
+      }),
+    );
   }
 
   /**
    * Carried lights that changed since the last broadcast.
    *
    * Almost always empty, and that is the shape to protect: this runs on every
-   * tick of every world, and a torch is picked up once. Forgetting an actor who
-   * has left matters here for the same reason it does for hit points — a
-   * returning player with a fresh kit would otherwise be diffed against the
-   * lantern their last body was holding, and the room would stay lit by nothing.
+   * tick of every world, and a torch is picked up once.
+   *
+   * A string rather than the array, because the question is "the same answer as
+   * last time" and the array is rebuilt whenever a kit changes — comparing by
+   * identity would re-broadcast a lantern every time somebody moved a sword
+   * between two pockets.
    */
   private diffCarriedLights(actors: ActorSnapshot[]): CarriedLightsPatch[] {
-    const out: CarriedLightsPatch[] = [];
-    const live = new Set<string>();
-    for (const actor of actors) {
-      live.add(actor.id);
-      const joined = actor.carriedLights.join(",");
-      if ((this.sentCarriedLights.get(actor.id) ?? "") === joined) continue;
-      this.sentCarriedLights.set(actor.id, joined);
-      out.push({ actorId: actor.id, tileIds: actor.carriedLights });
-    }
-    for (const id of this.sentCarriedLights.keys()) {
-      if (!live.has(id)) this.sentCarriedLights.delete(id);
-    }
-    return out;
+    return this.diffPerActor(
+      actors,
+      this.sentCarriedLights,
+      (actor) => actor.carriedLights.join(","),
+      (was, now) => (was ?? "") === now,
+      (actor) => ({ actorId: actor.id, tileIds: actor.carriedLights }),
+    );
   }
 
   /**
@@ -4399,48 +4435,37 @@ export class GameServer {
    * A diff of its own rather than a read of `drainStatusChanges`, and the two
    * must not be confused: that queue is drained to send the viewer their *own*
    * countdown, and reading it here would take the message out of their mouth.
-   * This compares what was last broadcast, on exactly the terms
-   * {@link diffCarriedLights} does — including forgetting a body that has left,
-   * so a returning one is diffed against nothing rather than against whatever
-   * its last life was under.
+   * This compares what was last broadcast instead.
    */
   private diffStatusIds(actors: ActorSnapshot[]): StatusIdsPatch[] {
-    const out: StatusIdsPatch[] = [];
-    const live = new Set<string>();
-    for (const actor of actors) {
-      live.add(actor.id);
-      const defIds = statusIdsOf(actor);
-      const joined = defIds.join(",");
-      if ((this.sentStatusIds.get(actor.id) ?? "") === joined) continue;
-      this.sentStatusIds.set(actor.id, joined);
-      out.push({ actorId: actor.id, defIds });
-    }
-    for (const id of this.sentStatusIds.keys()) {
-      if (!live.has(id)) this.sentStatusIds.delete(id);
-    }
-    return out;
+    return this.diffPerActor(
+      actors,
+      this.sentStatusIds,
+      // The ids and the string they are compared by, together, so the list is
+      // walked once per actor per tick rather than once to compare and again
+      // to send.
+      (actor) => {
+        const defIds = statusIdsOf(actor);
+        return { defIds, key: defIds.join(",") };
+      },
+      (was, now) => (was?.key ?? "") === now.key,
+      (actor, now) => ({ actorId: actor.id, defIds: now.defIds }),
+    );
   }
 
   /**
    * Whose switch moved since the last patch. @see `../app/net/protocol`'s PvpPatch
    *
-   * A diff on {@link diffStatusIds}' terms, down to forgetting a body that has
-   * left — so somebody who comes back is diffed against nothing and is marked,
-   * or unmarked, on the frame they arrive.
+   * A diff on {@link diffStatusIds}' terms.
    */
   private diffPvp(actors: ActorSnapshot[]): PvpPatch[] {
-    const out: PvpPatch[] = [];
-    const live = new Set<string>();
-    for (const actor of actors) {
-      live.add(actor.id);
-      if ((this.sentPvp.get(actor.id) ?? false) === actor.pvp) continue;
-      this.sentPvp.set(actor.id, actor.pvp);
-      out.push({ actorId: actor.id, on: actor.pvp });
-    }
-    for (const id of this.sentPvp.keys()) {
-      if (!live.has(id)) this.sentPvp.delete(id);
-    }
-    return out;
+    return this.diffPerActor(
+      actors,
+      this.sentPvp,
+      (actor) => actor.pvp,
+      (was, now) => (was ?? false) === now,
+      (actor, now) => ({ actorId: actor.id, on: now }),
+    );
   }
 
   /**
@@ -4451,24 +4476,21 @@ export class GameServer {
    * player their own pull, key and all, and reading it here would take the
    * message out of their mouth.
    *
-   * A body that has left is forgotten without a patch. Its tile is off the
-   * board in the same frame's cells, so there is nothing left to hang a bar on.
+   * A body that has left is forgotten without a patch, which is right rather
+   * than merely cheap: its tile is off the board in the same frame's cells, so
+   * there is nothing left to hang a bar on.
    */
   private diffExtractions(actors: ActorSnapshot[]): ExtractionPatch[] {
-    const out: ExtractionPatch[] = [];
-    const live = new Set<string>();
-    for (const actor of actors) {
-      live.add(actor.id);
-      const now = actor.extracting;
-      if ((this.sentExtractions.get(actor.id) ?? null) === now) continue;
-      if (now) this.sentExtractions.set(actor.id, now);
-      else this.sentExtractions.delete(actor.id);
-      out.push({ actorId: actor.id, progress: now ? progressOf(now) : null });
-    }
-    for (const id of this.sentExtractions.keys()) {
-      if (!live.has(id)) this.sentExtractions.delete(id);
-    }
-    return out;
+    return this.diffPerActor(
+      actors,
+      this.sentExtractions,
+      (actor) => actor.extracting,
+      (was, now) => (was ?? null) === now,
+      (actor, now) => ({
+        actorId: actor.id,
+        progress: now ? progressOf(now) : null,
+      }),
+    );
   }
 
   /**
@@ -4480,23 +4502,16 @@ export class GameServer {
    * spell in the world.
    */
   private diffCastings(actors: ActorSnapshot[]): CastingPatch[] {
-    const out: CastingPatch[] = [];
-    const live = new Set<string>();
-    for (const actor of actors) {
-      live.add(actor.id);
-      const now = actor.casting;
-      if ((this.sentCastings.get(actor.id) ?? null) === now) continue;
-      if (now) this.sentCastings.set(actor.id, now);
-      else this.sentCastings.delete(actor.id);
-      out.push({
+    return this.diffPerActor(
+      actors,
+      this.sentCastings,
+      (actor) => actor.casting,
+      (was, now) => (was ?? null) === now,
+      (actor, now) => ({
         actorId: actor.id,
         progress: now ? castProgressOf(now) : null,
-      });
-    }
-    for (const id of this.sentCastings.keys()) {
-      if (!live.has(id)) this.sentCastings.delete(id);
-    }
-    return out;
+      }),
+    );
   }
 
   /**
@@ -4568,10 +4583,7 @@ export class GameServer {
     if (!session) return;
     const map = session.getMap();
     const sent = new Set<string>();
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (!attachment) continue;
-      const { actorId } = attachment;
+    for (const [ws, actorId] of this.seated()) {
       // Two tabs on one body are owed the same ground, and the first of them
       // through here has already moved the subscription on. Sending to both
       // would be right; computing it twice would not.
@@ -4635,9 +4647,7 @@ export class GameServer {
    */
   private sendToEverySocketOf(actorId: string, message: ServerMessage) {
     const payload = JSON.stringify(message);
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (attachment?.actorId !== actorId) continue;
+    for (const ws of this.socketsOf(actorId)) {
       try {
         ws.send(payload);
       } catch {
@@ -4674,10 +4684,7 @@ export class GameServer {
   private broadcastPatch(actors: ActorSnapshot[], patch: SharedPatch) {
     let shared: string | null = null;
     const payloads = new Map<string, string | null>();
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (!attachment) continue;
-      const { actorId } = attachment;
+    for (const [ws, actorId] of this.seated()) {
       // The dead hear nothing more until they come back. @see silenced
       if (this.silenced.has(actorId)) continue;
 
