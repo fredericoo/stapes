@@ -14,10 +14,7 @@ import {
 import { MINUTES_PER_DAY, minutesOfDayAt } from "../app/lib/clock";
 import { resolvePush } from "../app/lib/interactions";
 import { chunkKeyFor, getStack, listCoords } from "../app/lib/mapData";
-import {
-  BODY_REACH_ON_LEVEL,
-  INTEREST_REACH_CHUNKS,
-} from "../app/net/interest";
+import { BODY_REACH_ON_LEVEL, INTEREST_REACH_CHUNKS } from "../app/net/interest";
 import { xpForLevel } from "../app/lib/mastery";
 import { CHUNK_SIZE, levelKey } from "../app/lib/types";
 import type { FlatMapFile, MapFile, TileDef } from "../app/lib/types";
@@ -27,11 +24,7 @@ import { CLOSE_REPLACED } from "../app/net/protocol";
 import { COMBAT_STATUS_ID } from "../app/lib/status";
 import { fightingStats, resolveBattler } from "../app/lib/battler";
 import { swingWindupMs } from "../app/game/combat";
-import {
-  CHAT_LOG_MAX_ROWS,
-  MAX_REMEMBERED_ACTORS,
-  type GameServer,
-} from "./GameServer";
+import { CHAT_LOG_MAX_ROWS, MAX_REMEMBERED_ACTORS, type GameServer } from "./GameServer";
 
 /**
  * The bag `player`'s kit is authored with — see `app/lib/kit.ts`. A literal
@@ -179,10 +172,7 @@ const MESSAGE_TIMEOUT_MS = 5000;
 
 function nextMessage(ws: TestSocket): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error("no message")),
-      MESSAGE_TIMEOUT_MS,
-    );
+    const timer = setTimeout(() => reject(new Error("no message")), MESSAGE_TIMEOUT_MS);
     ws.addEventListener(
       "message",
       (event) => {
@@ -203,16 +193,10 @@ function nextMessage(ws: TestSocket): Promise<Record<string, unknown>> {
  * assertion about a reply an assertion about that reply, rather than a bet on
  * nothing else happening in between.
  */
-function nextMessageOfType(
-  ws: TestSocket,
-  type: string,
-): Promise<Record<string, unknown>> {
+function nextMessageOfType(ws: TestSocket, type: string): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     const onMessage = (event: { data: string }) => {
-      const message = JSON.parse(event.data) as Record<
-        string,
-        unknown
-      >;
+      const message = JSON.parse(event.data) as Record<string, unknown>;
       if (message.type !== type) return;
       clearTimeout(timer);
       ws.removeEventListener("message", onMessage);
@@ -283,13 +267,11 @@ async function putCheckpoint(value: unknown) {
 const STORAGE_POLL_MS = 20;
 
 /** The ground level of the board as it is written down, chunks reassembled. */
-async function checkpointedGround(): Promise<
-  Record<string, { tileId: string; owner?: string }[]>
-> {
+async function checkpointedGround(): Promise<Record<string, { tileId: string; owner?: string }[]>> {
   return await runInDurableObject(stub(), async (_instance, state) => {
-    const stored = await state.storage.list<
-      Record<string, { tileId: string; owner?: string }[]>
-    >({ prefix: `chunk:${levelKey(0)}:` });
+    const stored = await state.storage.list<Record<string, { tileId: string; owner?: string }[]>>({
+      prefix: `chunk:${levelKey(0)}:`,
+    });
     const ground: Record<string, { tileId: string; owner?: string }[]> = {};
     for (const chunk of stored.values()) Object.assign(ground, chunk);
     return ground;
@@ -306,10 +288,7 @@ async function checkpointedGround(): Promise<
  * a save re-seats everybody at the spawn point: waiting for a cell is waiting
  * for *that* flush rather than for whichever one happens to land first.
  */
-async function waitForCheckpointedAt(
-  actorId: string,
-  cell: string,
-): Promise<void> {
+async function waitForCheckpointedAt(actorId: string, cell: string): Promise<void> {
   const deadline = Date.now() + MESSAGE_TIMEOUT_MS;
   while (Date.now() < deadline) {
     const stack = (await checkpointedGround())[cell] ?? [];
@@ -340,11 +319,7 @@ beforeEach(async () => {
   // and a store that cannot be closed and reopened cannot exercise them.
   harness = await Harness.create(NAMES);
   await harness.blobs.put("tiles.json", JSON.stringify(tilesJson), JSON_TYPE);
-  await harness.blobs.put(
-    "statuses.json",
-    JSON.stringify(statusesJson),
-    JSON_TYPE,
-  );
+  await harness.blobs.put("statuses.json", JSON.stringify(statusesJson), JSON_TYPE);
   await harness.blobs.put("map.json", JSON.stringify(authoredMap()), JSON_TYPE);
 });
 
@@ -372,10 +347,7 @@ describe("joining and leaving", () => {
     const { hello } = await connect("bob");
 
     expect(hello.actorIds).toEqual(["alice", "bob"]);
-    expect(playerOwners(hello.map as FlatMapFile).sort()).toEqual([
-      "alice",
-      "bob",
-    ]);
+    expect(playerOwners(hello.map as FlatMapFile).sort()).toEqual(["alice", "bob"]);
   });
 
   it("consumes the authored marker, leaving no unowned avatar", async () => {
@@ -405,9 +377,7 @@ describe("joining and leaving", () => {
     // Alice's own arrival may still be sitting in the same patch — she joined an
     // idle world, so the tick that flushes her `joined` starts with bob's.
     expect(await arrival).toMatchObject({
-      events: expect.arrayContaining([
-        { kind: "joined", actorId: "bob", playerCount: 2 },
-      ]),
+      events: expect.arrayContaining([{ kind: "joined", actorId: "bob", playerCount: 2 }]),
     });
   });
 
@@ -428,9 +398,7 @@ describe("joining and leaving", () => {
     // Among the rest of the patch rather than alone in it: the player tile has
     // a disappear transition, so bob's body's way out travels beside his leaving.
     expect(await departure).toMatchObject({
-      events: expect.arrayContaining([
-        { kind: "left", actorId: "bob", playerCount: 1 },
-      ]),
+      events: expect.arrayContaining([{ kind: "left", actorId: "bob", playerCount: 1 }]),
     });
   });
 
@@ -489,10 +457,7 @@ describe("joining and leaving", () => {
     // A third join reads the board back out.
     const { hello } = await connect("carol");
 
-    expect(playerOwners(hello.map as FlatMapFile).sort()).toEqual([
-      "alice",
-      "carol",
-    ]);
+    expect(playerOwners(hello.map as FlatMapFile).sort()).toEqual(["alice", "carol"]);
     expect(hello.actorIds).toContain("alice");
   });
 
@@ -544,11 +509,7 @@ describe("joining and leaving", () => {
     }
 
     /** Whether a patch saying this actor left arrives within the window. */
-    function departureWithin(
-      ws: TestSocket,
-      actorId: string,
-      ms: number,
-    ): Promise<boolean> {
+    function departureWithin(ws: TestSocket, actorId: string, ms: number): Promise<boolean> {
       return new Promise((resolve) => {
         const done = (left: boolean) => {
           clearTimeout(timer);
@@ -561,9 +522,7 @@ describe("joining and leaving", () => {
             events?: { kind: string; actorId?: string }[];
           };
           if (message.type !== "patch") return;
-          const left = message.events?.some(
-            (e) => e.kind === "left" && e.actorId === actorId,
-          );
+          const left = message.events?.some((e) => e.kind === "left" && e.actorId === actorId);
           if (left) done(true);
         };
         const timer = setTimeout(() => done(false), ms);
@@ -578,10 +537,7 @@ describe("joining and leaving", () => {
       await disconnect(alice.pair);
       const { hello } = await connect("carol");
 
-      expect(playerOwners(hello.map as FlatMapFile).sort()).toEqual([
-        "alice",
-        "carol",
-      ]);
+      expect(playerOwners(hello.map as FlatMapFile).sort()).toEqual(["alice", "carol"]);
       expect(hello.actorIds).toContain("alice");
     });
 
@@ -598,10 +554,7 @@ describe("joining and leaving", () => {
       expect(await departure).toBe(true);
 
       const { hello } = await connect("carol");
-      expect(playerOwners(hello.map as FlatMapFile).sort()).toEqual([
-        "bob",
-        "carol",
-      ]);
+      expect(playerOwners(hello.map as FlatMapFile).sort()).toEqual(["bob", "carol"]);
     });
 
     it("hands the body back to a player who returns mid-fight", async () => {
@@ -612,18 +565,15 @@ describe("joining and leaving", () => {
       const back = await connect("alice");
       // One body, and it is still in the fight it was left in.
       expect(playerOwners(back.hello.map as FlatMapFile)).toEqual(["alice"]);
-      expect(
-        (back.hello.statuses as { defId: string }[]).map((s) => s.defId),
-      ).toContain(COMBAT_STATUS_ID);
+      expect((back.hello.statuses as { defId: string }[]).map((s) => s.defId)).toContain(
+        COMBAT_STATUS_ID,
+      );
 
       // Theirs again, so the fight ending leaves them standing.
       await endCombat("alice");
       await wait(SETTLE_MS);
       const { hello } = await connect("carol");
-      expect(playerOwners(hello.map as FlatMapFile).sort()).toEqual([
-        "alice",
-        "carol",
-      ]);
+      expect(playerOwners(hello.map as FlatMapFile).sort()).toEqual(["alice", "carol"]);
     });
 
     it("writes down the death of a body left standing in a fight", async () => {
@@ -727,9 +677,9 @@ describe("time of day", () => {
 
     const { hello } = await connect("alice");
 
-    expect(
-      minutesApart(hello.minutesOfDay as number, minutesOfDayAt(Date.now())),
-    ).toBeLessThan(CLOCK_TOLERANCE_MINUTES);
+    expect(minutesApart(hello.minutesOfDay as number, minutesOfDayAt(Date.now()))).toBeLessThan(
+      CLOCK_TOLERANCE_MINUTES,
+    );
   });
 
   /**
@@ -750,9 +700,9 @@ describe("time of day", () => {
 
     await simulateEviction();
     const carol = await connect("carol");
-    expect(
-      minutesApart(carol.hello.minutesOfDay as number, sixPmMinutes),
-    ).toBeLessThan(CLOCK_TOLERANCE_MINUTES);
+    expect(minutesApart(carol.hello.minutesOfDay as number, sixPmMinutes)).toBeLessThan(
+      CLOCK_TOLERANCE_MINUTES,
+    );
   });
 });
 
@@ -862,18 +812,14 @@ describe("residents", () => {
 
     expect(deerCells(hello.map as FlatMapFile)).toEqual([DEER_CELL]);
     // An actor like any other, so its motion rides the existing protocol.
-    expect(hello.actorIds).toEqual(
-      expect.arrayContaining([expect.stringMatching(/^npc:/)]),
-    );
+    expect(hello.actorIds).toEqual(expect.arrayContaining([expect.stringMatching(/^npc:/)]));
   });
 
   it("looks the same to everybody in the room", async () => {
     const alice = await connect("alice");
     const { hello } = await connect("bob");
 
-    expect(deerCells(alice.hello.map as FlatMapFile)).toEqual(
-      deerCells(hello.map as FlatMapFile),
-    );
+    expect(deerCells(alice.hello.map as FlatMapFile)).toEqual(deerCells(hello.map as FlatMapFile));
   });
 
   /**
@@ -1075,10 +1021,7 @@ describe("replacing the world", () => {
    */
   it("leaves a connected player carrying what they were carrying", async () => {
     const withSword = authoredMap();
-    withSword.levels["0"]!["1,0"] = [
-      { tileId: "grass" },
-      { tileId: "rusty-sword" },
-    ];
+    withSword.levels["0"]!["1,0"] = [{ tileId: "grass" }, { tileId: "rusty-sword" }];
     await harness.blobs.put("map.json", JSON.stringify(withSword), JSON_TYPE);
 
     const alice = await connect("alice");
@@ -1108,10 +1051,7 @@ describe("replacing the world", () => {
    */
   it("arms a player from the floor when they ask to equip", async () => {
     const withSword = authoredMap();
-    withSword.levels["0"]!["1,0"] = [
-      { tileId: "grass" },
-      { tileId: "rusty-sword" },
-    ];
+    withSword.levels["0"]!["1,0"] = [{ tileId: "grass" }, { tileId: "rusty-sword" }];
     await harness.blobs.put("map.json", JSON.stringify(withSword), JSON_TYPE);
 
     const alice = await connect("alice");
@@ -1131,10 +1071,7 @@ describe("replacing the world", () => {
    */
   it("puts the authored floor items back regardless", async () => {
     const withSword = authoredMap();
-    withSword.levels["0"]!["1,0"] = [
-      { tileId: "grass" },
-      { tileId: "rusty-sword" },
-    ];
+    withSword.levels["0"]!["1,0"] = [{ tileId: "grass" }, { tileId: "rusty-sword" }];
     await harness.blobs.put("map.json", JSON.stringify(withSword), JSON_TYPE);
 
     const alice = await connect("alice");
@@ -1152,10 +1089,7 @@ describe("replacing the world", () => {
 
   it("checks the kit it carries over against the catalogue the save brought", async () => {
     const withSword = authoredMap();
-    withSword.levels["0"]!["1,0"] = [
-      { tileId: "grass" },
-      { tileId: "rusty-sword" },
-    ];
+    withSword.levels["0"]!["1,0"] = [{ tileId: "grass" }, { tileId: "rusty-sword" }];
     await harness.blobs.put("map.json", JSON.stringify(withSword), JSON_TYPE);
 
     const alice = await connect("alice");
@@ -1288,10 +1222,7 @@ function checkpointOnTwoLevels(): {
  * as "the reply" makes a positive test pass on the wrong message and a negative
  * one fail on an unrelated one. Both happened before this filtered.
  */
-function chatWithin(
-  ws: TestSocket,
-  ms: number,
-): Promise<Record<string, unknown> | null> {
+function chatWithin(ws: TestSocket, ms: number): Promise<Record<string, unknown> | null> {
   return new Promise((resolve) => {
     const done = (value: Record<string, unknown> | null) => {
       clearTimeout(timer);
@@ -1516,10 +1447,7 @@ describe("calling a creature", () => {
   } {
     const ground: Record<string, unknown[]> = {};
     for (let x = 0; x < 6; x++) ground[`${x},0`] = [{ tileId: "grass" }];
-    ground["0,0"] = [
-      { tileId: "grass" },
-      { tileId: "player", direction: "s", owner: "alice" },
-    ];
+    ground["0,0"] = [{ tileId: "grass" }, { tileId: "player", direction: "s", owner: "alice" }];
     ground["3,0"] = [{ tileId: "grass" }, { tileId: "cat" }];
     return {
       map: { version: MAP_FILE_VERSION, levels: { "0": ground } } as FlatMapFile,
@@ -1713,10 +1641,7 @@ function eventWithin(
 }
 
 /** Wait for a patch carrying a `walkStarted`, and hand back that event. */
-function walkWithin(
-  ws: TestSocket,
-  ms: number,
-): Promise<Record<string, unknown> | null> {
+function walkWithin(ws: TestSocket, ms: number): Promise<Record<string, unknown> | null> {
   return new Promise((resolve) => {
     const done = (value: Record<string, unknown> | null) => {
       clearTimeout(timer);
@@ -1742,9 +1667,7 @@ async function actorX(actorId: string): Promise<number | null> {
     const internals = instance as unknown as {
       session: { actorSnapshots(): { id: string; x: number }[] } | null;
     };
-    const actor = internals.session
-      ?.actorSnapshots()
-      .find((a) => a.id === actorId);
+    const actor = internals.session?.actorSnapshots().find((a) => a.id === actorId);
     found = actor ? actor.x : null;
   });
   return found;
@@ -1785,9 +1708,7 @@ describe("stepping", () => {
       const internals = instance as unknown as {
         session: { actorSnapshots(): { id: string; direction: string }[] } | null;
       };
-      facing = internals.session
-        ?.actorSnapshots()
-        .find((a) => a.id === "alice")?.direction;
+      facing = internals.session?.actorSnapshots().find((a) => a.id === "alice")?.direction;
     });
     expect(facing).toBe("n");
     expect(await actorX("alice")).toBe(0);
@@ -1811,9 +1732,7 @@ describe("stepping", () => {
       const internals = instance as unknown as {
         session: { actorSnapshots(): { id: string; direction: string }[] } | null;
       };
-      facing = internals.session
-        ?.actorSnapshots()
-        .find((a) => a.id === "alice")?.direction;
+      facing = internals.session?.actorSnapshots().find((a) => a.id === "alice")?.direction;
     });
     expect(await actorX("alice")).toBe(1);
     expect(facing).toBe("n");
@@ -1854,9 +1773,7 @@ describe("stepping", () => {
 
     // Held rather than refused: the queued one is taken on the tick that
     // finishes the first, so two cells are walked and neither is lost.
-    await new Promise((resolve) =>
-      setTimeout(resolve, WALK_DURATION_MS * 2 + 300),
-    );
+    await new Promise((resolve) => setTimeout(resolve, WALK_DURATION_MS * 2 + 300));
     expect(await actorX("alice")).toBe(2);
   });
 
@@ -1864,9 +1781,7 @@ describe("stepping", () => {
     const { ws } = await connect("alice");
     step(ws, 0, "e");
 
-    await new Promise((resolve) =>
-      setTimeout(resolve, WALK_DURATION_MS + QUIET_MS),
-    );
+    await new Promise((resolve) => setTimeout(resolve, WALK_DURATION_MS + QUIET_MS));
     // Nothing is held on this side any more — the client is the only thing that
     // knows a key is down — so one step leaves the world at rest.
     expect(await isTicking()).toBe(false);
@@ -1885,9 +1800,7 @@ describe("stepping", () => {
  */
 
 /** The saved position the object is holding for an actor, if any. */
-async function savedPosition(
-  actorId: string,
-): Promise<Record<string, unknown> | undefined> {
+async function savedPosition(actorId: string): Promise<Record<string, unknown> | undefined> {
   let found: Record<string, unknown> | undefined;
   await runInDurableObject(stub(), async (_instance, state) => {
     found = await state.storage.get<Record<string, unknown>>(`pos:${actorId}`);
@@ -1934,18 +1847,13 @@ async function storedKeys(prefix: string): Promise<string[]> {
  * loses: this is the whole of why the masteries case failed on CI and passed on
  * every laptop it was run on.
  */
-async function keptAfterJoin(
-  prefix: string,
-  joined: string,
-): Promise<string[]> {
+async function keptAfterJoin(prefix: string, joined: string): Promise<string[]> {
   const keys = await storedKeys(prefix);
   return keys.filter((key) => key !== `${prefix}${joined}`);
 }
 
 /** What the object wrote down about one player's kit, if anything. */
-async function savedEquipment(
-  actorId: string,
-): Promise<Record<string, unknown> | undefined> {
+async function savedEquipment(actorId: string): Promise<Record<string, unknown> | undefined> {
   let found: Record<string, unknown> | undefined;
   await runInDurableObject(stub(), async (_instance, state) => {
     found = await state.storage.get<Record<string, unknown>>(`equip:${actorId}`);
@@ -1954,9 +1862,7 @@ async function savedEquipment(
 }
 
 /** What the object wrote down about one player's masteries, if anything. */
-async function savedMasteries(
-  actorId: string,
-): Promise<Record<string, number> | undefined> {
+async function savedMasteries(actorId: string): Promise<Record<string, number> | undefined> {
   let found: { masteries?: Record<string, number> } | undefined;
   await runInDurableObject(stub(), async (_instance, state) => {
     found = await state.storage.get(`mast:${actorId}`);
@@ -1997,10 +1903,7 @@ const FAR_SPAWN = 5;
 function stripSpawningAtTheFarEnd(): FlatMapFile {
   const levels: Record<string, Record<string, unknown[]>> = { "0": {} };
   for (let x = 0; x <= FAR_SPAWN; x++) levels["0"]![`${x},0`] = [{ tileId: "grass" }];
-  levels["0"]![`${FAR_SPAWN},0`] = [
-    { tileId: "grass" },
-    { tileId: "player", direction: "s" },
-  ];
+  levels["0"]![`${FAR_SPAWN},0`] = [{ tileId: "grass" }, { tileId: "player", direction: "s" }];
   return { version: MAP_FILE_VERSION, levels } as FlatMapFile;
 }
 
@@ -2174,9 +2077,7 @@ describe("player permanence", () => {
 
     const saved = await savedEquipment(who);
     expect(saved).toBeDefined();
-    expect((saved!.equipment as { bag: { id: string } }).bag.id).toBe(
-      kitOf(hello).bag.id,
-    );
+    expect((saved!.equipment as { bag: { id: string } }).bag.id).toBe(kitOf(hello).bag.id);
   });
 
   /**
@@ -2192,8 +2093,7 @@ describe("player permanence", () => {
         const end = Math.min(i + BACKFILL_BATCH, MAX_REMEMBERED_ACTORS + overflow);
         for (let n = i; n < end; n++) {
           batch[`equip:backfill-${n}`] = {
-            equipment: { weapon: null, offhand: null,
-  bag: null },
+            equipment: { weapon: null, offhand: null, bag: null },
             savedAt: n,
           };
         }
@@ -2412,10 +2312,7 @@ describe("player permanence", () => {
     // away, so giving up and going to spawn would read differently from
     // stepping aside.
     const rebuilt = stripSpawningAtTheFarEnd();
-    rebuilt.levels["0"]![`${ONE_STEP_EAST},0`] = [
-      { tileId: "grass" },
-      { tileId: "stone-wall" },
-    ];
+    rebuilt.levels["0"]![`${ONE_STEP_EAST},0`] = [{ tileId: "grass" }, { tileId: "stone-wall" }];
     await stub().replaceWorld(rebuilt);
 
     await connect(who);
@@ -2548,9 +2445,7 @@ describe("announcing a swing", () => {
    * rather than written down, so re-authoring bare hands moves this with it.
    */
   const FIRST_BLOW_MS = (() => {
-    const player = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]))[
-      PLAYER_TILE_ID
-    ];
+    const player = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]))[PLAYER_TILE_ID];
     const battler = player && resolveBattler(player);
     if (!battler) throw new Error("the player is not a battler");
     const stats = fightingStats(battler, battler.naturalWeapon);
@@ -2646,9 +2541,7 @@ describe("saving a map that cannot start", () => {
     // is also reported as a remote unhandled error, which fails the run even
     // when the rejection is the thing being asserted.
     await runInDurableObject(stub(), async (instance: GameServer) => {
-      await expect(instance.replaceWorld(markerlessMap())).rejects.toThrow(
-        /player/,
-      );
+      await expect(instance.replaceWorld(markerlessMap())).rejects.toThrow(/player/);
     });
 
     // The map that was there is still there, marker and all.
@@ -2673,11 +2566,7 @@ describe("saving a map that cannot start", () => {
     // state exactly: the only copy of it is one that cannot be started.
     const wedged = await Harness.create();
     try {
-      await wedged.blobs.put(
-        "map.json",
-        JSON.stringify(markerlessMap()),
-        JSON_TYPE,
-      );
+      await wedged.blobs.put("map.json", JSON.stringify(markerlessMap()), JSON_TYPE);
 
       await wedged.server.replaceWorld(authoredMap());
 
@@ -2721,8 +2610,7 @@ describe("consuming", () => {
   async function liveTilesAt(x: number, y: number, z: number) {
     let found: string[] = [];
     await runInDurableObject(stub(), (instance: GameServer) => {
-      const session = (instance as unknown as { session: { getMap(): MapFile } })
-        .session;
+      const session = (instance as unknown as { session: { getMap(): MapFile } }).session;
       found = getStack(session.getMap(), x, y, z).map((p) => p.tileId);
     });
     return found;
@@ -2824,19 +2712,12 @@ describe("respawn", () => {
 
   function mapWithGnome(): FlatMapFile {
     const flat = authoredMap();
-    flat.levels["0"]![`${GNOME_X},0`] = [
-      { tileId: "grass" },
-      { tileId: "gnome" },
-    ];
+    flat.levels["0"]![`${GNOME_X},0`] = [{ tileId: "grass" }, { tileId: "gnome" }];
     return flat;
   }
 
   beforeEach(async () => {
-    await harness.blobs.put(
-      "tiles.json",
-      JSON.stringify([...tilesJson, gnomeTile()]),
-      JSON_TYPE,
-    );
+    await harness.blobs.put("tiles.json", JSON.stringify([...tilesJson, gnomeTile()]), JSON_TYPE);
     await harness.blobs.put("map.json", JSON.stringify(mapWithGnome()), JSON_TYPE);
   });
 
@@ -2844,9 +2725,7 @@ describe("respawn", () => {
     await connect("alice");
 
     const points = await runInDurableObject(stub(), (_instance, state) =>
-      state.storage.get<Array<{ key: string; ownerId?: string }>>(
-        "respawnPoints",
-      ),
+      state.storage.get<Array<{ key: string; ownerId?: string }>>("respawnPoints"),
     );
     expect(points?.map((p) => p.key)).toEqual([GNOME_OWNER]);
     expect(points?.[0]?.ownerId).toBe(GNOME_OWNER);
@@ -2949,19 +2828,14 @@ describe("respawn", () => {
 
     function mapWithBerry(): FlatMapFile {
       const flat = authoredMap();
-      flat.levels["0"]![`${BERRY_X},0`] = [
-        { tileId: "grass" },
-        { tileId: "test-berry" },
-      ];
+      flat.levels["0"]![`${BERRY_X},0`] = [{ tileId: "grass" }, { tileId: "test-berry" }];
       return flat;
     }
 
     /** The live board's stack at the berry's cell, tile ids in order. */
     async function berryCell() {
       return await runInDurableObject(stub(), (instance: GameServer) => {
-        const session = (
-          instance as unknown as { session: { getMap(): MapFile } }
-        ).session;
+        const session = (instance as unknown as { session: { getMap(): MapFile } }).session;
         return getStack(session.getMap(), BERRY_X, 0, 0).map((p) => p.tileId);
       });
     }
@@ -3140,9 +3014,7 @@ describe("resetting the world", () => {
     await simulateEviction();
 
     const resumed = await connect("alice");
-    expect(playerCells(resumed.hello.map as FlatMapFile)).toEqual([
-      AWAY_FROM_SPAWN,
-    ]);
+    expect(playerCells(resumed.hello.map as FlatMapFile)).toEqual([AWAY_FROM_SPAWN]);
 
     await stub().resetWorld();
 
@@ -3151,9 +3023,7 @@ describe("resetting the world", () => {
     expect(playerCells(hello.map as FlatMapFile)).toEqual([0]);
     // The authored strip, not the four cells the checkpoint happened to share
     // with it: a board resumed from storage would still be missing the marker.
-    expect(
-      Object.keys((hello.map as FlatMapFile).levels["0"] ?? {}),
-    ).toHaveLength(AUTHORED_CELLS);
+    expect(Object.keys((hello.map as FlatMapFile).levels["0"] ?? {})).toHaveLength(AUTHORED_CELLS);
   });
 
   /**
@@ -3278,19 +3148,12 @@ describe("what a flush writes", () => {
 
   function mapWithGnome(): FlatMapFile {
     const flat = authoredMap();
-    flat.levels["0"]![`${GNOME_X},0`] = [
-      { tileId: "grass" },
-      { tileId: "gnome" },
-    ];
+    flat.levels["0"]![`${GNOME_X},0`] = [{ tileId: "grass" }, { tileId: "gnome" }];
     return flat;
   }
 
   beforeEach(async () => {
-    await harness.blobs.put(
-      "tiles.json",
-      JSON.stringify([...tilesJson, gnomeTile()]),
-      JSON_TYPE,
-    );
+    await harness.blobs.put("tiles.json", JSON.stringify([...tilesJson, gnomeTile()]), JSON_TYPE);
     await harness.blobs.put("map.json", JSON.stringify(mapWithGnome()), JSON_TYPE);
   });
 
@@ -3556,10 +3419,7 @@ describe("dying and coming back", () => {
   function checkpointWithSword() {
     const checkpoint = checkpointWith(["alice"]);
     const cell = `${AWAY_FROM_SPAWN},0`;
-    checkpoint.map.levels["0"]![cell] = [
-      ...checkpoint.map.levels["0"]![cell]!,
-      { tileId: SWORD },
-    ];
+    checkpoint.map.levels["0"]![cell] = [...checkpoint.map.levels["0"]![cell]!, { tileId: SWORD }];
     return checkpoint;
   }
 
@@ -3716,9 +3576,7 @@ describe("dying and coming back", () => {
 
   async function storedRows(actorId: string) {
     return await runInDurableObject(stub(), async (_instance, state) => ({
-      position: await state.storage.get<Record<string, unknown>>(
-        `pos:${actorId}`,
-      ),
+      position: await state.storage.get<Record<string, unknown>>(`pos:${actorId}`),
       equipment: await state.storage.get<{ equipment: Record<string, unknown> }>(
         `equip:${actorId}`,
       ),
@@ -3884,9 +3742,7 @@ describe("dying and coming back", () => {
   async function storedBody(actorId: string) {
     return await runInDurableObject(stub(), async (_instance, state) => ({
       hp: await state.storage.get<{ hp: number | null }>(`hp:${actorId}`),
-      statuses: await state.storage.get<{ statuses: { defId: string }[] }>(
-        `status:${actorId}`,
-      ),
+      statuses: await state.storage.get<{ statuses: { defId: string }[] }>(`status:${actorId}`),
     }));
   }
 
@@ -3918,9 +3774,9 @@ describe("dying and coming back", () => {
     const hello = await messageWithin(alice.ws, "hello", 1000);
 
     expect(hello!.statuses).toEqual([]);
-    const mine = (
-      hello!.hps as { actorId: string; hp: number; maxHp: number }[]
-    ).find((entry) => entry.actorId === "alice");
+    const mine = (hello!.hps as { actorId: string; hp: number; maxHp: number }[]).find(
+      (entry) => entry.actorId === "alice",
+    );
     expect(mine!.hp).toBe(mine!.maxHp);
   });
 
@@ -3931,9 +3787,9 @@ describe("dying and coming back", () => {
 
     const { hello } = await connect("alice");
 
-    const mine = (
-      hello.hps as { actorId: string; hp: number; maxHp: number }[]
-    ).find((entry) => entry.actorId === "alice");
+    const mine = (hello.hps as { actorId: string; hp: number; maxHp: number }[]).find(
+      (entry) => entry.actorId === "alice",
+    );
     expect(mine!.hp).toBe(mine!.maxHp);
   });
 
@@ -4222,9 +4078,7 @@ describe("commands", () => {
     const notice = await nextMessageOfType(ws, "notice");
     expect(notice.text).toBe("Your sharp mastery is now 10");
     const masteries = await nextMessageOfType(ws, "masteries");
-    expect((masteries.masteryXp as Record<string, number>).sharp).toBe(
-      xpForLevel(10),
-    );
+    expect((masteries.masteryXp as Record<string, number>).sharp).toBe(xpForLevel(10));
   });
 
   it("says why, rather than nothing, when the line was not a command", async () => {
@@ -4548,7 +4402,6 @@ describe("casting", () => {
   });
 });
 
-
 /**
  * Authored content reaching the world it describes.
  *
@@ -4632,11 +4485,7 @@ describe("saving authored content", () => {
 
   /** Save a catalogue the way the tile editor does, and let the world hear it. */
   async function saveTiles(cooldownMs: number) {
-    await harness.blobs.put(
-      "tiles.json",
-      JSON.stringify(tilesWithStone(cooldownMs)),
-      JSON_TYPE,
-    );
+    await harness.blobs.put("tiles.json", JSON.stringify(tilesWithStone(cooldownMs)), JSON_TYPE);
     await stub().reloadContent();
   }
 
@@ -4648,11 +4497,7 @@ describe("saving authored content", () => {
   }
 
   beforeEach(async () => {
-    await harness.blobs.put(
-      "tiles.json",
-      JSON.stringify(tilesWithStone(LONG_MS)),
-      JSON_TYPE,
-    );
+    await harness.blobs.put("tiles.json", JSON.stringify(tilesWithStone(LONG_MS)), JSON_TYPE);
     await harness.blobs.put("map.json", JSON.stringify(authoredMap()), JSON_TYPE);
   });
 
@@ -4776,11 +4621,7 @@ describe("tile transitions", () => {
   }
 
   it("announces a conjured tile's way in on the cast's own flush", async () => {
-    await harness.blobs.put(
-      "tiles.json",
-      JSON.stringify(tilesWithInstantStone()),
-      JSON_TYPE,
-    );
+    await harness.blobs.put("tiles.json", JSON.stringify(tilesWithInstantStone()), JSON_TYPE);
     const alice = await connect("alice");
     await putCheckpoint(checkpointWithStone());
     await simulateEviction();
@@ -4883,10 +4724,7 @@ describe("a pull somebody else is making", () => {
   const BUSH_REF = { x: 1, y: 0, z: 0, stackIndex: 1 };
 
   /** The next patch entry about this body's pull, or null if none comes. */
-  function pullWithin(
-    ws: TestSocket,
-    actorId: string,
-  ): Promise<Record<string, unknown> | null> {
+  function pullWithin(ws: TestSocket, actorId: string): Promise<Record<string, unknown> | null> {
     return new Promise((resolve) => {
       const done = (value: Record<string, unknown> | null) => {
         clearTimeout(timer);
@@ -4933,9 +4771,7 @@ describe("a pull somebody else is making", () => {
 
     const bob = await connect("bob");
 
-    expect(bob.hello.extractions).toEqual([
-      expect.objectContaining({ actorId: "alice" }),
-    ]);
+    expect(bob.hello.extractions).toEqual([expect.objectContaining({ actorId: "alice" })]);
   });
 });
 
@@ -4984,10 +4820,7 @@ describe("a cast somebody else is making", () => {
               ...(battler.masteries as Record<string, number>),
               ...stoneAsks(),
             },
-            kit: [
-              ...(battler.kit as unknown[]),
-              { slot: "charm", tileId: STONE, chance: 100 },
-            ],
+            kit: [...(battler.kit as unknown[]), { slot: "charm", tileId: STONE, chance: 100 }],
           },
         },
       };
@@ -4996,19 +4829,14 @@ describe("a cast somebody else is making", () => {
 
   /** What the shipped stone asks, so the arcanist is authored to meet it exactly. */
   function stoneAsks(): Record<string, number> {
-    const def = (tilesJson as Array<Record<string, unknown>>).find(
-      (tile) => tile.id === STONE,
-    )!;
+    const def = (tilesJson as Array<Record<string, unknown>>).find((tile) => tile.id === STONE)!;
     const interactions = def.interactions as Record<string, unknown>;
     const item = interactions.item as Record<string, unknown>;
     return item.requirements as Record<string, number>;
   }
 
   /** The next patch entry about this body's cast, or null if none comes. */
-  function castWithin(
-    ws: TestSocket,
-    actorId: string,
-  ): Promise<Record<string, unknown> | null> {
+  function castWithin(ws: TestSocket, actorId: string): Promise<Record<string, unknown> | null> {
     return new Promise((resolve) => {
       const done = (value: Record<string, unknown> | null) => {
         clearTimeout(timer);
@@ -5028,11 +4856,7 @@ describe("a cast somebody else is making", () => {
   }
 
   it("is broadcast to everybody when it starts and when it lands", async () => {
-    await harness.blobs.put(
-      "tiles.json",
-      JSON.stringify(tilesWithArcanist()),
-      JSON_TYPE,
-    );
+    await harness.blobs.put("tiles.json", JSON.stringify(tilesWithArcanist()), JSON_TYPE);
     const alice = await connect("alice");
     const bob = await connect("bob");
 
@@ -5062,11 +4886,7 @@ describe("a cast somebody else is making", () => {
    * cast that had landed instead would be cooling and refuse.
    */
   it("ends when the caster says stop, and the stone is still ready", async () => {
-    await harness.blobs.put(
-      "tiles.json",
-      JSON.stringify(tilesWithArcanist()),
-      JSON_TYPE,
-    );
+    await harness.blobs.put("tiles.json", JSON.stringify(tilesWithArcanist()), JSON_TYPE);
     const alice = await connect("alice");
     const bob = await connect("bob");
 
@@ -5084,20 +4904,14 @@ describe("a cast somebody else is making", () => {
   });
 
   it("is handed to somebody who arrives part-way through it", async () => {
-    await harness.blobs.put(
-      "tiles.json",
-      JSON.stringify(tilesWithArcanist()),
-      JSON_TYPE,
-    );
+    await harness.blobs.put("tiles.json", JSON.stringify(tilesWithArcanist()), JSON_TYPE);
     const alice = await connect("alice");
     send(alice.ws, { type: "cast", slot: { from: "square", square: "charm" } });
     await messageWithin(alice.ws, "patch", MESSAGE_TIMEOUT_MS);
 
     const bob = await connect("bob");
 
-    expect(bob.hello.castings).toEqual([
-      expect.objectContaining({ actorId: "alice" }),
-    ]);
+    expect(bob.hello.castings).toEqual([expect.objectContaining({ actorId: "alice" })]);
   });
 });
 
@@ -5313,9 +5127,9 @@ describe("what each client is told has changed", () => {
   it("carries the maximum along with the hit points", async () => {
     await connect("alice");
     const bob = await connect("bob");
-    const authored = (
-      bob.hello.hps as Array<{ actorId: string; maxHp: number }>
-    ).find((entry) => entry.actorId === "alice");
+    const authored = (bob.hello.hps as Array<{ actorId: string; maxHp: number }>).find(
+      (entry) => entry.actorId === "alice",
+    );
     expect(authored).toBeDefined();
 
     const hurt = new Promise<{ hp: number; maxHp: number } | null>((resolve) => {
@@ -5439,9 +5253,7 @@ describe("patches scoped to a subscription", () => {
    * reach — the arrangement two players in one town do not have and two players
    * in one world do.
    */
-  function farApart(
-    bobAt: number = BODY_OUT,
-  ): { map: FlatMapFile; spawn: Record<string, number> } {
+  function farApart(bobAt: number = BODY_OUT): { map: FlatMapFile; spawn: Record<string, number> } {
     const cells: Record<string, unknown[]> = {};
     for (let x = 0; x <= OUT_OF_REACH + 1; x++) {
       cells[`${x},0`] = [{ tileId: "grass" }];
@@ -5505,10 +5317,7 @@ describe("patches scoped to a subscription", () => {
   }
 
   /** One cell of the map a joiner was sent. */
-  function cellOf(
-    hello: Record<string, unknown>,
-    x: number,
-  ): { tileId: string }[] | undefined {
+  function cellOf(hello: Record<string, unknown>, x: number): { tileId: string }[] | undefined {
     const map = hello.map as {
       levels: Record<string, Record<string, { tileId: string }[]>>;
     };
@@ -5570,11 +5379,7 @@ describe("patches scoped to a subscription", () => {
     const { alice } = await bothConnected();
 
     const stack = cellOf(alice.hello, BODY_OUT);
-    expect(stack?.map((placed) => placed.tileId)).toEqual([
-      "grass",
-      DROPPED_SWORD,
-      BERRY,
-    ]);
+    expect(stack?.map((placed) => placed.tileId)).toEqual(["grass", DROPPED_SWORD, BERRY]);
   });
 
   /**
@@ -5660,9 +5465,7 @@ describe("patches scoped to a subscription", () => {
     });
     // The whole of its state, because this client has nothing to patch against
     // for a body it has just been told about.
-    const hps = heard
-      .of("patch")
-      .flatMap((message) => message.hps as { actorId: string }[]);
+    const hps = heard.of("patch").flatMap((message) => message.hps as { actorId: string }[]);
     expect(hps.map((entry) => entry.actorId)).toContain("bob");
     // Its name with it, and for the same reason — alice has never been told
     // what this body is called, and nothing after this would tell her. A
@@ -5735,17 +5538,12 @@ describe("patches scoped to a subscription", () => {
 
     const cells = heard
       .of("patch")
-      .flatMap(
-        (message) => message.cells as { x: number; stack: { tileId: string }[] }[],
-      );
+      .flatMap((message) => message.cells as { x: number; stack: { tileId: string }[] }[]);
     // Handed over as it stands now rather than patched against a board nobody
     // kept current: the sword is gone, and so is bob, who she is not being told
     // about at this distance.
     const handed = cells.filter((cell) => cell.x === IN_REACH).at(-1);
-    expect(handed?.stack.map((placed) => placed.tileId)).toEqual([
-      "grass",
-      BERRY,
-    ]);
+    expect(handed?.stack.map((placed) => placed.tileId)).toEqual(["grass", BERRY]);
   });
 
   /**

@@ -19,10 +19,30 @@ import { fallDropPx, standingFootAbs } from "./fallAnchor";
 import { tile } from "../lib/testTile";
 
 const directionalFrames = {
-  n: [{ sprite: { tilesetId: "basic", rect: { x: 0, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } }, durationMs: 200 }],
-  e: [{ sprite: { tilesetId: "basic", rect: { x: 0, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } }, durationMs: 200 }],
-  s: [{ sprite: { tilesetId: "basic", rect: { x: 0, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } }, durationMs: 200 }],
-  w: [{ sprite: { tilesetId: "basic", rect: { x: 0, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } }, durationMs: 200 }],
+  n: [
+    {
+      sprite: { tilesetId: "basic", rect: { x: 0, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } },
+      durationMs: 200,
+    },
+  ],
+  e: [
+    {
+      sprite: { tilesetId: "basic", rect: { x: 0, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } },
+      durationMs: 200,
+    },
+  ],
+  s: [
+    {
+      sprite: { tilesetId: "basic", rect: { x: 0, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } },
+      durationMs: 200,
+    },
+  ],
+  w: [
+    {
+      sprite: { tilesetId: "basic", rect: { x: 0, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } },
+      durationMs: 200,
+    },
+  ],
 };
 
 const tiles: TileDef[] = [

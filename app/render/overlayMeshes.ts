@@ -31,13 +31,7 @@ export function makeRectOutline(
   /** Faint for a grid somebody is reading *past* — see `./debugView`. */
   opacity = 1,
 ): THREE.Line[] {
-  const makeLine = (
-    ox: number,
-    oy: number,
-    ww: number,
-    hh: number,
-    opacity: number,
-  ) => {
+  const makeLine = (ox: number, oy: number, ww: number, hh: number, opacity: number) => {
     const pts = [
       new THREE.Vector3(ox, oy, 0),
       new THREE.Vector3(ox + ww, oy, 0),
@@ -85,10 +79,7 @@ export type SpriteMeshOptions = {
   alphaTest?: number;
 };
 
-export function makeSpriteMesh(
-  quad: SpriteQuad,
-  opts: SpriteMeshOptions,
-): THREE.Mesh {
+export function makeSpriteMesh(quad: SpriteQuad, opts: SpriteMeshOptions): THREE.Mesh {
   const geo = new THREE.PlaneGeometry(quad.w, quad.h);
   const uvs = geo.attributes.uv!;
   uvs.setXY(0, quad.u0, quad.v0);
@@ -233,10 +224,7 @@ function makeOutlineMaterial(): THREE.ShaderMaterial {
       // one kind.
       uPeerCount: { value: 0 },
       uPeer: {
-        value: Array.from(
-          { length: MAX_OUTLINE_PEERS },
-          () => new THREE.Vector2(),
-        ),
+        value: Array.from({ length: MAX_OUTLINE_PEERS }, () => new THREE.Vector2()),
       },
     },
     vertexShader: /* glsl */ `
@@ -416,11 +404,7 @@ export class OutlineMaterials {
   private lent = new Set<THREE.ShaderMaterial>();
 
   /** A material dressed for this outline, reused if one is going spare. */
-  take(
-    art: OutlineArt,
-    color: number,
-    peers: OutlinePeers,
-  ): THREE.ShaderMaterial {
+  take(art: OutlineArt, color: number, peers: OutlinePeers): THREE.ShaderMaterial {
     const material = this.free.pop() ?? makeOutlineMaterial();
     dressOutline(material, art, color, peers);
     this.lent.add(material);
@@ -488,10 +472,7 @@ export function makeSpriteOutline(
     geo,
     {
       texture: quad.texture,
-      uvPerPx: new THREE.Vector2(
-        (quad.u1 - quad.u0) / quad.w,
-        (quad.v1 - quad.v0) / quad.h,
-      ),
+      uvPerPx: new THREE.Vector2((quad.u1 - quad.u0) / quad.w, (quad.v1 - quad.v0) / quad.h),
     },
     color,
     materials,
@@ -527,12 +508,7 @@ export function makeFollowingSpriteOutline(
   const uvPerPx = uvPerWorldPx(source.geometry);
   if (!texture || !uvPerPx) return null;
 
-  const mesh = outlineMesh(
-    source.geometry,
-    { texture, uvPerPx },
-    color,
-    materials,
-  );
+  const mesh = outlineMesh(source.geometry, { texture, uvPerPx }, color, materials);
   mesh.userData[BORROWED_GEOMETRY] = true;
   mesh.matrix.copy(source.matrixWorld);
   mesh.matrixWorld.copy(source.matrixWorld);
@@ -572,10 +548,7 @@ function uvPerWorldPx(geo: THREE.BufferGeometry): THREE.Vector2 | null {
  * {@link OutlineMaterials}. Without one, every material here is thrown away,
  * which is what emptying a group for good means.
  */
-export function disposeGroupChildren(
-  group: THREE.Group,
-  outlines?: OutlineMaterials,
-) {
+export function disposeGroupChildren(group: THREE.Group, outlines?: OutlineMaterials) {
   const release = (material: THREE.Material) => {
     if (outlines?.reclaim(material)) return;
     material.dispose();

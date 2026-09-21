@@ -148,8 +148,9 @@ describe("resolving a tile's projectile block", () => {
  */
 describe("saving a projectile block", () => {
   it("keeps the block, rather than dropping it on the way to disk", () => {
-    expect(interactionsForSave({ projectile: { cellsPerSecond: 8 } })?.projectile)
-      .toEqual({ cellsPerSecond: 8 });
+    expect(interactionsForSave({ projectile: { cellsPerSecond: 8 } })?.projectile).toEqual({
+      cellsPerSecond: 8,
+    });
   });
 
   it("keeps it on a tile that authored nothing else", () => {
@@ -172,8 +173,7 @@ describe("saving a projectile block", () => {
    */
   it("clamps a speed no flight may take", () => {
     const speedOf = (cellsPerSecond: number) =>
-      interactionsForSave({ projectile: { cellsPerSecond } })?.projectile
-        ?.cellsPerSecond;
+      interactionsForSave({ projectile: { cellsPerSecond } })?.projectile?.cellsPerSecond;
 
     expect(speedOf(0)).toBe(MIN_PROJECTILE_SPEED);
     expect(speedOf(MAX_PROJECTILE_SPEED + 1)).toBe(MAX_PROJECTILE_SPEED);

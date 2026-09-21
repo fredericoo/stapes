@@ -20,19 +20,8 @@ import {
   tileCanEmitLight,
   tileLightVaries,
 } from "./types";
-import {
-  chunkIndexOf,
-  chunkKeyAt,
-  elevationAt,
-  footElevation,
-  terrainHeight,
-} from "./mapData";
-import type {
-  AnimatedEmitter,
-  EmitterOverride,
-  RawLightGrid,
-  RawLevelLight,
-} from "./lighting";
+import { chunkIndexOf, chunkKeyAt, elevationAt, footElevation, terrainHeight } from "./mapData";
+import type { AnimatedEmitter, EmitterOverride, RawLightGrid, RawLevelLight } from "./lighting";
 import { resolveLight } from "./tileResolve";
 
 /**
@@ -65,16 +54,46 @@ const FULL_SHAFT_NOWHERE = -1;
  */
 const SKY_EDGE_STRIDE = 4;
 const SKY_EDGES = new Float64Array([
-  1, 0, 0, 1,
-  -1, 0, 0, 1,
-  0, 1, 0, 1,
-  0, -1, 0, 1,
-  0, 0, 1, 1,
-  0, 0, -1, 1,
-  1, 1, 0, Math.SQRT2,
-  1, -1, 0, Math.SQRT2,
-  -1, 1, 0, Math.SQRT2,
-  -1, -1, 0, Math.SQRT2,
+  1,
+  0,
+  0,
+  1,
+  -1,
+  0,
+  0,
+  1,
+  0,
+  1,
+  0,
+  1,
+  0,
+  -1,
+  0,
+  1,
+  0,
+  0,
+  1,
+  1,
+  0,
+  0,
+  -1,
+  1,
+  1,
+  1,
+  0,
+  Math.SQRT2,
+  1,
+  -1,
+  0,
+  Math.SQRT2,
+  -1,
+  1,
+  0,
+  Math.SQRT2,
+  -1,
+  -1,
+  0,
+  Math.SQRT2,
 ]);
 const SKY_EDGE_COUNT = SKY_EDGES.length / SKY_EDGE_STRIDE;
 
@@ -177,8 +196,7 @@ function emitCenter(
 ): { fx: number; fy: number; fz: number } {
   const def = tilesById[stack[stackIndex]?.tileId ?? ""];
   const height = def?.height ?? 0;
-  const baseAbs =
-    z * HEIGHT_PER_LEVEL + elevationAt(stack, stackIndex, tilesById);
+  const baseAbs = z * HEIGHT_PER_LEVEL + elevationAt(stack, stackIndex, tilesById);
   return {
     fx: x + 0.5,
     fy: y + 0.5,
@@ -499,9 +517,7 @@ export function computeLightingFlood(
     // cell, and this loop runs over every stack in the domain — on a windowed
     // bake with no overrides at all that was thousands of throwaway strings to
     // probe an empty map.
-    const ov = overrideByCell.size
-      ? overrideByCell.get(`${c.z}:${coordKey(c.x, c.y)}`)
-      : undefined;
+    const ov = overrideByCell.size ? overrideByCell.get(`${c.z}:${coordKey(c.x, c.y)}`) : undefined;
     for (let si = 0; si < c.stack.length; si++) {
       const placed = c.stack[si]!;
       if (omitLightTileIds?.has(placed.tileId)) continue;
@@ -796,7 +812,7 @@ export function computeLightingFlood(
           const dy = ty - e.y;
           const dz = tz - e.z;
           const dist = Math.sqrt(
-            dx * dx + dy * dy + (dz * VERTICAL_FALLOFF) * (dz * VERTICAL_FALLOFF),
+            dx * dx + dy * dy + dz * VERTICAL_FALLOFF * (dz * VERTICAL_FALLOFF),
           );
           if (dist > e.radius) continue;
 
@@ -813,17 +829,7 @@ export function computeLightingFlood(
 
           let transmission = 1;
           if (!isSelf && dist > 0) {
-            transmission = denseRayTransmission(
-              dom,
-              opacity,
-              seals,
-              sx,
-              sy,
-              sz,
-              tx,
-              ty,
-              tz,
-            );
+            transmission = denseRayTransmission(dom, opacity, seals, sx, sy, sz, tx, ty, tz);
             if (transmission < TRANSMISSION_EPSILON) continue;
           }
 

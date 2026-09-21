@@ -1,16 +1,8 @@
 import * as v from "valibot";
 import { constantFormula, type Formula, parseFormula } from "./formula";
-import {
-  NO_VFX,
-  resolveStatusVfx,
-  type StatusVfx,
-  statusVfxSchema,
-} from "./statusVfx";
+import { NO_VFX, resolveStatusVfx, type StatusVfx, statusVfxSchema } from "./statusVfx";
 import { type CellRect, defaultBase, type AnchoredSprite } from "./types";
-import {
-  MAX_WALK_SPEED_PERCENT,
-  MIN_WALK_SPEED_PERCENT,
-} from "./walkSpeed";
+import { MAX_WALK_SPEED_PERCENT, MIN_WALK_SPEED_PERCENT } from "./walkSpeed";
 
 /**
  * What a status effect *is*: a lifetime, something it does while it lasts, and
@@ -272,9 +264,10 @@ const statusSourceSchema = v.pipe(
     effects: v.optional(v.object({ hp: v.optional(v.string()) }), () => ({})),
     modifiers: v.optional(
       v.object(
-        Object.fromEntries(
-          MODIFIER_KEYS.map((key) => [key, v.optional(v.string())]),
-        ) as Record<(typeof MODIFIER_KEYS)[number], v.OptionalSchema<v.StringSchema<undefined>, undefined>>,
+        Object.fromEntries(MODIFIER_KEYS.map((key) => [key, v.optional(v.string())])) as Record<
+          (typeof MODIFIER_KEYS)[number],
+          v.OptionalSchema<v.StringSchema<undefined>, undefined>
+        >,
       ),
       () => ({}),
     ),
@@ -326,9 +319,7 @@ function compileStatus(raw: StatusSource): StatusDef | null {
   }
 
   const everyMs =
-    typeof raw.everyMs === "number"
-      ? constantFormula(raw.everyMs)
-      : parseFormula(raw.everyMs);
+    typeof raw.everyMs === "number" ? constantFormula(raw.everyMs) : parseFormula(raw.everyMs);
   if (!everyMs) return null;
 
   const modifiers: StatusModifiers = {};

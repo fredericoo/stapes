@@ -40,9 +40,7 @@ const flameDisappear = {
 
 describe("parseTileTransitions", () => {
   it("keeps both sides as written, filling in what a side left out", () => {
-    expect(
-      parseTileTransitions({ appear: flameAppear, disappear: flameDisappear }),
-    ).toEqual({
+    expect(parseTileTransitions({ appear: flameAppear, disappear: flameDisappear })).toEqual({
       appear: {
         ...flameAppear,
         dissolve: { ...flameAppear.dissolve, clumpPx: DEFAULT_CLUMP_PX },
@@ -69,17 +67,13 @@ describe("parseTileTransitions", () => {
   });
 
   it("is nothing at all when neither side survives", () => {
-    expect(parseTileTransitions({ appear: { durationMs: DURATION_MS } })).toBe(
-      undefined,
-    );
+    expect(parseTileTransitions({ appear: { durationMs: DURATION_MS } })).toBe(undefined);
     expect(parseTileTransitions("dissolve please")).toBeUndefined();
     expect(parseTileTransitions(null)).toBeUndefined();
   });
 
   it("refuses a transition that does nothing", () => {
-    expect(parseTileTransitions({ disappear: { durationMs: DURATION_MS } })).toBe(
-      undefined,
-    );
+    expect(parseTileTransitions({ disappear: { durationMs: DURATION_MS } })).toBe(undefined);
   });
 
   it("refuses a sweep with nowhere to start", () => {
@@ -96,9 +90,7 @@ describe("parseTileTransitions", () => {
       ).toBeDefined();
     }
     for (const durationMs of [MIN_TRANSITION_MS - 1, MAX_TRANSITION_MS + 1]) {
-      expect(
-        parseTileTransitions({ appear: { ...flameAppear, durationMs } }),
-      ).toBeUndefined();
+      expect(parseTileTransitions({ appear: { ...flameAppear, durationMs } })).toBeUndefined();
     }
   });
 
@@ -150,9 +142,7 @@ describe("a tile carrying transitions", () => {
     });
 
   it("keeps a block that parses", () => {
-    expect(tile({ appear: flameAppear }).transitions?.appear?.durationMs).toBe(
-      DURATION_MS,
-    );
+    expect(tile({ appear: flameAppear }).transitions?.appear?.durationMs).toBe(DURATION_MS);
   });
 
   it("loads without one that does not", () => {

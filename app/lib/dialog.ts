@@ -201,7 +201,9 @@ export function withBranch(
   if (command.kind === "choices") {
     return {
       ...command,
-      options: command.options.map((option, i) => (i === index ? { ...option, then: list } : option)),
+      options: command.options.map((option, i) =>
+        i === index ? { ...option, then: list } : option,
+      ),
     };
   }
   if (command.kind === "request_trade") {
@@ -229,11 +231,7 @@ export function commandAt(dialog: DialogDef, path: CommandPath): DialogCommand |
 }
 
 /** The dialog with the list at an even-length path replaced. */
-export function withListAt(
-  dialog: DialogDef,
-  path: CommandPath,
-  list: DialogCommand[],
-): DialogDef {
+export function withListAt(dialog: DialogDef, path: CommandPath, list: DialogCommand[]): DialogDef {
   if (path.length === 0) return { script: list };
   const parentPath = path.slice(0, -2);
   const parent = listAt(dialog, parentPath);
@@ -246,9 +244,7 @@ export function withListAt(
 }
 
 /** Every command in the script, root first, each with its path. */
-export function walkCommands(
-  dialog: DialogDef,
-): Array<{ path: number[]; command: DialogCommand }> {
+export function walkCommands(dialog: DialogDef): Array<{ path: number[]; command: DialogCommand }> {
   const out: Array<{ path: number[]; command: DialogCommand }> = [];
   const visit = (list: readonly DialogCommand[], at: number[]) => {
     list.forEach((command, index) => {
@@ -308,15 +304,13 @@ export type DialogCatalogue = {
  * problem — and warnings are things that parse and are almost certainly not
  * what the author meant.
  */
-export function validateDialog(
-  dialog: DialogDef,
-  catalogue?: DialogCatalogue,
-): DialogIssue[] {
+export function validateDialog(dialog: DialogDef, catalogue?: DialogCatalogue): DialogIssue[] {
   const issues: DialogIssue[] = [];
   const error = (message: string) => issues.push({ severity: "error", message });
   const warn = (message: string) => issues.push({ severity: "warn", message });
 
-  if (dialog.script.length === 0) warn("The script is empty: Talk opens a panel with nothing in it");
+  if (dialog.script.length === 0)
+    warn("The script is empty: Talk opens a panel with nothing in it");
 
   const anchors = new Map<string, number>();
   const all = walkCommands(dialog);
@@ -331,7 +325,9 @@ export function validateDialog(
     const where = `${command.kind} at ${path.join(".")}`;
     const depth = Math.floor(path.length / 2);
     if (depth > MAX_DIALOG_DEPTH && path[path.length - 1] === 0) {
-      warn(`${where} is ${depth} blocks deep; ${MAX_DIALOG_DEPTH} is as far as an outline can follow`);
+      warn(
+        `${where} is ${depth} blocks deep; ${MAX_DIALOG_DEPTH} is as far as an outline can follow`,
+      );
     }
     checkCommand(command, where, anchors, error, catalogue);
   }

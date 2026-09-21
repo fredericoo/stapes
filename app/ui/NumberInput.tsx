@@ -1,9 +1,4 @@
-import {
-  useEffect,
-  useState,
-  type ComponentProps,
-  type KeyboardEvent,
-} from "react";
+import { useEffect, useState, type ComponentProps, type KeyboardEvent } from "react";
 import { Input } from "./Input";
 import { parseNumberInput, type NumberRule } from "./numberParse";
 
@@ -107,12 +102,7 @@ function DraftInput({
         step={rule.step ?? "any"}
         value={draft.text}
         aria-invalid={draft.error ? true : undefined}
-        className={[
-          className,
-          draft.error ? "border-danger" : "",
-        ]
-          .filter(Boolean)
-          .join(" ")}
+        className={[className, draft.error ? "border-danger" : ""].filter(Boolean).join(" ")}
         onChange={(e) => draft.setText(e.target.value)}
         onFocus={(e) => {
           draft.setFocused(true);

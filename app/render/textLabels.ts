@@ -49,11 +49,7 @@ import {
   healthBarFillHeightBricks,
   healthBarTrackBricks,
 } from "./healthBar";
-import {
-  type LabelKind,
-  type LabelPlacement,
-  layoutLabels,
-} from "./labelLayout";
+import { type LabelKind, type LabelPlacement, layoutLabels } from "./labelLayout";
 
 /**
  * One anchor's worth of text, and the world-pixel point it hangs above.
@@ -199,11 +195,7 @@ const BRICKS_PER_EM = 10;
  * track is the last child of the group; a group whose signature says it has a
  * bar always has one.
  */
-function fillBar(
-  element: HTMLDivElement,
-  fraction: number,
-  trackBricks: number,
-) {
+function fillBar(element: HTMLDivElement, fraction: number, trackBricks: number) {
   const fill = fillTrack(element, HEALTH_BAR_CLASS, fraction, trackBricks);
   if (fill) fill.style.backgroundColor = healthBarColor(fraction);
 }
@@ -259,15 +251,9 @@ function brickLength(bricks: number): string {
  * declines to say where it belongs has an opinion worth honouring over one that
  * does. The sort is stable, so labels that tie keep the caller's order.
  */
-export function stackingOrder(
-  labels: readonly { id: string; order?: number }[],
-): string[] {
+export function stackingOrder(labels: readonly { id: string; order?: number }[]): string[] {
   return [...labels]
-    .sort(
-      (a, b) =>
-        (a.order ?? Number.POSITIVE_INFINITY) -
-        (b.order ?? Number.POSITIVE_INFINITY),
-    )
+    .sort((a, b) => (a.order ?? Number.POSITIVE_INFINITY) - (b.order ?? Number.POSITIVE_INFINITY))
     .map((label) => label.id);
 }
 
@@ -312,9 +298,7 @@ type LabelEntry = {
  * silently. The escapes are the same two characters and leave the file text.
  */
 function signatureOf(label: WorldLabel): string {
-  const lines = label.lines
-    .map((line) => `${line.id}\u0000${line.text}`)
-    .join("\u0001");
+  const lines = label.lines.map((line) => `${line.id}\u0000${line.text}`).join("\u0001");
   const bar = label.bar ? "|bar" : "";
   const progress = label.progress ? "|progress" : "";
   return `${lines}${bar}${progress}`;
@@ -450,8 +434,7 @@ export class WorldLabelLayer {
    */
   private brick(): number {
     if (this.brickPx !== null) return this.brickPx;
-    const fontSize =
-      Number.parseFloat(getComputedStyle(this.container).fontSize) || 0;
+    const fontSize = Number.parseFloat(getComputedStyle(this.container).fontSize) || 0;
     this.brickPx = fontSize / BRICKS_PER_EM;
     return this.brickPx;
   }
@@ -478,11 +461,7 @@ export class WorldLabelLayer {
   /**
    * Sync, measure, place — in that order, never interleaved. @see module doc
    */
-  set(
-    labels: WorldLabel[],
-    camera: { x: number; y: number },
-    cssScale: number,
-  ) {
+  set(labels: WorldLabel[], camera: { x: number; y: number }, cssScale: number) {
     this.syncView();
     this.sizeTracks(cssScale);
 

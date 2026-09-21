@@ -63,8 +63,7 @@ describe("cells of a patch", () => {
    * answer would not do — a cell can come back with a body taken out of it.
    */
   it("says so when none is dropped or rewritten", () => {
-    expect(cellsInScope([terrain(1, 0), terrain(2, 0)], holding(HERE), NOBODY, NOBODY))
-      .toBeNull();
+    expect(cellsInScope([terrain(1, 0), terrain(2, 0)], holding(HERE), NOBODY, NOBODY)).toBeNull();
   });
 
   it("drops every one when the client holds no ground", () => {
@@ -85,9 +84,7 @@ describe("cells of a patch", () => {
   it("sends that same step to a client that holds the body", () => {
     const cells = [stepped(1, 0, [grass]), stepped(2, 0, [grass, deer])];
 
-    expect(
-      cellsInScope(cells, holding(HERE), new Set([deer.owner!]), NOBODY),
-    ).toBeNull();
+    expect(cellsInScope(cells, holding(HERE), new Set([deer.owner!]), NOBODY)).toBeNull();
   });
 
   /**
@@ -103,9 +100,7 @@ describe("cells of a patch", () => {
     // Dropped for a client that never had it...
     expect(cellsInScope(gone, holding(HERE), NOBODY, NOBODY)).toEqual([]);
     // ...and taken whole by one that did, which is null for "nothing was cut".
-    expect(
-      cellsInScope(gone, holding(HERE), NOBODY, new Set([deer.owner!])),
-    ).toBeNull();
+    expect(cellsInScope(gone, holding(HERE), NOBODY, new Set([deer.owner!]))).toBeNull();
   });
 
   /**
@@ -145,10 +140,7 @@ describe("events of a patch", () => {
     const joined: MotionEvent = { kind: "joined", actorId: "bob", playerCount: 2 };
     const left: MotionEvent = { kind: "left", actorId: "bob", playerCount: 1 };
 
-    expect(eventsInScope([joined, left], new Set(), new Set())).toEqual([
-      joined,
-      left,
-    ]);
+    expect(eventsInScope([joined, left], new Set(), new Set())).toEqual([joined, left]);
   });
 
   /**
@@ -207,12 +199,8 @@ describe("what reaches a client", () => {
 
     expect(reaches({ kind: "cell", x: 1, y: 0 }, chunks, new Set())).toBe(true);
     expect(reaches({ kind: "cell", ...cellAway() }, chunks, new Set())).toBe(false);
-    expect(reaches({ kind: "actor", actorId: "rat" }, chunks, new Set())).toBe(
-      false,
-    );
-    expect(
-      reaches({ kind: "actor", actorId: "rat" }, new Set(), new Set(["rat"])),
-    ).toBe(true);
+    expect(reaches({ kind: "actor", actorId: "rat" }, chunks, new Set())).toBe(false);
+    expect(reaches({ kind: "actor", actorId: "rat" }, new Set(), new Set(["rat"]))).toBe(true);
   });
 
   function cellAway() {

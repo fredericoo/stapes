@@ -60,9 +60,7 @@ export function StatField({
       {hint || readout ? (
         <span className="max-w-64 text-[11px] leading-snug text-muted">
           {hint}
-          {readout ? (
-            <strong className="block text-ink">{readout}</strong>
-          ) : null}
+          {readout ? <strong className="block text-ink">{readout}</strong> : null}
         </span>
       ) : null}
     </label>

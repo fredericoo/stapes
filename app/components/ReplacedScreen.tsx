@@ -19,8 +19,7 @@
  * The system's own monospace. @see LoadingScreen, which explains why the theme's
  * face is not an option here.
  */
-const SYSTEM_MONO =
-  'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace';
+const SYSTEM_MONO = 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace';
 
 export function ReplacedScreen() {
   return (
@@ -31,12 +30,10 @@ export function ReplacedScreen() {
       role="alert"
       style={{ fontFamily: SYSTEM_MONO }}
     >
-      <span className="text-xs uppercase tracking-widest text-paper">
-        Playing in another tab
-      </span>
+      <span className="text-xs uppercase tracking-widest text-paper">Playing in another tab</span>
       <p className="max-w-sm text-xs leading-relaxed text-paper/70">
-        This character was opened somewhere else, so this tab let go of it.
-        Playing here closes the other one.
+        This character was opened somewhere else, so this tab let go of it. Playing here closes the
+        other one.
       </p>
       <button
         type="button"

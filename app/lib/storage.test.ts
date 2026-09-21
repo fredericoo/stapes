@@ -34,9 +34,7 @@ describe("readPngSize", () => {
   });
 
   it("rejects a file too short to hold an IHDR", () => {
-    expect(() => readPngSize(pngHeader(8, 8).subarray(0, 23))).toThrow(
-      "Not a PNG",
-    );
+    expect(() => readPngSize(pngHeader(8, 8).subarray(0, 23))).toThrow("Not a PNG");
   });
 
   /**

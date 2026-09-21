@@ -51,10 +51,7 @@ const MIN_WALK_DURATION_MS = 1;
 /** The sum of every source, held inside the band. */
 export function clampWalkSpeedPercent(percent: number): number {
   if (!Number.isFinite(percent)) return 0;
-  return Math.max(
-    MIN_WALK_SPEED_PERCENT,
-    Math.min(MAX_WALK_SPEED_PERCENT, percent),
-  );
+  return Math.max(MIN_WALK_SPEED_PERCENT, Math.min(MAX_WALK_SPEED_PERCENT, percent));
 }
 
 /**

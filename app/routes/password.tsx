@@ -1,13 +1,6 @@
 import { useState } from "react";
 import { redirect, useNavigate } from "react-router";
-import {
-  Door,
-  DoorButton,
-  DoorError,
-  DoorField,
-  DoorNote,
-  DoorTitle,
-} from "../components/door";
+import { Door, DoorButton, DoorError, DoorField, DoorNote, DoorTitle } from "../components/door";
 import { changePassword, fetchMe } from "../lib/auth";
 
 /**
@@ -64,9 +57,7 @@ export default function PasswordPage() {
     return (
       <Door>
         <DoorTitle>Password changed</DoorTitle>
-        <DoorNote>
-          Anywhere else you were signed in has been signed out.
-        </DoorNote>
+        <DoorNote>Anywhere else you were signed in has been signed out.</DoorNote>
         <DoorButton
           className="w-full max-w-xs"
           autoFocus
@@ -111,8 +102,7 @@ export default function PasswordPage() {
       </form>
       {error ? <DoorError>{error}</DoorError> : null}
       <DoorNote>
-        There is no email reset on this account: a forgotten password is a lost
-        account.
+        There is no email reset on this account: a forgotten password is a lost account.
       </DoorNote>
       <button
         type="button"

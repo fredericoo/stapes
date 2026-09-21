@@ -20,11 +20,7 @@ import {
 import { walkDurationFrom } from "../lib/walkSpeed";
 import type { FitOpts } from "../lib/validation";
 import { fitsAtElevation, fitsTile } from "../lib/validation";
-import {
-  MAX_CLIMB_HEIGHT,
-  PLAYER_TILE_ID,
-  WALK_DURATION_MS,
-} from "./constants";
+import { MAX_CLIMB_HEIGHT, PLAYER_TILE_ID, WALK_DURATION_MS } from "./constants";
 import { normalizeStandingCell } from "./mapMutations";
 
 export const DIR_DELTA: Record<Direction, { dx: number; dy: number }> = {
@@ -212,10 +208,7 @@ function crossesSealedPlane(
 ): boolean {
   const lowAbs = Math.min(fromAbs, toAbs);
   const highAbs = Math.max(fromAbs, toAbs);
-  const firstZ = Math.max(
-    MIN_LEVEL,
-    Math.floor(lowAbs / HEIGHT_PER_LEVEL) + 1,
-  );
+  const firstZ = Math.max(MIN_LEVEL, Math.floor(lowAbs / HEIGHT_PER_LEVEL) + 1);
   const lastZ = Math.min(MAX_LEVEL, Math.floor(highAbs / HEIGHT_PER_LEVEL));
   for (let z = firstZ; z <= lastZ; z++) {
     if (stackOcclusion(getStack(map, x, y, z), tilesById).sealsLevel) {
@@ -306,9 +299,7 @@ export function destCellAfterStep(
   return { x: destX, y: destY, z };
 }
 
-export type WalkCheck =
-  | { ok: true; to: Coord }
-  | { ok: false; reason: string };
+export type WalkCheck = { ok: true; to: Coord } | { ok: false; reason: string };
 
 export type CanWalkOpts = {
   /** Prefer lowest surface in the climb band (Option / Alt). */
@@ -350,14 +341,7 @@ export function canWalk(
   const destX = from.x + dx;
   const destY = from.y + dy;
 
-  const fromAbs = standingAbs(
-    map,
-    from.x,
-    from.y,
-    from.z,
-    from.stackIndex,
-    tilesById,
-  );
+  const fromAbs = standingAbs(map, from.x, from.y, from.z, from.stackIndex, tilesById);
 
   const candidates = surfacesInClimbBand(
     map,
@@ -372,28 +356,11 @@ export function canWalk(
   const fit: FitOpts = { throughPlayers: tileDef.id === PLAYER_TILE_ID };
 
   for (const surface of candidates) {
-    if (
-      !climbUpAllowed(
-        map,
-        from,
-        fromAbs,
-        surface.abs,
-        direction,
-        tilesById,
-      )
-    ) {
+    if (!climbUpAllowed(map, from, fromAbs, surface.abs, direction, tilesById)) {
       continue;
     }
 
-    const room = fitsAtElevation(
-      map,
-      destX,
-      destY,
-      surface.abs,
-      tileDef,
-      tilesById,
-      fit,
-    );
+    const room = fitsAtElevation(map, destX, destY, surface.abs, tileDef, tilesById, fit);
     if (!room.ok) continue;
 
     // Append onto the stack that forms this surface (surface.z), so feet stay

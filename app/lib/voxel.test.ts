@@ -87,9 +87,7 @@ describe("renderGrid", () => {
     grid[voxelIndex(dims, 6, 6, 1)] = 2;
     const palette = ["#000000", "#ff0000", "#00ff00"];
     const sprite = renderGrid(grid, ONE_CELL, palette, { shadeMode: "flat" });
-    expect(pixel(sprite.rgba, sprite.widthPx, 8 + 5, 8 + 5)).toEqual([
-      0, 255, 0, 255,
-    ]);
+    expect(pixel(sprite.rgba, sprite.widthPx, 8 + 5, 8 + 5)).toEqual([0, 255, 0, 255]);
   });
 
   it("shades top, south and east faces from one base colour", () => {
@@ -100,15 +98,19 @@ describe("renderGrid", () => {
     const southShade = Math.round(255 * 0.78);
     const eastShade = Math.round(255 * 0.6);
     // Top face: the up-left region of the solid cube's projection.
-    expect(pixel(sprite.rgba, sprite.widthPx, 4, 4)).toEqual([
-      topShade, topShade, topShade, 255,
-    ]);
+    expect(pixel(sprite.rgba, sprite.widthPx, 4, 4)).toEqual([topShade, topShade, topShade, 255]);
     // South wall: bottom edge. East wall: right edge.
     expect(pixel(sprite.rgba, sprite.widthPx, 8, 15)).toEqual([
-      southShade, southShade, southShade, 255,
+      southShade,
+      southShade,
+      southShade,
+      255,
     ]);
     expect(pixel(sprite.rgba, sprite.widthPx, 15, 8)).toEqual([
-      eastShade, eastShade, eastShade, 255,
+      eastShade,
+      eastShade,
+      eastShade,
+      255,
     ]);
   });
 });
@@ -141,9 +143,7 @@ describe("outline pass", () => {
       [0, 1],
       [0, -1],
     ]) {
-      expect(pixel(sprite.rgba, sprite.widthPx, sx + dx, sy + dy)).toEqual(
-        BLACK,
-      );
+      expect(pixel(sprite.rgba, sprite.widthPx, sx + dx, sy + dy)).toEqual(BLACK);
     }
   });
 
@@ -194,9 +194,7 @@ describe("outline pass", () => {
     };
     // Depth mode must darken interior pixels that edge-only mode leaves alone.
     expect(blackCount(plain.rgba)).toBe(0);
-    expect(blackCount(outlined.rgba)).toBeGreaterThan(
-      blackCount(edgeOnly.rgba),
-    );
+    expect(blackCount(outlined.rgba)).toBeGreaterThan(blackCount(edgeOnly.rgba));
   });
 });
 
@@ -283,9 +281,7 @@ describe("parseVoxelProject", () => {
 
   it("accepts a valid round-tripped project", () => {
     const project = testProject();
-    expect(parseVoxelProject(JSON.parse(JSON.stringify(project)))).toEqual(
-      project,
-    );
+    expect(parseVoxelProject(JSON.parse(JSON.stringify(project)))).toEqual(project);
   });
 });
 

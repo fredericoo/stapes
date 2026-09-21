@@ -52,10 +52,7 @@ export function cellHasPlate(
  * Every cell holding a plate. Whole-map scan — for building an index once, not
  * for running per tick; maps hold thousands of cells and a handful of plates.
  */
-export function findPlateCells(
-  map: MapFile,
-  tilesById: Record<string, TileDef>,
-): Coord[] {
+export function findPlateCells(map: MapFile, tilesById: Record<string, TileDef>): Coord[] {
   const out: Coord[] = [];
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     for (const { x, y } of listCoords(map, z)) {
@@ -81,16 +78,12 @@ function swapPlateAt(
 ): PlacedTile[] | null {
   const placed = stack[i];
   const def = placed ? tilesById[placed.tileId] : undefined;
-  const plate: PressurePlateInteraction | null = def
-    ? resolvePressurePlate(def)
-    : null;
+  const plate: PressurePlateInteraction | null = def ? resolvePressurePlate(def) : null;
   if (!plate || !tilesById[plate.tileId]) return null;
   if (!plateTriggers(plate, loadAbove(stack, i, tilesById))) return null;
 
   const next = stack.map((p, j) => (j === i ? { ...p, tileId: plate.tileId } : p));
-  return canReplaceStack(map, cell.x, cell.y, cell.z, next, tilesById).ok
-    ? next
-    : null;
+  return canReplaceStack(map, cell.x, cell.y, cell.z, next, tilesById).ok ? next : null;
 }
 
 /** The stack this cell settles to, or null when no plate in it triggers. */

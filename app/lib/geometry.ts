@@ -100,12 +100,7 @@ export function screenToCoord(
  * It survives for the editor's overlay chrome, which is drawn with `depthTest:
  * false` and needs a whole-sprite `renderOrder`.
  */
-export function drawOrder(
-  x: number,
-  y: number,
-  absElev: number,
-  stackIndex: number,
-): number {
+export function drawOrder(x: number, y: number, absElev: number, stackIndex: number): number {
   return y * 1_000_000_000 + x * 1_000_000 + absElev * 1_000 + stackIndex;
 }
 
@@ -126,12 +121,7 @@ export type DepthBox = {
 };
 
 /** Box for a tile whose base cell is (x, y), standing from `foot` to `top`. */
-export function depthBox(
-  x: number,
-  y: number,
-  foot: number,
-  top: number,
-): DepthBox {
+export function depthBox(x: number, y: number, foot: number, top: number): DepthBox {
   return {
     eastPx: (x + 1) * CELL_SIZE,
     southPx: (y + 1) * CELL_SIZE,
@@ -161,11 +151,7 @@ export function rayDepth(screenX: number, screenY: number, elev: number): number
  * nearest surface is the *highest* elevation still inside the box: each face
  * caps it, hence the min.
  */
-function boxExitElevation(
-  box: DepthBox,
-  screenX: number,
-  screenY: number,
-): number {
+function boxExitElevation(box: DepthBox, screenX: number, screenY: number): number {
   return Math.min(
     (box.eastPx - screenX) / PX_PER_HEIGHT,
     (box.southPx - screenY) / PX_PER_HEIGHT,
@@ -180,16 +166,10 @@ function boxExitElevation(
  * One cell of screen travel is {@link HEIGHT_PER_LEVEL} height units of ray
  * climb, so the far faces are the near ones a cell back.
  */
-function boxFarFaceElevation(
-  box: DepthBox,
-  screenX: number,
-  screenY: number,
-): number {
+function boxFarFaceElevation(box: DepthBox, screenX: number, screenY: number): number {
   return (
-    Math.max(
-      (box.eastPx - screenX) / PX_PER_HEIGHT,
-      (box.southPx - screenY) / PX_PER_HEIGHT,
-    ) - HEIGHT_PER_LEVEL
+    Math.max((box.eastPx - screenX) / PX_PER_HEIGHT, (box.southPx - screenY) / PX_PER_HEIGHT) -
+    HEIGHT_PER_LEVEL
   );
 }
 
@@ -255,11 +235,7 @@ export function boxSurface(
 }
 
 /** The elevation half of {@link boxSurface}. */
-export function boxSurfaceElevation(
-  box: DepthBox,
-  screenX: number,
-  screenY: number,
-): number {
+export function boxSurfaceElevation(box: DepthBox, screenX: number, screenY: number): number {
   return boxSurface(box, screenX, screenY).elevation;
 }
 
@@ -270,8 +246,7 @@ export function boxSurfaceElevation(
  */
 const DEPTH_COORD_LIMIT = 256;
 const DEPTH_ELEV_LIMIT = 48;
-export const DEPTH_MAX =
-  2 * DEPTH_COORD_LIMIT + HEIGHT_PER_LEVEL * DEPTH_ELEV_LIMIT;
+export const DEPTH_MAX = 2 * DEPTH_COORD_LIMIT + HEIGHT_PER_LEVEL * DEPTH_ELEV_LIMIT;
 export const DEPTH_MIN = -DEPTH_MAX;
 
 /**
@@ -322,8 +297,7 @@ const MAX_ART_OVERHANG_CELLS = 4;
  * apart. Two overhangs meeting both carry it, so they still settle by painter
  * order between themselves.
  */
-export const DEPTH_OVERHANG_BIAS =
-  MAX_ART_OVERHANG_CELLS * CELL_SIZE * DEPTH_PLANE_BIAS;
+export const DEPTH_OVERHANG_BIAS = MAX_ART_OVERHANG_CELLS * CELL_SIZE * DEPTH_PLANE_BIAS;
 
 /**
  * The least body a box can declare and still count as having one.
@@ -386,17 +360,10 @@ export function snapToPixelCenter(v: number): number {
  */
 /** South-then-east coplanar nudge from a depth box's footprint edges. */
 export function planeDepthBias(box: DepthBox): number {
-  return (
-    (box.southPx + box.eastPx * DEPTH_PLANE_EAST_WEIGHT) * DEPTH_PLANE_BIAS
-  );
+  return (box.southPx + box.eastPx * DEPTH_PLANE_EAST_WEIGHT) * DEPTH_PLANE_BIAS;
 }
 
-export function fragDepth(
-  box: DepthBox,
-  screenX: number,
-  screenY: number,
-  stackBias = 0,
-): number {
+export function fragDepth(box: DepthBox, screenX: number, screenY: number, stackBias = 0): number {
   const px = snapToPixelCenter(screenX);
   const py = snapToPixelCenter(screenY);
   const surface = boxSurface(box, px, py);

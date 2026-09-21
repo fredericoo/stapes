@@ -13,11 +13,7 @@ import {
   visibleStack,
   withinBodyReach,
 } from "./interest";
-import {
-  LIGHT_APRON,
-  LIGHT_CHUNK_SIZE,
-  LIGHT_WINDOW_MARGIN,
-} from "../lib/lightingChunks";
+import { LIGHT_APRON, LIGHT_CHUNK_SIZE, LIGHT_WINDOW_MARGIN } from "../lib/lightingChunks";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import {
   CHUNK_SIZE,
@@ -73,9 +69,7 @@ describe("how far a client is told about", () => {
   });
 
   it("rounds out to whole chunks, never short of the reach", () => {
-    expect(INTEREST_REACH_CHUNKS * CHUNK_SIZE).toBeGreaterThanOrEqual(
-      INTEREST_REACH_CELLS,
-    );
+    expect(INTEREST_REACH_CHUNKS * CHUNK_SIZE).toBeGreaterThanOrEqual(INTEREST_REACH_CELLS);
   });
 });
 
@@ -169,17 +163,12 @@ describe("the body reach", () => {
    * exactly that far west.
    */
   it("stays inside the least the map reach covers", () => {
-    expect(BODY_REACH_CELLS).toBeLessThanOrEqual(
-      INTEREST_REACH_CHUNKS * CHUNK_SIZE,
-    );
+    expect(BODY_REACH_CELLS).toBeLessThanOrEqual(INTEREST_REACH_CHUNKS * CHUNK_SIZE);
   });
 
   it("is what the client could draw or be lit by, and not the light bake's apron", () => {
     expect(BODY_REACH_CELLS).toBe(
-      Math.ceil(VIEW_CELLS / 2) +
-        (MAX_LEVEL - MIN_LEVEL) +
-        MESH_WINDOW_MARGIN +
-        MAX_LIGHT_LEVEL,
+      Math.ceil(VIEW_CELLS / 2) + (MAX_LEVEL - MIN_LEVEL) + MESH_WINDOW_MARGIN + MAX_LIGHT_LEVEL,
     );
     // The point of the exercise: well under the map's, which is mostly the
     // cached light bake's own apron.
@@ -210,9 +199,7 @@ describe("the body reach", () => {
     expect(withinBodyReach(at, 100 + onLevel + 3, 100, -3)).toBe(true);
     expect(withinBodyReach(at, 100 + onLevel + 4, 100, 3)).toBe(false);
     // Never past the worst case, which is what the subscription is pinned to.
-    expect(withinBodyReach(at, 100 + BODY_REACH_CELLS + 1, 100, MAX_LEVEL)).toBe(
-      false,
-    );
+    expect(withinBodyReach(at, 100 + BODY_REACH_CELLS + 1, 100, MAX_LEVEL)).toBe(false);
   });
 });
 
@@ -230,10 +217,7 @@ describe("bodies in a stack", () => {
   const mine = { tileId: "player", owner: "me" } as PlacedTile;
 
   it("keeps the ones this client has been told about", () => {
-    expect(visibleStack([grass, deer, mine], new Set(["me"]))).toEqual([
-      grass,
-      mine,
-    ]);
+    expect(visibleStack([grass, deer, mine], new Set(["me"]))).toEqual([grass, mine]);
   });
 
   it("hands back the stack itself when there is nothing to take out", () => {
@@ -265,11 +249,7 @@ describe("bodies in a stack", () => {
 
 describe("handing the cells over", () => {
   it("sends a chunk's cells on every level it has any", () => {
-    const map = mapAt(
-      { x: 1, y: 1, z: 0 },
-      { x: 2, y: 2, z: -3 },
-      { x: 3, y: 3, z: 4 },
-    );
+    const map = mapAt({ x: 1, y: 1, z: 0 }, { x: 2, y: 2, z: -3 }, { x: 3, y: 3, z: 4 });
 
     const cells = cellsOfChunks(map, ["0,0"], NOBODY);
 
@@ -286,9 +266,7 @@ describe("handing the cells over", () => {
     const flat = mapOfInterest(map, interestChunks(1, 1), NOBODY);
 
     expect(flat.version).toBe(MAP_FILE_VERSION);
-    expect(flat.levels[levelKey(0)]?.[coordKey(1, 1)]).toEqual([
-      { tileId: "grass" },
-    ]);
+    expect(flat.levels[levelKey(0)]?.[coordKey(1, 1)]).toEqual([{ tileId: "grass" }]);
   });
 
   it("leaves out what the subscription does not reach", () => {

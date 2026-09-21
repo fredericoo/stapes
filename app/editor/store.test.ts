@@ -93,9 +93,7 @@ describe("editor store history", () => {
     expect(getStack(store.map, 1, 2, 0)).toHaveLength(2);
 
     store.removeFromStack(1);
-    expect(getStack(useEditorStore.getState().map, 1, 2, 0)).toEqual([
-      { tileId: "grass" },
-    ]);
+    expect(getStack(useEditorStore.getState().map, 1, 2, 0)).toEqual([{ tileId: "grass" }]);
     expect(useEditorStore.getState().past).toHaveLength(1);
 
     useEditorStore.getState().undo();
@@ -208,9 +206,7 @@ describe("editor store paint", () => {
 
     expect(r.skipped).toBe(false);
     expect(useEditorStore.getState().selected).toBeNull();
-    expect(getStack(useEditorStore.getState().map, 5, 5, 0)).toEqual([
-      { tileId: "grass" },
-    ]);
+    expect(getStack(useEditorStore.getState().map, 5, 5, 0)).toEqual([{ tileId: "grass" }]);
   });
 
   it("stampAt without selection or armed tile is a no-op", () => {
@@ -229,12 +225,8 @@ describe("editor store paint", () => {
 
     expect(r.skipped).toBe(0);
     expect(useEditorStore.getState().selected).toBeNull();
-    expect(getStack(useEditorStore.getState().map, 0, 0, 0)).toEqual([
-      { tileId: "rock" },
-    ]);
-    expect(getStack(useEditorStore.getState().map, 1, 0, 0)).toEqual([
-      { tileId: "rock" },
-    ]);
+    expect(getStack(useEditorStore.getState().map, 0, 0, 0)).toEqual([{ tileId: "rock" }]);
+    expect(getStack(useEditorStore.getState().map, 1, 0, 0)).toEqual([{ tileId: "rock" }]);
   });
 });
 
@@ -253,7 +245,10 @@ describe("the armed face is a brush setting", () => {
     store.stampAt(4, 4);
     store.stampMany([{ x: 5, y: 4 }]);
 
-    for (const [x, y] of [[4, 4], [5, 4]] as const) {
+    for (const [x, y] of [
+      [4, 4],
+      [5, 4],
+    ] as const) {
       const top = getStack(useEditorStore.getState().map, x, y, 0).at(-1);
       expect(top).toEqual({ tileId: "hole", variant: "planks" });
     }

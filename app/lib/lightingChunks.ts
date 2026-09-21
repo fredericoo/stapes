@@ -24,13 +24,7 @@ import type {
 } from "./lighting";
 import { composeAmbientRgb } from "./lighting";
 import { computeLightingFlood, MAX_LIGHT_LEVEL } from "./lightingFlood";
-import type {
-  ChunkCells,
-  LevelChunks,
-  MapFile,
-  PlacedTile,
-  TileDef,
-} from "./types";
+import type { ChunkCells, LevelChunks, MapFile, PlacedTile, TileDef } from "./types";
 import {
   MAX_LEVEL,
   MIN_LEVEL,
@@ -232,12 +226,7 @@ function chunkCacheKey(cx: number, cy: number): string {
  * already had.
  */
 function chunkSpanKey(rect: WorldRect): string {
-  return [
-    chunkOf(rect.x0),
-    chunkOf(rect.y0),
-    chunkOf(rect.x1),
-    chunkOf(rect.y1),
-  ].join(",");
+  return [chunkOf(rect.x0), chunkOf(rect.y0), chunkOf(rect.x1), chunkOf(rect.y1)].join(",");
 }
 
 function chunkRect(cx: number, cy: number): WorldRect {
@@ -312,9 +301,7 @@ function litReach(radius: number): number {
  * round — charging every chunk in the bake — would work too, and would expire
  * the whole window on every tick of a single torch's cycle.
  */
-function animatedByChunk(
-  emitters: readonly AnimatedEmitter[],
-): Map<string, Set<string>> {
+function animatedByChunk(emitters: readonly AnimatedEmitter[]): Map<string, Set<string>> {
   const out = new Map<string, Set<string>>();
   for (const e of emitters) {
     const reach = litReach(e.radius);
@@ -402,8 +389,7 @@ export class ChunkedLighting {
   /** Monotonic call counter; the LRU's clock. */
   private tick = 0;
   /** @see defPhase */
-  private phaseMemo: { timeMs: number; byDef: Map<string, string> } | null =
-    null;
+  private phaseMemo: { timeMs: number; byDef: Map<string, string> } | null = null;
   /** Window centre last call, for inferring which way to prefetch. */
   private lastCentre: { x: number; y: number } | null = null;
   /** Monotonic edit counter, stamped onto chunks as {@link CachedChunk.dirtyAt}. */
@@ -487,11 +473,7 @@ export class ChunkedLighting {
   }
 
   /** This chunk's light for the phase the clock is at, if it is baked. */
-  private cachedPlanes(
-    cx: number,
-    cy: number,
-    timeMs: number,
-  ): ChunkLight | undefined {
+  private cachedPlanes(cx: number, cy: number, timeMs: number): ChunkLight | undefined {
     const entry = this.cache.get(chunkCacheKey(cx, cy));
     if (!entry) return undefined;
     return entry.byPhase.get(this.phaseOf(entry.animated, timeMs));
@@ -562,11 +544,7 @@ export class ChunkedLighting {
   }
 
   /** File a whole region's worth, all baked at the same clock reading. */
-  private storeAll(
-    baked: Map<string, BakedChunk>,
-    timeMs: number,
-    at: number,
-  ) {
+  private storeAll(baked: Map<string, BakedChunk>, timeMs: number, at: number) {
     for (const [key, chunk] of baked) this.store(key, chunk, timeMs, at);
   }
 
@@ -625,10 +603,7 @@ export class ChunkedLighting {
     }
     if (prev === next) return;
 
-    const levelKeys = new Set([
-      ...Object.keys(prev.levels),
-      ...Object.keys(next.levels),
-    ]);
+    const levelKeys = new Set([...Object.keys(prev.levels), ...Object.keys(next.levels)]);
     for (const lz of levelKeys) {
       const before = prev.levels[lz];
       const after = next.levels[lz];
@@ -643,14 +618,8 @@ export class ChunkedLighting {
    * identical, so this skips almost everything on a normal edit — the level's
    * other thousands of cells never get looked at.
    */
-  private invalidateChangedChunks(
-    before: LevelChunks | undefined,
-    after: LevelChunks | undefined,
-  ) {
-    const chunkKeys = new Set([
-      ...Object.keys(before ?? {}),
-      ...Object.keys(after ?? {}),
-    ]);
+  private invalidateChangedChunks(before: LevelChunks | undefined, after: LevelChunks | undefined) {
+    const chunkKeys = new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})]);
     for (const chk of chunkKeys) {
       const a = before?.[chk];
       const b = after?.[chk];
@@ -666,10 +635,7 @@ export class ChunkedLighting {
    * coordinate string for each — hundreds of thousands of allocations to find
    * the one cell that actually moved.
    */
-  private invalidateChangedCells(
-    before: ChunkCells | undefined,
-    after: ChunkCells | undefined,
-  ) {
+  private invalidateChangedCells(before: ChunkCells | undefined, after: ChunkCells | undefined) {
     for (const key in after) {
       if (before?.[key] === after[key]) continue;
       this.invalidateIfLit(key, before?.[key], after[key]);
@@ -716,10 +682,7 @@ export class ChunkedLighting {
     if (this.emissionSignature(before) === this.emissionSignature(after)) {
       return null;
     }
-    const reach = Math.max(
-      this.emissionReach(before),
-      this.emissionReach(after),
-    );
+    const reach = Math.max(this.emissionReach(before), this.emissionReach(after));
     return reach > 0 ? Math.ceil(reach) : null;
   }
 
@@ -809,12 +772,7 @@ export class ChunkedLighting {
    * why it costs a frame that was otherwise idle instead of the frame where a
    * chunk edge is crossed.
    */
-  gridFor(
-    map: MapFile,
-    ambient: [number, number, number],
-    rect: WorldRect,
-    timeMs = 0,
-  ): LightGrid {
+  gridFor(map: MapFile, ambient: [number, number, number], rect: WorldRect, timeMs = 0): LightGrid {
     this.tick++;
     this.fillMissing(map, rect, timeMs);
     // Nothing on screen is waiting, so it is worth warming what might be.
@@ -887,10 +845,7 @@ export class ChunkedLighting {
 
     // Ahead of the window first; distance only breaks ties, so a stationary
     // camera still fills its ring rather than stalling.
-    missing.sort(
-      (a, b) =>
-        prefetchScore(b, centre, drift) - prefetchScore(a, centre, drift),
-    );
+    missing.sort((a, b) => prefetchScore(b, centre, drift) - prefetchScore(a, centre, drift));
 
     // Note the absence of a version bump below. Prefetched chunks are outside
     // the window by construction — this only runs when the window is already
@@ -923,10 +878,7 @@ export class ChunkedLighting {
   }
 
   /** Uncached chunks in the ring around the window. */
-  private ringCandidates(
-    rect: WorldRect,
-    timeMs: number,
-  ): Array<{ cx: number; cy: number }> {
+  private ringCandidates(rect: WorldRect, timeMs: number): Array<{ cx: number; cy: number }> {
     const out: Array<{ cx: number; cy: number }> = [];
     const r = PREFETCH_RING_CHUNKS;
     for (let cy = chunkOf(rect.y0) - r; cy <= chunkOf(rect.y1) + r; cy++) {
@@ -994,9 +946,7 @@ export class ChunkedLighting {
     let y1 = -Infinity;
     for (let cy = chunkOf(rect.y0); cy <= chunkOf(rect.y1); cy++) {
       for (let cx = chunkOf(rect.x0); cx <= chunkOf(rect.x1); cx++) {
-        const held = this.baker
-          ? this.drawable(cx, cy, timeMs)
-          : this.cachedPlanes(cx, cy, timeMs);
+        const held = this.baker ? this.drawable(cx, cy, timeMs) : this.cachedPlanes(cx, cy, timeMs);
         if (held) continue;
         const cr = chunkRect(cx, cy);
         if (cr.x0 < x0) x0 = cr.x0;
@@ -1092,7 +1042,6 @@ export class ChunkedLighting {
       });
   }
 
-
   /**
    * Light covering `rect` in the GPU's own layout, untinted.
    *
@@ -1101,11 +1050,7 @@ export class ChunkedLighting {
    * the path a continuously moving clock should use — changing time of day
    * touches a uniform and nothing else.
    */
-  packedGridFor(
-    map: MapFile,
-    rect: WorldRect,
-    timeMs = 0,
-  ): PackedLightGrid {
+  packedGridFor(map: MapFile, rect: WorldRect, timeMs = 0): PackedLightGrid {
     this.tick++;
     this.fillMissing(map, rect, timeMs);
     // Nothing on screen is waiting, so it is worth warming what might be.
@@ -1156,11 +1101,7 @@ export class ChunkedLighting {
   }
 
   /** Stitch cached chunks into one RGB grid covering `rect`, tinted by ambient. */
-  private assemble(
-    rect: WorldRect,
-    ambient: [number, number, number],
-    timeMs: number,
-  ): LightGrid {
+  private assemble(rect: WorldRect, ambient: [number, number, number], timeMs: number): LightGrid {
     const cx0 = chunkOf(rect.x0);
     const cy0 = chunkOf(rect.y0);
     const cx1 = chunkOf(rect.x1);

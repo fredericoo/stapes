@@ -1,7 +1,4 @@
-import {
-  clampChance,
-  type FightingStats,
-} from "../lib/battler";
+import { clampChance, type FightingStats } from "../lib/battler";
 import {
   MAX_PERCENT_STAT,
   type Reach,
@@ -379,10 +376,7 @@ export function guardShare(assailants: number): number {
  * the overwhelming majority of blows struck — a copy per swing to multiply by
  * exactly one is an allocation for nothing.
  */
-export function underPressure(
-  defender: FightingStats,
-  assailants: number,
-): FightingStats {
+export function underPressure(defender: FightingStats, assailants: number): FightingStats {
   const kept = guardShare(assailants);
   if (kept >= 1) return defender;
   return {
@@ -399,10 +393,7 @@ export function underPressure(
  * Rounded apiece for the reason `def` is, and empty stays empty — which is most
  * armour and every creature wearing none.
  */
-function pressuredResistances(
-  resist: WeaponResistances,
-  kept: number,
-): WeaponResistances {
+function pressuredResistances(resist: WeaponResistances, kept: number): WeaponResistances {
   const pressured: WeaponResistances = {};
   for (const [mastery, amount] of Object.entries(resist)) {
     pressured[mastery as WeaponMastery] = Math.round(amount * kept);
@@ -462,10 +453,7 @@ export function damageFraction(variance: number, roll: [number, number]): number
  * distribution out exactly by asking this where each whole number begins, which
  * it can only do if the rounding lives somewhere it can reach.
  */
-export function potentialDamageFrom(
-  attacker: FightingStats,
-  roll: [number, number],
-): number {
+export function potentialDamageFrom(attacker: FightingStats, roll: [number, number]): number {
   return damageWorth(attacker.damage, attacker.variance, roll);
 }
 
@@ -477,11 +465,7 @@ export function potentialDamageFrom(
  * and both have to round exactly where a real blow rounds. Fabricating a whole
  * battler to ask would be inventing five fields to read two.
  */
-export function damageWorth(
-  damage: number,
-  variance: number,
-  roll: [number, number],
-): number {
+export function damageWorth(damage: number, variance: number, roll: [number, number]): number {
   return Math.round(damage * damageFraction(variance, roll));
 }
 
@@ -607,11 +591,7 @@ export function guardBand(
  * exactly, which is the difference between the Arena quoting a figure and the
  * Arena sampling one.
  */
-export function guardRolled(
-  defender: Guarded,
-  attacker: Striking,
-  roll: number,
-): number {
+export function guardRolled(defender: Guarded, attacker: Striking, roll: number): number {
   return Math.round(guardFraction(roll) * defenceAgainst(defender, attacker));
 }
 
@@ -741,10 +721,7 @@ export type AttackOutcome = {
  * against the body's full health and would read a trimmed figure as a blow that
  * got gentler as its target got closer to death.
  */
-export function cappedToHealth(
-  outcome: AttackOutcome,
-  healthLeft: number,
-): AttackOutcome {
+export function cappedToHealth(outcome: AttackOutcome, healthLeft: number): AttackOutcome {
   const landed = Math.max(0, Math.min(outcome.damage, healthLeft));
   return landed === outcome.damage ? outcome : { ...outcome, damage: landed };
 }
@@ -845,10 +822,7 @@ export function rollAttack(
  * to know there are two — and so a resistance can never be forgotten by a caller
  * that reached for `defender.def` on its own.
  */
-export function defenceAgainst(
-  defender: Guarded,
-  attacker: Striking,
-): number {
+export function defenceAgainst(defender: Guarded, attacker: Striking): number {
   return defender.def + (defender.resist[attacker.mastery] ?? 0);
 }
 
@@ -881,8 +855,7 @@ export function inflictedBy<Grant extends StatusGrant>(
   if (statuses.length === 0) return NOTHING_INFLICTED;
   const took = statuses.filter(
     (status, index) =>
-      status.chance === undefined ||
-      rolls[index]! * MAX_PERCENT_STAT < status.chance,
+      status.chance === undefined || rolls[index]! * MAX_PERCENT_STAT < status.chance,
   );
   return took.length === 0 ? NOTHING_INFLICTED : took;
 }
@@ -909,11 +882,7 @@ export function inflictedBy<Grant extends StatusGrant>(
  * {@link canReach}. That was not needed while a swing could only travel
  * sideways to a neighbour, and it is the first thing the sphere breaks.
  */
-export function inAttackRange(
-  from: ReachPoint,
-  to: ReachPoint,
-  reach: Reach,
-): boolean {
+export function inAttackRange(from: ReachPoint, to: ReachPoint, reach: Reach): boolean {
   return withinReach(from, to, reach);
 }
 

@@ -41,10 +41,7 @@ function mapAt(...cells: Array<{ x: number; y: number; z: number }>): MapFile {
 
 /** The chunk a cell lives in, as an address key. */
 function addressOf(x: number, y: number, z: number): string {
-  return chunkAddressKey(
-    z,
-    `${Math.floor(x / CHUNK_SIZE)},${Math.floor(y / CHUNK_SIZE)}`,
-  );
+  return chunkAddressKey(z, `${Math.floor(x / CHUNK_SIZE)},${Math.floor(y / CHUNK_SIZE)}`);
 }
 
 describe("which chunks are worth meshing", () => {
@@ -136,9 +133,7 @@ describe("which chunks are worth meshing", () => {
     let dense = emptyMap();
     for (let cx = -SPAN; cx < SPAN; cx++) {
       for (let cy = -SPAN; cy < SPAN; cy++) {
-        dense = replaceStack(dense, cx * CHUNK_SIZE, cy * CHUNK_SIZE, 0, [
-          { tileId: "grass" },
-        ]);
+        dense = replaceStack(dense, cx * CHUNK_SIZE, cy * CHUNK_SIZE, 0, [{ tileId: "grass" }]);
       }
     }
 

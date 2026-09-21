@@ -91,9 +91,7 @@ export type SpawnPoint = {
  * of the same tile, and which of them is the new one is not a question a stack
  * read can answer.
  */
-export type RespawnOutcome =
-  | { kind: "done"; itemId?: string }
-  | { kind: "blocked" };
+export type RespawnOutcome = { kind: "done"; itemId?: string } | { kind: "blocked" };
 
 /** A wait drawn from the authored range, both ends included. */
 export function rollRespawnDelayMs(
@@ -138,10 +136,7 @@ function objectKey(cell: Coord, tileId: string): string {
  * every point whose creature died before the eviction, which is why the server
  * derives once and stores the result.
  */
-export function findSpawnPoints(
-  map: MapFile,
-  tilesById: Record<string, TileDef>,
-): SpawnPoint[] {
+export function findSpawnPoints(map: MapFile, tilesById: Record<string, TileDef>): SpawnPoint[] {
   const points = new Map<string, SpawnPoint>();
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     for (const { x, y, stack } of listCoords(map, z)) {
@@ -152,8 +147,7 @@ export function findSpawnPoints(
         if (!def || !respawn) return;
 
         if (resolveActor(def)) {
-          const ownerId =
-            placed.owner ?? residentOwnerId({ ...cell, stackIndex });
+          const ownerId = placed.owner ?? residentOwnerId({ ...cell, stackIndex });
           points.set(ownerId, {
             key: ownerId,
             cell,
@@ -203,9 +197,8 @@ export function findSpawnPoints(
 export function presentItemIds(map: MapFile, point: SpawnPoint): string[] {
   const owed = new Set(point.itemIds ?? []);
   if (owed.size === 0) return [];
-  return getStack(map, point.cell.x, point.cell.y, point.cell.z).flatMap(
-    (placed) =>
-      placed.itemId && owed.has(placed.itemId) ? [placed.itemId] : [],
+  return getStack(map, point.cell.x, point.cell.y, point.cell.z).flatMap((placed) =>
+    placed.itemId && owed.has(placed.itemId) ? [placed.itemId] : [],
   );
 }
 
@@ -246,21 +239,10 @@ export function isSpawnFilled(map: MapFile, point: SpawnPoint): boolean {
  * Leaves a point that already tracks identities alone, and one whose tile is
  * not an item without any: an empty list would claim it tracks things.
  */
-export function withMigratedItemIds(
-  map: MapFile,
-  point: SpawnPoint,
-): SpawnPoint {
+export function withMigratedItemIds(map: MapFile, point: SpawnPoint): SpawnPoint {
   if (point.ownerId || point.itemIds) return point;
-  const itemIds = getStack(
-    map,
-    point.cell.x,
-    point.cell.y,
-    point.cell.z,
-  ).flatMap((placed) =>
-    placed.tileId === point.placed.tileId && placed.itemId
-      ? [placed.itemId]
-      : [],
+  const itemIds = getStack(map, point.cell.x, point.cell.y, point.cell.z).flatMap((placed) =>
+    placed.tileId === point.placed.tileId && placed.itemId ? [placed.itemId] : [],
   );
   return itemIds.length > 0 ? { ...point, itemIds } : point;
 }
-

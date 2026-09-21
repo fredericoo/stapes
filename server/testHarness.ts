@@ -219,9 +219,7 @@ export class Harness {
    *   the suite's players were before accounts existed. `server/world.ts`
    *   passes the character table here instead.
    */
-  static async create(
-    names: Readonly<Record<string, string>> = {},
-  ): Promise<Harness> {
+  static async create(names: Readonly<Record<string, string>> = {}): Promise<Harness> {
     const directory = await mkdtemp(join(tmpdir(), "stapes-world-"));
     const db = await openDatabase(join(directory, "stapes.db"));
     const blobs = new SqliteBlobs(db);

@@ -46,13 +46,8 @@ describe("label placement", () => {
     for (const cssScale of [1, 4, 5.333333, 6.6875, 0.25]) {
       for (const worldX of [100, 103, 110.5, 87.25, 199.99]) {
         const at = labelScreenPosition(worldX, worldX * 2, camera, cssScale);
-        expect(
-          Number.isInteger(at.left),
-          `left for ${worldX} @ ${cssScale}`,
-        ).toBe(true);
-        expect(Number.isInteger(at.top), `top for ${worldX} @ ${cssScale}`).toBe(
-          true,
-        );
+        expect(Number.isInteger(at.left), `left for ${worldX} @ ${cssScale}`).toBe(true);
+        expect(Number.isInteger(at.top), `top for ${worldX} @ ${cssScale}`).toBe(true);
       }
     }
   });
@@ -88,12 +83,10 @@ describe("stacking order", () => {
 
   /** Speech and looks say nothing about depth, and are drawn over names anyway. */
   it("leaves a label with no order on top", () => {
-    expect(
-      stackingOrder([
-        { id: "speech" },
-        { id: "name", order: 10 },
-      ]),
-    ).toEqual(["name", "speech"]);
+    expect(stackingOrder([{ id: "speech" }, { id: "name", order: 10 }])).toEqual([
+      "name",
+      "speech",
+    ]);
   });
 
   it("keeps the caller's order where two labels tie", () => {
@@ -118,9 +111,7 @@ describe("naming a speaker", () => {
   };
 
   it("calls a person by the name they chose", () => {
-    expect(
-      bodyNameFor({ tileId: PLAYER_TILE_ID, name: "Arthur" }, tilesById),
-    ).toBe("Arthur");
+    expect(bodyNameFor({ tileId: PLAYER_TILE_ID, name: "Arthur" }, tilesById)).toBe("Arthur");
   });
 
   /**
@@ -128,9 +119,7 @@ describe("naming a speaker", () => {
    * would be it.
    */
   it("does not call a person after the tile they stand up in", () => {
-    expect(
-      bodyNameFor({ tileId: PLAYER_TILE_ID, name: "Arthur" }, tilesById),
-    ).not.toBe("Player");
+    expect(bodyNameFor({ tileId: PLAYER_TILE_ID, name: "Arthur" }, tilesById)).not.toBe("Player");
   });
 
   /**
@@ -140,9 +129,7 @@ describe("naming a speaker", () => {
    * a blank label is worse than an obviously placeholder one.
    */
   it("still attributes the words when a person has no name", () => {
-    expect(bodyNameFor({ tileId: PLAYER_TILE_ID }, tilesById)).toBe(
-      UNNAMED_BODY,
-    );
+    expect(bodyNameFor({ tileId: PLAYER_TILE_ID }, tilesById)).toBe(UNNAMED_BODY);
   });
 
   it("calls a creature what its tile is called", () => {

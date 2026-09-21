@@ -56,7 +56,6 @@ import {
   wornDefence,
 } from "./equipment";
 
-
 /**
  * The hand a body starts a fight on, which is what nearly every case here means.
  *
@@ -67,10 +66,7 @@ import {
  * `handToSwing` fall back to bare hands on its own. The cases that *are* about
  * the rotation name their hand outright.
  */
-function firstHand(
-  equipment: Equipment | null,
-  tiles: Record<string, TileDef>,
-): Hand | null {
+function firstHand(equipment: Equipment | null, tiles: Record<string, TileDef>): Hand | null {
   return handToSwing(equipment, tiles, HANDS[0]);
 }
 
@@ -146,7 +142,9 @@ const SHIELD = normalizeTileDef({
 describe("weaponInHand", () => {
   it("falls back to the natural weapon with an empty hand", () => {
     expect(weaponInHand(base, null, lightTiles, firstHand(null, lightTiles))).toEqual(CLAWS);
-    expect(weaponInHand(base, emptyEquipment(), lightTiles, firstHand(emptyEquipment(), lightTiles))).toEqual(CLAWS);
+    expect(
+      weaponInHand(base, emptyEquipment(), lightTiles, firstHand(emptyEquipment(), lightTiles)),
+    ).toEqual(CLAWS);
   });
 
   it("takes what is in the hand instead, rather than as well", () => {
@@ -197,9 +195,7 @@ describe("effectiveBattler", () => {
     const skill = base.masteries.fist! / MAX_MASTERY;
     expect(out.damage).toBe(
       Math.round(
-        CLAWS.damage +
-          skill * CLAWS.damage * MASTERY_DAMAGE_BONUS +
-          skill * DAMAGE_AT_MAX_MASTERY,
+        CLAWS.damage + skill * CLAWS.damage * MASTERY_DAMAGE_BONUS + skill * DAMAGE_AT_MAX_MASTERY,
       ),
     );
     expect(out.accuracy).toBe(
@@ -257,13 +253,21 @@ describe("effectiveBattler", () => {
 
   it("does not mutate the body it was asked about", () => {
     const snapshot = structuredClone(base);
-    effectiveBattler(base, {
-      ...emptyEquipment(),
-      weapon: { id: "w", tileId: "sword" },
-    }, lightTiles, firstHand({
-      ...emptyEquipment(),
-      weapon: { id: "w", tileId: "sword" },
-    }, lightTiles));
+    effectiveBattler(
+      base,
+      {
+        ...emptyEquipment(),
+        weapon: { id: "w", tileId: "sword" },
+      },
+      lightTiles,
+      firstHand(
+        {
+          ...emptyEquipment(),
+          weapon: { id: "w", tileId: "sword" },
+        },
+        lightTiles,
+      ),
+    );
     expect(base).toEqual(snapshot);
   });
 });
@@ -371,7 +375,10 @@ describe("carriedLightTileIds", () => {
       bag: {
         id: "b",
         tileId: "lamp-bag",
-        contents: [{ id: "c", tileId: "torch" }, { id: "d", tileId: "sword" }],
+        contents: [
+          { id: "c", tileId: "torch" },
+          { id: "d", tileId: "sword" },
+        ],
       },
     };
     expect(carriedLightTileIds(kit, lightTiles)).toEqual(["torch", "lamp-bag"]);
@@ -429,10 +436,7 @@ describe("restoredEquipment", () => {
   /** A hand takes anything you can carry, so a pack in one survives a reload. */
   it("keeps a pack held in a hand", () => {
     const held = { id: "itm_w", tileId: "bag" };
-    const restored = restoredEquipment(
-      { ...emptyEquipment(), weapon: held },
-      tiles,
-    );
+    const restored = restoredEquipment({ ...emptyEquipment(), weapon: held }, tiles);
     expect(restored.weapon).toEqual(held);
   });
 
@@ -600,8 +604,18 @@ describe("the off hand", () => {
   });
 
   it("leaves what you swing with entirely alone", () => {
-    const bare = effectiveBattler(player, holding(null), shipped, firstHand(holding(null), shipped));
-    const lamp = effectiveBattler(player, holding("hand-lantern"), shipped, firstHand(holding("hand-lantern"), shipped));
+    const bare = effectiveBattler(
+      player,
+      holding(null),
+      shipped,
+      firstHand(holding(null), shipped),
+    );
+    const lamp = effectiveBattler(
+      player,
+      holding("hand-lantern"),
+      shipped,
+      firstHand(holding("hand-lantern"), shipped),
+    );
 
     expect(lamp.damage).toBe(bare.damage);
     expect(lamp.spd).toBe(bare.spd);
@@ -618,8 +632,18 @@ describe("the off hand", () => {
    * `weaponInHand` to prefer over what the body already had.
    */
   it("is no worse than bare hands in the hand you swing with either", () => {
-    const bare = effectiveBattler(player, holding(null), shipped, firstHand(holding(null), shipped));
-    const lamp = effectiveBattler(player, holding(null, "hand-lantern"), shipped, firstHand(holding(null, "hand-lantern"), shipped));
+    const bare = effectiveBattler(
+      player,
+      holding(null),
+      shipped,
+      firstHand(holding(null), shipped),
+    );
+    const lamp = effectiveBattler(
+      player,
+      holding(null, "hand-lantern"),
+      shipped,
+      firstHand(holding(null, "hand-lantern"), shipped),
+    );
 
     expect(lamp.damage).toBe(bare.damage);
     expect(lamp.spd).toBe(bare.spd);
@@ -635,8 +659,18 @@ describe("the off hand", () => {
   it("adds what it turns aside to your defence", () => {
     const withShield = { ...shipped, shield: SHIELD };
 
-    const bare = effectiveBattler(player, holding(null), withShield, firstHand(holding(null), withShield));
-    const guarded = effectiveBattler(player, holding("shield"), withShield, firstHand(holding("shield"), withShield));
+    const bare = effectiveBattler(
+      player,
+      holding(null),
+      withShield,
+      firstHand(holding(null), withShield),
+    );
+    const guarded = effectiveBattler(
+      player,
+      holding("shield"),
+      withShield,
+      firstHand(holding("shield"), withShield),
+    );
 
     expect(guarded.def).toBe(bare.def + 3);
     // Still swinging your own fists, which is the point of it being the *other*
@@ -758,8 +792,18 @@ describe("the body", () => {
   });
 
   it("adds what it turns aside to your defence", () => {
-    const bare = effectiveBattler(player, wearing(null), shipped, firstHand(wearing(null), shipped));
-    const mailed = effectiveBattler(player, wearing("chain-mail"), shipped, firstHand(wearing("chain-mail"), shipped));
+    const bare = effectiveBattler(
+      player,
+      wearing(null),
+      shipped,
+      firstHand(wearing(null), shipped),
+    );
+    const mailed = effectiveBattler(
+      player,
+      wearing("chain-mail"),
+      shipped,
+      firstHand(wearing("chain-mail"), shipped),
+    );
 
     expect(mailed.def).toBe(bare.def + 3);
   });
@@ -782,8 +826,18 @@ describe("the body", () => {
 
   /** What a body *is* cannot be put on, exactly as it cannot be picked up. */
   it("leaves what you swing with entirely alone", () => {
-    const bare = effectiveBattler(player, wearing(null), shipped, firstHand(wearing(null), shipped));
-    const plated = effectiveBattler(player, wearing("steel-plate"), shipped, firstHand(wearing("steel-plate"), shipped));
+    const bare = effectiveBattler(
+      player,
+      wearing(null),
+      shipped,
+      firstHand(wearing(null), shipped),
+    );
+    const plated = effectiveBattler(
+      player,
+      wearing("steel-plate"),
+      shipped,
+      firstHand(wearing("steel-plate"), shipped),
+    );
 
     expect(plated.damage).toBe(bare.damage);
     expect(plated.spd).toBe(bare.spd);
@@ -951,17 +1005,14 @@ describe("taking turns between two hands", () => {
    */
   describe("when a weapon has no answer to this fight", () => {
     /** Stands in for a bow inside its minimum: the off hand is no use here. */
-    const onlyTheMainHand = (_weapon: WeaponItem, hand: Hand) =>
-      hand === "weapon";
+    const onlyTheMainHand = (_weapon: WeaponItem, hand: Hand) => hand === "weapon";
     const neither = () => false;
 
     it("takes the turn of a hand whose weapon cannot be used", () => {
       const both = held("sword", "rusty-sword");
       // Whosever turn it nominally is, the hand that works answers.
       for (const preferred of HANDS) {
-        expect(handToSwing(both, tiles, preferred, onlyTheMainHand)).toBe(
-          "weapon",
-        );
+        expect(handToSwing(both, tiles, preferred, onlyTheMainHand)).toBe("weapon");
       }
     });
 
@@ -972,9 +1023,7 @@ describe("taking turns between two hands", () => {
      */
     it("does not simply refuse when the preferred hand is the useless one", () => {
       const both = held("sword", "rusty-sword");
-      expect(handToSwing(both, tiles, "offhand", onlyTheMainHand)).toBe(
-        "weapon",
-      );
+      expect(handToSwing(both, tiles, "offhand", onlyTheMainHand)).toBe("weapon");
     });
 
     /**
@@ -1078,8 +1127,7 @@ describe("taking turns between two hands", () => {
     const two = held("sword", "sword");
     for (const hand of HANDS) {
       expect(effectiveBattler(base, two, tiles, hand).def).toBe(
-        effectiveBattler(base, held("sword", null), tiles, "weapon").def +
-          SWORD_DEF,
+        effectiveBattler(base, held("sword", null), tiles, "weapon").def + SWORD_DEF,
       );
     }
   });
@@ -1263,11 +1311,14 @@ describe("the other worn squares", () => {
       charm: on("copper-ring"),
     });
 
-    expect(armorDefence(dressed, shipped)).toBe(
-      helm.def + mail.def + boots.def + ring.def,
-    );
+    expect(armorDefence(dressed, shipped)).toBe(helm.def + mail.def + boots.def + ring.def);
     // And it reaches the fight, on the terms one shirt always did.
-    const bare = effectiveBattler(player, emptyEquipment(), shipped, firstHand(emptyEquipment(), shipped));
+    const bare = effectiveBattler(
+      player,
+      emptyEquipment(),
+      shipped,
+      firstHand(emptyEquipment(), shipped),
+    );
     expect(effectiveBattler(player, dressed, shipped, firstHand(dressed, shipped)).def).toBe(
       bare.def + armorDefence(dressed, shipped),
     );
@@ -1370,7 +1421,12 @@ describe("resisting a kind of blow", () => {
   });
 
   it("carries the armour's own block through to the fight", () => {
-    const mailed = effectiveBattler(player, wearing("chain-mail"), shipped, firstHand(wearing("chain-mail"), shipped));
+    const mailed = effectiveBattler(
+      player,
+      wearing("chain-mail"),
+      shipped,
+      firstHand(wearing("chain-mail"), shipped),
+    );
     expect(mailed.resist.sharp).toBe(4);
     expect(mailed.resist.blunt).toBeUndefined();
   });
@@ -1410,9 +1466,7 @@ describe("the armour we ship", () => {
 
   it("puts the base armour on the player, certainly", () => {
     const worn = (player.kit ?? []).filter((entry) => entry.slot === "armor");
-    expect(worn).toEqual([
-      { slot: "armor", tileId: "cloth-tunic", chance: 100 },
-    ]);
+    expect(worn).toEqual([{ slot: "armor", tileId: "cloth-tunic", chance: 100 }]);
   });
 
   /**
@@ -1435,10 +1489,7 @@ describe("the armour we ship", () => {
 
     expect(others.length).toBeGreaterThan(0);
     for (const armor of others) {
-      const best = Math.max(
-        ...Object.values(armor.resist ?? { none: 0 }),
-        0,
-      );
+      const best = Math.max(...Object.values(armor.resist ?? { none: 0 }), 0);
       expect(armor.def + best).toBeGreaterThan(base.def);
     }
     expect(base.resist).toBeUndefined();
@@ -1514,40 +1565,31 @@ describe("bodyElements", () => {
   });
 
   it("is what the body is wearing, for a body that is nothing itself", () => {
-    expect(bodyElements(base, wearing({ armor: held("tunic") }), tiles)).toEqual(
-      ["fire"],
-    );
+    expect(bodyElements(base, wearing({ armor: held("tunic") }), tiles)).toEqual(["fire"]);
   });
 
   it("counts a held thing as well as a worn one", () => {
-    expect(
-      bodyElements(base, wearing({ weapon: held("brand") }), tiles),
-    ).toEqual(["nature"]);
+    expect(bodyElements(base, wearing({ weapon: held("brand") }), tiles)).toEqual(["nature"]);
   });
 
   it("unions the body's own with everything on it", () => {
     const troll: BattlerDef = { ...base, elements: ["fire"] };
-    expect(
-      bodyElements(troll, wearing({ charm: held("amulet") }), tiles),
-    ).toEqual(["fire", "water"]);
+    expect(bodyElements(troll, wearing({ charm: held("amulet") }), tiles)).toEqual([
+      "fire",
+      "water",
+    ]);
   });
 
   /** An element is a fact, not a quantity: two flaming tunics are not more fire. */
   it("says an element once however many things carry it", () => {
     const burning: BattlerDef = { ...base, elements: ["fire"] };
-    expect(
-      bodyElements(burning, wearing({ armor: held("tunic") }), tiles),
-    ).toEqual(["fire"]);
+    expect(bodyElements(burning, wearing({ armor: held("tunic") }), tiles)).toEqual(["fire"]);
   });
 
   /** Stable whatever order the squares came in, so swapping hands changes nothing. */
   it("answers in the elements' own order", () => {
     expect(
-      bodyElements(
-        base,
-        wearing({ charm: held("amulet"), armor: held("tunic") }),
-        tiles,
-      ),
+      bodyElements(base, wearing({ charm: held("amulet"), armor: held("tunic") }), tiles),
     ).toEqual(["fire", "water"]);
   });
 
@@ -1558,15 +1600,11 @@ describe("bodyElements", () => {
   });
 
   it("ignores a square holding something that has nothing to say", () => {
-    expect(bodyElements(base, wearing({ armor: held("bread") }), tiles)).toEqual(
-      [],
-    );
+    expect(bodyElements(base, wearing({ armor: held("bread") }), tiles)).toEqual([]);
   });
 
   it("is silent about a square whose tile the catalogue has lost", () => {
-    expect(bodyElements(base, wearing({ armor: held("gone") }), tiles)).toEqual(
-      [],
-    );
+    expect(bodyElements(base, wearing({ armor: held("gone") }), tiles)).toEqual([]);
   });
 });
 
@@ -1590,16 +1628,11 @@ describe("spilled", () => {
   const PACK = { id: "itm_bag", tileId: "bag", contents: [BERRY] };
 
   it("leaves what was worn, in the order the squares are reached for", () => {
-    expect(spilled({ ...emptyEquipment(), weapon: SWORD }, tiles)).toEqual([
-      SWORD,
-    ]);
+    expect(spilled({ ...emptyEquipment(), weapon: SWORD }, tiles)).toEqual([SWORD]);
   });
 
   it("spills the bag's contents and drops the bag itself", () => {
-    const left = spilled(
-      { ...emptyEquipment(), weapon: SWORD, bag: PACK },
-      tiles,
-    );
+    const left = spilled({ ...emptyEquipment(), weapon: SWORD, bag: PACK }, tiles);
     expect(left).toEqual([SWORD, BERRY]);
   });
 
@@ -1614,19 +1647,14 @@ describe("spilled", () => {
    * a rule about death nobody asked for.
    */
   it("leaves a pack carried in a hand alone, contents and all", () => {
-    expect(spilled({ ...emptyEquipment(), weapon: PACK }, tiles)).toEqual([
-      PACK,
-    ]);
+    expect(spilled({ ...emptyEquipment(), weapon: PACK }, tiles)).toEqual([PACK]);
   });
 
   it("drops a bag whose tile the catalogue has lost rather than losing it", () => {
     const unknown = { id: "itm_bag", tileId: "gone", contents: [BERRY] };
-    expect(spilled({ ...emptyEquipment(), bag: unknown }, tiles)).toEqual([
-      unknown,
-    ]);
+    expect(spilled({ ...emptyEquipment(), bag: unknown }, tiles)).toEqual([unknown]);
   });
 });
-
 
 /**
  * Whether what is in a square is doing anything there.
@@ -1645,8 +1673,12 @@ describe("takesEffect", () => {
   const BREAD = { type: "consumable", hp: 2 };
   const COIN = { type: "artifact" };
   const TRINKET = { type: "charm", everyMs: 10_000, hp: 1 };
-  const SPARK = { type: "stone", cooldownMs: 4_000, requirements: { arcane: 5 },
-    effect: { kind: "bolt", on: "target", damage: 3 } };
+  const SPARK = {
+    type: "stone",
+    cooldownMs: 4_000,
+    requirements: { arcane: 5 },
+    effect: { kind: "bolt", on: "target", damage: 3 },
+  };
 
   const tiles = tilesByIdFromList([
     itemTile("sword", DEFAULT_WEAPON),

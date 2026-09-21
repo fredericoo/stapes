@@ -38,8 +38,7 @@ test.describe("the world in the tab", () => {
       if (ws.url().includes("/ws?")) gameSockets.push(ws.url());
     });
 
-    const actor = () =>
-      page.evaluate((key) => localStorage.getItem(key), ACTOR_STORAGE_KEY);
+    const actor = () => page.evaluate((key) => localStorage.getItem(key), ACTOR_STORAGE_KEY);
 
     // The editors are behind a role, and this page is one of them. The world it
     // draws is not — see below, where nothing connects to anything.
@@ -102,8 +101,6 @@ test.describe("the world in the tab", () => {
     await expect(page.locator("header nav a").first()).toBeVisible();
     // And unlike the game, there is nowhere to leave this world to: it is this
     // tab's, and closing the tab is the way out of it.
-    await expect(
-      page.getByRole("button", { name: "Leave world" }),
-    ).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Leave world" })).toHaveCount(0);
   });
 });

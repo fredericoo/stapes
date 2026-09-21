@@ -114,11 +114,7 @@ export function heightApart(from: ReachPoint, to: ReachPoint): number {
  * values worth authoring land *on* boundaries, so a `min` wants the same room
  * on either side that `cells` does.
  */
-export function withinReach(
-  from: ReachPoint,
-  to: ReachPoint,
-  reach: Reach,
-): boolean {
+export function withinReach(from: ReachPoint, to: ReachPoint, reach: Reach): boolean {
   if (heightApart(from, to) > reach.height) return false;
   const planSq = planDistanceSq(from, to);
   if (planSq > reach.cells * reach.cells) return false;

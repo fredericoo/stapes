@@ -16,9 +16,7 @@ describe("what is on screen", () => {
     const queue = new NoticeQueue();
     queue.push("Your sharp mastery is now 10", 0);
 
-    expect(textsOf(queue, NOTICE_LIFETIME_MS - 1)).toEqual([
-      "Your sharp mastery is now 10",
-    ]);
+    expect(textsOf(queue, NOTICE_LIFETIME_MS - 1)).toEqual(["Your sharp mastery is now 10"]);
     expect(textsOf(queue, NOTICE_LIFETIME_MS)).toEqual([]);
   });
 
@@ -57,9 +55,7 @@ describe("what is on screen", () => {
 
     expect(textsOf(queue, 1_000)).toEqual(["You cannot fit there"]);
     // Still up a full lifetime after the *second* press, not the first.
-    expect(textsOf(queue, 1_000 + NOTICE_LIFETIME_MS - 1)).toEqual([
-      "You cannot fit there",
-    ]);
+    expect(textsOf(queue, 1_000 + NOTICE_LIFETIME_MS - 1)).toEqual(["You cannot fit there"]);
   });
 
   it("puts a repeat of the older line back at the bottom", () => {

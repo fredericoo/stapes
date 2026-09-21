@@ -91,9 +91,7 @@ export function equipmentFromKit(
     const won = draw(entry, random);
     // Before the slot is tested, so a full square costs the same dice as an
     // empty one — see the note above.
-    const contents = (entry.contents ?? []).filter((content) =>
-      draw(content, random),
-    );
+    const contents = (entry.contents ?? []).filter((content) => draw(content, random));
 
     if (!won) continue;
     if (equipment[entry.slot]) continue;
@@ -131,10 +129,7 @@ function draw(entry: KitContent, random: () => number): boolean {
  * what lets it be dropped, found and traced like anything else. It is also what
  * `../lib/itemInstance` requires of anything the wire has to describe.
  */
-function instantiate(
-  tileId: string,
-  tilesById: Record<string, TileDef>,
-): ItemInstance | null {
+function instantiate(tileId: string, tilesById: Record<string, TileDef>): ItemInstance | null {
   if (!tilesById[tileId]) return null;
   return { id: mintItemId(), tileId };
 }

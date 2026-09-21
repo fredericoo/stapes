@@ -1,14 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  type ParticleEmitterSpec,
-  type ParticleReading,
-  ParticleSystem,
-} from "./particles";
-import {
-  DEFAULT_PARTICLES,
-  MAX_LIVE_PARTICLES,
-  type ParticleEmitterDef,
-} from "../lib/particleVfx";
+import { type ParticleEmitterSpec, type ParticleReading, ParticleSystem } from "./particles";
+import { DEFAULT_PARTICLES, MAX_LIVE_PARTICLES, type ParticleEmitterDef } from "../lib/particleVfx";
 
 /**
  * A plume, as arithmetic.
@@ -64,9 +56,7 @@ describe("emitting", () => {
     // a particle per frame, and a plume that truncated would emit nothing at
     // all — forever, and only on fast machines.
     const system = new ParticleSystem(fixed(0.5));
-    system.setEmitters([
-      emitter({}, { ratePerSecond: 8, ttlFromMs: 5_000, ttlToMs: 5_000 }),
-    ]);
+    system.setEmitters([emitter({}, { ratePerSecond: 8, ttlFromMs: 5_000, ttlToMs: 5_000 })]);
     const frameMs = 1_000 / 120;
     for (let i = 0; i < 120; i++) system.advance(frameMs);
     // Seven or eight, not zero, and that is the whole assertion. A hundred and
@@ -82,14 +72,17 @@ describe("emitting", () => {
   it("draws a birth position inside the authored spread", () => {
     const system = new ParticleSystem(fixed(1));
     system.setEmitters([
-      emitter({}, {
-        ratePerSecond: 1,
-        spawnRadiusCells: 0.25,
-        spawnElevFrom: 0,
-        spawnElevTo: 2,
-        ttlFromMs: 5_000,
-        ttlToMs: 5_000,
-      }),
+      emitter(
+        {},
+        {
+          ratePerSecond: 1,
+          spawnRadiusCells: 0.25,
+          spawnElevFrom: 0,
+          spawnElevTo: 2,
+          ttlFromMs: 5_000,
+          ttlToMs: 5_000,
+        },
+      ),
     ]);
     system.advance(1_000);
     const p = system.read(0, blank());
@@ -122,10 +115,7 @@ describe("emitting", () => {
     // second burning body to reach it.
     const system = new ParticleSystem(fixed(0.5));
     const loud = { ratePerSecond: 200, ttlFromMs: 10_000, ttlToMs: 10_000 };
-    system.setEmitters([
-      emitter({ id: "a" }, loud),
-      emitter({ id: "b" }, loud),
-    ]);
+    system.setEmitters([emitter({ id: "a" }, loud), emitter({ id: "b" }, loud)]);
     for (let i = 0; i < 100; i++) system.advance(1_000);
     expect(system.count).toBe(MAX_LIVE_PARTICLES);
   });
@@ -134,9 +124,7 @@ describe("emitting", () => {
 describe("living and dying", () => {
   it("buries a particle once its lifetime is up", () => {
     const system = new ParticleSystem(fixed(0));
-    system.setEmitters([
-      emitter({}, { ratePerSecond: 1, ttlFromMs: 500, ttlToMs: 500 }),
-    ]);
+    system.setEmitters([emitter({}, { ratePerSecond: 1, ttlFromMs: 500, ttlToMs: 500 })]);
     system.advance(1_000);
     expect(system.count).toBe(1);
     system.advance(499);
@@ -147,9 +135,7 @@ describe("living and dying", () => {
 
   it("reads its life as the fraction of its own lifetime it has spent", () => {
     const system = new ParticleSystem(fixed(0));
-    system.setEmitters([
-      emitter({}, { ratePerSecond: 1, ttlFromMs: 1_000, ttlToMs: 1_000 }),
-    ]);
+    system.setEmitters([emitter({}, { ratePerSecond: 1, ttlFromMs: 1_000, ttlToMs: 1_000 })]);
     system.advance(1_000);
     system.advance(250);
     expect(system.read(0, blank()).life).toBeCloseTo(0.25);
@@ -158,17 +144,20 @@ describe("living and dying", () => {
   it("rises, then falls back under gravity", () => {
     const system = new ParticleSystem(fixed(0));
     system.setEmitters([
-      emitter({}, {
-        ratePerSecond: 1,
-        ttlFromMs: 9_000,
-        ttlToMs: 9_000,
-        spawnElevFrom: 0,
-        spawnElevTo: 0,
-        riseFrom: 4,
-        riseTo: 4,
-        gravity: -8,
-        driftCellsPerSecond: 0,
-      }),
+      emitter(
+        {},
+        {
+          ratePerSecond: 1,
+          ttlFromMs: 9_000,
+          ttlToMs: 9_000,
+          spawnElevFrom: 0,
+          spawnElevTo: 0,
+          riseFrom: 4,
+          riseTo: 4,
+          gravity: -8,
+          driftCellsPerSecond: 0,
+        },
+      ),
     ]);
     system.advance(1_000);
     const start = system.read(0, blank()).elev;
@@ -190,14 +179,17 @@ describe("living and dying", () => {
     // sideways speed would make the two equal and pass a weaker test.
     const system = new ParticleSystem(fixed(0.5));
     system.setEmitters([
-      emitter({}, {
-        ratePerSecond: 1,
-        ttlFromMs: 9_000,
-        ttlToMs: 9_000,
-        driftCellsPerSecond: 0,
-        windX: 2,
-        windY: 0,
-      }),
+      emitter(
+        {},
+        {
+          ratePerSecond: 1,
+          ttlFromMs: 9_000,
+          ttlToMs: 9_000,
+          driftCellsPerSecond: 0,
+          windX: 2,
+          windY: 0,
+        },
+      ),
     ]);
     system.advance(1_000);
     const born = system.read(0, blank());
@@ -216,12 +208,15 @@ describe("living and dying", () => {
     // it has to stay exactly the straight-up column it always was.
     const system = new ParticleSystem(fixed(0.5));
     system.setEmitters([
-      emitter({}, {
-        ratePerSecond: 1,
-        ttlFromMs: 9_000,
-        ttlToMs: 9_000,
-        driftCellsPerSecond: 0,
-      }),
+      emitter(
+        {},
+        {
+          ratePerSecond: 1,
+          ttlFromMs: 9_000,
+          ttlToMs: 9_000,
+          driftCellsPerSecond: 0,
+        },
+      ),
     ]);
     system.advance(1_000);
     system.advance(2_000);
@@ -248,9 +243,7 @@ describe("plumes coming and going", () => {
 
   it("lets the last sparks finish after the status ends", () => {
     const system = new ParticleSystem(fixed(0));
-    system.setEmitters([
-      emitter({}, { ratePerSecond: 2, ttlFromMs: 1_000, ttlToMs: 1_000 }),
-    ]);
+    system.setEmitters([emitter({}, { ratePerSecond: 2, ttlFromMs: 1_000, ttlToMs: 1_000 })]);
     system.advance(1_000);
     expect(system.count).toBe(2);
 
@@ -271,16 +264,22 @@ describe("plumes coming and going", () => {
     // everything after it, and a particle left pointing at the old slot would
     // draw in another plume's colours at another plume's depth.
     const system = new ParticleSystem(fixed(0));
-    const shortLived = emitter({ id: "a" }, {
-      ratePerSecond: 1,
-      ttlFromMs: 400,
-      ttlToMs: 400,
-    });
-    const lasting = emitter({ id: "b", stackBias: 99, z: 7 }, {
-      ratePerSecond: 1,
-      ttlFromMs: 9_000,
-      ttlToMs: 9_000,
-    });
+    const shortLived = emitter(
+      { id: "a" },
+      {
+        ratePerSecond: 1,
+        ttlFromMs: 400,
+        ttlToMs: 400,
+      },
+    );
+    const lasting = emitter(
+      { id: "b", stackBias: 99, z: 7 },
+      {
+        ratePerSecond: 1,
+        ttlFromMs: 9_000,
+        ttlToMs: 9_000,
+      },
+    );
     system.setEmitters([shortLived, lasting]);
     system.advance(1_000);
     expect(system.count).toBe(2);

@@ -3,12 +3,7 @@ import tilesJson from "../../data/tiles.json";
 import { normalizeTiles } from "./types";
 import { resolveBattler } from "./battler";
 import { pileMax } from "./item";
-import {
-  ENGRAVING_TOKEN,
-  UNKNOWN_ENGRAVING,
-  engravedName,
-  isEngravable,
-} from "./engraving";
+import { ENGRAVING_TOKEN, UNKNOWN_ENGRAVING, engravedName, isEngravable } from "./engraving";
 
 /**
  * A name with somebody's name written into it.
@@ -21,24 +16,16 @@ import {
 
 describe("engravedName", () => {
   it("puts the engraving where the token is", () => {
-    expect(engravedName(`${ENGRAVING_TOKEN}'s skull`, "Green Fox")).toBe(
-      "Green Fox's skull",
-    );
+    expect(engravedName(`${ENGRAVING_TOKEN}'s skull`, "Green Fox")).toBe("Green Fox's skull");
   });
 
   it("fills the hole with somebody when nobody wrote in it", () => {
-    expect(engravedName(`${ENGRAVING_TOKEN}'s skull`)).toBe(
-      `${UNKNOWN_ENGRAVING}'s skull`,
-    );
-    expect(engravedName(`${ENGRAVING_TOKEN}'s skull`, "   ")).toBe(
-      `${UNKNOWN_ENGRAVING}'s skull`,
-    );
+    expect(engravedName(`${ENGRAVING_TOKEN}'s skull`)).toBe(`${UNKNOWN_ENGRAVING}'s skull`);
+    expect(engravedName(`${ENGRAVING_TOKEN}'s skull`, "   ")).toBe(`${UNKNOWN_ENGRAVING}'s skull`);
   });
 
   it("trims what was written, because a name is not its whitespace", () => {
-    expect(engravedName(`${ENGRAVING_TOKEN}'s skull`, " Green Fox ")).toBe(
-      "Green Fox's skull",
-    );
+    expect(engravedName(`${ENGRAVING_TOKEN}'s skull`, " Green Fox ")).toBe("Green Fox's skull");
   });
 
   /** The property every other tile in the world depends on. */
@@ -48,9 +35,9 @@ describe("engravedName", () => {
   });
 
   it("fills every hole, so a name may say it twice", () => {
-    expect(
-      engravedName(`${ENGRAVING_TOKEN}, by ${ENGRAVING_TOKEN}`, "Green Fox"),
-    ).toBe("Green Fox, by Green Fox");
+    expect(engravedName(`${ENGRAVING_TOKEN}, by ${ENGRAVING_TOKEN}`, "Green Fox")).toBe(
+      "Green Fox, by Green Fox",
+    );
   });
 });
 

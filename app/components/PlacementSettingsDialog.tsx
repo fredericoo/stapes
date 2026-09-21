@@ -10,14 +10,7 @@ import {
 } from "../lib/engraving";
 import { MAX_REWARD_ITEMS } from "../lib/interactions";
 import { useEditorStore } from "../editor/store";
-import {
-  Button,
-  Dialog,
-  FieldLabel,
-  Input,
-  OptionalNumberInput,
-  Textarea,
-} from "../ui";
+import { Button, Dialog, FieldLabel, Input, OptionalNumberInput, Textarea } from "../ui";
 import { ContainerContentsField } from "./ContainerContentsField";
 import { TileIdMultiSelect } from "./TileIdMultiSelect";
 
@@ -143,9 +136,7 @@ export function PlacementSettingsDialog({
   const [description, setDescription] = useState(placed.description ?? "");
   const [engraved, setEngraved] = useState(placed.engraved ?? "");
   const [rewardTag, setRewardTag] = useState(placed.rewardTag ?? "");
-  const [rewardTileIds, setRewardTileIds] = useState<string[]>(
-    placed.rewardTileIds ?? [],
-  );
+  const [rewardTileIds, setRewardTileIds] = useState<string[]>(placed.rewardTileIds ?? []);
   // Held as typed rather than as a `Coord`, because a field being cleared while
   // somebody retypes it is not a destination of zero — the same reason the text
   // fields above hold strings. `readDestination` is what turns the three back
@@ -155,9 +146,7 @@ export function PlacementSettingsDialog({
   );
   // Held as a draft like everything else here, so a chest filled and emptied
   // again while the dialog is open is one undo entry and not six.
-  const [contents, setContents] = useState<ItemInstance[]>(
-    () => placed.contents ?? [],
-  );
+  const [contents, setContents] = useState<ItemInstance[]>(() => placed.contents ?? []);
 
   // Off the tile's own name rather than a flag on the def: a name with `%s` in
   // it *is* the declaration that this kind of thing is somebody's. One fact,
@@ -210,8 +199,7 @@ export function PlacementSettingsDialog({
             autoFocus
           />
           <span className="text-[11px] leading-snug text-muted">
-            Read out to anybody standing next to it, like a sign. Belongs to the
-            cell, not the tile.
+            Read out to anybody standing next to it, like a sign. Belongs to the cell, not the tile.
           </span>
         </label>
 
@@ -225,8 +213,8 @@ export function PlacementSettingsDialog({
             onChange={(e) => setDescription(e.target.value)}
           />
           <span className="text-[11px] leading-snug text-muted">
-            Only on the item card and on shift-look — never recited to
-            passers-by. Belongs to the cell, not the tile.
+            Only on the item card and on shift-look — never recited to passers-by. Belongs to the
+            cell, not the tile.
           </span>
         </label>
 
@@ -305,16 +293,12 @@ export function PlacementSettingsDialog({
               <div className="flex gap-2">
                 {DESTINATION_AXES.map((axis) => (
                   <label key={axis} className="flex flex-1 flex-col gap-1">
-                    <span className="font-bold uppercase text-muted">
-                      {axis}
-                    </span>
+                    <span className="font-bold uppercase text-muted">{axis}</span>
                     <OptionalNumberInput
                       step={1}
                       // The level bounds only, and only on z: x and y run as far
                       // as the world does, which nothing here knows.
-                      {...(axis === "z"
-                        ? { min: MIN_LEVEL, max: MAX_LEVEL }
-                        : {})}
+                      {...(axis === "z" ? { min: MIN_LEVEL, max: MAX_LEVEL } : {})}
                       placeholder="0"
                       // The draft keeps strings so a blank axis stays blank —
                       // see `readDestination`. Only a whole number ever comes

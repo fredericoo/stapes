@@ -39,17 +39,13 @@ import {
 describe("requirementCoverage", () => {
   it("agrees with the capped share right up to the requirement", () => {
     const asks = { arcane: 8, fire: 2 };
-    expect(requirementCoverage({ arcane: 8, fire: 2 }, asks)).toBe(
-      REQUIREMENTS_MET,
-    );
+    expect(requirementCoverage({ arcane: 8, fire: 2 }, asks)).toBe(REQUIREMENTS_MET);
     expect(requirementCoverage({ arcane: 4, fire: 1 }, asks)).toBe(0.5);
   });
 
   it("counts the surplus, where the capped share throws it away", () => {
     const asks = { arcane: 8, fire: 2 };
-    expect(requirementShare({ arcane: 16, fire: 4 }, asks)).toBe(
-      REQUIREMENTS_MET,
-    );
+    expect(requirementShare({ arcane: 16, fire: 4 }, asks)).toBe(REQUIREMENTS_MET);
     expect(requirementCoverage({ arcane: 16, fire: 4 }, asks)).toBe(2);
   });
 
@@ -60,14 +56,11 @@ describe("requirementCoverage", () => {
    * over the line everywhere.
    */
   it("pools the surplus across the block", () => {
-    expect(requirementCoverage({ arcane: 11, fire: 2 }, { arcane: 8, fire: 2 }))
-      .toBeCloseTo(1.3);
+    expect(requirementCoverage({ arcane: 11, fire: 2 }, { arcane: 8, fire: 2 })).toBeCloseTo(1.3);
   });
 
   it("is fully met by a stone that asks nothing, however good the caster", () => {
-    expect(requirementCoverage({ arcane: 100 }, undefined)).toBe(
-      REQUIREMENTS_MET,
-    );
+    expect(requirementCoverage({ arcane: 100 }, undefined)).toBe(REQUIREMENTS_MET);
     expect(requirementCoverage({ arcane: 100 }, {})).toBe(REQUIREMENTS_MET);
   });
 });
@@ -104,12 +97,8 @@ describe("requirementShare", () => {
    * and back would count a requirement nobody wrote.
    */
   it("ignores a requirement of zero rather than counting it", () => {
-    expect(requirementShare({ sharp: 10 }, { sharp: 0, blunt: 0 })).toBe(
-      REQUIREMENTS_MET,
-    );
-    expect(
-      requirementShare({ sharp: 10, blunt: 10 }, { sharp: 0, blunt: 20 }),
-    ).toBe(0.5);
+    expect(requirementShare({ sharp: 10 }, { sharp: 0, blunt: 0 })).toBe(REQUIREMENTS_MET);
+    expect(requirementShare({ sharp: 10, blunt: 10 }, { sharp: 0, blunt: 20 })).toBe(0.5);
   });
 
   it("is one when the wielder exactly meets what is asked", () => {
@@ -125,10 +114,7 @@ describe("requirementShare", () => {
   it("pools every requirement rather than taking the worst", () => {
     const wielder = { blunt: 35, toughness: 10 };
     // 35 of 35 Blunt and 10 of 20 Toughness: 45 of the 55 points asked.
-    expect(requirementShare(wielder, { blunt: 35, toughness: 20 })).toBeCloseTo(
-      45 / 55,
-      10,
-    );
+    expect(requirementShare(wielder, { blunt: 35, toughness: 20 })).toBeCloseTo(45 / 55, 10);
   });
 
   /**
@@ -266,9 +252,10 @@ describe("rating", () => {
   /** The weights sum to one, which is what puts ⭐ on the mastery scale. */
   it("rates a body that is 40 at everything at 40", () => {
     const even = Object.fromEntries(
-      ["fist", "sharp", "blunt", "ranged", "arcane", "toughness", "agility"].map(
-        (mastery) => [mastery, 40],
-      ),
+      ["fist", "sharp", "blunt", "ranged", "arcane", "toughness", "agility"].map((mastery) => [
+        mastery,
+        40,
+      ]),
     );
     expect(rating(even)).toBe(40);
   });
@@ -412,10 +399,7 @@ describe("spellElements", () => {
 
   it("names every element the requirements name, however small", () => {
     expect(spellElements({ arcane: 2, fire: 1 })).toEqual(["fire"]);
-    expect(spellElements({ arcane: 15, water: 8, nature: 8 })).toEqual([
-      "water",
-      "nature",
-    ]);
+    expect(spellElements({ arcane: 15, water: 8, nature: 8 })).toEqual(["water", "nature"]);
   });
 
   it("ignores an element written as nothing, exactly as every requirement does", () => {

@@ -66,10 +66,7 @@ export function strikeLean(progress: number): number {
  * Rounded, because a sprite drawn on a half pixel is a sprite whose every edge
  * is soft for the length of a fight.
  */
-export function strikeOffset(
-  strike: StrikeState,
-  progress: number,
-): { ox: number; oy: number } {
+export function strikeOffset(strike: StrikeState, progress: number): { ox: number; oy: number } {
   const elevPx = strike.dElev * PX_PER_HEIGHT;
   const towardX = strike.dx * CELL_SIZE - elevPx;
   const towardY = strike.dy * CELL_SIZE - elevPx;

@@ -111,8 +111,7 @@ function shadowOf(litByFrame: boolean[][][], frame: number): boolean[][] {
   for (let y = 0; y < CELL; y++) {
     for (let x = 0; x < CELL; x++) {
       if (lit[y]![x]!) continue;
-      const step =
-        (x === 0 ? -PHASE.x : 0) + (y === 0 ? -PHASE.y : 0);
+      const step = (x === 0 ? -PHASE.x : 0) + (y === 0 ? -PHASE.y : 0);
       const source = litByFrame[(((frame + step) % count) + count) % count]!;
       if (source[(y + CELL - 1) % CELL]![(x + CELL - 1) % CELL]!) {
         out[y]![x] = true;
@@ -234,9 +233,7 @@ function setPixel(png: PNG, x: number, y: number, rgba: readonly number[]) {
 
 /** The 4x4 source cell each of the 47 slices takes, read off the ground autotile. */
 async function sliceCells(): Promise<Map<number, { x: number; y: number }>> {
-  const tiles = JSON.parse(
-    await fs.readFile(path.join(DATA, "tiles.json"), "utf8"),
-  ) as TileDef[];
+  const tiles = JSON.parse(await fs.readFile(path.join(DATA, "tiles.json"), "utf8")) as TileDef[];
   const source = tiles.find((t) => t.id === SHAPE_SOURCE_TILE);
   if (!source?.slices) throw new Error(`no slices on ${SHAPE_SOURCE_TILE}`);
 
@@ -290,11 +287,7 @@ async function main() {
     const cell = cells.get(slice)!;
     const inside = Array.from({ length: CELL }, (_, y) =>
       Array.from({ length: CELL }, (_, x) => {
-        const [r, g, b, a] = pixel(
-          floors,
-          (SHAPE_BLOCK_X + cell.x) * CELL + x,
-          cell.y * CELL + y,
-        );
+        const [r, g, b, a] = pixel(floors, (SHAPE_BLOCK_X + cell.x) * CELL + x, cell.y * CELL + y);
         return a > 0 && r === SHAPE_FILL[0] && g === SHAPE_FILL[1] && b === SHAPE_FILL[2];
       }),
     );

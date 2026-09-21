@@ -4,12 +4,7 @@ import type { ObjectRef } from "../game/GameSession";
 import type { MapFile, TileDef } from "../lib/types";
 import { CELL_SIZE, coordKey, normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import {
-  footRect,
-  pickBodyAt,
-  pickInteractiveAt,
-  pickTileAt,
-} from "./pick";
+import { footRect, pickBodyAt, pickInteractiveAt, pickTileAt } from "./pick";
 
 /**
  * Picking is by the tile's foot, not by its art.
@@ -22,9 +17,7 @@ import {
  */
 const SPRAWLING_SPRITE_CELLS = 4;
 
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
+function tile(partial: Record<string, unknown> & Pick<TileDef, "id" | "height">): TileDef {
   return normalizeTileDef({
     name: partial.id,
     directional: false,
@@ -125,10 +118,7 @@ function onFoot(ref: { x: number; y: number; z: number }) {
 describe("pickInteractiveAt", () => {
   /** Two crates in neighbouring cells; (1,0) is drawn in front of (0,0). */
   function twoCrates(): MapFile {
-    let map = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "crate" },
-    ]);
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "crate" }]);
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "crate" }]);
     return map;
   }
@@ -205,9 +195,7 @@ describe("pickInteractiveAt", () => {
     const ladder: ObjectRef = { x: 0, y: 0, z: 0, stackIndex: 1 };
     const p = onFoot(ladder);
 
-    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0, sameRef(ladder))).toEqual(
-      ladder,
-    );
+    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0, sameRef(ladder))).toEqual(ladder);
   });
 
   /** Flat things are not cover either — the same rule pick-up already takes. */
@@ -224,9 +212,7 @@ describe("pickInteractiveAt", () => {
     // Both are pickable, so the one on top answers — until only the door has a
     // row, and then the coin is no more of an obstacle than the floor is.
     expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0)).toEqual(coin);
-    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0, sameRef(door))).toEqual(
-      door,
-    );
+    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0, sameRef(door))).toEqual(door);
   });
 
   it("still refuses what a body is standing on under a crate", () => {
@@ -241,10 +227,7 @@ describe("pickInteractiveAt", () => {
   });
 
   it("finds a switch-only tile", () => {
-    const map = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "door-closed" },
-    ]);
+    const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "door-closed" }]);
     const p = onFoot({ x: 0, y: 0, z: 0 });
     expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0)).toEqual({
       x: 0,
@@ -263,18 +246,9 @@ describe("pickInteractiveAt", () => {
   describe("across levels", () => {
     /** One crate per level, each on its own cell so no two feet overlap. */
     function crateOnEachLevel(): MapFile {
-      let map = replaceStack(emptyMap(), 0, 0, 0, [
-        { tileId: "grass" },
-        { tileId: "crate" },
-      ]);
-      map = replaceStack(map, 5, 0, 1, [
-        { tileId: "grass" },
-        { tileId: "crate" },
-      ]);
-      map = replaceStack(map, 9, 0, 2, [
-        { tileId: "grass" },
-        { tileId: "crate" },
-      ]);
+      let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "crate" }]);
+      map = replaceStack(map, 5, 0, 1, [{ tileId: "grass" }, { tileId: "crate" }]);
+      map = replaceStack(map, 9, 0, 2, [{ tileId: "grass" }, { tileId: "crate" }]);
       return map;
     }
 
@@ -306,14 +280,8 @@ describe("pickInteractiveAt", () => {
      * `CELL_SIZE` up-left, so (1,1,1) and (0,0,0) share a foot square.
      */
     function stackedLevels(): MapFile {
-      let map = replaceStack(emptyMap(), 0, 0, 0, [
-        { tileId: "grass" },
-        { tileId: "crate" },
-      ]);
-      map = replaceStack(map, 1, 1, 1, [
-        { tileId: "grass" },
-        { tileId: "crate" },
-      ]);
+      let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "crate" }]);
+      map = replaceStack(map, 1, 1, 1, [{ tileId: "grass" }, { tileId: "crate" }]);
       return map;
     }
 
@@ -336,27 +304,20 @@ describe("pickInteractiveAt", () => {
     it("reaches past an inert one to the one that can be acted on", () => {
       const map = stackedLevels();
       const p = sharedPoint();
-      expect(
-        pickInteractiveAt(ctx(map), p.x, p.y, 0, 1, sameRef(lower)),
-      ).toEqual(lower);
+      expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 1, sameRef(lower))).toEqual(lower);
     });
 
     it("still prefers the frontmost when both can be acted on", () => {
       const map = stackedLevels();
       const p = sharedPoint();
-      expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 1, () => true)).toEqual(
-        upper,
-      );
+      expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 1, () => true)).toEqual(upper);
     });
   });
 });
 
 describe("pickBodyAt", () => {
   it("finds a body with hit points", () => {
-    const map = replaceStack(emptyMap(), 2, 2, 0, [
-      { tileId: "grass" },
-      { tileId: "cat" },
-    ]);
+    const map = replaceStack(emptyMap(), 2, 2, 0, [{ tileId: "grass" }, { tileId: "cat" }]);
     const p = onFoot({ x: 2, y: 2, z: 0 });
     expect(pickBodyAt(ctx(map), p.x, p.y, 0, 1)).toEqual({
       x: 2,
@@ -368,10 +329,7 @@ describe("pickBodyAt", () => {
 
   /** The shipped salesman: a prop with a dialog and no hit points. */
   it("finds a body with only a dialog", () => {
-    const map = replaceStack(emptyMap(), 2, 2, 0, [
-      { tileId: "grass" },
-      { tileId: "salesman" },
-    ]);
+    const map = replaceStack(emptyMap(), 2, 2, 0, [{ tileId: "grass" }, { tileId: "salesman" }]);
     const p = onFoot({ x: 2, y: 2, z: 0 });
     expect(pickBodyAt(ctx(map), p.x, p.y, 0, 1)).toEqual({
       x: 2,
@@ -382,10 +340,7 @@ describe("pickBodyAt", () => {
   });
 
   it("passes over a thing you can act on but cannot fight", () => {
-    const map = replaceStack(emptyMap(), 2, 2, 0, [
-      { tileId: "grass" },
-      { tileId: "crate" },
-    ]);
+    const map = replaceStack(emptyMap(), 2, 2, 0, [{ tileId: "grass" }, { tileId: "crate" }]);
     const p = onFoot({ x: 2, y: 2, z: 0 });
     expect(pickBodyAt(ctx(map), p.x, p.y, 0, 1)).toBeNull();
   });
@@ -401,10 +356,7 @@ describe("pickTileAt", () => {
   });
 
   it("names the top of the stack, never what is buried under it", () => {
-    const map = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "crate" },
-    ]);
+    const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "crate" }]);
     const top: ObjectRef = { x: 0, y: 0, z: 0, stackIndex: 1 };
     const p = onFoot(top);
 
@@ -421,10 +373,7 @@ describe("pickTileAt", () => {
    * Taking the square at the ground instead leaves the whole cell live.
    */
   it("answers everywhere on the cell, however high the stack is", () => {
-    const map = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "slab" },
-      { tileId: "crate" },
-    ]);
+    const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "slab" }, { tileId: "crate" }]);
     const crate: ObjectRef = { x: 0, y: 0, z: 0, stackIndex: 1 };
     const foot = footRect(0, 0, 0);
 

@@ -40,20 +40,14 @@ export class LocalSocket implements ClientSocket {
 
   addEventListener(type: "message", listener: MessageListener): void;
   addEventListener(type: "close", listener: CloseListener): void;
-  addEventListener(
-    type: "message" | "close",
-    listener: MessageListener | CloseListener,
-  ): void {
+  addEventListener(type: "message" | "close", listener: MessageListener | CloseListener): void {
     if (type === "message") this.messageListeners.add(listener as MessageListener);
     else this.closeListeners.add(listener as CloseListener);
   }
 
   removeEventListener(type: "message", listener: MessageListener): void;
   removeEventListener(type: "close", listener: CloseListener): void;
-  removeEventListener(
-    type: "message" | "close",
-    listener: MessageListener | CloseListener,
-  ): void {
+  removeEventListener(type: "message" | "close", listener: MessageListener | CloseListener): void {
     if (type === "message") this.messageListeners.delete(listener as MessageListener);
     else this.closeListeners.delete(listener as CloseListener);
   }

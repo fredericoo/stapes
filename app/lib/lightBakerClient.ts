@@ -6,11 +6,7 @@
  * nothing and everything bakes inline exactly as it always did.
  */
 import type { BakedChunk, ChunkBaker, WorldRect } from "./lightingChunks";
-import {
-  type BakerRequest,
-  type BakerResponse,
-  diffMapChunks,
-} from "./lightBakerProtocol";
+import { type BakerRequest, type BakerResponse, diffMapChunks } from "./lightBakerProtocol";
 import type { MapFile, TileDef } from "./types";
 
 /**
@@ -39,12 +35,10 @@ export class WorkerChunkBaker implements ChunkBaker {
   private mirrored: MapFile | null = null;
 
   constructor(tiles: TileDef[], omit: ReadonlySet<string>, map: MapFile) {
-    this.worker = new Worker(
-      new URL("./lightBaker.worker.ts", import.meta.url),
-      { type: "module" },
-    );
-    this.worker.onmessage = (event: MessageEvent<BakerResponse>) =>
-      this.onMessage(event.data);
+    this.worker = new Worker(new URL("./lightBaker.worker.ts", import.meta.url), {
+      type: "module",
+    });
+    this.worker.onmessage = (event: MessageEvent<BakerResponse>) => this.onMessage(event.data);
     // A worker that died takes every request in flight with it. Failing them
     // leaves the cache with stale chunks it will ask about again, which is the
     // same state a refused bake leaves behind — so a broken worker degrades to

@@ -191,10 +191,7 @@ function gapSquared(a: PileOffset, b: PileOffset): number {
  * widest disc here, and asked once per distinct count thanks to
  * {@link pileOffsets}' memo.
  */
-function spreadInDisc(
-  candidates: readonly PileOffset[],
-  count: number,
-): PileOffset[] {
+function spreadInDisc(candidates: readonly PileOffset[], count: number): PileOffset[] {
   const taken: PileOffset[] = [];
   const left = [...candidates];
 
@@ -321,7 +318,4 @@ export function pileRings(
  * Asked once per distinct count, on {@link memo}'s terms and for its reasons
  * — more so here, since a ring's peer list is quadratic in the count.
  */
-const ringMemo = new Map<
-  number,
-  readonly { at: PileOffset; peers: readonly PileOffset[] }[]
->();
+const ringMemo = new Map<number, readonly { at: PileOffset; peers: readonly PileOffset[] }[]>();

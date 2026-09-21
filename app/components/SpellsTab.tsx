@@ -1,18 +1,9 @@
 import type { BattlerDef, NaturalSpell } from "../lib/battler";
-import {
-  DEFAULT_BATTLER,
-  DEFAULT_SPELL_NAME,
-  MAX_SPELL_NAME_LENGTH,
-} from "../lib/battler";
+import { DEFAULT_BATTLER, DEFAULT_SPELL_NAME, MAX_SPELL_NAME_LENGTH } from "../lib/battler";
 import { DEFAULT_STONE } from "../lib/item";
 import { hasAnyInteraction, type TileInteractions } from "../lib/interactions";
 import type { StatusDef } from "../lib/status";
-import {
-  type AnchoredSprite,
-  defaultBase,
-  type TileDef,
-  type TilesetDef,
-} from "../lib/types";
+import { type AnchoredSprite, defaultBase, type TileDef, type TilesetDef } from "../lib/types";
 import { Button, FieldLabel, Input, SectionTitle, Select } from "../ui";
 import { SpriteSelector } from "./SpriteSelector";
 import { StoneFields } from "./StoneFields";
@@ -120,13 +111,7 @@ function IconField({
   );
 }
 
-export function SpellsTab({
-  draft,
-  onChange,
-  tiles,
-  tilesets,
-  statusDefs = {},
-}: Props) {
+export function SpellsTab({ draft, onChange, tiles, tilesets, statusDefs = {} }: Props) {
   const battler = draft.interactions?.battler ?? DEFAULT_BATTLER;
   const spells = battler.spells ?? [];
 
@@ -144,9 +129,7 @@ export function SpellsTab({
     setBattler({ ...battler, spells: next.length ? next : undefined });
 
   const patchSpell = (index: number, fields: Partial<NaturalSpell>) =>
-    setSpells(
-      spells.map((spell, i) => (i === index ? { ...spell, ...fields } : spell)),
-    );
+    setSpells(spells.map((spell, i) => (i === index ? { ...spell, ...fields } : spell)));
 
   return (
     <div className="flex flex-col gap-4">

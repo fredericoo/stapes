@@ -1,7 +1,4 @@
-import {
-  pickAutotileSprite,
-  resolveAutotileSlice,
-} from "./autotile";
+import { pickAutotileSprite, resolveAutotileSlice } from "./autotile";
 import { pickScatterSprite, resolveScatterIndex } from "./scatter";
 import { pickVariantSprite, variantKeys } from "./variant";
 import {
@@ -25,10 +22,7 @@ import {
  * `idle` is never looked up: it *is* the def's inline sprites, so asking for it
  * here would be asking `states.idle` to exist. See {@link TileDef.states}.
  */
-function overrideFor(
-  tile: TileDef,
-  state: SpriteState | undefined,
-): StateSprites | undefined {
+function overrideFor(tile: TileDef, state: SpriteState | undefined): StateSprites | undefined {
   if (state == null || state === "idle") return undefined;
   return tile.states?.[state];
 }

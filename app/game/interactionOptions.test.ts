@@ -325,10 +325,7 @@ describe("listInteractionOptions — objects", () => {
    */
   it("says nothing about a crate a floor down under solid ground", () => {
     let map = field();
-    map = replaceStack(map, 1, 0, -1, [
-      { tileId: "grass" },
-      { tileId: "crate" },
-    ]);
+    map = replaceStack(map, 1, 0, -1, [{ tileId: "grass" }, { tileId: "crate" }]);
     const me = playerAt(map);
 
     expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
@@ -338,10 +335,7 @@ describe("listInteractionOptions — objects", () => {
   it("offers a push on a crate a floor down where that ground is missing", () => {
     let map = field();
     map = replaceStack(map, 1, 0, 0, []);
-    map = replaceStack(map, 1, 0, -1, [
-      { tileId: "grass" },
-      { tileId: "crate" },
-    ]);
+    map = replaceStack(map, 1, 0, -1, [{ tileId: "grass" }, { tileId: "crate" }]);
     // Somewhere for the shove to land, a cellar being one floor rather than
     // one cell.
     map = replaceStack(map, 2, 0, -1, [{ tileId: "grass" }]);
@@ -355,10 +349,7 @@ describe("listInteractionOptions — objects", () => {
   /** The door that started it: shut from the storey above, through the floor. */
   it("says nothing about a door a floor down under solid ground", () => {
     let map = field();
-    map = replaceStack(map, 1, 0, -1, [
-      { tileId: "grass" },
-      { tileId: "door_shut" },
-    ]);
+    map = replaceStack(map, 1, 0, -1, [{ tileId: "grass" }, { tileId: "door_shut" }]);
     const me = playerAt(map);
 
     expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
@@ -367,10 +358,7 @@ describe("listInteractionOptions — objects", () => {
   it("offers a door a floor down where that ground is missing", () => {
     let map = field();
     map = replaceStack(map, 1, 0, 0, []);
-    map = replaceStack(map, 1, 0, -1, [
-      { tileId: "grass" },
-      { tileId: "door_shut" },
-    ]);
+    map = replaceStack(map, 1, 0, -1, [{ tileId: "grass" }, { tileId: "door_shut" }]);
     const me = playerAt(map);
 
     const targets = listInteractionOptions(map, tilesById, me, [me], null, KIT);
@@ -548,10 +536,28 @@ describe("listInteractionOptions — battlers", () => {
     const deer = actor("npc:deer", "deer", 1, 0, map, 10);
 
     const peaceful = listInteractionOptions(
-      map, tilesById, me, [me, deer], "npc:deer", KIT, null, [], null, false,
+      map,
+      tilesById,
+      me,
+      [me, deer],
+      "npc:deer",
+      KIT,
+      null,
+      [],
+      null,
+      false,
     );
     const armed = listInteractionOptions(
-      map, tilesById, me, [me, deer], "npc:deer", KIT, null, [], null, true,
+      map,
+      tilesById,
+      me,
+      [me, deer],
+      "npc:deer",
+      KIT,
+      null,
+      [],
+      null,
+      true,
     );
 
     const lit = (options: InteractionOption[]) =>
@@ -575,14 +581,7 @@ describe("listInteractionOptions — battlers", () => {
     const me = playerAt(map);
     const deer = actor("npc:deer", "deer", 1, 0, map, 10);
 
-    const targets = listInteractionOptions(
-      map,
-      tilesById,
-      me,
-      [me, deer],
-      "npc:deer",
-      KIT,
-    );
+    const targets = listInteractionOptions(map, tilesById, me, [me, deer], "npc:deer", KIT);
 
     // The watching half of the pair is lit, since nothing said a sword was out.
     expect(targets[0]!.action).toBe("target");
@@ -668,9 +667,7 @@ describe("listInteractionOptions — battlers", () => {
     const me = playerAt(map);
     const inert = actor("npc:deer", "deer", 1, 0, map, null);
 
-    expect(
-      listInteractionOptions(map, tilesById, me, [me, inert], null, KIT),
-    ).toEqual([]);
+    expect(listInteractionOptions(map, tilesById, me, [me, inert], null, KIT)).toEqual([]);
   });
 });
 
@@ -751,12 +748,7 @@ describe("listInteractionOptions — ordering", () => {
 
     const targets = listInteractionOptions(map, tilesById, me, [me, deer], null, KIT);
 
-    expect(targets.map((o) => o.name)).toEqual([
-      "Crate",
-      "Deer",
-      "Deer",
-      "Deer",
-    ]);
+    expect(targets.map((o) => o.name)).toEqual(["Crate", "Deer", "Deer", "Deer"]);
   });
 
   it("sorts several bodies by how far off they are", () => {
@@ -773,14 +765,7 @@ describe("listInteractionOptions — ordering", () => {
     const mid = actor("npc:mid", "deer", 2, 0, map, 10);
     const near = actor("npc:near", "deer", 1, 0, map, 10);
 
-    const targets = listInteractionOptions(
-      map,
-      tilesById,
-      me,
-      [me, far, mid, near],
-      null,
-      KIT,
-    );
+    const targets = listInteractionOptions(map, tilesById, me, [me, far, mid, near], null, KIT);
 
     // Three rows each, and they stay together: the sort settles distance first
     // and only then which of a body's own verbs comes above the others.
@@ -844,14 +829,7 @@ describe("listInteractionOptions — stability", () => {
     const deer = deerAt("npc:deer", 4, 0, map);
 
     const idle = listInteractionOptions(map, tilesById, me, [me, deer], null, KIT);
-    const engaged = listInteractionOptions(
-      map,
-      tilesById,
-      me,
-      [me, deer],
-      "npc:deer",
-      KIT,
-    );
+    const engaged = listInteractionOptions(map, tilesById, me, [me, deer], "npc:deer", KIT);
 
     expect(idle.map((o) => o.name)).toEqual(["Crate", "Deer", "Deer", "Deer"]);
     expect(engaged.map((o) => o.name)).toEqual(["Deer", "Deer", "Deer", "Crate"]);
@@ -916,14 +894,7 @@ describe("listInteractionOptions — stability", () => {
     const walled = deerAt("npc:a", 3, 0, map);
     const open = deerAt("npc:b", 0, 3, map);
 
-    const targets = listInteractionOptions(
-      map,
-      tilesById,
-      me,
-      [me, walled, open],
-      null,
-      KIT,
-    );
+    const targets = listInteractionOptions(map, tilesById, me, [me, walled, open], null, KIT);
 
     expect(targets.map((o) => o.actorId)).toEqual([
       "npc:b",
@@ -1083,13 +1054,7 @@ describe("listInteractionOptions — stability", () => {
     const grouped = groupInteractionOptions(engaged);
 
     expect(grouped.map((g) => g.options.length)).toEqual([4, 1]);
-    expect(engaged.map((o) => o.action)).toEqual([
-      "target",
-      "attack",
-      "follow",
-      "push",
-      "push",
-    ]);
+    expect(engaged.map((o) => o.action)).toEqual(["target", "attack", "follow", "push", "push"]);
   });
 });
 
@@ -1117,9 +1082,9 @@ describe("listInteractionOptions — picking things up", () => {
     map = place(map, 1, 1, ["grass", "sword"]);
     const me = playerAt(map);
 
-    expect(
-      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, ARMED)),
-    ).toEqual(["pickUp"]);
+    expect(actionsIn(listInteractionOptions(map, tilesById, me, [me], null, ARMED))).toEqual([
+      "pickUp",
+    ]);
   });
 
   it("reaches the cell the player is standing in", () => {
@@ -1127,9 +1092,9 @@ describe("listInteractionOptions — picking things up", () => {
     map = place(map, 0, 0, ["grass", "sword"]);
     const me = playerAt(map);
 
-    expect(
-      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, ARMED)),
-    ).toEqual(["pickUp"]);
+    expect(actionsIn(listInteractionOptions(map, tilesById, me, [me], null, ARMED))).toEqual([
+      "pickUp",
+    ]);
   });
 
   it("does not reach two cells out", () => {
@@ -1137,9 +1102,7 @@ describe("listInteractionOptions — picking things up", () => {
     map = place(map, 2, 0, ["grass", "sword"]);
     const me = playerAt(map);
 
-    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual(
-      [],
-    );
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
   });
 
   it("says nothing about an item buried under something else", () => {
@@ -1147,9 +1110,7 @@ describe("listInteractionOptions — picking things up", () => {
     map = place(map, 1, 0, ["grass", "sword", "rock"]);
     const me = playerAt(map);
 
-    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual(
-      [],
-    );
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
   });
 
   it("says nothing once the bag and both hands are full", () => {
@@ -1162,9 +1123,7 @@ describe("listInteractionOptions — picking things up", () => {
       offhand: { id: "o", tileId: "torch" },
     };
 
-    expect(
-      listInteractionOptions(map, tilesById, me, [me], null, noRoomAnywhere),
-    ).toEqual([]);
+    expect(listInteractionOptions(map, tilesById, me, [me], null, noRoomAnywhere)).toEqual([]);
   });
 
   /**
@@ -1176,9 +1135,10 @@ describe("listInteractionOptions — picking things up", () => {
     map = place(map, 1, 0, ["grass", "cherry"]);
     const me = playerAt(map);
 
-    expect(
-      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, FULL_KIT)),
-    ).toEqual(["pickUp", "consume"]);
+    expect(actionsIn(listInteractionOptions(map, tilesById, me, [me], null, FULL_KIT))).toEqual([
+      "pickUp",
+      "consume",
+    ]);
   });
 
   /** An authored switch is an explicit intent, and wins over lifting the thing. */
@@ -1199,9 +1159,7 @@ describe("listInteractionOptions — picking things up", () => {
     const map = field();
     const me = playerAt(map);
 
-    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual(
-      [],
-    );
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
   });
 });
 
@@ -1219,10 +1177,7 @@ describe("listInteractionOptions — picking things up", () => {
 describe("listInteractionOptions — a tile somebody conjured", () => {
   /** The same sword beside the player, conjured by whoever is named. */
   function litBy(castBy: string): MapFile {
-    return replaceStack(field(), 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "sword", castBy },
-    ]);
+    return replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "sword", castBy }]);
   }
 
   it("names it after the caster", () => {
@@ -1239,14 +1194,7 @@ describe("listInteractionOptions — a tile somebody conjured", () => {
     const me = playerAt(map);
     const deer = actor("npc:1", "deer", 0, 2, map, 10);
 
-    const options = listInteractionOptions(
-      map,
-      tilesById,
-      me,
-      [me, deer],
-      null,
-      ARMED,
-    );
+    const options = listInteractionOptions(map, tilesById, me, [me, deer], null, ARMED);
 
     expect(options.find((o) => o.action === "pickUp")!.name).toBe("Deer's Sword");
   });
@@ -1311,14 +1259,7 @@ describe("listInteractionOptions — bags on the floor", () => {
     const me = playerAt(map);
 
     // Bare-backed, so the bag on the floor is genuinely takeable.
-    const options = listInteractionOptions(
-      map,
-      tilesById,
-      me,
-      [me],
-      null,
-      NO_BAG,
-    );
+    const options = listInteractionOptions(map, tilesById, me, [me], null, NO_BAG);
 
     // Wearing it comes first. The only time both are offered is when your back
     // is bare, which is exactly when you want the bag itself.
@@ -1343,9 +1284,10 @@ describe("listInteractionOptions — bags on the floor", () => {
     map = place(map, 1, 0, ["grass", "bag"]);
     const me = playerAt(map);
 
-    expect(
-      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, KIT)),
-    ).toEqual(["open", "pickUp"]);
+    expect(actionsIn(listInteractionOptions(map, tilesById, me, [me], null, KIT))).toEqual([
+      "open",
+      "pickUp",
+    ]);
   });
 
   it("never offers to pick up a chest, however much room there is", () => {
@@ -1353,9 +1295,9 @@ describe("listInteractionOptions — bags on the floor", () => {
     map = place(map, 1, 0, ["grass", "chest"]);
     const me = playerAt(map);
 
-    expect(
-      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, NO_BAG)),
-    ).toEqual(["open"]);
+    expect(actionsIn(listInteractionOptions(map, tilesById, me, [me], null, NO_BAG))).toEqual([
+      "open",
+    ]);
   });
 
   it("offers open even with a full bag, since looking costs nothing", () => {
@@ -1363,9 +1305,9 @@ describe("listInteractionOptions — bags on the floor", () => {
     map = place(map, 1, 0, ["grass", "chest"]);
     const me = playerAt(map);
 
-    expect(
-      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, FULL_KIT)),
-    ).toEqual(["open"]);
+    expect(actionsIn(listInteractionOptions(map, tilesById, me, [me], null, FULL_KIT))).toEqual([
+      "open",
+    ]);
   });
 
   it("does not offer open for something that is not a container", () => {
@@ -1373,9 +1315,9 @@ describe("listInteractionOptions — bags on the floor", () => {
     map = place(map, 1, 0, ["grass", "sword"]);
     const me = playerAt(map);
 
-    expect(
-      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, ARMED)),
-    ).toEqual(["pickUp"]);
+    expect(actionsIn(listInteractionOptions(map, tilesById, me, [me], null, ARMED))).toEqual([
+      "pickUp",
+    ]);
   });
 });
 
@@ -1428,9 +1370,9 @@ describe("listInteractionOptions — consumables on the floor", () => {
       offhand: { id: "o", tileId: "torch" },
     };
 
-    expect(
-      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, laden)),
-    ).toEqual(["consume"]);
+    expect(actionsIn(listInteractionOptions(map, tilesById, me, [me], null, laden))).toEqual([
+      "consume",
+    ]);
   });
 
   it("does not reach two cells out", () => {
@@ -1438,9 +1380,7 @@ describe("listInteractionOptions — consumables on the floor", () => {
     map = place(map, 2, 0, ["grass", "cherry"]);
     const me = playerAt(map);
 
-    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual(
-      [],
-    );
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
   });
 
   it("says nothing about one buried under something else", () => {
@@ -1448,9 +1388,7 @@ describe("listInteractionOptions — consumables on the floor", () => {
     map = place(map, 1, 0, ["grass", "cherry", "rock"]);
     const me = playerAt(map);
 
-    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual(
-      [],
-    );
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
   });
 });
 
@@ -1495,18 +1433,16 @@ describe("listInteractionOptions — standing on things", () => {
     const map = withBodyOver(field(), 0, 0, ["grass", "chest"], "me");
     const me = actor("me", "player", 0, 0, map);
 
-    expect(
-      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, KIT)),
-    ).toEqual(["open"]);
+    expect(actionsIn(listInteractionOptions(map, tilesById, me, [me], null, KIT))).toEqual([
+      "open",
+    ]);
   });
 
   it("still offers nothing for the body itself", () => {
     const map = withBodyOver(field(), 0, 0, ["grass"], "me");
     const me = actor("me", "player", 0, 0, map);
 
-    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual(
-      [],
-    );
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
   });
 
   /**
@@ -1518,22 +1454,9 @@ describe("listInteractionOptions — standing on things", () => {
     const me = playerAt(map, 0, 0);
     const them = actor("them", "player", 1, 0, map, 10);
 
-    const options = listInteractionOptions(
-      map,
-      tilesById,
-      me,
-      [me, them],
-      null,
-      ARMED,
-    );
+    const options = listInteractionOptions(map, tilesById, me, [me, them], null, ARMED);
 
-    expect(actionsIn(options).sort()).toEqual([
-      "attack",
-      "follow",
-      "pickUp",
-      "push",
-      "target",
-    ]);
+    expect(actionsIn(options).sort()).toEqual(["attack", "follow", "pickUp", "push", "target"]);
   });
 
   it("does not reach under a crate, which is a lid", () => {
@@ -1541,9 +1464,9 @@ describe("listInteractionOptions — standing on things", () => {
     map = place(map, 1, 0, ["grass", "sword", "crate"]);
     const me = playerAt(map);
 
-    expect(
-      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, KIT)),
-    ).toEqual(["push"]);
+    expect(actionsIn(listInteractionOptions(map, tilesById, me, [me], null, KIT))).toEqual([
+      "push",
+    ]);
   });
 });
 
@@ -1559,15 +1482,7 @@ describe("listInteractionOptions — a container already open", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "chest"]);
     const me = playerAt(map);
-    return listInteractionOptions(
-      map,
-      tilesById,
-      me,
-      [me],
-      null,
-      KIT,
-      openedRef,
-    );
+    return listInteractionOptions(map, tilesById, me, [me], null, KIT, openedRef);
   }
 
   it("says Open, unlit, when nothing is open", () => {
@@ -1625,9 +1540,7 @@ describe("topInteractionAt", () => {
     const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
 
     expect(topInteractionAt(optionsAround(map, KIT), ref)?.action).toBe("equip");
-    expect(topInteractionAt(optionsAround(map, ARMED), ref)?.action).toBe(
-      "pickUp",
-    );
+    expect(topInteractionAt(optionsAround(map, ARMED), ref)?.action).toBe("pickUp");
   });
 
   // The other half of the same rule, and the reason the order is easy: wearing
@@ -1795,12 +1708,7 @@ describe("groupInteractionOptions", () => {
     );
 
     expect(groups).toHaveLength(1);
-    expect(actionsIn(groups[0]!.options)).toEqual([
-      "target",
-      "attack",
-      "follow",
-      "push",
-    ]);
+    expect(actionsIn(groups[0]!.options)).toEqual(["target", "attack", "follow", "push"]);
   });
 
   it("keeps two things apart, however near each other they are", () => {
@@ -1813,10 +1721,7 @@ describe("groupInteractionOptions", () => {
       listInteractionOptions(map, tilesById, me, [me], null, KIT),
     );
 
-    expect(groups.map((g) => g.options[0]!.name).sort()).toEqual([
-      "Crate",
-      "Sword",
-    ]);
+    expect(groups.map((g) => g.options[0]!.name).sort()).toEqual(["Crate", "Sword"]);
   });
 
   // The transmute row is the one entry whose subject is not its placement: a
@@ -1846,10 +1751,7 @@ describe("groupInteractionOptions", () => {
       }),
     ]);
 
-    expect(groups.map((g) => g.options[0]!.name)).toEqual([
-      "Raw Meat",
-      "Raw Fish",
-    ]);
+    expect(groups.map((g) => g.options[0]!.name)).toEqual(["Raw Meat", "Raw Fish"]);
   });
 
   // Two people share a tile, and the handle is the only thing that says they
@@ -1873,14 +1775,7 @@ describe("groupInteractionOptions", () => {
     map = place(map, 0, 1, ["grass", "crate"]);
     const me = playerAt(map);
     const them = actor("them", "player", 1, 0, map, 10);
-    const options = listInteractionOptions(
-      map,
-      tilesById,
-      me,
-      [me, them],
-      null,
-      KIT,
-    );
+    const options = listInteractionOptions(map, tilesById, me, [me, them], null, KIT);
 
     const groups = groupInteractionOptions(options);
 
@@ -1991,7 +1886,16 @@ describe("listInteractionOptions — somebody you cannot fight", () => {
   it("lights the lone watch row for the body that is picked", () => {
     const { map, me, them } = twoPlayers(true, false);
     const options = listInteractionOptions(
-      map, tilesById, me, [me, them], "them", KIT, null, [], null, true,
+      map,
+      tilesById,
+      me,
+      [me, them],
+      "them",
+      KIT,
+      null,
+      [],
+      null,
+      true,
     );
 
     expect(options.find((option) => option.action === "target")?.active).toBe(true);
@@ -2015,7 +1919,16 @@ describe("applyInteraction — the fight and the watch", () => {
     const me = playerAt(map);
     const deer = actor("npc:deer", "deer", 1, 0, map, 10);
     return listInteractionOptions(
-      map, tilesById, me, [me, deer], targetId, KIT, null, [], null, attacking,
+      map,
+      tilesById,
+      me,
+      [me, deer],
+      targetId,
+      KIT,
+      null,
+      [],
+      null,
+      attacking,
     );
   }
 

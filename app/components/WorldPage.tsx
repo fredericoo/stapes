@@ -14,10 +14,7 @@ import { type Equipment, emptyEquipment } from "../game/equipment";
 import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import type { MasteryXp } from "../lib/mastery";
 import { bindCastKeys, bindKeyboard, HeldDirections } from "../game/heldDirections";
-import {
-  applyInteraction,
-  type InteractionOption,
-} from "../game/interactionOptions";
+import { applyInteraction, type InteractionOption } from "../game/interactionOptions";
 import { activeStatuses, COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import { useGameAssets } from "../lib/gameAssets";
 import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
@@ -83,13 +80,7 @@ const RESTART_RECONNECT_JITTER_MS = 750;
 /** Guards the reload-on-stale-client path against looping. */
 const RELOADED_FOR_VERSION = "stapes:reloaded-for-version";
 
-type Status =
-  | "connecting"
-  | "live"
-  | "reconnecting"
-  | "restarting"
-  | "outdated"
-  | "replaced";
+type Status = "connecting" | "live" | "reconnecting" | "restarting" | "outdated" | "replaced";
 
 export function WorldPage({
   link,
@@ -156,14 +147,8 @@ export function WorldPage({
   const rendererRef = useRef<GameRenderer | null>(null);
   const inputRef = useRef<HeldDirections | null>(null);
   const sessionRef = useRef<RemoteSession | null>(null);
-  const pressDirection = useCallback(
-    (d: Direction) => inputRef.current?.press(d),
-    [],
-  );
-  const releaseDirection = useCallback(
-    (d: Direction) => inputRef.current?.release(d),
-    [],
-  );
+  const pressDirection = useCallback((d: Direction) => inputRef.current?.press(d), []);
+  const releaseDirection = useCallback((d: Direction) => inputRef.current?.release(d), []);
   // Through a ref for the same reason the directions are: a reconnect swaps the
   // session underneath while the page keeps the callback it was handed.
   const say = useCallback((text: string) => sessionRef.current?.say(text), []);
@@ -181,10 +166,7 @@ export function WorldPage({
       applyInteraction(sessionRef.current, option, rendererRef.current),
     [],
   );
-  const talk = useCallback(
-    (action: TalkAction) => sessionRef.current?.talk(action),
-    [],
-  );
+  const talk = useCallback((action: TalkAction) => sessionRef.current?.talk(action), []);
   // Straight at the renderer rather than through state: an outline is a frame's
   // business, and routing it through React would re-render the page on every
   // row the cursor crosses.
@@ -227,9 +209,7 @@ export function WorldPage({
   }, []);
   // Placeholder until `hello` says what time it is out there. Nobody scrubs it:
   // the hour belongs to the world, not to whoever is looking at it.
-  const [minutesOfDay, setMinutesOfDay] = useState<MinutesOfDay>(
-    DEFAULT_PLAY_MINUTES,
-  );
+  const [minutesOfDay, setMinutesOfDay] = useState<MinutesOfDay>(DEFAULT_PLAY_MINUTES);
   const [stats, setStats] = useState<FrameStats | null>(null);
   // Null while there is no connection to have heard it from, which is not the
   // same as an empty world — an unknown headcount reads as a dash rather than
@@ -242,8 +222,7 @@ export function WorldPage({
   const [masteryXp, setMasteryXp] = useState<MasteryXp>({});
   /** What this player's body can take, and its ⭐. */
   const [vitals, setVitals] = useState<Vitals>(NO_VITALS);
-  const [openedContainer, setOpenedContainer] =
-    useState<OpenedContainer | null>(null);
+  const [openedContainer, setOpenedContainer] = useState<OpenedContainer | null>(null);
   /**
    * The stones this player could press, as the render loop last worked them out.
    *
@@ -264,8 +243,7 @@ export function WorldPage({
   // than by the server: both ends run the same rules, so a slot can light up the
   // instant the pointer is over it instead of a round trip later.
   const canMoveItem = useCallback(
-    (from: SlotRef, to: SlotRef) =>
-      sessionRef.current?.canMoveItem(from, to) ?? false,
+    (from: SlotRef, to: SlotRef) => sessionRef.current?.canMoveItem(from, to) ?? false,
     [],
   );
   const moveItem = useCallback((from: SlotRef, to: SlotRef) => {
@@ -303,14 +281,11 @@ export function WorldPage({
   );
   // Which cell a point is over is the renderer's question; what to do about it
   // is the session's. Neither knows the other, so the page asks both.
-  const dropOnWorld = useCallback(
-    (from: SlotRef, point: { x: number; y: number }) => {
-      const cell = rendererRef.current?.dropCellAt(point.x, point.y);
-      if (cell) sessionRef.current?.drop(from, cell);
-      rendererRef.current?.setDropGhost(null);
-    },
-    [],
-  );
+  const dropOnWorld = useCallback((from: SlotRef, point: { x: number; y: number }) => {
+    const cell = rendererRef.current?.dropCellAt(point.x, point.y);
+    if (cell) sessionRef.current?.drop(from, cell);
+    rendererRef.current?.setDropGhost(null);
+  }, []);
 
   const [lightingEnabled, setLightingEnabled] = useState(true);
   // Mirrored into a ref because the cast keys are bound once, with the socket,
@@ -480,9 +455,7 @@ export function WorldPage({
       // The renderer runs the clock forward from one anchor, so a `/time` has
       // to reach it as a new anchor. Before the first `hello` there is no
       // renderer yet, and `setOnReady` below reads the hour for itself.
-      remote.setOnClockSet((minutes) =>
-        rendererRef.current?.setMinutesOfDay(minutes),
-      );
+      remote.setOnClockSet((minutes) => rendererRef.current?.setMinutesOfDay(minutes));
 
       // The renderer only starts once there is a world: it centres on the
       // viewer's own actor, and before `hello` there is nobody to centre on.
@@ -490,13 +463,7 @@ export function WorldPage({
         if (disposed || renderer) return;
         attempt = 0;
         setStatus("live");
-        renderer = new GameRenderer(
-          canvas,
-          remote,
-          tilesets,
-          tiles,
-          labelRef.current,
-        );
+        renderer = new GameRenderer(canvas, remote, tilesets, tiles, labelRef.current);
         // Before the first frame: a renderer that draws once without a catalogue
         // draws a poisoned body untinted, and the correction on the next frame
         // is a visible flicker on the frame a player is most likely watching.
@@ -545,8 +512,7 @@ export function WorldPage({
         // number of reloads will make it one. Either way the screen takes over
         // and says which. @see ./OutdatedScreen
         if (event.code === CLOSE_OUTDATED_CLIENT) {
-          const serverBehind =
-            refusedVersion !== null && refusedVersion < PROTOCOL_VERSION;
+          const serverBehind = refusedVersion !== null && refusedVersion < PROTOCOL_VERSION;
           if (serverBehind || sessionStorage.getItem(reloadedKey) === "1") {
             setStatus("outdated");
             return;
@@ -652,116 +618,109 @@ export function WorldPage({
           exists for the attribute and takes the height back, because the shell
           under it is sized against its parent. */}
       <div className="h-full" inert={dead || rebirthing}>
-          <AppShell
-            destinations={destinations}
-            menuExtras={
-              <>
-                <div
-                  className="flex items-center gap-2"
-                  // Announced, unlike the clock: the headcount changes only when
-                  // somebody actually arrives or leaves, which is worth hearing.
-                  role="status"
-                >
-                  <span className="text-xs uppercase text-paper/70">Players</span>
-                  <span className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper">
-                    {players ?? "—"}
-                  </span>
-                </div>
-                <FrameStatsReadout stats={stats} />
-                {status === "live" ? statusChip : null}
-                <LightingToggle
-                  enabled={lightingEnabled}
-                  onChange={setLightingEnabled}
-                />
-                {menuExtras}
-                {/* Last in the row, and last in the menu on a phone: it is the
+        <AppShell
+          destinations={destinations}
+          menuExtras={
+            <>
+              <div
+                className="flex items-center gap-2"
+                // Announced, unlike the clock: the headcount changes only when
+                // somebody actually arrives or leaves, which is worth hearing.
+                role="status"
+              >
+                <span className="text-xs uppercase text-paper/70">Players</span>
+                <span className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper">
+                  {players ?? "—"}
+                </span>
+              </div>
+              <FrameStatsReadout stats={stats} />
+              {status === "live" ? statusChip : null}
+              <LightingToggle enabled={lightingEnabled} onChange={setLightingEnabled} />
+              {menuExtras}
+              {/* Last in the row, and last in the menu on a phone: it is the
                     only thing here that ends the session rather than changing
                     what is on screen. */}
-                {onLeave ? (
-                  <LeaveWorldButton
-                    inCombat={vitals.statuses.some(
-                      (status) => status.defId === COMBAT_STATUS_ID,
-                    )}
-                    onLeave={onLeave}
-                  />
-                ) : null}
-              </>
-            }
-            // The bar goes away entirely on a phone, because the game draws the
-            // menu itself — see `AppMenuButton` in the row of controls under the
-            // world. Which is also why the readings below are handed to the
-            // viewport rather than to the header: there is no header to hand them
-            // to, and beside the world is where they belonged anyway.
-            menuInPage
-          >
-            {/* Outside the wrapper below and not inside the viewport it is about: the
-                viewport waits on its assets, and the document would be cream around
-                the loading screen until they arrived. */}
-            <InkDocument />
-            {/* The screen sits over the game rather than instead of it, because it
-                outlasts the moment the canvas mounts — see `painted`. */}
-            <div className="relative h-full w-full">
-              {assetsReady ? (
-                <GameViewport
-                  canvasRef={canvasRef}
-                  labelRef={labelRef}
-                  onDirectionPress={pressDirection}
-                  onDirectionRelease={releaseDirection}
-                  onSay={say}
-                  onPvp={setPvp}
-                  onTypingChange={noteTyping}
-                  readouts={
-                    <>
-                      {status === "live" ? null : statusChip}
-                      <WorldClock minutesOfDay={minutesOfDay} />
-                    </>
-                  }
-                  interactions={interactions}
-                  onInteract={act}
-                  onHoverInteraction={hoverInteraction}
-                  conversation={conversation}
-                  onTalk={talk}
-                  equipment={equipment}
-                  masteryXp={masteryXp}
-                  vitals={vitals}
-                  statuses={activeStatuses(vitals.statuses, statusDefs)}
-                  statusDefs={statusDefs}
-                  openedContainer={openedContainer}
-                  onOpenContainer={openContainer}
-                  canMoveItem={canMoveItem}
-                  onMoveItem={moveItem}
-                  onConsumeItem={consumeItem}
-                  onDragOverWorld={dragOverWorld}
-                  onDropOnWorld={dropOnWorld}
-                  spells={spells}
-                  onCast={cast}
-                  onStopCast={stopCast}
-                  tiles={tiles}
-                  tilesets={tilesets}
+              {onLeave ? (
+                <LeaveWorldButton
+                  inCombat={vitals.statuses.some((status) => status.defId === COMBAT_STATUS_ID)}
+                  onLeave={onLeave}
                 />
               ) : null}
-              {/* The wait, and the two cases where it is not a wait. A refused
+            </>
+          }
+          // The bar goes away entirely on a phone, because the game draws the
+          // menu itself — see `AppMenuButton` in the row of controls under the
+          // world. Which is also why the readings below are handed to the
+          // viewport rather than to the header: there is no header to hand them
+          // to, and beside the world is where they belonged anyway.
+          menuInPage
+        >
+          {/* Outside the wrapper below and not inside the viewport it is about: the
+                viewport waits on its assets, and the document would be cream around
+                the loading screen until they arrived. */}
+          <InkDocument />
+          {/* The screen sits over the game rather than instead of it, because it
+                outlasts the moment the canvas mounts — see `painted`. */}
+          <div className="relative h-full w-full">
+            {assetsReady ? (
+              <GameViewport
+                canvasRef={canvasRef}
+                labelRef={labelRef}
+                onDirectionPress={pressDirection}
+                onDirectionRelease={releaseDirection}
+                onSay={say}
+                onPvp={setPvp}
+                onTypingChange={noteTyping}
+                readouts={
+                  <>
+                    {status === "live" ? null : statusChip}
+                    <WorldClock minutesOfDay={minutesOfDay} />
+                  </>
+                }
+                interactions={interactions}
+                onInteract={act}
+                onHoverInteraction={hoverInteraction}
+                conversation={conversation}
+                onTalk={talk}
+                equipment={equipment}
+                masteryXp={masteryXp}
+                vitals={vitals}
+                statuses={activeStatuses(vitals.statuses, statusDefs)}
+                statusDefs={statusDefs}
+                openedContainer={openedContainer}
+                onOpenContainer={openContainer}
+                canMoveItem={canMoveItem}
+                onMoveItem={moveItem}
+                onConsumeItem={consumeItem}
+                onDragOverWorld={dragOverWorld}
+                onDropOnWorld={dropOnWorld}
+                spells={spells}
+                onCast={cast}
+                onStopCast={stopCast}
+                tiles={tiles}
+                tilesets={tilesets}
+              />
+            ) : null}
+            {/* The wait, and the two cases where it is not a wait. A refused
                   version, or another tab taking this player, is the end of the
                   road for this tab — there is no reconnect pending and no world
                   coming — so each takes the loading screen's place rather than
                   sitting behind it, whether or not the canvas ever painted. */}
-              {status === "outdated" ? (
-                <OutdatedScreen serverVersion={serverVersion} />
-              ) : status === "replaced" ? (
-                <ReplacedScreen />
-              ) : painted ? null : (
-                <LoadingScreen />
-              )}
-            </div>
-          </AppShell>
-        </div>
+            {status === "outdated" ? (
+              <OutdatedScreen serverVersion={serverVersion} />
+            ) : status === "replaced" ? (
+              <ReplacedScreen />
+            ) : painted ? null : (
+              <LoadingScreen />
+            )}
+          </div>
+        </AppShell>
+      </div>
 
       {/* One screen for the whole time this player has no body to act with,
           which is why the wait is a state of it rather than a second overlay:
           the death outlasts the press, and the wait outlasts the death. */}
-      {dead || rebirthing ? (
-        <DeathScreen onRebirth={rebirth} pending={rebirthing} />
-      ) : null}
+      {dead || rebirthing ? <DeathScreen onRebirth={rebirth} pending={rebirthing} /> : null}
     </>
   );
 }

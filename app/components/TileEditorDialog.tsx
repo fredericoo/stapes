@@ -19,10 +19,7 @@ import type {
   TilesetDef,
   FacingKey,
 } from "../lib/types";
-import {
-  DEFAULT_PARTICLES,
-  type ParticleEmitterDef,
-} from "../lib/particleVfx";
+import { DEFAULT_PARTICLES, type ParticleEmitterDef } from "../lib/particleVfx";
 import { ParticleFields } from "./ParticleFields";
 import { ProjectileTab } from "./ProjectileTab";
 import { VfxPreview } from "./VfxPreview";
@@ -47,23 +44,13 @@ import {
   tilePhase,
   withSpritePhase,
 } from "../lib/types";
-import {
-  MAX_WALK_SPEED_PERCENT,
-  MIN_WALK_SPEED_PERCENT,
-} from "../lib/walkSpeed";
+import { MAX_WALK_SPEED_PERCENT, MIN_WALK_SPEED_PERCENT } from "../lib/walkSpeed";
 import { resolveScatterIndex } from "../lib/scatter";
-import {
-  nextFreeTileId,
-  anchorFits,
-  spriteRefAt,
-} from "../lib/spriteAnchor";
+import { nextFreeTileId, anchorFits, spriteRefAt } from "../lib/spriteAnchor";
 import { variantKeys } from "../lib/variant";
 import { SpriteSelector } from "./SpriteSelector";
 import { TilePreview } from "./TilePreview";
-import {
-  AutotileSlicePreview,
-  autotileSliceTitle,
-} from "./AutotileSlicePreview";
+import { AutotileSlicePreview, autotileSliceTitle } from "./AutotileSlicePreview";
 import { TileIdMultiSelect } from "./TileIdMultiSelect";
 import { InteractiveTab } from "./InteractiveTab";
 import { BattleTab } from "./BattleTab";
@@ -74,11 +61,7 @@ import { EffectsTab } from "./EffectsTab";
 import { BrainEditor } from "./BrainEditor";
 import { SpellsTab } from "./SpellsTab";
 import { DialogEditor } from "./DialogEditor";
-import {
-  availableStates,
-  hasAnyInteraction,
-  interactionsForSave,
-} from "../lib/interactions";
+import { availableStates, hasAnyInteraction, interactionsForSave } from "../lib/interactions";
 import { validateBrain, type BrainDef } from "../lib/brain";
 import { validateDialog, type DialogDef } from "../lib/dialog";
 import { tilesByIdFromList } from "../lib/validation";
@@ -252,10 +235,7 @@ function idleSprites(draft: TileDef): StateSprites {
 }
 
 /** Every sprite a {@link StateSprites} holds, on this tile's own axis. */
-function stateSpriteList(
-  draft: TileDef,
-  from: StateSprites,
-): TileSprite[] {
+function stateSpriteList(draft: TileDef, from: StateSprites): TileSprite[] {
   if (draft.type === "simple") return from.sprite ? [from.sprite] : [];
   if (isDirectional(draft)) {
     return facingKeysFor(draft)
@@ -266,13 +246,9 @@ function stateSpriteList(
     return (from.scatter ?? []).filter((s): s is TileSprite => s != null);
   }
   if (draft.type === "variant") {
-    return Object.values(from.variants ?? {}).filter(
-      (s): s is TileSprite => s != null,
-    );
+    return Object.values(from.variants ?? {}).filter((s): s is TileSprite => s != null);
   }
-  return Object.values(from.slices ?? {}).filter(
-    (s): s is TileSprite => s != null,
-  );
+  return Object.values(from.slices ?? {}).filter((s): s is TileSprite => s != null);
 }
 
 /**
@@ -374,11 +350,7 @@ function validateFrameLights(frames: Frame[]): string | null {
     if (!(light.radius > 0) || !Number.isFinite(light.radius)) {
       return `Frame ${i + 1}: light radius must be a positive number`;
     }
-    if (
-      !(light.intensity >= 0) ||
-      !(light.intensity <= 1) ||
-      !Number.isFinite(light.intensity)
-    ) {
+    if (!(light.intensity >= 0) || !(light.intensity <= 1) || !Number.isFinite(light.intensity)) {
       return `Frame ${i + 1}: light intensity must be between 0 and 1`;
     }
     if (!/^#[0-9a-fA-F]{6}$/.test(light.color)) {
@@ -523,9 +495,7 @@ export function TileEditorDialog({
   const [frameIndex, setFrameIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   /** The copy being named, or null when that dialog is closed. */
-  const [duplicate, setDuplicate] = useState<{ id: string; name: string } | null>(
-    null,
-  );
+  const [duplicate, setDuplicate] = useState<{ id: string; name: string } | null>(null);
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
   /** Why the last anchor edit was refused, or null when it was taken. */
   const [anchorError, setAnchorError] = useState<string | null>(null);
@@ -552,11 +522,8 @@ export function TileEditorDialog({
   const frames = sprite?.frames ?? [];
   const frame = frames[frameIndex] ?? frames[0];
   const definedSlice =
-    draft.type === "autotile"
-      ? Boolean(spriteHolder(draft, state).slices?.[slice])
-      : true;
-  const tileset =
-    tilesets.find((t) => t.id === draft.anchor.tilesetId) ?? tilesets[0] ?? null;
+    draft.type === "autotile" ? Boolean(spriteHolder(draft, state).slices?.[slice]) : true;
+  const tileset = tilesets.find((t) => t.id === draft.anchor.tilesetId) ?? tilesets[0] ?? null;
 
   /**
    * The preview's two inputs, held steady across edits that do not reach them.
@@ -628,9 +595,7 @@ export function TileEditorDialog({
 
   const updateFrame = (patch: Partial<Frame>) => {
     if (!frame) return;
-    setFrames(
-      frames.map((f, i) => (i === frameIndex ? { ...f, ...patch } : f)),
-    );
+    setFrames(frames.map((f, i) => (i === frameIndex ? { ...f, ...patch } : f)));
   };
 
   /**
@@ -691,10 +656,7 @@ export function TileEditorDialog({
         variants: undefined,
         states: undefined,
         climbFrom: {
-          default: resolveClimbFrom(
-            draft,
-            isDirectional(draft) ? nearestCardinal(dir) : "default",
-          ),
+          default: resolveClimbFrom(draft, isDirectional(draft) ? nearestCardinal(dir) : "default"),
         },
       });
     } else if (type === "directional" || type === "directional8") {
@@ -707,9 +669,7 @@ export function TileEditorDialog({
       const climbBase = resolveClimbFrom(draft, "default");
       const climbFrom: NonNullable<TileDef["climbFrom"]> = {};
       for (const d of type === "directional8" ? OCTANTS : DIRECTIONS) {
-        sprites[d] = structuredClone(
-          draft.sprites?.[d] ?? draft.sprite ?? from,
-        );
+        sprites[d] = structuredClone(draft.sprites?.[d] ?? draft.sprite ?? from);
       }
       // Four, always: see the note on {@link climbFacing}.
       for (const d of DIRECTIONS) climbFrom[d] = { ...climbBase };
@@ -810,9 +770,7 @@ export function TileEditorDialog({
   // four, so an eight-way tile's corners share their neighbouring cardinal's
   // climb flags rather than getting variants of their own. Climbing is a
   // four-way question and stays one. @see Octant
-  const climbFacing: FacingKey = isDirectional(draft)
-    ? nearestCardinal(dir)
-    : "default";
+  const climbFacing: FacingKey = isDirectional(draft) ? nearestCardinal(dir) : "default";
   const climbFlags = resolveClimbFrom(draft, climbFacing);
 
   const setClimbSide = (side: Direction, value: boolean) => {
@@ -950,11 +908,7 @@ export function TileEditorDialog({
     const savedStates = statesForSave(draft);
     for (const [key, sprites] of Object.entries(savedStates ?? {})) {
       if (!sprites) continue;
-      const mismatch = footprintMismatch(
-        draft,
-        key as OverrideSpriteState,
-        sprites,
-      );
+      const mismatch = footprintMismatch(draft, key as OverrideSpriteState, sprites);
       if (mismatch) {
         setError(mismatch);
         return null;
@@ -969,9 +923,7 @@ export function TileEditorDialog({
     }
 
     setError(null);
-    const climbByFacing: Partial<
-      Record<FacingKey, Record<Direction, boolean>>
-    > = {};
+    const climbByFacing: Partial<Record<FacingKey, Record<Direction, boolean>>> = {};
     // Four cardinals however wide the art is — climbing is a four-way question.
     const keys: FacingKey[] = isDirectional(draft) ? [...DIRECTIONS] : ["default"];
     for (const key of keys) {
@@ -986,8 +938,7 @@ export function TileEditorDialog({
       kind: draft.kind,
       attributes: {},
       anchor: draft.anchor,
-      lightPassing:
-        draft.lightPassing || lightPassingForced(draft) ? true : undefined,
+      lightPassing: draft.lightPassing || lightPassingForced(draft) ? true : undefined,
       intangible: draft.intangible ? true : undefined,
       affectedByGravity: draft.affectedByGravity ? true : undefined,
       walkable: draft.walkable === false ? false : undefined,
@@ -1001,13 +952,8 @@ export function TileEditorDialog({
       // absent, which is what ordinary ground says.
       walkSpeedPercent: draft.walkSpeedPercent || undefined,
       connectsTo:
-        draft.type === "autotile" && draft.connectsTo?.length
-          ? draft.connectsTo
-          : undefined,
-      scatterSeed:
-        draft.type === "scatter" && draft.scatterSeed
-          ? draft.scatterSeed
-          : undefined,
+        draft.type === "autotile" && draft.connectsTo?.length ? draft.connectsTo : undefined,
+      scatterSeed: draft.type === "scatter" && draft.scatterSeed ? draft.scatterSeed : undefined,
       climbFrom: climbFromForSave(draft, climbByFacing),
       particles: draft.particles,
       transitions: draft.transitions,
@@ -1094,37 +1040,15 @@ export function TileEditorDialog({
   const climbPad = (
     <div className="flex items-center gap-3 pt-1">
       <span className="text-xs font-bold uppercase text-muted">Climb up from</span>
-      <div
-        className="grid w-fit grid-cols-3 gap-1"
-        role="group"
-        aria-label="Climb-from directions"
-      >
+      <div className="grid w-fit grid-cols-3 gap-1" role="group" aria-label="Climb-from directions">
         <span />
-        <ClimbFromToggle
-          label="N"
-          checked={climbFlags.n}
-          onChange={(n) => setClimbSide("n", n)}
-        />
+        <ClimbFromToggle label="N" checked={climbFlags.n} onChange={(n) => setClimbSide("n", n)} />
         <span />
-        <ClimbFromToggle
-          label="W"
-          checked={climbFlags.w}
-          onChange={(w) => setClimbSide("w", w)}
-        />
-        <span className="flex h-8 w-8 items-center justify-center text-[10px] text-muted">
-          ·
-        </span>
-        <ClimbFromToggle
-          label="E"
-          checked={climbFlags.e}
-          onChange={(e) => setClimbSide("e", e)}
-        />
+        <ClimbFromToggle label="W" checked={climbFlags.w} onChange={(w) => setClimbSide("w", w)} />
+        <span className="flex h-8 w-8 items-center justify-center text-[10px] text-muted">·</span>
+        <ClimbFromToggle label="E" checked={climbFlags.e} onChange={(e) => setClimbSide("e", e)} />
         <span />
-        <ClimbFromToggle
-          label="S"
-          checked={climbFlags.s}
-          onChange={(s) => setClimbSide("s", s)}
-        />
+        <ClimbFromToggle label="S" checked={climbFlags.s} onChange={(s) => setClimbSide("s", s)} />
         <span />
       </div>
     </div>
@@ -1199,9 +1123,7 @@ export function TileEditorDialog({
       value={String(frameIndex)}
       onValueChange={(v) => {
         if (v === "add") {
-          const clone = structuredClone(
-            frames[frames.length - 1] ?? emptyFrame(),
-          );
+          const clone = structuredClone(frames[frames.length - 1] ?? emptyFrame());
           setFrames([...frames, clone]);
           setFrameIndex(frames.length);
           return;
@@ -1279,9 +1201,7 @@ export function TileEditorDialog({
                 step={1}
                 className="w-20"
                 value={frame.light.radius}
-                onChange={(radius) =>
-                  updateFrame({ light: { ...frame.light!, radius } })
-                }
+                onChange={(radius) => updateFrame({ light: { ...frame.light!, radius } })}
               />
             </label>
             <label className="flex flex-col gap-1 text-xs">
@@ -1292,9 +1212,7 @@ export function TileEditorDialog({
                 step={0.05}
                 className="w-20"
                 value={frame.light.intensity}
-                onChange={(intensity) =>
-                  updateFrame({ light: { ...frame.light!, intensity } })
-                }
+                onChange={(intensity) => updateFrame({ light: { ...frame.light!, intensity } })}
               />
             </label>
             <label className="flex flex-col gap-1 text-xs">
@@ -1419,9 +1337,7 @@ export function TileEditorDialog({
                   setSlice(i);
                   setFrameIndex(0);
                   if (!draft.slices?.[i]) {
-                    const base =
-                      draft.slices?.[0] ??
-                      emptySprite();
+                    const base = draft.slices?.[0] ?? emptySprite();
                     setDraft({
                       ...draft,
                       slices: {
@@ -1444,9 +1360,7 @@ export function TileEditorDialog({
                 <span
                   className={[
                     "pointer-events-none absolute right-0 bottom-0 px-0.5 font-mono text-[9px] leading-none",
-                    selected
-                      ? "bg-accent text-paper"
-                      : "bg-paper/90 text-ink",
+                    selected ? "bg-accent text-paper" : "bg-paper/90 text-ink",
                   ].join(" ")}
                 >
                   {i}
@@ -1526,9 +1440,7 @@ export function TileEditorDialog({
               }}
               className={[
                 "relative border-2 p-0.5",
-                face === i
-                  ? "border-accent bg-paper"
-                  : "border-border bg-panel hover:border-ink",
+                face === i ? "border-accent bg-paper" : "border-border bg-panel hover:border-ink",
               ].join(" ")}
             >
               <TilePreview
@@ -1557,8 +1469,7 @@ export function TileEditorDialog({
               // Cloned from the one being looked at rather than started blank,
               // on the same grounds the autotile grid clones slice 0: a second
               // bush is the first bush with a few pixels moved.
-              const base =
-                faces[face] ?? faces[0] ?? emptySprite();
+              const base = faces[face] ?? faces[0] ?? emptySprite();
               setDraft({
                 ...draft,
                 scatter: [...faces, structuredClone(base)],
@@ -1629,25 +1540,22 @@ export function TileEditorDialog({
           }}
           aria-label="Scatter sample"
         >
-          {Array.from(
-            { length: SCATTER_SAMPLE_COLS * SCATTER_SAMPLE_ROWS },
-            (_, i) => {
-              const x = i % SCATTER_SAMPLE_COLS;
-              const y = Math.floor(i / SCATTER_SAMPLE_COLS);
-              return (
-                <TilePreview
-                  key={i}
-                  tile={draft}
-                  tilesets={tilesets}
-                  size={SCATTER_SAMPLE_CELL_PX}
-                  state={state}
-                  scatterIndex={resolveScatterIndex(x, y, 0, draft, faces.length)}
-                  chrome={false}
-                  still
-                />
-              );
-            },
-          )}
+          {Array.from({ length: SCATTER_SAMPLE_COLS * SCATTER_SAMPLE_ROWS }, (_, i) => {
+            const x = i % SCATTER_SAMPLE_COLS;
+            const y = Math.floor(i / SCATTER_SAMPLE_COLS);
+            return (
+              <TilePreview
+                key={i}
+                tile={draft}
+                tilesets={tilesets}
+                size={SCATTER_SAMPLE_CELL_PX}
+                state={state}
+                scatterIndex={resolveScatterIndex(x, y, 0, draft, faces.length)}
+                chrome={false}
+                still
+              />
+            );
+          })}
         </div>
       </div>
       {frameEditor}
@@ -1674,10 +1582,7 @@ export function TileEditorDialog({
     const rekey = (holder: StateSprites): Record<string, TileSprite> | undefined =>
       holder.variants
         ? Object.fromEntries(
-            Object.entries(holder.variants).map(([k, v]) => [
-              k === from ? trimmed : k,
-              v,
-            ]),
+            Object.entries(holder.variants).map(([k, v]) => [k === from ? trimmed : k, v]),
           )
         : undefined;
     const states = Object.fromEntries(
@@ -1735,9 +1640,7 @@ export function TileEditorDialog({
                 chrome={false}
                 still
               />
-              <span className="max-w-[64px] truncate font-mono text-[9px] leading-none">
-                {key}
-              </span>
+              <span className="max-w-[64px] truncate font-mono text-[9px] leading-none">{key}</span>
             </button>
           ))}
           <Button
@@ -1792,9 +1695,7 @@ export function TileEditorDialog({
             variant="danger"
             className="w-fit"
             onClick={() => {
-              const drop = (
-                holder: StateSprites,
-              ): Record<string, TileSprite> | undefined => {
+              const drop = (holder: StateSprites): Record<string, TileSprite> | undefined => {
                 if (!holder.variants) return undefined;
                 const { [variantKey]: _gone, ...rest } = holder.variants;
                 return rest;
@@ -1862,9 +1763,7 @@ export function TileEditorDialog({
                   Delete
                 </Button>
               ) : null}
-              {onDuplicate ? (
-                <Button onClick={openDuplicate}>Duplicate</Button>
-              ) : null}
+              {onDuplicate ? <Button onClick={openDuplicate}>Duplicate</Button> : null}
             </div>
           ) : null}
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
@@ -1917,15 +1816,11 @@ export function TileEditorDialog({
                   // empty: a battler with no spells of its own is the norm.
                   {
                     value: TAB_SPELLS,
-                    label: draft.interactions?.battler?.spells?.length
-                      ? "Spells •"
-                      : "Spells",
+                    label: draft.interactions?.battler?.spells?.length ? "Spells •" : "Spells",
                   },
                 ]
               : []),
-            ...(draft.kind === "item"
-              ? [{ value: TAB_ITEM, label: "Item" }]
-              : []),
+            ...(draft.kind === "item" ? [{ value: TAB_ITEM, label: "Item" }] : []),
             // On the same answer and the same terms as the two above: the tab
             // being there at all says this tile is a projectile, so it carries
             // no "•" either.
@@ -1976,12 +1871,7 @@ export function TileEditorDialog({
           </TabPanel>
 
           <TabPanel value={TAB_BATTLE}>
-            <BattleTab
-              draft={draft}
-              onChange={setDraft}
-              tiles={tiles}
-              statusDefs={statusDefs}
-            />
+            <BattleTab draft={draft} onChange={setDraft} tiles={tiles} statusDefs={statusDefs} />
           </TabPanel>
 
           <TabPanel value={TAB_SPELLS}>
@@ -1995,21 +1885,11 @@ export function TileEditorDialog({
           </TabPanel>
 
           <TabPanel value={TAB_ITEM}>
-            <ItemTab
-              draft={draft}
-              onChange={setDraft}
-              statusDefs={statusDefs}
-              tiles={tiles}
-            />
+            <ItemTab draft={draft} onChange={setDraft} statusDefs={statusDefs} tiles={tiles} />
           </TabPanel>
 
           <TabPanel value={TAB_PROJECTILE}>
-            <ProjectileTab
-              draft={draft}
-              onChange={setDraft}
-              tiles={tiles}
-              tilesets={tilesets}
-            />
+            <ProjectileTab draft={draft} onChange={setDraft} tiles={tiles} tilesets={tilesets} />
           </TabPanel>
 
           <TabPanel value={TAB_RESPAWN}>
@@ -2027,223 +1907,206 @@ export function TileEditorDialog({
           </TabPanel>
 
           <TabPanel value={TAB_TILE} className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="font-bold uppercase text-muted">Id</span>
-            <Input
-              value={draft.id}
-              disabled={!isNew}
-              onChange={(e) => setDraft({ ...draft, id: e.target.value })}
-              placeholder="grass"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="font-bold uppercase text-muted">Name</span>
-            <Input
-              value={draft.name}
-              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-            />
-          </label>
-          <div className="flex flex-col gap-1 text-xs">
-            <span className="font-bold uppercase text-muted">Height</span>
-            <Segmented<TileHeight>
-              value={draft.height}
-              onChange={(height) => setDraft({ ...draft, height })}
-              options={[
-                { value: 0, label: "0 flat" },
-                { value: 1, label: "1 seat" },
-                { value: 2, label: "2 half" },
-                { value: 3, label: "3 body" },
-                { value: 4, label: "4 full" },
-              ]}
-              size="sm"
-            />
-          </div>
-          <div className="flex flex-col gap-1 text-xs">
-            <span className="font-bold uppercase text-muted">Type</span>
-            {/* A dropdown rather than the segmented row the height uses: five
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="flex flex-col gap-1 text-xs">
+                <span className="font-bold uppercase text-muted">Id</span>
+                <Input
+                  value={draft.id}
+                  disabled={!isNew}
+                  onChange={(e) => setDraft({ ...draft, id: e.target.value })}
+                  placeholder="grass"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs">
+                <span className="font-bold uppercase text-muted">Name</span>
+                <Input
+                  value={draft.name}
+                  onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                />
+              </label>
+              <div className="flex flex-col gap-1 text-xs">
+                <span className="font-bold uppercase text-muted">Height</span>
+                <Segmented<TileHeight>
+                  value={draft.height}
+                  onChange={(height) => setDraft({ ...draft, height })}
+                  options={[
+                    { value: 0, label: "0 flat" },
+                    { value: 1, label: "1 seat" },
+                    { value: 2, label: "2 half" },
+                    { value: 3, label: "3 body" },
+                    { value: 4, label: "4 full" },
+                  ]}
+                  size="sm"
+                />
+              </div>
+              <div className="flex flex-col gap-1 text-xs">
+                <span className="font-bold uppercase text-muted">Type</span>
+                {/* A dropdown rather than the segmented row the height uses: five
                 options is already more than fits on one line beside a dialog's
                 other controls, and the list only grows. */}
-            <Select
-              ariaLabel="Tile type"
-              value={draft.type}
-              onValueChange={(v) => {
-                if (v) changeType(v as TileType);
-              }}
-              options={TILE_TYPE_OPTIONS}
-              className="w-fit"
-            />
-          </div>
-          {lightPassingForced(draft) ? (
-            <p className="text-sm opacity-60">
-              Passes light — items, battlers and anything with a brain always
-              do. One that blocked light would be re-baked on every step it
-              took.
-            </p>
-          ) : (
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={draft.lightPassing ?? false}
-                onChange={(e) =>
-                  setDraft({ ...draft, lightPassing: e.target.checked })
+                <Select
+                  ariaLabel="Tile type"
+                  value={draft.type}
+                  onValueChange={(v) => {
+                    if (v) changeType(v as TileType);
+                  }}
+                  options={TILE_TYPE_OPTIONS}
+                  className="w-fit"
+                />
+              </div>
+              {lightPassingForced(draft) ? (
+                <p className="text-sm opacity-60">
+                  Passes light — items, battlers and anything with a brain always do. One that
+                  blocked light would be re-baked on every step it took.
+                </p>
+              ) : (
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={draft.lightPassing ?? false}
+                    onChange={(e) => setDraft({ ...draft, lightPassing: e.target.checked })}
+                    className="hard-checkbox"
+                  />
+                  Passes light
+                </label>
+              )}
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={draft.intangible ?? false}
+                  onChange={(e) => setDraft({ ...draft, intangible: e.target.checked })}
+                  className="hard-checkbox"
+                />
+                Intangible
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={draft.affectedByGravity ?? false}
+                  onChange={(e) => setDraft({ ...draft, affectedByGravity: e.target.checked })}
+                  className="hard-checkbox"
+                />
+                Affected by gravity
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={draft.walkable !== false}
+                  onChange={(e) => setDraft({ ...draft, walkable: e.target.checked })}
+                  className="hard-checkbox"
+                />
+                Walkable
+              </label>
+              <label
+                className="flex items-center gap-2 text-sm"
+                title={
+                  impliedByBrain
+                    ? "A brain makes this an actor — set on the Interactive tab."
+                    : "Every placement of this tile comes alive as its own actor when the world loads."
                 }
-                className="hard-checkbox"
+              >
+                <input
+                  type="checkbox"
+                  // A brain already makes it an actor, so the box reads on and locks
+                  // rather than pretending the flag is what decides.
+                  checked={isActor}
+                  disabled={impliedByBrain}
+                  onChange={(e) => setDraft({ ...draft, actor: e.target.checked })}
+                  className="hard-checkbox"
+                />
+                Actor{impliedByBrain ? " — from brain" : ""}
+              </label>
+            </div>
+
+            {isActor ? (
+              <label className="flex items-center gap-2 text-xs">
+                <FieldLabel info="Milliseconds per cell walked — larger is slower. Blank is the player's pace.">
+                  Step (ms)
+                </FieldLabel>
+                <OptionalNumberInput
+                  min={1}
+                  step={10}
+                  // Blank means "the player's pace", which is a different thing from
+                  // zero and has to survive a round trip through the field.
+                  value={draft.walkDurationMs}
+                  placeholder={String(WALK_DURATION_MS)}
+                  onChange={(walkDurationMs) => setDraft({ ...draft, walkDurationMs })}
+                  className="w-24"
+                />
+              </label>
+            ) : null}
+
+            <label className="flex items-center gap-2 text-xs">
+              <FieldLabel info="How much quicker or slower this is to walk on, as a percentage of the walker's own pace: -50 is half speed through mud, 100 is twice it along a road. Read off the surface under a body's feet, added to whatever that body is under, and held between -90 and 400 — no ground may stop somebody walking off it. Blank is ordinary ground.">
+                Ground speed %
+              </FieldLabel>
+              <OptionalNumberInput
+                min={MIN_WALK_SPEED_PERCENT}
+                max={MAX_WALK_SPEED_PERCENT}
+                step={5}
+                value={draft.walkSpeedPercent}
+                placeholder="0"
+                onChange={(walkSpeedPercent) => setDraft({ ...draft, walkSpeedPercent })}
+                className="w-24"
               />
-              Passes light
             </label>
-          )}
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={draft.intangible ?? false}
-              onChange={(e) =>
-                setDraft({ ...draft, intangible: e.target.checked })
-              }
-              className="hard-checkbox"
-            />
-            Intangible
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={draft.affectedByGravity ?? false}
-              onChange={(e) =>
-                setDraft({ ...draft, affectedByGravity: e.target.checked })
-              }
-              className="hard-checkbox"
-            />
-            Affected by gravity
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={draft.walkable !== false}
-              onChange={(e) =>
-                setDraft({ ...draft, walkable: e.target.checked })
-              }
-              className="hard-checkbox"
-            />
-            Walkable
-          </label>
-          <label
-            className="flex items-center gap-2 text-sm"
-            title={
-              impliedByBrain
-                ? "A brain makes this an actor — set on the Interactive tab."
-                : "Every placement of this tile comes alive as its own actor when the world loads."
-            }
-          >
-            <input
-              type="checkbox"
-              // A brain already makes it an actor, so the box reads on and locks
-              // rather than pretending the flag is what decides.
-              checked={isActor}
-              disabled={impliedByBrain}
-              onChange={(e) => setDraft({ ...draft, actor: e.target.checked })}
-              className="hard-checkbox"
-            />
-            Actor{impliedByBrain ? " — from brain" : ""}
-          </label>
-        </div>
 
-        {isActor ? (
-          <label className="flex items-center gap-2 text-xs">
-            <FieldLabel info="Milliseconds per cell walked — larger is slower. Blank is the player's pace.">
-              Step (ms)
-            </FieldLabel>
-            <OptionalNumberInput
-              min={1}
-              step={10}
-              // Blank means "the player's pace", which is a different thing from
-              // zero and has to survive a round trip through the field.
-              value={draft.walkDurationMs}
-              placeholder={String(WALK_DURATION_MS)}
-              onChange={(walkDurationMs) =>
-                setDraft({ ...draft, walkDurationMs })
-              }
-              className="w-24"
-            />
-          </label>
-        ) : null}
-
-        <label className="flex items-center gap-2 text-xs">
-          <FieldLabel info="How much quicker or slower this is to walk on, as a percentage of the walker's own pace: -50 is half speed through mud, 100 is twice it along a road. Read off the surface under a body's feet, added to whatever that body is under, and held between -90 and 400 — no ground may stop somebody walking off it. Blank is ordinary ground.">
-            Ground speed %
-          </FieldLabel>
-          <OptionalNumberInput
-            min={MIN_WALK_SPEED_PERCENT}
-            max={MAX_WALK_SPEED_PERCENT}
-            step={5}
-            value={draft.walkSpeedPercent}
-            placeholder="0"
-            onChange={(walkSpeedPercent) =>
-              setDraft({ ...draft, walkSpeedPercent })
-            }
-            className="w-24"
-          />
-        </label>
-
-        <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
-          <div className="flex items-center gap-2">
-            <FieldLabel info="Given off by every placement on the board, measured from the tile's own foot — a plume starting at height 4 leaves the top of a full-height tile. Nothing in a bag emits.">
-              Particles
-            </FieldLabel>
-            <Switch
-              checked={draft.particles != null}
-              onCheckedChange={(on) =>
-                setDraft({
-                  ...draft,
-                  // The default rather than a zeroed block, so turning this on
-                  // draws something on the map immediately. The ramp is copied
-                  // rather than shared, or every tile switched on would author
-                  // the same array.
-                  particles: on
-                    ? { ...DEFAULT_PARTICLES, ramp: [...DEFAULT_PARTICLES.ramp] }
-                    : undefined,
-                })
-              }
-              ariaLabel="Particles"
-            />
-          </div>
-          {draft.particles ? (
-            <>
-              {/* Beside the controls rather than under them, because what an
+            <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
+              <div className="flex items-center gap-2">
+                <FieldLabel info="Given off by every placement on the board, measured from the tile's own foot — a plume starting at height 4 leaves the top of a full-height tile. Nothing in a bag emits.">
+                  Particles
+                </FieldLabel>
+                <Switch
+                  checked={draft.particles != null}
+                  onCheckedChange={(on) =>
+                    setDraft({
+                      ...draft,
+                      // The default rather than a zeroed block, so turning this on
+                      // draws something on the map immediately. The ramp is copied
+                      // rather than shared, or every tile switched on would author
+                      // the same array.
+                      particles: on
+                        ? { ...DEFAULT_PARTICLES, ramp: [...DEFAULT_PARTICLES.ramp] }
+                        : undefined,
+                    })
+                  }
+                  ariaLabel="Particles"
+                />
+              </div>
+              {draft.particles ? (
+                <>
+                  {/* Beside the controls rather than under them, because what an
                   author is deciding is whether the smoke looks like smoke and
                   fifteen numbers do not answer that. The subject is this tile
                   and cannot be anything else, so the picker the status editor
                   needs is absent — see `./VfxPreview`. */}
-              <div className="flex flex-wrap items-start gap-4">
-                <VfxPreview
-                  vfx={previewVfx}
-                  tilesets={tilesets}
-                  subject={previewSubject}
-                />
-                {/* Basis zero rather than content width, so the controls take
+                  <div className="flex flex-wrap items-start gap-4">
+                    <VfxPreview vfx={previewVfx} tilesets={tilesets} subject={previewSubject} />
+                    {/* Basis zero rather than content width, so the controls take
                     whatever the canvas leaves and reflow inside it. Sized by
                     their content they wrap under the preview instead, which
                     scrolls the canvas off the top of the thing it is there to
                     answer questions about. */}
-                <div className="min-w-0 flex-1 basis-80">
-                  <ParticleFields
-                    particles={draft.particles}
-                    onChange={(particles: ParticleEmitterDef) =>
-                      setDraft({ ...draft, particles })
-                    }
-                  />
-                </div>
-              </div>
-            </>
-          ) : null}
-        </div>
+                    <div className="min-w-0 flex-1 basis-80">
+                      <ParticleFields
+                        particles={draft.particles}
+                        onChange={(particles: ParticleEmitterDef) =>
+                          setDraft({ ...draft, particles })
+                        }
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : null}
+            </div>
 
-        {draft.type === "simple" ? climbPad : null}
+            {draft.type === "simple" ? climbPad : null}
 
-        {statePicker}
+            {statePicker}
 
-        {phasePicker}
+            {phasePicker}
 
-        {spriteSection}
+            {spriteSection}
           </TabPanel>
         </Tabs>
       </div>
@@ -2275,9 +2138,7 @@ export function TileEditorDialog({
             <span className="font-bold uppercase text-muted">Id</span>
             <Input
               value={duplicate?.id ?? ""}
-              onChange={(e) =>
-                setDuplicate((d) => (d ? { ...d, id: e.target.value } : d))
-              }
+              onChange={(e) => setDuplicate((d) => (d ? { ...d, id: e.target.value } : d))}
               placeholder="villager-2"
             />
           </label>
@@ -2285,19 +2146,15 @@ export function TileEditorDialog({
             <span className="font-bold uppercase text-muted">Name</span>
             <Input
               value={duplicate?.name ?? ""}
-              onChange={(e) =>
-                setDuplicate((d) => (d ? { ...d, name: e.target.value } : d))
-              }
+              onChange={(e) => setDuplicate((d) => (d ? { ...d, name: e.target.value } : d))}
             />
           </label>
           <p className="text-xs text-muted">
-            Writes this tile as it stands — including edits it has not been saved
-            with — under the new id, and opens the copy. The original keeps
-            whatever was last saved.
+            Writes this tile as it stands — including edits it has not been saved with — under the
+            new id, and opens the copy. The original keeps whatever was last saved.
           </p>
         </div>
       </Dialog>
-
     </Dialog>
   );
 }

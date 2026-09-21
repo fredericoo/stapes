@@ -9,7 +9,13 @@ import {
 } from "../game/dialogRuntime";
 import type { Equipment } from "../game/equipment";
 import { carriedCount, planTrade } from "../game/trade";
-import { clampAmount, resolveDialog, type DialogDef, type DialogTrade, type TradeSide } from "../lib/dialog";
+import {
+  clampAmount,
+  resolveDialog,
+  type DialogDef,
+  type DialogTrade,
+  type TradeSide,
+} from "../lib/dialog";
 import { mintItemId } from "../lib/itemInstance";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
@@ -280,9 +286,10 @@ function TradeOffer({
 }) {
   const [amount, setAmount] = useState(clampAmount(trade, undefined));
   const scaled = scaledTrade(trade, amount);
-  const short = scaled.effect === "trade"
-    ? scaled.take.filter((side) => carriedCount(tilesById, equipment, side.tileId) < side.count)
-    : [];
+  const short =
+    scaled.effect === "trade"
+      ? scaled.take.filter((side) => carriedCount(tilesById, equipment, side.tileId) < side.count)
+      : [];
   const plan =
     scaled.effect === "trade" && short.length === 0
       ? planTrade(tilesById, equipment, scaled.take, scaled.give, mintItemId)
@@ -318,7 +325,13 @@ function TradeOffer({
       ) : null}
       {trade.max > trade.min ? (
         <div className="flex items-stretch gap-1">
-          <button type="button" {...less} aria-label="Fewer" aria-disabled={amount <= trade.min} className={stepClass}>
+          <button
+            type="button"
+            {...less}
+            aria-label="Fewer"
+            aria-disabled={amount <= trade.min}
+            className={stepClass}
+          >
             <IconMinus size={STEP_ICON_SIZE_PX} stroke={3} aria-hidden="true" />
           </button>
           <output
@@ -327,7 +340,13 @@ function TradeOffer({
           >
             ×{amount}
           </output>
-          <button type="button" {...more} aria-label="More" aria-disabled={amount >= trade.max} className={stepClass}>
+          <button
+            type="button"
+            {...more}
+            aria-label="More"
+            aria-disabled={amount >= trade.max}
+            className={stepClass}
+          >
             <IconPlus size={STEP_ICON_SIZE_PX} stroke={3} aria-hidden="true" />
           </button>
         </div>
@@ -339,7 +358,9 @@ function TradeOffer({
         </p>
       ))}
       {short.length === 0 && !possible ? (
-        <p className="text-[11px] leading-snug text-paper/60">There is nowhere on you to put what you would get.</p>
+        <p className="text-[11px] leading-snug text-paper/60">
+          There is nowhere on you to put what you would get.
+        </p>
       ) : null}
       <div className="flex gap-1">
         <PanelButton
@@ -349,7 +370,10 @@ function TradeOffer({
         >
           <span className={LABEL_CLASS}>Trade</span>
         </PanelButton>
-        <PanelButton className={`${OPTION_CLASS} flex-1`} onPress={() => onTalk({ kind: "cancel" })}>
+        <PanelButton
+          className={`${OPTION_CLASS} flex-1`}
+          onPress={() => onTalk({ kind: "cancel" })}
+        >
           <span className={LABEL_CLASS}>Cancel</span>
         </PanelButton>
       </div>

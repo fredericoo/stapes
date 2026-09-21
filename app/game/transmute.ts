@@ -2,19 +2,9 @@ import type { Transmutation } from "../lib/interactions";
 import { resolveContainer } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { MapFile, TileDef } from "../lib/types";
-import {
-  reachableTransmuteAt,
-  type Actor,
-  type ObjectRef,
-} from "./affordances";
+import { reachableTransmuteAt, type Actor, type ObjectRef } from "./affordances";
 import type { Equipment, EquipSlot } from "./equipment";
-import {
-  capacityOf,
-  peelSlot,
-  slotTakes,
-  type SlotKind,
-  type SlotRef,
-} from "./itemMoves";
+import { capacityOf, peelSlot, slotTakes, type SlotKind, type SlotRef } from "./itemMoves";
 
 /**
  * Spending one carried thing at something that turns it into others.
@@ -64,10 +54,7 @@ import {
  * from offering what you carry — and being narrower is what lets the return
  * path know there is a container to put things back into.
  */
-export type PaidFrom = Extract<
-  SlotRef,
-  { kind: "weapon" | "offhand" | "contents" }
->;
+export type PaidFrom = Extract<SlotRef, { kind: "weapon" | "offhand" | "contents" }>;
 
 export type TransmutePlan = {
   recipe: Transmutation;
@@ -151,12 +138,7 @@ export function planTransmute(
 
   // All or nothing, and asked *after* the input has gone. Finding somewhere for
   // every last thing *is* the room check — see {@link landingsFor}.
-  const landings = landingsFor(
-    tilesById,
-    spent.equipment,
-    from,
-    recipe.toTileIds,
-  );
+  const landings = landingsFor(tilesById, spent.equipment, from, recipe.toTileIds);
   if (!landings) return null;
 
   return { recipe, from, spent: spent.equipment, landings };
@@ -204,9 +186,7 @@ function landingsFor(
     if (!def) return null;
     // The same rule a drag into that slot asks, so anything a recipe hands back
     // is something the player could have put there themselves.
-    const found = room.find(
-      (place) => place.free > 0 && slotTakes(place.slotKind, def),
-    );
+    const found = room.find((place) => place.free > 0 && slotTakes(place.slotKind, def));
     if (!found) return null;
     found.free--;
     landings.push(found.landing(tileId));
@@ -360,10 +340,7 @@ export function offeredTransmutations(
  * the pour it knew nothing about freed the square it had given up on. The two
  * halves want changing together.
  */
-export function runTransmute(
-  plan: TransmutePlan,
-  mintId: () => string,
-): Equipment {
+export function runTransmute(plan: TransmutePlan, mintId: () => string): Equipment {
   // Nothing is decided here — {@link landingsFor} already found somewhere for
   // every one of these, and it did so against this same kit. All that is left
   // is to give each of them an identity and put it there.
@@ -412,10 +389,7 @@ export function runTransmute(
  * act from offering what you carry, and a recipe that quietly emptied one would
  * be reaching somewhere the player did not point.
  */
-function carriedSlotOf(
-  equipment: Equipment,
-  tileId: string,
-): PaidFrom | null {
+function carriedSlotOf(equipment: Equipment, tileId: string): PaidFrom | null {
   if (equipment.weapon?.tileId === tileId) return { kind: "weapon" };
   if (equipment.offhand?.tileId === tileId) return { kind: "offhand" };
 

@@ -171,9 +171,7 @@ export function ItemCard({
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-0.5 border-t-2 border-ink/15 pt-1">
-      <h4 className="text-[9px] font-bold uppercase tracking-widest text-ink/60">
-        {title}
-      </h4>
+      <h4 className="text-[9px] font-bold uppercase tracking-widest text-ink/60">{title}</h4>
       {children}
     </section>
   );
@@ -207,9 +205,7 @@ function StatRow({ stat }: { stat: ItemCardStat }) {
           // to be able to tell in one glance which of the two is theirs.
           <span className="shrink-0 text-ink/50 line-through">{stat.base}</span>
         ) : null}
-        <span className={`shrink-0 font-bold ${TONE_TEXT[stat.tone]}`}>
-          {stat.value}
-        </span>
+        <span className={`shrink-0 font-bold ${TONE_TEXT[stat.tone]}`}>{stat.value}</span>
       </dd>
     </div>
   );
@@ -249,9 +245,7 @@ function RequirementRow({ row }: { row: ItemCardRequirement }) {
       <span className="shrink-0 text-ink/80">{MASTERY_LABELS[row.mastery]}</span>
       <span className="min-w-0 flex-1 self-center border-b border-dotted border-ink/20" />
       <span className="shrink-0 tabular-nums text-ink/70">
-        <span className={`font-bold ${row.met ? "text-accent" : "text-danger"}`}>
-          {row.have}
-        </span>
+        <span className={`font-bold ${row.met ? "text-accent" : "text-danger"}`}>{row.have}</span>
         {" / "}
         {row.required}
       </span>
@@ -276,9 +270,7 @@ function ResistRow({ row }: { row: ItemCardResist }) {
       <span className="shrink-0 tabular-nums text-ink/50 line-through">
         {row.total - row.extra}
       </span>
-      <span className="shrink-0 font-bold tabular-nums text-accent">
-        {row.total}
-      </span>
+      <span className="shrink-0 font-bold tabular-nums text-accent">{row.total}</span>
     </li>
   );
 }
@@ -291,13 +283,7 @@ function ResistRow({ row }: { row: ItemCardResist }) {
  * because this is already the tooltip. A status named here that needed a second
  * hover to explain would be unreachable.
  */
-function EffectRow({
-  effect,
-  tilesets,
-}: {
-  effect: ItemCardEffect;
-  tilesets: TilesetDef[];
-}) {
+function EffectRow({ effect, tilesets }: { effect: ItemCardEffect; tilesets: TilesetDef[] }) {
   return (
     <li className="flex gap-1.5">
       <span
@@ -305,27 +291,19 @@ function EffectRow({
         style={{ width: EFFECT_ICON_SIZE_PX, height: EFFECT_ICON_SIZE_PX }}
       >
         {effect.icon ? (
-          <SpritePreview
-            sprite={effect.icon}
-            tilesets={tilesets}
-            size={EFFECT_ICON_SIZE_PX}
-          />
+          <SpritePreview sprite={effect.icon} tilesets={tilesets} size={EFFECT_ICON_SIZE_PX} />
         ) : null}
       </span>
       <span className="flex min-w-0 flex-col leading-tight">
         <span className="flex flex-wrap items-baseline gap-x-1.5 text-[11px]">
-          <span
-            className={`font-bold ${effect.tone === "bad" ? "text-danger" : "text-accent"}`}
-          >
+          <span className={`font-bold ${effect.tone === "bad" ? "text-danger" : "text-accent"}`}>
             {effect.name}
           </span>
           <span className="tabular-nums text-ink/70">
             {effect.chance === null ? effect.duration : `${effect.chance}% · ${effect.duration}`}
           </span>
         </span>
-        <span className="text-[10px] leading-snug text-ink/70">
-          {effect.description}
-        </span>
+        <span className="text-[10px] leading-snug text-ink/70">{effect.description}</span>
       </span>
     </li>
   );

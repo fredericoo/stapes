@@ -41,9 +41,7 @@ export function RespawnTab({ draft, onChange }: Props) {
    */
   const patchBound = (end: "fromMs" | "toMs", seconds: number) => {
     if (!respawn) return;
-    const ms = Math.round(
-      Math.min(MAX_RESPAWN_SECONDS, Math.max(1, seconds)) * MS_PER_SECOND,
-    );
+    const ms = Math.round(Math.min(MAX_RESPAWN_SECONDS, Math.max(1, seconds)) * MS_PER_SECOND);
     setRespawn(
       end === "fromMs"
         ? { fromMs: ms, toMs: Math.max(ms, respawn.toMs) }
@@ -56,9 +54,7 @@ export function RespawnTab({ draft, onChange }: Props) {
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
         <SwitchField
           checked={Boolean(respawn)}
-          onCheckedChange={(on) =>
-            setRespawn(on ? { ...DEFAULT_RESPAWN } : undefined)
-          }
+          onCheckedChange={(on) => setRespawn(on ? { ...DEFAULT_RESPAWN } : undefined)}
           label="Respawn"
           info="Once a placement is gone — killed, picked up, decayed — it regrows at its authored cell after the wait. Each placement has its own clock. A creature counts as alive wherever it wandered; an object only in its own cell, so a carried-off sword regrows."
           size="section"

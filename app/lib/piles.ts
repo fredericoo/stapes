@@ -45,12 +45,7 @@ import type { MapFile, PlacedTile, TileDef } from "./types";
  * `id` and `itemId` are in here because fusing is precisely the act of losing
  * one of two identities: the pile that receives keeps its own.
  */
-const PILE_FIELDS: ReadonlySet<string> = new Set([
-  "tileId",
-  "itemId",
-  "id",
-  "count",
-]);
+const PILE_FIELDS: ReadonlySet<string> = new Set(["tileId", "itemId", "id", "count"]);
 
 /** Anything with a `count`, which is both shapes a pile is ever written in. */
 type Pile = { tileId: string; count?: number };
@@ -96,9 +91,7 @@ export function pileTally(thing: Pile): string | null {
 
 /** Nothing on this but what a pile may carry. See {@link PILE_FIELDS}. */
 function plain(thing: Pile): boolean {
-  return Object.entries(thing).every(
-    ([key, value]) => value == null || PILE_FIELDS.has(key),
-  );
+  return Object.entries(thing).every(([key, value]) => value == null || PILE_FIELDS.has(key));
 }
 
 /**
@@ -108,11 +101,7 @@ function plain(thing: Pile): boolean {
  * what stops a described berry — somebody wrote on that one — from being
  * absorbed into a heap and losing what it said.
  */
-export function fuses(
-  into: Pile,
-  incoming: Pile,
-  tilesById: Record<string, TileDef>,
-): boolean {
+export function fuses(into: Pile, incoming: Pile, tilesById: Record<string, TileDef>): boolean {
   if (into.tileId !== incoming.tileId) return false;
   const def = tilesById[into.tileId];
   if (!def) return false;

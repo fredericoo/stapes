@@ -38,17 +38,13 @@ describe("naming a conjured tile", () => {
   });
 
   it("names a creature's fire after the creature", () => {
-    expect(conjuredName("Arcane Flame", { castBy: "deer" }, nameOf)).toBe(
-      "Deer's Arcane Flame",
-    );
+    expect(conjuredName("Arcane Flame", { castBy: "deer" }, nameOf)).toBe("Deer's Arcane Flame");
   });
 
   it("is the plain name again once the caster has left the world", () => {
     // A name that no longer belongs to anybody is not an error — the same
     // reading `PlacedTile.castBy` is written under.
-    expect(conjuredName("Arcane Flame", { castBy: "gone" }, nameOf)).toBe(
-      "Arcane Flame",
-    );
+    expect(conjuredName("Arcane Flame", { castBy: "gone" }, nameOf)).toBe("Arcane Flame");
   });
 });
 

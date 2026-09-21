@@ -122,11 +122,7 @@ export function oklabToSrgb(L: number, a: number, b: number): [number, number, n
   const lg = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s;
   const lb = -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s;
 
-  return [
-    linearChannelToSrgb(lr),
-    linearChannelToSrgb(lg),
-    linearChannelToSrgb(lb),
-  ];
+  return [linearChannelToSrgb(lr), linearChannelToSrgb(lg), linearChannelToSrgb(lb)];
 }
 
 /** Flat OKLab triples for the uniform (source fragment converts once per pixel). */
@@ -171,11 +167,7 @@ export function meanPaletteSpacing(lab: Float32Array): number {
  * CPU mirror of the GLSL nearest-match. `lab` is a single OKLab triple;
  * `palette` is the flat OKLab array. Distance weights a/b by `chromaWeight`.
  */
-export function nearestPaletteIndex(
-  lab: Oklab,
-  palette: Float32Array,
-  chromaWeight = 1,
-): number {
+export function nearestPaletteIndex(lab: Oklab, palette: Float32Array, chromaWeight = 1): number {
   const n = palette.length / 3;
   let best = 0;
   let bestD = Infinity;

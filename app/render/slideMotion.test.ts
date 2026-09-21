@@ -112,10 +112,7 @@ describe("slideTileMotions", () => {
 
   it("draws a single shoved tile the same way it always did", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
-    map = replaceStack(map, 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "crate" },
-    ]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "crate" }]);
     const motions = slideTileMotions(
       map,
       tilesById,
@@ -142,10 +139,7 @@ describe("slideTileMotions", () => {
       { tileId: "slab" },
       { tileId: "slab" },
     ]);
-    map = replaceStack(map, 1, 0, 1, [
-      { tileId: "grass" },
-      { tileId: "crate" },
-    ]);
+    map = replaceStack(map, 1, 0, 1, [{ tileId: "grass" }, { tileId: "crate" }]);
     const motions = slideTileMotions(
       map,
       tilesById,

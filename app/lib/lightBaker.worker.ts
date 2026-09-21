@@ -45,10 +45,7 @@ self.onmessage = (event: MessageEvent<BakerRequest>) => {
   if (msg.type !== "bake") return;
 
   if (!map) {
-    reply(
-      { type: "failed", id: msg.id, message: "bake before init" },
-      [],
-    );
+    reply({ type: "failed", id: msg.id, message: "bake before init" }, []);
     return;
   }
 
@@ -69,9 +66,6 @@ self.onmessage = (event: MessageEvent<BakerRequest>) => {
     }
     reply({ type: "baked", id: msg.id, chunks }, transfer);
   } catch (err) {
-    reply(
-      { type: "failed", id: msg.id, message: String(err) },
-      [],
-    );
+    reply({ type: "failed", id: msg.id, message: String(err) }, []);
   }
 };

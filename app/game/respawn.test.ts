@@ -115,10 +115,7 @@ function strip(width: number): MapFile {
   for (let x = 0; x < width; x++) {
     map = replaceStack(map, x, 0, 0, [{ tileId: "grass" }]);
   }
-  map = replaceStack(map, 0, 0, 0, [
-    { tileId: "grass" },
-    { tileId: "player", direction: "e" },
-  ]);
+  map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "e" }]);
   return map;
 }
 
@@ -214,10 +211,7 @@ describe("findSpawnPoints", () => {
       { tileId: "zero" },
     ]);
     expect(findSpawnPoints(map, tilesById)).toEqual([]);
-    const unminted = replaceStack(strip(6), 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "coin" },
-    ]);
+    const unminted = replaceStack(strip(6), 1, 0, 0, [{ tileId: "grass" }, { tileId: "coin" }]);
     expect(objectPointAt(unminted, 1, "coin").itemIds).toBeUndefined();
   });
 
@@ -237,9 +231,7 @@ describe("findSpawnPoints", () => {
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "deer" }]);
     map = replaceStack(map, 2, 0, 0, [{ tileId: "backwards" }]);
     map = replaceStack(map, 4, 0, 0, [{ tileId: "zero" }]);
-    expect(findSpawnPoints(map, tilesById).map((p) => p.key)).toEqual([
-      GNOME_OWNER,
-    ]);
+    expect(findSpawnPoints(map, tilesById).map((p) => p.key)).toEqual([GNOME_OWNER]);
   });
 });
 
@@ -270,10 +262,7 @@ describe("isSpawnFilled", () => {
     expect(isSpawnFilled(authored, point)).toBe(true);
 
     // One of the two taken: the count is short, wherever the coin went.
-    const oneTaken = replaceStack(authored, 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "coin" },
-    ]);
+    const oneTaken = replaceStack(authored, 1, 0, 0, [{ tileId: "grass" }, { tileId: "coin" }]);
     expect(isSpawnFilled(oneTaken, point)).toBe(false);
   });
 });
@@ -281,10 +270,7 @@ describe("isSpawnFilled", () => {
 describe("isSpawnFilled, by identity", () => {
   /** The authored berry at x=1, and the point that watches it. */
   function berryAt(itemId: string) {
-    const map = replaceStack(strip(6), 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "berry", itemId },
-    ]);
+    const map = replaceStack(strip(6), 1, 0, 0, [{ tileId: "grass" }, { tileId: "berry", itemId }]);
     return { map, point: objectPointAt(map, 1, "berry") };
   }
 
@@ -400,18 +386,13 @@ describe("GameSession.respawnAt", () => {
     const session = new GameSession(authored, tiles);
 
     expect(session.respawnAt(gnomePoint).kind).toBe("done");
-    const gnomes = getStack(session.getMap(), GNOME_X, 0, 0).filter(
-      (p) => p.tileId === "gnome",
-    );
+    const gnomes = getStack(session.getMap(), GNOME_X, 0, 0).filter((p) => p.tileId === "gnome");
     expect(gnomes).toHaveLength(1);
   });
 
   it("refuses, retryably, when the placement no longer fits", () => {
     // Somebody built to the ceiling where the gnome used to stand.
-    const blocked = replaceStack(strip(6), GNOME_X, 0, 0, [
-      { tileId: "wall" },
-      { tileId: "wall" },
-    ]);
+    const blocked = replaceStack(strip(6), GNOME_X, 0, 0, [{ tileId: "wall" }, { tileId: "wall" }]);
     const session = new GameSession(blocked, tiles);
 
     expect(session.respawnAt(gnomePoint).kind).toBe("blocked");
@@ -420,10 +401,7 @@ describe("GameSession.respawnAt", () => {
 
   it("mints a fresh identity for a respawned item", () => {
     expect(isItem(tilesById.coin!)).toBe(true);
-    const map = replaceStack(strip(6), 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "coin" },
-    ]);
+    const map = replaceStack(strip(6), 1, 0, 0, [{ tileId: "grass" }, { tileId: "coin" }]);
     const point = objectPointAt(map, 1, "coin");
 
     const session = new GameSession(strip(6), tiles);
@@ -464,10 +442,7 @@ describe("GameSession.respawnAt", () => {
   });
 
   it("hands back the identity it minted, so the point can watch it", () => {
-    const map = replaceStack(strip(6), 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "coin" },
-    ]);
+    const map = replaceStack(strip(6), 1, 0, 0, [{ tileId: "grass" }, { tileId: "coin" }]);
     const point = objectPointAt(map, 1, "coin");
     const session = new GameSession(strip(6), tiles);
 

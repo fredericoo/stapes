@@ -75,10 +75,7 @@ export function floodCoords(
     const pos = queue.pop()!;
     if (
       bounds &&
-      (pos.x < bounds.minX ||
-        pos.x > bounds.maxX ||
-        pos.y < bounds.minY ||
-        pos.y > bounds.maxY)
+      (pos.x < bounds.minX || pos.x > bounds.maxX || pos.y < bounds.minY || pos.y > bounds.maxY)
     ) {
       return [];
     }
@@ -96,4 +93,3 @@ export function floodCoords(
   }
   return out;
 }
-

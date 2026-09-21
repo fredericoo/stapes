@@ -117,10 +117,7 @@ export class DebugPanel {
  * the whole view is about: how much world is being paid for that nobody in the
  * game can see.
  */
-export function panelRows(
-  zoomOut: number,
-  r: DebugReading | null,
-): Record<Row, string> {
+export function panelRows(zoomOut: number, r: DebugReading | null): Record<Row, string> {
   if (!r) {
     return {
       title: `debug ×${zoomOut}   [ ] to zoom`,

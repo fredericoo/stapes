@@ -28,20 +28,14 @@ export function SwitchField({
   return (
     <div className="flex items-center gap-1.5">
       <label className="flex items-center gap-2">
-        <Switch
-          checked={checked}
-          onCheckedChange={onCheckedChange}
-          ariaLabel={label}
-        />
+        <Switch checked={checked} onCheckedChange={onCheckedChange} ariaLabel={label} />
         {/* Hidden from the tree because the switch already carries this word
             as its aria-label, and Base UI also points it at the wrapping label
             — with the text counted, the switch read as "Push Push". */}
         <span
           aria-hidden="true"
           className={
-            size === "section"
-              ? "text-sm font-bold"
-              : "text-xs font-bold uppercase text-muted"
+            size === "section" ? "text-sm font-bold" : "text-xs font-bold uppercase text-muted"
           }
         >
           {label}

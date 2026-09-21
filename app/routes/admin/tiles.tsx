@@ -121,10 +121,7 @@ export default function TilesPage() {
 
   const dialogOpen = isNew || editing !== null;
 
-  const visible = useMemo(
-    () => filterTiles(tiles, query, filter),
-    [tiles, query, filter],
-  );
+  const visible = useMemo(() => filterTiles(tiles, query, filter), [tiles, query, filter]);
 
   /**
    * Slash reaches for the search field.
@@ -257,9 +254,7 @@ export default function TilesPage() {
                       {tile.type}
                     </span>
                     {tileIsAnimated(tile) ? (
-                      <span className="border border-border bg-paper px-1 text-[10px]">
-                        anim
-                      </span>
+                      <span className="border border-border bg-paper px-1 text-[10px]">anim</span>
                     ) : null}
                   </div>
                 </button>
@@ -311,11 +306,7 @@ export default function TilesPage() {
         onDelete={
           editing
             ? () => {
-                if (
-                  !confirm(
-                    "Delete this tile? Map references will show as missing (magenta).",
-                  )
-                ) {
+                if (!confirm("Delete this tile? Map references will show as missing (magenta).")) {
                   return;
                 }
                 const fd = new FormData();
@@ -370,17 +361,9 @@ export default function TilesPage() {
           </label>
           <label className="flex flex-col gap-1 text-xs">
             <span className="font-bold uppercase text-muted">PNG file</span>
-            <input
-              type="file"
-              name="file"
-              accept="image/png"
-              required
-              className="text-sm"
-            />
+            <input type="file" name="file" accept="image/png" required className="text-sm" />
           </label>
-          <p className="text-xs text-muted">
-            Width and height must be multiples of 8px.
-          </p>
+          <p className="text-xs text-muted">Width and height must be multiples of 8px.</p>
         </Form>
       </Dialog>
     </AdminShell>

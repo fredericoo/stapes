@@ -82,11 +82,7 @@ self.addEventListener("message", (event: MessageEvent) => {
   }
 });
 
-async function open(
-  id: number,
-  actorId: string,
-  protocolVersion: number,
-): Promise<void> {
+async function open(id: number, actorId: string, protocolVersion: number): Promise<void> {
   let closed = false;
   const socket = new GameSocket({
     send: (data) => post({ kind: "frame", id, data }),

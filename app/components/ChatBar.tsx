@@ -156,11 +156,7 @@ export function ChatBar({
 }) {
   return (
     <div className="flex w-full shrink-0 items-center gap-2 px-3 py-2">
-      <ChatComposer
-        onSay={onSay}
-        onTypingChange={onTypingChange}
-        focusOnEnter
-      />
+      <ChatComposer onSay={onSay} onTypingChange={onTypingChange} focusOnEnter />
     </div>
   );
 }

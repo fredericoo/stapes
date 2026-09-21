@@ -69,4 +69,3 @@ describe("containerSlotGrid", () => {
     expect(containerSlotGrid(0).slotPx).toBeGreaterThanOrEqual(DENSE_MIN_SLOT_PX);
   });
 });
-

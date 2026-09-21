@@ -293,9 +293,7 @@ function carveVeins(g: CellGrid, box: Bounds, config: CaveConfig): void {
 function carveTunnels(g: CellGrid, box: Bounds, config: CaveConfig): void {
   const t = clamp01(config.density / 100);
   const area = (box.maxX - box.minX + 1) * (box.maxY - box.minY + 1);
-  const target = Math.round(
-    area * lerp(TUNNEL_OPEN_SHARE.loose, TUNNEL_OPEN_SHARE.tight, t),
-  );
+  const target = Math.round(area * lerp(TUNNEL_OPEN_SHARE.loose, TUNNEL_OPEN_SHARE.tight, t));
   const random = mulberry32(config.seed >>> 0);
   const somewhere = () => ({
     x: box.minX + Math.floor(random() * (box.maxX - box.minX + 1)),
@@ -401,17 +399,8 @@ export function carveCave(
  * the streams read as puddles sitting in rooms somebody else dug. The shell is
  * never eroded: {@link inner} is what the water is clamped to.
  */
-export function erodeWithWater(
-  grid: CellGrid,
-  bounds: Bounds,
-  config: CaveConfig,
-): Set<number> {
-  const water = planWater(
-    grid,
-    inner(bounds),
-    config.seed ^ 0x7a7e2,
-    config.waterCoverage,
-  );
+export function erodeWithWater(grid: CellGrid, bounds: Bounds, config: CaveConfig): Set<number> {
+  const water = planWater(grid, inner(bounds), config.seed ^ 0x7a7e2, config.waterCoverage);
   for (const i of water) {
     setOpen(grid, gridX(grid, i), gridY(grid, i), true);
   }
@@ -520,27 +509,16 @@ export function planCave(
     };
   }
 
-  const water = config.waterTileId
-    ? erodeWithWater(grid, bounds, config)
-    : new Set<number>();
+  const water = config.waterTileId ? erodeWithWater(grid, bounds, config) : new Set<number>();
   cutFords(grid, water);
 
   const dry = openCells(grid).filter((c) => !water.has(gridIndex(grid, c.x, c.y)));
   // The tallest the floor gets anywhere, since the alternative floor is laid
   // on top of the base one: a prop has to fit on the deepest cell, not the
   // shallowest, or the plan is refused on the patches after it is drawn.
-  const accentDef = config.accentFloorTileId
-    ? tilesById[config.accentFloorTileId]
-    : undefined;
-  const floorHeight =
-    physicalHeight(floorDef) + (accentDef ? physicalHeight(accentDef) : 0);
-  const scatter = planScatter(
-    dry,
-    config.scatter,
-    config.seed ^ 0x5ca77e2,
-    floorHeight,
-    tilesById,
-  );
+  const accentDef = config.accentFloorTileId ? tilesById[config.accentFloorTileId] : undefined;
+  const floorHeight = physicalHeight(floorDef) + (accentDef ? physicalHeight(accentDef) : 0);
+  const scatter = planScatter(dry, config.scatter, config.seed ^ 0x5ca77e2, floorHeight, tilesById);
 
   const accentCoverage = clamp01(config.accentCoverage / 100);
   /**

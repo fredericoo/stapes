@@ -31,12 +31,7 @@ import {
   type TileTransitionNote,
 } from "../lib/tileTransition";
 import type { StrikeState } from "../game/strike";
-import {
-  actorDirection,
-  actorStillAt,
-  locateActor,
-  type ActorLocation,
-} from "../game/actors";
+import { actorDirection, actorStillAt, locateActor, type ActorLocation } from "../game/actors";
 import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import {
   canConsumeFrom,
@@ -52,11 +47,7 @@ import {
   canTeleportFrom,
   type ObjectRef,
 } from "../game/affordances";
-import {
-  canBeginExtract,
-  type Extraction,
-  type ExtractionProgress,
-} from "../game/extract";
+import { canBeginExtract, type Extraction, type ExtractionProgress } from "../game/extract";
 import { type Progress, windProgress } from "../game/progress";
 import { gravityPullOn } from "../game/gravity";
 import { type Equipment, emptyEquipment } from "../game/equipment";
@@ -92,11 +83,7 @@ import type {
   PlaySession,
   WalkState,
 } from "../game/GameSession";
-import {
-  groundWalkSpeedPercent,
-  standingAbs,
-  walkDurationMsFor,
-} from "../game/movement";
+import { groundWalkSpeedPercent, standingAbs, walkDurationMsFor } from "../game/movement";
 import { STRIKE_RECOVERY_STEPS, strikeRecoveryMs } from "../game/combat";
 import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
 import {
@@ -107,19 +94,9 @@ import {
   isPlayerBody,
   setStacks,
 } from "../lib/mapData";
-import type {
-  Coord,
-  Direction,
-  FlatMapFile,
-  MapFile,
-  TileDef,
-} from "../lib/types";
+import type { Coord, Direction, FlatMapFile, MapFile, TileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import {
-  CHAT_LIFETIME_MS,
-  MAX_CHAT_LENGTH,
-  MAX_CHATS_PER_CELL,
-} from "./chat";
+import { CHAT_LIFETIME_MS, MAX_CHAT_LENGTH, MAX_CHATS_PER_CELL } from "./chat";
 import { MAX_COMMAND_LENGTH, isCommand } from "../game/commands";
 import { SOCKET_OPEN, type ClientSocket } from "./socket";
 import {
@@ -292,10 +269,7 @@ export class RemoteSession implements PlaySession {
    * where the server keeps them too: a health bar changing must not rewrite a
    * cell, or every blow would dirty the light and the geometry around it.
    */
-  private readonly hps = new Map<
-    string,
-    { hp: number; maxHp: number; rating: number }
-  >();
+  private readonly hps = new Map<string, { hp: number; maxHp: number; rating: number }>();
   /**
    * What each person the server has named is called.
    *
@@ -471,8 +445,7 @@ export class RemoteSession implements PlaySession {
    * a background tab is handed the few that could still be running, never a
    * backlog. See `../lib/tileTransition`.
    */
-  private transitions: Array<{ note: TileTransitionNote; heardAtMs: number }> =
-    [];
+  private transitions: Array<{ note: TileTransitionNote; heardAtMs: number }> = [];
   /** Who this client is pointing at; echoed back in the snapshot for the outline. */
   private targetId: string | null = null;
   /**
@@ -1127,10 +1100,7 @@ export class RemoteSession implements PlaySession {
    * the same answer the simulation did without a countdown it does not have for
    * anybody but its viewer. @see `../lib/status`'s `StatusDef.walkSpeedPercent`
    */
-  private walkDurationAt(
-    actorId: string,
-    at: { x: number; y: number; z: number },
-  ): number {
+  private walkDurationAt(actorId: string, at: { x: number; y: number; z: number }): number {
     const stack = getStack(this.map, at.x, at.y, at.z);
     const def = this.tilesById[stack[stack.length - 1]?.tileId ?? ""];
     if (!def) return WALK_DURATION_MS;
@@ -1200,9 +1170,7 @@ export class RemoteSession implements PlaySession {
    */
   private walkSpeedPercentOf(actorId: string): number {
     const statuses =
-      actorId === this.selfId
-        ? this.statuses
-        : (this.statusesById.get(actorId) ?? NO_STATUSES);
+      actorId === this.selfId ? this.statuses : (this.statusesById.get(actorId) ?? NO_STATUSES);
     return walkSpeedPercentFrom(statuses, this.statusDefs);
   }
 
@@ -1618,9 +1586,7 @@ export class RemoteSession implements PlaySession {
    */
   private holdTransition(note: TileTransitionNote) {
     const at = this.now();
-    this.transitions = this.transitions.filter(
-      (held) => at - held.heardAtMs < MAX_TRANSITION_MS,
-    );
+    this.transitions = this.transitions.filter((held) => at - held.heardAtMs < MAX_TRANSITION_MS);
     this.transitions.push({ note, heardAtMs: at });
     if (this.transitions.length > MAX_HELD_TRANSITIONS) this.transitions.shift();
   }
@@ -1682,12 +1648,7 @@ export class RemoteSession implements PlaySession {
    */
   private expireProjectiles(dtMs: number) {
     if (this.projectiles.length > 0) {
-      this.projectiles = ageFlights(
-        this.projectiles,
-        dtMs,
-        this.tilesById,
-        this.flightEffects,
-      );
+      this.projectiles = ageFlights(this.projectiles, dtMs, this.tilesById, this.flightEffects);
     }
     if (this.flightEffects.length > 0) {
       this.flightEffects = ageEffects(this.flightEffects, dtMs);
@@ -1710,9 +1671,7 @@ export class RemoteSession implements PlaySession {
       if (number.elapsedMs >= DAMAGE_NUMBER_LIFETIME_MS) expired = true;
     }
     if (expired) {
-      this.damage = this.damage.filter(
-        (number) => number.elapsedMs < DAMAGE_NUMBER_LIFETIME_MS,
-      );
+      this.damage = this.damage.filter((number) => number.elapsedMs < DAMAGE_NUMBER_LIFETIME_MS);
     }
   }
 
@@ -1833,13 +1792,8 @@ export class RemoteSession implements PlaySession {
       return;
     }
 
-    const choice = chooseStep(
-      this.map,
-      loc,
-      this.held,
-      def,
-      this.tilesById,
-      (to) => this.destinationTaken(to),
+    const choice = chooseStep(this.map, loc, this.held, def, this.tilesById, (to) =>
+      this.destinationTaken(to),
     );
     if (!choice) return;
 
@@ -1867,8 +1821,7 @@ export class RemoteSession implements PlaySession {
     // out before a missing confirmation means anything.
     const durationMs = walkDurationMsFor(
       def,
-      this.walkSpeedPercentOf(this.selfId) +
-        groundWalkSpeedPercent(this.map, loc, this.tilesById),
+      this.walkSpeedPercentOf(this.selfId) + groundWalkSpeedPercent(this.map, loc, this.tilesById),
     );
     motion.walk = {
       from: { x: loc.x, y: loc.y, z: loc.z },
@@ -1901,14 +1854,7 @@ export class RemoteSession implements PlaySession {
    * "still facing east" than it had for the held-direction stream this replaced.
    */
   private face(loc: Coord & { stackIndex: number }, direction: Direction) {
-    this.map = setEntityDirection(
-      this.map,
-      loc.x,
-      loc.y,
-      loc.z,
-      loc.stackIndex,
-      direction,
-    );
+    this.map = setEntityDirection(this.map, loc.x, loc.y, loc.z, loc.stackIndex, direction);
     if (this.facing === direction) return;
     this.facing = direction;
     this.send({ type: "face", direction });
@@ -1954,11 +1900,7 @@ export class RemoteSession implements PlaySession {
    * else.
    */
   private rebuildPredicted() {
-    const at = locateActor(
-      this.serverMap,
-      this.selfId,
-      this.serverSeen ?? undefined,
-    );
+    const at = locateActor(this.serverMap, this.selfId, this.serverSeen ?? undefined);
     this.serverSeen = at;
 
     if (!at) {
@@ -1987,14 +1929,7 @@ export class RemoteSession implements PlaySession {
     }
 
     if (this.facing) {
-      map = setEntityDirection(
-        map,
-        loc.x,
-        loc.y,
-        loc.z,
-        loc.stackIndex,
-        this.facing,
-      );
+      map = setEntityDirection(map, loc.x, loc.y, loc.z, loc.stackIndex, this.facing);
     }
     this.map = map;
   }
@@ -2062,9 +1997,7 @@ export class RemoteSession implements PlaySession {
    * Insertion order is age order, so the first match is the oldest.
    */
   private evictOldestAtCell(at: { x: number; y: number; z: number }) {
-    const here = this.chats.filter(
-      (chat) => chat.x === at.x && chat.y === at.y && chat.z === at.z,
-    );
+    const here = this.chats.filter((chat) => chat.x === at.x && chat.y === at.y && chat.z === at.z);
     if (here.length <= MAX_CHATS_PER_CELL) return;
     const doomed = new Set(here.slice(0, here.length - MAX_CHATS_PER_CELL));
     this.chats = this.chats.filter((chat) => !doomed.has(chat));
@@ -2089,9 +2022,7 @@ export class RemoteSession implements PlaySession {
     // Rebuilt only when something actually went, so a screen full of live
     // bubbles does not allocate a new array every frame.
     if (expired) {
-      this.chats = this.chats.filter(
-        (chat) => chat.elapsedMs < CHAT_LIFETIME_MS,
-      );
+      this.chats = this.chats.filter((chat) => chat.elapsedMs < CHAT_LIFETIME_MS);
     }
   }
 
@@ -2110,9 +2041,7 @@ export class RemoteSession implements PlaySession {
       if (noise.elapsedMs >= NOISE_LIFETIME_MS) expired = true;
     }
     if (expired) {
-      this.noises = this.noises.filter(
-        (noise) => noise.elapsedMs < NOISE_LIFETIME_MS,
-      );
+      this.noises = this.noises.filter((noise) => noise.elapsedMs < NOISE_LIFETIME_MS);
     }
   }
 
@@ -2194,14 +2123,7 @@ export class RemoteSession implements PlaySession {
   private releaseLandedFall(motion: RemoteMotion, at: ActorLocation) {
     const fall = motion.fall;
     if (!fall || fall.feetAbs > fall.landingAbs) return;
-    const footAbs = standingAbs(
-      this.map,
-      at.x,
-      at.y,
-      at.z,
-      at.stackIndex,
-      this.tilesById,
-    );
+    const footAbs = standingAbs(this.map, at.x, at.y, at.z, at.stackIndex, this.tilesById);
     if (footAbs <= fall.landingAbs) motion.fall = null;
   }
 
@@ -2224,24 +2146,16 @@ export class RemoteSession implements PlaySession {
       direction: actorDirection(loc),
       walk: motion.walk,
       fall: motion.fall,
-      walkProgress: motion.walk
-        ? Math.min(1, motion.walk.elapsedMs / motion.walk.durationMs)
-        : 0,
+      walkProgress: motion.walk ? Math.min(1, motion.walk.elapsedMs / motion.walk.durationMs) : 0,
       // Unclamped for the same reason the simulation leaves it unclamped: a
       // fall runs unit after unit, and holding at 1 between them stutters.
-      fallProgress: motion.fall
-        ? motion.fall.elapsedMs / FALL_MS_PER_HEIGHT
-        : 0,
+      fallProgress: motion.fall ? motion.fall.elapsedMs / FALL_MS_PER_HEIGHT : 0,
       // The live motion by reference, as the simulation hands it over too — the
       // progress beside it is what the renderer lerps with.
       slide: motion.slide,
-      slideProgress: motion.slide
-        ? Math.min(1, motion.slide.elapsedMs / PUSH_STEP_MS)
-        : 0,
+      slideProgress: motion.slide ? Math.min(1, motion.slide.elapsedMs / PUSH_STEP_MS) : 0,
       strike: motion.strike,
-      strikeProgress: motion.strike
-        ? Math.min(1, motion.strike.elapsedMs / STRIKE_DURATION_MS)
-        : 0,
+      strikeProgress: motion.strike ? Math.min(1, motion.strike.elapsedMs / STRIKE_DURATION_MS) : 0,
       name: this.names.get(id) ?? null,
       hp: health?.hp ?? null,
       maxHp: health?.maxHp ?? null,
@@ -2250,10 +2164,7 @@ export class RemoteSession implements PlaySession {
       // with a real countdown on it — which is what lets their own effects wind
       // down smoothly. Everybody else's is rebuilt from the broadcast ids and
       // reads as "not running out". @see applyStatusIds
-      statuses:
-        id === this.selfId
-          ? this.statuses
-          : (this.statusesById.get(id) ?? NO_STATUSES),
+      statuses: id === this.selfId ? this.statuses : (this.statusesById.get(id) ?? NO_STATUSES),
       // Shared by reference and never mutated in place, exactly as it is on the
       // simulation side: the array the server sent *is* the answer, and copying
       // it per actor per frame would be an allocation for a list that is almost
@@ -2261,10 +2172,7 @@ export class RemoteSession implements PlaySession {
       carriedLights: this.carriedLights.get(id) ?? NO_CARRIED_LIGHTS,
       // The viewer's own where there is one, on `statuses`' terms: it is the
       // copy the server addressed to them. Everybody else's is the broadcast.
-      extracting:
-        id === this.selfId
-          ? this.extracting
-          : (this.extractionsById.get(id) ?? null),
+      extracting: id === this.selfId ? this.extracting : (this.extractionsById.get(id) ?? null),
       // Everybody's off the broadcast, the viewer's own included: a cast has no
       // owner's half. @see castingsById
       casting: this.castingsById.get(id) ?? null,
@@ -2487,13 +2395,8 @@ export class RemoteSession implements PlaySession {
     const from = this.locate(this.selfId, motion);
     if (!from) return null;
 
-    const targetMotion = this.targetId
-      ? this.motions.get(this.targetId)
-      : undefined;
-    const to =
-      this.targetId && targetMotion
-        ? this.locate(this.targetId, targetMotion)
-        : null;
+    const targetMotion = this.targetId ? this.motions.get(this.targetId) : undefined;
+    const to = this.targetId && targetMotion ? this.locate(this.targetId, targetMotion) : null;
 
     return {
       map: this.map,
@@ -2520,10 +2423,7 @@ export class RemoteSession implements PlaySession {
       // `bodyNameFor` already reads identity off. @see `../game/pvp`
       mayHarmTarget:
         to && this.targetId
-          ? mayHarm(
-              this.combatant(this.selfId, from),
-              this.combatant(this.targetId, to),
-            )
+          ? mayHarm(this.combatant(this.selfId, from), this.combatant(this.targetId, to))
           : true,
     };
   }
@@ -2580,11 +2480,7 @@ export class RemoteSession implements PlaySession {
       y: loc.y,
       z: loc.z,
       stackIndex: loc.stackIndex,
-      elevAbs: absoluteStandingElevation(
-        loc.z,
-        stack.slice(0, loc.stackIndex),
-        this.tilesById,
-      ),
+      elevAbs: absoluteStandingElevation(loc.z, stack.slice(0, loc.stackIndex), this.tilesById),
     };
   }
 
@@ -2610,14 +2506,7 @@ export class RemoteSession implements PlaySession {
     const loc = this.locate(this.selfId, motion);
     if (!loc) return false;
     return (
-      canRewardFrom(
-        this.map,
-        this.tilesById,
-        loc,
-        ref,
-        this.equipment,
-        this.tags,
-      ) ||
+      canRewardFrom(this.map, this.tilesById, loc, ref, this.equipment, this.tags) ||
       // Asked of the body standing here rather than of the player tile, on the
       // same terms `../game/interactionOptions` asks it: whether the far end
       // has room is a question about who is making the trip.
@@ -2640,14 +2529,7 @@ export class RemoteSession implements PlaySession {
       // would fit, and whether this player is already on it — off the same map,
       // the same pull and the same kit. Being the same function is what stops
       // this offering a pull the far end would refuse.
-      canBeginExtract(
-        this.map,
-        this.tilesById,
-        loc,
-        this.equipment,
-        ref,
-        this.extracting,
-      ) ||
+      canBeginExtract(this.map, this.tilesById, loc, this.equipment, ref, this.extracting) ||
       canEquipFrom(this.map, this.tilesById, loc, ref, this.equipment) ||
       canPickUpFrom(this.map, this.tilesById, loc, ref, this.equipment) ||
       canPushFrom(this.map, this.tilesById, loc, ref)
@@ -2749,13 +2631,7 @@ export class RemoteSession implements PlaySession {
       if (this.pending.length > 0) return false;
       if (!canConsumeFrom(this.map, this.tilesById, loc, from.ref)) return false;
     } else {
-      const instance = itemInSlot(
-        this.map,
-        this.tilesById,
-        loc,
-        this.equipment,
-        from.slot,
-      );
+      const instance = itemInSlot(this.map, this.tilesById, loc, this.equipment, from.slot);
       const def = instance && this.tilesById[instance.tileId];
       if (!def || !resolveConsumable(def)) return false;
     }
@@ -2803,16 +2679,7 @@ export class RemoteSession implements PlaySession {
     if (this.pending.length > 0) return false;
     const loc = this.locate(this.selfId, motion);
     if (!loc) return false;
-    if (
-      !canTransmuteFrom(
-        this.map,
-        this.tilesById,
-        loc,
-        this.equipment,
-        ref,
-        recipe,
-      )
-    ) {
+    if (!canTransmuteFrom(this.map, this.tilesById, loc, this.equipment, ref, recipe)) {
       return false;
     }
 
@@ -2837,14 +2704,7 @@ export class RemoteSession implements PlaySession {
     const motion = this.motions.get(this.selfId);
     const loc = motion && this.locate(this.selfId, motion);
     if (!loc) return false;
-    return canMoveItem(
-      this.map,
-      this.tilesById,
-      loc,
-      this.equipment,
-      from,
-      to,
-    );
+    return canMoveItem(this.map, this.tilesById, loc, this.equipment, from, to);
   }
 
   /**
@@ -2873,13 +2733,7 @@ export class RemoteSession implements PlaySession {
     const motion = this.motions.get(this.selfId);
     const loc = motion && this.locate(this.selfId, motion);
     if (!loc) return false;
-    const instance = itemInSlot(
-      this.map,
-      this.tilesById,
-      loc,
-      this.equipment,
-      from,
-    );
+    const instance = itemInSlot(this.map, this.tilesById, loc, this.equipment, from);
     const def = instance && this.tilesById[instance.tileId];
     if (!def) return false;
     return canDropAt(this.map, this.tilesById, loc, to, def);
@@ -3008,4 +2862,3 @@ function offscreenActor(id: string): ActorSnapshot {
     pvp: false,
   };
 }
-

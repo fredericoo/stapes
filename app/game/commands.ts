@@ -1,11 +1,6 @@
 import type { MinutesOfDay } from "../lib/clock";
 import { MAX_CONSUMABLE_HP_SHIFT } from "../lib/item";
-import {
-  MASTERIES,
-  MAX_MASTERY,
-  MIN_MASTERY,
-  type Mastery,
-} from "../lib/mastery";
+import { MASTERIES, MAX_MASTERY, MIN_MASTERY, type Mastery } from "../lib/mastery";
 import type { Coord } from "../lib/types";
 
 /**
@@ -145,9 +140,7 @@ export const COMMAND_USAGE: Record<CommandName, string> = {
  * offset. That is the trade the sign buys, and the offsets are what an admin
  * standing in the world actually types.
  */
-export type Coordinate =
-  | { kind: "absolute"; value: number }
-  | { kind: "relative"; offset: number };
+export type Coordinate = { kind: "absolute"; value: number } | { kind: "relative"; offset: number };
 
 /** A cell named on all three axes, each independently absolute or relative. */
 export type CellRequest = {
@@ -320,9 +313,7 @@ export type CommandRefusal =
   /** A body authored immune to the very thing that was asked for. */
   | { kind: "immuneTarget"; name: string; status: string };
 
-export type CommandParse =
-  | { ok: true; command: Command }
-  | { ok: false; refusal: CommandRefusal };
+export type CommandParse = { ok: true; command: Command } | { ok: false; refusal: CommandRefusal };
 
 /**
  * Read a typed line as a command, or say what stopped it.
@@ -379,10 +370,7 @@ const MAX_MASTERY_ARGUMENTS = 3;
 function parseMasteryArguments(args: string[]): CommandParse {
   // The target is the one optional argument, so anything past it is a typo
   // rather than a command with something extra on the end.
-  if (
-    args.length < MIN_MASTERY_ARGUMENTS ||
-    args.length > MAX_MASTERY_ARGUMENTS
-  ) {
+  if (args.length < MIN_MASTERY_ARGUMENTS || args.length > MAX_MASTERY_ARGUMENTS) {
     return {
       ok: false,
       refusal: { kind: "badArguments", command: MASTERY_COMMAND },
@@ -391,9 +379,7 @@ function parseMasteryArguments(args: string[]): CommandParse {
 
   const [masteryToken = "", levelToken = "", targetToken] = args;
 
-  const mastery = MASTERIES.find(
-    (candidate) => candidate === masteryToken.toLowerCase(),
-  );
+  const mastery = MASTERIES.find((candidate) => candidate === masteryToken.toLowerCase());
   if (!mastery) {
     return {
       ok: false,
@@ -444,10 +430,7 @@ function parseTileArguments(args: string[]): CommandParse {
   // A count is not a coordinate, so a line that opens with one has a token
   // fewer left to spend on axes.
   const coordinateTokens = count === null ? rest : rest.slice(1);
-  if (
-    tileToken === undefined ||
-    coordinateTokens.length > MAX_TILE_COORDINATES
-  ) {
+  if (tileToken === undefined || coordinateTokens.length > MAX_TILE_COORDINATES) {
     return {
       ok: false,
       refusal: { kind: "badArguments", command: TILE_COMMAND },
@@ -536,10 +519,7 @@ const MAX_STATUS_ARGUMENTS = 2;
  * matched case-insensitively.
  */
 function parseStatusArguments(args: string[]): CommandParse {
-  if (
-    args.length < MIN_STATUS_ARGUMENTS ||
-    args.length > MAX_STATUS_ARGUMENTS
-  ) {
+  if (args.length < MIN_STATUS_ARGUMENTS || args.length > MAX_STATUS_ARGUMENTS) {
     return {
       ok: false,
       refusal: { kind: "badArguments", command: STATUS_COMMAND },
@@ -581,10 +561,7 @@ const HEALTH_PATTERN = /^[+-]?\d+$/;
  * The same trick the tile command's coordinates turn on.
  */
 function parseHealthArguments(args: string[]): CommandParse {
-  if (
-    args.length < MIN_HEALTH_ARGUMENTS ||
-    args.length > MAX_HEALTH_ARGUMENTS
-  ) {
+  if (args.length < MIN_HEALTH_ARGUMENTS || args.length > MAX_HEALTH_ARGUMENTS) {
     return {
       ok: false,
       refusal: { kind: "badArguments", command: HEALTH_COMMAND },
@@ -606,9 +583,7 @@ function parseHealthArguments(args: string[]): CommandParse {
     ok: true,
     command: {
       name: HEALTH_COMMAND,
-      health: signed
-        ? { kind: "shift", by: magnitude }
-        : { kind: "set", hp: magnitude },
+      health: signed ? { kind: "shift", by: magnitude } : { kind: "set", hp: magnitude },
       target: targetOf(targetToken),
     },
   };
@@ -768,14 +743,10 @@ export function resolveCell(at: CellRequest, from: Coord): Coord {
 }
 
 function resolveCoordinate(coordinate: Coordinate, origin: number): number {
-  return coordinate.kind === "absolute"
-    ? coordinate.value
-    : origin + coordinate.offset;
+  return coordinate.kind === "absolute" ? coordinate.value : origin + coordinate.offset;
 }
 
 /** `self` and an absent argument are the same request: whoever typed it. */
 function targetOf(token: string | undefined): string | null {
-  return token === undefined || token.toLowerCase() === SELF_TARGET
-    ? null
-    : token;
+  return token === undefined || token.toLowerCase() === SELF_TARGET ? null : token;
 }

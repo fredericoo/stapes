@@ -2,12 +2,7 @@ import { describe, expect, it } from "vitest";
 import tilesJson from "../../data/tiles.json";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
-import {
-  HEIGHT_PER_LEVEL,
-  normalizeTiles,
-  resolveActor,
-  resolveLightPassing,
-} from "../lib/types";
+import { HEIGHT_PER_LEVEL, normalizeTiles, resolveActor, resolveLightPassing } from "../lib/types";
 import { hasLineOfSight } from "./sight";
 import { tile } from "../lib/testTile";
 
@@ -144,9 +139,7 @@ describe("looking from higher up", () => {
           x,
           y,
           0,
-          extra
-            ? [{ tileId: floor }, { tileId: extra }]
-            : [{ tileId: floor }],
+          extra ? [{ tileId: floor }, { tileId: extra }] : [{ tileId: floor }],
         );
       }
     }
@@ -160,9 +153,7 @@ describe("looking from higher up", () => {
    * was taller than it was.
    */
   it("is not blinded by the floor it is standing on", () => {
-    expect(hasLineOfSight(ground("step"), tilesById, from, beyond, RAT)).toBe(
-      true,
-    );
+    expect(hasLineOfSight(ground("step"), tilesById, from, beyond, RAT)).toBe(true);
   });
 
   it("reads the same raised as it does on the flat", () => {
@@ -186,9 +177,7 @@ describe("looking from higher up", () => {
   /** And standing on one really does let a rat see over the next one along. */
   it("lets a rat on a crate see over a crate that would stop it on the floor", () => {
     const inTheWay = { "2,0": "crate" };
-    expect(
-      hasLineOfSight(ground("grass", inTheWay), tilesById, from, beyond, RAT),
-    ).toBe(false);
+    expect(hasLineOfSight(ground("grass", inTheWay), tilesById, from, beyond, RAT)).toBe(false);
     expect(
       hasLineOfSight(
         ground("grass", { ...inTheWay, "0,0": "crate" }),
@@ -216,57 +205,41 @@ describe("looking from higher up", () => {
    * travelling upward is stopped by the sky.
    */
   it("still looks up through open air", () => {
-    expect(
-      hasLineOfSight(ground("grass"), tilesById, from, { x: 3, y: 0, z: 1 }, RAT),
-    ).toBe(true);
+    expect(hasLineOfSight(ground("grass"), tilesById, from, { x: 3, y: 0, z: 1 }, RAT)).toBe(true);
   });
 });
 
 describe("line of sight", () => {
   it("crosses open ground", () => {
-    expect(hasLineOfSight(field(), tilesById, from, { x: 5, y: 0, z: 0 })).toBe(
-      true,
-    );
+    expect(hasLineOfSight(field(), tilesById, from, { x: 5, y: 0, z: 0 })).toBe(true);
   });
 
   it("stops at a full-height wall", () => {
     const map = put(field(), 2, 0, "wall");
-    expect(hasLineOfSight(map, tilesById, from, { x: 5, y: 0, z: 0 })).toBe(
-      false,
-    );
+    expect(hasLineOfSight(map, tilesById, from, { x: 5, y: 0, z: 0 })).toBe(false);
   });
 
   /** A full level tall by default, which is what every caller but a brain is. */
   it("passes over a crate", () => {
     const map = put(field(), 2, 0, "crate");
-    expect(hasLineOfSight(map, tilesById, from, { x: 5, y: 0, z: 0 })).toBe(
-      true,
-    );
+    expect(hasLineOfSight(map, tilesById, from, { x: 5, y: 0, z: 0 })).toBe(true);
   });
 
   /** The whole point of deriving sight from light rather than from solidity. */
   it("passes through a window, which a body could not walk through", () => {
     const map = put(field(), 2, 0, "window");
-    expect(hasLineOfSight(map, tilesById, from, { x: 5, y: 0, z: 0 })).toBe(
-      true,
-    );
+    expect(hasLineOfSight(map, tilesById, from, { x: 5, y: 0, z: 0 })).toBe(true);
   });
 
   it("looks past a wall that is not between the two", () => {
     const map = put(field(), 2, 3, "wall");
-    expect(hasLineOfSight(map, tilesById, from, { x: 5, y: 0, z: 0 })).toBe(
-      true,
-    );
+    expect(hasLineOfSight(map, tilesById, from, { x: 5, y: 0, z: 0 })).toBe(true);
   });
 
   it("sees on the diagonal, and loses it to a wall on the diagonal", () => {
-    expect(hasLineOfSight(field(), tilesById, from, { x: 4, y: 4, z: 0 })).toBe(
-      true,
-    );
+    expect(hasLineOfSight(field(), tilesById, from, { x: 4, y: 4, z: 0 })).toBe(true);
     const map = put(field(), 2, 2, "wall");
-    expect(hasLineOfSight(map, tilesById, from, { x: 4, y: 4, z: 0 })).toBe(
-      false,
-    );
+    expect(hasLineOfSight(map, tilesById, from, { x: 4, y: 4, z: 0 })).toBe(false);
   });
 
   /**
@@ -275,20 +248,14 @@ describe("line of sight", () => {
    */
   it("ignores what is standing at either end", () => {
     const own = put(field(), 0, 0, "wall");
-    expect(hasLineOfSight(own, tilesById, from, { x: 3, y: 0, z: 0 })).toBe(
-      true,
-    );
+    expect(hasLineOfSight(own, tilesById, from, { x: 3, y: 0, z: 0 })).toBe(true);
     const theirs = put(field(), 3, 0, "wall");
-    expect(hasLineOfSight(theirs, tilesById, from, { x: 3, y: 0, z: 0 })).toBe(
-      true,
-    );
+    expect(hasLineOfSight(theirs, tilesById, from, { x: 3, y: 0, z: 0 })).toBe(true);
   });
 
   it("has nothing in the way of a neighbour", () => {
     const map = put(field(), 1, 0, "wall");
-    expect(hasLineOfSight(map, tilesById, from, { x: 1, y: 0, z: 0 })).toBe(
-      true,
-    );
+    expect(hasLineOfSight(map, tilesById, from, { x: 1, y: 0, z: 0 })).toBe(true);
   });
 
   /**
@@ -300,9 +267,7 @@ describe("line of sight", () => {
   it("looks up through open air", () => {
     const map = field();
 
-    expect(hasLineOfSight(map, tilesById, from, { x: 3, y: 0, z: 1 })).toBe(
-      true,
-    );
+    expect(hasLineOfSight(map, tilesById, from, { x: 3, y: 0, z: 1 })).toBe(true);
   });
 
   /**
@@ -313,9 +278,7 @@ describe("line of sight", () => {
   it("does not look down through a floor", () => {
     const map = field();
 
-    expect(hasLineOfSight(map, tilesById, from, { x: 3, y: 0, z: -1 })).toBe(
-      false,
-    );
+    expect(hasLineOfSight(map, tilesById, from, { x: 3, y: 0, z: -1 })).toBe(false);
   });
 
   it("looks down through a gap in the floor", () => {
@@ -324,9 +287,7 @@ describe("line of sight", () => {
     // viewer's own cell there is a hole in the floor under their feet.
     const map = replaceStack(field(), 0, 0, 0, []);
 
-    expect(hasLineOfSight(map, tilesById, from, { x: 0, y: 0, z: -1 })).toBe(
-      true,
-    );
+    expect(hasLineOfSight(map, tilesById, from, { x: 0, y: 0, z: -1 })).toBe(true);
   });
 
   /**
@@ -339,9 +300,7 @@ describe("line of sight", () => {
   it("is stopped going up by a ceiling overhead", () => {
     const map = replaceStack(field(), 0, 0, 1, [{ tileId: "wall" }]);
 
-    expect(hasLineOfSight(map, tilesById, from, { x: 0, y: 0, z: 1 })).toBe(
-      false,
-    );
+    expect(hasLineOfSight(map, tilesById, from, { x: 0, y: 0, z: 1 })).toBe(false);
   });
 
   /**
@@ -354,9 +313,7 @@ describe("line of sight", () => {
   it("sees onto a ledge a cell over, over the lip of it", () => {
     const ledge = replaceStack(field(), 1, 0, 1, [{ tileId: "grass" }]);
 
-    expect(hasLineOfSight(ledge, tilesById, from, { x: 1, y: 0, z: 1 })).toBe(
-      true,
-    );
+    expect(hasLineOfSight(ledge, tilesById, from, { x: 1, y: 0, z: 1 })).toBe(true);
   });
 
   /** Roof the *viewer* instead and the same look is refused. */
@@ -364,9 +321,7 @@ describe("line of sight", () => {
     let map = replaceStack(field(), 1, 0, 1, [{ tileId: "grass" }]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "grass" }]);
 
-    expect(hasLineOfSight(map, tilesById, from, { x: 1, y: 0, z: 1 })).toBe(
-      false,
-    );
+    expect(hasLineOfSight(map, tilesById, from, { x: 1, y: 0, z: 1 })).toBe(false);
   });
 
   /**
@@ -438,9 +393,7 @@ describe("the library we ship", () => {
    * and nothing would say so.
    */
   it("puts a box within a full-height body's sight and a wall past it", () => {
-    const authoredById = Object.fromEntries(
-      authored.map((tile) => [tile.id, tile]),
-    );
+    const authoredById = Object.fromEntries(authored.map((tile) => [tile.id, tile]));
     const counter = { x: 2, y: 0, z: 0 };
     const customer = { x: 4, y: 0, z: 0 };
     let ground = emptyMap();
@@ -456,9 +409,9 @@ describe("the library we ship", () => {
     const EYE = HEIGHT_PER_LEVEL;
     expect(hasLineOfSight(put("wooden-box"), authoredById, from, customer, EYE)).toBe(true);
     // Two of them is a full level, and nobody sees over that.
-    expect(
-      hasLineOfSight(put("wooden-box", "wooden-box"), authoredById, from, customer, EYE),
-    ).toBe(false);
+    expect(hasLineOfSight(put("wooden-box", "wooden-box"), authoredById, from, customer, EYE)).toBe(
+      false,
+    );
     expect(hasLineOfSight(put("stone-wall"), authoredById, from, customer, EYE)).toBe(false);
   });
 });

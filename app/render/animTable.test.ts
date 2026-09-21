@@ -86,9 +86,7 @@ describe("AnimationTable", () => {
   });
 
   it("refuses a cycle longer than the shader's loop can walk", () => {
-    const tooLong = Array.from({ length: ANIM_MAX_FRAMES + 1 }, (_, i) =>
-      frame(i % 16, 0, 10),
-    );
+    const tooLong = Array.from({ length: ANIM_MAX_FRAMES + 1 }, (_, i) => frame(i % 16, 0, 10));
     expect(tableCanHold(tooLong)).toBe(false);
     expect(new AnimationTable().add(tooLong, SHEET)).toBe(NO_ANIMATION);
   });

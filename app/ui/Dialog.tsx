@@ -33,9 +33,7 @@ export function Dialog({
           className={[
             "fixed top-1/2 left-1/2 z-50 -translate-x-1/2 -translate-y-1/2",
             "flex flex-col border-2 border-border bg-paper shadow-hard",
-            wide
-              ? "h-[90vh] w-[min(1100px,96vw)]"
-              : "max-h-[90vh] w-[min(560px,94vw)]",
+            wide ? "h-[90vh] w-[min(1100px,96vw)]" : "max-h-[90vh] w-[min(560px,94vw)]",
           ].join(" ")}
         >
           <div className="flex items-center justify-between border-b-2 border-border bg-ink px-3 py-2 text-paper">

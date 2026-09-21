@@ -34,11 +34,7 @@ const SAFE_TILESET_NAME = /^[a-zA-Z0-9._-]+\.png$/;
 export interface Blobs {
   getText(key: string): Promise<string | null>;
   getBytes(key: string): Promise<Uint8Array<ArrayBuffer> | null>;
-  put(
-    key: string,
-    body: string | Uint8Array<ArrayBuffer>,
-    contentType: string,
-  ): Promise<void>;
+  put(key: string, body: string | Uint8Array<ArrayBuffer>, contentType: string): Promise<void>;
 }
 
 export class DataStore {
@@ -51,11 +47,7 @@ export class DataStore {
   }
 
   async writeTiles(tiles: TileDef[]) {
-    await this.blobs.put(
-      TILES_KEY,
-      `${JSON.stringify(tiles, null, 2)}\n`,
-      JSON_TYPE,
-    );
+    await this.blobs.put(TILES_KEY, `${JSON.stringify(tiles, null, 2)}\n`, JSON_TYPE);
   }
 
   /**
@@ -77,11 +69,7 @@ export class DataStore {
   }
 
   async writeStatuses(statuses: unknown[]) {
-    await this.blobs.put(
-      STATUSES_KEY,
-      `${JSON.stringify(statuses, null, 2)}\n`,
-      JSON_TYPE,
-    );
+    await this.blobs.put(STATUSES_KEY, `${JSON.stringify(statuses, null, 2)}\n`, JSON_TYPE);
   }
 
   async readTilesets(): Promise<TilesetDef[]> {
@@ -91,11 +79,7 @@ export class DataStore {
   }
 
   async writeTilesets(tilesets: TilesetDef[]) {
-    await this.blobs.put(
-      TILESETS_KEY,
-      `${JSON.stringify(tilesets, null, 2)}\n`,
-      JSON_TYPE,
-    );
+    await this.blobs.put(TILESETS_KEY, `${JSON.stringify(tilesets, null, 2)}\n`, JSON_TYPE);
   }
 
   async readMap(): Promise<MapFile> {

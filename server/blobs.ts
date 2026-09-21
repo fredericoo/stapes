@@ -24,12 +24,8 @@ export class SqliteBlobs implements Blobs {
   }
 
   async getBytes(key: string): Promise<Uint8Array<ArrayBuffer> | null> {
-    const statement = await this.db.prepare(
-      "SELECT bytes FROM blob WHERE key = ?",
-    );
-    const row = (await statement.get([key])) as
-      | { bytes: Uint8Array | string }
-      | undefined;
+    const statement = await this.db.prepare("SELECT bytes FROM blob WHERE key = ?");
+    const row = (await statement.get([key])) as { bytes: Uint8Array | string } | undefined;
     if (!row) return null;
     return toBytes(row.bytes);
   }
@@ -39,8 +35,7 @@ export class SqliteBlobs implements Blobs {
     body: string | Uint8Array<ArrayBuffer>,
     contentType: string,
   ): Promise<void> {
-    const bytes =
-      typeof body === "string" ? new TextEncoder().encode(body) : body;
+    const bytes = typeof body === "string" ? new TextEncoder().encode(body) : body;
     const statement = await this.db.prepare(
       `INSERT INTO blob (key, content_type, bytes, updated_at) VALUES (?, ?, ?, ?)
        ON CONFLICT(key) DO UPDATE SET
@@ -96,10 +91,7 @@ export class DiskBlobs implements Blobs {
     try {
       const buffer = await readFile(this.resolve(key));
       return new Uint8Array(
-        buffer.buffer.slice(
-          buffer.byteOffset,
-          buffer.byteOffset + buffer.byteLength,
-        ),
+        buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength),
       ) as Uint8Array<ArrayBuffer>;
     } catch {
       return null;

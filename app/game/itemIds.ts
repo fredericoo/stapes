@@ -59,10 +59,7 @@ function mintContentIds(contents: ItemInstance[]): ItemInstance[] {
  * Returns the same map object when nothing needed an id, so a world of loaded
  * scenery costs a walk and no copy at all.
  */
-export function mintItemIds(
-  map: MapFile,
-  tilesById: Record<string, TileDef>,
-): MapFile {
+export function mintItemIds(map: MapFile, tilesById: Record<string, TileDef>): MapFile {
   let next = map;
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     // Read off `map` rather than `next`: the only edit made here is stamping an
@@ -77,9 +74,7 @@ export function mintItemIds(
         // chest whose own tile has since been authored into scenery.
         const contents = placed.contents && mintContentIds(placed.contents);
         const withContents =
-          contents && contents !== placed.contents
-            ? { ...placed, contents }
-            : placed;
+          contents && contents !== placed.contents ? { ...placed, contents } : placed;
         if (withContents !== placed) touched = true;
 
         if (withContents.itemId) return withContents;

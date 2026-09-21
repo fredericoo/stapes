@@ -1,15 +1,8 @@
 import { Toast } from "@base-ui/react/toast";
 import type { UseToastManagerReturnValue } from "@base-ui/react/toast";
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  type ReactNode,
-} from "react";
+import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
 
-const ToastManagerContext =
-  createContext<UseToastManagerReturnValue | null>(null);
+const ToastManagerContext = createContext<UseToastManagerReturnValue | null>(null);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   return (
@@ -26,11 +19,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
 function ToastManagerBridge({ children }: { children: ReactNode }) {
   const manager = Toast.useToastManager();
-  return (
-    <ToastManagerContext.Provider value={manager}>
-      {children}
-    </ToastManagerContext.Provider>
-  );
+  return <ToastManagerContext.Provider value={manager}>{children}</ToastManagerContext.Provider>;
 }
 
 function ToastList() {

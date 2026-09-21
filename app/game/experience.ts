@@ -89,10 +89,7 @@ export const DEFENSIVE_RECOVERY_MS = 10_000;
 
 /** What the *n*th payout from one attacker is worth, as a fraction of 1. */
 export function defensiveDecay(payouts: number): number {
-  return Math.max(
-    MIN_DEFENSIVE_DECAY,
-    DEFENSIVE_DECAY_PER_PAYOUT ** Math.max(0, payouts),
-  );
+  return Math.max(MIN_DEFENSIVE_DECAY, DEFENSIVE_DECAY_PER_PAYOUT ** Math.max(0, payouts));
 }
 
 /**
@@ -332,7 +329,6 @@ export function practiceEarnings(
   for (const element of elements) earnings[element] = XP_PER_CAST;
   return earnings;
 }
-
 
 /**
  * What one cast earns the body that made it.

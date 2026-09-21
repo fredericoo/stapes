@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  blockReason,
-  drawnBlockReason,
-  fillElapsedMs,
-} from "./InteractionList";
+import { blockReason, drawnBlockReason, fillElapsedMs } from "./InteractionList";
 
 /**
  * The arithmetic behind the bar across a row with a wait on it — a pull being

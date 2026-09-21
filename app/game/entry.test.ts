@@ -148,8 +148,6 @@ describe("findEntryCell", () => {
     for (let y = -reach; y <= reach; y++) {
       for (let x = -reach; x <= reach; x++) blocked[`${x},${y}`] = [grass, wall];
     }
-    expect(findEntryCell(floorWith(blocked), tilesById, WAS_AT, SPAWN)).toEqual(
-      SPAWN,
-    );
+    expect(findEntryCell(floorWith(blocked), tilesById, WAS_AT, SPAWN)).toEqual(SPAWN);
   });
 });

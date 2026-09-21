@@ -76,10 +76,7 @@ export function tintUniforms(tint: StatusTint): TintUniforms {
  * can retint on every keystroke without discarding a material and asking the
  * driver to look at a program again.
  */
-export function writeTintUniforms(
-  target: TintUniforms,
-  tint: StatusTint | null,
-) {
+export function writeTintUniforms(target: TintUniforms, tint: StatusTint | null) {
   if (!tint || tint.strength <= 0) {
     target.uTintStrength.value = 0;
     return;

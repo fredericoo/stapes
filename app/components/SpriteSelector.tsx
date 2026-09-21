@@ -23,12 +23,7 @@ type Props = {
 /**
  * Drag-select a rectangular cell area on a tileset; click inside selection to set base.
  */
-export function SpriteSelector({
-  tileset,
-  value,
-  onChange,
-  zoom = 4,
-}: Props) {
+export function SpriteSelector({ tileset, value, onChange, zoom = 4 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [img, setImg] = useState<HTMLImageElement | null>(null);
   const dragRef = useRef<{
@@ -86,12 +81,7 @@ export function SpriteSelector({
     if (value) {
       const { rect, base } = value;
       ctx.fillStyle = "rgba(45, 106, 79, 0.28)";
-      ctx.fillRect(
-        rect.x * 8 * zoom,
-        rect.y * 8 * zoom,
-        rect.w * 8 * zoom,
-        rect.h * 8 * zoom,
-      );
+      ctx.fillRect(rect.x * 8 * zoom, rect.y * 8 * zoom, rect.w * 8 * zoom, rect.h * 8 * zoom);
       ctx.strokeStyle = "#2d6a4f";
       ctx.lineWidth = 2;
       ctx.strokeRect(
@@ -102,12 +92,7 @@ export function SpriteSelector({
       );
       // Base cell
       ctx.fillStyle = "rgba(255, 200, 0, 0.45)";
-      ctx.fillRect(
-        (rect.x + base.x) * 8 * zoom,
-        (rect.y + base.y) * 8 * zoom,
-        8 * zoom,
-        8 * zoom,
-      );
+      ctx.fillRect((rect.x + base.x) * 8 * zoom, (rect.y + base.y) * 8 * zoom, 8 * zoom, 8 * zoom);
       ctx.strokeStyle = "#c9a227";
       ctx.strokeRect(
         (rect.x + base.x) * 8 * zoom + 1,
@@ -138,12 +123,7 @@ export function SpriteSelector({
     const rect = canvas.getBoundingClientRect();
     const x = Math.floor((clientX - rect.left) / (8 * zoom));
     const y = Math.floor((clientY - rect.top) / (8 * zoom));
-    if (
-      x < 0 ||
-      y < 0 ||
-      x >= tileset.width / 8 ||
-      y >= tileset.height / 8
-    ) {
+    if (x < 0 || y < 0 || x >= tileset.width / 8 || y >= tileset.height / 8) {
       return null;
     }
     return { x, y };
@@ -163,67 +143,67 @@ export function SpriteSelector({
           because a tall sheet at 4× is several screens, and letting it set the
           dialog's height put the frame controls and the preview off the bottom. */}
       <div className="max-h-[50vh] max-w-full overflow-auto">
-      <canvas
-        ref={canvasRef}
-        className="pixelated cursor-crosshair"
-        onMouseMove={(e) => {
-          const c = cellAt(e.clientX, e.clientY);
-          setHover(c);
-          if (dragRef.current?.dragging && c && tileset) {
-            const { startX, startY } = dragRef.current;
-            const x = Math.min(startX, c.x);
-            const y = Math.min(startY, c.y);
-            const w = Math.abs(c.x - startX) + 1;
-            const h = Math.abs(c.y - startY) + 1;
-            const rect = { x, y, w, h };
+        <canvas
+          ref={canvasRef}
+          className="pixelated cursor-crosshair"
+          onMouseMove={(e) => {
+            const c = cellAt(e.clientX, e.clientY);
+            setHover(c);
+            if (dragRef.current?.dragging && c && tileset) {
+              const { startX, startY } = dragRef.current;
+              const x = Math.min(startX, c.x);
+              const y = Math.min(startY, c.y);
+              const w = Math.abs(c.x - startX) + 1;
+              const h = Math.abs(c.y - startY) + 1;
+              const rect = { x, y, w, h };
+              onChange({ rect, base: defaultBase(rect) });
+            }
+          }}
+          onMouseLeave={() => setHover(null)}
+          onMouseDown={(e) => {
+            const c = cellAt(e.clientX, e.clientY);
+            if (!c || !tileset) return;
+            // If click inside existing selection, set base
+            if (
+              value &&
+              c.x >= value.rect.x &&
+              c.y >= value.rect.y &&
+              c.x < value.rect.x + value.rect.w &&
+              c.y < value.rect.y + value.rect.h &&
+              !e.shiftKey
+            ) {
+              // Start drag only if moving; for now: mousedown inside = potential base set on mouseup without drag
+              dragRef.current = {
+                startX: c.x,
+                startY: c.y,
+                dragging: false,
+              };
+              return;
+            }
+            dragRef.current = { startX: c.x, startY: c.y, dragging: true };
+            const rect = { x: c.x, y: c.y, w: 1, h: 1 };
             onChange({ rect, base: defaultBase(rect) });
-          }
-        }}
-        onMouseLeave={() => setHover(null)}
-        onMouseDown={(e) => {
-          const c = cellAt(e.clientX, e.clientY);
-          if (!c || !tileset) return;
-          // If click inside existing selection, set base
-          if (
-            value &&
-            c.x >= value.rect.x &&
-            c.y >= value.rect.y &&
-            c.x < value.rect.x + value.rect.w &&
-            c.y < value.rect.y + value.rect.h &&
-            !e.shiftKey
-          ) {
-            // Start drag only if moving; for now: mousedown inside = potential base set on mouseup without drag
-            dragRef.current = {
-              startX: c.x,
-              startY: c.y,
-              dragging: false,
-            };
-            return;
-          }
-          dragRef.current = { startX: c.x, startY: c.y, dragging: true };
-          const rect = { x: c.x, y: c.y, w: 1, h: 1 };
-          onChange({ rect, base: defaultBase(rect) });
-        }}
-        onMouseUp={(e) => {
-          const c = cellAt(e.clientX, e.clientY);
-          const drag = dragRef.current;
-          dragRef.current = null;
-          if (!c || !tileset || !value) return;
-          if (
-            drag &&
-            !drag.dragging &&
-            c.x >= value.rect.x &&
-            c.y >= value.rect.y &&
-            c.x < value.rect.x + value.rect.w &&
-            c.y < value.rect.y + value.rect.h
-          ) {
-            onChange({
-              ...value,
-              base: { x: c.x - value.rect.x, y: c.y - value.rect.y },
-            });
-          }
-        }}
-      />
+          }}
+          onMouseUp={(e) => {
+            const c = cellAt(e.clientX, e.clientY);
+            const drag = dragRef.current;
+            dragRef.current = null;
+            if (!c || !tileset || !value) return;
+            if (
+              drag &&
+              !drag.dragging &&
+              c.x >= value.rect.x &&
+              c.y >= value.rect.y &&
+              c.x < value.rect.x + value.rect.w &&
+              c.y < value.rect.y + value.rect.h
+            ) {
+              onChange({
+                ...value,
+                base: { x: c.x - value.rect.x, y: c.y - value.rect.y },
+              });
+            }
+          }}
+        />
       </div>
       <div className="border-t-2 border-border px-2 py-1 text-xs text-muted">
         Drag to select cells. Click inside selection to set base (yellow).

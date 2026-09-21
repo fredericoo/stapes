@@ -69,25 +69,13 @@ describe("chooseStep", () => {
   });
 
   it("takes the direction pressed last", () => {
-    const choice = chooseStep(
-      map,
-      AT,
-      { directions: ["n", "w"] },
-      player,
-      tilesById,
-    );
+    const choice = chooseStep(map, AT, { directions: ["n", "w"] }, player, tilesById);
     expect(choice?.step?.direction).toBe("w");
     expect(choice?.step?.to).toEqual({ x: 0, y: 0, z: 0 });
   });
 
   it("falls back to an older direction when the newest is blocked", () => {
-    const choice = chooseStep(
-      map,
-      AT,
-      { directions: ["w", "e"] },
-      player,
-      tilesById,
-    );
+    const choice = chooseStep(map, AT, { directions: ["w", "e"] }, player, tilesById);
     expect(choice?.step?.direction).toBe("w");
   });
 
@@ -98,13 +86,7 @@ describe("chooseStep", () => {
   });
 
   it("turns without walking when asked only to face", () => {
-    const choice = chooseStep(
-      map,
-      AT,
-      { directions: ["w"], faceOnly: true },
-      player,
-      tilesById,
-    );
+    const choice = chooseStep(map, AT, { directions: ["w"], faceOnly: true }, player, tilesById);
     expect(choice?.facing).toBe("w");
     expect(choice?.step).toBeNull();
   });
@@ -139,12 +121,15 @@ function sessionOnStrip(): GameSession {
     version: MAP_FILE_VERSION,
     levels: { "0": strip() },
   } as unknown as FlatMapFile);
-  return new GameSession(map, tiles, { actorIds: ["a"], spawnAt: {
-    x: 0,
-    y: 0,
-    z: 0,
-    stackIndex: 1,
-  } });
+  return new GameSession(map, tiles, {
+    actorIds: ["a"],
+    spawnAt: {
+      x: 0,
+      y: 0,
+      z: 0,
+      stackIndex: 1,
+    },
+  });
 }
 
 describe("GameSession.requestStep", () => {
@@ -210,12 +195,15 @@ describe("GameSession.requestStep", () => {
       version: MAP_FILE_VERSION,
       levels: { "0": { "0,0": [grass], "1,0": [grass] }, "1": {} },
     } as unknown as FlatMapFile);
-    const session = new GameSession(map, tiles, { actorIds: ["a"], spawnAt: {
-      x: 0,
-      y: 0,
-      z: 1,
-      stackIndex: 0,
-    } });
+    const session = new GameSession(map, tiles, {
+      actorIds: ["a"],
+      spawnAt: {
+        x: 0,
+        y: 0,
+        z: 1,
+        stackIndex: 0,
+      },
+    });
     session.tick(TICK_MS);
 
     expect(session.requestStep("a", "e")).toBe("refused");

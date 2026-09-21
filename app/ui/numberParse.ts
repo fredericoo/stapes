@@ -19,9 +19,7 @@ export type NumberRule = {
   allowBlank?: boolean;
 };
 
-export type NumberParse =
-  | { ok: true; value: number | null }
-  | { ok: false; error: string };
+export type NumberParse = { ok: true; value: number | null } | { ok: false; error: string };
 
 /**
  * The nearest multiple of `step`, without the float dust.

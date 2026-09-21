@@ -21,12 +21,7 @@ import { fitsFoot, footRange, tilesByIdFromList } from "./validation";
 import { canWalk } from "../game/movement";
 import { moveColumn } from "../game/mapMutations";
 import type { FlatMapFile, MapFile, PlacedTile, TileDef } from "./types";
-import {
-  HEIGHT_PER_LEVEL,
-  coordKey,
-  levelKey,
-  normalizeTileDef,
-} from "./types";
+import { HEIGHT_PER_LEVEL, coordKey, levelKey, normalizeTileDef } from "./types";
 
 function tile(partial: Partial<TileDef> & Pick<TileDef, "id">): TileDef {
   return normalizeTileDef({
@@ -56,19 +51,10 @@ const bush = tile({ id: "bush", height: 2, walkable: false });
 const window = tile({ id: "window", height: 4, lightPassing: true });
 const walker = tile({ id: "walker", height: 3, actor: true });
 
-const tilesById = tilesByIdFromList([
-  floor,
-  half,
-  wall,
-  bush,
-  window,
-  walker,
-]);
+const tilesById = tilesByIdFromList([floor, half, wall, bush, window, walker]);
 
 /** Cells built by hand, never read off `data/map.json` — see CLAUDE.md. */
-function mapAt(
-  cells: Array<{ x: number; y: number; z?: number; stack: PlacedTile[] }>,
-): MapFile {
+function mapAt(cells: Array<{ x: number; y: number; z?: number; stack: PlacedTile[] }>): MapFile {
   const levels: FlatMapFile["levels"] = {};
   for (const cell of cells) {
     const lk = levelKey(cell.z ?? 0);
@@ -100,10 +86,7 @@ describe("a raised foot carries the stack up with it", () => {
   });
 
   it("stands whatever is above it on the raised top", () => {
-    const stack: PlacedTile[] = [
-      { tileId: "floor", foot: 2 },
-      { tileId: "half" },
-    ];
+    const stack: PlacedTile[] = [{ tileId: "floor", foot: 2 }, { tileId: "half" }];
     expect(elevationAt(stack, 0, tilesById)).toBe(2);
     expect(elevationAt(stack, 1, tilesById)).toBe(2);
     expect(stackHeight(stack, tilesById)).toBe(4);
@@ -122,21 +105,12 @@ describe("a raised foot carries the stack up with it", () => {
       { x: 0, y: 0, stack: [{ tileId: "floor" }, { tileId: "walker" }] },
       { x: 1, y: 0, stack: [{ tileId: "floor", foot: 2 }] },
     ]);
-    expect(
-      canWalk(map, { x: 0, y: 0, z: 0, stackIndex: 1 }, "e", walker, tilesById)
-        .ok,
-    ).toBe(true);
+    expect(canWalk(map, { x: 0, y: 0, z: 0, stackIndex: 1 }, "e", walker, tilesById).ok).toBe(true);
 
     const tooHigh = replaceStack(map, 1, 0, 0, [{ tileId: "floor", foot: 3 }]);
-    expect(
-      canWalk(
-        tooHigh,
-        { x: 0, y: 0, z: 0, stackIndex: 1 },
-        "e",
-        walker,
-        tilesById,
-      ).ok,
-    ).toBe(false);
+    expect(canWalk(tooHigh, { x: 0, y: 0, z: 0, stackIndex: 1 }, "e", walker, tilesById).ok).toBe(
+      false,
+    );
   });
 
   it("makes a plane of its own above what it cleared", () => {
@@ -144,10 +118,7 @@ describe("a raised foot carries the stack up with it", () => {
     // rather than at the bush's 2. Which tile *answers* is not the difference
     // any more — the topmost one does either way, so a floor laid flat on the
     // bush is a surface too. @see solidTopOfStack
-    const lifted: PlacedTile[] = [
-      { tileId: "bush" },
-      { tileId: "floor", foot: 3 },
-    ];
+    const lifted: PlacedTile[] = [{ tileId: "bush" }, { tileId: "floor", foot: 3 }];
     expect(solidTopOfStack(lifted, tilesById)?.tileId).toBe("floor");
     expect(walkableElevInStack(lifted, tilesById)).toBe(3);
 
@@ -161,9 +132,7 @@ describe("a raised foot carries the stack up with it", () => {
     // The window still passes light; the two units of gap under it do not.
     expect(stackBlockHeight(raised, tilesById)).toBe(2);
     expect(stackOcclusion(raised, tilesById).sealsLevel).toBe(true);
-    expect(stackOcclusion([{ tileId: "window" }], tilesById).sealsLevel).toBe(
-      false,
-    );
+    expect(stackOcclusion([{ tileId: "window" }], tilesById).sealsLevel).toBe(false);
   });
 });
 

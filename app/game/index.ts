@@ -15,13 +15,7 @@ export type {
   PlaySession,
   WalkState,
 } from "./GameSession";
-export {
-  despawnActor,
-  locateActor,
-  spawnActor,
-  spawnPoint,
-  type ActorLocation,
-} from "./actors";
+export { despawnActor, locateActor, spawnActor, spawnPoint, type ActorLocation } from "./actors";
 export { canWalk } from "./movement";
 export { fitsTile } from "../lib/validation";
 export { findPlayers, requireSinglePlayer } from "./player";

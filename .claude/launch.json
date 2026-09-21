@@ -4,10 +4,7 @@
     {
       "name": "stapes-dev",
       "runtimeExecutable": "sh",
-      "runtimeArgs": [
-        "-c",
-        "STAPES_SERVER_PORT=5185 STAPES_CLIENT_PORT=5186 bun run dev"
-      ],
+      "runtimeArgs": ["-c", "STAPES_SERVER_PORT=5185 STAPES_CLIENT_PORT=5186 bun run dev"],
       "port": 5186
     }
   ]

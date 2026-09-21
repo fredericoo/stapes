@@ -48,7 +48,14 @@ const shop: DialogDef = {
           ],
         },
         { label: "How", then: [say("Crystals."), say("Light."), back] },
-        { label: "Bless me", then: [{ kind: "add_status", statusId: "luminous" }, { kind: "tag", tag: "blessed" }, say("Shine.")] },
+        {
+          label: "Bless me",
+          then: [
+            { kind: "add_status", statusId: "luminous" },
+            { kind: "tag", tag: "blessed" },
+            say("Shine."),
+          ],
+        },
         { label: "Bye", then: [say("Mind the dark.")] },
       ],
     },
@@ -104,7 +111,10 @@ describe("choosing", () => {
   it("runs effects on the way, skipping ones that cannot be, and ends when a branch runs out", () => {
     const view = partner((effects) => effects[0]?.effect !== "add_status");
     const blessed = chooseOption(shop, openConversation(shop, npc, view), 2, view)!;
-    expect(view.attempts).toEqual([[{ effect: "add_status", statusId: "luminous" }], [{ effect: "tag", tag: "blessed" }]]);
+    expect(view.attempts).toEqual([
+      [{ effect: "add_status", statusId: "luminous" }],
+      [{ effect: "tag", tag: "blessed" }],
+    ]);
     expect(lines(blessed).at(-1)).toBe("npc: Shine.");
     expect(waitingOn(shop, blessed)).toBeNull();
   });
@@ -145,7 +155,13 @@ describe("trading", () => {
     const view = partner();
     const done = acceptTrade(shop, atCounter(view), 3, view)!;
     expect(view.attempts).toEqual([
-      [{ effect: "trade", take: [{ tileId: "shard", count: 42 }], give: [{ tileId: "potion", count: 3 }] }],
+      [
+        {
+          effect: "trade",
+          take: [{ tileId: "shard", count: 42 }],
+          give: [{ tileId: "potion", count: 3 }],
+        },
+      ],
     ]);
     expect(lines(done).slice(-2)).toEqual(["note: Traded ×3.", "npc: Thanks."]);
     expect(waitingOn(shop, done)?.kind).toBe("choices");
@@ -177,7 +193,10 @@ describe("goto", () => {
   it("lands after the anchor, wherever it is, and stops a loop that never waits", () => {
     const nested: DialogDef = {
       script: [
-        { kind: "choices", options: [{ label: "In", then: [{ kind: "anchor", name: "deep" }, say("Deep.")] }] },
+        {
+          kind: "choices",
+          options: [{ label: "In", then: [{ kind: "anchor", name: "deep" }, say("Deep.")] }],
+        },
         say("Top."),
         { kind: "goto", name: "deep" },
       ],

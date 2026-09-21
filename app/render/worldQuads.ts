@@ -12,11 +12,7 @@ import {
 } from "../lib/geometry";
 import { CELL_SIZE, HEIGHT_PER_LEVEL } from "../lib/types";
 import { ANIM_MAX_FRAMES, NO_ANIMATION } from "./animTable";
-import {
-  TINT_GLSL_COMMON,
-  TINT_GLSL_FRAGMENT,
-  type TintUniforms,
-} from "./spriteTint";
+import { TINT_GLSL_COMMON, TINT_GLSL_FRAGMENT, type TintUniforms } from "./spriteTint";
 import {
   NO_TRANSITION_UNIFORMS,
   TRANSITION_GLSL_COMMON,
@@ -169,10 +165,9 @@ function glsl(n: number): string {
  * `aLightUv` across it. Constant per quad, so the shader can re-evaluate the
  * light coordinate at any point on the quad from any other.
  */
-function lightCellsPerPixel(q: Pick<
-  Quad,
-  "w" | "h" | "lightX0" | "lightY0" | "lightX1" | "lightY1"
->): [number, number] {
+function lightCellsPerPixel(
+  q: Pick<Quad, "w" | "h" | "lightX0" | "lightY0" | "lightX1" | "lightY1">,
+): [number, number] {
   return [
     q.w === 0 ? 0 : (q.lightX1 - q.lightX0) / q.w,
     q.h === 0 ? 0 : (q.lightY1 - q.lightY0) / q.h,
@@ -211,8 +206,7 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   const stacks = new Float32Array(n * VERTS_PER_QUAD);
   const lightScales = new Float32Array(n * VERTS_PER_QUAD * 2);
   const anims = new Float32Array(n * VERTS_PER_QUAD * 2);
-  const indices =
-    n * VERTS_PER_QUAD > 65535 ? new Uint32Array(n * 6) : new Uint16Array(n * 6);
+  const indices = n * VERTS_PER_QUAD > 65535 ? new Uint32Array(n * 6) : new Uint16Array(n * 6);
 
   for (let i = 0; i < n; i++) {
     const q = quads[i]!;
@@ -292,10 +286,7 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   geo.setAttribute("aUnlit", new THREE.BufferAttribute(unlit, 1));
   geo.setAttribute("aBox", new THREE.BufferAttribute(boxes, BOX_COMPONENTS));
   geo.setAttribute("aStack", new THREE.BufferAttribute(stacks, 1));
-  geo.setAttribute(
-    "aLightScale",
-    new THREE.BufferAttribute(lightScales, 2),
-  );
+  geo.setAttribute("aLightScale", new THREE.BufferAttribute(lightScales, 2));
   geo.setAttribute("aAnim", new THREE.BufferAttribute(anims, 2));
   geo.setIndex(new THREE.BufferAttribute(indices, 1));
   return geo;
@@ -306,24 +297,21 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
  * (animated, or moving and therefore offset every frame). The caller positions
  * the mesh; the shader reads world position back off the model matrix.
  */
-export function buildSingleQuadGeometry(
-  q: Omit<Quad, "x" | "y">,
-): THREE.BufferGeometry {
+export function buildSingleQuadGeometry(q: Omit<Quad, "x" | "y">): THREE.BufferGeometry {
   const hw = q.w / 2;
   const hh = q.h / 2;
   const geo = new THREE.BufferGeometry();
-  const positions = new Float32Array([
-    -hw, hh, 0,
-    hw, hh, 0,
-    -hw, -hh, 0,
-    hw, -hh, 0,
-  ]);
+  const positions = new Float32Array([-hw, hh, 0, hw, hh, 0, -hw, -hh, 0, hw, -hh, 0]);
   const uvs = new Float32Array([q.u0, q.v0, q.u1, q.v0, q.u0, q.v1, q.u1, q.v1]);
   const lightUvs = new Float32Array([
-    q.lightX0, q.lightY1,
-    q.lightX1, q.lightY1,
-    q.lightX0, q.lightY0,
-    q.lightX1, q.lightY0,
+    q.lightX0,
+    q.lightY1,
+    q.lightX1,
+    q.lightY1,
+    q.lightX0,
+    q.lightY0,
+    q.lightX1,
+    q.lightY0,
   ]);
   const unlit = new Float32Array(VERTS_PER_QUAD).fill(q.unlit ? 1 : 0);
   const boxes = new Float32Array(VERTS_PER_QUAD * BOX_COMPONENTS);
@@ -343,14 +331,9 @@ export function buildSingleQuadGeometry(
   geo.setAttribute("aUnlit", new THREE.BufferAttribute(unlit, 1));
   geo.setAttribute("aBox", new THREE.BufferAttribute(boxes, BOX_COMPONENTS));
   geo.setAttribute("aStack", new THREE.BufferAttribute(stacks, 1));
-  geo.setAttribute(
-    "aLightScale",
-    new THREE.BufferAttribute(lightScales, 2),
-  );
+  geo.setAttribute("aLightScale", new THREE.BufferAttribute(lightScales, 2));
   geo.setAttribute("aAnim", new THREE.BufferAttribute(anims, 2));
-  geo.setIndex(
-    new THREE.BufferAttribute(new Uint16Array([0, 2, 1, 2, 3, 1]), 1),
-  );
+  geo.setIndex(new THREE.BufferAttribute(new Uint16Array([0, 2, 1, 2, 3, 1]), 1));
   return geo;
 }
 
@@ -391,20 +374,10 @@ export function writeLightUvAttr(
  * its box travels with it — call this whenever its position changes, from the
  * same motion snapshot, or the sprite and its depth disagree for a frame.
  */
-export function writeBoxAttr(
-  geo: THREE.BufferGeometry,
-  box: DepthBox,
-  stackBias: number,
-) {
+export function writeBoxAttr(geo: THREE.BufferGeometry, box: DepthBox, stackBias: number) {
   const boxAttr = geo.getAttribute("aBox") as THREE.BufferAttribute;
   const stackAttr = geo.getAttribute("aStack") as THREE.BufferAttribute;
-  writeQuadBox(
-    boxAttr.array as Float32Array,
-    stackAttr.array as Float32Array,
-    0,
-    box,
-    stackBias,
-  );
+  writeQuadBox(boxAttr.array as Float32Array, stackAttr.array as Float32Array, 0, box, stackBias);
   boxAttr.needsUpdate = true;
   stackAttr.needsUpdate = true;
 }

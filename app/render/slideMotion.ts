@@ -1,12 +1,7 @@
 import type { SlideSnapshot } from "../game/GameSession";
 import { baseCellWorldOrigin, depthStackBias } from "../lib/geometry";
 import { elevationAt, getStack, stackHeight } from "../lib/mapData";
-import {
-  HEIGHT_PER_LEVEL,
-  type MapFile,
-  type PlacedTile,
-  type TileDef,
-} from "../lib/types";
+import { HEIGHT_PER_LEVEL, type MapFile, type PlacedTile, type TileDef } from "../lib/types";
 import { clumpExtentAt } from "./depthClump";
 import type { TileMotion } from "./WorldRenderer";
 
@@ -24,7 +19,6 @@ import type { TileMotion } from "./WorldRenderer";
  * height delta serve the whole group: the only thing that differs between them
  * is the slot each is anchored at.
  */
-
 
 /**
  * How tall the slot's clump stands. A shoved column's members rest on each
@@ -123,10 +117,7 @@ function surfaceFootAbs(
   tilesById: Record<string, TileDef>,
   cell: { x: number; y: number; z: number },
 ): number {
-  return (
-    cell.z * HEIGHT_PER_LEVEL +
-    stackHeight(getStack(map, cell.x, cell.y, cell.z), tilesById)
-  );
+  return cell.z * HEIGHT_PER_LEVEL + stackHeight(getStack(map, cell.x, cell.y, cell.z), tilesById);
 }
 
 /** World-pixel centre of a stack slot's own footing. @see slotFootAbs */

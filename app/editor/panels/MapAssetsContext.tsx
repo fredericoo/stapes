@@ -19,11 +19,7 @@ export function MapAssetsProvider({
   children,
 }: MapAssets & { children: ReactNode }) {
   const value = useMemo(() => ({ tiles, tilesets }), [tiles, tilesets]);
-  return (
-    <MapAssetsContext.Provider value={value}>
-      {children}
-    </MapAssetsContext.Provider>
-  );
+  return <MapAssetsContext.Provider value={value}>{children}</MapAssetsContext.Provider>;
 }
 
 export function useMapAssets(): MapAssets {

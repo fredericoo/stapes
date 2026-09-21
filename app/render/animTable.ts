@@ -1,11 +1,5 @@
 import * as THREE from "three";
-import {
-  CELL_SIZE,
-  cycleMs,
-  type Frame,
-  frameIndexAtTime,
-  type TilesetDef,
-} from "../lib/types";
+import { CELL_SIZE, cycleMs, type Frame, frameIndexAtTime, type TilesetDef } from "../lib/types";
 
 /**
  * Every animation one level draws, as a texture its vertex shader can read.
@@ -185,11 +179,7 @@ export const ANIM_MAX_FRAMES = 64;
  * cannot disagree.
  */
 export function tableCanHold(frames: Frame[]): boolean {
-  return (
-    frames.length >= 2 &&
-    frames.length <= ANIM_MAX_FRAMES &&
-    uniformFootprint(frames)
-  );
+  return frames.length >= 2 && frames.length <= ANIM_MAX_FRAMES && uniformFootprint(frames);
 }
 
 /**

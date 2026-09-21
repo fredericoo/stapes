@@ -4,12 +4,7 @@ import { AdminShell } from "../../components/AppShell";
 import { ArenaFighterPanel } from "../../components/ArenaFighterPanel";
 import { ArenaMetrics } from "../../components/ArenaMetrics";
 import { type Floater, ArenaStage, type StageSide } from "../../components/ArenaStage";
-import {
-  type ArenaFighter,
-  battlerTiles,
-  fighterForTile,
-  swingsOf,
-} from "../../game/arena";
+import { type ArenaFighter, battlerTiles, fighterForTile, swingsOf } from "../../game/arena";
 import { swingOdds } from "../../game/combatMetrics";
 import { DAMAGE_NUMBER_LIFETIME_MS, TICK_MS } from "../../game/constants";
 import { type DuelEvent, Duel, opponentOf, type Side, SIDES } from "../../game/duel";
@@ -138,9 +133,7 @@ export default function ArenaPage() {
   const statusDefs = useMemo(() => statusesById(statuses), [statuses]);
   const battlers = useMemo(() => battlerTiles(tiles), [tiles]);
 
-  const [a, setA] = useState<ArenaFighter>(() =>
-    fighterForTile(battlers[0]?.id ?? "", tilesById),
-  );
+  const [a, setA] = useState<ArenaFighter>(() => fighterForTile(battlers[0]?.id ?? "", tilesById));
   const [b, setB] = useState<ArenaFighter>(() =>
     fighterForTile(battlers[1]?.id ?? battlers[0]?.id ?? "", tilesById),
   );
@@ -182,9 +175,7 @@ export default function ArenaPage() {
   useEffect(() => {
     setPlaying(false);
     runtime.current =
-      statsA && statsB
-        ? new Runtime(swingsA, swingsB, seed, statusDefs, names)
-        : null;
+      statsA && statsB ? new Runtime(swingsA, swingsB, seed, statusDefs, names) : null;
     setSnapshot(runtime.current?.snapshot(statusDefs) ?? emptySnapshot());
   }, [statsA, statsB, swingsA, swingsB, seed, statusDefs, names]);
 
@@ -344,9 +335,7 @@ function CombatLog({ entries }: { entries: readonly LogEntry[] }) {
         Blow by blow
       </h2>
       <ol className="flex-1 overflow-auto p-1 text-xs">
-        {entries.length === 0 ? (
-          <li className="p-1 text-muted">Nothing yet. Press play.</li>
-        ) : null}
+        {entries.length === 0 ? <li className="p-1 text-muted">Nothing yet. Press play.</li> : null}
         {entries.map((entry) => (
           <li
             key={entry.id}
@@ -404,12 +393,7 @@ class Runtime {
      */
     private readonly names: Record<Side, string>,
   ) {
-    this.duel = new Duel(
-      { swings: swingsA },
-      { swings: swingsB },
-      new Rng(seed),
-      { statusDefs },
-    );
+    this.duel = new Duel({ swings: swingsA }, { swings: swingsB }, new Rng(seed), { statusDefs });
   }
 
   get finished(): boolean {
@@ -475,7 +459,10 @@ class Runtime {
       damage < event.outcome.potentialDamage
         ? ` (armour ate ${event.outcome.potentialDamage - damage})`
         : "";
-    this.note(`${arrow} −${damage}${absorbed} → ${event.hpLeft} hp`, damage === 0 ? "miss" : "damage");
+    this.note(
+      `${arrow} −${damage}${absorbed} → ${event.hpLeft} hp`,
+      damage === 0 ? "miss" : "damage",
+    );
 
     for (const grant of event.outcome.inflicted) {
       this.note(`${arrow} inflicted ${grant.id}`, "ailment");

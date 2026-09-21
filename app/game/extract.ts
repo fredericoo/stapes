@@ -11,12 +11,7 @@ import { getStack, listCoords, replaceStack } from "../lib/mapData";
 import { stow } from "../lib/piles";
 import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
-import {
-  coveredBySomething,
-  withinReach,
-  type Actor,
-  type ObjectRef,
-} from "./affordances";
+import { coveredBySomething, withinReach, type Actor, type ObjectRef } from "./affordances";
 import type { Equipment } from "./equipment";
 import { capacityOf } from "./itemMoves";
 import { cellKey } from "./pressurePlates";
@@ -451,10 +446,7 @@ function drawn(slot: ExtractSlot, random: () => number): boolean {
  * crystal you sometimes chip for nothing, and the pull is still spent: the
  * durability went into the swing, not into what came out of it.
  */
-export function rollExtract(
-  extract: ExtractInteraction,
-  random: () => number,
-): string[] {
+export function rollExtract(extract: ExtractInteraction, random: () => number): string[] {
   const out: string[] = [];
   for (const slot of extract.slots) {
     if (drawn(slot, random)) out.push(slot.tileId);

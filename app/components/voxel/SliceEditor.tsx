@@ -1,12 +1,6 @@
 import { useEffect, useRef } from "react";
 import { CELL_SIZE } from "../../lib/types";
-import {
-  EMPTY_VOXEL,
-  parseHexColor,
-  voxelDims,
-  voxelIndex,
-  type VoxelSize,
-} from "../../lib/voxel";
+import { EMPTY_VOXEL, parseHexColor, voxelDims, voxelIndex, type VoxelSize } from "../../lib/voxel";
 
 const VOXEL_PX = 22;
 const CHECKER_LIGHT = "#e8e4da";
@@ -135,8 +129,7 @@ function paintVoxel(
   y: number,
   sliceZ: number,
 ) {
-  const below =
-    sliceZ > 0 ? voxels[voxelIndex(dims, x, y, sliceZ - 1)] : EMPTY_VOXEL;
+  const below = sliceZ > 0 ? voxels[voxelIndex(dims, x, y, sliceZ - 1)] : EMPTY_VOXEL;
   const current = voxels[voxelIndex(dims, x, y, sliceZ)];
 
   if (below !== EMPTY_VOXEL && current === EMPTY_VOXEL) {
@@ -150,10 +143,7 @@ function paintVoxel(
   }
 }
 
-function drawGridLines(
-  ctx: CanvasRenderingContext2D,
-  dims: ReturnType<typeof voxelDims>,
-) {
+function drawGridLines(ctx: CanvasRenderingContext2D, dims: ReturnType<typeof voxelDims>) {
   for (let x = 1; x < dims.vx; x++) {
     ctx.fillStyle = x % CELL_SIZE === 0 ? CELL_LINE : GRID_LINE;
     ctx.fillRect(x * VOXEL_PX, 0, 1, dims.vy * VOXEL_PX);

@@ -1,10 +1,7 @@
 import * as v from "valibot";
 import type { Element } from "./element";
 import type { TileInteractions } from "./interactions";
-import {
-  particleEmitterSchema,
-  type ParticleEmitterDef,
-} from "./particleVfx";
+import { particleEmitterSchema, type ParticleEmitterDef } from "./particleVfx";
 import { parseTileTransitions, type TileTransitions } from "./tileTransition";
 import type { ItemInstance } from "./itemInstance";
 
@@ -29,15 +26,7 @@ export const DIRECTIONS: Direction[] = ["n", "e", "s", "w"];
  * north is going *somewhere between* north and north-east, and a four-way sprite
  * would draw it pointing at neither. See `./item`'s `ProjectileDef`.
  */
-export type Octant =
-  | "n"
-  | "ne"
-  | "e"
-  | "se"
-  | "s"
-  | "sw"
-  | "w"
-  | "nw";
+export type Octant = "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "nw";
 
 /**
  * Every bearing, in clockwise screen order starting at north.
@@ -46,16 +35,7 @@ export type Octant =
  * angle indexes this, so a list in some other order would rotate every arrow in
  * the game by however far it was shuffled.
  */
-export const OCTANTS: Octant[] = [
-  "n",
-  "ne",
-  "e",
-  "se",
-  "s",
-  "sw",
-  "w",
-  "nw",
-];
+export const OCTANTS: Octant[] = ["n", "ne", "e", "se", "s", "sw", "w", "nw"];
 
 /**
  * The cardinal an eighth is nearest to, for a tile that only authored four.
@@ -170,10 +150,7 @@ export function spriteRect(anchor: SpriteAnchor, ref: SpriteRef): CellRect {
  * on it, so composing an object per sprite would be building a thing they throw
  * away. A thumbnail draws one sprite and needs the whole answer.
  */
-export function anchoredSprite(
-  anchor: SpriteAnchor,
-  ref: SpriteRef,
-): AnchoredSprite {
+export function anchoredSprite(anchor: SpriteAnchor, ref: SpriteRef): AnchoredSprite {
   return {
     tilesetId: anchor.tilesetId,
     rect: spriteRect(anchor, ref),
@@ -283,12 +260,7 @@ export const TILE_TYPES: TileType[] = [
  */
 export type TileKind = "prop" | "battler" | "item" | "projectile";
 
-export const TILE_KINDS: TileKind[] = [
-  "prop",
-  "battler",
-  "item",
-  "projectile",
-];
+export const TILE_KINDS: TileKind[] = ["prop", "battler", "item", "projectile"];
 
 /**
  * Which facing a per-facing table is keyed by: non-directional tiles use
@@ -681,11 +653,7 @@ export function resolveClimbFrom(
   def: TileDef,
   facing: FacingKey = "default",
 ): Record<Direction, boolean> {
-  const key: FacingKey = isDirectional(def)
-    ? facing === "default"
-      ? "s"
-      : facing
-    : "default";
+  const key: FacingKey = isDirectional(def) ? (facing === "default" ? "s" : facing) : "default";
   const flags = def.climbFrom?.[key] ?? def.climbFrom?.default;
   return {
     n: flags?.n !== false,
@@ -1448,9 +1416,7 @@ function mapStateSprites<T extends StateSprites>(
   }
   if (out.scatter) out.scatter = out.scatter.map(fn);
   if (out.variants) {
-    out.variants = Object.fromEntries(
-      Object.entries(out.variants).map(([k, v]) => [k, fn(v)]),
-    );
+    out.variants = Object.fromEntries(Object.entries(out.variants).map(([k, v]) => [k, fn(v)]));
   }
   return out;
 }
@@ -1467,10 +1433,7 @@ function mapStateSprites<T extends StateSprites>(
  * and stays dead, but a rewrite that skipped it would leave it disagreeing with
  * the rest of the tile about how it is encoded.
  */
-function mapTileSprites(
-  tile: TileDef,
-  fn: (sprite: TileSprite) => TileSprite,
-): TileDef {
+function mapTileSprites(tile: TileDef, fn: (sprite: TileSprite) => TileSprite): TileDef {
   const out = mapStateSprites(tile, fn);
   if (!out.states) return out;
   return {
@@ -1509,10 +1472,7 @@ export function tilePhase(tile: TileDef): SpritePhase | undefined {
  * The tile with `phase` on every sprite it has — or with none left anywhere,
  * for a phase of zero, which is the same thing as not being phased.
  */
-export function withSpritePhase(
-  tile: TileDef,
-  phase: SpritePhase | undefined,
-): TileDef {
+export function withSpritePhase(tile: TileDef, phase: SpritePhase | undefined): TileDef {
   const wanted = phase && (phase.x !== 0 || phase.y !== 0) ? phase : undefined;
   const apply = (sprite: TileSprite): TileSprite => {
     if (!wanted) {
@@ -1560,10 +1520,7 @@ function clampTileLight(def: TileDef): TileDef {
   return {
     ...out,
     states: Object.fromEntries(
-      Object.entries(out.states).map(([k, v]) => [
-        k,
-        v ? clampStateLight(v) : v,
-      ]),
+      Object.entries(out.states).map(([k, v]) => [k, v ? clampStateLight(v) : v]),
     ) as typeof out.states,
   };
 }
@@ -1629,9 +1586,7 @@ function stateSpritesOn(tile: TileDef, from: StateSprites): TileSprite[] {
       .filter((s): s is TileSprite => s != null);
   }
   if (tile.type === "variant") {
-    return Object.values(from.variants ?? {}).filter(
-      (s): s is TileSprite => s != null,
-    );
+    return Object.values(from.variants ?? {}).filter((s): s is TileSprite => s != null);
   }
   if (tile.type === "scatter") {
     return (from.scatter ?? []).filter((s): s is TileSprite => s != null);
@@ -1664,9 +1619,7 @@ export function isAnimated(tile: TileDef): boolean {
 /** True if any frame on any sprite can emit light. */
 export function tileCanEmitLight(tile: TileDef): boolean {
   return allTileSprites(tile).some((s) =>
-    s.frames.some(
-      (f) => f.light && f.light.radius > 0 && f.light.intensity > 0,
-    ),
+    s.frames.some((f) => f.light && f.light.radius > 0 && f.light.intensity > 0),
   );
 }
 
@@ -1811,7 +1764,7 @@ export function cellPhaseMs(sprite: TileSprite, x: number, y: number): number {
   const phase = spritePhase(sprite);
   if (!phase) return 0;
   const count = sprite.frames.length;
-  const step = ((phase.x * x + phase.y * y) % count + count) % count;
+  const step = (((phase.x * x + phase.y * y) % count) + count) % count;
   return frameStartMs(sprite.frames, step);
 }
 

@@ -94,9 +94,7 @@ function burstCost(burst: ParticleEmitterDef, durationMs: number): number {
  */
 function defaultBurst(durationMs: number): ParticleEmitterDef {
   // What one particle a second costs over this duration, into the budget.
-  const affordable = Math.floor(
-    MAX_BURST_PARTICLES / burstParticleCount(1, durationMs),
-  );
+  const affordable = Math.floor(MAX_BURST_PARTICLES / burstParticleCount(1, durationMs));
   return {
     ...DEFAULT_PARTICLES,
     ramp: [...DEFAULT_PARTICLES.ramp],
@@ -118,13 +116,7 @@ type Props = {
   previewVfx: StatusVfx;
 };
 
-export function EffectsTab({
-  draft,
-  onChange,
-  tilesets,
-  previewSubject,
-  previewVfx,
-}: Props) {
+export function EffectsTab({ draft, onChange, tilesets, previewSubject, previewVfx }: Props) {
   const [play, setPlay] = useState<TransitionPlay | null>(null);
 
   const setSide = (side: TransitionSide, next: Transition | undefined) => {
@@ -133,8 +125,7 @@ export function EffectsTab({
     else delete transitions[side];
     onChange({
       ...draft,
-      transitions:
-        transitions.appear || transitions.disappear ? transitions : undefined,
+      transitions: transitions.appear || transitions.disappear ? transitions : undefined,
     });
   };
 
@@ -202,9 +193,7 @@ function TransitionSection({
       <div className="flex items-center justify-between gap-2">
         <SwitchField
           checked={Boolean(transition)}
-          onCheckedChange={(on) =>
-            onChange(on ? defaultTransition(side) : undefined)
-          }
+          onCheckedChange={(on) => onChange(on ? defaultTransition(side) : undefined)}
           label={title}
           info={info}
           size="section"
@@ -307,8 +296,8 @@ function TransitionSection({
 
           {doesNothing ? (
             <p className="text-[11px] text-muted">
-              Nothing plays: turn on at least one effect, or this side is
-              dropped when the tile loads.
+              Nothing plays: turn on at least one effect, or this side is dropped when the tile
+              loads.
             </p>
           ) : null}
         </div>

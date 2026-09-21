@@ -15,8 +15,7 @@ import type { ComponentProps, ReactNode } from "react";
  * @see ./LoadingScreen, which makes the same choice for the same reason.
  */
 
-export const SYSTEM_MONO =
-  'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace';
+export const SYSTEM_MONO = 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace';
 
 /** The dark full-screen surface every door is drawn on. */
 export function Door({ children }: { children: ReactNode }) {
@@ -31,22 +30,13 @@ export function Door({ children }: { children: ReactNode }) {
 }
 
 export function DoorTitle({ children }: { children: ReactNode }) {
-  return (
-    <h1 className="text-xs uppercase tracking-widest text-paper/60">
-      {children}
-    </h1>
-  );
+  return <h1 className="text-xs uppercase tracking-widest text-paper/60">{children}</h1>;
 }
 
-export function DoorField({
-  label,
-  ...props
-}: ComponentProps<"input"> & { label: string }) {
+export function DoorField({ label, ...props }: ComponentProps<"input"> & { label: string }) {
   return (
     <label className="flex w-full flex-col gap-1">
-      <span className="text-[10px] uppercase tracking-widest text-paper/60">
-        {label}
-      </span>
+      <span className="text-[10px] uppercase tracking-widest text-paper/60">{label}</span>
       {/* 16px, because Safari on iOS zooms the page in when it focuses a field
           set smaller and never zooms back out — see `docs/notes.md`, "A field
           the phone focuses has to be 16px". This is the first field in the app
@@ -60,10 +50,7 @@ export function DoorField({
   );
 }
 
-export function DoorButton({
-  className = "",
-  ...props
-}: ComponentProps<"button">) {
+export function DoorButton({ className = "", ...props }: ComponentProps<"button">) {
   return (
     <button
       type="button"
@@ -82,10 +69,7 @@ export function DoorButton({
  */
 export function DoorError({ children }: { children: ReactNode }) {
   return (
-    <p
-      className="max-w-sm text-xs leading-relaxed text-paper/70"
-      role="alert"
-    >
+    <p className="max-w-sm text-xs leading-relaxed text-paper/70" role="alert">
       {children}
     </p>
   );
@@ -93,9 +77,5 @@ export function DoorError({ children }: { children: ReactNode }) {
 
 /** A quiet line under a form — a rule, or a way to the other screen. */
 export function DoorNote({ children }: { children: ReactNode }) {
-  return (
-    <p className="max-w-sm text-center text-xs leading-relaxed text-paper/40">
-      {children}
-    </p>
-  );
+  return <p className="max-w-sm text-center text-xs leading-relaxed text-paper/40">{children}</p>;
 }

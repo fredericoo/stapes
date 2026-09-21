@@ -144,20 +144,12 @@ export function builtChunkColumns(addresses: Iterable<string>): string[] {
  * by construction, and what a reader wants off the panel is "how much more than
  * I can see", not which corner won.
  */
-export function reachInCells(
-  window: WorldRect,
-  playSquare: { x: number; y: number },
-): number {
+export function reachInCells(window: WorldRect, playSquare: { x: number; y: number }): number {
   const x0 = Math.floor(playSquare.x / CELL_SIZE);
   const y0 = Math.floor(playSquare.y / CELL_SIZE);
   const x1 = Math.floor((playSquare.x + VIEW_PX) / CELL_SIZE);
   const y1 = Math.floor((playSquare.y + VIEW_PX) / CELL_SIZE);
-  return Math.max(
-    x0 - window.x0,
-    y0 - window.y0,
-    window.x1 - x1,
-    window.y1 - y1,
-  );
+  return Math.max(x0 - window.x0, y0 - window.y0, window.x1 - x1, window.y1 - y1);
 }
 
 /**
@@ -214,9 +206,6 @@ export function columnTouches(key: string, frame: WorldRect): boolean {
   const x0 = rect.x / CELL_SIZE;
   const y0 = rect.y / CELL_SIZE;
   return (
-    x0 <= frame.x1 &&
-    x0 + CHUNK_SIZE > frame.x0 &&
-    y0 <= frame.y1 &&
-    y0 + CHUNK_SIZE > frame.y0
+    x0 <= frame.x1 && x0 + CHUNK_SIZE > frame.x0 && y0 <= frame.y1 && y0 + CHUNK_SIZE > frame.y0
   );
 }

@@ -138,7 +138,12 @@ function GroupBox<Leaf extends object>({
             ) : (
               <>
                 {leaf.render(rule, (next) => onChange(replaceAt(root, at, next)))}
-                <Button size="sm" variant="danger" onClick={() => prune(at)} aria-label="Remove condition">
+                <Button
+                  size="sm"
+                  variant="danger"
+                  onClick={() => prune(at)}
+                  aria-label="Remove condition"
+                >
                   ✕
                 </Button>
               </>

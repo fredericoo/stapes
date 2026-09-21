@@ -1,13 +1,7 @@
 import * as THREE from "three";
 import { baseCellWorldOrigin, spriteWorldOrigin } from "../lib/geometry";
 import { getFrames } from "../lib/tileResolve";
-import type {
-  MapFile,
-  PlacedTile,
-  SpriteState,
-  TileDef,
-  TilesetDef,
-} from "../lib/types";
+import type { MapFile, PlacedTile, SpriteState, TileDef, TilesetDef } from "../lib/types";
 import { CELL_SIZE, isCellVarying, spriteRect } from "../lib/types";
 
 /** A sprite's footprint in world pixels plus its slice of the atlas. */
@@ -92,18 +86,14 @@ export function spriteQuadFor(
   const rect = spriteRect(def.anchor, frame.sprite);
   const tw = tileset?.width ?? CELL_SIZE;
   const th = tileset?.height ?? CELL_SIZE;
-  const origin = spriteWorldOrigin(
-    baseCellWorldOrigin(x, y, z, elevation),
-    frame.sprite.base,
-  );
+  const origin = spriteWorldOrigin(baseCellWorldOrigin(x, y, z, elevation), frame.sprite.base);
 
   return {
     x: origin.x,
     y: origin.y,
     w: rect.w * CELL_SIZE,
     h: rect.h * CELL_SIZE,
-    texture:
-      (tileset && assets.textures.get(tileset.id)) || assets.fallbackTexture,
+    texture: (tileset && assets.textures.get(tileset.id)) || assets.fallbackTexture,
     u0: (rect.x * CELL_SIZE) / tw,
     u1: ((rect.x + rect.w) * CELL_SIZE) / tw,
     v0: 1 - ((rect.y + rect.h) * CELL_SIZE) / th,

@@ -48,9 +48,7 @@ export function requireSinglePlayer(map: MapFile): PlayerLocation {
     throw new Error(`No tile with id "${PLAYER_TILE_ID}" on the map`);
   }
   if (players.length > 1) {
-    throw new Error(
-      `Expected exactly one "${PLAYER_TILE_ID}" tile, found ${players.length}`,
-    );
+    throw new Error(`Expected exactly one "${PLAYER_TILE_ID}" tile, found ${players.length}`);
   }
   return players[0]!;
 }

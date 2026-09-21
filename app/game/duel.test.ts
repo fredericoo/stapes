@@ -1,26 +1,14 @@
 import { describe, expect, it } from "vitest";
 import statusesJson from "../../data/statuses.json";
 import tilesJson from "../../data/tiles.json";
-import {
-  type BattlerDef,
-  type FightingStats,
-  fightingStats,
-  resolveBattler,
-} from "../lib/battler";
+import { type BattlerDef, type FightingStats, fightingStats, resolveBattler } from "../lib/battler";
 import { isRanged, resolveWeapon, type WeaponItem } from "../lib/item";
 import { experienceMultiplier, type Mastery, rating } from "../lib/mastery";
 import { COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import { normalizeTiles } from "../lib/types";
 import { MIN_ATTACK_TICKS, rollAttack, swingIntervalMs } from "./combat";
 import { TICK_MS } from "./constants";
-import {
-  Duel,
-  type DuelEvent,
-  type DuelResult,
-  MAX_DUEL_TICKS,
-  runDuel,
-  type Side,
-} from "./duel";
+import { Duel, type DuelEvent, type DuelResult, MAX_DUEL_TICKS, runDuel, type Side } from "./duel";
 import { Rng } from "./rng";
 
 /**
@@ -91,12 +79,7 @@ const READY = 0;
  * that would put its thumb on every scale below. It also keeps the dice where
  * they were — an inflicted status costs a draw.
  */
-function duel(
-  a: FightingStats,
-  b: FightingStats,
-  rng: Rng,
-  maxTicks = MAX_DUEL_TICKS,
-): DuelResult {
+function duel(a: FightingStats, b: FightingStats, rng: Rng, maxTicks = MAX_DUEL_TICKS): DuelResult {
   return runDuel({ swings: [a] }, { swings: [b] }, rng, { maxTicks });
 }
 
@@ -165,8 +148,7 @@ function tickUntilSwing(duel: Duel): readonly DuelEvent[] {
 }
 
 const fists = (body: BattlerDef) => fightingStats(body, body.naturalWeapon);
-const armed = (body: BattlerDef, weaponId: string) =>
-  fightingStats(body, weaponOf(weaponId));
+const armed = (body: BattlerDef, weaponId: string) => fightingStats(body, weaponOf(weaponId));
 
 describe("learning a weapon", () => {
   const SWORD = "rusty-sword";
@@ -233,16 +215,12 @@ describe("learning a weapon", () => {
    */
   it("leaves an unlearnt sword worse than bare fists", () => {
     const novice = playerAt("sharp", 0);
-    expect(damagePerSecond(armed(novice, SWORD))).toBeLessThan(
-      damagePerSecond(fists(novice)),
-    );
+    expect(damagePerSecond(armed(novice, SWORD))).toBeLessThan(damagePerSecond(fists(novice)));
   });
 
   it("makes the same sword clearly better once its requirement is met", () => {
     const trained = playerAt("sharp", required);
-    expect(damagePerSecond(armed(trained, SWORD))).toBeGreaterThan(
-      damagePerSecond(fists(trained)),
-    );
+    expect(damagePerSecond(armed(trained, SWORD))).toBeGreaterThan(damagePerSecond(fists(trained)));
   });
 
   /**
@@ -309,7 +287,10 @@ describe("the weapon ladder", () => {
    * rather than a tier of its own. Nothing here promises anything about it.
    */
   const LADDERS: { mastery: Mastery; rungs: string[] }[] = [
-    { mastery: "sharp", rungs: ["rusty-sword", "iron-sword", "knights-sword", "tempered-longsword"] },
+    {
+      mastery: "sharp",
+      rungs: ["rusty-sword", "iron-sword", "knights-sword", "tempered-longsword"],
+    },
     { mastery: "sharp", rungs: ["simple-axe", "broad-axe", "battleaxe"] },
     { mastery: "blunt", rungs: ["simple-hammer", "iron-mace", "war-maul"] },
     { mastery: "ranged", rungs: ["simple-bow", "hunting-bow", "war-bow"] },
@@ -456,7 +437,6 @@ describe("two weapons on one rung", () => {
   }
 });
 
-
 describe("the authored ladder", () => {
   const player = bodyOf("player");
 
@@ -555,9 +535,7 @@ describe("the ladder pays for climbing it", () => {
   it("leaves nothing to fight at no ⭐ between the bottom and the top", () => {
     const top = Math.max(...CREATURES.map(ratingOf));
     for (let stars = ratingOf("player"); stars <= top; stars++) {
-      const best = Math.max(
-        ...CREATURES.map((id) => experienceMultiplier(ratingOf(id), stars)),
-      );
+      const best = Math.max(...CREATURES.map((id) => experienceMultiplier(ratingOf(id), stars)));
       expect(best).toBeGreaterThan(0.5);
     }
   });
@@ -569,9 +547,7 @@ describe("the ladder pays for climbing it", () => {
    */
   it("runs out above the best thing in the world", () => {
     const top = Math.max(...CREATURES.map(ratingOf));
-    const best = Math.max(
-      ...CREATURES.map((id) => experienceMultiplier(ratingOf(id), top * 2)),
-    );
+    const best = Math.max(...CREATURES.map((id) => experienceMultiplier(ratingOf(id), top * 2)));
     expect(best).toBeLessThan(0.5);
   });
 });
@@ -678,8 +654,7 @@ describe("what a fight feels like", () => {
     // enough to read and choose to run" is a promise about the fights you are
     // *supposed* to be in, not about every fight you can pick.
     for (const id of ["rat", "deer"]) {
-      const seconds =
-        (duel(player, fists(bodyOf(id)), new Rng(3)).ticks * TICK_MS) / 1000;
+      const seconds = (duel(player, fists(bodyOf(id)), new Rng(3)).ticks * TICK_MS) / 1000;
       expect(seconds).toBeGreaterThan(2);
       expect(seconds).toBeLessThan(90);
     }
@@ -764,9 +739,7 @@ describe("the duel loop", () => {
     const slow = dummy({ spd: 1, hitChance: 1, damage: 1, variance: 0 });
     // Nothing at all on the first tick, whichever pair it is: a fight opens with
     // an approach, and the shortest one in the game is half of MIN_ATTACK_TICKS.
-    expect(
-      new Duel({ swings: [quick] }, { swings: [slow] }, new Rng(1)).tick(),
-    ).toEqual([]);
+    expect(new Duel({ swings: [quick] }, { swings: [slow] }, new Rng(1)).tick()).toEqual([]);
 
     // A whole cooldown on — `MIN_ATTACK_TICKS`, the floor between two blows —
     // and only the quick one has come round at all, wherever it is sitting.
@@ -796,9 +769,7 @@ describe("the duel loop", () => {
     for (let seed = 0; seed < 50; seed++) {
       const duel = new Duel({ swings: [killer] }, { swings: [victim] }, new Rng(seed));
       const events = duel.tick();
-      const answered = events.some(
-        (event) => event.kind === "swing" && event.by === "b",
-      );
+      const answered = events.some((event) => event.kind === "swing" && event.by === "b");
       if (duel.winner !== "a") continue;
       expect(answered).toBe(false);
     }
@@ -809,11 +780,7 @@ describe("the duel loop", () => {
     const snake = fists(bodyOf("snake"));
     expect(snake.statuses.length).toBeGreaterThan(0);
 
-    const duel = new Duel(
-      { swings: [snake] },
-      { swings: [fists(bodyOf("player"))] },
-      new Rng(3),
-    );
+    const duel = new Duel({ swings: [snake] }, { swings: [fists(bodyOf("player"))] }, new Rng(3));
     for (let tick = 0; tick < 200; tick++) duel.tick();
     expect(duel.b.statuses).toEqual([]);
   });
@@ -865,9 +832,7 @@ describe("the duel loop", () => {
     );
     for (let tick = 0; tick < 100; tick++) duel.tick();
     // Only the combat flag every swing puts on both sides, and no venom.
-    expect(duel.b.statuses.map((status) => status.defId)).toEqual([
-      COMBAT_STATUS_ID,
-    ]);
+    expect(duel.b.statuses.map((status) => status.defId)).toEqual([COMBAT_STATUS_ID]);
   });
 
   /**

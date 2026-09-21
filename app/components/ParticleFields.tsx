@@ -175,7 +175,11 @@ function RampEditor({
       </FieldLabel>
       {ramp.map((stop, i) => (
         <div key={i} className="flex flex-wrap items-end gap-2">
-          <ColorField label={`Stop ${i + 1}`} value={stop.color} onChange={(color) => patch(i, { color })} />
+          <ColorField
+            label={`Stop ${i + 1}`}
+            value={stop.color}
+            onChange={(color) => patch(i, { color })}
+          />
           <Field label={`At · ${stop.at.toFixed(2)}`}>
             <input
               type="range"
@@ -218,8 +222,7 @@ export function ParticleFields({
   particles: ParticleEmitterDef;
   onChange: (next: ParticleEmitterDef) => void;
 }) {
-  const patch = (fields: Partial<ParticleEmitterDef>) =>
-    onChange({ ...particles, ...fields });
+  const patch = (fields: Partial<ParticleEmitterDef>) => onChange({ ...particles, ...fields });
 
   return (
     <div className="flex flex-col gap-3">
@@ -304,9 +307,7 @@ export function ParticleFields({
           min={-32}
           max={32}
           step={0.25}
-          onChange={(riseFrom) =>
-            patch({ riseFrom, riseTo: Math.max(riseFrom, particles.riseTo) })
-          }
+          onChange={(riseFrom) => patch({ riseFrom, riseTo: Math.max(riseFrom, particles.riseTo) })}
         />
         <NumberField
           label="To"
@@ -314,9 +315,7 @@ export function ParticleFields({
           min={-32}
           max={32}
           step={0.25}
-          onChange={(riseTo) =>
-            patch({ riseTo, riseFrom: Math.min(riseTo, particles.riseFrom) })
-          }
+          onChange={(riseTo) => patch({ riseTo, riseFrom: Math.min(riseTo, particles.riseFrom) })}
         />
         <NumberField
           label="Drift"
@@ -399,9 +398,7 @@ export function ParticleFields({
         <Field
           label="Affected by lighting"
           hint={
-            particles.lit
-              ? "Dark rooms hide these: smoke, gas, dust."
-              : "Self-lit: embers, sparks."
+            particles.lit ? "Dark rooms hide these: smoke, gas, dust." : "Self-lit: embers, sparks."
           }
         >
           <Switch
@@ -416,4 +413,3 @@ export function ParticleFields({
     </div>
   );
 }
-

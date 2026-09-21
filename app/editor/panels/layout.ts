@@ -61,9 +61,7 @@ function isTabDescriptor(value: unknown): value is TabDescriptor {
   if (typeof value !== "object" || value === null) return false;
   const tab = value as Record<string, unknown>;
   return (
-    typeof tab.id === "string" &&
-    typeof tab.tabType === "string" &&
-    typeof tab.title === "string"
+    typeof tab.id === "string" && typeof tab.tabType === "string" && typeof tab.title === "string"
   );
 }
 
@@ -82,9 +80,7 @@ function isLayoutNode(value: unknown): value is LayoutNode {
       Array.isArray(node.children) &&
       Array.isArray(node.sizes) &&
       node.sizes.length === node.children.length &&
-      node.sizes.every(
-        (size: unknown) => typeof size === "number" && Number.isFinite(size),
-      ) &&
+      node.sizes.every((size: unknown) => typeof size === "number" && Number.isFinite(size)) &&
       node.children.every(isLayoutNode)
     );
   }

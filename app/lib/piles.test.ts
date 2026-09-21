@@ -76,10 +76,7 @@ const shard = artifact("shard", 99);
 const torch = artifact("torch");
 
 const tilesById: Record<string, TileDef> = Object.fromEntries(
-  [berry, bread, plainFood, sword, bag, grass, shard, torch].map((def) => [
-    def.id,
-    def,
-  ]),
+  [berry, bread, plainFood, sword, bag, grass, shard, torch].map((def) => [def.id, def]),
 );
 
 describe("what piles", () => {
@@ -111,15 +108,15 @@ describe("what piles", () => {
 
 describe("a counted artifact, in the arithmetic", () => {
   it("fuses like food does", () => {
-    expect(
-      fuses({ tileId: "shard", count: 14 }, { tileId: "shard", count: 2 }, tilesById),
-    ).toBe(true);
+    expect(fuses({ tileId: "shard", count: 14 }, { tileId: "shard", count: 2 }, tilesById)).toBe(
+      true,
+    );
   });
 
   it("stops at its own ceiling", () => {
-    expect(
-      fuses({ tileId: "shard", count: 98 }, { tileId: "shard", count: 2 }, tilesById),
-    ).toBe(false);
+    expect(fuses({ tileId: "shard", count: 98 }, { tileId: "shard", count: 2 }, tilesById)).toBe(
+      false,
+    );
   });
 
   it("never fuses an uncounted one", () => {
@@ -159,9 +156,9 @@ describe("fusing", () => {
   it("refuses all of it or none, never half", () => {
     // Ten and three is thirteen, and a berry pile stops at twelve. Two would
     // fit; the rule is that a move lands whole or is refused.
-    expect(
-      fuses({ tileId: "berry", count: 10 }, { tileId: "berry", count: 3 }, tilesById),
-    ).toBe(false);
+    expect(fuses({ tileId: "berry", count: 10 }, { tileId: "berry", count: 3 }, tilesById)).toBe(
+      false,
+    );
   });
 
   it("refuses two different things, however alike they look", () => {
@@ -189,11 +186,7 @@ describe("fusing", () => {
 
   it("keeps the identity of the pile that received", () => {
     const arriving: ItemInstance = { id: "itm_b", tileId: "berry", count: 3 };
-    const poured = pourInto(
-      [{ id: "itm_a", tileId: "berry", count: 2 }],
-      arriving,
-      tilesById,
-    );
+    const poured = pourInto([{ id: "itm_a", tileId: "berry", count: 2 }], arriving, tilesById);
     expect(poured).toEqual([{ id: "itm_a", tileId: "berry", count: 5 }]);
   });
 
@@ -221,10 +214,7 @@ describe("fusing", () => {
 
 describe("stowing into a container", () => {
   it("pours before it takes a square, so a full bag still takes a berry", () => {
-    const full = [
-      { tileId: "berry", count: 2 },
-      { tileId: "bread" },
-    ];
+    const full = [{ tileId: "berry", count: 2 }, { tileId: "bread" }];
     expect(stowFits(full, { tileId: "berry" }, 2, tilesById)).toBe(true);
     expect(stow(full, { tileId: "berry" }, 2, tilesById)).toEqual([
       { tileId: "berry", count: 3 },
@@ -280,11 +270,7 @@ describe("landing on a cell", () => {
   });
 
   it("leaves the pile where it was in the stack", () => {
-    const stack = [
-      { tileId: "grass" },
-      { tileId: "berry" },
-      { tileId: "bread" },
-    ];
+    const stack = [{ tileId: "grass" }, { tileId: "berry" }, { tileId: "bread" }];
     // Second, where it started — a pour adds no height, so there is nothing for
     // it to be on top of.
     expect(stackWithItem(stack, { tileId: "berry" }, tilesById)[1]).toEqual({
@@ -307,9 +293,6 @@ describe("landing on a cell", () => {
       { tileId: "berry", count: 5 },
     ]);
     const next = appendItem(map, 0, 0, 0, { tileId: "berry" }, tilesById);
-    expect(getStack(next, 0, 0, 0)).toEqual([
-      { tileId: "grass" },
-      { tileId: "berry", count: 6 },
-    ]);
+    expect(getStack(next, 0, 0, 0)).toEqual([{ tileId: "grass" }, { tileId: "berry", count: 6 }]);
   });
 });

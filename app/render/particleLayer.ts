@@ -108,7 +108,7 @@ export function createCircleAtlas(): THREE.DataTexture {
         // is not a circle, it is a block. This gives a plus at 1 and a proper
         // rounded blob from 2 up — the shapes a pixel artist would draw.
         const inside = dx * dx + dy * dy <= r * r;
-        const o = ((py * ATLAS_W) + cellX + px) * 4;
+        const o = (py * ATLAS_W + cellX + px) * 4;
         data[o] = 255;
         data[o + 1] = 255;
         data[o + 2] = 255;
@@ -161,10 +161,7 @@ export function circleSlice(radius: number): {
  * level at all to be placed — which is exactly right for something that can rise
  * out of the storey it started in.
  */
-export function particleWorldPx(
-  cell: number,
-  elevAbs: number,
-): number {
+export function particleWorldPx(cell: number, elevAbs: number): number {
   return cell * CELL_SIZE - PX_PER_HEIGHT * elevAbs;
 }
 
@@ -190,25 +187,15 @@ export class ParticleLayer {
   /** Levels drawn this frame, in the order their groups appear. */
   private levels: number[] = [];
 
-  private readonly positions = new Float32Array(
-    MAX_LIVE_PARTICLES * VERTS_PER_QUAD * 3,
-  );
-  private readonly uvs = new Float32Array(
-    MAX_LIVE_PARTICLES * VERTS_PER_QUAD * 2,
-  );
-  private readonly boxes = new Float32Array(
-    MAX_LIVE_PARTICLES * VERTS_PER_QUAD * BOX_COMPONENTS,
-  );
-  private readonly stacks = new Float32Array(
-    MAX_LIVE_PARTICLES * VERTS_PER_QUAD,
-  );
+  private readonly positions = new Float32Array(MAX_LIVE_PARTICLES * VERTS_PER_QUAD * 3);
+  private readonly uvs = new Float32Array(MAX_LIVE_PARTICLES * VERTS_PER_QUAD * 2);
+  private readonly boxes = new Float32Array(MAX_LIVE_PARTICLES * VERTS_PER_QUAD * BOX_COMPONENTS);
+  private readonly stacks = new Float32Array(MAX_LIVE_PARTICLES * VERTS_PER_QUAD);
   private readonly colors = new Float32Array(
     MAX_LIVE_PARTICLES * VERTS_PER_QUAD * COLOR_COMPONENTS,
   );
   /** 1 for a spark that lights itself, 0 for one the room lights. */
-  private readonly unlit = new Float32Array(
-    MAX_LIVE_PARTICLES * VERTS_PER_QUAD,
-  );
+  private readonly unlit = new Float32Array(MAX_LIVE_PARTICLES * VERTS_PER_QUAD);
   /**
    * Where each particle samples the light map, in cell space.
    *
@@ -216,12 +203,8 @@ export class ParticleLayer {
    * zero, so a particle takes one flat sample rather than a gradient — it is a
    * pixel or two across, which is far smaller than the cell it is being lit by.
    */
-  private readonly lightUvs = new Float32Array(
-    MAX_LIVE_PARTICLES * VERTS_PER_QUAD * 2,
-  );
-  private readonly lightScales = new Float32Array(
-    MAX_LIVE_PARTICLES * VERTS_PER_QUAD * 2,
-  );
+  private readonly lightUvs = new Float32Array(MAX_LIVE_PARTICLES * VERTS_PER_QUAD * 2);
+  private readonly lightScales = new Float32Array(MAX_LIVE_PARTICLES * VERTS_PER_QUAD * 2);
 
   /**
    * Live particle indices, bucketed by the level they belong to.
@@ -254,10 +237,7 @@ export class ParticleLayer {
    * rather than handed over once — a plume can appear on any storey, and the
    * caller is the only thing that knows how a level's light is bound.
    */
-  constructor(
-    lightUniformsFor: (z: number) => LevelLightUniforms,
-    random?: Random,
-  ) {
+  constructor(lightUniformsFor: (z: number) => LevelLightUniforms, random?: Random) {
     this.system = new ParticleSystem(random);
     this.lightUniformsFor = lightUniformsFor;
     this.atlas = createCircleAtlas();
@@ -395,12 +375,9 @@ export class ParticleLayer {
     // spark was born. Rounded to a whole pixel by `circleSlice`, so a winding
     // -down plume steps through real circle sizes rather than smearing.
     const radius =
-      (p.config.radiusFromPx +
-        (p.config.radiusToPx - p.config.radiusFromPx) * life) *
-      p.taper;
+      (p.config.radiusFromPx + (p.config.radiusToPx - p.config.radiusFromPx) * life) * p.taper;
     const slice = circleSlice(radius);
-    const alpha =
-      p.config.alphaFrom + (p.config.alphaTo - p.config.alphaFrom) * life;
+    const alpha = p.config.alphaFrom + (p.config.alphaTo - p.config.alphaFrom) * life;
     if (alpha <= PARTICLE_ALPHA_CUTOFF) return false;
 
     // Snapped to whole world pixels, so a particle moves in pixel steps like
@@ -501,15 +478,9 @@ export class ParticleLayer {
     geo.setAttribute("uv", new THREE.BufferAttribute(this.uvs, 2));
     geo.setAttribute("aBox", new THREE.BufferAttribute(this.boxes, BOX_COMPONENTS));
     geo.setAttribute("aStack", new THREE.BufferAttribute(this.stacks, 1));
-    geo.setAttribute(
-      "aParticleColor",
-      new THREE.BufferAttribute(this.colors, COLOR_COMPONENTS),
-    );
+    geo.setAttribute("aParticleColor", new THREE.BufferAttribute(this.colors, COLOR_COMPONENTS));
     geo.setAttribute("aLightUv", new THREE.BufferAttribute(this.lightUvs, 2));
-    geo.setAttribute(
-      "aLightScale",
-      new THREE.BufferAttribute(this.lightScales, 2),
-    );
+    geo.setAttribute("aLightScale", new THREE.BufferAttribute(this.lightScales, 2));
     geo.setAttribute("aUnlit", new THREE.BufferAttribute(this.unlit, 1));
 
     const indices = new Uint16Array(MAX_LIVE_PARTICLES * INDICES_PER_QUAD);
@@ -548,10 +519,7 @@ const PARTICLE_SHADER_CACHE_KEY = `${WORLD_SHADER_CACHE_KEY}-particles-v1`;
  * anchors (`begin_vertex`, `color_fragment`) are ones the world shader does not
  * touch, so they hit the stock includes.
  */
-function injectParticleShader(shader: {
-  vertexShader: string;
-  fragmentShader: string;
-}) {
+function injectParticleShader(shader: { vertexShader: string; fragmentShader: string }) {
   shader.vertexShader = shader.vertexShader
     .replace(
       "#include <common>",

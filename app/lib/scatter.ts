@@ -58,12 +58,7 @@ function idSeed(id: string): number {
  * smoother — value noise, a repeating table — puts visible structure back into
  * the thing the type exists to remove.
  */
-export function scatterHash(
-  x: number,
-  y: number,
-  z: number,
-  seed: number,
-): number {
+export function scatterHash(x: number, y: number, z: number, seed: number): number {
   let h = Math.imul(seed | 0, X_MIX);
   h = Math.imul(h ^ (x | 0), X_MIX);
   h = Math.imul(h ^ (y | 0), Y_MIX);

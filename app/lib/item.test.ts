@@ -99,13 +99,9 @@ describe("resolveItem", () => {
   });
 
   it("answers the authored verb where there is one", () => {
-    expect(consumeVerb({ type: "consumable", label: "Drink", hp: 1 })).toBe(
-      "Drink",
-    );
+    expect(consumeVerb({ type: "consumable", label: "Drink", hp: 1 })).toBe("Drink");
     // Whitespace is not a verb.
-    expect(consumeVerb({ type: "consumable", label: "  ", hp: 1 })).toBe(
-      CONSUME_FALLBACK_VERB,
-    );
+    expect(consumeVerb({ type: "consumable", label: "  ", hp: 1 })).toBe(CONSUME_FALLBACK_VERB);
   });
 
   it("is null for a tile with no block at all", () => {
@@ -133,11 +129,20 @@ describe("resolveItem", () => {
       ["a fractional stat", { ...DEFAULT_WEAPON, damage: 1.5 }],
       ["a negative stat", { ...DEFAULT_WEAPON, damage: -1 }],
       ["a percent stat past the cap", { ...DEFAULT_WEAPON, spd: MAX_PERCENT_STAT + 1 }],
-      ["a percent stat below zero, which is broken rather than worse", { ...DEFAULT_WEAPON, accuracy: -1 }],
+      [
+        "a percent stat below zero, which is broken rather than worse",
+        { ...DEFAULT_WEAPON, accuracy: -1 },
+      ],
       ["a fractional percent stat", { ...DEFAULT_WEAPON, variance: 60.5 }],
       ["damage past the cap", { ...DEFAULT_WEAPON, damage: MAX_WEAPON_DAMAGE + 1 }],
-      ["a weapon missing its accuracy", { type: "weapon", damage: 1, def: 1, variance: 0, spd: 0, mastery: "sharp" }],
-      ["a weapon missing its variance", { type: "weapon", damage: 1, def: 1, accuracy: 60, spd: 0, mastery: "sharp" }],
+      [
+        "a weapon missing its accuracy",
+        { type: "weapon", damage: 1, def: 1, variance: 0, spd: 0, mastery: "sharp" },
+      ],
+      [
+        "a weapon missing its variance",
+        { type: "weapon", damage: 1, def: 1, accuracy: 60, spd: 0, mastery: "sharp" },
+      ],
       ["a consumable with no hp at all", { type: "consumable", label: "Eat" }],
       [
         "a noise longer than the cap",
@@ -158,22 +163,13 @@ describe("resolveItem", () => {
       ["a container with no room", { ...DEFAULT_CONTAINER, size: 0 }],
       ["a container past the cap", { ...DEFAULT_CONTAINER, size: MAX_CONTAINER_SIZE + 1 }],
       ["a container missing equippable", { type: "container", size: 2 }],
-      [
-        "a weapon status with no chance on it",
-        { ...DEFAULT_WEAPON, statuses: [{ id: "poison" }] },
-      ],
+      ["a weapon status with no chance on it", { ...DEFAULT_WEAPON, statuses: [{ id: "poison" }] }],
       [
         "a chance past the cap",
         { ...DEFAULT_WEAPON, statuses: [{ id: "poison", chance: MAX_PERCENT_STAT + 1 }] },
       ],
-      [
-        "a chance below zero",
-        { ...DEFAULT_WEAPON, statuses: [{ id: "poison", chance: -1 }] },
-      ],
-      [
-        "a nameless status",
-        { ...DEFAULT_WEAPON, statuses: [{ id: "  ", chance: 10 }] },
-      ],
+      ["a chance below zero", { ...DEFAULT_WEAPON, statuses: [{ id: "poison", chance: -1 }] }],
+      ["a nameless status", { ...DEFAULT_WEAPON, statuses: [{ id: "  ", chance: 10 }] }],
       [
         "half a duration override on a weapon",
         { ...DEFAULT_WEAPON, statuses: [{ id: "poison", chance: 10, fromMs: 1000 }] },
@@ -432,18 +428,18 @@ describe("itemForSave", () => {
   });
 
   it("keeps a consumable's noise and drops a blank one", () => {
-    expect(
-      itemForSave({ type: "consumable", label: "Drink", sound: "glug", hp: 1 }),
-    ).toEqual({
+    expect(itemForSave({ type: "consumable", label: "Drink", sound: "glug", hp: 1 })).toEqual({
       type: "consumable",
       label: "Drink",
       sound: "glug",
       hp: 1,
       pile: DEFAULT_PILE,
     });
-    expect(
-      itemForSave({ type: "consumable", sound: "   ", hp: 1 }),
-    ).toEqual({ type: "consumable", hp: 1, pile: DEFAULT_PILE });
+    expect(itemForSave({ type: "consumable", sound: "   ", hp: 1 })).toEqual({
+      type: "consumable",
+      hp: 1,
+      pile: DEFAULT_PILE,
+    });
   });
 
   it("keeps a consumable's statuses and drops an empty list", () => {
@@ -470,12 +466,16 @@ describe("itemForSave", () => {
       statuses: [{ id: "fed", fromMs: 60_000, toMs: 120_000 }],
       pile: DEFAULT_PILE,
     });
-    expect(
-      itemForSave({ type: "consumable", hp: 0, statuses: [] }),
-    ).toEqual({ type: "consumable", hp: 0, pile: DEFAULT_PILE });
-    expect(
-      itemForSave({ type: "consumable", hp: 0, statuses: [{ id: "  " }] }),
-    ).toEqual({ type: "consumable", hp: 0, pile: DEFAULT_PILE });
+    expect(itemForSave({ type: "consumable", hp: 0, statuses: [] })).toEqual({
+      type: "consumable",
+      hp: 0,
+      pile: DEFAULT_PILE,
+    });
+    expect(itemForSave({ type: "consumable", hp: 0, statuses: [{ id: "  " }] })).toEqual({
+      type: "consumable",
+      hp: 0,
+      pile: DEFAULT_PILE,
+    });
   });
 
   it("keeps a weapon's statuses and drops an empty list", () => {
@@ -485,9 +485,9 @@ describe("itemForSave", () => {
     };
     expect(itemForSave(venomous)).toEqual(venomous);
     expect(itemForSave({ ...DEFAULT_WEAPON, statuses: [] })).toEqual(DEFAULT_WEAPON);
-    expect(
-      itemForSave({ ...DEFAULT_WEAPON, statuses: [{ id: " ", chance: 10 }] }),
-    ).toEqual(DEFAULT_WEAPON);
+    expect(itemForSave({ ...DEFAULT_WEAPON, statuses: [{ id: " ", chance: 10 }] })).toEqual(
+      DEFAULT_WEAPON,
+    );
   });
 
   /**
@@ -870,16 +870,10 @@ describe("equipVerb", () => {
   it("wears armour, wields a sword, holds a torch, puts on a pack", () => {
     expect(equipVerb(tile("item", { item: { ...DEFAULT_ARMOR } }))).toBe("Wear");
     expect(equipVerb(tile("item", { item: { ...DEFAULT_WEAPON } }))).toBe("Wield");
-    expect(
-      equipVerb(tile("item", { item: { ...DEFAULT_SHIELD } })),
-    ).toBe("Hold");
-    expect(equipVerb(tile("item", { item: { ...DEFAULT_CONTAINER } }))).toBe(
-      "Put on",
-    );
+    expect(equipVerb(tile("item", { item: { ...DEFAULT_SHIELD } }))).toBe("Hold");
+    expect(equipVerb(tile("item", { item: { ...DEFAULT_CONTAINER } }))).toBe("Put on");
     // The same word an off-hand weapon gets, from the other direction: an
     // artifact is nothing *but* a thing you hold.
-    expect(equipVerb(tile("item", { item: { ...DEFAULT_ARTIFACT } }))).toBe(
-      "Hold",
-    );
+    expect(equipVerb(tile("item", { item: { ...DEFAULT_ARTIFACT } }))).toBe("Hold");
   });
 });

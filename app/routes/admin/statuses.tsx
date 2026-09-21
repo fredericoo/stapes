@@ -79,10 +79,7 @@ export default function StatusesPage() {
   const [editing, setEditing] = useState<StatusSource | null>(null);
 
   const save = (status: StatusSource) => {
-    fetcher.submit(
-      { intent: "save-status", status: JSON.stringify(status) },
-      { method: "post" },
-    );
+    fetcher.submit({ intent: "save-status", status: JSON.stringify(status) }, { method: "post" });
     setEditing(null);
     toast.show(`Saved ${status.name || status.id}`);
   };
@@ -97,18 +94,15 @@ export default function StatusesPage() {
       <div className="flex flex-col gap-3 p-3">
         <div className="flex items-center gap-2">
           <h1 className="text-sm font-bold uppercase tracking-wide">Statuses</h1>
-          <Button
-            className="ml-auto"
-            onClick={() => setEditing({ ...DEFAULT_STATUS_SOURCE })}
-          >
+          <Button className="ml-auto" onClick={() => setEditing({ ...DEFAULT_STATUS_SOURCE })}>
             New status
           </Button>
         </div>
 
         {statuses.length === 0 ? (
           <p className="text-xs text-muted">
-            Nothing authored yet. A status is what a consumable hands over —
-            start with the thing you want a berry to do.
+            Nothing authored yet. A status is what a consumable hands over — start with the thing
+            you want a berry to do.
           </p>
         ) : (
           <ul className="flex flex-col gap-1">
@@ -130,13 +124,9 @@ export default function StatusesPage() {
                   <span className="flex min-w-0 flex-col">
                     <span className="text-xs font-bold">
                       {status.name}
-                      <span className="ml-1 font-normal text-muted">
-                        {status.id}
-                      </span>
+                      <span className="ml-1 font-normal text-muted">{status.id}</span>
                     </span>
-                    <span className="truncate text-[11px] text-muted">
-                      {status.description}
-                    </span>
+                    <span className="truncate text-[11px] text-muted">{status.description}</span>
                   </span>
                   {valid ? null : (
                     <span className="shrink-0 border-2 border-danger px-1 text-[11px] text-danger">

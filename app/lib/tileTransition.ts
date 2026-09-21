@@ -65,12 +65,7 @@ const dissolveSchema = v.pipe(
      */
     from: v.optional(v.object({ x: sweepCoord, y: sweepCoord })),
     clumpPx: v.optional(
-      v.pipe(
-        v.number(),
-        v.integer(),
-        v.minValue(MIN_CLUMP_PX),
-        v.maxValue(MAX_CLUMP_PX),
-      ),
+      v.pipe(v.number(), v.integer(), v.minValue(MIN_CLUMP_PX), v.maxValue(MAX_CLUMP_PX)),
       DEFAULT_CLUMP_PX,
     ),
     edgeColor: hexColorSchema,
@@ -84,11 +79,7 @@ const dissolveSchema = v.pipe(
 
 const transitionSchema = v.pipe(
   v.object({
-    durationMs: v.pipe(
-      v.number(),
-      v.minValue(MIN_TRANSITION_MS),
-      v.maxValue(MAX_TRANSITION_MS),
-    ),
+    durationMs: v.pipe(v.number(), v.minValue(MIN_TRANSITION_MS), v.maxValue(MAX_TRANSITION_MS)),
     dissolve: v.optional(dissolveSchema),
     /**
      * To nothing, towards the middle of the cell the tile stands on, and on the
@@ -102,12 +93,7 @@ const transitionSchema = v.pipe(
      */
     drop: v.optional(
       v.object({
-        levels: v.pipe(
-          v.number(),
-          v.integer(),
-          v.minValue(1),
-          v.maxValue(MAX_DROP_LEVELS),
-        ),
+        levels: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_DROP_LEVELS)),
       }),
     ),
     /** A burst for the length of the transition, from the tile's cell. */
@@ -124,8 +110,7 @@ const transitionSchema = v.pipe(
   v.check(
     (t) =>
       !t.particles ||
-      burstParticleCount(t.particles.ratePerSecond, t.durationMs) <=
-        MAX_BURST_PARTICLES,
+      burstParticleCount(t.particles.ratePerSecond, t.durationMs) <= MAX_BURST_PARTICLES,
     "the burst spends more particles than one burst may",
   ),
 );
@@ -207,10 +192,7 @@ export const MAX_HELD_TRANSITIONS = 64;
  * How many particles a burst spends over a transition. The one reckoning both
  * the schema's cap and the editor's warning use, so they cannot disagree.
  */
-export function burstParticleCount(
-  ratePerSecond: number,
-  durationMs: number,
-): number {
+export function burstParticleCount(ratePerSecond: number, durationMs: number): number {
   return (ratePerSecond * durationMs) / MS_PER_SECOND;
 }
 
@@ -262,11 +244,7 @@ export function transitionOf(
  * the board. An appear climbs from 0 and a disappear falls from 1, which is the
  * whole of "appear plays it backwards": every effect reads this one number.
  */
-export function shownFraction(
-  side: TransitionSide,
-  elapsedMs: number,
-  durationMs: number,
-): number {
+export function shownFraction(side: TransitionSide, elapsedMs: number, durationMs: number): number {
   const progress = Math.min(1, Math.max(0, elapsedMs / durationMs));
   return side === "appear" ? progress : 1 - progress;
 }

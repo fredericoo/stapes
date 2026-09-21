@@ -25,9 +25,7 @@ export function ScrollArea({
   viewportRef?: Ref<HTMLDivElement>;
 }) {
   return (
-    <BaseScrollArea.Root
-      className={["relative min-h-0 outline-none", className].join(" ")}
-    >
+    <BaseScrollArea.Root className={["relative min-h-0 outline-none", className].join(" ")}>
       <BaseScrollArea.Viewport
         ref={(node) => assignRef(viewportRef, node)}
         className={[
@@ -37,9 +35,7 @@ export function ScrollArea({
           viewportClassName,
         ].join(" ")}
       >
-        <BaseScrollArea.Content className={contentClassName}>
-          {children}
-        </BaseScrollArea.Content>
+        <BaseScrollArea.Content className={contentClassName}>{children}</BaseScrollArea.Content>
       </BaseScrollArea.Viewport>
       <BaseScrollArea.Scrollbar
         orientation="vertical"

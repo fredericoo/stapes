@@ -130,12 +130,7 @@ function connected(
   statusDefs: Record<string, StatusDef> = {},
 ): { socket: FakeSocket; session: RemoteSession } {
   const socket = new FakeSocket();
-  const session = new RemoteSession(
-    socket as unknown as WebSocket,
-    tiles,
-    statusDefs,
-    now,
-  );
+  const session = new RemoteSession(socket as unknown as WebSocket, tiles, statusDefs, now);
   socket.deliver({
     type: "hello",
     selfId: SELF,
@@ -152,11 +147,7 @@ function connected(
   return { socket, session };
 }
 
-function patch(
-  cells: CellPatch[],
-  events: MotionEvent[] = [],
-  hps: HpPatch[] = [],
-) {
+function patch(cells: CellPatch[], events: MotionEvent[] = [], hps: HpPatch[] = []) {
   return { type: "patch", cells, events, hps, carriedLights: [] };
 }
 
@@ -436,11 +427,7 @@ describe("RemoteSession chat", () => {
     }
 
     // The fourth does not wait for the first to time out.
-    expect(session.getSnapshot().chats.map((c) => c.text)).toEqual([
-      "two",
-      "three",
-      "four",
-    ]);
+    expect(session.getSnapshot().chats.map((c) => c.text)).toEqual(["two", "three", "four"]);
   });
 
   it("counts that cap per cell, not across the board", () => {
@@ -465,10 +452,7 @@ describe("RemoteSession chat", () => {
     const { socket, session } = connected();
     for (const text of ["first", "second"]) socket.deliver({ ...said, text });
 
-    expect(session.getSnapshot().chats.map((c) => c.text)).toEqual([
-      "first",
-      "second",
-    ]);
+    expect(session.getSnapshot().chats.map((c) => c.text)).toEqual(["first", "second"]);
   });
 
   it("carries the speaker's stack index, so the bubble can clear their head", () => {
@@ -494,9 +478,9 @@ describe("RemoteSession chat", () => {
       minutesOfDay: SERVER_MINUTES,
       hps: [],
       carriedLights: [],
-    equipment: emptyEquipment(),
-    tags: [],
-    statuses: [],
+      equipment: emptyEquipment(),
+      tags: [],
+      statuses: [],
     });
 
     expect(session.getSnapshot().chats).toHaveLength(0);
@@ -795,9 +779,7 @@ describe("RemoteSession casting", () => {
     castings: [
       {
         actorId: SELF,
-        progress: progress
-          ? { ...progress, slot: { from: "square", square: "charm" } }
-          : null,
+        progress: progress ? { ...progress, slot: { from: "square", square: "charm" } } : null,
       },
     ],
   });
@@ -1098,9 +1080,7 @@ describe("RemoteSession prediction", () => {
     expect(self.direction).toBe("e");
     expect(self.walk).toBeNull();
     expect(stepsSent(socket)).toHaveLength(0);
-    expect(framesOfType(socket, "face")).toEqual([
-      { type: "face", direction: "e" },
-    ]);
+    expect(framesOfType(socket, "face")).toEqual([{ type: "face", direction: "e" }]);
   });
 
   it("sends one facing, however long the key is held", () => {
@@ -1110,7 +1090,6 @@ describe("RemoteSession prediction", () => {
 
     expect(framesOfType(socket, "face")).toHaveLength(1);
   });
-
 });
 
 /**
@@ -1278,9 +1257,7 @@ describe("RemoteSession attack mode", () => {
     session.setAttackMode(true);
     session.setAttackMode(true);
 
-    expect(framesOfType(socket, "attackMode")).toEqual([
-      { type: "attackMode", enabled: true },
-    ]);
+    expect(framesOfType(socket, "attackMode")).toEqual([{ type: "attackMode", enabled: true }]);
     expect(session.getSnapshot().attacking).toBe(true);
   });
 
@@ -1304,9 +1281,9 @@ describe("RemoteSession attack mode", () => {
       minutesOfDay: SERVER_MINUTES,
       hps: [],
       carriedLights: [],
-    equipment: emptyEquipment(),
-    tags: [],
-    statuses: [],
+      equipment: emptyEquipment(),
+      tags: [],
+      statuses: [],
     });
 
     expect(framesOfType(socket, "attackMode")).toEqual([
@@ -1329,9 +1306,9 @@ describe("RemoteSession attack mode", () => {
       minutesOfDay: SERVER_MINUTES,
       hps: [],
       carriedLights: [],
-    equipment: emptyEquipment(),
-    tags: [],
-    statuses: [],
+      equipment: emptyEquipment(),
+      tags: [],
+      statuses: [],
     });
 
     expect(framesOfType(socket, "attackMode")).toEqual([]);
@@ -1515,9 +1492,7 @@ describe("RemoteSession teleports", () => {
   it("puts the tap on the wire", () => {
     const { socket, session } = onLadder([grass]);
     expect(session.interact(RUNG)).toBe(true);
-    expect(framesOfType(socket, "interact")).toEqual([
-      { type: "interact", ref: RUNG },
-    ]);
+    expect(framesOfType(socket, "interact")).toEqual([{ type: "interact", ref: RUNG }]);
   });
 
   it("offers nothing when the far end has no room for the climber", () => {
@@ -1583,12 +1558,9 @@ describe("RemoteSession bodies that arrive after hello", () => {
     // spawn was told about it by name as well. Taking the announcement as news
     // would drop the lerp this body is halfway through.
     socket.deliver(
-      patch([], [
-        { kind: "spawned", actorId: SELF, at: { x: 0, y: 0, z: 0, stackIndex: 1 } },
-      ]),
+      patch([], [{ kind: "spawned", actorId: SELF, at: { x: 0, y: 0, z: 0, stackIndex: 1 } }]),
     );
-    expect(session.getSnapshot().actors.find((a) => a.id === SELF)?.walk)
-      .toBe(walking?.walk);
+    expect(session.getSnapshot().actors.find((a) => a.id === SELF)?.walk).toBe(walking?.walk);
   });
 
   /**
@@ -1688,8 +1660,7 @@ describe("RemoteSession bodies taken off the board", () => {
 
   it("draws another body under a status the wire broadcast the ids of", () => {
     const { socket, session } = connectedWithRat();
-    expect(session.getSnapshot().actors.find((a) => a.id === RAT)?.statuses)
-      .toEqual([]);
+    expect(session.getSnapshot().actors.find((a) => a.id === RAT)?.statuses).toEqual([]);
 
     socket.deliver({
       ...patch([]),
@@ -1717,8 +1688,7 @@ describe("RemoteSession bodies taken off the board", () => {
       ...patch([]),
       statusIds: [{ actorId: RAT, defIds: [] }],
     });
-    expect(session.getSnapshot().actors.find((a) => a.id === RAT)?.statuses)
-      .toEqual([]);
+    expect(session.getSnapshot().actors.find((a) => a.id === RAT)?.statuses).toEqual([]);
   });
 
   it("keeps the viewer's own countdown rather than the broadcast ids", () => {

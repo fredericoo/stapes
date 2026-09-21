@@ -64,12 +64,6 @@ export function matchesTileQuery(def: TileDef, query: string): boolean {
   return terms.every((term) => text.includes(term));
 }
 
-export function filterTiles(
-  tiles: TileDef[],
-  query: string,
-  filter: TileFilterKind,
-): TileDef[] {
-  return tiles.filter(
-    (tile) => matchesTileFilter(tile, filter) && matchesTileQuery(tile, query),
-  );
+export function filterTiles(tiles: TileDef[], query: string, filter: TileFilterKind): TileDef[] {
+  return tiles.filter((tile) => matchesTileFilter(tile, filter) && matchesTileQuery(tile, query));
 }

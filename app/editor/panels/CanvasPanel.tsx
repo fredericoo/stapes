@@ -56,13 +56,7 @@ function CanvasStatus() {
           .map((placed) => {
             const def = tilesById[placed.tileId];
             if (!def || def.type !== "autotile") return null;
-            const slice = resolveAutotileSlice(
-              map,
-              selected.x,
-              selected.y,
-              currentLevel,
-              def,
-            );
+            const slice = resolveAutotileSlice(map, selected.x, selected.y, currentLevel, def);
             const defined = Boolean(def.slices?.[slice]);
             return {
               id: def.id,

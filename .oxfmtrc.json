@@ -1,0 +1,30 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 100,
+  "ignorePatterns": [
+    // **Prose is written, not formatted.** oxfmt's Markdown pass is two things:
+    // `*emphasis*` rewritten as `_emphasis_`, and tables padded so their
+    // columns line up. Neither moves a word — `proseWrap` is `preserve` — but
+    // `docs/notes.md` is nine thousand lines of argument that somebody sat down
+    // and wrote, and the house rule for it is in `AGENTS.md` under "Say what
+    // you mean", which is not a rule a formatter can hold anybody to. The cost
+    // of this line is that `README.md` and `AGENTS.md` are not checked either.
+    "**/*.md",
+
+    // **These two are written by code, and the writer owns their shape.**
+    //
+    // `data/map.json` is one line per cell because `serializeMap` puts it
+    // there, and `data/tiles.json` is two-space JSON because `writeTiles` puts
+    // it there. The editor sends whole files, and both halves rely on saving an
+    // untouched one rewriting nothing — see `server/api.ts` and
+    // `app/routes/admin/map.tsx`.
+    //
+    // oxfmt disagrees with both writers by a space after the colon, which is
+    // not configurable. Let it format the map and an editor save rewrites all
+    // 78,667 lines, the formatter puts them back, and the two never agree
+    // again. `tilesets.json` and `statuses.json` are left in because oxfmt
+    // already writes them exactly as their writer does.
+    "data/map.json",
+    "data/tiles.json"
+  ]
+}

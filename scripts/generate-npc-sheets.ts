@@ -118,9 +118,7 @@ async function main() {
       // A fully transparent pixel has no colour worth matching, and matching it
       // anyway would repaint the empty half of the sheet.
       if (out.data[i + 3] === 0) continue;
-      const swap = lookup.get(
-        key([out.data[i]!, out.data[i + 1]!, out.data[i + 2]!]),
-      );
+      const swap = lookup.get(key([out.data[i]!, out.data[i + 1]!, out.data[i + 2]!]));
       if (!swap) continue;
       [out.data[i], out.data[i + 1], out.data[i + 2]] = swap;
     }

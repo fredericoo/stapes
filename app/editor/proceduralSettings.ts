@@ -15,23 +15,14 @@
 
 import * as v from "valibot";
 import { MAX_SCATTER_RULES } from "./generator";
-import {
-  CAVE_DENSITY_RANGE,
-  type CaveConfig,
-  type CaveShape,
-} from "./cave";
+import { CAVE_DENSITY_RANGE, type CaveConfig, type CaveShape } from "./cave";
 import {
   FOREST_DENSITY_RANGE,
   PATH_COUNT_RANGE,
   PATH_WIDTH_RANGE,
   type ForestConfig,
 } from "./forest";
-import {
-  ROOF_COLOUR_IDS,
-  WINDOW_SPACING_RANGE,
-  type HouseConfig,
-  type RoofColour,
-} from "./house";
+import { ROOF_COLOUR_IDS, WINDOW_SPACING_RANGE, type HouseConfig, type RoofColour } from "./house";
 import type { GeneratorId, ProceduralSettings } from "./procedural";
 
 /** Bump when the shape changes so saved settings from before it are dropped. */
@@ -120,16 +111,9 @@ const ScatterSchema = v.pipe(
 
 const HouseConfigSchema = v.object({
   generator: v.literal("house"),
-  storeys: v.pipe(
-    v.number(),
-    v.integer(),
-    v.minValue(1),
-    v.maxValue(MAX_STOREYS),
-  ),
+  storeys: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_STOREYS)),
   roofOrientation: v.picklist(["auto", "vertical", "horizontal"]),
-  roofColour: v.nullable(
-    v.picklist(ROOF_COLOUR_IDS as [RoofColour, ...RoofColour[]]),
-  ),
+  roofColour: v.nullable(v.picklist(ROOF_COLOUR_IDS as [RoofColour, ...RoofColour[]])),
   wallTileId: v.string(),
   floorTileId: v.string(),
   windowTileId: v.nullable(v.string()),
@@ -223,10 +207,7 @@ type KnownTileId = (id: string) => boolean;
  * refuses every placement with a message about the tile rather than about the
  * thing being built.
  */
-function keptOptionalTile(
-  id: string | null,
-  known: KnownTileId,
-): string | null {
+function keptOptionalTile(id: string | null, known: KnownTileId): string | null {
   return id && known(id) ? id : null;
 }
 

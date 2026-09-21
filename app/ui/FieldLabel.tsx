@@ -36,13 +36,7 @@ export function FieldLabel({
  * A section's title: the same caption, at the weight a group of fields gets,
  * with room on the left for the switch that turns the section on.
  */
-export function SectionTitle({
-  children,
-  info,
-}: {
-  children: ReactNode;
-  info?: ReactNode;
-}) {
+export function SectionTitle({ children, info }: { children: ReactNode; info?: ReactNode }) {
   return (
     <span className="inline-flex items-center gap-1.5 text-sm font-bold">
       {children}

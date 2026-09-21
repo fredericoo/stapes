@@ -19,7 +19,9 @@
     "test:unit": "vitest run",
     "test:server": "bun test server/",
     "test:perf": "playwright test",
-    "lint": "oxlint"
+    "lint": "oxlint",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check"
   },
   "dependencies": {
     "@tursodatabase/database": "0.7.2",

@@ -1,29 +1,15 @@
 import * as THREE from "three";
 import { tilesetUrl } from "../lib/api";
-import {
-  baseCellWorldOrigin,
-  depthBox,
-  depthStackBias,
-  spriteWorldOrigin,
-} from "../lib/geometry";
+import { baseCellWorldOrigin, depthBox, depthStackBias, spriteWorldOrigin } from "../lib/geometry";
 import { hexToRgb01, STAPES_PALETTE } from "../lib/palette";
 import { taperedGlow, taperedTint, type StatusVfx } from "../lib/statusVfx";
 import { getFrames } from "../lib/tileResolve";
 import type { Frame, TileDef, TilesetDef } from "../lib/types";
-import {
-  CELL_SIZE,
-  frameIndexAtTime,
-  HEIGHT_PER_LEVEL,
-  spriteRect,
-} from "../lib/types";
+import { CELL_SIZE, frameIndexAtTime, HEIGHT_PER_LEVEL, spriteRect } from "../lib/types";
 import { ParticleLayer } from "./particleLayer";
 import type { ParticleEmitterSpec } from "./particles";
 import { PalettePass } from "./palettePass";
-import {
-  noTintUniforms,
-  type TintUniforms,
-  writeTintUniforms,
-} from "./spriteTint";
+import { noTintUniforms, type TintUniforms, writeTintUniforms } from "./spriteTint";
 import {
   isFinished,
   liveShown,
@@ -183,9 +169,7 @@ export class VfxPreview {
    * Where the subject stands: its middle for the sweep's origin, and the
    * middle of its base cell for the scale's pivot.
    */
-  private subjectSprite:
-    | (TransitionSprite & { pivotX: number; pivotY: number })
-    | null = null;
+  private subjectSprite: (TransitionSprite & { pivotX: number; pivotY: number }) | null = null;
 
   private subject: THREE.Mesh | null = null;
   private subjectMaterial: THREE.MeshBasicMaterial | null = null;
@@ -379,9 +363,7 @@ export class VfxPreview {
     u.uLightingEnabled.value = 1;
     u.uLightMap.value = this.darkTex;
 
-    const glow = this.vfx.light
-      ? taperedGlow(this.vfx.light, this.taper)
-      : null;
+    const glow = this.vfx.light ? taperedGlow(this.vfx.light, this.taper) : null;
     if (!glow) {
       u.uAmbient.value.setScalar(NIGHT_AMBIENT);
       return;
@@ -451,12 +433,7 @@ export class VfxPreview {
     // subject's stack. Derived from the subject's own height, so a wall's plume
     // starts where a wall ends and a bush's where a bush does.
     const height = this.def?.height ?? HEIGHT_PER_LEVEL;
-    const box = depthBox(
-      SUBJECT_CELL.x,
-      SUBJECT_CELL.y,
-      height,
-      height + HEIGHT_PER_LEVEL,
-    );
+    const box = depthBox(SUBJECT_CELL.x, SUBJECT_CELL.y, height, height + HEIGHT_PER_LEVEL);
     const particles = this.vfx.particles;
     if (particles) {
       specs.push({
@@ -472,9 +449,7 @@ export class VfxPreview {
       });
     }
     const burst =
-      playing && !isFinished(playing, this.clockMs)
-        ? playing.transition.particles
-        : undefined;
+      playing && !isFinished(playing, this.clockMs) ? playing.transition.particles : undefined;
     if (burst) {
       specs.push({
         id: PREVIEW_BURST_ID,
@@ -494,10 +469,7 @@ export class VfxPreview {
   }
 
   private applyTint() {
-    writeTintUniforms(
-      this.tintU,
-      this.vfx.tint ? taperedTint(this.vfx.tint, this.taper) : null,
-    );
+    writeTintUniforms(this.tintU, this.vfx.tint ? taperedTint(this.vfx.tint, this.taper) : null);
   }
 
   private buildSubject() {
@@ -598,11 +570,7 @@ export class VfxPreview {
       startMs: this.clockMs,
     };
     this.playEndsMs = this.clockMs + transition.durationMs + TRANSITION_HOLD_MS;
-    writeTransitionUniforms(
-      this.transitionU,
-      this.playing,
-      this.subjectSprite ?? undefined,
-    );
+    writeTransitionUniforms(this.transitionU, this.playing, this.subjectSprite ?? undefined);
     this.advanceTransition();
   }
 
@@ -731,14 +699,8 @@ export class VfxPreview {
     }
 
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute(
-      "position",
-      new THREE.BufferAttribute(new Float32Array(positions), 3),
-    );
-    geo.setAttribute(
-      "color",
-      new THREE.BufferAttribute(new Float32Array(colors), 3),
-    );
+    geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(positions), 3));
+    geo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(colors), 3));
     geo.setIndex(indices);
 
     const mesh = new THREE.Mesh(

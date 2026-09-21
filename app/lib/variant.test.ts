@@ -77,8 +77,7 @@ describe("a variant tile draws the face its placement names", () => {
   it("reads nothing off the cell", () => {
     const def = hole();
     const at = (x: number, y: number, z: number) =>
-      resolveTileSprite(def, { variant: "sand", x, y, z })?.frames[0]?.sprite
-        .rect.y;
+      resolveTileSprite(def, { variant: "sand", x, y, z })?.frames[0]?.sprite.rect.y;
     expect(at(0, 0, 0)).toBe(SAND);
     expect(at(97, -13, -2)).toBe(SAND);
   });
@@ -92,24 +91,20 @@ describe("a state may redraw one face without taking the others", () => {
 
   it("uses the state's face where it has one", () => {
     expect(
-      resolveTileSprite(def, { state: "moving", variant: "planks" })?.frames[0]
-        ?.sprite.rect.y,
+      resolveTileSprite(def, { state: "moving", variant: "planks" })?.frames[0]?.sprite.rect.y,
     ).toBe(PLANKS_MOVING);
   });
 
   it("falls through to idle's same face, never to the state's other faces", () => {
     expect(
-      resolveTileSprite(def, { state: "moving", variant: "sand" })?.frames[0]
-        ?.sprite.rect.y,
+      resolveTileSprite(def, { state: "moving", variant: "sand" })?.frames[0]?.sprite.rect.y,
     ).toBe(SAND);
   });
 
   // The key is settled against idle before either holder answers, so a
   // placement naming no face does not change face when it starts moving.
   it("settles an unnamed face against idle, not against the state", () => {
-    expect(
-      resolveTileSprite(def, { state: "moving" })?.frames[0]?.sprite.rect.y,
-    ).toBe(GRASS);
+    expect(resolveTileSprite(def, { state: "moving" })?.frames[0]?.sprite.rect.y).toBe(GRASS);
   });
 });
 
@@ -121,9 +116,7 @@ describe("the frame clock is keyed per face", () => {
     expect(planks).not.toBe(sand);
     // Two placements wearing the same face share one clock wherever they stand:
     // the face is the whole of what decides the frame list.
-    expect(animationKey(def, { tileId: "hole", variant: "sand" }, 1, 2, 3)).toBe(
-      sand,
-    );
+    expect(animationKey(def, { tileId: "hole", variant: "sand" }, 1, 2, 3)).toBe(sand);
   });
 });
 

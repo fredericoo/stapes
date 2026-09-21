@@ -22,8 +22,7 @@
  * `font-sans` here would be IBM Plex Mono, which is fetched from Google Fonts —
  * exactly the dependency this screen must not have.
  */
-const SYSTEM_MONO =
-  'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace';
+const SYSTEM_MONO = 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace';
 
 export function LoadingScreen() {
   return (

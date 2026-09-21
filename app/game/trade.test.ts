@@ -15,9 +15,7 @@ import { tile as baseTile } from "../lib/testTile";
  * exactly as it was instead.
  */
 
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id">,
-): TileDef {
+function tile(partial: Record<string, unknown> & Pick<TileDef, "id">): TileDef {
   return baseTile({ kind: "item", intangible: true, ...partial });
 }
 
@@ -30,7 +28,15 @@ const potion = tile({
 const sword = tile({
   id: "sword",
   interactions: {
-    item: { type: "weapon", damage: 1, def: 0, accuracy: 100, variance: 0, spd: 50, mastery: "sharp" },
+    item: {
+      type: "weapon",
+      damage: 1,
+      def: 0,
+      accuracy: 100,
+      variance: 0,
+      spd: 50,
+      mastery: "sharp",
+    },
   },
 });
 const bag = tile({ id: "bag", interactions: { item: { ...DEFAULT_CONTAINER, size: 2 } } });
@@ -51,7 +57,8 @@ function wearing(contents: ItemInstance[], rest: Partial<Equipment> = {}): Equip
 }
 
 function tally(kit: Equipment) {
-  const name = (i: ItemInstance | null) => (i ? (i.count ? `${i.tileId}x${i.count}` : i.tileId) : null);
+  const name = (i: ItemInstance | null) =>
+    i ? (i.count ? `${i.tileId}x${i.count}` : i.tileId) : null;
   return {
     weapon: name(kit.weapon),
     offhand: name(kit.offhand),
@@ -77,7 +84,13 @@ describe("counting what is carried", () => {
 
 describe("paying", () => {
   it("takes from one pile, leaving the rest", () => {
-    const kit = planTrade(tilesById, wearing([pile("shard", 20)]), [{ tileId: "shard", count: 14 }], [], mint);
+    const kit = planTrade(
+      tilesById,
+      wearing([pile("shard", 20)]),
+      [{ tileId: "shard", count: 14 }],
+      [],
+      mint,
+    );
     expect(tally(kit!).bag).toEqual(["shardx6"]);
   });
 
@@ -154,7 +167,9 @@ describe("being paid", () => {
   });
 
   it("refuses a tile the catalogue does not hold", () => {
-    expect(planTrade(tilesById, wearing([]), [], [{ tileId: "nothing", count: 1 }], mint)).toBeNull();
+    expect(
+      planTrade(tilesById, wearing([]), [], [{ tileId: "nothing", count: 1 }], mint),
+    ).toBeNull();
   });
 
   it("answers room for a whole count, not one", () => {

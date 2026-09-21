@@ -69,10 +69,7 @@ export function formatClock(minutes: MinutesOfDay): string {
  * summed frame by frame runs slow by however long it spent unfocused. Two
  * clients that started in agreement would then quietly stop agreeing.
  */
-export function clockAfter(
-  minutes: MinutesOfDay,
-  elapsedMs: number,
-): MinutesOfDay {
+export function clockAfter(minutes: MinutesOfDay, elapsedMs: number): MinutesOfDay {
   return wrapMinutes(minutes + elapsedMs / MS_PER_CLOCK_MINUTE);
 }
 

@@ -314,11 +314,7 @@ export function TilePreview({
   return (
     <canvas
       ref={canvasRef}
-      className={[
-        "pixelated",
-        chrome ? "border-2 border-border bg-panel" : "",
-        className,
-      ]
+      className={["pixelated", chrome ? "border-2 border-border bg-panel" : "", className]
         .filter(Boolean)
         .join(" ")}
       style={{ width: size, height: size }}

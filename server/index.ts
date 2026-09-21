@@ -65,9 +65,7 @@ const app = new Elysia({
       const url = new URL(ws.data.request.url);
       const claimed = Number(url.searchParams.get(PROTOCOL_VERSION_PARAM));
       if (claimed !== PROTOCOL_VERSION) {
-        socket.send(
-          JSON.stringify({ type: "outdated", serverVersion: PROTOCOL_VERSION }),
-        );
+        socket.send(JSON.stringify({ type: "outdated", serverVersion: PROTOCOL_VERSION }));
         socket.close(CLOSE_OUTDATED_CLIENT, "protocol version");
         return;
       }
@@ -100,9 +98,7 @@ const app = new Elysia({
           return;
         }
         const wanted = url.searchParams.get(CHARACTER_PARAM);
-        const character = wanted
-          ? await world.characters.ownedBy(wanted, viewer.id)
-          : null;
+        const character = wanted ? await world.characters.ownedBy(wanted, viewer.id) : null;
         if (!character) {
           socket.close(CLOSE_SIGNED_OUT, "not your character");
           return;
@@ -126,10 +122,7 @@ const app = new Elysia({
     message(ws, message) {
       const socket = sockets.get(ws.raw as object);
       if (!socket) return;
-      void world.message(
-        socket,
-        typeof message === "string" ? message : JSON.stringify(message),
-      );
+      void world.message(socket, typeof message === "string" ? message : JSON.stringify(message));
     },
 
     close(ws) {
@@ -147,8 +140,7 @@ const app = new Elysia({
   .get(
     "/*",
     ({ request, status }) =>
-      bundle.respond(new URL(request.url).pathname) ??
-      status(404, "No client bundle"),
+      bundle.respond(new URL(request.url).pathname) ?? status(404, "No client bundle"),
   )
   .onError(({ code, error }) => {
     if (code === "NOT_FOUND") return new Response("Not found", { status: 404 });

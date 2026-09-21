@@ -8,13 +8,7 @@ import {
   type StatusTint,
   type StatusVfx,
 } from "../lib/statusVfx";
-import {
-  ColorField,
-  NumberField,
-  ParticleFields,
-  Row,
-  UnitSlider,
-} from "./ParticleFields";
+import { ColorField, NumberField, ParticleFields, Row, UnitSlider } from "./ParticleFields";
 import { FieldLabel, Switch } from "../ui";
 
 /**
@@ -66,8 +60,7 @@ export function StatusVfxFields({
   onChange: (next: StatusVfx) => void;
 }) {
   const setTint = (tint: StatusTint | null) => onChange({ ...vfx, tint });
-  const setParticles = (particles: ParticleEmitterDef | null) =>
-    onChange({ ...vfx, particles });
+  const setParticles = (particles: ParticleEmitterDef | null) => onChange({ ...vfx, particles });
   const setLight = (light: LightDef | null) => onChange({ ...vfx, light });
 
   return (

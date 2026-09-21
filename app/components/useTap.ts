@@ -132,25 +132,22 @@ export function useTap(onTap: () => void): TapProps {
     };
   }, []);
 
-  const onPointerUp = useCallback(
-    (event: React.PointerEvent) => {
-      const began = pressed.current;
-      pressed.current = null;
-      if (
-        !completesTap(began, {
-          pointerId: event.pointerId,
-          pointerType: event.pointerType,
-          x: event.clientX,
-          y: event.clientY,
-        })
-      ) {
-        return;
-      }
-      swallowSynthesisedClick();
-      run.current();
-    },
-    [],
-  );
+  const onPointerUp = useCallback((event: React.PointerEvent) => {
+    const began = pressed.current;
+    pressed.current = null;
+    if (
+      !completesTap(began, {
+        pointerId: event.pointerId,
+        pointerType: event.pointerType,
+        x: event.clientX,
+        y: event.clientY,
+      })
+    ) {
+      return;
+    }
+    swallowSynthesisedClick();
+    run.current();
+  }, []);
 
   const onPointerCancel = useCallback(() => {
     pressed.current = null;

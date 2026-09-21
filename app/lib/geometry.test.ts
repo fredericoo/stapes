@@ -174,10 +174,7 @@ describe("fragDepth", () => {
     const floor = depthBox(0, 0, 0, 0);
     const rug = depthBox(0, 0, 0, 0);
     const p = footPixel(0, 0);
-    expectInFront(
-      fragDepth(rug, p.sx + 4, p.sy + 4, 1),
-      fragDepth(floor, p.sx + 4, p.sy + 4, 0),
-    );
+    expectInFront(fragDepth(rug, p.sx + 4, p.sy + 4, 1), fragDepth(floor, p.sx + 4, p.sy + 4, 0));
   });
 
   it("puts a southern coplanar overhang in front of its northern neighbour", () => {
@@ -208,23 +205,12 @@ describe("fragDepth", () => {
     const northTall = depthBox(5, 10, 0, HEIGHT_PER_LEVEL);
     const sx = 5 * CELL_SIZE + 4;
     const sy = 10 * CELL_SIZE + 4;
-    expectInFront(
-      fragDepth(southFlat, sx, sy),
-      fragDepth(northTall, sx, sy),
-    );
+    expectInFront(fragDepth(southFlat, sx, sy), fragDepth(northTall, sx, sy));
 
     // Real elevation still dominates: lift the northern tile a whole level and
     // it beats the overhang and the bias together.
-    const northRaised = depthBox(
-      5,
-      10,
-      HEIGHT_PER_LEVEL,
-      HEIGHT_PER_LEVEL * 2,
-    );
-    expectInFront(
-      fragDepth(northRaised, sx, sy),
-      fragDepth(southFlat, sx, sy),
-    );
+    const northRaised = depthBox(5, 10, HEIGHT_PER_LEVEL, HEIGHT_PER_LEVEL * 2);
+    expectInFront(fragDepth(northRaised, sx, sy), fragDepth(southFlat, sx, sy));
   });
 
   /**
@@ -398,9 +384,7 @@ describe("fragDepth", () => {
          */
         it("survives the crossing to a float32 attribute", () => {
           for (const foot of [0, 16, -16, 48, -48]) {
-            expect(Math.fround(foot + DEPTH_LEAST_BODY)).toBeGreaterThan(
-              Math.fround(foot),
-            );
+            expect(Math.fround(foot + DEPTH_LEAST_BODY)).toBeGreaterThan(Math.fround(foot));
           }
         });
 
@@ -431,9 +415,7 @@ describe("fragDepth", () => {
         const body = depthBox(0, 0, 0, 1);
         const decal = depthBox(0, 0, 0, 0);
         expect(boxSurface(body, underFoot.sx, underFoot.sy).overhang).toBe(true);
-        expect(boxSurface(decal, underFoot.sx, underFoot.sy).overhang).toBe(
-          false,
-        );
+        expect(boxSurface(decal, underFoot.sx, underFoot.sy).overhang).toBe(false);
       });
     });
   });

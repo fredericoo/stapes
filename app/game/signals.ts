@@ -1,10 +1,6 @@
 import { getStack, listCoords, replaceStack } from "../lib/mapData";
 import type { ReceiveInteraction, SignalValue } from "../lib/interactions";
-import {
-  receiveTriggers,
-  resolveEmit,
-  resolveReceive,
-} from "../lib/interactions";
+import { receiveTriggers, resolveEmit, resolveReceive } from "../lib/interactions";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import { canReplaceStack } from "../lib/validation";
@@ -65,9 +61,7 @@ export function channelPowered(
  * moment it stopped listening would have no way to notice it started again.
  */
 export function cellIsWired(map: MapFile, cell: Coord): boolean {
-  return getStack(map, cell.x, cell.y, cell.z).some((placed) =>
-    Boolean(placed.channel),
-  );
+  return getStack(map, cell.x, cell.y, cell.z).some((placed) => Boolean(placed.channel));
 }
 
 /**
@@ -145,9 +139,7 @@ function swapReceiverAt(
   }
 
   const next = stack.map((p, j) => (j === i ? { ...p, tileId: receive.tileId } : p));
-  return canReplaceStack(map, cell.x, cell.y, cell.z, next, tilesById).ok
-    ? next
-    : null;
+  return canReplaceStack(map, cell.x, cell.y, cell.z, next, tilesById).ok ? next : null;
 }
 
 /** The stack this cell settles to, or null when no receiver in it triggers. */

@@ -92,7 +92,11 @@ export function updateCommandAt(
   const index = path[path.length - 1]!;
   const list = listAt(dialog, listPath);
   if (!list?.[index]) return dialog;
-  return withListAt(dialog, listPath, list.map((c, i) => (i === index ? change(c) : c)));
+  return withListAt(
+    dialog,
+    listPath,
+    list.map((c, i) => (i === index ? change(c) : c)),
+  );
 }
 
 /** The dialog with `command` put in the list at `listPath`, at `index`. */
@@ -114,7 +118,11 @@ export function removeCommandAt(dialog: DialogDef, path: CommandPath): DialogDef
   const index = path[path.length - 1]!;
   const list = listAt(dialog, listPath);
   if (!list?.[index]) return dialog;
-  return withListAt(dialog, listPath, list.filter((_, i) => i !== index));
+  return withListAt(
+    dialog,
+    listPath,
+    list.filter((_, i) => i !== index),
+  );
 }
 
 /**
@@ -181,8 +189,7 @@ export function DialogEditor({ dialog, tiles, tilesets, statusDefs, onChange }: 
     return (
       <div className="flex flex-col gap-2">
         <p className="text-[11px] leading-snug text-muted">
-          None. A dialog gives the body a <strong>Talk</strong> row, and makes the tile an
-          Actor.
+          None. A dialog gives the body a <strong>Talk</strong> row, and makes the tile an Actor.
         </p>
         <Button onClick={() => onChange({ ...DEFAULT_DIALOG })}>Add dialog</Button>
       </div>
@@ -199,7 +206,12 @@ export function DialogEditor({ dialog, tiles, tilesets, statusDefs, onChange }: 
     remove: (path) => onChange(removeCommandAt(dialog, path)),
     append: (listPath, kind) =>
       onChange(
-        insertCommandAt(dialog, listPath, Number.MAX_SAFE_INTEGER, DIALOG_COMMANDS[kind].make(ctx.defaults)),
+        insertCommandAt(
+          dialog,
+          listPath,
+          Number.MAX_SAFE_INTEGER,
+          DIALOG_COMMANDS[kind].make(ctx.defaults),
+        ),
       ),
   };
 
@@ -502,7 +514,9 @@ function ChoicesBlocks({
             <Input
               value={option.label}
               onChange={(e) =>
-                setOptions(command.options.map((o, j) => (j === i ? { ...o, label: e.target.value } : o)))
+                setOptions(
+                  command.options.map((o, j) => (j === i ? { ...o, label: e.target.value } : o)),
+                )
               }
               className="w-40 font-bold"
               aria-label="Button label"
@@ -547,13 +561,39 @@ function TradeBlocks({
   };
   return (
     <div className="flex flex-col gap-2 pl-6">
-      <TradeSides label="Takes" sides={trade.take} ctx={ctx} onChange={(take) => onChange({ ...trade, take })} />
-      <TradeSides label="Gives" sides={trade.give} ctx={ctx} onChange={(give) => onChange({ ...trade, give })} />
+      <TradeSides
+        label="Takes"
+        sides={trade.take}
+        ctx={ctx}
+        onChange={(take) => onChange({ ...trade, take })}
+      />
+      <TradeSides
+        label="Gives"
+        sides={trade.give}
+        ctx={ctx}
+        onChange={(give) => onChange({ ...trade, give })}
+      />
       <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase text-muted">
         <span>how many: from</span>
-        <NumberInput min={1} max={MAX_DIALOG_AMOUNT} step={1} value={trade.min} onChange={number("min")} className="w-16" aria-label="Least" />
+        <NumberInput
+          min={1}
+          max={MAX_DIALOG_AMOUNT}
+          step={1}
+          value={trade.min}
+          onChange={number("min")}
+          className="w-16"
+          aria-label="Least"
+        />
         <span>to</span>
-        <NumberInput min={1} max={MAX_DIALOG_AMOUNT} step={1} value={trade.max} onChange={number("max")} className="w-16" aria-label="Most" />
+        <NumberInput
+          min={1}
+          max={MAX_DIALOG_AMOUNT}
+          step={1}
+          value={trade.max}
+          onChange={number("max")}
+          className="w-16"
+          aria-label="Most"
+        />
         <span>starting at</span>
         <NumberInput
           min={1}
@@ -604,7 +644,9 @@ function TradeSides({
           />
           <Select
             value={side.tileId || null}
-            onValueChange={(v) => v && onChange(sides.map((s, j) => (j === i ? { ...s, tileId: v } : s)))}
+            onValueChange={(v) =>
+              v && onChange(sides.map((s, j) => (j === i ? { ...s, tileId: v } : s)))
+            }
             options={ctx.itemOptions}
             placeholder="Tile…"
             className="min-w-[9rem]"

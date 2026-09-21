@@ -57,9 +57,7 @@ function linkClass(isActive: boolean, block: boolean): string {
   return [
     "border-2 px-2 py-1 text-xs font-medium",
     block ? "block w-full" : "",
-    isActive
-      ? "border-paper bg-paper text-ink"
-      : "border-paper/40 text-paper hover:border-paper",
+    isActive ? "border-paper bg-paper text-ink" : "border-paper/40 text-paper hover:border-paper",
   ]
     .filter(Boolean)
     .join(" ");
@@ -175,11 +173,7 @@ export function AppMenuButton({ size = "touch" }: { size?: ActionButtonSize }) {
             "border-paper/40 bg-transparent text-paper data-[popup-open]:border-paper data-[popup-open]:bg-paper data-[popup-open]:text-ink",
           ].join(" ")}
         >
-          <IconSettings
-            size={size === "touch" ? 24 : 18}
-            stroke={2}
-            aria-hidden="true"
-          />
+          <IconSettings size={size === "touch" ? 24 : 18} stroke={2} aria-hidden="true" />
         </Popover.Trigger>
       </Tooltip>
       <Popover.Portal>
@@ -266,9 +260,7 @@ export function AppShell({
       >
         {headerHidden ? null : (
           <header className="flex flex-wrap items-center gap-3 border-b-2 border-border bg-ink px-3 py-2 text-paper">
-            <div className="text-sm font-bold tracking-wide uppercase">
-              Stapes
-            </div>
+            <div className="text-sm font-bold tracking-wide uppercase">Stapes</div>
 
             {narrow ? (
               destinations.length === 0 && !menuExtras ? null : (
@@ -326,8 +318,6 @@ export function AppShell({
  * list cannot drift page to page — and so no player-facing screen can grow a
  * link to the tile editor by copying a shell call.
  */
-export function AdminShell(
-  props: Omit<React.ComponentProps<typeof AppShell>, "destinations">,
-) {
+export function AdminShell(props: Omit<React.ComponentProps<typeof AppShell>, "destinations">) {
   return <AppShell {...props} destinations={ADMIN_DESTINATIONS} />;
 }

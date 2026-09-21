@@ -12,9 +12,7 @@ import { causeOfDeath, possessive } from "./blame";
 
 describe("causeOfDeath", () => {
   it("names what did it and who is answerable", () => {
-    expect(causeOfDeath({ source: "Fangs", by: "Wolf" })).toBe(
-      "Cause of death: Fangs by Wolf",
-    );
+    expect(causeOfDeath({ source: "Fangs", by: "Wolf" })).toBe("Cause of death: Fangs by Wolf");
   });
 
   /**
@@ -33,9 +31,7 @@ describe("possessive", () => {
    * the tavern stays nobody's. The same tile is both.
    */
   it("joins an owner to the thing, or leaves the thing alone", () => {
-    expect(possessive("Green Fox", "Arcane Flame")).toBe(
-      "Green Fox's Arcane Flame",
-    );
+    expect(possessive("Green Fox", "Arcane Flame")).toBe("Green Fox's Arcane Flame");
     expect(possessive(null, "Hearth")).toBe("Hearth");
   });
 });

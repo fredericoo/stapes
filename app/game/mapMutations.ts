@@ -139,8 +139,6 @@ export function setEntityDirection(
   // reads downstream as a real edit — invalidating light and rebuilding the
   // level's geometry for a frame in which nothing moved.
   if (current.direction === direction) return map;
-  const next = stack.map((p, i) =>
-    i === stackIndex ? { ...p, direction } : p,
-  );
+  const next = stack.map((p, i) => (i === stackIndex ? { ...p, direction } : p));
   return replaceStack(map, x, y, z, next);
 }

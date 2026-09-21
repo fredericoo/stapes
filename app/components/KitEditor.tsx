@@ -40,10 +40,7 @@ export function KitEditor({
   // Once for the panel rather than once per row: every row offers the same
   // catalogue, and filtering per row would walk the library once per entry on
   // every keystroke.
-  const carryable = useMemo(
-    () => tiles.filter((tile) => resolveItem(tile) != null),
-    [tiles],
-  );
+  const carryable = useMemo(() => tiles.filter((tile) => resolveItem(tile) != null), [tiles]);
   const itemOptions = useMemo(
     () => carryable.map((tile) => ({ value: tile.id, label: tile.name })),
     [carryable],
@@ -58,16 +55,10 @@ export function KitEditor({
   }, [carryable]);
 
   const patchEntry = (index: number, fields: Partial<KitEntry>) => {
-    onChange(
-      kit.map((entry, i) => (i === index ? { ...entry, ...fields } : entry)),
-    );
+    onChange(kit.map((entry, i) => (i === index ? { ...entry, ...fields } : entry)));
   };
 
-  const patchContent = (
-    index: number,
-    contentIndex: number,
-    fields: Partial<KitContent>,
-  ) => {
+  const patchContent = (index: number, contentIndex: number, fields: Partial<KitContent>) => {
     const entry = kit[index];
     if (!entry) return;
     patchEntry(index, {
@@ -79,9 +70,7 @@ export function KitEditor({
 
   return (
     <div className="flex flex-col gap-3">
-      {kit.length === 0 ? (
-        <p className="text-[11px] leading-snug text-muted">None.</p>
-      ) : null}
+      {kit.length === 0 ? <p className="text-[11px] leading-snug text-muted">None.</p> : null}
 
       {kit.map((entry, index) => {
         const size = containerSizes.get(entry.tileId);
@@ -110,9 +99,7 @@ export function KitEditor({
                 Item
                 <Select
                   value={entry.tileId || null}
-                  onValueChange={(tileId) =>
-                    patchEntry(index, { tileId: tileId ?? "" })
-                  }
+                  onValueChange={(tileId) => patchEntry(index, { tileId: tileId ?? "" })}
                   options={itemOptions}
                   placeholder="Pick an item…"
                 />
@@ -128,10 +115,7 @@ export function KitEditor({
                   aria-label="Chance this is there, in percent"
                 />
               </label>
-              <Button
-                variant="ghost"
-                onClick={() => onChange(kit.filter((_, i) => i !== index))}
-              >
+              <Button variant="ghost" onClick={() => onChange(kit.filter((_, i) => i !== index))}>
                 Remove
               </Button>
             </div>
@@ -154,18 +138,14 @@ export function KitEditor({
                       }
                       // A container may not hold a container, so one is not on
                       // offer here — the same rule the roll and every drag keep.
-                      options={itemOptions.filter(
-                        (option) => !containerSizes.has(option.value),
-                      )}
+                      options={itemOptions.filter((option) => !containerSizes.has(option.value))}
                       placeholder="Pick an item…"
                     />
                     <NumberInput
                       min={MIN_KIT_CHANCE}
                       max={MAX_KIT_CHANCE}
                       value={content.chance}
-                      onChange={(chance) =>
-                        patchContent(index, contentIndex, { chance })
-                      }
+                      onChange={(chance) => patchContent(index, contentIndex, { chance })}
                       className="w-20"
                       aria-label="Chance this is inside, in percent"
                     />
@@ -173,9 +153,7 @@ export function KitEditor({
                       variant="ghost"
                       onClick={() =>
                         patchEntry(index, {
-                          contents: contents.filter(
-                            (_, i) => i !== contentIndex,
-                          ),
+                          contents: contents.filter((_, i) => i !== contentIndex),
                         })
                       }
                     >
@@ -189,10 +167,7 @@ export function KitEditor({
                     disabled={contents.length >= size}
                     onClick={() =>
                       patchEntry(index, {
-                        contents: [
-                          ...contents,
-                          { tileId: "", chance: DEFAULT_KIT_CHANCE },
-                        ],
+                        contents: [...contents, { tileId: "", chance: DEFAULT_KIT_CHANCE }],
                       })
                     }
                   >
@@ -210,10 +185,7 @@ export function KitEditor({
           variant="ghost"
           disabled={kit.length >= MAX_KIT_ENTRIES}
           onClick={() =>
-            onChange([
-              ...kit,
-              { slot: "weapon", tileId: "", chance: DEFAULT_KIT_CHANCE },
-            ])
+            onChange([...kit, { slot: "weapon", tileId: "", chance: DEFAULT_KIT_CHANCE }])
           }
         >
           Add item

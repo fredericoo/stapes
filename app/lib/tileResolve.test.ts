@@ -162,9 +162,7 @@ describe("a tile written before it had an anchor", () => {
     expect(at(def.sprites!.e!.frames[0]!.sprite)).toMatchObject({ x: 10, y: 8 });
     // States are walked too, which is where a migration led by `type` would have
     // left half the tile absolute and half of it relative.
-    expect(
-      at(def.states!.moving!.sprites!.n!.frames[0]!.sprite),
-    ).toMatchObject({ x: 14, y: 6 });
+    expect(at(def.states!.moving!.sprites!.n!.frames[0]!.sprite)).toMatchObject({ x: 14, y: 6 });
   });
 
   it("leaves no sheet behind on a sprite", () => {

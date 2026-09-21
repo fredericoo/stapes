@@ -221,8 +221,7 @@ describe("the light a flight casts", () => {
       },
     });
     const at = (elapsedMs: number) =>
-      flightLight(flight({ hit: false, elapsedMs }), def)?.lights?.[0]
-        ?.intensity;
+      flightLight(flight({ hit: false, elapsedMs }), def)?.lights?.[0]?.intensity;
 
     expect(at(400)).toBe(1);
     expect(at(600)).toBeLessThan(1);
@@ -242,8 +241,7 @@ describe("the light a flight casts", () => {
   it("holds one strength for the whole crossing", () => {
     const def = lit();
     for (const elapsedMs of [0, 100, 200, 399]) {
-      expect(flightLight(flight({ elapsedMs }), def)?.lights?.[0]?.intensity)
-        .toBe(1);
+      expect(flightLight(flight({ elapsedMs }), def)?.lights?.[0]?.intensity).toBe(1);
     }
   });
 });
@@ -333,8 +331,7 @@ describe("whether a projectile's sides ask anything of its sprite", () => {
   });
 
   it("is asked by a scale", () => {
-    expect(wearsFlightTransition(sided({ appear: { durationMs: 100, scale: {} } })))
-      .toBe(true);
+    expect(wearsFlightTransition(sided({ appear: { durationMs: 100, scale: {} } }))).toBe(true);
   });
 });
 
@@ -410,8 +407,7 @@ describe("the views a frame is drawn from", () => {
   it("keeps one bearing for the whole flight", () => {
     const flight = shot(6, -1);
     const bearings = [0, 60, 120, 199].map(
-      (elapsedMs) =>
-        projectileViews([{ ...flight, elapsedMs }], CATALOGUE)[0]!.direction,
+      (elapsedMs) => projectileViews([{ ...flight, elapsedMs }], CATALOGUE)[0]!.direction,
     );
     expect(new Set(bearings).size).toBe(1);
   });
@@ -486,9 +482,7 @@ describe("the emitter an effect hangs from", () => {
   /** A shot down a stairwell plays where it lands, not where it was loosed. */
   it("takes the level from the height it stopped at", () => {
     expect(flightEmitter(effect({ x: 0, y: 0, elevAbs: 0 }))!.z).toBe(0);
-    expect(
-      flightEmitter(effect({ x: 0, y: 0, elevAbs: HEIGHT_PER_LEVEL }))!.z,
-    ).toBe(1);
+    expect(flightEmitter(effect({ x: 0, y: 0, elevAbs: HEIGHT_PER_LEVEL }))!.z).toBe(1);
   });
 
   /** In front of the body it came off, never behind it. */

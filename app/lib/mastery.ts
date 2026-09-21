@@ -91,21 +91,11 @@ export type ElementMastery = Element;
 
 export type Mastery = WeaponMastery | BodyMastery | ElementMastery;
 
-export const WEAPON_MASTERIES: WeaponMastery[] = [
-  "fist",
-  "sharp",
-  "blunt",
-  "ranged",
-  "arcane",
-];
+export const WEAPON_MASTERIES: WeaponMastery[] = ["fist", "sharp", "blunt", "ranged", "arcane"];
 
 export const BODY_MASTERIES: BodyMastery[] = ["toughness", "agility"];
 
-export const MASTERIES: Mastery[] = [
-  ...WEAPON_MASTERIES,
-  ...BODY_MASTERIES,
-  ...ELEMENTS,
-];
+export const MASTERIES: Mastery[] = [...WEAPON_MASTERIES, ...BODY_MASTERIES, ...ELEMENTS];
 
 /**
  * What each mastery is called on screen.
@@ -210,8 +200,7 @@ export function meetsRequirements(
 ): boolean {
   if (!requirements) return true;
   return MASTERIES.every(
-    (mastery) =>
-      masteryLevel(masteries, mastery) >= (requirements[mastery] ?? 0),
+    (mastery) => masteryLevel(masteries, mastery) >= (requirements[mastery] ?? 0),
   );
 }
 
@@ -608,10 +597,7 @@ export const MAX_XP_MULTIPLIER = 2;
  * capped, because the risk is already its own incentive and does not need
  * paying for twice.
  */
-export function experienceMultiplier(
-  theirRating: number,
-  yourRating: number,
-): number {
+export function experienceMultiplier(theirRating: number, yourRating: number): number {
   const r = theirRating / Math.max(MIN_RATING, yourRating);
   if (r < NOTHING_BELOW_RATIO) return 0;
   if (r <= 1) return r ** BENEATH_YOU_EXPONENT;
@@ -717,7 +703,8 @@ const masteryXpSchema = v.pipe(v.number(), v.finite(), v.minValue(0));
  * propagating through every fight they have from then on.
  */
 export const masteryXpBlockSchema = v.object(
-  Object.fromEntries(
-    MASTERIES.map((mastery) => [mastery, v.optional(masteryXpSchema)]),
-  ) as Record<Mastery, v.OptionalSchema<typeof masteryXpSchema, undefined>>,
+  Object.fromEntries(MASTERIES.map((mastery) => [mastery, v.optional(masteryXpSchema)])) as Record<
+    Mastery,
+    v.OptionalSchema<typeof masteryXpSchema, undefined>
+  >,
 );

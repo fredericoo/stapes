@@ -5,12 +5,7 @@ import statusesJson from "../data/statuses.json";
 import { RemoteSession } from "../app/net/RemoteSession";
 import { MAP_FILE_VERSION, normalizeTileDef } from "../app/lib/types";
 import { getStack, listCoords } from "../app/lib/mapData";
-import {
-  covers,
-  visibleStack,
-  withinBodyReach,
-  BODY_REACH_ON_LEVEL,
-} from "../app/net/interest";
+import { covers, visibleStack, withinBodyReach, BODY_REACH_ON_LEVEL } from "../app/net/interest";
 import { MIN_LEVEL, MAX_LEVEL } from "../app/lib/types";
 import type { MapFile } from "../app/lib/types";
 import type { ActorPosition } from "../app/game/GameSession";
@@ -91,12 +86,7 @@ async function play(actorId: string) {
     void harness.server.webSocketClose(pair.server);
   };
   let clock = 0;
-  const remote = new RemoteSession(
-    socket as unknown as WebSocket,
-    tiles,
-    statuses,
-    () => clock,
-  );
+  const remote = new RemoteSession(socket as unknown as WebSocket, tiles, statuses, () => clock);
   await harness.server.join(pair.server, actorId, { admin: true });
   // The `hello` is sent inside `join`, so by here the client has a world.
   expect(remote.isReady()).toBe(true);
@@ -233,9 +223,7 @@ function divergence(remote: RemoteSession, actorId: string): string[] {
         const mine = getStack(clientMap, x, y, z);
         const theirs = visibleStack(getStack(serverMap, x, y, z), held);
         if (JSON.stringify(mine) === JSON.stringify(theirs)) continue;
-        out.push(
-          `${x},${y},${z}: client ${JSON.stringify(mine)} world ${JSON.stringify(theirs)}`,
-        );
+        out.push(`${x},${y},${z}: client ${JSON.stringify(mine)} world ${JSON.stringify(theirs)}`);
       }
     }
   }
@@ -315,21 +303,25 @@ describe("a client playing against a real world", () => {
  * do: walk about with a creature nearby and see what the client is left with.
  */
 describe("walking about with a creature in the world", () => {
-  it("never lets the client's board drift from the world's", async () => {
-    const session = await play("alice");
-    await session.advance(300);
-    expect(divergence(session.remote, "alice")).toEqual([]);
+  it(
+    "never lets the client's board drift from the world's",
+    async () => {
+      const session = await play("alice");
+      await session.advance(300);
+      expect(divergence(session.remote, "alice")).toEqual([]);
 
-    // Out past what a body is scoped by, then back. The creature is dozing
-    // somewhere behind, and whatever it does while nobody is being told is what
-    // this is about.
-    await walk(session, "e", CHUNK_SIZE * 2);
-    await session.advance(1000);
-    await walk(session, "w", CHUNK_SIZE * 2);
-    await session.advance(1000);
+      // Out past what a body is scoped by, then back. The creature is dozing
+      // somewhere behind, and whatever it does while nobody is being told is what
+      // this is about.
+      await walk(session, "e", CHUNK_SIZE * 2);
+      await session.advance(1000);
+      await walk(session, "w", CHUNK_SIZE * 2);
+      await session.advance(1000);
 
-    expect(divergence(session.remote, "alice")).toEqual([]);
-  }, WALKING_TEST_MS);
+      expect(divergence(session.remote, "alice")).toEqual([]);
+    },
+    WALKING_TEST_MS,
+  );
 
   /**
    * The case the scoping is *for*, which is also the case nothing exercises by
@@ -340,30 +332,34 @@ describe("walking about with a creature in the world", () => {
    * question — it is ground the client never stopped being subscribed to, so
    * nothing re-hands it, and a tile left in it is left for good.
    */
-  it("does not keep a body where it no longer is", async () => {
-    const session = await play("alice");
-    await session.advance(300);
+  it(
+    "does not keep a body where it no longer is",
+    async () => {
+      const session = await play("alice");
+      await session.advance(300);
 
-    await walk(session, "e", BODY_REACH_ON_LEVEL + CHUNK_SIZE);
-    await session.advance(500);
-    // Out of what a body is scoped by, and well inside the ground she holds.
-    const away = session.remote.getSnapshot().self.x;
-    expect(away - DEER_X).toBeGreaterThan(BODY_REACH_ON_LEVEL);
+      await walk(session, "e", BODY_REACH_ON_LEVEL + CHUNK_SIZE);
+      await session.advance(500);
+      // Out of what a body is scoped by, and well inside the ground she holds.
+      const away = session.remote.getSnapshot().self.x;
+      expect(away - DEER_X).toBeGreaterThan(BODY_REACH_ON_LEVEL);
 
-    const world = harness.server as unknown as {
-      session: { actorPosition(id: string): { x: number } | null };
-    };
-    const before = world.session.actorPosition(DEER_ID)!.x;
-    await stepCreature(DEER_ID, "e", session.advance);
-    await session.advance(1000);
-    // It really moved while nobody was being told, which is the premise.
-    expect(world.session.actorPosition(DEER_ID)!.x).not.toBe(before);
+      const world = harness.server as unknown as {
+        session: { actorPosition(id: string): { x: number } | null };
+      };
+      const before = world.session.actorPosition(DEER_ID)!.x;
+      await stepCreature(DEER_ID, "e", session.advance);
+      await session.advance(1000);
+      // It really moved while nobody was being told, which is the premise.
+      expect(world.session.actorPosition(DEER_ID)!.x).not.toBe(before);
 
-    await walk(session, "w", BODY_REACH_ON_LEVEL + CHUNK_SIZE);
-    await session.advance(1000);
+      await walk(session, "w", BODY_REACH_ON_LEVEL + CHUNK_SIZE);
+      await session.advance(1000);
 
-    expect(divergence(session.remote, "alice")).toEqual([]);
-  }, WALKING_TEST_MS);
+      expect(divergence(session.remote, "alice")).toEqual([]);
+    },
+    WALKING_TEST_MS,
+  );
 
   /**
    * The other way across the boundary: the creature walks and the player does

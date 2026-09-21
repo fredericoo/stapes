@@ -42,10 +42,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             what `env(safe-area-inset-*)` is then for: see `AppShell`, which
             insets the chrome, and `GameViewport`, which deliberately does not
             inset the bottom and scrolls its list clear of the toolbar instead. */}
-        <meta
-          name="viewport"
-          content="width=device-width, initial-scale=1, viewport-fit=cover"
-        />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         {/* The phone's own furniture — the status bar above the page and the
             browser's toolbar below it. Without this both take their colour from
             the page background, which is the cream paper, so a game that is
@@ -99,9 +96,7 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   if (isRouteErrorResponse(error)) {
     message = error.status === 404 ? "404" : "Error";
     details =
-      error.status === 404
-        ? "The requested page could not be found."
-        : error.statusText || details;
+      error.status === 404 ? "The requested page could not be found." : error.statusText || details;
   } else if (import.meta.env.DEV && error && error instanceof Error) {
     details = error.message;
     stack = error.stack;

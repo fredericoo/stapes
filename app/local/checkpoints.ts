@@ -149,10 +149,7 @@ export function idbCheckpoints(databaseName: string): Checkpoints {
  * one tick and the alarm of another would wake the world to refill a spawn
  * point that had already been refilled.
  */
-function write(
-  db: IDBDatabase,
-  body: (transaction: IDBTransaction) => void,
-): Promise<void> {
+function write(db: IDBDatabase, body: (transaction: IDBTransaction) => void): Promise<void> {
   return new Promise((resolve) => {
     let transaction: IDBTransaction;
     try {

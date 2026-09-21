@@ -42,12 +42,8 @@ describe("a pace moved by a percentage", () => {
   });
 
   it("holds the total inside the band", () => {
-    expect(walkDurationFrom(BASE, -100)).toBe(
-      walkDurationFrom(BASE, MIN_WALK_SPEED_PERCENT),
-    );
-    expect(walkDurationFrom(BASE, 10_000)).toBe(
-      walkDurationFrom(BASE, MAX_WALK_SPEED_PERCENT),
-    );
+    expect(walkDurationFrom(BASE, -100)).toBe(walkDurationFrom(BASE, MIN_WALK_SPEED_PERCENT));
+    expect(walkDurationFrom(BASE, 10_000)).toBe(walkDurationFrom(BASE, MAX_WALK_SPEED_PERCENT));
   });
 
   /**

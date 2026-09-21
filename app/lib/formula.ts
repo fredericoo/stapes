@@ -340,8 +340,7 @@ class Parser {
     }
     this.expectOp(")");
     const id = token.value;
-    return (scope) =>
-      scope.statuses.some((status) => status.defId === id) ? 1 : 0;
+    return (scope) => (scope.statuses.some((status) => status.defId === id) ? 1 : 0);
   }
 }
 

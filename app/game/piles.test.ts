@@ -106,18 +106,12 @@ function field(): MapFile {
       map = replaceStack(map, x, y, 0, [{ tileId: "grass" }]);
     }
   }
-  return replaceStack(map, 4, 2, 0, [
-    { tileId: "grass" },
-    { tileId: "player", direction: "s" },
-  ]);
+  return replaceStack(map, 4, 2, 0, [{ tileId: "grass" }, { tileId: "player", direction: "s" }]);
 }
 
 /** A world with `placed` on the grass beside the player. */
 function beside(placed: PlacedTile): MapFile {
-  return replaceStack(field(), BESIDE.x, BESIDE.y, BESIDE.z, [
-    { tileId: "grass" },
-    placed,
-  ]);
+  return replaceStack(field(), BESIDE.x, BESIDE.y, BESIDE.z, [{ tileId: "grass" }, placed]);
 }
 
 function carrying(contents: ItemInstance[], slots: Partial<Equipment> = {}) {
@@ -154,10 +148,10 @@ const ASIDE = { ...BESIDE, stackIndex: 1 };
 
 describe("picking a pile up", () => {
   it("joins a pile already in the bag rather than taking a second square", () => {
-    const session = world(
-      carrying([{ id: "itm_a", tileId: "berry" }]),
-      { tileId: "berry", itemId: "itm_b" },
-    );
+    const session = world(carrying([{ id: "itm_a", tileId: "berry" }]), {
+      tileId: "berry",
+      itemId: "itm_b",
+    });
 
     expect(session.pickUp(ASIDE, WHO)).toBe(true);
     expect(bag(session)).toEqual([{ id: "itm_a", tileId: "berry", count: 2 }]);
@@ -195,10 +189,10 @@ describe("picking a pile up", () => {
   });
 
   it("starts a second pile once the first is at its ceiling", () => {
-    const session = world(
-      carrying([{ id: "itm_a", tileId: "berry", count: 3 }]),
-      { tileId: "berry", itemId: "itm_b" },
-    );
+    const session = world(carrying([{ id: "itm_a", tileId: "berry", count: 3 }]), {
+      tileId: "berry",
+      itemId: "itm_b",
+    });
 
     expect(session.pickUp(ASIDE, WHO)).toBe(true);
     expect(bag(session)).toEqual([
@@ -230,9 +224,7 @@ describe("picking a pile up", () => {
 
 describe("putting a pile down", () => {
   it("lands as one placement, whole", () => {
-    const session = world(
-      carrying([{ id: "itm_a", tileId: "berry", count: 3 }]),
-    );
+    const session = world(carrying([{ id: "itm_a", tileId: "berry", count: 3 }]));
 
     expect(session.drop(BAG_SLOT, BESIDE, WHO)).toBe(true);
     expect(asideStack(session)).toEqual([
@@ -310,24 +302,16 @@ describe("summoning one with /tile", () => {
     const session = world(carrying([]), { tileId: "sword", itemId: "itm_s" });
 
     session.runCommand("/tile sword +1", WHO);
-    expect(asideStack(session).map((p) => p.tileId)).toEqual([
-      "grass",
-      "sword",
-      "sword",
-    ]);
+    expect(asideStack(session).map((p) => p.tileId)).toEqual(["grass", "sword", "sword"]);
   });
 });
 
 describe("spending one of a pile", () => {
   it("eats one out of a pile in the bag and leaves the rest", () => {
-    const session = world(
-      carrying([{ id: "itm_a", tileId: "berry", count: 3 }]),
-    );
+    const session = world(carrying([{ id: "itm_a", tileId: "berry", count: 3 }]));
 
     expect(session.consume({ kind: "slot", slot: BAG_SLOT }, WHO)).toBe(true);
-    expect(bag(session)).toEqual([
-      { id: "itm_a", tileId: "berry", count: 2 },
-    ]);
+    expect(bag(session)).toEqual([{ id: "itm_a", tileId: "berry", count: 2 }]);
   });
 
   it("empties the square on the last of it", () => {
@@ -354,9 +338,7 @@ describe("spending one of a pile", () => {
 
 describe("dragging a pile between squares", () => {
   it("moves the whole pile", () => {
-    const session = world(
-      carrying([{ id: "itm_a", tileId: "berry", count: 3 }]),
-    );
+    const session = world(carrying([{ id: "itm_a", tileId: "berry", count: 3 }]));
 
     expect(session.moveItem(BAG_SLOT, OFFHAND, WHO)).toBe(true);
     expect(kitOf(session).offhand).toEqual({

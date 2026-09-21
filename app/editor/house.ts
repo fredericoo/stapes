@@ -12,20 +12,9 @@
  * "A house is a rectangle, a stack grammar and a roof that steps inward".
  */
 
-import {
-  getStack,
-  isPlayerBody,
-  setStacks,
-  stackHeight,
-  type StackEdit,
-} from "../lib/mapData";
+import { getStack, isPlayerBody, setStacks, stackHeight, type StackEdit } from "../lib/mapData";
 import type { Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
-import {
-  HEIGHT_PER_LEVEL,
-  MAX_LEVEL,
-  physicalHeight,
-  resolveActor,
-} from "../lib/types";
+import { HEIGHT_PER_LEVEL, MAX_LEVEL, physicalHeight, resolveActor } from "../lib/types";
 import { canReplaceStack } from "../lib/validation";
 import {
   MAX_FOOTPRINT,
@@ -199,34 +188,24 @@ type DoorSpot = { x: number; y: number; wall: Direction };
  * The cell the door occupies, or `null` when the settings ask for no door or
  * the wall it would sit on is too short to keep it clear of the corners.
  */
-export function doorSpotFor(
-  bounds: Bounds,
-  row: DoorRow,
-  column: DoorColumn,
-): DoorSpot | null {
+export function doorSpotFor(bounds: Bounds, row: DoorRow, column: DoorColumn): DoorSpot | null {
   const { minX, maxX, minY, maxY } = bounds;
-  const columnAnchor =
-    column === "west" ? "low" : column === "east" ? "high" : "centre";
-  const rowAnchor =
-    row === "north" ? "low" : row === "south" ? "high" : "centre";
+  const columnAnchor = column === "west" ? "low" : column === "east" ? "high" : "centre";
+  const rowAnchor = row === "north" ? "low" : row === "south" ? "high" : "centre";
 
   // The row picks the wall wherever it names one; a centred row leaves the
   // choice to the column, and both centred name no wall at all.
   if (row === "north" || row === "south") {
     const x = anchorAlong(minX, maxX, columnAnchor, DOOR_MIN_FROM_CORNER);
     if (x == null) return null;
-    return row === "north"
-      ? { x, y: minY, wall: "n" }
-      : { x, y: maxY, wall: "s" };
+    return row === "north" ? { x, y: minY, wall: "n" } : { x, y: maxY, wall: "s" };
   }
 
   if (column === "centre") return null;
 
   const y = anchorAlong(minY, maxY, rowAnchor, DOOR_MIN_FROM_CORNER);
   if (y == null) return null;
-  return column === "west"
-    ? { x: minX, y, wall: "w" }
-    : { x: maxX, y, wall: "e" };
+  return column === "west" ? { x: minX, y, wall: "w" } : { x: maxX, y, wall: "e" };
 }
 
 /**
@@ -266,8 +245,7 @@ export function windowsAlong(
 
   const out: number[] = [];
   for (let i = 0; i < count; i++) {
-    const at =
-      first + margin + i * step + (i >= afterMiddle ? widenedGap : 0);
+    const at = first + margin + i * step + (i >= afterMiddle ? widenedGap : 0);
     if (blocked != null && Math.abs(at - blocked) < WINDOW_MIN_FROM_DOOR) {
       continue;
     }
@@ -322,9 +300,7 @@ function storeyEdits(
   standingOn: (x: number, y: number) => readonly PlacedTile[],
 ): StackEdit[] {
   const { minX, maxX, minY, maxY } = bounds;
-  const windows = config.windowTileId
-    ? windowCells(bounds, door, config.windowSpacing)
-    : new Map();
+  const windows = config.windowTileId ? windowCells(bounds, door, config.windowSpacing) : new Map();
   const floor = placed(config.floorTileId, tilesById);
   const edits: StackEdit[] = [];
 
@@ -384,10 +360,7 @@ function roofEdits(
   const { eaveTileId, ridgeTileId } = ROOF_COLOURS[config.roofColour];
   const vertical = orientation === "vertical";
   const span = vertical ? maxX - minX + 1 : maxY - minY + 1;
-  const fill: PlacedTile[] = [
-    { tileId: ROOF_FILL_TILE_ID },
-    { tileId: ROOF_FILL_TILE_ID },
-  ];
+  const fill: PlacedTile[] = [{ tileId: ROOF_FILL_TILE_ID }, { tileId: ROOF_FILL_TILE_ID }];
   const edits: StackEdit[] = [];
 
   for (let step = 0; step < roofLevelsFor(span); step++) {
@@ -400,24 +373,22 @@ function roofEdits(
     // `at` is the coordinate along the axis the roof steps in; `across` runs
     // the full length of the ridge at every level.
     const put = (at: number, across: number, stack: PlacedTile[]) => {
-      edits.push(
-        vertical
-          ? { x: at, y: across, z, stack }
-          : { x: across, y: at, z, stack },
-      );
+      edits.push(vertical ? { x: at, y: across, z, stack } : { x: across, y: at, z, stack });
     };
 
     for (let across = acrossLo; across <= acrossHi; across++) {
       if (lo === hi) {
-        put(lo, across, [
-          placed(ridgeTileId, tilesById, vertical ? "s" : "e"),
-        ]);
+        put(lo, across, [placed(ridgeTileId, tilesById, vertical ? "s" : "e")]);
         continue;
       }
       put(lo, across, [placed(eaveTileId, tilesById, vertical ? "e" : "s")]);
       put(hi, across, [placed(eaveTileId, tilesById, vertical ? "w" : "n")]);
       for (let at = lo + 1; at < hi; at++) {
-        put(at, across, fill.map((p) => ({ ...p })));
+        put(
+          at,
+          across,
+          fill.map((p) => ({ ...p })),
+        );
       }
     }
   }
@@ -538,17 +509,11 @@ export function planHouse(
   }
 
   const roofBase = z + config.storeys;
-  const orientation = resolveRoofOrientation(
-    config.roofOrientation,
-    width,
-    depth,
-  );
+  const orientation = resolveRoofOrientation(config.roofOrientation, width, depth);
   const roofSpan = orientation === "vertical" ? width : depth;
   // With no roof the building tops out at its highest storey, and the level
   // that has to exist is that one rather than a ridge above it.
-  const topLevel = config.roofColour
-    ? roofBase + roofLevelsFor(roofSpan) - 1
-    : roofBase - 1;
+  const topLevel = config.roofColour ? roofBase + roofLevelsFor(roofSpan) - 1 : roofBase - 1;
   if (topLevel > MAX_LEVEL) {
     return {
       ok: false,
@@ -567,9 +532,7 @@ export function planHouse(
     };
   }
 
-  const door = config.doorTileId
-    ? doorSpotFor(bounds, config.doorRow, config.doorColumn)
-    : null;
+  const door = config.doorTileId ? doorSpotFor(bounds, config.doorRow, config.doorColumn) : null;
 
   const edits: StackEdit[] = [];
   for (let storey = 0; storey < config.storeys; storey++) {
@@ -598,14 +561,7 @@ export function planHouse(
   // written and left for the validator on the next save to complain about.
   const built = setStacks(map, edits);
   for (const edit of edits) {
-    const check = canReplaceStack(
-      built,
-      edit.x,
-      edit.y,
-      edit.z,
-      edit.stack,
-      tilesById,
-    );
+    const check = canReplaceStack(built, edit.x, edit.y, edit.z, edit.stack, tilesById);
     if (!check.ok) {
       return { ok: false, reason: `${check.reason} at ${edit.x},${edit.y}` };
     }

@@ -703,9 +703,7 @@ export type BrainActionDef =
  * it as one — "Snake says: sss" — puts words in a mouth that has none. It goes
  * out on its own channel, unattributed. @see NoiseEmission
  */
-export type BrainEffectDef =
-  | { effect: "say"; text: string }
-  | { effect: "noise"; text: string };
+export type BrainEffectDef = { effect: "say"; text: string } | { effect: "noise"; text: string };
 
 /**
  * The two states a channel drive can be in — the same pair a torch or a plate
@@ -872,12 +870,7 @@ const leafSchema = v.variant("cond", [
     // fail, and both are more likely a typed extra digit than an author's
     // meaning. Integer for the reason `cells` is one — a tenth of a percent is
     // a distinction nobody watching a fight could see.
-    atMostPercent: v.pipe(
-      v.number(),
-      v.integer(),
-      v.minValue(0),
-      v.maxValue(MAX_HEALTH_PERCENT),
-    ),
+    atMostPercent: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_HEALTH_PERCENT)),
   }),
 ]);
 
@@ -1076,7 +1069,7 @@ function unreachableStates(brain: BrainDef): string[] {
   if (!brain.initial || !Object.hasOwn(brain.states, brain.initial)) return [];
 
   const reached = new Set<string>([brain.initial]);
-  for (let grew = true; grew; ) {
+  for (let grew = true; grew;) {
     grew = false;
     for (const t of brain.transitions) {
       if (!Object.hasOwn(brain.states, t.to) || reached.has(t.to)) continue;
@@ -1139,9 +1132,7 @@ export function resolveBrain(def: TileDef): BrainDef | null {
   const raw = def.interactions?.brain;
   const parsed = raw == null ? null : v.safeParse(brainSchema, raw);
   const brain =
-    parsed?.success && isCoherent(parsed.output as BrainDef)
-      ? (parsed.output as BrainDef)
-      : null;
+    parsed?.success && isCoherent(parsed.output as BrainDef) ? (parsed.output as BrainDef) : null;
   brainCache.set(def, brain);
   return brain;
 }

@@ -33,9 +33,7 @@ describe("how full a bar is", () => {
 
 describe("the colour ramp", () => {
   it("passes through four distinct colours on the way down", () => {
-    const seen = new Set(
-      [1, 0.5, 0.25, 0.05].map((fraction) => healthBarColor(fraction)),
-    );
+    const seen = new Set([1, 0.5, 0.25, 0.05].map((fraction) => healthBarColor(fraction)));
     expect(seen.size).toBe(HEALTH_BAR_STOPS.length);
   });
 
@@ -56,9 +54,7 @@ describe("the colour ramp", () => {
 
   it("is at its darkest when nearly gone and its brightest when full", () => {
     expect(healthBarColor(0.01)).toBe(HEALTH_BAR_STOPS[0]!.color);
-    expect(healthBarColor(1)).toBe(
-      HEALTH_BAR_STOPS[HEALTH_BAR_STOPS.length - 1]!.color,
-    );
+    expect(healthBarColor(1)).toBe(HEALTH_BAR_STOPS[HEALTH_BAR_STOPS.length - 1]!.color);
   });
 });
 
@@ -84,9 +80,7 @@ describe("the fill", () => {
    */
   it("never reads as full while anything is missing", () => {
     expect(healthBarFillBricks(0.999)).toBeLessThan(HEALTH_BAR_FILL_STEPS);
-    expect(healthBarFillBricks(healthFraction(499, 500))).toBeLessThan(
-      HEALTH_BAR_FILL_STEPS,
-    );
+    expect(healthBarFillBricks(healthFraction(499, 500))).toBeLessThan(HEALTH_BAR_FILL_STEPS);
   });
 
   it("stays on the brick grid, and inside the track", () => {
@@ -116,8 +110,7 @@ describe("the fill", () => {
  * `VIEW_PX` world pixels however big the pane is, so one cell of `CELL_SIZE`
  * gets that share of it.
  */
-const cellPxForPane = (paneCssPx: number) =>
-  CELL_SIZE * (paneCssPx / VIEW_PX);
+const cellPxForPane = (paneCssPx: number) => CELL_SIZE * (paneCssPx / VIEW_PX);
 
 /** `--world-label-brick` at the size the world draws its type. @see app/app.css */
 const BRICK_PX = 2;
@@ -149,16 +142,14 @@ describe("fitting a track to a cell", () => {
 
   it("gives whole bricks, so every edge lands where the letters do", () => {
     for (let pane = 320; pane <= 2000; pane += 13) {
-      expect(
-        Number.isInteger(healthBarTrackBricks(cellPxForPane(pane), BRICK_PX)),
-      ).toBe(true);
+      expect(Number.isInteger(healthBarTrackBricks(cellPxForPane(pane), BRICK_PX))).toBe(true);
     }
   });
 
   it("grows with the window rather than staying put", () => {
-    expect(
-      healthBarTrackBricks(cellPxForPane(1200), BRICK_PX),
-    ).toBeGreaterThan(healthBarTrackBricks(cellPxForPane(600), BRICK_PX));
+    expect(healthBarTrackBricks(cellPxForPane(1200), BRICK_PX)).toBeGreaterThan(
+      healthBarTrackBricks(cellPxForPane(600), BRICK_PX),
+    );
   });
 
   /**
@@ -185,20 +176,15 @@ describe("the fill in a track that is not the default length", () => {
    * a nominal 24 the bar over a head no longer has.
    */
   it("keeps the last hit point and never rounds a scratch back to full", () => {
-    expect(healthBarFillBricks(healthFraction(1, 500), SHORT_TRACK_BRICKS)).toBe(
-      1,
+    expect(healthBarFillBricks(healthFraction(1, 500), SHORT_TRACK_BRICKS)).toBe(1);
+    expect(healthBarFillBricks(healthFraction(499, 500), SHORT_TRACK_BRICKS)).toBeLessThan(
+      SHORT_TRACK_BRICKS,
     );
-    expect(
-      healthBarFillBricks(healthFraction(499, 500), SHORT_TRACK_BRICKS),
-    ).toBeLessThan(SHORT_TRACK_BRICKS);
   });
 
   it("stays inside the track it was given", () => {
     for (let hp = 0; hp <= 20; hp++) {
-      const bricks = healthBarFillBricks(
-        healthFraction(hp, 20),
-        SHORT_TRACK_BRICKS,
-      );
+      const bricks = healthBarFillBricks(healthFraction(hp, 20), SHORT_TRACK_BRICKS);
       expect(bricks).toBeGreaterThanOrEqual(0);
       expect(bricks).toBeLessThanOrEqual(SHORT_TRACK_BRICKS);
     }
@@ -218,12 +204,8 @@ describe("how thick a track is", () => {
   });
 
   it("thickens as the track lengthens, and never thins as it does", () => {
-    const phone = healthBarFillHeightBricks(
-      healthBarTrackBricks(cellPxForPane(390), BRICK_PX),
-    );
-    const desktop = healthBarFillHeightBricks(
-      healthBarTrackBricks(cellPxForPane(1400), BRICK_PX),
-    );
+    const phone = healthBarFillHeightBricks(healthBarTrackBricks(cellPxForPane(390), BRICK_PX));
+    const desktop = healthBarFillHeightBricks(healthBarTrackBricks(cellPxForPane(1400), BRICK_PX));
     expect(phone).toBeLessThan(desktop);
 
     let previous = 0;

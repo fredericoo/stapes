@@ -1,9 +1,4 @@
-import {
-  absoluteElevation,
-  baseCellWorldOrigin,
-  drawOrder,
-  screenToCoord,
-} from "../lib/geometry";
+import { absoluteElevation, baseCellWorldOrigin, drawOrder, screenToCoord } from "../lib/geometry";
 import { coveredBySomething } from "../game/affordances";
 import type { ObjectRef } from "../game/GameSession";
 import { isBattler } from "../lib/battler";
@@ -172,20 +167,16 @@ function pickTopAt(
   for (let z = zMin; z <= zMax; z++) {
     // Exactly the cell whose ground square holds this point — the inverse of
     // {@link footRect}, which is why no search is needed around it.
-    const { x, y } = screenToCoord(
-      screenX,
-      screenY,
-      ctx.zoom,
-      ctx.camera.x,
-      ctx.camera.y,
-      z,
-    );
+    const { x, y } = screenToCoord(screenX, screenY, ctx.zoom, ctx.camera.x, ctx.camera.y, z);
 
     if (cutHides(opts.cut, x, y, z)) continue;
 
     const stack = getStack(ctx.map, x, y, z);
-    const candidate = candidateIn(stack, ctx.tilesById, opts.accepts, (i) =>
-      opts.isActionable?.({ x, y, z, stackIndex: i }) ?? false,
+    const candidate = candidateIn(
+      stack,
+      ctx.tilesById,
+      opts.accepts,
+      (i) => opts.isActionable?.({ x, y, z, stackIndex: i }) ?? false,
     );
     if (!candidate) continue;
 

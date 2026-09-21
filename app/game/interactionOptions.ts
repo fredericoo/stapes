@@ -10,12 +10,7 @@ import {
   resolveTeleportDef,
   transmuteVerb,
 } from "../lib/interactions";
-import {
-  consumeVerb,
-  EQUIP_FALLBACK_VERB,
-  equipVerb,
-  resolveConsumable,
-} from "../lib/item";
+import { consumeVerb, EQUIP_FALLBACK_VERB, equipVerb, resolveConsumable } from "../lib/item";
 import type { Coord, MapFile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import type { Progress } from "./progress";
@@ -627,15 +622,7 @@ export function listInteractionOptions(
   const nameOf = bodyNameIn([self, ...visibleActors], tilesById);
 
   const options = [
-    ...battlerOptions(
-      tilesById,
-      self,
-      bodies,
-      targetId,
-      followId,
-      attacking,
-      nextBlow,
-    ),
+    ...battlerOptions(tilesById, self, bodies, targetId, followId, attacking, nextBlow),
     ...talkOptions(map, tilesById, self, bodies, conversation),
     ...objectOptions(
       map,
@@ -671,9 +658,7 @@ export function listInteractionOptions(
         a.tier - b.tier ||
         a.held - b.held ||
         a.distance - b.distance ||
-        (a.subject === b.subject
-          ? compareRows(a.option, b.option)
-          : compareRows(a.lead, b.lead)),
+        (a.subject === b.subject ? compareRows(a.option, b.option) : compareRows(a.lead, b.lead)),
     )
     .map((ranked) => ranked.option);
 }
@@ -681,8 +666,7 @@ export function listInteractionOptions(
 /** {@link ACTION_ORDER}, then the id, so two rows never trade places on a whim. */
 function compareRows(a: InteractionOption, b: InteractionOption): number {
   return (
-    ACTION_ORDER[a.action] - ACTION_ORDER[b.action] ||
-    (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+    ACTION_ORDER[a.action] - ACTION_ORDER[b.action] || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
   );
 }
 
@@ -691,9 +675,7 @@ function compareRows(a: InteractionOption, b: InteractionOption): number {
  * is what two otherwise level subjects are compared by, so a subject's rows
  * stay together in the flat list and not only once the column groups them.
  */
-function leadsBySubject(
-  options: readonly InteractionOption[],
-): Map<string, InteractionOption> {
+function leadsBySubject(options: readonly InteractionOption[]): Map<string, InteractionOption> {
   const leads = new Map<string, InteractionOption>();
   for (const option of options) {
     const subject = subjectKey(option);
@@ -739,9 +721,7 @@ function tierOf(
   if (distanceFrom(self, option.ref) <= ADJACENT_DISTANCE_SQUARED) {
     return TIER.adjacent;
   }
-  return hasLineOfSight(map, tilesById, self, option.ref)
-    ? TIER.inSight
-    : TIER.outOfSight;
+  return hasLineOfSight(map, tilesById, self, option.ref) ? TIER.inSight : TIER.outOfSight;
 }
 
 /**
@@ -749,9 +729,7 @@ function tierOf(
  * thing being held in place is the box the player is looking at and not one
  * row of it.
  */
-function subjectOrder(
-  previous: readonly InteractionOption[],
-): Map<string, number> {
+function subjectOrder(previous: readonly InteractionOption[]): Map<string, number> {
   const order = new Map<string, number>();
   for (const option of previous) {
     const subject = subjectKey(option);
@@ -794,9 +772,7 @@ export type InteractionGroup = {
   options: InteractionOption[];
 };
 
-export function groupInteractionOptions(
-  options: readonly InteractionOption[],
-): InteractionGroup[] {
+export function groupInteractionOptions(options: readonly InteractionOption[]): InteractionGroup[] {
   const groups: InteractionGroup[] = [];
   const byKey = new Map<string, InteractionGroup>();
 
@@ -861,9 +837,7 @@ export function groupSubject(group: InteractionGroup): InteractionOption {
  * than inherited — watching on the left, fighting on the right, so the pair
  * reads as an escalation in the direction it is read.
  */
-export function actionRows(
-  options: readonly InteractionOption[],
-): InteractionOption[][] {
+export function actionRows(options: readonly InteractionOption[]): InteractionOption[][] {
   const rows: InteractionOption[][] = [];
   let pair: InteractionOption[] | null = null;
 
@@ -1150,10 +1124,7 @@ function slotOptions(
         // Green Fox's Arcane Flame" — the same answer the look label gives,
         // through the same call. @see ./conjured's `conjuredName`
         conjuredName(
-          engravedName(
-            tilesById[placed.tileId]?.name ?? placed.tileId,
-            placed.engraved,
-          ),
+          engravedName(tilesById[placed.tileId]?.name ?? placed.tileId, placed.engraved),
           placed,
           nameOf,
         ),
@@ -1244,13 +1215,7 @@ function slotOptions(
   // not tell them apart. So the row is named for what is being *spent* — its
   // sprite and its name are the input's, while its `ref` stays the fire, which
   // is what the outline goes round.
-  for (const { index, recipe } of offeredTransmutations(
-    map,
-    tilesById,
-    self,
-    equipment,
-    ref,
-  )) {
+  for (const { index, recipe } of offeredTransmutations(map, tilesById, self, equipment, ref)) {
     const input = tilesById[recipe.fromTileId];
     out.push({
       // `action:ref` like every other row, plus the recipe — the one id in the
@@ -1357,10 +1322,7 @@ function objectAction(
  * knows which half of the door this is, and a reward is "Open" or "Receive"
  * because only they know whether it is a box or a person.
  */
-function objectActionLabel(
-  action: InteractionAction,
-  def: TileDef | undefined,
-): string {
+function objectActionLabel(action: InteractionAction, def: TileDef | undefined): string {
   if (!def) return LABELS[action];
   // Named for the thing rather than for the square it lands in — see
   // `equipVerb`. Both hands take anything now, so a verb read off the slot
@@ -1433,8 +1395,7 @@ const SPAWN_HERE_LABEL = "You respawn here";
  */
 function spawnBlock(ref: ObjectRef, spawnAt: Coord | null): OptionBlock | null {
   if (!spawnAt) return null;
-  const here =
-    ref.x === spawnAt.x && ref.y === spawnAt.y && ref.z === spawnAt.z;
+  const here = ref.x === spawnAt.x && ref.y === spawnAt.y && ref.z === spawnAt.z;
   return here ? { kind: "here" } : null;
 }
 

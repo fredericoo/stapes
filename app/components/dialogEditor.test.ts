@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import tilesJson from "../../data/tiles.json";
-import { commandAt, listAt, resolveDialog, type DialogCommand, type DialogDef } from "../lib/dialog";
+import {
+  commandAt,
+  listAt,
+  resolveDialog,
+  type DialogCommand,
+  type DialogDef,
+} from "../lib/dialog";
 import { DIALOG_COMMANDS } from "../lib/dialogCatalog";
 import { normalizeTiles } from "../lib/types";
 import {
@@ -24,7 +30,13 @@ const say = (text: string): DialogCommand => ({ kind: "say", text });
 const tree: DialogDef = {
   script: [
     say("A"),
-    { kind: "choices", options: [{ label: "B0", then: [say("B0a")] }, { label: "B1", then: [say("B1a"), say("B1b")] }] },
+    {
+      kind: "choices",
+      options: [
+        { label: "B0", then: [say("B0a")] },
+        { label: "B1", then: [say("B1a"), say("B1b")] },
+      ],
+    },
     say("C"),
   ],
 };
@@ -106,7 +118,10 @@ describe("a fresh command", () => {
     const salesman = tiles.find((t) => t.id === "potion-salesman")!;
     const dialog = resolveDialog(salesman)!;
     const fresh = DIALOG_COMMANDS.choices.make({ tileId: "arcane-shard", statusId: "luminous" });
-    const withFresh = { ...salesman, interactions: { dialog: insertCommandAt(dialog, [], 0, fresh) } };
+    const withFresh = {
+      ...salesman,
+      interactions: { dialog: insertCommandAt(dialog, [], 0, fresh) },
+    };
     expect(resolveDialog(withFresh)?.script[0]?.kind).toBe("choices");
   });
 });

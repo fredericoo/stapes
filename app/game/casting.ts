@@ -8,14 +8,7 @@ import {
   REQUIREMENTS_MET,
 } from "../lib/mastery";
 import { getStack, isBodyPlacement } from "../lib/mapData";
-import type {
-  AnchoredSprite,
-  Coord,
-  Direction,
-  MapFile,
-  PlacedTile,
-  TileDef,
-} from "../lib/types";
+import type { AnchoredSprite, Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { canPlace } from "../lib/validation";
 import { canReach } from "./combat";
 import type { ReachPoint } from "./distance";
@@ -89,9 +82,7 @@ const _everyCastSquareIsWorn: readonly (keyof Equipment)[] = CAST_SQUARES;
  * has one button that can still be pressed and it is the one that started the
  * cast. @see CastProgress
  */
-export type CastSlot =
-  | { from: "square"; square: CastSquare }
-  | { from: "natural"; name: string };
+export type CastSlot = { from: "square"; square: CastSquare } | { from: "natural"; name: string };
 
 /** A cast out of one of the three worn squares. */
 export const squareSlot = (square: CastSquare): CastSlot => ({
@@ -155,9 +146,7 @@ export type CastRefusal =
   | "peaceful";
 
 /** Whether this stone can be cast, and why not when it cannot. */
-export type Castability =
-  | { ok: true }
-  | { ok: false; reason: CastRefusal };
+export type Castability = { ok: true } | { ok: false; reason: CastRefusal };
 
 /** The unit a countdown is drawn in, and so the grain {@link spellReading} compares at. */
 const MS_PER_SECOND = 1000;
@@ -310,10 +299,7 @@ export type CastContext = {
  * cooling stone that is also out of range reads as cooling, which is the fact
  * that will still be true when you have walked closer.
  */
-export function castability(
-  context: CastContext,
-  slot: CastSlot,
-): Castability {
+export function castability(context: CastContext, slot: CastSlot): Castability {
   const stone = spellIn(context, slot);
   // A square with nothing in it, and a name this body has no spell for — the
   // same refusal, because both are a button pointing at no spell. A `cast`
@@ -344,10 +330,7 @@ export function castability(
  * Read off the instance for a square and off the body for a natural spell,
  * which is the whole of what the two arms differ in here.
  */
-export function spellIn(
-  context: CastContext,
-  slot: CastSlot,
-): ArcaneStoneItem | null {
+export function spellIn(context: CastContext, slot: CastSlot): ArcaneStoneItem | null {
   if (slot.from === "square") return stoneInSquare(context, slot.square);
   return context.spells.find((spell) => spell.name === slot.name) ?? null;
 }
@@ -387,10 +370,7 @@ function harmsOnLanding(stone: ArcaneStoneItem): boolean {
   return effect.kind === "bolt" && effect.on === "target" && (effect.damage ?? 0) > 0;
 }
 
-function reachability(
-  context: CastContext,
-  stone: ArcaneStoneItem,
-): Castability {
+function reachability(context: CastContext, stone: ArcaneStoneItem): Castability {
   if (!needsTarget(stone)) return CASTABLE;
 
   const target = context.target;
@@ -402,16 +382,7 @@ function reachability(
   // The stone's own reach, through the same machinery a swing goes through:
   // close enough, and with nothing in the way. A stone with no reach authored
   // gets an arm's length, which is what `reachOf` means by an absent block.
-  if (
-    target &&
-    !canReach(
-      context.map,
-      context.tilesById,
-      context.caster,
-      target,
-      reachOf(stone),
-    )
-  ) {
+  if (target && !canReach(context.map, context.tilesById, context.caster, target, reachOf(stone))) {
     return refused("outOfRange");
   }
 
@@ -434,10 +405,7 @@ function reachability(
   // on the grounds that a swing that misses does too — but a swing that misses
   // still swung, and a flame that never appeared is a press the player cannot
   // tell from a dropped key.
-  if (
-    stone.effect.kind === "conjure" &&
-    !conjureLanding(context, stone.effect.tileId)
-  ) {
+  if (stone.effect.kind === "conjure" && !conjureLanding(context, stone.effect.tileId)) {
     return refused("blocked");
   }
   return CASTABLE;
@@ -473,10 +441,7 @@ export type ConjureLanding = {
  * Either way the tile must fit where it lands — `canPlace`, the check the
  * editor stamps with.
  */
-export function conjureLanding(
-  context: CastContext,
-  tileId: string,
-): ConjureLanding | null {
+export function conjureLanding(context: CastContext, tileId: string): ConjureLanding | null {
   const def = context.tilesById[tileId];
   if (!def) return null;
 
@@ -487,9 +452,7 @@ export function conjureLanding(
   if (!landing) return null;
 
   const { at } = landing;
-  return canPlace(context.map, at.x, at.y, at.z, def, context.tilesById).ok
-    ? landing
-    : null;
+  return canPlace(context.map, at.x, at.y, at.z, def, context.tilesById).ok ? landing : null;
 }
 
 /** The cell the caster would step into, or null when they could not. */
@@ -589,25 +552,16 @@ function needsTarget(stone: ArcaneStoneItem): boolean {
  *
  * @see `../lib/mastery`'s {@link requirementCoverage} for what the share counts.
  */
-export function castDurationMs(
-  stone: ArcaneStoneItem,
-  masteries: Masteries,
-): number {
+export function castDurationMs(stone: ArcaneStoneItem, masteries: Masteries): number {
   const authored = stone.castTimeMs ?? 0;
   if (authored <= 0) return 0;
   const coverage = requirementCoverage(masteries, stone.requirements);
-  const share = Math.min(
-    REQUIREMENTS_MET,
-    REQUIREMENTS_MET - (coverage - REQUIREMENTS_MET),
-  );
+  const share = Math.min(REQUIREMENTS_MET, REQUIREMENTS_MET - (coverage - REQUIREMENTS_MET));
   return Math.max(0, Math.round(authored * share));
 }
 
 /** The stone in this square, or null when there is not one. */
-function stoneInSquare(
-  context: CastContext,
-  square: CastSquare,
-): ArcaneStoneItem | null {
+function stoneInSquare(context: CastContext, square: CastSquare): ArcaneStoneItem | null {
   const held = context.equipment[square];
   if (!held) return null;
   const def = context.tilesById[held.tileId];

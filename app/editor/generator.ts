@@ -15,21 +15,14 @@
 
 import { getStack, type StackEdit } from "../lib/mapData";
 import type { Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
-import {
-  HEIGHT_PER_LEVEL,
-  isDirectional,
-  physicalHeight,
-  resolveWalkable,
-} from "../lib/types";
+import { HEIGHT_PER_LEVEL, isDirectional, physicalHeight, resolveWalkable } from "../lib/types";
 
 export type Rect = { x0: number; y0: number; x1: number; y1: number };
 
 export type Bounds = { minX: number; maxX: number; minY: number; maxY: number };
 
 /** What every generator returns: the edits, or why there are none. */
-export type GeneratedPlan =
-  | { ok: true; edits: StackEdit[] }
-  | { ok: false; reason: string };
+export type GeneratedPlan = { ok: true; edits: StackEdit[] } | { ok: false; reason: string };
 
 /**
  * Both dimensions of any generator's footprint, so an accidental drag across
@@ -130,12 +123,7 @@ export function clamp01(v: number): number {
 }
 
 export function inGrid(g: CellGrid, x: number, y: number): boolean {
-  return (
-    x >= g.minX &&
-    y >= g.minY &&
-    x < g.minX + g.width &&
-    y < g.minY + g.height
-  );
+  return x >= g.minX && y >= g.minY && x < g.minX + g.width && y < g.minY + g.height;
 }
 
 export function gridIndex(g: CellGrid, x: number, y: number): number {
@@ -190,8 +178,7 @@ export function regionsOf(g: CellGrid, mask?: Uint8Array): number[][] {
   const cells = mask ?? g.cells;
   const seen = new Uint8Array(cells.length);
   const regions: number[][] = [];
-  const member = (x: number, y: number) =>
-    inGrid(g, x, y) && cells[gridIndex(g, x, y)] === 1;
+  const member = (x: number, y: number) => inGrid(g, x, y) && cells[gridIndex(g, x, y)] === 1;
 
   for (let start = 0; start < cells.length; start++) {
     if (cells[start] !== 1 || seen[start]) continue;
@@ -431,12 +418,7 @@ function ease(t: number): number {
 }
 
 /** Value noise in [0, 1]: white noise on a lattice of `scale` cells, interpolated. */
-export function valueNoise(
-  x: number,
-  y: number,
-  seed: number,
-  scale: number,
-): number {
+export function valueNoise(x: number, y: number, seed: number, scale: number): number {
   const fx = x / scale;
   const fy = y / scale;
   const x0 = Math.floor(fx);
@@ -457,13 +439,7 @@ export function valueNoise(
  * the one before. Detail on top of shape, which is what stops a threshold of it
  * reading as a set of circles.
  */
-export function fbm(
-  x: number,
-  y: number,
-  seed: number,
-  scale: number,
-  octaves: number,
-): number {
+export function fbm(x: number, y: number, seed: number, scale: number, octaves: number): number {
   let sum = 0;
   let amplitude = 1;
   let total = 0;
@@ -518,12 +494,7 @@ export function widenToTwo(g: CellGrid): void {
 
 /** Whether the 2x2 square with its north-west corner at (x, y) is all open. */
 function squareOpen(g: CellGrid, x: number, y: number): boolean {
-  return (
-    isOpen(g, x, y) &&
-    isOpen(g, x + 1, y) &&
-    isOpen(g, x, y + 1) &&
-    isOpen(g, x + 1, y + 1)
-  );
+  return isOpen(g, x, y) && isOpen(g, x + 1, y) && isOpen(g, x, y + 1) && isOpen(g, x + 1, y + 1);
 }
 
 /**
@@ -770,8 +741,7 @@ export function planWater(
     let { x, y } = start;
     let step = STEPS[Math.floor(random() * STEPS.length)]!;
     const length =
-      STREAM_LENGTH.min +
-      Math.floor(random() * (STREAM_LENGTH.max - STREAM_LENGTH.min + 1));
+      STREAM_LENGTH.min + Math.floor(random() * (STREAM_LENGTH.max - STREAM_LENGTH.min + 1));
     for (let i = 0; i < length; i++) {
       brush(x, y);
       if (random() > STREAM_STRAIGHTNESS) {
@@ -783,15 +753,10 @@ export function planWater(
     }
   }
 
-  for (
-    let attempt = 0;
-    attempt < PLACEMENT_ATTEMPTS && water.size < budget;
-    attempt++
-  ) {
+  for (let attempt = 0; attempt < PLACEMENT_ATTEMPTS && water.size < budget; attempt++) {
     const centre = source();
     const radius =
-      BASIN_RADIUS.min +
-      Math.floor(random() * (BASIN_RADIUS.max - BASIN_RADIUS.min + 1));
+      BASIN_RADIUS.min + Math.floor(random() * (BASIN_RADIUS.max - BASIN_RADIUS.min + 1));
     for (let dy = -radius; dy <= radius; dy++) {
       for (let dx = -radius; dx <= radius; dx++) {
         // Round rather than square: a basin is a pool, and the corners of a
@@ -882,7 +847,7 @@ export function cutFords(g: CellGrid, water: Set<number>): void {
   const find = (piece: number): number => {
     let root = piece;
     while (parent[root] !== root) root = parent[root]!;
-    for (let step = piece; parent[step] !== root; ) {
+    for (let step = piece; parent[step] !== root;) {
       const next = parent[step]!;
       parent[step] = root;
       step = next;

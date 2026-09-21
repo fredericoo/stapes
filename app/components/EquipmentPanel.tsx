@@ -7,11 +7,7 @@ import {
   IconShoe,
 } from "@tabler/icons-react";
 import { useMemo, type ComponentType } from "react";
-import {
-  handClaimedByTwoHander,
-  otherHand,
-  type Equipment,
-} from "../game/equipment";
+import { handClaimedByTwoHander, otherHand, type Equipment } from "../game/equipment";
 import type { BodySlotRef } from "../game/itemMoves";
 import type { MasteryXp } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
@@ -242,9 +238,7 @@ export function EquipmentPanel({
       className={["flex flex-col gap-1", className].filter(Boolean).join(" ")}
       aria-label="Equipment"
     >
-      <h2 className="text-[11px] font-bold uppercase tracking-wide text-paper/50">
-        Equipment
-      </h2>
+      <h2 className="text-[11px] font-bold uppercase tracking-wide text-paper/50">Equipment</h2>
       <div
         className="grid self-start"
         style={{

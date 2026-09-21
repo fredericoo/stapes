@@ -1624,9 +1624,7 @@ const REACH_ORDERED_MESSAGE = "minimum reach is beyond the maximum";
 const reachEntries = v.pipe(
   v.object({
     cells: v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_REACH_CELLS)),
-    min: v.optional(
-      v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_REACH_CELLS)),
-    ),
+    min: v.optional(v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_REACH_CELLS))),
     height: v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_REACH_HEIGHT)),
   }),
   // A floor above the ceiling is a weapon that can never reach anything, which
@@ -1672,12 +1670,7 @@ export const weaponSchema = v.object({
   // fact, and absent forever on every weapon that is a tile — see
   // {@link WeaponItem.name}.
   name: v.optional(v.string()),
-  damage: v.pipe(
-    v.number(),
-    v.integer(),
-    v.minValue(0),
-    v.maxValue(MAX_WEAPON_DAMAGE),
-  ),
+  damage: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_WEAPON_DAMAGE)),
   def: v.pipe(v.number(), v.integer(), v.minValue(0)),
   // Optional, and absent means one-handed — the overwhelmingly common case, and
   // every weapon authored before both hands could hold one thing.
@@ -1745,9 +1738,7 @@ const consumableSchema = v.object({
   // Optional, and absent is nearly every consumable in the file: the default
   // lives in `pileOf` rather than here so the editor sees the same blank an
   // author left. See {@link DEFAULT_PILE}.
-  pile: v.optional(
-    v.pipe(v.number(), v.integer(), v.minValue(MIN_PILE), v.maxValue(MAX_PILE)),
-  ),
+  pile: v.optional(v.pipe(v.number(), v.integer(), v.minValue(MIN_PILE), v.maxValue(MAX_PILE))),
   // Whether the id names a tile is the catalogue's question, asked where the
   // residue is placed — on the terms `statuses` above leaves its ids alone. A
   // blank is refused rather than read as "nothing", so the editor's "Nothing"
@@ -1759,12 +1750,7 @@ const containerSchema = v.object({
   type: v.literal("container"),
   // At least one, because a container nothing fits in is not a container
   // anybody meant to author — it would read as a prop that opens onto nothing.
-  size: v.pipe(
-    v.number(),
-    v.integer(),
-    v.minValue(1),
-    v.maxValue(MAX_CONTAINER_SIZE),
-  ),
+  size: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_CONTAINER_SIZE)),
   equippable: v.boolean(),
 });
 
@@ -1780,14 +1766,7 @@ const weaponResistancesSchema = v.object(
   Object.fromEntries(
     WEAPON_MASTERIES.map((mastery) => [
       mastery,
-      v.optional(
-        v.pipe(
-          v.number(),
-          v.integer(),
-          v.minValue(0),
-          v.maxValue(MAX_ARMOR_DEF),
-        ),
-      ),
+      v.optional(v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_ARMOR_DEF))),
     ]),
   ) as Record<
     WeaponMastery,
@@ -1816,12 +1795,7 @@ const armorSchema = v.object({
   // a curse, and a curse is a status rather than a negative on a worn thing —
   // `../game/combat` subtracts this, so a negative here would read as the
   // attacker's weapon getting better and nothing in the panel would say why.
-  def: v.pipe(
-    v.number(),
-    v.integer(),
-    v.minValue(0),
-    v.maxValue(MAX_ARMOR_DEF),
-  ),
+  def: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_ARMOR_DEF)),
   // Optional, and absent is the overwhelmingly common case: most armour is the
   // same against everything. An empty object is allowed through rather than
   // refused, on the terms a weapon's empty `requirements` is — it says what no
@@ -1847,9 +1821,7 @@ const artifactSchema = v.object({
   type: v.literal("artifact"),
   // The same bounds a consumable's pile is held to, and optional on the
   // opposite reading: absent is one, not a handful. See {@link ArtifactItem.pile}.
-  pile: v.optional(
-    v.pipe(v.number(), v.integer(), v.minValue(MIN_PILE), v.maxValue(MAX_PILE)),
-  ),
+  pile: v.optional(v.pipe(v.number(), v.integer(), v.minValue(MIN_PILE), v.maxValue(MAX_PILE))),
 });
 
 const shieldSchema = v.object({
@@ -1857,12 +1829,7 @@ const shieldSchema = v.object({
   // Unsigned and bounded on exactly the terms armour's is: a shield that made
   // blows land harder is a curse, and a curse is a status rather than a negative
   // on a held thing.
-  def: v.pipe(
-    v.number(),
-    v.integer(),
-    v.minValue(0),
-    v.maxValue(MAX_ARMOR_DEF),
-  ),
+  def: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_ARMOR_DEF)),
   // What wearing or holding this makes its bearer, which is a different question
   // from anything else on the arm — see the field's own note. Optional, and
   // absent is neutral, which is almost everything ever authored.
@@ -1952,12 +1919,7 @@ export const stoneSchema = v.object({
   // note, which is also where the reason there is no defaulting lives: a stone
   // that says nothing about time is one nobody has to wait for.
   castTimeMs: v.optional(
-    v.pipe(
-      v.number(),
-      v.integer(),
-      v.minValue(MIN_CAST_TIME_MS),
-      v.maxValue(MAX_CAST_TIME_MS),
-    ),
+    v.pipe(v.number(), v.integer(), v.minValue(MIN_CAST_TIME_MS), v.maxValue(MAX_CAST_TIME_MS)),
   ),
   // Optional, and absent is a cast a blow breaks, which is what makes the flag
   // worth writing at all.
@@ -1993,9 +1955,7 @@ const charmSchema = v.object({
   // than an oversight — see {@link CharmItem.hp}. Zero is refused for the reason
   // a bolt of zero is: it is a field somebody typed in and emptied rather than
   // one they left alone.
-  hp: v.optional(
-    v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_CHARM_HP)),
-  ),
+  hp: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_CHARM_HP))),
   // The consumable's own list, validated by the consumable's own schema. What
   // the ids name is the catalogue's question, asked where the status is granted.
   statuses: v.optional(v.array(statusGrantSchema)),
@@ -2136,9 +2096,7 @@ export const NO_ELEMENTS: readonly Element[] = [];
  * beside the numbers it rolls with, and a second spelling of this over there is
  * exactly the disagreement the paragraph above is about.
  */
-export function isRanged(weapon: {
-  projectile?: string | null;
-}): boolean {
+export function isRanged(weapon: { projectile?: string | null }): boolean {
   return weapon.projectile != null;
 }
 
@@ -2209,9 +2167,10 @@ export function weaponForSave(weapon: WeaponItem): WeaponItem {
   // carrying `requirements: {}` would read as "asks something" to anybody
   // skimming the file.
   const requirements = Object.fromEntries(
-    MASTERIES.filter((mastery) => (weapon.requirements?.[mastery] ?? 0) > 0).map(
-      (mastery) => [mastery, weapon.requirements?.[mastery]],
-    ),
+    MASTERIES.filter((mastery) => (weapon.requirements?.[mastery] ?? 0) > 0).map((mastery) => [
+      mastery,
+      weapon.requirements?.[mastery],
+    ]),
   );
 
   const statuses = statusGrantsForSave(weapon.statuses);
@@ -2240,9 +2199,7 @@ export function weaponForSave(weapon: WeaponItem): WeaponItem {
     mastery: weapon.mastery,
     // An id, trimmed, and dropped when it says nothing: a picker somebody
     // opened and closed again is not a projectile.
-    ...(weapon.projectile?.trim()
-      ? { projectile: weapon.projectile.trim() }
-      : {}),
+    ...(weapon.projectile?.trim() ? { projectile: weapon.projectile.trim() } : {}),
     // Written only when true, on the same terms the requirements block is: an
     // explicit `false` on every weapon in the file is a field to skim past that
     // says exactly what its absence says.
@@ -2297,9 +2254,10 @@ function statusGrantsForSave<Grant extends StatusGrant>(
  */
 function armorForSave(armor: ArmorItem): ArmorItem {
   const resist = Object.fromEntries(
-    WEAPON_MASTERIES.filter((mastery) => (armor.resist?.[mastery] ?? 0) > 0).map(
-      (mastery) => [mastery, armor.resist?.[mastery]],
-    ),
+    WEAPON_MASTERIES.filter((mastery) => (armor.resist?.[mastery] ?? 0) > 0).map((mastery) => [
+      mastery,
+      armor.resist?.[mastery],
+    ]),
   );
   const slot = armorSlotOf(armor);
   return {
@@ -2409,9 +2367,10 @@ export function stoneForSave(stone: ArcaneStoneItem): ArcaneStoneItem {
   // zero is not a requirement, and a stone carrying `requirements: {}` would read
   // as "asks something" to anybody skimming the file.
   const requirements = Object.fromEntries(
-    MASTERIES.filter((mastery) => (stone.requirements?.[mastery] ?? 0) > 0).map(
-      (mastery) => [mastery, stone.requirements?.[mastery]],
-    ),
+    MASTERIES.filter((mastery) => (stone.requirements?.[mastery] ?? 0) > 0).map((mastery) => [
+      mastery,
+      stone.requirements?.[mastery],
+    ]),
   );
 
   // Dropped when blank rather than written as `""`, exactly as a consumable's
@@ -2459,9 +2418,7 @@ function stoneEffectForSave(effect: StoneEffect): StoneEffect {
     // number somebody emptied.
     ...(effect.damage ? { damage: Math.round(effect.damage) } : {}),
     ...(effect.variance ? { variance: Math.round(effect.variance) } : {}),
-    ...(effect.projectile?.trim()
-      ? { projectile: effect.projectile.trim() }
-      : {}),
+    ...(effect.projectile?.trim() ? { projectile: effect.projectile.trim() } : {}),
     ...(statuses ? { statuses } : {}),
   };
 }

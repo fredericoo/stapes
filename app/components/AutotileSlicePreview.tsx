@@ -1,14 +1,4 @@
-import {
-  E,
-  N,
-  NE,
-  NW,
-  S,
-  SE,
-  SW,
-  W,
-  sliceRepresentativeMask,
-} from "../lib/autotile";
+import { E, N, NE, NW, S, SE, SW, W, sliceRepresentativeMask } from "../lib/autotile";
 import type { AutotileSlice } from "../lib/types";
 
 type Props = {
@@ -37,11 +27,7 @@ const CELLS: Cell[] = [
  * Reads as a 3×3 neighborhood: green center = this tile, teal = matching
  * neighbors. Empty cells are gaps the autotile must leave open.
  */
-export function AutotileSlicePreview({
-  slice,
-  size = 32,
-  className = "",
-}: Props) {
+export function AutotileSlicePreview({ slice, size = 32, className = "" }: Props) {
   const mask = sliceRepresentativeMask(slice);
   const cell = size / 3;
   const gap = Math.max(0.75, size * 0.04);

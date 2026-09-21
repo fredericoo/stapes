@@ -25,11 +25,7 @@ import {
 } from "../lib/item";
 import { type Element, ELEMENTS } from "../lib/element";
 import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
-import {
-  type Masteries,
-  meetsRequirements,
-  WEAPON_MASTERIES,
-} from "../lib/mastery";
+import { type Masteries, meetsRequirements, WEAPON_MASTERIES } from "../lib/mastery";
 import { resolveLight } from "../lib/tileResolve";
 import type { TileDef } from "../lib/types";
 
@@ -188,9 +184,7 @@ export type { EquipSlot };
  * body would come to be born missing a slot it has.
  */
 export function emptyEquipment(): Equipment {
-  return Object.fromEntries(
-    EQUIPMENT_SLOTS.map((slot) => [slot, null]),
-  ) as Equipment;
+  return Object.fromEntries(EQUIPMENT_SLOTS.map((slot) => [slot, null])) as Equipment;
 }
 
 /**
@@ -210,10 +204,7 @@ export function emptyEquipment(): Equipment {
  * Never a throw and never a null: the worst case is somebody comes back with
  * nothing, which is where they started.
  */
-export function restoredEquipment(
-  saved: Equipment,
-  tilesById: Record<string, TileDef>,
-): Equipment {
+export function restoredEquipment(saved: Equipment, tilesById: Record<string, TileDef>): Equipment {
   // Both hands asked the same question, because both hands *are* the same
   // question now — see {@link handAccepts}.
   const weaponDef = saved.weapon ? tilesById[saved.weapon.tileId] : undefined;
@@ -259,10 +250,7 @@ export function restoredEquipment(
     // square that takes two kinds of thing, and reading it two ways here and in
     // the move rules is how a kit that could be saved and not re-equipped
     // happens.
-    worn[slot] =
-      instance && def && wornAccepts(slot, def)
-        ? restoredInstance(instance, def)
-        : null;
+    worn[slot] = instance && def && wornAccepts(slot, def) ? restoredInstance(instance, def) : null;
   }
 
   const bagDef = saved.bag ? tilesById[saved.bag.tileId] : undefined;
@@ -329,10 +317,7 @@ function identified(instance: ItemInstance): ItemInstance {
  * outright. It is not a lock on anything — see {@link stoneLocked}, which asks
  * the same question — and leaving it would be a field nothing ever winds down.
  */
-function restoredInstance(
-  instance: ItemInstance,
-  def: TileDef,
-): ItemInstance {
+function restoredInstance(instance: ItemInstance, def: TileDef): ItemInstance {
   const named = identified(instance);
   if (!named.cooldownMs) return named;
   const stone = resolveStone(def);
@@ -362,8 +347,7 @@ export const EQUIPMENT_SLOTS: readonly (keyof Equipment)[] = EQUIP_SLOTS;
  * that a type error rather than a bug found a fortnight later: the record is
  * satisfiable by `{}` only while there is no such slot.
  */
-const _everySlotIsListed: Record<Exclude<keyof Equipment, EquipSlot>, never> =
-  {};
+const _everySlotIsListed: Record<Exclude<keyof Equipment, EquipSlot>, never> = {};
 
 /** Everything worn or carried, slots and their contents alike, in a flat list. */
 export function carriedInstances(equipment: Equipment): ItemInstance[] {
@@ -424,10 +408,7 @@ export function wornInstances(equipment: Equipment): ItemInstance[] {
  * showed it. Nothing nests — a container's only home is a bare back — so one
  * level of spilling is the whole of it.
  */
-export function spilled(
-  equipment: Equipment,
-  tilesById: Record<string, TileDef>,
-): ItemInstance[] {
+export function spilled(equipment: Equipment, tilesById: Record<string, TileDef>): ItemInstance[] {
   const out: ItemInstance[] = [];
   for (const slot of EQUIPMENT_SLOTS) {
     const instance = equipment[slot];
@@ -780,9 +761,7 @@ export function bodyElements(
   }
 
   if (sources.every((elements) => elements.length === 0)) return NO_ELEMENTS;
-  return ELEMENTS.filter((element) =>
-    sources.some((elements) => elements.includes(element)),
-  );
+  return ELEMENTS.filter((element) => sources.some((elements) => elements.includes(element)));
 }
 
 /**
@@ -894,10 +873,7 @@ export function armorDefence(
  * answer rather than one per arithmetic. Silent about anything the catalogue has
  * lost or no longer agrees belongs in the square it is sitting in.
  */
-function wornArmor(
-  equipment: Equipment | null,
-  tilesById: Record<string, TileDef>,
-): ArmorItem[] {
+function wornArmor(equipment: Equipment | null, tilesById: Record<string, TileDef>): ArmorItem[] {
   if (!equipment) return [];
   const out: ArmorItem[] = [];
   for (const slot of ARMOR_SLOTS) {
@@ -1142,7 +1118,6 @@ export function stoneLocked(
   return def != null && resolveStone(def) != null;
 }
 
-
 /**
  * Whether the thing in this square is doing anything while it sits there.
  *
@@ -1203,9 +1178,7 @@ export function takesEffect(
 
   if (slot === "weapon" || slot === "offhand") {
     return (
-      resolveWeapon(def) != null ||
-      resolveShield(def) != null ||
-      resolveContainer(def) != null
+      resolveWeapon(def) != null || resolveShield(def) != null || resolveContainer(def) != null
     );
   }
 

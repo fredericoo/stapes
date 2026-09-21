@@ -19,9 +19,7 @@ function walkers(): TileDef[] {
 }
 
 function walkCycle(def: TileDef, direction: Direction): string {
-  return JSON.stringify(
-    getFrames(def, { state: "moving", direction })?.map((f) => f.sprite) ?? [],
-  );
+  return JSON.stringify(getFrames(def, { state: "moving", direction })?.map((f) => f.sprite) ?? []);
 }
 
 /**
@@ -46,10 +44,7 @@ describe("the walk art in data/tiles.json", () => {
       for (const direction of DIRECTIONS) {
         const cycle = walkCycle(def, direction);
         const twin = drawnBy.get(cycle);
-        expect(
-          twin,
-          `walks ${direction} in the frames it walks ${twin} in`,
-        ).toBeUndefined();
+        expect(twin, `walks ${direction} in the frames it walks ${twin} in`).toBeUndefined();
         drawnBy.set(cycle, direction);
       }
     },

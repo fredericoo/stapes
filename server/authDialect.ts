@@ -75,21 +75,15 @@ class TursoDriver implements Driver {
   }
 
   async beginTransaction(): Promise<never> {
-    throw new Error(
-      "The auth dialect does not open transactions — see TursoDialect",
-    );
+    throw new Error("The auth dialect does not open transactions — see TursoDialect");
   }
 
   async commitTransaction(): Promise<never> {
-    throw new Error(
-      "The auth dialect does not open transactions — see TursoDialect",
-    );
+    throw new Error("The auth dialect does not open transactions — see TursoDialect");
   }
 
   async rollbackTransaction(): Promise<never> {
-    throw new Error(
-      "The auth dialect does not open transactions — see TursoDialect",
-    );
+    throw new Error("The auth dialect does not open transactions — see TursoDialect");
   }
 
   async releaseConnection(): Promise<void> {}

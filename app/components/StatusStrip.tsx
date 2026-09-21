@@ -160,10 +160,7 @@ export function StatusStrip({
   }, []);
 
   const ordered = [...statuses].sort(compareStatuses);
-  const { shown, overflow } = splitForCapacity(
-    ordered,
-    statusStripCapacity(widthPx),
-  );
+  const { shown, overflow } = splitForCapacity(ordered, statusStripCapacity(widthPx));
 
   return (
     <ul
@@ -194,11 +191,7 @@ export function StatusStrip({
           {/* A bare sprite rather than a tile, and so nothing to animate: a
               lane of independently ticking thumbnails would compete for the
               frame budget of the game drawn beside them. */}
-          <SpritePreview
-            sprite={status.icon}
-            tilesets={tilesets}
-            size={STATUS_ICON_SIZE_PX}
-          />
+          <SpritePreview sprite={status.icon} tilesets={tilesets} size={STATUS_ICON_SIZE_PX} />
           <StatusBar status={status} />
         </StatusCell>
       ))}
@@ -238,18 +231,18 @@ function StatusCell({
   children: React.ReactNode;
 }) {
   const cell = (
-      <li
-        role="img"
-        aria-label={`${status.name}. ${status.description}`}
-        className="flex shrink-0 flex-col items-center justify-center"
-        style={{
-          width: STATUS_CELL_SIZE_PX,
-          height: STATUS_CELL_SIZE_PX,
-          gap: STATUS_BAR_GAP_PX,
-        }}
-      >
-        {children}
-      </li>
+    <li
+      role="img"
+      aria-label={`${status.name}. ${status.description}`}
+      className="flex shrink-0 flex-col items-center justify-center"
+      style={{
+        width: STATUS_CELL_SIZE_PX,
+        height: STATUS_CELL_SIZE_PX,
+        gap: STATUS_BAR_GAP_PX,
+      }}
+    >
+      {children}
+    </li>
   );
 
   if (!tooltip) return cell;
@@ -287,10 +280,7 @@ function StatusBar({ status }: { status: ActiveStatus }) {
   // status is over, and it is not. It matters far more here than it does there —
   // a status measured against a ceiling it is nowhere near rounds to nothing for
   // most of its life. See {@link fullDurationMs}.
-  const filled =
-    fraction > 0
-      ? Math.max(1, Math.round(fraction * STATUS_CELL_SIZE_PX))
-      : 0;
+  const filled = fraction > 0 ? Math.max(1, Math.round(fraction * STATUS_CELL_SIZE_PX)) : 0;
 
   return (
     <span

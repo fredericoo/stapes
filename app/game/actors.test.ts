@@ -46,10 +46,7 @@ function strip(width: number): MapFile {
     map = replaceStack(map, x, 0, 0, [{ tileId: "grass" }]);
     map = replaceStack(map, x, 1, 0, [{ tileId: "grass" }]);
   }
-  map = replaceStack(map, 0, 0, 0, [
-    { tileId: "grass" },
-    { tileId: "player", direction: "e" },
-  ]);
+  map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "e" }]);
   return map;
 }
 
@@ -81,12 +78,7 @@ function idsAt(session: GameSession, x: number, y: number, z = 0): string[] {
   return getStack(session.getMap(), x, y, z).map((p) => p.tileId);
 }
 
-function ownersAt(
-  session: GameSession,
-  x: number,
-  y: number,
-  z = 0,
-): (string | undefined)[] {
+function ownersAt(session: GameSession, x: number, y: number, z = 0): (string | undefined)[] {
   return getStack(session.getMap(), x, y, z).map((p) => p.owner);
 }
 
@@ -137,9 +129,7 @@ describe("actor lifecycle", () => {
     session.despawn("b");
     advance(session, ONE_WALK_MS);
 
-    expect(findPlayers(session.getMap()).map((p) => p.placed.owner)).toEqual([
-      "a",
-    ]);
+    expect(findPlayers(session.getMap()).map((p) => p.placed.owner)).toEqual(["a"]);
     expect(session.actorIds()).toEqual(["a"]);
   });
 
@@ -194,10 +184,7 @@ describe("actor lifecycle", () => {
 
     const resumed = new GameSession(ranMap, tiles, { actorIds: [], spawnAt: spawn });
     resumed.spawn("a");
-    expect(ownersAt(resumed, spawn.x, spawn.y, spawn.z)).toEqual([
-      undefined,
-      "a",
-    ]);
+    expect(ownersAt(resumed, spawn.x, spawn.y, spawn.z)).toEqual([undefined, "a"]);
   });
 });
 
@@ -260,12 +247,8 @@ describe("two actors on one board", () => {
     const b = session.getSnapshot("b").self;
     expect(a.z).toBe(0);
     expect(b.z).toBe(0);
-    expect(
-      standingAbs(session.getMap(), 1, 0, 0, a.stackIndex, tilesById),
-    ).toBe(0);
-    expect(
-      standingAbs(session.getMap(), 1, 0, 0, b.stackIndex, tilesById),
-    ).toBe(0);
+    expect(standingAbs(session.getMap(), 1, 0, 0, a.stackIndex, tilesById)).toBe(0);
+    expect(standingAbs(session.getMap(), 1, 0, 0, b.stackIndex, tilesById)).toBe(0);
   });
 
   it("puts a joining actor down on top of one already standing there", () => {
@@ -293,10 +276,7 @@ describe("actors and shared objects", () => {
   /** Grass strip with a crate at `crateX` and both actors at the origin. */
   function withCrate(crateX: number, width = 6): MapFile {
     let map = strip(width);
-    map = replaceStack(map, crateX, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "crate" },
-    ]);
+    map = replaceStack(map, crateX, 0, 0, [{ tileId: "grass" }, { tileId: "crate" }]);
     return map;
   }
 
@@ -322,9 +302,7 @@ describe("actors and shared objects", () => {
   it("refuses a push from an actor who is not adjacent", () => {
     const session = new GameSession(withCrate(3), tiles, { actorIds: ["a", "b"] });
     // Both are at x=0; the crate is three cells away.
-    expect(session.canPush({ x: 3, y: 0, z: 0, stackIndex: 1 }, "b")).toBe(
-      false,
-    );
+    expect(session.canPush({ x: 3, y: 0, z: 0, stackIndex: 1 }, "b")).toBe(false);
     expect(session.push({ x: 3, y: 0, z: 0, stackIndex: 1 }, "b")).toBe(false);
   });
 });

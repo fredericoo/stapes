@@ -9,10 +9,7 @@ import {
   STATUS_TONES,
   type StatusSource,
 } from "../lib/status";
-import {
-  MAX_WALK_SPEED_PERCENT,
-  MIN_WALK_SPEED_PERCENT,
-} from "../lib/walkSpeed";
+import { MAX_WALK_SPEED_PERCENT, MIN_WALK_SPEED_PERCENT } from "../lib/walkSpeed";
 import { snapToTick } from "../game/statuses";
 import type { StatusVfx } from "../lib/statusVfx";
 import {
@@ -22,15 +19,7 @@ import {
   type TileDef,
   type TilesetDef,
 } from "../lib/types";
-import {
-  Button,
-  Dialog,
-  FieldLabel,
-  Input,
-  NumberInput,
-  Select,
-  Switch,
-} from "../ui";
+import { Button, Dialog, FieldLabel, Input, NumberInput, Select, Switch } from "../ui";
 import { SpritePreview } from "./TilePreview";
 import { SpriteSelector } from "./SpriteSelector";
 import { StatusVfxFields } from "./StatusVfxFields";
@@ -97,9 +86,7 @@ function FormulaField({
         placeholder="blank for none"
         onChange={(e) => onChange(e.target.value)}
       />
-      <span
-        className={`text-[11px] ${preview.ok ? "text-muted" : "text-danger"}`}
-      >
+      <span className={`text-[11px] ${preview.ok ? "text-muted" : "text-danger"}`}>
         {preview.text}
         {hint && preview.ok ? ` · ${hint}` : ""}
       </span>
@@ -232,34 +219,24 @@ export function StatusEditorDialog({
         <div className="flex flex-wrap gap-3">
           <label className="flex flex-col gap-0.5">
             <span className="text-[11px] font-bold uppercase text-muted">Id</span>
-            <Input
-              value={status.id}
-              onChange={(e) => patch({ id: e.target.value })}
-            />
+            <Input value={status.id} onChange={(e) => patch({ id: e.target.value })} />
           </label>
           <label className="flex flex-col gap-0.5">
             <span className="text-[11px] font-bold uppercase text-muted">Name</span>
-            <Input
-              value={status.name}
-              onChange={(e) => patch({ name: e.target.value })}
-            />
+            <Input value={status.name} onChange={(e) => patch({ name: e.target.value })} />
           </label>
           <label className="flex flex-col gap-0.5">
             <span className="text-[11px] font-bold uppercase text-muted">Tone</span>
             <Select
               value={status.tone}
-              onValueChange={(v) =>
-                patch({ tone: (v as StatusSource["tone"]) ?? "good" })
-              }
+              onValueChange={(v) => patch({ tone: (v as StatusSource["tone"]) ?? "good" })}
               options={STATUS_TONES.map((t) => ({ value: t, label: t }))}
             />
           </label>
         </div>
 
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] font-bold uppercase text-muted">
-            Description
-          </span>
+          <span className="text-[11px] font-bold uppercase text-muted">Description</span>
           <Input
             value={status.description}
             maxLength={MAX_STATUS_DESCRIPTION_LENGTH}
@@ -281,9 +258,7 @@ export function StatusEditorDialog({
         <div className="flex flex-wrap items-start gap-3">
           <div className="flex flex-col gap-2">
             <label className="flex items-center gap-2">
-              <span className="text-[11px] font-bold uppercase text-muted">
-                Tileset
-              </span>
+              <span className="text-[11px] font-bold uppercase text-muted">Tileset</span>
               <Select
                 value={icon?.tilesetId || null}
                 onValueChange={(id) => {
@@ -297,24 +272,14 @@ export function StatusEditorDialog({
                 options={tilesets.map((t) => ({ value: t.id, label: t.name }))}
               />
             </label>
-            <SpriteSelector
-              tileset={iconTileset}
-              value={icon}
-              onChange={setIconRect}
-            />
+            <SpriteSelector tileset={iconTileset} value={icon} onChange={setIconRect} />
           </div>
           <div className="flex flex-col items-center gap-1">
-            <span className="text-[11px] font-bold uppercase text-muted">
-              In the lane
-            </span>
+            <span className="text-[11px] font-bold uppercase text-muted">In the lane</span>
             {/* At the size it is actually drawn at, not a big preview: the whole
                 question an author has here is whether it reads at 18px beside a
                 countdown, and a 96px version answers a different one. */}
-            <SpritePreview
-              sprite={icon}
-              tilesets={tilesets}
-              size={TITLE_SPRITE_SIZE_PX}
-            />
+            <SpritePreview sprite={icon} tilesets={tilesets} size={TITLE_SPRITE_SIZE_PX} />
           </div>
         </div>
 
@@ -335,9 +300,7 @@ export function StatusEditorDialog({
             onChange={(toMs) => patch({ toMs, fromMs: Math.min(toMs, status.fromMs) })}
           />
           <label className="flex flex-col gap-0.5">
-            <span className="text-[11px] font-bold uppercase text-muted">
-              Stacks
-            </span>
+            <span className="text-[11px] font-bold uppercase text-muted">Stacks</span>
             <Switch
               checked={status.stacks}
               onCheckedChange={(stacks) => patch({ stacks })}
@@ -381,12 +344,11 @@ export function StatusEditorDialog({
             info={
               <>
                 Added to the fighting stats every time they are read. Variables:{" "}
-                <code>DURATION_SEC</code>, <code>REMAINING_SEC</code>,{" "}
-                <code>ELAPSED_SEC</code>, <code>MAX_HP</code>, <code>HP</code>.
-                Functions: ceil, floor, round, abs, min, max, and{" "}
-                <code>has_status('id')</code>, which is 1 while the body is under that
-                status. Previewed against a 16-point body 20 seconds into a
-                30-second run, under nothing else.
+                <code>DURATION_SEC</code>, <code>REMAINING_SEC</code>, <code>ELAPSED_SEC</code>,{" "}
+                <code>MAX_HP</code>, <code>HP</code>. Functions: ceil, floor, round, abs, min, max,
+                and <code>has_status('id')</code>, which is 1 while the body is under that status.
+                Previewed against a 16-point body 20 seconds into a 30-second run, under nothing
+                else.
               </>
             }
           >
@@ -429,17 +391,14 @@ export function StatusEditorDialog({
           </FieldLabel>
         </div>
         <div className="flex flex-wrap items-start gap-4">
-          <StatusVfxFields
-            vfx={vfx}
-            onChange={(next) => patch({ vfx: next })}
-          />
+          <StatusVfxFields vfx={vfx} onChange={(next) => patch({ vfx: next })} />
           <VfxPreview vfx={vfx} tiles={tiles} tilesets={tilesets} winds />
         </div>
 
         {valid ? null : (
           <p className="border-2 border-danger p-2 text-[11px] text-danger">
-            Something here is not valid — an id or name left blank, an inverted
-            range, or a formula that does not parse. Saving is off until it is.
+            Something here is not valid — an id or name left blank, an inverted range, or a formula
+            that does not parse. Saving is off until it is.
           </p>
         )}
       </div>

@@ -36,13 +36,7 @@ function ground(z = 0): MapFile {
   return map;
 }
 
-function withStack(
-  map: MapFile,
-  x: number,
-  y: number,
-  z: number,
-  ...on: PlacedTile[]
-): MapFile {
+function withStack(map: MapFile, x: number, y: number, z: number, ...on: PlacedTile[]): MapFile {
   return replaceStack(map, x, y, z, [{ tileId: "grass" }, ...on]);
 }
 

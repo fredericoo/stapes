@@ -71,10 +71,9 @@ export function LeaveWorldButton({
         }
       >
         <p className="text-sm leading-relaxed">
-          You are in a fight, so your body stays in the world until the fight is
-          over — about a minute after the last blow lands. It stands still while
-          it is there, and anything aimed at it still hits, with everything you
-          are carrying on it.
+          You are in a fight, so your body stays in the world until the fight is over — about a
+          minute after the last blow lands. It stands still while it is there, and anything aimed at
+          it still hits, with everything you are carrying on it.
         </p>
       </Dialog>
     </>

@@ -90,14 +90,11 @@ describe("what gravity is about to do", () => {
   const playerDef = byId.player!;
 
   it("leaves a body standing on something alone", () => {
-    const map = replaceStack(emptyMap(), 0, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "player" },
-    ]);
+    const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "player" }]);
 
-    expect(
-      gravityPullOn(map, { x: 0, y: 0, z: 0, stackIndex: 1 }, playerDef, byId),
-    ).toEqual({ kind: "stand" });
+    expect(gravityPullOn(map, { x: 0, y: 0, z: 0, stackIndex: 1 }, playerDef, byId)).toEqual({
+      kind: "stand",
+    });
   });
 
   it("calls a drop within climbing range a settle, not a fall", () => {
@@ -106,18 +103,21 @@ describe("what gravity is about to do", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "rock" }]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "player" }]);
 
-    expect(
-      gravityPullOn(map, { x: 0, y: 0, z: 1, stackIndex: 0 }, playerDef, byId),
-    ).toEqual({ kind: "settle", landingAbs: 2 });
+    expect(gravityPullOn(map, { x: 0, y: 0, z: 1, stackIndex: 0 }, playerDef, byId)).toEqual({
+      kind: "settle",
+      landingAbs: 2,
+    });
   });
 
   it("calls a drop too steep to climb down a fall", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "player" }]);
 
-    expect(
-      gravityPullOn(map, { x: 0, y: 0, z: 1, stackIndex: 0 }, playerDef, byId),
-    ).toEqual({ kind: "fall", feetAbs: 4, landingAbs: 0 });
+    expect(gravityPullOn(map, { x: 0, y: 0, z: 1, stackIndex: 0 }, playerDef, byId)).toEqual({
+      kind: "fall",
+      feetAbs: 4,
+      landingAbs: 0,
+    });
   });
 
   it("leaves a body over a column with nothing in it where it is", () => {
@@ -125,18 +125,18 @@ describe("what gravity is about to do", () => {
     // body still, and a client that read it as falling would refuse to walk.
     const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "player" }]);
 
-    expect(
-      gravityPullOn(map, { x: 0, y: 0, z: 0, stackIndex: 0 }, playerDef, byId),
-    ).toEqual({ kind: "stand" });
+    expect(gravityPullOn(map, { x: 0, y: 0, z: 0, stackIndex: 0 }, playerDef, byId)).toEqual({
+      kind: "stand",
+    });
   });
 
   it("says nothing about a tile gravity does not act on", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "rock" }]);
 
-    expect(
-      gravityPullOn(map, { x: 0, y: 0, z: 1, stackIndex: 0 }, byId.rock!, byId),
-    ).toEqual({ kind: "stand" });
+    expect(gravityPullOn(map, { x: 0, y: 0, z: 1, stackIndex: 0 }, byId.rock!, byId)).toEqual({
+      kind: "stand",
+    });
   });
 });
 
@@ -200,12 +200,9 @@ describe("settling loose gravity", () => {
  */
 describe("a body that does not fall", () => {
   const shipped = (id: string): TileDef =>
-    normalizeTileDef(
-      (shippedTiles as unknown as TileDef[]).find((t) => t.id === id)!,
-    );
+    normalizeTileDef((shippedTiles as unknown as TileDef[]).find((t) => t.id === id)!);
   const flying = tilesByIdFromList([...tiles, shipped("bat"), shipped("rat")]);
-  const overTheVoid = (tileId: string) =>
-    replaceStack(emptyMap(), 0, 0, 1, [{ tileId }]);
+  const overTheVoid = (tileId: string) => replaceStack(emptyMap(), 0, 0, 1, [{ tileId }]);
 
   it("is not even indexed as something the board could drop", () => {
     expect(findLooseGravityCells(overTheVoid("bat"), flying)).toEqual([]);
@@ -216,11 +213,7 @@ describe("a body that does not fall", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "bat" }]);
 
-    const { map: next, changed } = settleGravity(
-      map,
-      findLooseGravityCells(map, flying),
-      flying,
-    );
+    const { map: next, changed } = settleGravity(map, findLooseGravityCells(map, flying), flying);
 
     expect(changed).toEqual([]);
     expect(ids(getStack(next, 0, 0, 1))).toEqual(["bat"]);
@@ -278,10 +271,7 @@ describe("intangible tiles are not a floor", () => {
   it("walks a player into a hole and drops them through it", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
-    map = replaceStack(map, 0, 0, 1, [
-      { tileId: "pillar" },
-      { tileId: "player", direction: "e" },
-    ]);
+    map = replaceStack(map, 0, 0, 1, [{ tileId: "pillar" }, { tileId: "player", direction: "e" }]);
     map = replaceStack(map, 1, 0, 1, [{ tileId: "hole-floor" }]);
 
     const session = new GameSession(map, tiles);
@@ -338,10 +328,7 @@ describe("a crate in a running world", () => {
     for (let x = 0; x <= 3; x++) {
       map = replaceStack(map, x, 0, 0, [{ tileId: "grass" }]);
     }
-    map = replaceStack(map, 0, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "player", direction: "e" },
-    ]);
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "e" }]);
     // A full-height crate holds a box up one level.
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "crate" }]);
     map = replaceStack(map, 1, 0, 1, [{ tileId: "box" }]);

@@ -32,10 +32,7 @@ const TILESET_DIRECTORY = "tilesets";
  * A copy, not a reconciliation: a key the repo has since deleted stays in the
  * store, unreferenced by the content that replaced it.
  */
-export async function seedFromDirectory(
-  blobs: Blobs,
-  directory: string,
-): Promise<void> {
+export async function seedFromDirectory(blobs: Blobs, directory: string): Promise<void> {
   for (const name of JSON_FILES) {
     const text = await readIfPresent(join(directory, name));
     // An absent file is an empty environment, not a failure: `DataStore` reads

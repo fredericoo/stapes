@@ -26,9 +26,7 @@ export function InfoTip({ children }: { children: ReactNode }) {
       <Tooltip
         side="top"
         content={
-          <span className="block max-w-72 font-normal normal-case leading-snug">
-            {children}
-          </span>
+          <span className="block max-w-72 font-normal normal-case leading-snug">{children}</span>
         }
       >
         <button

@@ -64,12 +64,7 @@ function levelRect(window: WorldRect, z: number): WorldRect {
  * one cell — so something that plays on a placement, like a tile forming, is
  * played exactly where that placement could be seen and nowhere else.
  */
-export function cellInMeshWindow(
-  window: WorldRect,
-  x: number,
-  y: number,
-  z: number,
-): boolean {
+export function cellInMeshWindow(window: WorldRect, x: number, y: number, z: number): boolean {
   const rect = levelRect(window, z);
   return x >= rect.x0 && x <= rect.x1 && y >= rect.y0 && y <= rect.y1;
 }

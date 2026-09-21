@@ -183,14 +183,8 @@ describe("what a weapon is worth in the hand", () => {
    * is on the table. Anything beyond that is the wielder rather than the weapon.
    */
   it("is the authored profile the moment the requirement is met", () => {
-    const barely = fightingStats(
-      body({ blunt: 40 }),
-      weapon({ requirements: { blunt: 40 } }),
-    );
-    const far = fightingStats(
-      body({ blunt: 100 }),
-      weapon({ requirements: { blunt: 40 } }),
-    );
+    const barely = fightingStats(body({ blunt: 40 }), weapon({ requirements: { blunt: 40 } }));
+    const far = fightingStats(body({ blunt: 100 }), weapon({ requirements: { blunt: 40 } }));
     expect(barely.spd).toBe(100);
     // The rate is handling and Agility only — no skill term — so meeting the
     // requirement is all the weapon can give.
@@ -204,14 +198,8 @@ describe("what a weapon is worth in the hand", () => {
    * swing it identically.
    */
   it("pays skill on damage and accuracy long past the requirement", () => {
-    const master = fightingStats(
-      body({ blunt: 100 }),
-      weapon({ requirements: { blunt: 1 } }),
-    );
-    const novice = fightingStats(
-      body({ blunt: 1 }),
-      weapon({ requirements: { blunt: 1 } }),
-    );
+    const master = fightingStats(body({ blunt: 100 }), weapon({ requirements: { blunt: 1 } }));
+    const novice = fightingStats(body({ blunt: 1 }), weapon({ requirements: { blunt: 1 } }));
 
     expect(master.damage).toBeGreaterThan(novice.damage);
     expect(master.accuracy).toBeGreaterThan(novice.accuracy);
@@ -239,15 +227,9 @@ describe("what a weapon is worth in the hand", () => {
     const requirements = { blunt: 5, toughness: 100 };
     // Blunt mastered outright, and not one point of the Toughness the weapon
     // also asks for.
-    const stats = fightingStats(
-      body({ blunt: 100, toughness: 0 }),
-      weapon({ requirements }),
-    );
+    const stats = fightingStats(body({ blunt: 100, toughness: 0 }), weapon({ requirements }));
     // And the same body with the Toughness for it gets everything.
-    const able = fightingStats(
-      body({ blunt: 100, toughness: 100 }),
-      weapon({ requirements }),
-    );
+    const able = fightingStats(body({ blunt: 100, toughness: 100 }), weapon({ requirements }));
 
     // A hundred points of Toughness short, which is long past the floor.
     expect(stats.accuracy).toBe(Math.round(able.accuracy * weaponHandling(100)));
@@ -270,8 +252,7 @@ describe("what a weapon is worth in the hand", () => {
       expect(shield.damage).toBe(0);
     }
     // And a weapon that does *any* damage is still paid the bonus in full.
-    expect(fightingStats(body({ blunt: 100 }), weapon({ damage: 1 })).damage)
-      .toBeGreaterThan(1);
+    expect(fightingStats(body({ blunt: 100 }), weapon({ damage: 1 })).damage).toBeGreaterThan(1);
   });
 
   /** Speed is Agility's to give, and mastery of the weapon may not pay it twice. */
@@ -332,10 +313,7 @@ describe("what a weapon is worth in the hand", () => {
   it("leaves hit points and flee alone whatever is held", () => {
     const masteries = { toughness: 30, agility: 12, blunt: 0 };
     const bare = fightingStats(body(masteries), weapon());
-    const gated = fightingStats(
-      body(masteries),
-      weapon({ requirements: { blunt: 90 } }),
-    );
+    const gated = fightingStats(body(masteries), weapon({ requirements: { blunt: 90 } }));
 
     expect(bare.maxHp).toBe(maxHpFrom(DEFAULT_BATTLER.baseHp, 30));
     expect(gated.maxHp).toBe(bare.maxHp);
@@ -396,9 +374,10 @@ describe("what a spell is worth in the hand", () => {
    * one half of it buys you a third of the spell.
    */
   it("counts every element a two-element stone names", () => {
-    expect(
-      castingSkill({ arcane: 90, water: 90, nature: 0 }, { water: 8, nature: 8 }),
-    ).toBeCloseTo(0.6, 6);
+    expect(castingSkill({ arcane: 90, water: 90, nature: 0 }, { water: 8, nature: 8 })).toBeCloseTo(
+      0.6,
+      6,
+    );
   });
 
   /**
@@ -428,9 +407,6 @@ describe("what a spell is worth in the hand", () => {
     const novice = spellPower(-20, undefined, {});
     const master = spellPower(-20, undefined, { arcane: 100 });
     expect(master).toBeLessThan(novice);
-    expect(master).toBeCloseTo(
-      -(20 * (1 + MASTERY_DAMAGE_BONUS) + DAMAGE_AT_MAX_MASTERY),
-      6,
-    );
+    expect(master).toBeCloseTo(-(20 * (1 + MASTERY_DAMAGE_BONUS) + DAMAGE_AT_MAX_MASTERY), 6);
   });
 });

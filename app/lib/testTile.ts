@@ -59,9 +59,7 @@ export const FRAME = {
  *   tile({ kind: "prop", ...partial });
  * ```
  */
-export function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id">,
-): TileDef {
+export function tile(partial: Record<string, unknown> & Pick<TileDef, "id">): TileDef {
   return normalizeTileDef({
     name: partial.id,
     height: 0,

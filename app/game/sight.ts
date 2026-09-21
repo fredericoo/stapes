@@ -76,10 +76,7 @@ function solidTopAbs(
   y: number,
   z: number,
 ): number {
-  return (
-    z * HEIGHT_PER_LEVEL +
-    stackBlockHeight(getStack(map, x, y, z), tilesById)
-  );
+  return z * HEIGHT_PER_LEVEL + stackBlockHeight(getStack(map, x, y, z), tilesById);
 }
 
 /**
@@ -254,10 +251,7 @@ export function hasLineOfSight(
     // for why the column that answers depends on which way the look travels.
     const lowerX = z < prevZ ? x : prevX;
     const lowerY = z < prevZ ? y : prevY;
-    if (
-      z !== prevZ &&
-      sealsAgainstVertical(map, tilesById, lowerX, lowerY, Math.max(z, prevZ))
-    ) {
+    if (z !== prevZ && sealsAgainstVertical(map, tilesById, lowerX, lowerY, Math.max(z, prevZ))) {
       return false;
     }
     prevX = x;

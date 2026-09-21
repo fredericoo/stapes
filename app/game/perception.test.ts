@@ -54,13 +54,7 @@ function ground(z: number, half = 8): MapFile {
   return map;
 }
 
-function put(
-  map: MapFile,
-  x: number,
-  y: number,
-  z: number,
-  ...tileIds: string[]
-): MapFile {
+function put(map: MapFile, x: number, y: number, z: number, ...tileIds: string[]): MapFile {
   return replaceStack(
     map,
     x,
@@ -84,12 +78,7 @@ function on(x: number, y: number, z: number, standingOn = 0): Body {
 }
 
 /** A — is its name and health readable? @see isHiddenFromCamera */
-function canRead(
-  map: MapFile,
-  body: Body,
-  viewer: Body,
-  roofCut?: RoofCut,
-): boolean {
+function canRead(map: MapFile, body: Body, viewer: Body, roofCut?: RoofCut): boolean {
   return !isHiddenFromCamera(map, tilesById, body, viewer.z, roofCut);
 }
 
@@ -104,12 +93,7 @@ function canHit(map: MapFile, from: Body, to: Body): boolean {
  * Both halves, in the order the runtime asks them: would it look that far up or
  * down at all, and is anything in the way.
  */
-function notices(
-  map: MapFile,
-  self: Body,
-  target: Body,
-  sight = { up: 0, down: 0 },
-): boolean {
+function notices(map: MapFile, self: Body, target: Body, sight = { up: 0, down: 0 }): boolean {
   const dz = target.z - self.z;
   if (dz > sight.up || -dz > sight.down) return false;
   return hasLineOfSight(map, tilesById, self, target);
@@ -326,9 +310,7 @@ describe("5 — me at ground level, rat in a cave below", () => {
     const beside = on(2, 2, -1);
     expect(canRead(board(), beside, me)).toBe(false);
     // Its pixels are not covered; only the roof over it hides it.
-    expect(
-      isHiddenFromCamera(board(), tilesById, beside, beside.z, undefined),
-    ).toBe(false);
+    expect(isHiddenFromCamera(board(), tilesById, beside, beside.z, undefined)).toBe(false);
   });
 });
 
@@ -358,9 +340,7 @@ describe("6 — a deer directly beneath the floor I am standing on", () => {
   it("and the diagonal alone would have missed it", () => {
     // Nothing on the screen ray from the deer: proof the column is load-bearing
     // rather than a second way of saying the same thing.
-    expect(isHiddenFromCamera(board(), tilesById, deer, deer.z, undefined)).toBe(
-      false,
-    );
+    expect(isHiddenFromCamera(board(), tilesById, deer, deer.z, undefined)).toBe(false);
   });
 
   it("keeps it unhittable through the floor", () => {

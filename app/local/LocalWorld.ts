@@ -7,11 +7,7 @@ import { GameServer } from "../../server/GameServer";
  * actors — so this is the player and nothing else.
  */
 const LOCAL_PLAYER_NAME = "Tester";
-import {
-  GameSocket,
-  SocketHub,
-  type WorldContext,
-} from "../../server/sockets";
+import { GameSocket, SocketHub, type WorldContext } from "../../server/sockets";
 import { DataStore } from "../lib/dataStore";
 import { KEEPALIVE_INTERVAL_MS } from "../net/protocol";
 import { ApiBlobs } from "./content";

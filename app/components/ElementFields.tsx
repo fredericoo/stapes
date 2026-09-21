@@ -37,9 +37,7 @@ export function ElementFields({
     // the canonical order however it was clicked — the same order the save
     // writes, which is what keeps a diff about what actually changed.
     onChange(
-      ELEMENTS.filter((candidate) =>
-        candidate === element ? on : chosen.includes(candidate),
-      ),
+      ELEMENTS.filter((candidate) => (candidate === element ? on : chosen.includes(candidate))),
     );
   };
 
@@ -80,16 +78,11 @@ export function ElementFields({
 function ElementReading({ elements }: { elements: Element[] }) {
   if (elements.length === 0) return null;
 
-  const weakTo = ELEMENTS.filter((against) =>
-    elements.some((element) => beats(against, element)),
-  );
+  const weakTo = ELEMENTS.filter((against) => elements.some((element) => beats(against, element)));
   const resists = ELEMENTS.filter(
-    (against) =>
-      !weakTo.includes(against) &&
-      elements.some((element) => beats(element, against)),
+    (against) => !weakTo.includes(against) && elements.some((element) => beats(element, against)),
   );
-  const named = (list: Element[]) =>
-    list.map((element) => MASTERY_LABELS[element]).join(", ");
+  const named = (list: Element[]) => list.map((element) => MASTERY_LABELS[element]).join(", ");
 
   // Every element beats one and loses to one, so a thing made of all three is
   // hurt more by everything and less by everything, and the two cancel exactly.

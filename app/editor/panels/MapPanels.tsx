@@ -89,12 +89,9 @@ function PanelTitleBar({ panel }: { panel: PanelNode }) {
   const { toggleCollapse } = usePanel(panel.id);
   const { idPrefix } = useLayoutContext();
 
-  const activeTab =
-    panel.tabs.find((tab) => tab.id === panel.activeTabId) ?? panel.tabs[0];
+  const activeTab = panel.tabs.find((tab) => tab.id === panel.activeTabId) ?? panel.tabs[0];
   const collapsed = panel.collapsed ?? false;
-  const collapsible = panel.tabs.some((tab) =>
-    COLLAPSIBLE_TAB_TYPES.has(tab.tabType),
-  );
+  const collapsible = panel.tabs.some((tab) => COLLAPSIBLE_TAB_TYPES.has(tab.tabType));
 
   return (
     <div
@@ -185,13 +182,7 @@ function RestoreSavedLayout() {
   return null;
 }
 
-export function MapPanels({
-  tiles,
-  tilesets,
-}: {
-  tiles: TileDef[];
-  tilesets: TilesetDef[];
-}) {
+export function MapPanels({ tiles, tilesets }: { tiles: TileDef[]; tilesets: TilesetDef[] }) {
   const pending = useRef<LayoutNode | null>(null);
   const saveTimer = useRef<number | null>(null);
 

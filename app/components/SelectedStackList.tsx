@@ -231,9 +231,7 @@ function SortableStackItem({
             size="sm"
             ariaLabel={`Direction for ${def.name}`}
             value={placed.direction ?? "s"}
-            onChange={(d) =>
-              useEditorStore.getState().setStackDirection(stackIndex, d)
-            }
+            onChange={(d) => useEditorStore.getState().setStackDirection(stackIndex, d)}
             options={[
               { value: "n", label: "N" },
               { value: "e", label: "E" },
@@ -269,14 +267,10 @@ function SortableStackItem({
                   aria-selected={active}
                   aria-label={key}
                   title={key}
-                  onClick={() =>
-                    useEditorStore.getState().setStackVariant(stackIndex, key)
-                  }
+                  onClick={() => useEditorStore.getState().setStackVariant(stackIndex, key)}
                   className={[
                     "border-2 p-0.5",
-                    active
-                      ? "border-accent bg-paper"
-                      : "border-border bg-panel hover:border-ink",
+                    active ? "border-accent bg-paper" : "border-border bg-panel hover:border-ink",
                   ].join(" ")}
                 >
                   <TilePreview
@@ -300,9 +294,7 @@ function SortableStackItem({
             `map.json`. */}
         {foot ? (
           <div className="mt-1 flex items-center gap-1">
-            <span className="text-[10px] font-bold uppercase text-muted">
-              Foot
-            </span>
+            <span className="text-[10px] font-bold uppercase text-muted">Foot</span>
             <Segmented<number>
               size="sm"
               ariaLabel={`Foot elevation for ${def.name}`}
@@ -322,26 +314,19 @@ function SortableStackItem({
         {/* What the placement carries, rather than the fields themselves: the
             row says a wire and a description are set, and the dialog is where
             they are read and changed. */}
-        {placed.channel ||
-        placed.rewardTag ||
-        placed.contents?.length ||
-        placed.inscription ? (
+        {placed.channel || placed.rewardTag || placed.contents?.length || placed.inscription ? (
           <div className="mt-1 flex items-center gap-2 text-[10px] text-muted">
             {/* The channel keeps its width and the description gives way: a
                 wire name truncated to "⌁…" tells you nothing, while a clipped
                 first few words of prose still says which sign this is. */}
-            {placed.channel ? (
-              <span className="shrink-0">⌁ {placed.channel}</span>
-            ) : null}
+            {placed.channel ? <span className="shrink-0">⌁ {placed.channel}</span> : null}
             {/* Kept at full width beside the wire and for the same reason: a
                 truncated tag names nothing, and which reward this is is the
                 whole question when two chests sit side by side. */}
             {placed.rewardTag ? (
               <span className="shrink-0">
                 ⛁ {placed.rewardTag}
-                {placed.rewardTileIds?.length
-                  ? ` ×${placed.rewardTileIds.length}`
-                  : ""}
+                {placed.rewardTileIds?.length ? ` ×${placed.rewardTileIds.length}` : ""}
               </span>
             ) : null}
             {/* A count and not the things themselves: the row is answering
@@ -420,14 +405,8 @@ export function SelectedStackList({ stack, tilesById, tilesets }: Props) {
   // Once for the whole panel rather than per row: every giver in a stack offers
   // the same catalogue, and filtering it per row would walk the tile list once
   // per placement on every render.
-  const giveable = useMemo(
-    () => Object.values(tilesById).filter(isGiveable),
-    [tilesById],
-  );
-  const stowable = useMemo(
-    () => Object.values(tilesById).filter(isStowable),
-    [tilesById],
-  );
+  const giveable = useMemo(() => Object.values(tilesById).filter(isGiveable), [tilesById]);
+  const stowable = useMemo(() => Object.values(tilesById).filter(isStowable), [tilesById]);
 
   return (
     <DragDropProvider
@@ -463,8 +442,7 @@ export function SelectedStackList({ stack, tilesById, tilesets }: Props) {
         aria-label="Tile stack, top first"
       >
         {rows.map((row, displayIdx) => {
-          const def =
-            tilesById[row.placed.tileId] ?? missingTile(row.placed.tileId);
+          const def = tilesById[row.placed.tileId] ?? missingTile(row.placed.tileId);
           return (
             <SortableStackItem
               key={row.id}

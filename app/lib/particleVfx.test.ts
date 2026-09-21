@@ -23,8 +23,7 @@ const lut = (stops: { at: number; color: string }[], t: number) => {
   return [compiled[base]!, compiled[base + 1]!, compiled[base + 2]!] as const;
 };
 
-const near = (a: number, b: number, tolerance = 0.02) =>
-  Math.abs(a - b) <= tolerance;
+const near = (a: number, b: number, tolerance = 0.02) => Math.abs(a - b) <= tolerance;
 
 describe("a colour ramp", () => {
   it("holds one stop's colour for the whole life", () => {
@@ -102,8 +101,7 @@ describe("a colour ramp", () => {
     const [wr, wg, wb] = hexToRgb01("#ffffff");
     const [ar, ag, ab] = hexToRgb01("#fb6b1d");
     const naive = [(wr + ar) / 2, (wg + ag) / 2, (wb + ab) / 2];
-    const luma = (c: readonly number[]) =>
-      0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!;
+    const luma = (c: readonly number[]) => 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!;
     expect(luma([r, g, b])).toBeGreaterThan(luma(naive));
   });
 
@@ -129,16 +127,13 @@ describe("a colour ramp", () => {
 describe("what validates", () => {
   it("refuses an inverted lifetime range", () => {
     const inverted = { ...DEFAULT_PARTICLES, ttlFromMs: 900, ttlToMs: 100 };
-    expect(
-      v.safeParse(particleEmitterSchema, inverted).success,
-    ).toBe(false);
+    expect(v.safeParse(particleEmitterSchema, inverted).success).toBe(false);
   });
 
   it("refuses a ramp with no stops", () => {
-    expect(
-      v.safeParse(particleEmitterSchema, { ...DEFAULT_PARTICLES, ramp: [] })
-        .success,
-    ).toBe(false);
+    expect(v.safeParse(particleEmitterSchema, { ...DEFAULT_PARTICLES, ramp: [] }).success).toBe(
+      false,
+    );
   });
 
   it("defaults a plume authored before the wind to still air", () => {

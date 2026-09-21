@@ -60,7 +60,13 @@ const playerDef = tilesById[PLAYER_TILE_ID]!;
  * @see ./pathfinding's `unsafeToStepOn`
  */
 const statusDefs: Record<string, StatusDef> = {
-  burned: { ...DEFAULT_STATUS_SOURCE, everyMs: constantFormula(0), id: "burned", name: "Burned", tone: "bad" },
+  burned: {
+    ...DEFAULT_STATUS_SOURCE,
+    everyMs: constantFormula(0),
+    id: "burned",
+    name: "Burned",
+    tone: "bad",
+  },
 };
 
 /** Flat grass from -half to +half, and nothing standing on any of it. */
@@ -76,10 +82,7 @@ function bare(half: number): MapFile {
 
 /** The same, with the walker standing at the origin. */
 function field(half: number): MapFile {
-  return replaceStack(bare(half), 0, 0, 0, [
-    { tileId: "grass" },
-    { tileId: PLAYER_TILE_ID },
-  ]);
+  return replaceStack(bare(half), 0, 0, 0, [{ tileId: "grass" }, { tileId: PLAYER_TILE_ID }]);
 }
 
 function put(map: MapFile, x: number, y: number, tileId: string): MapFile {
@@ -98,10 +101,7 @@ function elbow(): MapFile {
   for (let y = 1; y <= 3; y++) {
     map = replaceStack(map, 2, y, 0, [{ tileId: "grass" }]);
   }
-  return replaceStack(map, 0, 0, 0, [
-    { tileId: "grass" },
-    { tileId: PLAYER_TILE_ID },
-  ]);
+  return replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: PLAYER_TILE_ID }]);
 }
 
 /** One cell wide, walled north and south, running east and west through 0,0. */
@@ -372,10 +372,7 @@ describe("a board that moves under a walk", () => {
     const { walk, last } = walker();
     let map = field(6);
     map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }]);
-    map = replaceStack(map, 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId: PLAYER_TILE_ID },
-    ]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: PLAYER_TILE_ID }]);
 
     walk.start(ground(1, 0), view(field(6)));
     walk.tick(view(map, { at: { x: 1, y: 0, z: 0, stackIndex: 1 } }));
@@ -411,14 +408,8 @@ describe("a cell with no way to it", () => {
     const { walk } = walker();
     // One cell of ground with a wall on it and nothing anywhere near: there is
     // no cell beside it to stand in, so the fallback has nothing to offer.
-    let map = replaceStack(emptyMap(), 2, 0, 0, [
-      { tileId: "grass" },
-      { tileId: "wall" },
-    ]);
-    map = replaceStack(map, 0, 0, 0, [
-      { tileId: "grass" },
-      { tileId: PLAYER_TILE_ID },
-    ]);
+    let map = replaceStack(emptyMap(), 2, 0, 0, [{ tileId: "grass" }, { tileId: "wall" }]);
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: PLAYER_TILE_ID }]);
 
     walk.start({ x: 2, y: 0, z: 0, stackIndex: 1 }, view(map));
 
@@ -786,17 +777,17 @@ describe("which cell a tile means", () => {
   it("takes the level above for a tile that fills its own", () => {
     const map = replaceStack(field(6), 2, 0, 0, [{ tileId: "block" }]);
 
-    expect(standingCellOn(view(map), { x: 2, y: 0, z: 0, stackIndex: 0 })).toEqual(
-      { x: 2, y: 0, z: 1 },
-    );
+    expect(standingCellOn(view(map), { x: 2, y: 0, z: 0, stackIndex: 0 })).toEqual({
+      x: 2,
+      y: 0,
+      z: 1,
+    });
   });
 
   it("offers nothing for a wall, rather than its foot", () => {
     const map = put(field(6), 2, 0, "wall");
 
-    expect(
-      standingCellOn(view(map), { x: 2, y: 0, z: 0, stackIndex: 1 }),
-    ).toBeNull();
+    expect(standingCellOn(view(map), { x: 2, y: 0, z: 0, stackIndex: 1 })).toBeNull();
   });
 });
 
@@ -887,10 +878,7 @@ describe("clicking into a hole", () => {
     // wall nobody can stand on, so a body falls through to the ground under it.
     map = replaceStack(map, 0, -1, 0, []);
     map = replaceStack(map, 0, -1, -1, [{ tileId: "grass" }, { tileId: "crate" }]);
-    return replaceStack(map, 0, 0, 0, [
-      { tileId: "grass" },
-      { tileId: PLAYER_TILE_ID },
-    ]);
+    return replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: PLAYER_TILE_ID }]);
   }
 
   it("steps in, falling past the level the pointer could name", () => {

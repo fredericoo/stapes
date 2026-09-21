@@ -59,9 +59,7 @@ export class Characters {
     const row = (await statement.get([characterId, userId])) as
       | { id: string; name: string; created_at: number }
       | undefined;
-    return row
-      ? { id: row.id, name: row.name, createdAt: row.created_at }
-      : null;
+    return row ? { id: row.id, name: row.name, createdAt: row.created_at } : null;
   }
 
   /**
@@ -72,12 +70,8 @@ export class Characters {
    * deer. @see `GameServer.seatActor`
    */
   async nameOf(characterId: string): Promise<string | null> {
-    const statement = await this.db.prepare(
-      "SELECT name FROM character WHERE id = ?",
-    );
-    const row = (await statement.get([characterId])) as
-      | { name: string }
-      | undefined;
+    const statement = await this.db.prepare("SELECT name FROM character WHERE id = ?");
+    const row = (await statement.get([characterId])) as { name: string } | undefined;
     return row?.name ?? null;
   }
 
@@ -123,12 +117,7 @@ export class Characters {
       "INSERT INTO character (id, user_id, name, created_at) VALUES (?, ?, ?, ?)",
     );
     try {
-      await insert.run([
-        character.id,
-        userId,
-        character.name,
-        character.createdAt,
-      ]);
+      await insert.run([character.id, userId, character.name, character.createdAt]);
     } catch (error) {
       if (isNameTaken(error)) {
         return { error: `${character.name} is already taken.` };

@@ -69,9 +69,7 @@ function waitForExit(child: ChildProcess): Promise<void> {
 
 afterEach(async () => {
   for (const child of children.splice(0)) child.kill("SIGKILL");
-  await Promise.all(
-    temporaries.splice(0).map((dir) => rm(dir, { recursive: true, force: true })),
-  );
+  await Promise.all(temporaries.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
 describe("exclusive world database", () => {
@@ -79,9 +77,9 @@ describe("exclusive world database", () => {
     const path = join(await scratchDir(), "stapes.db");
     await holdInSubprocess(path);
 
-    await expect(
-      openWorldDatabaseExclusively(path, { attempts: 2, delayMs: 50 }),
-    ).rejects.toThrow(/Refusing to start a second writer/);
+    await expect(openWorldDatabaseExclusively(path, { attempts: 2, delayMs: 50 })).rejects.toThrow(
+      /Refusing to start a second writer/,
+    );
   }, 30_000);
 
   it("takes the lock at open, not at the first write", async () => {
@@ -97,9 +95,9 @@ describe("exclusive world database", () => {
 
     await holdInSubprocess(path);
 
-    await expect(
-      openWorldDatabaseExclusively(path, { attempts: 2, delayMs: 50 }),
-    ).rejects.toThrow(/Refusing to start a second writer/);
+    await expect(openWorldDatabaseExclusively(path, { attempts: 2, delayMs: 50 })).rejects.toThrow(
+      /Refusing to start a second writer/,
+    );
   }, 30_000);
 
   it("lets a successor in once the holder has gone", async () => {

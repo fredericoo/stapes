@@ -102,9 +102,7 @@ const tiles = [
     name: "Bag Eater",
     interactions: {
       transmute: {
-        recipes: [
-          { verb: "Trade", fromTileId: "spare-bag", toTileIds: ["coal"] },
-        ],
+        recipes: [{ verb: "Trade", fromTileId: "spare-bag", toTileIds: ["coal"] }],
       },
     },
   }),
@@ -125,10 +123,7 @@ function board(tileId = "flame"): MapFile {
       map = replaceStack(map, x, y, 0, [{ tileId: "grass" }]);
     }
   }
-  map = replaceStack(map, 0, 0, 0, [
-    { tileId: "grass" },
-    { tileId: "player", direction: "s" },
-  ]);
+  map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "s" }]);
   map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: tileId }]);
   map = replaceStack(map, 4, 4, 0, [{ tileId: "grass" }, { tileId: tileId }]);
   return map;
@@ -200,11 +195,8 @@ describe("resolving a transmuter", () => {
   });
 
   it("names an unnamed recipe after the mechanism", () => {
-    expect(transmuteVerb({ fromTileId: "a", toTileIds: ["b"] })).toBe(
-      "Transmute",
-    );
-    expect(transmuteVerb({ verb: " Cook ", fromTileId: "a", toTileIds: ["b"] }))
-      .toBe("Cook");
+    expect(transmuteVerb({ fromTileId: "a", toTileIds: ["b"] })).toBe("Transmute");
+    expect(transmuteVerb({ verb: " Cook ", fromTileId: "a", toTileIds: ["b"] })).toBe("Cook");
   });
 });
 
@@ -243,21 +235,15 @@ describe("saving a transmuter", () => {
 
 describe("whether a recipe is on offer", () => {
   it("is not, to somebody carrying nothing to spend", () => {
-    expect(
-      canTransmuteFrom(board(), tilesById, ME, carrying(), FLAME, 0),
-    ).toBe(false);
+    expect(canTransmuteFrom(board(), tilesById, ME, carrying(), FLAME, 0)).toBe(false);
   });
 
   it("is, to somebody with the input in their bag", () => {
-    expect(
-      canTransmuteFrom(board(), tilesById, ME, carrying("raw-meat"), FLAME, 0),
-    ).toBe(true);
+    expect(canTransmuteFrom(board(), tilesById, ME, carrying("raw-meat"), FLAME, 0)).toBe(true);
   });
 
   it("is not, from across the field", () => {
-    expect(
-      canTransmuteFrom(board(), tilesById, ME, carrying("raw-meat"), FAR, 0),
-    ).toBe(false);
+    expect(canTransmuteFrom(board(), tilesById, ME, carrying("raw-meat"), FAR, 0)).toBe(false);
   });
 
   it("is not, under something solid", () => {
@@ -269,15 +255,11 @@ describe("whether a recipe is on offer", () => {
       { tileId: "crate" },
     ]);
 
-    expect(
-      canTransmuteFrom(map, tilesById, ME, carrying("raw-meat"), FLAME, 0),
-    ).toBe(false);
+    expect(canTransmuteFrom(map, tilesById, ME, carrying("raw-meat"), FLAME, 0)).toBe(false);
   });
 
   it("is not, for a recipe index the tile does not have", () => {
-    expect(
-      canTransmuteFrom(board(), tilesById, ME, carrying("raw-meat"), FLAME, 7),
-    ).toBe(false);
+    expect(canTransmuteFrom(board(), tilesById, ME, carrying("raw-meat"), FLAME, 7)).toBe(false);
   });
 
   it("is, with a full bag, when the input is in a hand", () => {
@@ -299,9 +281,7 @@ describe("whether a recipe is on offer", () => {
       offhand: { id: "itm_held", tileId: "raw-meat" },
     };
 
-    expect(canTransmuteFrom(board(), tilesById, ME, bagless, FLAME, 0)).toBe(
-      true,
-    );
+    expect(canTransmuteFrom(board(), tilesById, ME, bagless, FLAME, 0)).toBe(true);
   });
 
   it("is, for more back than the hand that paid can hold, by spilling to the pack", () => {
@@ -312,9 +292,7 @@ describe("whether a recipe is on offer", () => {
       weapon: { id: "itm_held", tileId: "coal" },
     };
 
-    expect(
-      canTransmuteFrom(board("butcher"), tilesById, ME, holding, FLAME, 0),
-    ).toBe(true);
+    expect(canTransmuteFrom(board("butcher"), tilesById, ME, holding, FLAME, 0)).toBe(true);
   });
 
   it("is, when the pack that paid is nearly full, by spilling to a free hand", () => {
@@ -322,9 +300,7 @@ describe("whether a recipe is on offer", () => {
     // in it: the coal frees one square and the two spare hands take the rest.
     const full = carrying("coal", "raw-meat", "raw-meat", "raw-meat");
 
-    expect(
-      canTransmuteFrom(board("butcher"), tilesById, ME, full, FLAME, 0),
-    ).toBe(true);
+    expect(canTransmuteFrom(board("butcher"), tilesById, ME, full, FLAME, 0)).toBe(true);
   });
 
   it("is not, once the whole body is out of room", () => {
@@ -337,17 +313,13 @@ describe("whether a recipe is on offer", () => {
       offhand: { id: "itm_o", tileId: "coal" },
     };
 
-    expect(
-      canTransmuteFrom(board("butcher"), tilesById, ME, packed, FLAME, 0),
-    ).toBe(false);
+    expect(canTransmuteFrom(board("butcher"), tilesById, ME, packed, FLAME, 0)).toBe(false);
   });
 
   it("counts the square the input frees, so the last steak still cooks", () => {
     const brimming = carrying("raw-meat", "coal", "coal", "coal");
 
-    expect(
-      canTransmuteFrom(board(), tilesById, ME, brimming, FLAME, 0),
-    ).toBe(true);
+    expect(canTransmuteFrom(board(), tilesById, ME, brimming, FLAME, 0)).toBe(true);
   });
 
   it("refuses to spend a pack, whatever the recipe says", () => {
@@ -358,19 +330,11 @@ describe("whether a recipe is on offer", () => {
       weapon: { id: "itm_spare", tileId: "spare-bag", contents: [] },
     };
 
-    expect(
-      canTransmuteFrom(board("bag-eater"), tilesById, ME, holding, FLAME, 0),
-    ).toBe(false);
+    expect(canTransmuteFrom(board("bag-eater"), tilesById, ME, holding, FLAME, 0)).toBe(false);
   });
 
   it("offers only the recipes the player can actually run", () => {
-    const offered = offeredTransmutations(
-      board(),
-      tilesById,
-      ME,
-      carrying("raw-fish"),
-      FLAME,
-    );
+    const offered = offeredTransmutations(board(), tilesById, ME, carrying("raw-fish"), FLAME);
 
     expect(offered).toHaveLength(1);
     expect(offered[0]?.index).toBe(1);
@@ -398,10 +362,7 @@ describe("running a recipe", () => {
     expect(session.transmute(FLAME, 0, "cook")).toBe(true);
     expect(session.transmute(FLAME, 0, "cook")).toBe(true);
     expect(session.tagsOf("cook")).toEqual([]);
-    expect(bagTiles(session.equipmentOf("cook"))).toEqual([
-      "cooked-meat",
-      "cooked-meat",
-    ]);
+    expect(bagTiles(session.equipmentOf("cook"))).toEqual(["cooked-meat", "cooked-meat"]);
   });
 
   it("stops once there is nothing left to spend", () => {
@@ -418,11 +379,7 @@ describe("running a recipe", () => {
 
     expect(session.transmute(FLAME, 0, "cook")).toBe(true);
     const ids = session.equipmentOf("cook")!.bag!.contents!.map((i) => i.id);
-    expect(bagTiles(session.equipmentOf("cook"))).toEqual([
-      "raw-meat",
-      "raw-meat",
-      "raw-fish",
-    ]);
+    expect(bagTiles(session.equipmentOf("cook"))).toEqual(["raw-meat", "raw-meat", "raw-fish"]);
     expect(new Set(ids).size).toBe(ids.length);
   });
 
@@ -470,12 +427,7 @@ describe("running a recipe", () => {
     const kit = session.equipmentOf("cook")!;
     // One square freed by the coal, then the spare hands — off hand first,
     // because what you swing with is the slot with consequences.
-    expect(bagTiles(kit)).toEqual([
-      "raw-meat",
-      "raw-meat",
-      "raw-meat",
-      "raw-meat",
-    ]);
+    expect(bagTiles(kit)).toEqual(["raw-meat", "raw-meat", "raw-meat", "raw-meat"]);
     expect(kit.offhand?.tileId).toBe("raw-meat");
     expect(kit.weapon?.tileId).toBe("raw-fish");
   });
@@ -518,20 +470,11 @@ describe("the rows a transmuter offers", () => {
   function rows(equipment: Equipment) {
     const session = new GameSession(board(), tiles);
     const snap = session.getSnapshot();
-    return listInteractionOptions(
-      snap.map,
-      tilesById,
-      snap.self,
-      [],
-      null,
-      equipment,
-    );
+    return listInteractionOptions(snap.map, tilesById, snap.self, [], null, equipment);
   }
 
   it("names the verb and the thing being spent, not the fire", () => {
-    const row = rows(carrying("raw-meat")).find(
-      (o) => o.action === "transmute",
-    );
+    const row = rows(carrying("raw-meat")).find((o) => o.action === "transmute");
 
     expect(row?.label).toBe("Cook");
     expect(row?.name).toBe("Raw Meat");
@@ -542,9 +485,7 @@ describe("the rows a transmuter offers", () => {
   });
 
   it("is one row per runnable recipe on the same placement", () => {
-    const both = rows(carrying("raw-meat", "raw-fish")).filter(
-      (o) => o.action === "transmute",
-    );
+    const both = rows(carrying("raw-meat", "raw-fish")).filter((o) => o.action === "transmute");
 
     expect(both.map((o) => o.name)).toEqual(["Raw Meat", "Raw Fish"]);
     expect(both.map((o) => o.recipeIndex)).toEqual([0, 1]);
@@ -553,8 +494,6 @@ describe("the rows a transmuter offers", () => {
   });
 
   it("offers nothing at all to somebody with nothing to spend", () => {
-    expect(rows(carrying("coal")).some((o) => o.action === "transmute")).toBe(
-      false,
-    );
+    expect(rows(carrying("coal")).some((o) => o.action === "transmute")).toBe(false);
   });
 });

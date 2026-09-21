@@ -1,9 +1,5 @@
 import * as v from "valibot";
-import {
-  resolveTransition,
-  type Transition,
-  type TransitionSide,
-} from "./tileTransition";
+import { resolveTransition, type Transition, type TransitionSide } from "./tileTransition";
 import type { TileDef } from "./types";
 
 /**
@@ -177,9 +173,7 @@ const projectileSchema = v.object({
  * makes "name anything and fail gracefully" true: a weapon pointed at a crate
  * looses nothing, and nothing anybody wrote has to say so.
  */
-export function resolveProjectile(
-  def: TileDef | undefined,
-): ProjectileBlock | null {
+export function resolveProjectile(def: TileDef | undefined): ProjectileBlock | null {
   if (!def || def.kind !== "projectile") return null;
   const parsed = v.safeParse(projectileSchema, def.interactions?.projectile);
   if (!parsed.success) return null;

@@ -54,9 +54,7 @@ export function forgetCharacter(): void {
  * caller wants the name too — and because an id with no row behind it is the
  * case this exists to catch.
  */
-export function resolveRemembered(
-  characters: readonly Character[],
-): Character | null {
+export function resolveRemembered(characters: readonly Character[]): Character | null {
   const id = sessionStorage.getItem(PLAYING_KEY);
   if (!id) return null;
   return characters.find((one) => one.id === id) ?? null;

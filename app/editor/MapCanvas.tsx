@@ -5,13 +5,7 @@ import { createMapApi } from "./mapApi";
 import type { EditorPerfProbe } from "./perf";
 import { useEditorStore } from "./store";
 
-export function MapCanvas({
-  tilesets,
-  tiles,
-}: {
-  tilesets: TilesetDef[];
-  tiles: TileDef[];
-}) {
+export function MapCanvas({ tilesets, tiles }: { tilesets: TilesetDef[]; tiles: TileDef[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<EditorRenderer | null>(null);
 

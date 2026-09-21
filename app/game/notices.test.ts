@@ -44,9 +44,7 @@ describe("what a crossing says", () => {
  * that is needed.
  */
 
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
+function tile(partial: Record<string, unknown> & Pick<TileDef, "id" | "height">): TileDef {
   const interactions = partial.interactions as { battler?: unknown } | undefined;
   return baseTile({
     kind: interactions?.battler ? "battler" : "prop",
@@ -105,14 +103,8 @@ function field(): MapFile {
       map = replaceStack(map, x, y, 0, [{ tileId: "grass" }]);
     }
   }
-  map = replaceStack(map, 0, 0, 0, [
-    { tileId: "grass" },
-    { tileId: "player", direction: "e" },
-  ]);
-  return replaceStack(map, 1, 0, 0, [
-    { tileId: "grass" },
-    { tileId: "sparring-partner" },
-  ]);
+  map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "e" }]);
+  return replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "sparring-partner" }]);
 }
 
 function sparring() {
@@ -240,10 +232,7 @@ function chestBoard(
   ] as const) {
     map = replaceStack(map, x, y, 0, [{ tileId: "grass" }]);
   }
-  map = replaceStack(map, 0, 0, 0, [
-    { tileId: "grass" },
-    { tileId: "player", direction: "e" },
-  ]);
+  map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "e" }]);
   return replaceStack(map, 1, 0, 0, [
     { tileId: "grass" },
     { tileId: giverTileId, rewardTag: "the-chest", rewardTileIds: items },
@@ -284,18 +273,14 @@ describe("what a reward says", () => {
   });
 
   it("drops the second clause for a reward that hands over nothing", () => {
-    expect(
-      rewardNotice(reward("Speak to", []), rewardTilesById["old-man"], rewardTilesById),
-    ).toBe("You speak to Old Man");
+    expect(rewardNotice(reward("Speak to", []), rewardTilesById["old-man"], rewardTilesById)).toBe(
+      "You speak to Old Man",
+    );
   });
 
   it("says the tile id rather than skipping an item the catalogue lost", () => {
     expect(
-      rewardNotice(
-        reward("Open", ["ghost-item"]),
-        rewardTilesById["quest-chest"],
-        rewardTilesById,
-      ),
+      rewardNotice(reward("Open", ["ghost-item"]), rewardTilesById["quest-chest"], rewardTilesById),
     ).toBe("You open Quest Chest and receive 1 ghost-item");
   });
 });

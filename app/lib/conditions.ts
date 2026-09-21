@@ -119,9 +119,7 @@ function holdsUnder<Leaf extends object>(
 }
 
 /** Every leaf in the tree, in the order they are asked. */
-export function conditionLeaves<Leaf extends object>(
-  node: ConditionNode<Leaf>,
-): Leaf[] {
+export function conditionLeaves<Leaf extends object>(node: ConditionNode<Leaf>): Leaf[] {
   if (!isConditionGroup(node)) return [node];
   return node.rules.flatMap(conditionLeaves);
 }
@@ -206,8 +204,7 @@ export function removeAt<Leaf extends object>(
   if (index === undefined) return null;
   if (!isConditionGroup(root) || root.rules[index] === undefined) return root;
 
-  const pruned =
-    rest.length === 0 ? null : removeAt(root.rules[index], rest);
+  const pruned = rest.length === 0 ? null : removeAt(root.rules[index], rest);
   const rules =
     pruned === null
       ? root.rules.filter((_rule, at) => at !== index)

@@ -55,11 +55,7 @@ import {
   type TransitionUniforms,
 } from "./tileTransitions";
 import { transitionOf, type HeldTransition } from "../lib/tileTransition";
-import {
-  type RoofCut,
-  cutHides,
-  cutHidesWholeLevel,
-} from "../lib/levelVisibility";
+import { type RoofCut, cutHides, cutHidesWholeLevel } from "../lib/levelVisibility";
 import { countOf } from "../lib/piles";
 import { cutMaskFor } from "./cutMask";
 import type {
@@ -92,15 +88,8 @@ import {
 import { hasSpriteStates, isMobileTile } from "../lib/interactions";
 import { clumpExtents } from "./depthClump";
 import { getFrames, resolveLight, resolveTileSprite } from "../lib/tileResolve";
-import {
-  ChunkedLighting,
-  LIGHT_WINDOW_MARGIN,
-  type WorldRect,
-} from "../lib/lightingChunks";
-import {
-  canBakeOffThread,
-  WorkerChunkBaker,
-} from "../lib/lightBakerClient";
+import { ChunkedLighting, LIGHT_WINDOW_MARGIN, type WorldRect } from "../lib/lightingChunks";
+import { canBakeOffThread, WorkerChunkBaker } from "../lib/lightBakerClient";
 import type { FramePhase, FrameProfiler } from "./frameProfile";
 import { wearsFlightTransition, type ProjectileView } from "./projectileMotion";
 import { projectileEffect } from "../lib/projectile";
@@ -142,22 +131,13 @@ import {
   reachInCells,
   type PxRect,
 } from "./debugView";
-import {
-  NO_PILE_OFFSET,
-  pileDepthNudge,
-  pileOffsets,
-  pileRings,
-} from "./pileLayout";
+import { NO_PILE_OFFSET, pileDepthNudge, pileOffsets, pileRings } from "./pileLayout";
 import { animationKey, type SpriteQuadAssets, spriteQuadFor } from "./spriteQuad";
 import { noTintUniforms, tintCacheKey, tintUniforms } from "./spriteTint";
 import type { StatusTint } from "../lib/statusVfx";
 import { ParticleLayer } from "./particleLayer";
 import type { ParticleEmitterSpec } from "./particles";
-import {
-  appendVisibleTileEmitters,
-  tileEmitterId,
-  tileEmitterPrefix,
-} from "./tileEmitters";
+import { appendVisibleTileEmitters, tileEmitterId, tileEmitterPrefix } from "./tileEmitters";
 import { PLAYER_TILE_ID } from "../game/constants";
 
 /**
@@ -635,17 +615,13 @@ function overlaySpecKey(spec: OverlaySpec): string {
  * answerable from the map: two people standing in one spot, one of them holding
  * a lantern, are the same six numbers and a different room.
  */
-function emitterOverridesKey(
-  overrides: EmitterOverride[] | undefined,
-): string {
+function emitterOverridesKey(overrides: EmitterOverride[] | undefined): string {
   if (!overrides?.length) return "";
   return overrides
     .map((o) => {
       const at = `${o.x},${o.y},${o.z}:${o.fx.toFixed(2)},${o.fy.toFixed(2)},${o.fz.toFixed(2)}`;
       if (!o.lights) return at;
-      const lit = o.lights
-        .map((l) => `${l.radius},${l.intensity},${l.color}`)
-        .join(",");
+      const lit = o.lights.map((l) => `${l.radius},${l.intensity},${l.color}`).join(",");
       return `${at}*${lit}`;
     })
     .join("|");
@@ -681,9 +657,7 @@ function emitterOverridesKey(
  * stopped omitting the one body that moves every single frame, which put a ~22ms
  * rebake on every step the player took.
  */
-export function dynamicLightTileIds(
-  tilesById: Record<string, TileDef>,
-): ReadonlySet<string> {
+export function dynamicLightTileIds(tilesById: Record<string, TileDef>): ReadonlySet<string> {
   const ids = new Set<string>();
   for (const def of Object.values(tilesById)) {
     // Light-passing is the load-bearing half and is checked first: omitting an
@@ -693,7 +667,6 @@ export function dynamicLightTileIds(
   }
   return ids;
 }
-
 
 /**
  * Changed cells on one level past which they stop being examined one by one.
@@ -857,9 +830,7 @@ function rectSignature(rect: WorldRect | null): string {
 }
 
 function sameRect(a: WorldRect | null, b: WorldRect): boolean {
-  return (
-    a !== null && a.x0 === b.x0 && a.y0 === b.y0 && a.x1 === b.x1 && a.y1 === b.y1
-  );
+  return a !== null && a.x0 === b.x0 && a.y0 === b.y0 && a.x1 === b.x1 && a.y1 === b.y1;
 }
 
 function disposeObject3D(obj: THREE.Object3D) {
@@ -1048,10 +1019,7 @@ export class WorldRenderer {
    */
   private projectileGroup: THREE.Group;
   private movableBasePos = new Map<string, { x: number; y: number }>();
-  private movableBaseBox = new Map<
-    string,
-    { box: DepthBox; stackBias: number }
-  >();
+  private movableBaseBox = new Map<string, { box: DepthBox; stackBias: number }>();
   /**
    * Extra draw of a descending mover under {@link TileMotion.alsoDrawAtZ}.
    * Geometry is cloned (not shared) so level dispose cannot free the source.
@@ -1310,12 +1278,7 @@ export class WorldRenderer {
     const out = this.visibleEmitters;
     out.length = 0;
     if (view.particleEmitters) out.push(...view.particleEmitters);
-    appendVisibleTileEmitters(
-      this.tileEmittersByLevel,
-      this.cameraWindow(view),
-      view.roofCut,
-      out,
-    );
+    appendVisibleTileEmitters(this.tileEmittersByLevel, this.cameraWindow(view), view.roofCut, out);
     appendTransitionEmitters(out, this.liveTransitions.values(), this.animClock);
     return out;
   }
@@ -1494,15 +1457,7 @@ export class WorldRenderer {
     color: number,
     { heavy = false, opacity = 1, depth = 0 }: DebugRectStyle,
   ) {
-    for (const line of makeRectOutline(
-      rect.x,
-      rect.y,
-      rect.w,
-      rect.h,
-      color,
-      heavy,
-      opacity,
-    )) {
+    for (const line of makeRectOutline(rect.x, rect.y, rect.w, rect.h, color, heavy, opacity)) {
       line.renderOrder += depth;
       this.debugWindows.add(line);
     }
@@ -1653,11 +1608,7 @@ export class WorldRenderer {
     const key = this.tileKey(spec);
     const source = this.movableMeshes.get(key);
     if (source) {
-      const outline = makeFollowingSpriteOutline(
-        source,
-        spec.color,
-        this.outlineMaterials,
-      );
+      const outline = makeFollowingSpriteOutline(source, spec.color, this.outlineMaterials);
       if (!outline) return [];
       this.followingOutlines.push({ outline, source });
       return [outline];
@@ -1690,7 +1641,6 @@ export class WorldRenderer {
       ),
     );
   }
-
 
   /**
    * Draw a tile that is not there, on top of the cell it would land in.
@@ -1762,21 +1712,13 @@ export class WorldRenderer {
     if (!u) return;
 
     const cut = this.roofCut;
-    const mask =
-      cut && cut.cells !== null && z > cut.floor
-        ? cutMaskFor(cut.cells.get(z))
-        : null;
+    const mask = cut && cut.cells !== null && z > cut.floor ? cutMaskFor(cut.cells.get(z)) : null;
     if (!mask) {
       u.uCutEnabled.value = 0;
       return;
     }
 
-    const texture = new THREE.DataTexture(
-      mask.data,
-      mask.w,
-      mask.h,
-      THREE.RedFormat,
-    );
+    const texture = new THREE.DataTexture(mask.data, mask.w, mask.h, THREE.RedFormat);
     texture.magFilter = THREE.NearestFilter;
     texture.minFilter = THREE.NearestFilter;
     // A row of a single-channel mask is `w` bytes and `w` is whatever the roof
@@ -2150,11 +2092,7 @@ export class WorldRenderer {
         // flight and nothing else is holding it. The holder survives the swap,
         // so a dissolve does not restart on a shot that crosses a storey.
         (entry.mesh.material as THREE.Material).dispose();
-        entry.mesh.material = this.transitionMaterial(
-          entry.texture,
-          view.z,
-          entry.uniforms,
-        );
+        entry.mesh.material = this.transitionMaterial(entry.texture, view.z, entry.uniforms);
       } else {
         entry.mesh.material = this.materialFor(entry.texture, view.z);
       }
@@ -2180,13 +2118,7 @@ export class WorldRenderer {
       depthBox(view.x, view.y, view.elevAbs, view.elevAbs + entry.def.height),
       depthStackBias(view.z, PROJECTILE_STACK_BIAS),
     );
-    writeLightUvAttr(
-      entry.mesh.geometry,
-      view.x,
-      view.y,
-      view.x + 1,
-      view.y + 1,
-    );
+    writeLightUvAttr(entry.mesh.geometry, view.x, view.y, view.x + 1, view.y + 1);
   }
 
   /**
@@ -2266,21 +2198,14 @@ export class WorldRenderer {
     return group;
   }
 
-  private ensureMotionGhost(
-    key: string,
-    source: THREE.Mesh,
-    z: number,
-  ): THREE.Mesh {
+  private ensureMotionGhost(key: string, source: THREE.Mesh, z: number): THREE.Mesh {
     const existing = this.motionGhosts.get(key);
     if (existing && existing.userData.drawOnZ === z) return existing;
     this.disposeMotionGhost(key);
 
     const mat = source.material as THREE.MeshBasicMaterial;
     const texture = mat.map ?? this.magentaTex;
-    const ghost = new THREE.Mesh(
-      source.geometry.clone(),
-      this.materialFor(texture, z),
-    );
+    const ghost = new THREE.Mesh(source.geometry.clone(), this.materialFor(texture, z));
     ghost.frustumCulled = false;
     ghost.matrixAutoUpdate = false;
     ghost.userData.drawOnZ = z;
@@ -2524,13 +2449,7 @@ export class WorldRenderer {
         side: THREE.DoubleSide,
       });
       mat.onBeforeCompile = (shader) => {
-        injectWorldShader(
-          shader,
-          lightUniforms,
-          tintU,
-          cutUniforms,
-          this.ensureAnimUniforms(z),
-        );
+        injectWorldShader(shader, lightUniforms, tintU, cutUniforms, this.ensureAnimUniforms(z));
       };
       mat.customProgramCacheKey = () => WORLD_SHADER_CACHE_KEY;
       this.materials.set(key, mat);
@@ -2626,11 +2545,7 @@ export class WorldRenderer {
       this.lightBaker?.dispose();
       this.lightBaker = null;
       if (canBakeOffThread()) {
-        this.lightBaker = new WorkerChunkBaker(
-          Object.values(view.tilesById),
-          dynamicIds,
-          view.map,
-        );
+        this.lightBaker = new WorkerChunkBaker(Object.values(view.tilesById), dynamicIds, view.map);
         this.lighting.setBaker(this.lightBaker);
       }
     }
@@ -2656,11 +2571,7 @@ export class WorldRenderer {
     // The animation clock is a bake input: a torch that flickers emits what its
     // live frame says it does, not what frame 0 said. Chunks no flicker reaches
     // are unaffected by it, so the clock alone never causes a bake.
-    const base = this.lighting.packedGridFor(
-      view.map,
-      this.lightWindow(view),
-      this.animClock,
-    );
+    const base = this.lighting.packedGridFor(view.map, this.lightWindow(view), this.animClock);
 
     // The dynamic emitters' own phase belongs in the key as well as the static
     // one. Their light is painted, not baked, so nothing about the grid or the
@@ -2668,9 +2579,7 @@ export class WorldRenderer {
     const overrides = this.withFadingLights(view, base);
     const overridesKey = [
       emitterOverridesKey(overrides),
-      ...this.flickeringDynamicDefs.map((def) =>
-        tileEmissionPhase(def, this.animClock),
-      ),
+      ...this.flickeringDynamicDefs.map((def) => tileEmissionPhase(def, this.animClock)),
     ].join("|");
     if (base === this.staticLightGrid && overridesKey === this.lightingKey) {
       return;
@@ -2684,13 +2593,7 @@ export class WorldRenderer {
     }
 
     this.uploadPackedGrid(
-      overlayEmitterOverridesPacked(
-        base,
-        view.map,
-        view.tilesById,
-        overrides,
-        this.animClock,
-      ),
+      overlayEmitterOverridesPacked(base, view.map, view.tilesById, overrides, this.animClock),
     );
   }
 
@@ -2740,10 +2643,7 @@ export class WorldRenderer {
       const a = this.pendingAmbient;
       u.uAmbient.value.set(a[0], a[1], a[2]);
     }
-    u.uLightOrigin.value.set(
-      level.x0 - LIGHT_MAP_CELL_OFFSET,
-      level.y0 - LIGHT_MAP_CELL_OFFSET,
-    );
+    u.uLightOrigin.value.set(level.x0 - LIGHT_MAP_CELL_OFFSET, level.y0 - LIGHT_MAP_CELL_OFFSET);
     u.uLightSize.value.set(level.w, level.h);
 
     let tex = this.lightTextures.get(z);
@@ -2763,7 +2663,6 @@ export class WorldRenderer {
     }
     u.uLightMap.value = tex;
   }
-
 
   /**
    * Throw away every mesh this class owns, so the next sync builds from nothing.
@@ -2886,11 +2785,7 @@ export class WorldRenderer {
    * so an edit in an unwatched corner of the world costs the walk and nothing
    * else.
    */
-  private dirtyChunks(
-    prev: MapFile,
-    next: MapFile,
-    wanted: ReadonlySet<string>,
-  ): Set<string> {
+  private dirtyChunks(prev: MapFile, next: MapFile, wanted: ReadonlySet<string>): Set<string> {
     const dirty = new Set<string>();
     if (prev === next) return dirty;
 
@@ -2923,10 +2818,7 @@ export class WorldRenderer {
         const { x, y } = parseCoordKey(key);
         const addr = chunkAddressKey(z, chunkKeyFor(x, y));
         if (!wanted.has(addr) || dirty.has(addr)) continue;
-        if (
-          this.mergedSignatureAt(prev, z, x, y) !==
-          this.mergedSignatureAt(next, z, x, y)
-        ) {
+        if (this.mergedSignatureAt(prev, z, x, y) !== this.mergedSignatureAt(next, z, x, y)) {
           dirty.add(addr);
         }
       }
@@ -2981,11 +2873,7 @@ export class WorldRenderer {
    * attribute each quad carries, resolved per fragment, so a mesh appended late
    * still sorts where it belongs.
    */
-  private patchChunkSeparates(
-    prev: MapFile,
-    next: MapFile,
-    entry: ChunkGeometry,
-  ) {
+  private patchChunkSeparates(prev: MapFile, next: MapFile, entry: ChunkGeometry) {
     const { z, chunk } = entry;
     const changed = changedCellsInChunk(prev, next, z, chunk);
     for (const key of changed) {
@@ -3087,10 +2975,7 @@ export class WorldRenderer {
         this.installSeparate(entry, item);
       } else {
         if (item.mergedAnim) {
-          item.animRow = animTable.add(
-            item.mergedAnim.frames,
-            item.mergedAnim.tileset,
-          );
+          item.animRow = animTable.add(item.mergedAnim.frames, item.mergedAnim.tileset);
           item.animPhaseMs = item.mergedAnim.phaseMs;
         }
         let list = staticByTex.get(item.texture);
@@ -3118,12 +3003,7 @@ export class WorldRenderer {
   }
 
   /** The merged-batch contribution of one cell, as a comparable string. */
-  private mergedSignatureAt(
-    map: MapFile,
-    z: number,
-    x: number,
-    y: number,
-  ): string {
+  private mergedSignatureAt(map: MapFile, z: number, x: number, y: number): string {
     let sig = "";
     for (const item of this.cellItems(map, z, x, y, getStack(map, x, y, z))) {
       if (item.anim || item.tileKey) continue;
@@ -3353,9 +3233,7 @@ export class WorldRenderer {
         x,
         y,
         boxFoot,
-        offsets.length > 1
-          ? Math.max(boxTop, boxFoot + DEPTH_LEAST_BODY)
-          : boxTop,
+        offsets.length > 1 ? Math.max(boxTop, boxFoot + DEPTH_LEAST_BODY) : boxTop,
       );
 
       // Anchored to the cell and sorted with the placement, which is the rule
@@ -3463,9 +3341,7 @@ export class WorldRenderer {
     // reconnects mid-transition can be handed an id it is still playing. Taking
     // it again would orphan the first one's meshes for good — and it is dropped
     // here, before the cap, so it cannot take a slot from a new one.
-    const heard = view.transitions?.filter(
-      (held) => !this.liveTransitions.has(held.note.id),
-    );
+    const heard = view.transitions?.filter((held) => !this.liveTransitions.has(held.note.id));
     if (!heard?.length) return;
     const window = this.meshedWindow;
     const admitted = admitTransitions(heard, {
@@ -3478,8 +3354,7 @@ export class WorldRenderer {
         note.struckBy
           ? projectileEffect(view.tilesById[note.struckBy], "hit")
           : transitionOf(view.tilesById[note.tileId], note.side),
-      inWindow: (note) =>
-        window !== null && cellInMeshWindow(window, note.x, note.y, note.z),
+      inWindow: (note) => window !== null && cellInMeshWindow(window, note.x, note.y, note.z),
     });
     for (const live of admitted) {
       const state: TransitionState = {
@@ -3493,9 +3368,7 @@ export class WorldRenderer {
         burst: null,
       };
       const played =
-        live.note.side === "appear"
-          ? this.markForming(state, view.map)
-          : this.playOutCopy(state);
+        live.note.side === "appear" ? this.markForming(state, view.map) : this.playOutCopy(state);
       if (played) this.liveTransitions.set(live.note.id, state);
     }
   }
@@ -3524,11 +3397,7 @@ export class WorldRenderer {
     // already holds has its chunk rebuilt now. Arriving together, the map
     // change this frame builds it right and this finds nothing to do.
     const prev = this.prevMap;
-    if (
-      prev &&
-      resolveTransitionSlot(getStack(prev, note.x, note.y, note.z), note) !==
-        undefined
-    ) {
+    if (prev && resolveTransitionSlot(getStack(prev, note.x, note.y, note.z), note) !== undefined) {
       this.queueChunkRebuild(note.x, note.y, note.z);
     }
     return true;
@@ -3829,10 +3698,7 @@ export class WorldRenderer {
    * still the one that holds its light. Painting the fade over that doubled
    * the light for exactly those frames — the room flared before it dimmed.
    */
-  private withFadingLights(
-    view: WorldView,
-    base: PackedLightGrid,
-  ): EmitterOverride[] | undefined {
+  private withFadingLights(view: WorldView, base: PackedLightGrid): EmitterOverride[] | undefined {
     let out: EmitterOverride[] | undefined;
     for (const { live, gridAtStart } of this.liveTransitions.values()) {
       if (live.note.side !== "disappear") continue;
@@ -3860,10 +3726,7 @@ export class WorldRenderer {
   }
 
   /** A transition's burst, anchored to the placement it plays on. */
-  private burstFor(
-    live: LiveTransition,
-    item: BuildItem,
-  ): ParticleEmitterSpec | null {
+  private burstFor(live: LiveTransition, item: BuildItem): ParticleEmitterSpec | null {
     const config = live.transition.particles;
     if (!config) return null;
     const { x, y, z } = live.note;

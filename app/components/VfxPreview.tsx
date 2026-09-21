@@ -130,9 +130,7 @@ export function VfxPreview({
 
   const options = useMemo(() => subjectOptions(tiles), [tiles]);
   const subject =
-    fixedSubject !== undefined
-      ? fixedSubject
-      : (tiles.find((t) => t.id === subjectId) ?? null);
+    fixedSubject !== undefined ? fixedSubject : (tiles.find((t) => t.id === subjectId) ?? null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -167,17 +165,12 @@ export function VfxPreview({
 
   useEffect(() => {
     if (!transitionPlay) return;
-    previewRef.current?.playTransition(
-      transitionPlay.transition,
-      transitionPlay.side,
-    );
+    previewRef.current?.playTransition(transitionPlay.transition, transitionPlay.side);
   }, [transitionPlay]);
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-[11px] font-bold uppercase text-muted">
-        As it will look
-      </span>
+      <span className="text-[11px] font-bold uppercase text-muted">As it will look</span>
       <canvas
         ref={canvasRef}
         className="aspect-square w-full max-w-[288px] border-2 border-border [image-rendering:pixelated]"
@@ -191,9 +184,7 @@ export function VfxPreview({
           struck. A caller that brought its own subject gets none. */}
       {fixedSubject === undefined ? (
         <label className="flex flex-col gap-0.5">
-          <span className="text-[11px] font-bold uppercase text-muted">
-            Drawn on
-          </span>
+          <span className="text-[11px] font-bold uppercase text-muted">Drawn on</span>
           <Select
             value={subjectId}
             onValueChange={(id) => setSubjectId(id ?? PLAYER_TILE_ID)}
@@ -207,9 +198,7 @@ export function VfxPreview({
         <>
           <label className="flex flex-col gap-0.5">
             <span className="text-[11px] font-bold uppercase text-muted">
-              {vfx.taperMs > 0
-                ? `Left to run · ${taper.toFixed(2)}`
-                : "Left to run · not set"}
+              {vfx.taperMs > 0 ? `Left to run · ${taper.toFixed(2)}` : "Left to run · not set"}
             </span>
             {/* Scrubbed rather than waited out: a fade an author had to sit
                 through thirty seconds of is a fade nobody would tune. Disabled
@@ -230,18 +219,12 @@ export function VfxPreview({
         </>
       ) : null}
       <label className="flex items-center gap-2">
-        <span className="text-[11px] font-bold uppercase text-muted">
-          Unlit room
-        </span>
-        <Switch
-          checked={night}
-          onCheckedChange={setNight}
-          ariaLabel="Unlit room"
-        />
+        <span className="text-[11px] font-bold uppercase text-muted">Unlit room</span>
+        <Switch checked={night} onCheckedChange={setNight} ariaLabel="Unlit room" />
       </label>
       <p className="max-w-[288px] text-[11px] leading-snug text-muted">
-        Through the same particles, the same tint shader and the same palette
-        quantise the world runs.
+        Through the same particles, the same tint shader and the same palette quantise the world
+        runs.
       </p>
       <p className="max-w-[288px] text-[11px] leading-snug text-muted">
         {night

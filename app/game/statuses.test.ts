@@ -205,17 +205,13 @@ describe("a cadence set by the body", () => {
   it("heals one every three seconds on a hundred-point body", () => {
     const held = applyStatus([], fed, new Rng(1));
     const bearer = { hp: 10, maxHp: 100, statuses: IN_COMBAT };
-    expect(runSeconds(held, 9, catalogue(fed), bearer).hpChanges).toEqual([
-      1, 1, 1,
-    ]);
+    expect(runSeconds(held, 9, catalogue(fed), bearer).hpChanges).toEqual([1, 1, 1]);
   });
 
   it("heals three every three seconds on a three-hundred-point body", () => {
     const held = applyStatus([], fed, new Rng(1));
     const bearer = { hp: 10, maxHp: 300, statuses: IN_COMBAT };
-    expect(runSeconds(held, 9, catalogue(fed), bearer).hpChanges).toEqual([
-      3, 3, 3,
-    ]);
+    expect(runSeconds(held, 9, catalogue(fed), bearer).hpChanges).toEqual([3, 3, 3]);
   });
 
   it("heals one every six seconds on a fifty-point body", () => {
@@ -248,10 +244,7 @@ describe("a cadence set by the body", () => {
       const healedBy = (seconds: number) => {
         const held = applyStatus([], fed, new Rng(1));
         const paid = runSeconds(held, seconds, catalogue(fed), bearer);
-        return paid.hpChanges.reduce(
-          (hp, amount) => Math.min(maxHp, hp + amount),
-          0,
-        );
+        return paid.hpChanges.reduce((hp, amount) => Math.min(maxHp, hp + amount), 0);
       };
       expect(healedBy(290)).toBeLessThan(maxHp);
       expect(healedBy(305)).toBe(maxHp);
@@ -262,13 +255,9 @@ describe("a cadence set by the body", () => {
   it("halves the period out of combat", () => {
     const held = applyStatus([], fed, new Rng(1));
     const calm = { hp: 10, maxHp: 100, statuses: [] };
-    expect(runSeconds(held, 6, catalogue(fed), calm).hpChanges).toEqual([
-      1, 1, 1, 1,
-    ]);
+    expect(runSeconds(held, 6, catalogue(fed), calm).hpChanges).toEqual([1, 1, 1, 1]);
     const fighting = { hp: 10, maxHp: 100, statuses: IN_COMBAT };
-    expect(runSeconds(held, 6, catalogue(fed), fighting).hpChanges).toEqual([
-      1, 1,
-    ]);
+    expect(runSeconds(held, 6, catalogue(fed), fighting).hpChanges).toEqual([1, 1]);
   });
 
   /**
@@ -299,7 +288,9 @@ describe("a cadence set by the body", () => {
       effects: { hp: "1" },
     });
     const held = applyStatus([], def, new Rng(1));
-    expect(runSeconds(held, 10, catalogue(def), { hp: 1, maxHp: 50, statuses: IN_COMBAT }).hpChanges).toEqual([]);
+    expect(
+      runSeconds(held, 10, catalogue(def), { hp: 1, maxHp: 50, statuses: IN_COMBAT }).hpChanges,
+    ).toEqual([]);
   });
 
   it("drops a status whose cadence is not a formula", () => {

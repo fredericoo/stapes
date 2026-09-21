@@ -81,10 +81,7 @@ function everyGapTwoWide(g: CellGrid): boolean {
 }
 
 /** Mean share of cells holding a tree within `band` of the rectangle's edge. */
-function treeShare(
-  g: CellGrid,
-  keep: (x: number, y: number) => boolean,
-): number {
+function treeShare(g: CellGrid, keep: (x: number, y: number) => boolean): number {
   let cells = 0;
   let trees = 0;
   for (let y = g.minY; y < g.minY + g.height; y++) {
@@ -153,8 +150,7 @@ describe("growForest", () => {
       const shares: number[] = [];
       for (let y = BOUNDS.minY; y + 3 <= BOUNDS.maxY; y += 4) {
         for (let x = BOUNDS.minX; x + 3 <= BOUNDS.maxX; x += 4) {
-          const window = (cx: number, cy: number) =>
-            cx >= x && cx < x + 4 && cy >= y && cy < y + 4;
+          const window = (cx: number, cy: number) => cx >= x && cx < x + 4 && cy >= y && cy < y + 4;
           let far = 0;
           for (let cy = y; cy < y + 4; cy++) {
             for (let cx = x; cx < x + 4; cx++) {
@@ -224,12 +220,7 @@ describe("growForest", () => {
     // trees would.
     const { grid } = growForest(BOUNDS, { ...BASE, density: 80 });
     const ring = (lo: number, hi: number) => (x: number, y: number) => {
-      const d = Math.min(
-        x - BOUNDS.minX,
-        BOUNDS.maxX - x,
-        y - BOUNDS.minY,
-        BOUNDS.maxY - y,
-      );
+      const d = Math.min(x - BOUNDS.minX, BOUNDS.maxX - x, y - BOUNDS.minY, BOUNDS.maxY - y);
       return d >= lo && d <= hi;
     };
     const edge = treeShare(grid, ring(0, 1));
@@ -242,12 +233,7 @@ describe("growForest", () => {
     const onEdge = [...path].filter((i) => {
       const x = (i % grid.width) + grid.minX;
       const y = Math.floor(i / grid.width) + grid.minY;
-      return (
-        x === BOUNDS.minX ||
-        x === BOUNDS.maxX ||
-        y === BOUNDS.minY ||
-        y === BOUNDS.maxY
-      );
+      return x === BOUNDS.minX || x === BOUNDS.maxX || y === BOUNDS.minY || y === BOUNDS.maxY;
     });
     // Both ends, so there is a way in and a way out.
     expect(onEdge.length).toBeGreaterThanOrEqual(2 * BASE.pathWidth);
@@ -256,9 +242,7 @@ describe("growForest", () => {
   it("plants more of the wood the higher the density", () => {
     const sparse = growForest(BOUNDS, { ...BASE, density: 20 });
     const thick = growForest(BOUNDS, { ...BASE, density: 90 });
-    expect(treeShare(thick.grid, () => true)).toBeGreaterThan(
-      treeShare(sparse.grid, () => true),
-    );
+    expect(treeShare(thick.grid, () => true)).toBeGreaterThan(treeShare(sparse.grid, () => true));
   });
 });
 
@@ -292,9 +276,7 @@ describe("planForest", () => {
       expect(ids(map, x, y)[0]).toBe("grass-2");
       cells++;
     });
-    expect(cells).toBe(
-      (RECT.x1 - RECT.x0 + 1) * (RECT.y1 - RECT.y0 + 1),
-    );
+    expect(cells).toBe((RECT.x1 - RECT.x0 + 1) * (RECT.y1 - RECT.y0 + 1));
   });
 
   it("lays the path on top of the ground rather than instead of it", () => {
@@ -368,9 +350,7 @@ describe("planForest", () => {
       });
       // The wood keeps its unreachable hollows, so what has to hold is that
       // everything the path could reach before the streams it can still reach.
-      const reached = regionsOf(grid, walkable).filter((region) =>
-        region.some((i) => path.has(i)),
-      );
+      const reached = regionsOf(grid, walkable).filter((region) => region.some((i) => path.has(i)));
       expect(reached).toHaveLength(1);
       expect(reached[0]!.length).toBeGreaterThan(100);
     }
@@ -416,8 +396,7 @@ describe("planForest", () => {
     for (let y = 0; y <= 25; y++) {
       for (let x = 0; x <= 51; x++) {
         const stack = ids(both, x, y);
-        grid.cells[gridIndex(grid, x, y)] =
-          stack.length > 0 && !stack.includes("tree") ? 1 : 0;
+        grid.cells[gridIndex(grid, x, y)] = stack.length > 0 && !stack.includes("tree") ? 1 : 0;
       }
     }
     // The wood keeps its unreachable hollows, so what has to hold is that the

@@ -3,17 +3,9 @@ import { MELEE_REACH, type Reach } from "../lib/item";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
 import { damageBand, swingIntervalMs } from "./combat";
-import {
-  type Equipment,
-  effectiveBattler,
-  handToSwing,
-} from "./equipment";
+import { type Equipment, effectiveBattler, handToSwing } from "./equipment";
 import { walkDurationMsFor } from "./movement";
-import {
-  type StatusInstance,
-  walkSpeedPercentFrom,
-  withStatusModifiers,
-} from "./statuses";
+import { type StatusInstance, walkSpeedPercentFrom, withStatusModifiers } from "./statuses";
 
 /**
  * What a body comes to, in the numbers a player can act on.
@@ -138,12 +130,7 @@ export function attributesOf({
     tilesById,
     handToSwing(equipment, tilesById, REPORTED_HAND),
   );
-  const stats = withStatusModifiers(
-    base,
-    statuses,
-    statusDefs,
-    hp ?? base.maxHp,
-  );
+  const stats = withStatusModifiers(base, statuses, statusDefs, hp ?? base.maxHp);
 
   // Through `damageBand` rather than probing the roll here, because an item's
   // card reports the same band for a weapon on the floor — see `./itemCard` —
@@ -164,9 +151,7 @@ export function attributesOf({
     // changed as you crossed a bog would be answering a question about the
     // floor. A step actually taken is timed with both — see `./movement`'s
     // `groundWalkSpeedPercent`, which is the caller's half of that sum.
-    walkPace:
-      1000 /
-      walkDurationMsFor(bodyDef, walkSpeedPercentFrom(statuses, statusDefs)),
+    walkPace: 1000 / walkDurationMsFor(bodyDef, walkSpeedPercentFrom(statuses, statusDefs)),
   };
 }
 
@@ -194,10 +179,7 @@ function shortReach(reach: Reach): string {
  * where nothing about the body moved. Every field is a primitive, which is what
  * makes this cheap enough to ask at that rate. @see Attributes
  */
-export function sameAttributes(
-  a: Attributes | null,
-  b: Attributes | null,
-): boolean {
+export function sameAttributes(a: Attributes | null, b: Attributes | null): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
   return (

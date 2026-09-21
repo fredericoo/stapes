@@ -28,13 +28,7 @@ import {
   stackHeight,
   terrainHeight,
 } from "../lib/mapData";
-import type {
-  Frame,
-  MapFile,
-  PlacedTile,
-  TileDef,
-  TilesetDef,
-} from "../lib/types";
+import type { Frame, MapFile, PlacedTile, TileDef, TilesetDef } from "../lib/types";
 import {
   CELL_SIZE,
   MAX_LEVEL,
@@ -50,12 +44,7 @@ import { cellPhaseMs, spriteRect } from "../lib/types";
 import { AnimationTable, NO_ANIMATION } from "../render/animTable";
 import { canPlace, canReplaceStack } from "../lib/validation";
 import { useEditorStore, type ToolId, type ZoomLevel } from "./store";
-import {
-  cameraAnchoredAtZoom,
-  panCameraByWheel,
-  pinchZoomSteps,
-  steppedZoom,
-} from "./camera";
+import { cameraAnchoredAtZoom, panCameraByWheel, pinchZoomSteps, steppedZoom } from "./camera";
 import type { EditorPerfMeasure, EditorPerfSnapshot } from "./perf";
 import { floodCoords, stacksEqual } from "./tools";
 import { activeConfig, planProcedural } from "./procedural";
@@ -71,10 +60,7 @@ import {
   injectWorldShader,
 } from "../render/worldQuads";
 import { noTintUniforms } from "../render/spriteTint";
-import {
-  createLevelFadeCompositeMaterial,
-  PalettePass,
-} from "../render/palettePass";
+import { createLevelFadeCompositeMaterial, PalettePass } from "../render/palettePass";
 import {
   OVERLAY_RENDER_ORDER,
   type SpriteMeshOptions,
@@ -200,11 +186,7 @@ function levelVisibility(
  * editor cropped off the screen with no way back to the canvas. Cancelled only
  * on the canvas, so the rest of the editor still magnifies.
  */
-const SAFARI_GESTURE_EVENTS = [
-  "gesturestart",
-  "gesturechange",
-  "gestureend",
-] as const;
+const SAFARI_GESTURE_EVENTS = ["gesturestart", "gesturechange", "gestureend"] as const;
 
 function preventDefault(e: Event) {
   e.preventDefault();
@@ -218,10 +200,7 @@ function midpointOf(
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
 
-function spreadOf(
-  a: { x: number; y: number },
-  b: { x: number; y: number },
-): number {
+function spreadOf(a: { x: number; y: number }, b: { x: number; y: number }): number {
   return Math.hypot(b.x - a.x, b.y - a.y);
 }
 
@@ -235,10 +214,7 @@ function disposeObject3D(obj: THREE.Object3D) {
 
 function percentile(sortedAsc: number[], p: number): number {
   if (sortedAsc.length === 0) return 0;
-  const idx = Math.min(
-    sortedAsc.length - 1,
-    Math.max(0, Math.ceil(p * sortedAsc.length) - 1),
-  );
+  const idx = Math.min(sortedAsc.length - 1, Math.max(0, Math.ceil(p * sortedAsc.length) - 1));
   return sortedAsc[idx]!;
 }
 
@@ -352,10 +328,7 @@ export class EditorRenderer {
     this.scene.add(this.overlays);
 
     this.compositeMaterial = createLevelFadeCompositeMaterial();
-    const quad = new THREE.Mesh(
-      new THREE.PlaneGeometry(2, 2),
-      this.compositeMaterial,
-    );
+    const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.compositeMaterial);
     quad.frustumCulled = false;
     this.compositeScene = new THREE.Scene();
     this.compositeScene.add(quad);
@@ -723,10 +696,7 @@ export class EditorRenderer {
 
   private uploadLevelLight(z: number, level: LevelLightMap) {
     const u = this.ensureLightUniforms(z);
-    u.uLightOrigin.value.set(
-      level.x0 - LIGHT_MAP_CELL_OFFSET,
-      level.y0 - LIGHT_MAP_CELL_OFFSET,
-    );
+    u.uLightOrigin.value.set(level.x0 - LIGHT_MAP_CELL_OFFSET, level.y0 - LIGHT_MAP_CELL_OFFSET);
     u.uLightSize.value.set(level.w, level.h);
 
     const rgba = new Uint8Array(level.w * level.h * 4);
@@ -772,10 +742,7 @@ export class EditorRenderer {
       const prevKey = this.rebuildKey;
       this.rebuildKey = key;
       // Full rebuild when tilesById count changed (defs loaded/replaced) or forced.
-      const tilesChanged =
-        forceRebuild ||
-        !prevKey ||
-        prevKey.split("|")[1] !== key.split("|")[1];
+      const tilesChanged = forceRebuild || !prevKey || prevKey.split("|")[1] !== key.split("|")[1];
       if (tilesChanged || this.prevMap === null) {
         this.rebuildAll();
       } else {
@@ -879,10 +846,7 @@ export class EditorRenderer {
       );
     }
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(points, 3),
-    );
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(points, 3));
     const mat = new THREE.LineBasicMaterial({
       color: 0x000000,
       transparent: true,
@@ -935,9 +899,7 @@ export class EditorRenderer {
     this.grid.updateMatrixWorld(true);
   }
 
-  private overlaySignature(
-    s: ReturnType<typeof useEditorStore.getState>,
-  ): string {
+  private overlaySignature(s: ReturnType<typeof useEditorStore.getState>): string {
     const h = s.hover;
     const sel = s.selected;
     const sp = s.shapePreview;
@@ -994,17 +956,11 @@ export class EditorRenderer {
     } else if (s.armedTileId) {
       const def = s.tilesById[s.armedTileId];
       if (def) {
-        brush =
-          isDirectional(def)
-            ? [{ tileId: def.id, direction: "s" }]
-            : [{ tileId: def.id }];
+        brush = isDirectional(def) ? [{ tileId: def.id, direction: "s" }] : [{ tileId: def.id }];
       }
     }
 
-    if (
-      s.hover &&
-      !(s.selected && s.hover.x === s.selected.x && s.hover.y === s.selected.y)
-    ) {
+    if (s.hover && !(s.selected && s.hover.x === s.selected.x && s.hover.y === s.selected.y)) {
       const origin = baseCellWorldOrigin(s.hover.x, s.hover.y, z, 0);
       addRectOutline(origin.x, origin.y, CELL_SIZE, CELL_SIZE, 0xffffff);
     }
@@ -1021,20 +977,11 @@ export class EditorRenderer {
       brush.forEach((placed, stackIndex) => {
         elev = footElevation(elev, placed);
         const def = s.tilesById[placed.tileId];
-        const quad = def
-          ? this.spriteQuad(placed, def, x, y, z, elev, s.map)
-          : null;
+        const quad = def ? this.spriteQuad(placed, def, x, y, z, elev, s.map) : null;
 
         if (!def || !quad) {
           const origin = baseCellWorldOrigin(x, y, z, elev);
-          addRectOutline(
-            origin.x,
-            origin.y,
-            CELL_SIZE,
-            CELL_SIZE,
-            0xff66ff,
-            true,
-          );
+          addRectOutline(origin.x, origin.y, CELL_SIZE, CELL_SIZE, 0xff66ff, true);
           return;
         }
 
@@ -1100,15 +1047,7 @@ export class EditorRenderer {
             // The ground floor keeps the site under it, and the site is already
             // on screen — ghosting it again only dims what is there.
             if (stackIndex >= already) {
-              const quad = this.spriteQuad(
-                placed,
-                def,
-                edit.x,
-                edit.y,
-                edit.z,
-                elev,
-                built,
-              );
+              const quad = this.spriteQuad(placed, def, edit.x, edit.y, edit.z, elev, built);
               if (quad) {
                 addSprite(quad, {
                   color: 0xffffff,
@@ -1184,12 +1123,7 @@ export class EditorRenderer {
             color: 0xffffff,
             opacity: GHOST_OPACITY,
             blending: THREE.NormalBlending,
-            renderOrder: drawOrder(
-              c.x,
-              c.y,
-              absoluteElevation(z, elev),
-              stackIndex,
-            ),
+            renderOrder: drawOrder(c.x, c.y, absoluteElevation(z, elev), stackIndex),
           });
         }
         elev += terrainHeight(placed, s.tilesById);
@@ -1207,15 +1141,10 @@ export class EditorRenderer {
       const { kind, x0, y0, x1, y1 } = s.shapePreview;
       // A generator draws its own ghost from its plan; it has no brush.
       if (kind === "procedural") return [];
-      return kind === "rect"
-        ? this.rectList(x0, y0, x1, y1)
-        : this.circleList(x0, y0, x1, y1);
+      return kind === "rect" ? this.rectList(x0, y0, x1, y1) : this.circleList(x0, y0, x1, y1);
     }
     const paints =
-      s.tool === "pencil" ||
-      s.tool === "rect" ||
-      s.tool === "circle" ||
-      s.tool === "bucket";
+      s.tool === "pencil" || s.tool === "rect" || s.tool === "circle" || s.tool === "bucket";
     if (paints && s.hover) return [s.hover];
     return [];
   }
@@ -1239,13 +1168,7 @@ export class EditorRenderer {
     elevation: number,
     map: MapFile,
   ): SpriteQuad | null {
-    return spriteQuadFor(
-      this.quadAssets(),
-      map,
-      { x, y, z, elevation },
-      placed,
-      def,
-    );
+    return spriteQuadFor(this.quadAssets(), map, { x, y, z, elevation }, placed, def);
   }
 
   private rectList(x0: number, y0: number, x1: number, y1: number) {
@@ -1697,13 +1620,10 @@ export class EditorRenderer {
   };
 
   private levelRenderTarget(): THREE.WebGLRenderTarget {
-    const { x: w, y: h } = this.renderer.getDrawingBufferSize(
-      this.drawBufferSize,
-    );
+    const { x: w, y: h } = this.renderer.getDrawingBufferSize(this.drawBufferSize);
     if (
       this.levelTarget &&
-      (!this.levelTarget.depthBuffer ||
-        this.levelTarget.texture.type !== THREE.UnsignedByteType)
+      (!this.levelTarget.depthBuffer || this.levelTarget.texture.type !== THREE.UnsignedByteType)
     ) {
       this.levelTarget.dispose();
       this.levelTarget = null;
@@ -1734,9 +1654,7 @@ export class EditorRenderer {
    * Authoring keeps the flat paper colour — as does preview with lighting off,
    * where black behind fully lit tiles would only read as a hole in the map.
    */
-  private backgroundFor(
-    s: ReturnType<typeof useEditorStore.getState>,
-  ): number {
+  private backgroundFor(s: ReturnType<typeof useEditorStore.getState>): number {
     if (!s.previewMode || !s.lighting.enabled) return BACKGROUND_COLOR;
     return VOID_BACKGROUND;
   }
@@ -1783,12 +1701,7 @@ export class EditorRenderer {
     const solid: THREE.Group[] = [];
     const ghosts: THREE.Group[] = [];
     for (const [z, group] of this.levelGroups) {
-      const visibility = levelVisibility(
-        z,
-        s.currentLevel,
-        s.showOtherLevels,
-        s.previewMode,
-      );
+      const visibility = levelVisibility(z, s.currentLevel, s.showOtherLevels, s.previewMode);
       if (visibility === "hidden") continue;
       (visibility === "solid" ? solid : ghosts).push(group);
     }
@@ -1800,8 +1713,7 @@ export class EditorRenderer {
       for (const g of solid) g.visible = false;
     }
 
-    const ghostImage =
-      ghosts.length > 0 ? this.renderGhostImage(ghosts) : null;
+    const ghostImage = ghosts.length > 0 ? this.renderGhostImage(ghosts) : null;
     this.world.visible = false;
 
     // Quantise before the ghosts and the chrome: outlines keep their exact
@@ -1850,14 +1762,7 @@ export class EditorRenderer {
     const s = useEditorStore.getState();
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
-    return screenToCoord(
-      screenX,
-      screenY,
-      s.zoom,
-      s.camera.x,
-      s.camera.y,
-      s.currentLevel,
-    );
+    return screenToCoord(screenX, screenY, s.zoom, s.camera.x, s.camera.y, s.currentLevel);
   }
 
   private bindEvents() {
@@ -1891,8 +1796,7 @@ export class EditorRenderer {
       target instanceof HTMLTextAreaElement ||
       (target instanceof HTMLElement && target.isContentEditable);
     const inChrome =
-      target instanceof Element &&
-      Boolean(target.closest("button, a, [role='button'], select"));
+      target instanceof Element && Boolean(target.closest("button, a, [role='button'], select"));
 
     if (e.code === "Space") {
       if (inField || inChrome) return;
@@ -1912,12 +1816,7 @@ export class EditorRenderer {
     }
     if (e.code === "Backspace" || e.code === "Delete") {
       if (!store.selected) return;
-      const stack = getStack(
-        store.map,
-        store.selected.x,
-        store.selected.y,
-        store.currentLevel,
-      );
+      const stack = getStack(store.map, store.selected.x, store.selected.y, store.currentLevel);
       if (stack.length === 0) return;
       e.preventDefault();
       store.removeFromStack(stack.length - 1);
@@ -2018,9 +1917,7 @@ export class EditorRenderer {
 
     const zoom = steppedZoom(store.zoom, whole);
     if (zoom === store.zoom) return zoom;
-    store.setCamera(
-      cameraAnchoredAtZoom(store.camera, this.toLocal(anchor), store.zoom, zoom),
-    );
+    store.setCamera(cameraAnchoredAtZoom(store.camera, this.toLocal(anchor), store.zoom, zoom));
     store.setZoom(zoom);
     return zoom;
   }
@@ -2181,27 +2078,12 @@ export class EditorRenderer {
         useEditorStore.setState({ lastToast: "No tile armed" });
         return;
       }
-      const target = getStack(
-        store.map,
-        coord.x,
-        coord.y,
-        store.currentLevel,
-      );
+      const target = getStack(store.map, coord.x, coord.y, store.currentLevel);
       if (store.selected) {
-        const source = getStack(
-          store.map,
-          store.selected.x,
-          store.selected.y,
-          store.currentLevel,
-        );
+        const source = getStack(store.map, store.selected.x, store.selected.y, store.currentLevel);
         if (stacksEqual(source, target)) return;
       }
-      const coords = floodCoords(
-        store.map,
-        coord.x,
-        coord.y,
-        store.currentLevel,
-      );
+      const coords = floodCoords(store.map, coord.x, coord.y, store.currentLevel);
       if (coords.length === 0) {
         // Blank cells only flood inside an enclosure; the open world has no
         // edge to stop at, so say why nothing happened rather than looking dead.
@@ -2309,9 +2191,7 @@ export class EditorRenderer {
         }
       } else {
         const coords =
-          kind === "rect"
-            ? this.rectList(x0, y0, x1, y1)
-            : this.circleList(x0, y0, x1, y1);
+          kind === "rect" ? this.rectList(x0, y0, x1, y1) : this.circleList(x0, y0, x1, y1);
         const result = store.stampMany(coords);
         if (result.skipped > 0) {
           useEditorStore.setState({

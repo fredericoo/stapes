@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  DEFAULT_CONSUMABLE,
-  DEFAULT_CONTAINER,
-  DEFAULT_WEAPON,
-} from "../lib/item";
+import { DEFAULT_CONSUMABLE, DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
@@ -83,9 +79,10 @@ describe("itemUseFor", () => {
   });
 
   it("puts away the weapon already in hand", () => {
-    expect(
-      itemUseFor(instance("sword"), { kind: "weapon" }, tilesById, kit()),
-    ).toEqual({ type: "move", to: { kind: "contents", index: 0 } });
+    expect(itemUseFor(instance("sword"), { kind: "weapon" }, tilesById, kit())).toEqual({
+      type: "move",
+      to: { kind: "contents", index: 0 },
+    });
   });
 
   it("wears armour from wherever it is", () => {
@@ -102,15 +99,16 @@ describe("itemUseFor", () => {
   });
 
   it("takes off what is already worn", () => {
-    expect(
-      itemUseFor(instance("mail"), { kind: "armor" }, tilesById, kit()),
-    ).toEqual({ type: "move", to: { kind: "contents", index: 0 } });
+    expect(itemUseFor(instance("mail"), { kind: "armor" }, tilesById, kit())).toEqual({
+      type: "move",
+      to: { kind: "contents", index: 0 },
+    });
   });
 
   it("opens the bag on your back", () => {
-    expect(
-      itemUseFor(instance("bag"), { kind: "bag" }, tilesById, kit()),
-    ).toEqual({ type: "open" });
+    expect(itemUseFor(instance("bag"), { kind: "bag" }, tilesById, kit())).toEqual({
+      type: "open",
+    });
   });
 
   /**
@@ -130,12 +128,7 @@ describe("itemUseFor", () => {
   // slot *inside* a box, and nothing that goes there is one.
   it("does nothing with a container in a slot inside another container", () => {
     expect(
-      itemUseFor(
-        instance("chest"),
-        { kind: "ground", ref: GROUND, index: 0 },
-        tilesById,
-        kit(),
-      ),
+      itemUseFor(instance("chest"), { kind: "ground", ref: GROUND, index: 0 }, tilesById, kit()),
     ).toBeNull();
   });
 
@@ -154,23 +147,13 @@ describe("itemUseFor", () => {
 
   it("does nothing with a thing that is not for anything yet", () => {
     expect(
-      itemUseFor(
-        instance("sign"),
-        { kind: "contents", index: 0 },
-        tilesById,
-        kit(),
-      ),
+      itemUseFor(instance("sign"), { kind: "contents", index: 0 }, tilesById, kit()),
     ).toBeNull();
   });
 
   it("does nothing with a tile that is not in the catalogue", () => {
     expect(
-      itemUseFor(
-        instance("ghost"),
-        { kind: "contents", index: 0 },
-        tilesById,
-        kit(),
-      ),
+      itemUseFor(instance("ghost"), { kind: "contents", index: 0 }, tilesById, kit()),
     ).toBeNull();
   });
 });
@@ -191,29 +174,22 @@ describe("a tap on a light", () => {
   const sword = { id: "itm_sword", tileId: "rusty-sword" };
 
   it("sends a lantern to the accessory square rather than to a hand", () => {
-    expect(
-      itemUseFor(lantern, { kind: "contents", index: 0 }, shipped, kit()),
-    ).toEqual({ type: "move", to: { kind: "charm" } });
+    expect(itemUseFor(lantern, { kind: "contents", index: 0 }, shipped, kit())).toEqual({
+      type: "move",
+      to: { kind: "charm" },
+    });
   });
 
   // The whole point of the square being first rather than only: a lamp you
   // cannot wear is still a lamp you can hold up.
   it("falls back to the off hand when the accessory square is taken", () => {
     expect(
-      itemUseFor(
-        lantern,
-        { kind: "contents", index: 0 },
-        shipped,
-        kit({ charm: amulet }),
-      ),
+      itemUseFor(lantern, { kind: "contents", index: 0 }, shipped, kit({ charm: amulet })),
     ).toEqual({ type: "move", to: { kind: "offhand" } });
   });
 
   it("takes it back off again from either square it belongs in", () => {
-    for (const slot of [
-      { kind: "charm" } as const,
-      { kind: "offhand" } as const,
-    ]) {
+    for (const slot of [{ kind: "charm" } as const, { kind: "offhand" } as const]) {
       const kitWithIt = kit({ [slot.kind]: lantern });
       const use = itemUseFor(lantern, slot, shipped, kitWithIt);
       expect(use?.type === "move" && use.to.kind).toBe("contents");
@@ -221,9 +197,10 @@ describe("a tap on a light", () => {
   });
 
   it("still sends a sword to the hand that swings", () => {
-    expect(
-      itemUseFor(sword, { kind: "contents", index: 0 }, shipped, kit()),
-    ).toEqual({ type: "move", to: { kind: "weapon" } });
+    expect(itemUseFor(sword, { kind: "contents", index: 0 }, shipped, kit())).toEqual({
+      type: "move",
+      to: { kind: "weapon" },
+    });
   });
 });
 
@@ -242,12 +219,7 @@ describe("a tap on a second weapon", () => {
 
   it("fills the free hand rather than displacing the weapon already held", () => {
     expect(
-      itemUseFor(
-        sword,
-        { kind: "contents", index: 1 },
-        shipped,
-        kit({ weapon: bow }),
-      ),
+      itemUseFor(sword, { kind: "contents", index: 1 }, shipped, kit({ weapon: bow })),
     ).toEqual({ type: "move", to: { kind: "offhand" } });
   });
 

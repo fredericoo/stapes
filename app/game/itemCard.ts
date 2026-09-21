@@ -325,10 +325,7 @@ function durationOf(grant: StatusGrant, def: StatusDef): string {
  * to say it in. Both name an arm's length rather than measuring it, and both
  * state a floor as a span; only this one has room for the arrow.
  */
-function reachLine(thing: {
-  reach?: Reach;
-  projectile?: string;
-}): string {
+function reachLine(thing: { reach?: Reach; projectile?: string }): string {
   const reach = reachOf(thing);
   const far = reach.min ? `${reach.min}–${reach.cells}` : `${reach.cells}`;
   if (isRanged(thing)) return `${far} cells, fired`;
@@ -396,15 +393,11 @@ function requirementsFrom(
     const have = masteryLevel(masteries, mastery);
     rows.push({ mastery, required, have, met: have >= required });
   }
-  const missing = (row: ItemCardRequirement) =>
-    Math.max(0, row.required - row.have);
+  const missing = (row: ItemCardRequirement) => Math.max(0, row.required - row.have);
   return rows.sort((a, b) => missing(b) - missing(a));
 }
 
-function weaponStats(
-  weapon: WeaponItem,
-  masteries: BattlerDef["masteries"],
-): ItemCardStat[] {
+function weaponStats(weapon: WeaponItem, masteries: BattlerDef["masteries"]): ItemCardStat[] {
   // Through the engine rather than restated here: see the module doc. Both
   // profiles come out of the same function so the comparison cannot be between
   // two different definitions of what a weapon is worth.
@@ -617,10 +610,7 @@ function charmStats(charm: CharmItem): ItemCardStat[] {
   return stats;
 }
 
-function containerStats(
-  container: ContainerItem,
-  instance: ItemInstance | null,
-): ItemCardStat[] {
+function containerStats(container: ContainerItem, instance: ItemInstance | null): ItemCardStat[] {
   const used = instance?.contents?.length ?? 0;
   return [
     {
@@ -925,9 +915,7 @@ function sentenceCase(label: string): string {
 
 /** The card as sentences, in the order it is drawn. */
 function speak(card: ItemCard): string {
-  const lines: string[] = [
-    card.count === null ? card.name : `${card.name}, ${card.count} of them`,
-  ];
+  const lines: string[] = [card.count === null ? card.name : `${card.name}, ${card.count} of them`];
   if (card.kind) lines.push(card.kind);
   if (card.elements.length > 0) {
     lines.push(`Attuned to ${card.elements.join(" and ")}`);
@@ -958,9 +946,7 @@ function speak(card: ItemCard): string {
     );
   }
   for (const row of card.requirements) {
-    lines.push(
-      `Requires ${MASTERY_LABELS[row.mastery]} ${row.required}, you have ${row.have}`,
-    );
+    lines.push(`Requires ${MASTERY_LABELS[row.mastery]} ${row.required}, you have ${row.have}`);
   }
   for (const effect of card.effects) {
     lines.push(

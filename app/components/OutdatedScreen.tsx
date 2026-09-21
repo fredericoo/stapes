@@ -33,8 +33,7 @@ import { PROTOCOL_VERSION } from "../net/protocol";
  * The system's own monospace. @see LoadingScreen, which explains why the theme's
  * face is not an option here.
  */
-const SYSTEM_MONO =
-  'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace';
+const SYSTEM_MONO = 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace';
 
 export function OutdatedScreen({
   serverVersion,
@@ -47,8 +46,7 @@ export function OutdatedScreen({
    */
   serverVersion: number | null;
 }) {
-  const serverBehind =
-    serverVersion !== null && serverVersion < PROTOCOL_VERSION;
+  const serverBehind = serverVersion !== null && serverVersion < PROTOCOL_VERSION;
 
   return (
     <div

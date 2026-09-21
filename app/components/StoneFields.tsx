@@ -27,12 +27,7 @@ import {
   MIN_MASTERY,
   spellElements,
 } from "../lib/mastery";
-import {
-  beats,
-  EFFECTIVENESS_EDGE,
-  type Element,
-  ELEMENTS,
-} from "../lib/element";
+import { beats, EFFECTIVENESS_EDGE, type Element, ELEMENTS } from "../lib/element";
 import type { StatusDef } from "../lib/status";
 import { projectileTiles, resolveProjectile } from "../lib/projectile";
 import type { TileDef } from "../lib/types";
@@ -141,8 +136,7 @@ export function StoneFields({
   // authored block and the schema's default has not run on it, so a stone that
   // has never had a reach written on it reads as `undefined` here.
   const reach = reachOf(stone);
-  const patchReach = (fields: Partial<Reach>) =>
-    onChange({ reach: { ...reach, ...fields } });
+  const patchReach = (fields: Partial<Reach>) => onChange({ reach: { ...reach, ...fields } });
 
   // **Every tile in the catalogue, unfiltered.** There is no property that makes
   // one conjurable — a flame, a wall, a puddle of blood are all placements, and
@@ -158,11 +152,8 @@ export function StoneFields({
   // 8-way tile can point where it is going. The one already picked is kept
   // whatever it is, so a tile that has since changed type is not silently
   // dropped out from under an author — the same tolerance `WeaponFields` shows.
-  const boltProjectile =
-    stone.effect.kind === "bolt" ? stone.effect.projectile : undefined;
-  const thrown = resolveProjectile(
-    tiles.find((tile) => tile.id === boltProjectile),
-  );
+  const boltProjectile = stone.effect.kind === "bolt" ? stone.effect.projectile : undefined;
+  const thrown = resolveProjectile(tiles.find((tile) => tile.id === boltProjectile));
   // Every projectile tile, plus whatever this stone already names even if the
   // catalogue has since changed its mind about it — an id silently dropped from
   // the picker is an author being told their bolt does not exist while it sits
@@ -315,9 +306,7 @@ export function StoneFields({
           value={Math.round(stone.cooldownMs / MS_PER_SECOND)}
           min={MIN_STONE_COOLDOWN_MS / MS_PER_SECOND}
           max={MAX_STONE_COOLDOWN_MS / MS_PER_SECOND}
-          onChange={(seconds) =>
-            onChange({ cooldownMs: seconds * MS_PER_SECOND })
-          }
+          onChange={(seconds) => onChange({ cooldownMs: seconds * MS_PER_SECOND })}
           readout={describeCooldown(stone.cooldownMs)}
         />
         <StatField
@@ -336,9 +325,7 @@ export function StoneFields({
           onChange={(seconds) =>
             onChange({
               castTimeMs:
-                seconds > 0
-                  ? Math.max(MIN_CAST_TIME_MS, seconds * MS_PER_SECOND)
-                  : undefined,
+                seconds > 0 ? Math.max(MIN_CAST_TIME_MS, seconds * MS_PER_SECOND) : undefined,
             })
           }
           readout={describeCastTime(stone.castTimeMs)}
@@ -408,9 +395,7 @@ export function StoneFields({
         </FieldLabel>
         <ElementReading
           elements={spellElements(stone.requirements)}
-          harms={
-            stone.effect.kind !== "bolt" || (stone.effect.damage ?? 0) > 0
-          }
+          harms={stone.effect.kind !== "bolt" || (stone.effect.damage ?? 0) > 0}
         />
         <div className="flex flex-wrap gap-4">
           {MASTERIES.map((mastery) => (
@@ -448,9 +433,7 @@ export function StoneFields({
  */
 function describeBolt(damage: number | undefined): string {
   if (!damage) return "Moves no health — only what it leaves.";
-  return damage < 0
-    ? `Mends ${-damage} health.`
-    : `Harms for ${damage}, before armour.`;
+  return damage < 0 ? `Mends ${-damage} health.` : `Harms for ${damage}, before armour.`;
 }
 
 /**
@@ -526,31 +509,24 @@ function ElementReading({
 }) {
   if (elements.length === 0) return null;
 
-  const strong = ELEMENTS.filter((against) =>
-    elements.some((element) => beats(element, against)),
-  );
+  const strong = ELEMENTS.filter((against) => elements.some((element) => beats(element, against)));
   const weak = ELEMENTS.filter(
-    (against) =>
-      !strong.includes(against) &&
-      elements.some((element) => beats(against, element)),
+    (against) => !strong.includes(against) && elements.some((element) => beats(against, element)),
   );
-  const named = (list: Element[]) =>
-    list.map((element) => MASTERY_LABELS[element]).join(", ");
+  const named = (list: Element[]) => list.map((element) => MASTERY_LABELS[element]).join(", ");
   const edge = Math.round((EFFECTIVENESS_EDGE - 1) * 100);
 
   if (!harms) {
     return (
       <p className="text-[11px] leading-snug text-muted">
-        A <strong>{named(elements)}</strong> spell. A mend is never weighed on
-        the wheel.
+        A <strong>{named(elements)}</strong> spell. A mend is never weighed on the wheel.
       </p>
     );
   }
 
   return (
     <p className="text-[11px] leading-snug text-muted">
-      A <strong>{named(elements)}</strong> spell: {edge}% harder on{" "}
-      {named(strong)} bodies
+      A <strong>{named(elements)}</strong> spell: {edge}% harder on {named(strong)} bodies
       {weak.length > 0 ? <>, softer on {named(weak)}</> : null}.
     </p>
   );

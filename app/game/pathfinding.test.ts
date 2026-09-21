@@ -177,11 +177,7 @@ describe("crossing open ground", () => {
   it("walks straight at somebody, stopping beside them", () => {
     const map = field(6);
 
-    expect(walked(route(map, standing(0, 0), { x: 4, y: 0, z: 0 }))).toEqual([
-      "e",
-      "e",
-      "e",
-    ]);
+    expect(walked(route(map, standing(0, 0), { x: 4, y: 0, z: 0 }))).toEqual(["e", "e", "e"]);
   });
 
   /**
@@ -199,7 +195,12 @@ describe("crossing open ground", () => {
   it("gives up on somebody who has left the board's walkable part", () => {
     let map = field(4);
     // Ringed in, with the target sealed inside.
-    for (const [x, y] of [[3, 0], [5, 0], [4, 1], [4, -1]]) {
+    for (const [x, y] of [
+      [3, 0],
+      [5, 0],
+      [4, 1],
+      [4, -1],
+    ]) {
       map = put(map, x!, y!, "wall");
     }
 
@@ -227,9 +228,12 @@ describe("arriving beside, or on", () => {
     const goal = { x: 4, y: 0, z: 0 };
 
     expect(walked(route(map, standing(0, 0), goal))).toEqual(["e", "e", "e"]);
-    expect(
-      walked(route(map, standing(0, 0), goal, { arrive: "on" })),
-    ).toEqual(["e", "e", "e", "e"]);
+    expect(walked(route(map, standing(0, 0), goal, { arrive: "on" }))).toEqual([
+      "e",
+      "e",
+      "e",
+      "e",
+    ]);
   });
 
   it("still has a step to walk when it is merely beside the cell", () => {
@@ -238,17 +242,13 @@ describe("arriving beside, or on", () => {
 
     // The case the two modes disagree about most sharply: arrived, and not.
     expect(route(map, standing(0, 0), goal)).toEqual([]);
-    expect(walked(route(map, standing(0, 0), goal, { arrive: "on" }))).toEqual([
-      "e",
-    ]);
+    expect(walked(route(map, standing(0, 0), goal, { arrive: "on" }))).toEqual(["e"]);
   });
 
   it("has nothing to walk when it is already standing there", () => {
     const map = field(4);
 
-    expect(
-      route(map, standing(0, 0), { x: 0, y: 0, z: 0 }, { arrive: "on" }),
-    ).toEqual([]);
+    expect(route(map, standing(0, 0), { x: 0, y: 0, z: 0 }, { arrive: "on" })).toEqual([]);
   });
 
   it("refuses a cell nothing can stand in, next to one anybody can", () => {
@@ -321,9 +321,7 @@ describe("heights", () => {
   it("steps up half a level without going round", () => {
     const map = put(field(4), 1, 0, "step");
 
-    expect(walked(route(map, standing(0, 0), { x: 2, y: 0, z: 0 }))).toEqual([
-      "e",
-    ]);
+    expect(walked(route(map, standing(0, 0), { x: 2, y: 0, z: 0 }))).toEqual(["e"]);
   });
 
   it("walks round a full level rather than scaling it", () => {
@@ -377,15 +375,18 @@ function plateau(): MapFile {
  */
 describe("ledges", () => {
   it("refuses a ledge by default, and stays up there", () => {
-    expect(
-      route(plateau(), standing(0, 0, 1, 0), { x: 5, y: 0, z: 0 }),
-    ).toBeNull();
+    expect(route(plateau(), standing(0, 0, 1, 0), { x: 5, y: 0, z: 0 })).toBeNull();
   });
 
   it("takes the ledge when the action allows it, landing where it falls", () => {
-    const path = route(plateau(), standing(0, 0, 1, 0), { x: 5, y: 0, z: 0 }, {
-      drops: "anywhere",
-    });
+    const path = route(
+      plateau(),
+      standing(0, 0, 1, 0),
+      { x: 5, y: 0, z: 0 },
+      {
+        drops: "anywhere",
+      },
+    );
 
     expect(walked(path)).toEqual(["e", "e", "e", "e"]);
     // Two legs along the roof, then off it — and the search carries on from the
@@ -418,10 +419,15 @@ describe("a drop that has to be the destination", () => {
 
   it("steps off the ledge when the landing is the cell asked for", () => {
     // Where a body stepping off the east end of the plateau comes down.
-    const path = route(plateau(), standing(0, 0, 1, 0), { x: 3, y: 0, z: 0 }, {
-      drops: "toGoal",
-      arrive: "on",
-    });
+    const path = route(
+      plateau(),
+      standing(0, 0, 1, 0),
+      { x: 3, y: 0, z: 0 },
+      {
+        drops: "toGoal",
+        arrive: "on",
+      },
+    );
 
     expect(walked(path)).toEqual(["e", "e", "e"]);
     expect(path?.map((step) => step.to.z)).toEqual([1, 1, 0]);
@@ -432,10 +438,15 @@ describe("a drop that has to be the destination", () => {
     // rather than the way down to what was asked for. There is no other way off
     // the plateau, so there is no route at all.
     expect(
-      route(plateau(), standing(0, 0, 1, 0), { x: 5, y: 0, z: 0 }, {
-        drops: "toGoal",
-        arrive: "on",
-      }),
+      route(
+        plateau(),
+        standing(0, 0, 1, 0),
+        { x: 5, y: 0, z: 0 },
+        {
+          drops: "toGoal",
+          arrive: "on",
+        },
+      ),
     ).toBeNull();
   });
 
@@ -444,18 +455,28 @@ describe("a drop that has to be the destination", () => {
    * are routes and only one of them is the one somebody asked for.
    */
   it("walks the long way down rather than stepping off on the way past", () => {
-    const shortcut = route(stairs(), standing(0, 0, 1, 0), { x: 0, y: -2, z: 0 }, {
-      drops: "anywhere",
-      arrive: "on",
-    });
+    const shortcut = route(
+      stairs(),
+      standing(0, 0, 1, 0),
+      { x: 0, y: -2, z: 0 },
+      {
+        drops: "anywhere",
+        arrive: "on",
+      },
+    );
     // Off the north edge and one step on: strictly shorter, and not what a
     // player clicking a cell two along from themselves meant.
     expect(walked(shortcut)).toEqual(["n", "n"]);
 
-    const path = route(stairs(), standing(0, 0, 1, 0), { x: 0, y: -2, z: 0 }, {
-      drops: "toGoal",
-      arrive: "on",
-    });
+    const path = route(
+      stairs(),
+      standing(0, 0, 1, 0),
+      { x: 0, y: -2, z: 0 },
+      {
+        drops: "toGoal",
+        arrive: "on",
+      },
+    );
 
     // East along the shelf to the step, down it, and back round underneath.
     expect(walked(path)?.[0]).toBe("e");
@@ -532,10 +553,7 @@ describe("a cell that fires when you land on it", () => {
   describe("a flame the walker conjured", () => {
     /** The same flame in the same cell, laid down by whoever is named. */
     function litBy(castBy: string): MapFile {
-      return replaceStack(field(6), 1, 0, 0, [
-        { tileId: "grass" },
-        { tileId: "flame", castBy },
-      ]);
+      return replaceStack(field(6), 1, 0, 0, [{ tileId: "grass" }, { tileId: "flame", castBy }]);
     }
 
     function legs(map: MapFile, who?: string): Direction[] | null {
@@ -577,8 +595,7 @@ describe("a cell that fires when you land on it", () => {
     expect(route(map, standing(0, 0), { x: 3, y: 0, z: 0 })).toBeNull();
     // And the same board with the flame taken out is a way through, so the
     // refusal above is this rule rather than the wall.
-    expect(route(put(map, 1, 0, "grass"), standing(0, 0), { x: 3, y: 0, z: 0 }))
-      .not.toBeNull();
+    expect(route(put(map, 1, 0, "grass"), standing(0, 0), { x: 3, y: 0, z: 0 })).not.toBeNull();
   });
 
   /**
@@ -589,9 +606,7 @@ describe("a cell that fires when you land on it", () => {
   it("steps onto the cell that was asked for", () => {
     const map = inTheWay("portal");
 
-    const legs = walked(
-      route(map, standing(0, 0), { x: 1, y: 0, z: 0 }, { arrive: "on" }),
-    );
+    const legs = walked(route(map, standing(0, 0), { x: 1, y: 0, z: 0 }, { arrive: "on" }));
 
     expect(legs).toEqual(["e"]);
   });
@@ -599,9 +614,7 @@ describe("a cell that fires when you land on it", () => {
   it("steps into a flame that was asked for", () => {
     const map = inTheWay("flame");
 
-    const legs = walked(
-      route(map, standing(0, 0), { x: 1, y: 0, z: 0 }, { arrive: "on" }),
-    );
+    const legs = walked(route(map, standing(0, 0), { x: 1, y: 0, z: 0 }, { arrive: "on" }));
 
     expect(legs).toEqual(["e"]);
   });
@@ -644,10 +657,15 @@ describe("a cell that fires when you land on it", () => {
     }
 
     it("drops in somewhere else along the trench instead", () => {
-      const legs = route(trench("flame"), standing(0, 0, 1, 0), { x: 4, y: 0, z: 0 }, {
-        arrive: "on",
-        drops: "anywhere",
-      });
+      const legs = route(
+        trench("flame"),
+        standing(0, 0, 1, 0),
+        { x: 4, y: 0, z: 0 },
+        {
+          arrive: "on",
+          drops: "anywhere",
+        },
+      );
 
       expect(legs).not.toBeNull();
       // Every way in but the near one, which is the one with the fire at the
@@ -656,10 +674,15 @@ describe("a cell that fires when you land on it", () => {
     });
 
     it("takes the same drop when the flame is what was asked for", () => {
-      const legs = route(trench("flame"), standing(0, 0, 1, 0), { x: 2, y: 0, z: 0 }, {
-        arrive: "on",
-        drops: "toGoal",
-      });
+      const legs = route(
+        trench("flame"),
+        standing(0, 0, 1, 0),
+        { x: 2, y: 0, z: 0 },
+        {
+          arrive: "on",
+          drops: "toGoal",
+        },
+      );
 
       // A flame at the bottom of a hole somebody pointed into is a flame they
       // pointed at. @see avoidRule
@@ -667,10 +690,15 @@ describe("a cell that fires when you land on it", () => {
     });
 
     it("drops straight in when the bottom is bare ground", () => {
-      const legs = route(trench("grass"), standing(0, 0, 1, 0), { x: 4, y: 0, z: 0 }, {
-        arrive: "on",
-        drops: "anywhere",
-      });
+      const legs = route(
+        trench("grass"),
+        standing(0, 0, 1, 0),
+        { x: 4, y: 0, z: 0 },
+        {
+          arrive: "on",
+          drops: "anywhere",
+        },
+      );
 
       expect(legs!.map((leg) => leg.to)).toContainEqual({ x: 2, y: 0, z: 0 });
     });
@@ -686,9 +714,14 @@ describe("how far out of its way", () => {
   }
 
   it("rounds a screen it can get past in a few extra steps", () => {
-    const path = route(screen(2), standing(0, 0), { x: 2, y: 0, z: 0 }, {
-      maxNodes: 400,
-    });
+    const path = route(
+      screen(2),
+      standing(0, 0),
+      { x: 2, y: 0, z: 0 },
+      {
+        maxNodes: 400,
+      },
+    );
 
     expect(path).toHaveLength(7);
   });
@@ -696,9 +729,7 @@ describe("how far out of its way", () => {
   it("refuses one it would have to walk the long way round", () => {
     // The same board with a longer wall: still a route, and still not a chase.
     // A generous budget, so what refuses it is the detour rather than the cost.
-    expect(
-      route(screen(10), standing(0, 0), { x: 2, y: 0, z: 0 }, { maxNodes: 400 }),
-    ).toBeNull();
+    expect(route(screen(10), standing(0, 0), { x: 2, y: 0, z: 0 }, { maxNodes: 400 })).toBeNull();
   });
 });
 
@@ -712,9 +743,16 @@ describe("what it costs", () => {
   it("gives up rather than sweeping the board", () => {
     const map = field(40);
 
-    expect(route(map, standing(-40, -40), { x: 40, y: 40, z: 0 }, {
-      maxNodes: 8,
-    })).toBeNull();
+    expect(
+      route(
+        map,
+        standing(-40, -40),
+        { x: 40, y: 40, z: 0 },
+        {
+          maxNodes: 8,
+        },
+      ),
+    ).toBeNull();
   });
 
   it("proves a sealed target impossible inside the budget", () => {
@@ -757,15 +795,18 @@ describe("what it costs", () => {
 describe("saying which limit was hit", () => {
   it("calls a sealed target unreachable, having looked everywhere", () => {
     let map = field(4);
-    for (const [x, y] of [[3, 0], [5, 0], [4, 1], [4, -1]]) {
+    for (const [x, y] of [
+      [3, 0],
+      [5, 0],
+      [4, 1],
+      [4, -1],
+    ]) {
       map = put(map, x!, y!, "wall");
     }
 
     // A board small enough that the detour cap turns nothing away, which is
     // what it takes to say this: the whole of it was offered and searched.
-    expect(refusal(map, standing(0, 0), { x: 4, y: 0, z: 0 })).toBe(
-      "unreachable",
-    );
+    expect(refusal(map, standing(0, 0), { x: 4, y: 0, z: 0 })).toBe("unreachable");
   });
 
   it("will not claim it looked everywhere when it turned cells away", () => {
@@ -773,13 +814,16 @@ describe("saying which limit was hit", () => {
     // detour cap and never offered, so the honest answer is the weaker one —
     // and the sentence it writes is true of a sealed cell as well.
     let map = field(12);
-    for (const [x, y] of [[3, 0], [5, 0], [4, 1], [4, -1]]) {
+    for (const [x, y] of [
+      [3, 0],
+      [5, 0],
+      [4, 1],
+      [4, -1],
+    ]) {
       map = put(map, x!, y!, "wall");
     }
 
-    expect(
-      refusal(map, standing(0, 0), { x: 4, y: 0, z: 0 }, { maxNodes: 2000 }),
-    ).toBe("detour");
+    expect(refusal(map, standing(0, 0), { x: 4, y: 0, z: 0 }, { maxNodes: 2000 })).toBe("detour");
   });
 
   it("calls a long way round a detour rather than no way at all", () => {
@@ -788,17 +832,15 @@ describe("saying which limit was hit", () => {
     let map = field(12);
     for (let y = -10; y <= 10; y++) map = put(map, 1, y, "wall");
 
-    expect(
-      refusal(map, standing(0, 0), { x: 2, y: 0, z: 0 }, { maxNodes: 2000 }),
-    ).toBe("detour");
+    expect(refusal(map, standing(0, 0), { x: 2, y: 0, z: 0 }, { maxNodes: 2000 })).toBe("detour");
   });
 
   it("calls a search it stopped early a budget, not a board", () => {
     const map = field(40);
 
-    expect(
-      refusal(map, standing(-40, -40), { x: 40, y: 40, z: 0 }, { maxNodes: 8 }),
-    ).toBe("budget");
+    expect(refusal(map, standing(-40, -40), { x: 40, y: 40, z: 0 }, { maxNodes: 8 })).toBe(
+      "budget",
+    );
   });
 
   it("has no reason to give when it found a route", () => {
@@ -954,7 +996,12 @@ describe("finding somewhere to run", () => {
 
   it("stays put when it is walled in, and says so with an empty route", () => {
     let map = field(12);
-    for (const [x, y] of [[1, 0], [-1, 0], [0, -1], [0, 1]]) {
+    for (const [x, y] of [
+      [1, 0],
+      [-1, 0],
+      [0, -1],
+      [0, 1],
+    ]) {
       map = put(map, x!, y!, "wall");
     }
 
@@ -981,9 +1028,14 @@ describe("finding somewhere to run", () => {
    */
   it("prefers a refuge the threat cannot see, where two are equally far", () => {
     const map = field(12);
-    const found = refuge(map, standing(0, 0), { x: 0, y: 0, z: 0 }, {
-      seenFrom: (cell) => cell.y >= 0,
-    });
+    const found = refuge(
+      map,
+      standing(0, 0),
+      { x: 0, y: 0, z: 0 },
+      {
+        seenFrom: (cell) => cell.y >= 0,
+      },
+    );
 
     expect(found).not.toBeNull();
     expect(found!.y).toBeLessThan(0);

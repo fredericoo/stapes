@@ -1,10 +1,6 @@
 import { MAP_FILE_VERSION } from "../lib/types";
 import { describe, expect, it } from "vitest";
-import {
-  parseClientMessage,
-  parseServerMessage,
-  type MotionEvent,
-} from "./protocol";
+import { parseClientMessage, parseServerMessage, type MotionEvent } from "./protocol";
 import { SWING_OUTCOMES } from "../game/GameSession";
 import { MAX_COMMAND_LENGTH } from "../game/commands";
 
@@ -25,12 +21,10 @@ function parsed(message: unknown) {
 describe("moveItem", () => {
   it("takes a move between two slots on the body", () => {
     expect(
-      parsed({ type: "moveItem", from: { kind: "contents",
-index: 0 }, to: { kind: "weapon" } }),
+      parsed({ type: "moveItem", from: { kind: "contents", index: 0 }, to: { kind: "weapon" } }),
     ).toEqual({
       type: "moveItem",
-      from: { kind: "contents",
-index: 0 },
+      from: { kind: "contents", index: 0 },
       to: { kind: "weapon" },
     });
   });
@@ -41,19 +35,15 @@ index: 0 },
       ref: { x: -3, y: 4, z: 0, stackIndex: 1 },
       index: 2,
     };
-    expect(parsed({ type: "moveItem", from, to: { kind: "contents",
-index: 0 } })).toEqual({
+    expect(parsed({ type: "moveItem", from, to: { kind: "contents", index: 0 } })).toEqual({
       type: "moveItem",
       from,
-      to: { kind: "contents",
-index: 0 },
+      to: { kind: "contents", index: 0 },
     });
   });
 
   it("takes the body as either end of a move", () => {
-    expect(
-      parsed({ type: "moveItem", from: { kind: "armor" }, to: { kind: "weapon" } }),
-    ).toEqual({
+    expect(parsed({ type: "moveItem", from: { kind: "armor" }, to: { kind: "weapon" } })).toEqual({
       type: "moveItem",
       from: { kind: "armor" },
       to: { kind: "weapon" },
@@ -92,19 +82,15 @@ index: 0 },
   });
 
   it("drops a slot kind nobody defined", () => {
-    expect(
-      parsed({ type: "moveItem", from: { kind: "hat" }, to: { kind: "weapon" } }),
-    ).toBeNull();
+    expect(parsed({ type: "moveItem", from: { kind: "hat" }, to: { kind: "weapon" } })).toBeNull();
   });
 
   it("drops a negative or fractional index", () => {
     expect(
-      parsed({ type: "moveItem", from: { kind: "contents",
-index: -1 }, to: { kind: "weapon" } }),
+      parsed({ type: "moveItem", from: { kind: "contents", index: -1 }, to: { kind: "weapon" } }),
     ).toBeNull();
     expect(
-      parsed({ type: "moveItem", from: { kind: "contents",
-index: 1.5 }, to: { kind: "weapon" } }),
+      parsed({ type: "moveItem", from: { kind: "contents", index: 1.5 }, to: { kind: "weapon" } }),
     ).toBeNull();
   });
 
@@ -116,8 +102,7 @@ index: 1.5 }, to: { kind: "weapon" } }),
    */
   it("takes an index that is merely too big, and leaves the refusal to the board", () => {
     expect(
-      parsed({ type: "moveItem", from: { kind: "contents",
-index: 9999 }, to: { kind: "weapon" } }),
+      parsed({ type: "moveItem", from: { kind: "contents", index: 9999 }, to: { kind: "weapon" } }),
     ).not.toBeNull();
   });
 
@@ -127,8 +112,7 @@ index: 9999 }, to: { kind: "weapon" } }),
       ref: { x: 0.5, y: 0, z: 0, stackIndex: 0 },
       index: 0,
     };
-    expect(parsed({ type: "moveItem", from, to: { kind: "contents",
-index: 0 } })).toBeNull();
+    expect(parsed({ type: "moveItem", from, to: { kind: "contents", index: 0 } })).toBeNull();
   });
 
   it("drops a ground reference with a negative stack index", () => {
@@ -137,8 +121,7 @@ index: 0 } })).toBeNull();
       ref: { x: 0, y: 0, z: 0, stackIndex: -1 },
       index: 0,
     };
-    expect(parsed({ type: "moveItem", from, to: { kind: "contents",
-index: 0 } })).toBeNull();
+    expect(parsed({ type: "moveItem", from, to: { kind: "contents", index: 0 } })).toBeNull();
   });
 
   it("drops one missing an end", () => {
@@ -164,9 +147,7 @@ describe("consume", () => {
   });
 
   it("drops a source kind nobody defined", () => {
-    expect(
-      parsed({ type: "consume", from: { kind: "mouth" } }),
-    ).toBeNull();
+    expect(parsed({ type: "consume", from: { kind: "mouth" } })).toBeNull();
   });
 
   it("drops a floor reference with a coordinate that is not a whole number", () => {
@@ -203,9 +184,7 @@ describe("transmute", () => {
   });
 
   it("drops one with no recipe named", () => {
-    expect(
-      parsed({ type: "transmute", ref: { x: 0, y: 0, z: 0, stackIndex: 0 } }),
-    ).toBeNull();
+    expect(parsed({ type: "transmute", ref: { x: 0, y: 0, z: 0, stackIndex: 0 } })).toBeNull();
   });
 
   it("drops a negative recipe, which is no position at all", () => {
@@ -238,9 +217,7 @@ describe("command", () => {
   });
 
   it("drops one long enough to be an attack rather than a command", () => {
-    expect(
-      parsed({ type: "command", text: "/".repeat(MAX_COMMAND_LENGTH + 1) }),
-    ).toBeNull();
+    expect(parsed({ type: "command", text: "/".repeat(MAX_COMMAND_LENGTH + 1) })).toBeNull();
   });
 });
 
@@ -261,9 +238,10 @@ describe("the frame itself", () => {
   });
 
   it("still takes the messages that were already here", () => {
-    expect(parsed({ type: "pickUp", ref: { x: 1, y: 2, z: 0, stackIndex: 3 } })).toEqual(
-      { type: "pickUp", ref: { x: 1, y: 2, z: 0, stackIndex: 3 } },
-    );
+    expect(parsed({ type: "pickUp", ref: { x: 1, y: 2, z: 0, stackIndex: 3 } })).toEqual({
+      type: "pickUp",
+      ref: { x: 1, y: 2, z: 0, stackIndex: 3 },
+    });
     expect(parsed({ type: "interact", ref: { x: 1.5, y: 0, z: 0, stackIndex: 0 } })).toBeNull();
   });
 });
@@ -453,8 +431,14 @@ describe("a kit that will not parse", () => {
   // The tolerance is the equipment field's alone: a `hello` whose *world* cannot
   // be read is still a message with nothing to draw.
   it("is not a licence for the rest of the message", () => {
-    expect(parseServerMessage(helloWith({ weapon: null, offhand: null,
-  bag: null }).replace('"playerCount":1', '"playerCount":"lots"'))).toBeNull();
+    expect(
+      parseServerMessage(
+        helloWith({ weapon: null, offhand: null, bag: null }).replace(
+          '"playerCount":1',
+          '"playerCount":"lots"',
+        ),
+      ),
+    ).toBeNull();
   });
 });
 

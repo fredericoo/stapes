@@ -16,9 +16,7 @@ import {
   stackHeight,
 } from "./mapData";
 
-export type PlaceResult =
-  | { ok: true }
-  | { ok: false; reason: string };
+export type PlaceResult = { ok: true } | { ok: false; reason: string };
 
 /**
  * Whether the thing being fitted may share a cell with somebody standing in it.
@@ -202,12 +200,7 @@ export function fitsTile(
  * standing on the floor above is not a reason a tall thing cannot be built
  * underneath them.
  */
-function levelHoldsScenery(
-  map: MapFile,
-  x: number,
-  y: number,
-  z: number,
-): boolean {
+function levelHoldsScenery(map: MapFile, x: number, y: number, z: number): boolean {
   return getStack(map, x, y, z).some((placed) => !isPlayerBody(placed));
 }
 
@@ -291,15 +284,7 @@ export function fitsAtElevation(
   tilesById: Record<string, TileDef>,
   opts?: FitOpts,
 ): PlaceResult {
-  return fitsHeightAtElevation(
-    map,
-    x,
-    y,
-    feetAbs,
-    physicalHeight(tileDef),
-    tilesById,
-    opts,
-  );
+  return fitsHeightAtElevation(map, x, y, feetAbs, physicalHeight(tileDef), tilesById, opts);
 }
 
 /**
@@ -330,10 +315,7 @@ export function fitsHeightAtElevation(
     const stack = getStack(map, x, y, z);
     if (stack.length === 0) continue;
 
-    if (
-      !opts?.throughPlayers &&
-      playerBodyInVolume(stack, z, feetAbs, headAbs, tilesById)
-    ) {
+    if (!opts?.throughPlayers && playerBodyInVolume(stack, z, feetAbs, headAbs, tilesById)) {
       return { ok: false, reason: "Somebody is standing there" };
     }
 

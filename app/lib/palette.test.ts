@@ -29,11 +29,7 @@ describe("OKLab round-trip", () => {
 describe("nearestPaletteIndex", () => {
   it("returns identity for each palette colour itself", () => {
     for (let i = 0; i < STAPES_PALETTE.length; i++) {
-      const entry: [number, number, number] = [
-        lab[i * 3]!,
-        lab[i * 3 + 1]!,
-        lab[i * 3 + 2]!,
-      ];
+      const entry: [number, number, number] = [lab[i * 3]!, lab[i * 3 + 1]!, lab[i * 3 + 2]!];
       expect(nearestPaletteIndex(entry, lab, 1)).toBe(i);
     }
   });

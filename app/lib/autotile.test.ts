@@ -47,9 +47,7 @@ describe("autotile blob", () => {
   });
 });
 
-function mapWith(
-  cells: { x: number; y: number; z?: number; tileId: string }[],
-): MapFile {
+function mapWith(cells: { x: number; y: number; z?: number; tileId: string }[]): MapFile {
   const levels: FlatMapFile["levels"] = {};
   for (const c of cells) {
     const z = c.z ?? 0;
@@ -85,9 +83,7 @@ describe("neighbor matching", () => {
       { x: 0, y: -1, tileId: "g" },
       { x: 1, y: 0, tileId: "g" },
     ]);
-    expect(resolveAutotileSlice(map, 0, 0, 0, { id: "g" })).toBe(
-      blobMaskToSlice(N | E),
-    );
+    expect(resolveAutotileSlice(map, 0, 0, 0, { id: "g" })).toBe(blobMaskToSlice(N | E));
   });
 
   it("counts a connectsTo neighbour as itself", () => {
@@ -211,17 +207,13 @@ describe("wooden floor inner", () => {
   });
 
   it("covers every slice the floor does", () => {
-    expect(Object.keys(inner.slices ?? {}).sort()).toEqual(
-      Object.keys(floor.slices ?? {}).sort(),
-    );
+    expect(Object.keys(inner.slices ?? {}).sort()).toEqual(Object.keys(floor.slices ?? {}).sort());
   });
 
   it("reads the same neighbourhood as the floor beneath it", () => {
     const map = ringMap();
     for (const c of RING) {
-      expect(neighborMask(map, c.x, c.y, 0, inner)).toBe(
-        neighborMask(map, c.x, c.y, 0, floor),
-      );
+      expect(neighborMask(map, c.x, c.y, 0, inner)).toBe(neighborMask(map, c.x, c.y, 0, floor));
     }
   });
 
@@ -242,9 +234,7 @@ describe("wooden floor inner", () => {
     const map = ringMap();
     const orphan = { id: inner.id };
     const disagreeing = RING.filter(
-      (c) =>
-        neighborMask(map, c.x, c.y, 0, orphan) !==
-        neighborMask(map, c.x, c.y, 0, floor),
+      (c) => neighborMask(map, c.x, c.y, 0, orphan) !== neighborMask(map, c.x, c.y, 0, floor),
     );
     expect(disagreeing.length).toBe(RING.length);
   });

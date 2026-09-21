@@ -144,10 +144,7 @@ export const DEFAULT_SELECTOR = nearest(PLAYER_TILE_ID);
  */
 export const DEFAULT_THING = thing(PLAYER_TILE_ID);
 
-export const CONDITIONS: Record<
-  BrainConditionDef["cond"],
-  CatalogEntry<BrainConditionDef>
-> = {
+export const CONDITIONS: Record<BrainConditionDef["cond"], CatalogEntry<BrainConditionDef>> = {
   after: {
     label: "after",
     hint: "This long has passed in the current state.",
@@ -271,10 +268,7 @@ export const CONDITIONS: Record<
   },
 };
 
-export const ACTIONS: Record<
-  BrainActionDef["action"],
-  CatalogEntry<BrainActionDef>
-> = {
+export const ACTIONS: Record<BrainActionDef["action"], CatalogEntry<BrainActionDef>> = {
   hold: {
     label: "hold",
     hint: "Stand still, successfully. The usual last line.",
@@ -362,10 +356,7 @@ export const ACTIONS: Record<
   },
 };
 
-export const EFFECTS: Record<
-  BrainEffectDef["effect"],
-  CatalogEntry<BrainEffectDef>
-> = {
+export const EFFECTS: Record<BrainEffectDef["effect"], CatalogEntry<BrainEffectDef>> = {
   say: {
     label: "say",
     hint: "A speech bubble over the creature's head, once on entry. Named as its speaker — use noise for anything that is not language. {slot} becomes the name of whoever is in that slot.",
@@ -380,8 +371,6 @@ export const EFFECTS: Record<
   },
 };
 
-export const CONDITION_NAMES = Object.keys(
-  CONDITIONS,
-) as BrainConditionDef["cond"][];
+export const CONDITION_NAMES = Object.keys(CONDITIONS) as BrainConditionDef["cond"][];
 export const ACTION_NAMES = Object.keys(ACTIONS) as BrainActionDef["action"][];
 export const EFFECT_NAMES = Object.keys(EFFECTS) as BrainEffectDef["effect"][];

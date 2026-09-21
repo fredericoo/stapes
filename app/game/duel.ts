@@ -192,12 +192,7 @@ export class Duel {
   /** The numbers this side is fighting with right now, statuses included. */
   statsOf(side: Side): FightingStats {
     const fighter = this.fighter(side);
-    return withStatusModifiers(
-      this.baseOf(side),
-      fighter.statuses,
-      this.statusDefs,
-      fighter.hp,
-    );
+    return withStatusModifiers(this.baseOf(side), fighter.statuses, this.statusDefs, fighter.hp);
   }
 
   /**
@@ -334,10 +329,7 @@ export class Duel {
 
     // Trimmed to what the defender was standing up with, so a blow for sixty at
     // something with nine left did nine — see `./combat`'s {@link cappedToHealth}.
-    const outcome = cappedToHealth(
-      rollAttack(attackerStats, defenderStats, this.rng),
-      defender.hp,
-    );
+    const outcome = cappedToHealth(rollAttack(attackerStats, defenderStats, this.rng), defender.hp);
     defender.hp -= outcome.damage;
     events.push({ kind: "swing", by: side, outcome, hpLeft: defender.hp });
 

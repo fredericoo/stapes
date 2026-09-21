@@ -95,17 +95,11 @@ function step(session: GameSession, direction: Direction) {
 
 /** The player at the origin facing east, with one cell of interest beside them. */
 function world(beside: string, tileId = "player"): MapFile {
-  let map = replaceStack(emptyMap(), 0, 0, 0, [
-    { tileId: "grass" },
-    { tileId, direction: "e" },
-  ]);
+  let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId, direction: "e" }]);
   // Every map needs exactly one player tile, so a creature's world still parks
   // one somewhere out of the way.
   if (tileId !== "player") {
-    map = replaceStack(map, 9, 9, 0, [
-      { tileId: "grass" },
-      { tileId: "player", direction: "s" },
-    ]);
+    map = replaceStack(map, 9, 9, 0, [{ tileId: "grass" }, { tileId: "player", direction: "s" }]);
   }
   return replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: beside }]);
 }
@@ -137,25 +131,23 @@ describe("reachableSetSpawnAt", () => {
   const actor = { x: 0, y: 0, z: 0 };
 
   it("offers a bed from the next square over", () => {
-    expect(reachableSetSpawnAt(world("bed"), tilesById, actor, BED)).toMatchObject(
-      { trigger: "interact" },
-    );
+    expect(reachableSetSpawnAt(world("bed"), tilesById, actor, BED)).toMatchObject({
+      trigger: "interact",
+    });
   });
 
   it("offers a mat only from its own cell", () => {
     const map = world("mat");
     expect(reachableSetSpawnAt(map, tilesById, actor, BED)).toBeNull();
-    expect(
-      reachableSetSpawnAt(map, tilesById, { x: 1, y: 0, z: 0 }, BED),
-    ).toMatchObject({ trigger: "interactOver" });
+    expect(reachableSetSpawnAt(map, tilesById, { x: 1, y: 0, z: 0 }, BED)).toMatchObject({
+      trigger: "interactOver",
+    });
   });
 
   it("never offers a threshold you walk over, which answers to no press", () => {
     const map = world("threshold");
     expect(canSetSpawnFrom(map, tilesById, actor, BED)).toBe(false);
-    expect(canSetSpawnFrom(map, tilesById, { x: 1, y: 0, z: 0 }, BED)).toBe(
-      false,
-    );
+    expect(canSetSpawnFrom(map, tilesById, { x: 1, y: 0, z: 0 }, BED)).toBe(false);
   });
 });
 
@@ -167,9 +159,7 @@ describe("pressing something that moves where you come back", () => {
     // marker *is* the place, and one pressed from two sides is one place.
     // Whether a body fits in that cell is a rebirth's problem, not this one's —
     // `findEntryCell` bubbles outward from it.
-    expect(play.drainSpawnMarks()).toEqual([
-      { actorId: "local", at: { x: 1, y: 0, z: 0 } },
-    ]);
+    expect(play.drainSpawnMarks()).toEqual([{ actorId: "local", at: { x: 1, y: 0, z: 0 } }]);
   });
 
   it("says so, there being nothing in the view to show it", () => {
@@ -228,9 +218,7 @@ describe("walking onto something that moves where you come back", () => {
   it("takes the cell walked onto", () => {
     const play = session(world("threshold"));
     step(play, "e");
-    expect(play.drainSpawnMarks()).toEqual([
-      { actorId: "local", at: { x: 1, y: 0, z: 0 } },
-    ]);
+    expect(play.drainSpawnMarks()).toEqual([{ actorId: "local", at: { x: 1, y: 0, z: 0 } }]);
     expect(play.drainNotices()).toEqual(["You will respawn here."]);
   });
 
@@ -276,9 +264,7 @@ describe("a mark the world already remembers", () => {
     play.spawn("local", { spawnAt: { x: 0, y: 0, z: 0 } });
 
     expect(play.activateSetSpawn(BED)).toBe(true);
-    expect(play.drainSpawnMarks()).toEqual([
-      { actorId: "local", at: { x: 1, y: 0, z: 0 } },
-    ]);
+    expect(play.drainSpawnMarks()).toEqual([{ actorId: "local", at: { x: 1, y: 0, z: 0 } }]);
   });
 });
 

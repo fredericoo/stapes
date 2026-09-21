@@ -2,12 +2,7 @@ import { describe, expect, it } from "vitest";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import { MASTERIES, xpForLevel } from "../lib/mastery";
 import type { MapFile, TileDef } from "../lib/types";
-import {
-  COMMAND_USAGE,
-  MAX_COMMAND_HP,
-  isCommand,
-  parseCommand,
-} from "./commands";
+import { COMMAND_USAGE, MAX_COMMAND_HP, isCommand, parseCommand } from "./commands";
 import { constantFormula } from "../lib/formula";
 import { NO_VFX } from "../lib/statusVfx";
 import type { StatusDef } from "../lib/status";
@@ -43,9 +38,7 @@ describe("reading a typed line", () => {
 
   it("reads self as the same nobody in particular", () => {
     // Two spellings of one request, so the session has one case to handle.
-    expect(parseCommand("/mastery sharp 10 self")).toEqual(
-      parseCommand("/mastery sharp 10"),
-    );
+    expect(parseCommand("/mastery sharp 10 self")).toEqual(parseCommand("/mastery sharp 10"));
   });
 
   it("carries a player id through untouched", () => {
@@ -98,7 +91,6 @@ describe("reading a typed line", () => {
       refusal: { kind: "badArguments", command: "mastery" },
     });
   });
-
 
   it("reads a status by the id it was written with", () => {
     // Not lower-cased, unlike a mastery: a status id is a key out of an authored
@@ -319,9 +311,7 @@ describe("reading a typed line", () => {
  * people who can be told apart, and one creature to be refused.
  */
 
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
+function tile(partial: Record<string, unknown> & Pick<TileDef, "id" | "height">): TileDef {
   const interactions = partial.interactions as { battler?: unknown } | undefined;
   return baseTile({
     kind: interactions?.battler ? "battler" : "prop",
@@ -386,10 +376,7 @@ function field(): MapFile {
       map = replaceStack(map, x, y, 0, [{ tileId: "grass" }]);
     }
   }
-  map = replaceStack(map, 0, 0, 0, [
-    { tileId: "grass" },
-    { tileId: "player", direction: "e" },
-  ]);
+  map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "e" }]);
   return replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "deer" }]);
 }
 
@@ -436,9 +423,7 @@ describe("what a command does to a body", () => {
     // The experience is what is written, because the level is derived from it
     // and a second store of one would be a second answer.
     expect(session.getSnapshot("me").masteryXp.sharp).toBe(xpForLevel(10));
-    expect(session.drainNotices("me")).toEqual([
-      "Your sharp mastery is now 10",
-    ]);
+    expect(session.drainNotices("me")).toEqual(["Your sharp mastery is now 10"]);
   });
 
   it("leaves every other mastery where the tile put it", () => {
@@ -484,9 +469,7 @@ describe("what a command does to a body", () => {
 
     // Two sentences because they are two facts: what your mastery now reads,
     // and what I just did to it.
-    expect(session.drainNotices("you")).toEqual([
-      "Your arcane mastery is now 12",
-    ]);
+    expect(session.drainNotices("you")).toEqual(["Your arcane mastery is now 12"]);
     expect(session.drainNotices("me")).toEqual([
       // Their name, through the one function that decides what a body is
       // called — an id in a sentence is a serial number, not a person.
@@ -514,9 +497,7 @@ describe("what a command does to a body", () => {
   it("names the id nobody answers to", () => {
     const session = world();
     session.runCommand("/mastery sharp 10 nobody", "me");
-    expect(session.drainNotices("me")).toEqual([
-      'Nobody here answers to "nobody"',
-    ]);
+    expect(session.drainNotices("me")).toEqual(['Nobody here answers to "nobody"']);
   });
 
   it("hands back the grammar when the line was not one", () => {
@@ -524,9 +505,7 @@ describe("what a command does to a body", () => {
     session.runCommand("/mastery sharp", "me");
     // The one thing this whole feature is for: a command typed blind that does
     // nothing is indistinguishable from a command that never arrived.
-    expect(session.drainNotices("me")).toEqual([
-      `Say ${COMMAND_USAGE.mastery}`,
-    ]);
+    expect(session.drainNotices("me")).toEqual([`Say ${COMMAND_USAGE.mastery}`]);
   });
 
   it("says which word it did not understand", () => {
@@ -535,7 +514,6 @@ describe("what a command does to a body", () => {
     expect(session.drainNotices("me")[0]).toContain('"blad"');
   });
 });
-
 
 /**
  * The same again for the tile command, where "did anything happen" is a
@@ -598,19 +576,13 @@ describe("what a command does to the board", () => {
       "deer",
       "apple",
     ]);
-    expect(stackAt(session, -1, 0, 0).map((placed) => placed.tileId)).toEqual([
-      "grass",
-      "apple",
-    ]);
+    expect(stackAt(session, -1, 0, 0).map((placed) => placed.tileId)).toEqual(["grass", "apple"]);
   });
 
   it("takes a cell of the map when the sign is left off", () => {
     const session = world();
     session.runCommand("/tile apple 2 -2 0", "me");
-    expect(stackAt(session, 2, -2, 0).map((placed) => placed.tileId)).toEqual([
-      "grass",
-      "apple",
-    ]);
+    expect(stackAt(session, 2, -2, 0).map((placed) => placed.tileId)).toEqual(["grass", "apple"]);
   });
 
   it("gives a summoned body somebody to drive it", () => {
@@ -621,9 +593,7 @@ describe("what a command does to the board", () => {
     // Placing the tile is the whole of putting a creature in the world, and
     // this is what makes that true of a summoned one as well as an authored
     // one: without the runtime it is scenery shaped like a deer.
-    const summoned = session
-      .actorIds()
-      .filter((id) => !before.includes(id));
+    const summoned = session.actorIds().filter((id) => !before.includes(id));
     expect(summoned).toEqual(["npc:0,1,0,1"]);
     expect(session.isResident("npc:0,1,0,1")).toBe(true);
     expect(stackAt(session, 0, 1, 0)[1]?.owner).toBe("npc:0,1,0,1");
@@ -814,9 +784,7 @@ describe("putting a status on by hand", () => {
   it("names the id nobody answers to, before looking at the status", () => {
     const session = statusWorld();
     session.runCommand("/status burned nobody", "me");
-    expect(session.drainNotices("me")).toEqual([
-      'Nobody here answers to "nobody"',
-    ]);
+    expect(session.drainNotices("me")).toEqual(['Nobody here answers to "nobody"']);
   });
 
   it("hands back the status grammar when the line was not one", () => {
@@ -943,9 +911,7 @@ describe("moving health by hand", () => {
   it("names the id nobody answers to", () => {
     const session = world();
     session.runCommand("/health 4 nobody", "me");
-    expect(session.drainNotices("me")).toEqual([
-      'Nobody here answers to "nobody"',
-    ]);
+    expect(session.drainNotices("me")).toEqual(['Nobody here answers to "nobody"']);
   });
 
   it("hands back the health grammar when the line was not one", () => {

@@ -30,12 +30,7 @@ export function emptyMap(): MapFile {
   return { version: MAP_FILE_VERSION, levels: {} };
 }
 
-export function getStack(
-  map: MapFile,
-  x: number,
-  y: number,
-  z: number,
-): PlacedTile[] {
+export function getStack(map: MapFile, x: number, y: number, z: number): PlacedTile[] {
   return map.levels[levelKey(z)]?.[chunkKeyFor(x, y)]?.[coordKey(x, y)] ?? [];
 }
 
@@ -65,20 +60,13 @@ export function chunkIndexOf(v: number): number {
  * Callers use it to answer "is it worth rebuilding everything?" — so it returns
  * the cells rather than a boolean, and stays silent about what changed in them.
  */
-export function changedCellsOnLevel(
-  prev: MapFile,
-  next: MapFile,
-  z: number,
-): Set<string> {
+export function changedCellsOnLevel(prev: MapFile, next: MapFile, z: number): Set<string> {
   const out = new Set<string>();
   const before = prev.levels[levelKey(z)];
   const after = next.levels[levelKey(z)];
   if (before === after) return out;
 
-  const chunkKeys = new Set([
-    ...Object.keys(before ?? {}),
-    ...Object.keys(after ?? {}),
-  ]);
+  const chunkKeys = new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})]);
   for (const chk of chunkKeys) {
     const a = before?.[chk];
     const b = after?.[chk];
@@ -152,23 +140,14 @@ export type ChangedChunk = {
  * chunk comes back — the shape a caller wants after loading, or after the world
  * has been replaced wholesale.
  */
-export function changedChunks(
-  prev: MapFile | null,
-  next: MapFile,
-): ChangedChunk[] {
+export function changedChunks(prev: MapFile | null, next: MapFile): ChangedChunk[] {
   const out: ChangedChunk[] = [];
-  const levelKeys = new Set([
-    ...Object.keys(prev?.levels ?? {}),
-    ...Object.keys(next.levels),
-  ]);
+  const levelKeys = new Set([...Object.keys(prev?.levels ?? {}), ...Object.keys(next.levels)]);
   for (const zk of levelKeys) {
     const before = prev?.levels[zk];
     const after = next.levels[zk];
     if (before === after) continue;
-    const chunkKeys = new Set([
-      ...Object.keys(before ?? {}),
-      ...Object.keys(after ?? {}),
-    ]);
+    const chunkKeys = new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})]);
     for (const chk of chunkKeys) {
       const a = before?.[chk];
       const b = after?.[chk];
@@ -197,11 +176,7 @@ export function mapFromChunks(chunks: Iterable<ChangedChunk>): MapFile {
 }
 
 /** Cells of one chunk, or an empty record. */
-export function getChunk(
-  map: MapFile,
-  z: number,
-  chunk: string,
-): ChunkCells | undefined {
+export function getChunk(map: MapFile, z: number, chunk: string): ChunkCells | undefined {
   return map.levels[levelKey(z)]?.[chunk];
 }
 
@@ -245,10 +220,7 @@ export function isPlayerBody(placed: PlacedTile): boolean {
  * bury. Written out per call site, it was the sort of pair where one half gets
  * added and the other forgotten.
  */
-export function isBodyPlacement(
-  placed: PlacedTile,
-  tilesById: Record<string, TileDef>,
-): boolean {
+export function isBodyPlacement(placed: PlacedTile, tilesById: Record<string, TileDef>): boolean {
   const def = tilesById[placed.tileId];
   return isPlayerBody(placed) || (def !== undefined && resolveActor(def));
 }
@@ -268,10 +240,7 @@ export function isBodyPlacement(
  * first one's head. A rule spelled out five times is a rule that is only ever
  * four-fifths true.
  */
-export function terrainHeight(
-  placed: PlacedTile,
-  tilesById: Record<string, TileDef>,
-): number {
+export function terrainHeight(placed: PlacedTile, tilesById: Record<string, TileDef>): number {
   if (isPlayerBody(placed)) return 0;
   const def = tilesById[placed.tileId];
   return def ? physicalHeight(def) : 0;
@@ -309,10 +278,7 @@ export function elevationAfter(
   return footElevation(elevBelow, placed) + terrainHeight(placed, tilesById);
 }
 
-export function stackHeight(
-  stack: PlacedTile[],
-  tilesById: Record<string, TileDef>,
-): number {
+export function stackHeight(stack: PlacedTile[], tilesById: Record<string, TileDef>): number {
   let h = 0;
   for (const p of stack) h = elevationAfter(h, p, tilesById);
   return h;
@@ -347,10 +313,7 @@ export function elevationAt(
  * `isPlayerBody` guards, and the two that forgot intangibles let a ladder with
  * nothing under it hold up whoever walked into it.
  */
-export function isSolidPlacement(
-  placed: PlacedTile,
-  tilesById: Record<string, TileDef>,
-): boolean {
+export function isSolidPlacement(placed: PlacedTile, tilesById: Record<string, TileDef>): boolean {
   if (isPlayerBody(placed)) return false;
   const def = tilesById[placed.tileId];
   return !(def && resolveIntangible(def));
@@ -475,7 +438,6 @@ export function footingOfStack(
   return found ? reusedFooting : null;
 }
 
-
 /** Absolute walkable standing elevation for a stack, or null. */
 export function absoluteWalkableElevation(
   z: number,
@@ -559,11 +521,7 @@ export function walkableTileAtElev(
     if (isPlayerBody(p)) continue;
     const def = tilesById[p.tileId];
     if (!def) continue;
-    if (
-      resolveWalkable(def) &&
-      !resolveIntangible(def) &&
-      elev === elevInLevel
-    ) {
+    if (resolveWalkable(def) && !resolveIntangible(def) && elev === elevInLevel) {
       return p;
     }
   }
@@ -738,10 +696,7 @@ export function setStacks(map: MapFile, edits: readonly StackEdit[]): MapFile {
 }
 
 /** Drop chunks and levels an edit emptied, so identity means "has content". */
-function pruneEmpty(
-  levels: Record<string, LevelChunks>,
-  copied: Map<string, ChunkCells>,
-) {
+function pruneEmpty(levels: Record<string, LevelChunks>, copied: Map<string, ChunkCells>) {
   const touchedLevels = new Set<string>();
   for (const path of copied.keys()) {
     const [zk, chk] = path.split("/");
@@ -758,22 +713,11 @@ function pruneEmpty(
   }
 }
 
-function setStack(
-  map: MapFile,
-  x: number,
-  y: number,
-  z: number,
-  stack: PlacedTile[],
-): MapFile {
+function setStack(map: MapFile, x: number, y: number, z: number, stack: PlacedTile[]): MapFile {
   return setStacks(map, [{ x, y, z, stack }]);
 }
 
-export function clearStack(
-  map: MapFile,
-  x: number,
-  y: number,
-  z: number,
-): MapFile {
+export function clearStack(map: MapFile, x: number, y: number, z: number): MapFile {
   return setStack(map, x, y, z, []);
 }
 
@@ -1083,10 +1027,7 @@ export function updatePlacedReward(
   const nextTag = live ? trimmedTag : undefined;
   const nextIds = live ? kept : undefined;
 
-  if (
-    placed.rewardTag === nextTag &&
-    sameIds(placed.rewardTileIds, nextIds)
-  ) {
+  if (placed.rewardTag === nextTag && sameIds(placed.rewardTileIds, nextIds)) {
     return map;
   }
 
@@ -1204,10 +1145,7 @@ function sameCoord(a: Coord | undefined, b: Coord | undefined): boolean {
 }
 
 /** Two id lists, either of which may be absent, holding the same ids in order. */
-function sameIds(
-  a: readonly string[] | undefined,
-  b: readonly string[] | undefined,
-): boolean {
+function sameIds(a: readonly string[] | undefined, b: readonly string[] | undefined): boolean {
   if (a === b) return true;
   if (!a || !b || a.length !== b.length) return false;
   return a.every((id, i) => id === b[i]);
@@ -1381,9 +1319,7 @@ function liftInscriptions(flat: FlatMapFile): FlatMapFile {
     for (const [ck, stack] of Object.entries(cells)) {
       out[ck] = stack.map((placed) => ({
         ...lifted(placed),
-        ...(placed.contents
-          ? { contents: placed.contents.map(lifted) }
-          : {}),
+        ...(placed.contents ? { contents: placed.contents.map(lifted) } : {}),
       }));
     }
     levels[zk] = out;
@@ -1392,9 +1328,7 @@ function liftInscriptions(flat: FlatMapFile): FlatMapFile {
 }
 
 /** One placement or one carried thing, with its text moved across. */
-function lifted<T extends { description?: string; inscription?: string }>(
-  thing: T,
-): T {
+function lifted<T extends { description?: string; inscription?: string }>(thing: T): T {
   if (!thing.description) return thing;
   const next = { ...thing, inscription: thing.description };
   delete next.description;

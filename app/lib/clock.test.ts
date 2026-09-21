@@ -111,11 +111,7 @@ describe("minutesOfDayAt", () => {
 
   it("advances a minute per real second and a day per 24 real minutes", () => {
     const now = 1_770_000_000_000;
-    expect(minutesOfDayAt(now + MS_PER_CLOCK_MINUTE)).toBe(
-      wrapMinutes(minutesOfDayAt(now) + 1),
-    );
-    expect(minutesOfDayAt(now + MINUTES_PER_DAY * MS_PER_CLOCK_MINUTE)).toBe(
-      minutesOfDayAt(now),
-    );
+    expect(minutesOfDayAt(now + MS_PER_CLOCK_MINUTE)).toBe(wrapMinutes(minutesOfDayAt(now) + 1));
+    expect(minutesOfDayAt(now + MINUTES_PER_DAY * MS_PER_CLOCK_MINUTE)).toBe(minutesOfDayAt(now));
   });
 });

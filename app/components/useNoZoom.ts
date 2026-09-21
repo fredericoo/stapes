@@ -56,11 +56,7 @@ export function continuesDoubleTap(
 }
 
 /** The two-finger zoom WebKit reports as a gesture rather than as touches. */
-const WEBKIT_GESTURE_EVENTS = [
-  "gesturestart",
-  "gesturechange",
-  "gestureend",
-] as const;
+const WEBKIT_GESTURE_EVENTS = ["gesturestart", "gesturechange", "gestureend"] as const;
 
 export function useNoZoom(enabled: boolean) {
   useEffect(() => {

@@ -97,10 +97,7 @@ export function signUp(
   return post("/api/account", { username, email, password });
 }
 
-export function signIn(
-  username: string,
-  password: string,
-): Promise<Attempt<unknown>> {
+export function signIn(username: string, password: string): Promise<Attempt<unknown>> {
   return post("/api/auth/sign-in/username", { username, password });
 }
 
@@ -126,9 +123,7 @@ export function changePassword(
   });
 }
 
-export async function createCharacter(
-  name: string,
-): Promise<Attempt<Character>> {
+export async function createCharacter(name: string): Promise<Attempt<Character>> {
   const made = await post<{ character: Character }>("/api/characters", {
     name,
   });

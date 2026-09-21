@@ -224,10 +224,7 @@ export function cellHasLooseGravity(
  * Every cell holding a gravity body no runtime drives. Whole-map scan, for
  * building the index once at load rather than per tick.
  */
-export function findLooseGravityCells(
-  map: MapFile,
-  tilesById: Record<string, TileDef>,
-): Coord[] {
+export function findLooseGravityCells(map: MapFile, tilesById: Record<string, TileDef>): Coord[] {
   const out: Coord[] = [];
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     for (const { x, y } of listCoords(map, z)) {
@@ -293,14 +290,7 @@ export function settleGravity(
     if (stackIndex == null) continue;
     const placed = getStack(next, cell.x, cell.y, cell.z)[stackIndex];
 
-    const feetAbs = standingAbs(
-      next,
-      cell.x,
-      cell.y,
-      cell.z,
-      stackIndex,
-      tilesById,
-    );
+    const feetAbs = standingAbs(next, cell.x, cell.y, cell.z, stackIndex, tilesById);
     const landing = findLandingAbs(next, cell.x, cell.y, feetAbs, tilesById, {
       z: cell.z,
       stackIndex,
@@ -334,9 +324,7 @@ export function settleGravity(
 }
 
 /** Map cell where an entity with feet at `feetAbs` should be stored. */
-export function cellForFeetAbs(
-  feetAbs: number,
-): { z: number; elevInLevel: number } {
+export function cellForFeetAbs(feetAbs: number): { z: number; elevInLevel: number } {
   let z = Math.floor(feetAbs / HEIGHT_PER_LEVEL);
   let elev = feetAbs - z * HEIGHT_PER_LEVEL;
   if (z < MIN_LEVEL) {

@@ -114,10 +114,7 @@ function field(): MapFile {
   for (let x = -2; x <= 2; x++) {
     for (let y = -2; y <= 2; y++) map = replaceStack(map, x, y, 0, [{ tileId: "grass" }]);
   }
-  return replaceStack(map, 0, 0, 0, [
-    { tileId: "grass" },
-    { tileId: "player", direction: "e" },
-  ]);
+  return replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: "player", direction: "e" }]);
 }
 
 function session(map: MapFile = field()): GameSession {
@@ -202,10 +199,7 @@ describe("swinging at another player", () => {
 
   it("is untouched between a player and a creature", () => {
     const play = session(
-      replaceStack(field(), 1, 0, 0, [
-        { tileId: "grass" },
-        { tileId: "deer", direction: "w" },
-      ]),
+      replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "deer", direction: "w" }]),
     );
     // Nobody's switch on, which is every player in a world that has never heard
     // of this feature.
@@ -286,12 +280,12 @@ describe("moving the switch", () => {
 
   it("is frozen while the body is in a fight", () => {
     const play = session(
-      replaceStack(field(), 1, 0, 0, [
-        { tileId: "grass" },
-        { tileId: "deer", direction: "w" },
-      ]),
+      replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "deer", direction: "w" }]),
     );
-    play.setTarget(play.actorIds().find((id) => id !== "local")!, "local");
+    play.setTarget(
+      play.actorIds().find((id) => id !== "local")!,
+      "local",
+    );
     play.setAttackMode(true, "local");
     advance(play, A_FEW_ROUNDS_MS);
 
@@ -302,10 +296,7 @@ describe("moving the switch", () => {
 
   it("is never offered to a creature, whose aggression is its brain's", () => {
     const play = session(
-      replaceStack(field(), 1, 0, 0, [
-        { tileId: "grass" },
-        { tileId: "deer", direction: "w" },
-      ]),
+      replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "deer", direction: "w" }]),
     );
     const deer = play.actorIds().find((id) => id !== "local")!;
     expect(play.setPvp(true, deer)).toBe(false);

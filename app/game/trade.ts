@@ -38,9 +38,7 @@ import { capacityOf } from "./itemMoves";
  */
 
 /** A square on a body a trade may take from or give to. */
-type Place =
-  | { holder: Hand }
-  | { holder: "weapon" | "offhand" | "bag"; index: number };
+type Place = { holder: Hand } | { holder: "weapon" | "offhand" | "bag"; index: number };
 
 const HAND_HOLDERS: readonly Hand[] = ["weapon", "offhand"];
 
@@ -207,11 +205,7 @@ function at(equipment: Equipment, place: Place): ItemInstance | null {
   return equipment[place.holder]?.contents?.[place.index] ?? null;
 }
 
-function put(
-  equipment: Equipment,
-  place: Place,
-  instance: ItemInstance | null,
-): Equipment {
+function put(equipment: Equipment, place: Place, instance: ItemInstance | null): Equipment {
   if (!("index" in place)) return { ...equipment, [place.holder]: instance };
   const holder = equipment[place.holder]!;
   const contents = holder.contents ?? [];

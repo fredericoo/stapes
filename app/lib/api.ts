@@ -21,9 +21,7 @@ import type { TileDef, TilesetDef } from "./types";
  * Vite server that is HTTP, which is the "Request failed" that leaves the
  * CSS and JS loaded and the world blank.
  */
-const client = treaty<Api>(
-  typeof window === "undefined" ? "localhost" : window.location.origin,
-);
+const client = treaty<Api>(typeof window === "undefined" ? "localhost" : window.location.origin);
 
 /**
  * Unwrap an Eden response, or throw.
@@ -106,14 +104,8 @@ export async function uploadTileset(file: File, name: string): Promise<void> {
 }
 
 /** Upload raw PNG bytes under a name, for the editors that render their own. */
-export async function uploadTilesetBytes(
-  name: string,
-  bytes: Uint8Array,
-): Promise<void> {
-  await uploadTileset(
-    new File([bytes as BlobPart], name, { type: "image/png" }),
-    name,
-  );
+export async function uploadTilesetBytes(name: string, bytes: Uint8Array): Promise<void> {
+  await uploadTileset(new File([bytes as BlobPart], name, { type: "image/png" }), name);
 }
 
 /** Where a tileset PNG is served from, for the renderer's image loads. */

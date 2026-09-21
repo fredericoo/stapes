@@ -1,9 +1,5 @@
 import type { ReactNode } from "react";
-import {
-  MAX_PERCENT_STAT,
-  MIN_PERCENT_STAT,
-  type StatusGrant,
-} from "../lib/item";
+import { MAX_PERCENT_STAT, MIN_PERCENT_STAT, type StatusGrant } from "../lib/item";
 import type { StatusDef } from "../lib/status";
 import { Button, FieldLabel, NumberInput, Select, Switch } from "../ui";
 
@@ -57,18 +53,14 @@ export function StatusGrants<Grant extends StatusGrant>({
   const options = catalogue.map((def) => ({ value: def.id, label: def.name }));
 
   const patchAt = (index: number, fields: Partial<Grant>) =>
-    onChange(
-      statuses.map((entry, i) => (i === index ? { ...entry, ...fields } : entry)),
-    );
+    onChange(statuses.map((entry, i) => (i === index ? { ...entry, ...fields } : entry)));
 
   return (
     <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
       <FieldLabel info={info}>Statuses</FieldLabel>
 
       {catalogue.length === 0 ? (
-        <p className="text-[11px] text-muted">
-          None authored — see the Statuses page.
-        </p>
+        <p className="text-[11px] text-muted">None authored — see the Statuses page.</p>
       ) : null}
 
       {statuses.map((entry, index) => {
@@ -83,9 +75,7 @@ export function StatusGrants<Grant extends StatusGrant>({
               <FieldLabel>Status</FieldLabel>
               <Select
                 value={entry.id || null}
-                onValueChange={(id) =>
-                  id && patchAt(index, { id } as Partial<Grant>)
-                }
+                onValueChange={(id) => id && patchAt(index, { id } as Partial<Grant>)}
                 options={options}
               />
             </label>
