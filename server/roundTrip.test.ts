@@ -18,7 +18,6 @@ import type { FlatMapFile, TileDef } from "../app/lib/types";
 import { PLAYER_TILE_ID, TICK_MS, WALK_DURATION_MS } from "../app/game/constants";
 import { CHUNK_SIZE } from "../app/lib/types";
 import { statusesById } from "../app/lib/status";
-import type { GameServer } from "./GameServer";
 
 /**
  * A real client and a real world, talking to each other.

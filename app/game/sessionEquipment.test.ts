@@ -5,7 +5,7 @@ import { emptyMap, getStack, parseMap, replaceStack, serializeMap } from "../lib
 import { parseServerMessage } from "../net/protocol";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { MapFile, TileDef } from "../lib/types";
-import { guardBand, MIN_GUARD_SHARE } from "./combat";
+import { guardBand } from "./combat";
 import { TICK_MS } from "./constants";
 import { emptyEquipment } from "./equipment";
 import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
@@ -374,17 +374,6 @@ describe("a weapon reaches the blow", () => {
   function arm(session: GameSession, tileId: string) {
     const kit = session.equipmentOf(selfId(session))!;
     kit.weapon = { id: "itm_test", tileId };
-  }
-
-  function damageOver(session: GameSession, ms: number): number {
-    const before = session
-      .actorSnapshots()
-      .find((a) => a.tileId === "dummy")!.hp!;
-    advance(session, ms);
-    const after = session
-      .actorSnapshots()
-      .find((a) => a.tileId === "dummy")!.hp!;
-    return before - after;
   }
 
   /**

@@ -16,7 +16,6 @@ import {
   ASSAILANT_GRACE_MS,
   attackIntervalMs,
   MIN_ATTACK_TICKS,
-  MIN_GUARD_SHARE,
   STRIKE_RECOVERY_STEPS,
   SWING_WINDUP_SHARE,
 } from "./combat";

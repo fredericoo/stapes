@@ -290,7 +290,11 @@ describe("trading through the panel", () => {
     expect(session.getSnapshot().equipment.offhand?.tileId).toBe("bag");
     talkTo(session, "seller");
     press(session, 1);
-    expect(lastLine(session)).toBeUndefined;
+    // Solvent, so the press opens the trade rather than refusing it. Written
+    // as `toBeUndefined` without its parentheses until oxlint noticed, so it
+    // never ran — and it was wrong: the transcript echoes the choice you
+    // pressed, so the last line here is "Buy".
+    expect(lastLine(session)).not.toBe(TRADE_REFUSED);
     trade(session, 2);
     expect(session.getSnapshot().equipment.offhand?.contents).toEqual([
       { id: "itm_shards", tileId: "shard", count: 2 },

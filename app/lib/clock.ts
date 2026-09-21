@@ -31,6 +31,7 @@ export type IlluminationKeyframe = {
  */
 export const ILLUMINATION_KEYFRAMES: readonly IlluminationKeyframe[] = [
   // Night plateau (held through midnight via matching 19:00 / 04:00 keys)
+  // oxlint-disable-next-line erasing-op -- an hour like every key below it
   { at: 0 * 60, ambient: [0.04, 0.05, 0.1] },
   { at: 4 * 60, ambient: [0.04, 0.05, 0.1] },
   { at: 6 * 60, ambient: [0.35, 0.32, 0.4] },

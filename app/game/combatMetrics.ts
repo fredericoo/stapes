@@ -1,7 +1,6 @@
 import type { FightingStats } from "../lib/battler";
 import { MAX_PERCENT_STAT, MAX_WEAPON_DAMAGE } from "../lib/item";
 import {
-  damageAfterDefence,
   defenceAgainst,
   dodgeChance,
   guardBand,

@@ -107,7 +107,7 @@ function PanelTitleBar({ panel }: { panel: PanelNode }) {
       <TabList
         panelId={panel.id}
         className="flex min-w-0 flex-1"
-        renderTab={({ tab, isActive, tabProps, label }) => (
+        renderTab={({ isActive, tabProps, label }) => (
           <button
             type="button"
             {...tabProps}

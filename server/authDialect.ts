@@ -130,6 +130,7 @@ class TursoConnection implements DatabaseConnection {
    * whole result into memory would be a table scan wearing a cursor's clothes
    * the first time something did.
    */
+  // oxlint-disable-next-line require-yield -- it exists to refuse, see above
   async *streamQuery<R>(): AsyncIterableIterator<QueryResult<R>> {
     throw new Error("The auth dialect does not stream — see TursoDialect");
   }

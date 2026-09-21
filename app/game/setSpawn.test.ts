@@ -292,8 +292,6 @@ describe("a mark the world already remembers", () => {
  */
 describe("the row on a respawn point", () => {
   /** The shipped shape: a flat marker you stand on top of and press. */
-  const MARKER = { x: 0, y: 0, z: 0, stackIndex: 1 };
-
   function markerWorld(): MapFile {
     return replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },

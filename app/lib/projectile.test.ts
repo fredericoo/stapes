@@ -8,7 +8,6 @@ import {
   projectileTiles,
   resolveProjectile,
 } from "./projectile";
-import { MAX_BURST_PARTICLES } from "./tileTransition";
 import { normalizeTileDef, normalizeTiles, type TileDef } from "./types";
 import { tilesByIdFromList } from "./validation";
 

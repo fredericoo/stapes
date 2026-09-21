@@ -2173,7 +2173,8 @@ describe("player permanence", () => {
     await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
 
     const saved = await savedEquipment(who);
-    expect((saved?.equipment as { bag: { id: string } }).bag.id).toBe(
+    expect(saved).toBeDefined();
+    expect((saved!.equipment as { bag: { id: string } }).bag.id).toBe(
       kitOf(hello).bag.id,
     );
   });
@@ -5310,7 +5311,7 @@ describe("what each client is told has changed", () => {
    * passed all 212 tests here.
    */
   it("carries the maximum along with the hit points", async () => {
-    const alice = await connect("alice");
+    await connect("alice");
     const bob = await connect("bob");
     const authored = (
       bob.hello.hps as Array<{ actorId: string; maxHp: number }>

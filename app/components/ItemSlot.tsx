@@ -78,7 +78,7 @@ import { TilePreview } from "./TilePreview";
  */
 
 /** Which sprite stands for a tile in a slot — the one facing the reader. */
-const FRONT: "s" = "s";
+const FRONT = "s" as const;
 
 
 

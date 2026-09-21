@@ -13,7 +13,7 @@ import {
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import type { AttackOutcome } from "./combat";
-import { guardBand, MIN_GUARD_SHARE } from "./combat";
+import { guardBand } from "./combat";
 import { effectiveBattler, emptyEquipment } from "./equipment";
 import { TICK_MS } from "./constants";
 import {
@@ -539,7 +539,7 @@ describe("what a fight is worth is paced", () => {
    * than the first, or standing still is a strategy.
    */
   it("pays less for each further blow from the same attacker", () => {
-    const { session, foe } = beingHit();
+    const { session } = beingHit();
 
     advance(session, 3000);
     const early = learnt(session.masteryXpOf("me"), "toughness");

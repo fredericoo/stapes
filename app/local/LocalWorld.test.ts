@@ -23,7 +23,6 @@ import { LocalWorld } from "./LocalWorld";
  * walkability are exactly what a step is about. @see CLAUDE.md
  */
 
-const JSON_TYPE = "application/json";
 /** Long enough for a tick at 30Hz to have happened several times over. */
 const MESSAGE_TIMEOUT_MS = 5000;
 

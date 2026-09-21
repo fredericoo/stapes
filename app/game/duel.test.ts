@@ -11,7 +11,7 @@ import { isRanged, resolveWeapon, type WeaponItem } from "../lib/item";
 import { experienceMultiplier, type Mastery, rating } from "../lib/mastery";
 import { COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import { normalizeTiles } from "../lib/types";
-import { attackIntervalMs, MIN_ATTACK_TICKS, rollAttack, swingIntervalMs } from "./combat";
+import { MIN_ATTACK_TICKS, rollAttack, swingIntervalMs } from "./combat";
 import { TICK_MS } from "./constants";
 import {
   Duel,

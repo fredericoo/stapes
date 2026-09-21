@@ -84,7 +84,7 @@ const MS_PER_SECOND = 1000;
 const SPRITE_SHARE = 0.55;
 
 /** Which sprite stands for a stone in a button — the one facing the reader. */
-const FRONT: "s" = "s";
+const FRONT = "s" as const;
 
 /**
  * The size the sprite is drawn against, in pixels.

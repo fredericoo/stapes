@@ -1318,7 +1318,7 @@ describe("RemoteSession attack mode", () => {
   });
 
   it("says nothing again when it was never on", () => {
-    const { socket, session } = connected();
+    const { socket } = connected();
 
     socket.deliver({
       type: "hello",
