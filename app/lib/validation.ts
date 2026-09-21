@@ -465,17 +465,4 @@ export function tilesByIdFromList(tiles: TileDef[]): Record<string, TileDef> {
   return out;
 }
 
-/** Debug helper: ensure empty stacks aren't stored. */
-export function assertNoEmptyStacks(map: MapFile): void {
-  for (const level of Object.values(map.levels)) {
-    for (const chunk of Object.values(level)) {
-      for (const [key, stack] of Object.entries(chunk)) {
-        if (stack.length === 0) {
-          throw new Error(`Empty stack stored at ${key}`);
-        }
-      }
-    }
-  }
-}
-
 export { coordKey, levelKey };

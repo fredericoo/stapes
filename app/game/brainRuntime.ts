@@ -12,7 +12,6 @@ import {
 import { evaluateCondition } from "../lib/conditions";
 import type { BattlerDef } from "../lib/battler";
 import { DIRECTIONS, type Coord, type Direction } from "../lib/types";
-import { DIR_DELTA } from "./movement";
 import type { Rng } from "./rng";
 
 /** Floors a creature looks up and down. @see BattlerDef.sight */

@@ -308,11 +308,6 @@ export type TeleportDestination =
 
 export type TeleportDestinationKind = TeleportDestination["kind"];
 
-export const TELEPORT_DESTINATION_KINDS: TeleportDestinationKind[] = [
-  "relative",
-  "absolute",
-];
-
 /**
  * Put whoever activates this somewhere else on the board.
  *

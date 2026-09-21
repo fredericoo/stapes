@@ -7,7 +7,7 @@ import {
   WEAPON_MASTERIES,
   type WeaponMastery,
 } from "./mastery";
-import { CELL_SIZE, HEIGHT_PER_LEVEL, type TileDef } from "./types";
+import { HEIGHT_PER_LEVEL, type TileDef } from "./types";
 
 /**
  * What it takes to be carried.
@@ -1152,17 +1152,6 @@ export type ItemDef =
   | CharmItem;
 
 export type ItemType = ItemDef["type"];
-
-export const ITEM_TYPES: ItemType[] = [
-  "weapon",
-  "armor",
-  "shield",
-  "consumable",
-  "container",
-  "artifact",
-  "stone",
-  "charm",
-];
 
 /**
  * Both ends of the 0–100 stats, named so the editor and the schema agree.

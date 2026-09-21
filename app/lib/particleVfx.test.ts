@@ -7,7 +7,7 @@ import {
   RAMP_LUT_SIZE,
   rampIndexAt,
 } from "./particleVfx";
-import { hexToRgb01, srgbToOklab } from "./palette";
+import { hexToRgb01 } from "./palette";
 
 /**
  * What an authored plume comes to.

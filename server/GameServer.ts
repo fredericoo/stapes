@@ -51,9 +51,7 @@ import { masteryXpBlockSchema, type MasteryXp } from "../app/lib/mastery";
 import {
   changedCellsOnLevel,
   changedChunks,
-  chunkKeyFor,
   chunkifyMap,
-  flattenMap,
   getStack,
   mapFromChunks,
 } from "../app/lib/mapData";

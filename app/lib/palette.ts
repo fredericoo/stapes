@@ -193,28 +193,6 @@ export function nearestPaletteIndex(
   return best;
 }
 
-/** Nearest by squared sRGB distance (chromaWeight ignored). */
-export function nearestPaletteIndexSrgb(
-  rgb: readonly [number, number, number],
-  paletteRgb: Float32Array,
-): number {
-  const n = paletteRgb.length / 3;
-  let best = 0;
-  let bestD = Infinity;
-  const [r, g, b] = rgb;
-  for (let i = 0; i < n; i++) {
-    const dr = r - paletteRgb[i * 3]!;
-    const dg = g - paletteRgb[i * 3 + 1]!;
-    const db = b - paletteRgb[i * 3 + 2]!;
-    const d = dr * dr + dg * dg + db * db;
-    if (d < bestD) {
-      bestD = d;
-      best = i;
-    }
-  }
-  return best;
-}
-
 export function hexToRgb01(hex: string): [number, number, number] {
   return parseHex(hex);
 }

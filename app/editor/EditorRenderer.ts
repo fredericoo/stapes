@@ -45,7 +45,7 @@ import {
   tileCanEmitLight,
 } from "../lib/types";
 import { clumpExtents } from "../render/depthClump";
-import { getFrames, resolveTileSprite, tileLightSignature } from "../lib/tileResolve";
+import { resolveTileSprite, tileLightSignature } from "../lib/tileResolve";
 import { cellPhaseMs, spriteRect } from "../lib/types";
 import { AnimationTable, NO_ANIMATION } from "../render/animTable";
 import { canPlace, canReplaceStack } from "../lib/validation";

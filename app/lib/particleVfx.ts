@@ -341,8 +341,6 @@ export const particleEmitterSchema = v.pipe(
   v.check((raw) => raw.riseTo >= raw.riseFrom, "particle rise range is inverted"),
 );
 
-export type ParticleEmitterSource = v.InferOutput<typeof particleEmitterSchema>;
-
 /**
  * A ramp flattened to {@link RAMP_LUT_SIZE} sRGB triples, interpolated in OKLab.
  *

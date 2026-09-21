@@ -23,7 +23,6 @@ import type { Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import {
   HEIGHT_PER_LEVEL,
   MAX_LEVEL,
-  isDirectional,
   physicalHeight,
   resolveActor,
 } from "../lib/types";

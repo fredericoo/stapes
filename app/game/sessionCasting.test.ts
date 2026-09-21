@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { defFrom, maxHpFrom } from "../lib/battler";
-import type { ItemInstance } from "../lib/itemInstance";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import {
   masteriesFromXp,
@@ -10,7 +9,6 @@ import {
 import { COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import type { Coord, MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
-import { tilesByIdFromList } from "../lib/validation";
 import { naturalSlot, squareSlot } from "./casting";
 import { guardBand, MIN_GUARD_SHARE } from "./combat";
 import { TICK_MS } from "./constants";

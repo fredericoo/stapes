@@ -43,7 +43,6 @@ import {
   planScatter,
   planWater,
   randomAt,
-  regionsOf,
   setOpen,
   widenToTwo,
 } from "./generator";

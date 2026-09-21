@@ -340,8 +340,6 @@ export const AUTOTILE_SLICE_COUNT = 47;
  */
 export type SpriteState = "idle" | "moving";
 
-export const SPRITE_STATES: SpriteState[] = ["idle", "moving"];
-
 /** The non-idle states, which are the only ones {@link TileDef.states} keys. */
 export type OverrideSpriteState = Exclude<SpriteState, "idle">;
 
@@ -767,11 +765,6 @@ export function resolveLightPassing(def: TileDef): boolean {
   if (def.lightPassing != null) return def.lightPassing;
   if (def.blocksLight != null) return !def.blocksLight;
   return false;
-}
-
-/** @deprecated Use {@link resolveLightPassing}. */
-export function resolveBlocksLight(def: TileDef): boolean {
-  return !resolveLightPassing(def);
 }
 
 export type TilesetDef = {

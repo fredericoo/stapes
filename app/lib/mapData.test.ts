@@ -25,7 +25,6 @@ import { fixtureTown } from "./fixtureTown";
 import type { MapFile, PlacedTile, TileDef } from "./types";
 import {
   MAP_FILE_VERSION,
-  coordKey,
   levelKey,
   normalizeTileDef,
   physicalHeight,

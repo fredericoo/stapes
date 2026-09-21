@@ -19,7 +19,7 @@ import { group } from "../lib/conditions";
 import { constantFormula } from "../lib/formula";
 import { DEFAULT_STATUS_SOURCE, type StatusDef } from "../lib/status";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
-import type { Coord, Direction, FlatMapFile, MapFile, TileDef } from "../lib/types";
+import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import {
   initialMemory,
