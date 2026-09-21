@@ -1031,7 +1031,7 @@ const bow = claws({
 /**
  * The catalogue every archer here fires out of.
  *
- * Built by hand rather than read off `data/projectiles.json`, on the terms
+ * Built by hand rather than read off `data/tiles.json`, on the terms
  * every other fixture in this file is built: what is being tested is that a
  * shot names an entry and plays its sides, not what the shipped arrow happens
  * to be authored as. @see `../lib/projectile`

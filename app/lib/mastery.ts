@@ -52,8 +52,11 @@ export type WeaponMastery = "fist" | "sharp" | "blunt" | "ranged" | "arcane";
  * The masteries nothing is held to practise.
  *
  * Earned by being in a fight rather than by swinging in one: toughness from
- * taking blows, agility from avoiding them. They have no gear to train against,
- * which is a known gap rather than a design — see `plans/masteries.md`.
+ * taking blows, agility from avoiding them. Having no gear to train against is
+ * the design rather than a gap: these two are the body itself, so they are
+ * weighed against the Rating where a weapon mastery is weighed against itself —
+ * you cannot be a novice at having a body. See `docs/notes.md`'s *A mastery is
+ * weighed against itself, and a blow against what the body had left*.
  */
 export type BodyMastery = "toughness" | "agility";
 

@@ -331,12 +331,12 @@ export const AUTOTILE_SLICE_COUNT = 47;
  *   A falling body draws idle until a `falling` state exists to draw it.
  *
  * **Every state in this union must be driven by a renderer.** `attacking` and
- * `open` were designed alongside `moving` and are specified in
- * `plans/stateful-sprites.md`, but they are deliberately absent until the things
- * that drive them exist: a swing on the wire, and a session that knows who has
- * what open. A state nobody draws is a control in the editor that does nothing
- * when you use it, and an authored sprite that never appears is indistinguishable
- * from a bug — so each arrives with its driver, in the same change.
+ * `open` were designed alongside `moving`, but they are deliberately absent
+ * until the things that drive them exist: a swing on the wire, and a session
+ * that knows who has what open. A state nobody draws is a control in the editor
+ * that does nothing when you use it, and an authored sprite that never appears
+ * is indistinguishable from a bug — so each arrives with its driver, in the
+ * same change.
  */
 export type SpriteState = "idle" | "moving";
 
@@ -1788,7 +1788,7 @@ export function frameStartMs(frames: Frame[], index: number): number {
  * that a lamp's glow cannot drift away from its own flame.
  *
  * So a phase is for art whose light does not change, which is every phase
- * anybody has wanted so far. `tiles.test.ts` asserts the catalogue never
+ * anybody has wanted so far. `spritePhase.test.ts` asserts the catalogue never
  * authors the pair, so in practice this never fires — it is here so the
  * desync is impossible rather than merely unauthored.
  */

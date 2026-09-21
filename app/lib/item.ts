@@ -50,7 +50,8 @@ import { HEIGHT_PER_LEVEL, type TileDef } from "./types";
  * and heavy: one Fist number could never have said that, because a higher one
  * would make the harder-hitting animal the faster one by construction.
  *
- * See `./battler` for the derivation and `plans/masteries.md` for the argument.
+ * See `./battler` for the derivation and `docs/notes.md`'s *Fighting is stats
+ * on a tile, and nothing else* for the argument.
  */
 /**
  * How far something reaches: a disc on the plan, a height either side, and

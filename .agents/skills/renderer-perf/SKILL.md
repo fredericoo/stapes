@@ -12,8 +12,8 @@ description: >
 When you change the Three.js editor renderer, map mesh building, lighting bake, or anything under `app/editor/` / `app/lib/lighting*` that can affect draw calls or frame time:
 
 1. Before considering the work done, run:
-   - `pnpm test:unit` (includes `app/lib/lighting.perf.test.ts` bake/overlay budgets)
-   - `pnpm test:perf` (editor renderFrame + structure caps)
+   - `bun run test:unit` (includes `app/lib/lighting.perf.test.ts` bake/overlay budgets)
+   - `bun run test:perf` (editor renderFrame + structure caps)
 2. Do not ship if either fails. If a budget in `app/editor/perf.ts` must rise for a real feature (e.g. lighting passes), update the budget in the same change and say why in the PR/commit summary.
 3. Prefer fixing regressions (draw calls, mesh/quad ratio, frame p95, lighting bake ms) over raising caps.
 4. `PERF_SKIP_TIMING=1` is only for diagnosing structure asserts when the GPU is unavailable — not a way to ignore slow frames on a normal machine.

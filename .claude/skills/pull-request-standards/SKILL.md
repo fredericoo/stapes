@@ -162,8 +162,8 @@ This is an example of the level of detail expected. Do not force every PR into t
 ```md
 ## How to Test
 
-1. Run `pnpm install` to install dependencies.
-2. Run `pnpm dev` to start the dev server.
+1. Run `bun install` to install dependencies.
+2. Run `bun dev` to start the dev server.
 3. Open `http://localhost:5173/play`.
 4. Hold shift and hover a wall tile.
 5. Confirm the tile is outlined in blue and named in a label above it.
@@ -177,6 +177,6 @@ This is an example of the level of detail expected. Do not force every PR into t
 - Do not include headings that do not apply.
 - Do not hide developer or UX impact in implementation bullets.
 - Do not describe unrelated future work in `What this changes`. Use `Out of scope` only for boundaries of this PR.
-- Do not use `pnpm typecheck`, unit tests, or CI as manual testing instructions.
+- Do not use `bun run typecheck`, unit tests, or CI as manual testing instructions.
 - Do not over-explain code that TypeScript or the diff already makes obvious.
 - Do not ship a visual change without a screenshot or recording.
