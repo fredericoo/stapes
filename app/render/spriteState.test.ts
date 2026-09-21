@@ -16,30 +16,9 @@ import {
   replaceStack,
 } from "../lib/mapData";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
 import { spriteStatesFor } from "./spriteState";
 import { tileInstanceKey } from "./WorldRenderer";
-
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    ...partial,
-  });
-}
+import { FRAME, tile } from "../lib/testTile";
 
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
@@ -49,7 +28,7 @@ const tiles: TileDef[] = [
     directional: true,
     affectedByGravity: true,
     walkable: false,
-    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
   }),
 ];
 

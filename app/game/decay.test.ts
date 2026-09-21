@@ -9,6 +9,7 @@ import { DecayIndex, applyDecay, findDecayCells } from "./decay";
 import { emptyEquipment, type Equipment } from "./equipment";
 import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
 import { Rng } from "./rng";
+import { tile } from "../lib/testTile";
 
 /**
  * The bag `player`'s kit is authored with — see `app/lib/kit.ts`. A literal
@@ -34,29 +35,6 @@ const ROTTEN_MS = 4000;
  * fought over. See the `scarecrow` tile.
  */
 const GOURD_MS = 60_000;
-
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: {
-      default: [
-        {
-          sprite: {
-            tilesetId: "basic",
-            rect: { x: 0, y: 0, w: 1, h: 1 },
-            base: { x: 0, y: 0 },
-          },
-          durationMs: 200,
-        },
-      ],
-    },
-    attributes: {},
-    ...partial,
-  });
-}
 
 function directionalTile(id: string, extra: Record<string, unknown> = {}) {
   const frames = [

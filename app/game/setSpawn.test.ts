@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import { resolveSetSpawn } from "../lib/interactions";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { canSetSpawnFrom, reachableSetSpawnAt } from "./affordances";
 import { TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
 import { listInteractionOptions } from "./interactionOptions";
+import { FRAME, tile } from "../lib/testTile";
 
 /**
  * A tile that moves where somebody comes back to.
@@ -28,27 +28,6 @@ import { listInteractionOptions } from "./interactionOptions";
 /** Ticks a started walk needs to reach its destination and commit. */
 const TICKS_PER_STEP = Math.ceil(WALK_DURATION_MS / TICK_MS) + 1;
 
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(partial: Record<string, unknown>): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    height: 0,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    kind: "prop",
-    ...partial,
-  });
-}
-
 function body(id: string, extra: Record<string, unknown> = {}): TileDef {
   return tile({
     id,
@@ -56,7 +35,7 @@ function body(id: string, extra: Record<string, unknown> = {}): TileDef {
     kind: "battler",
     directional: true,
     walkable: false,
-    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
     interactions: {
       battler: {
         baseHp: 8,

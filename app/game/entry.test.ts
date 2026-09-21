@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { ENTRY_SEARCH_RADIUS, findEntryCell } from "./entry";
 import { chunkifyMap } from "../lib/mapData";
 import type { FlatMapFile, MapFile, PlacedTile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
+import { FRAME, tile } from "../lib/testTile";
 
 /**
  * Where a returning player is put back.
@@ -14,27 +14,6 @@ import { tilesByIdFromList } from "../lib/validation";
  * the ways it goes wrong are geometric rather than obvious. These cover the
  * three answers: the cell itself, a neighbour, and giving up.
  */
-
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    ...partial,
-  });
-}
 
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
@@ -48,7 +27,7 @@ const tiles: TileDef[] = [
     directional: true,
     affectedByGravity: true,
     walkable: false,
-    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
   }),
 ];
 

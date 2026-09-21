@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
 import { FALL_MS_PER_HEIGHT, TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
+import { FRAME, tile } from "../lib/testTile";
 
 /**
  * Bodies that live in the map rather than arriving on a socket.
@@ -16,27 +16,6 @@ import { GameSession } from "./GameSession";
  * has its own suites.
  */
 
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    ...partial,
-  });
-}
-
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
   tile({
@@ -45,7 +24,7 @@ const tiles: TileDef[] = [
     directional: true,
     affectedByGravity: true,
     walkable: false,
-    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
   }),
   // A deer falls, like the player does.
   tile({ id: "deer", height: 2, actor: true, affectedByGravity: true, walkable: false }),

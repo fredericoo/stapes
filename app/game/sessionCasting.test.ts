@@ -8,7 +8,6 @@ import {
 } from "../lib/mastery";
 import { COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import type { Coord, MapFile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
 import { naturalSlot, squareSlot } from "./casting";
 import { guardBand, MIN_GUARD_SHARE } from "./combat";
 import { TICK_MS } from "./constants";
@@ -21,6 +20,7 @@ import {
 import { GameSession } from "./GameSession";
 import type { SlotRef } from "./itemMoves";
 import { FLIGHT_BODY_SHARE } from "./projectile";
+import { FRAME, tile } from "../lib/testTile";
 
 /**
  * Casting, from the outside.
@@ -32,27 +32,6 @@ import { FLIGHT_BODY_SHARE } from "./projectile";
  * end-to-end case rather than three unit ones, on the terms the session suites
  * drive a fight tick by tick.
  */
-
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(partial: Record<string, unknown>): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    height: 0,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    kind: "prop",
-    ...partial,
-  });
-}
 
 function stoneTile(
   id: string,
@@ -235,7 +214,7 @@ function body(
     directional: true,
     walkable: false,
     affectedByGravity: true,
-    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
     interactions: {
       battler: {
         baseHp: FIXTURE_BASE_HP,

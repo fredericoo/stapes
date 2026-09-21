@@ -7,6 +7,7 @@ import { TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
 import { findLooseGravityCells, gravityPullOn, settleGravity } from "./gravity";
 import shippedTiles from "../../data/tiles.json";
+import { FRAME, tile } from "../lib/testTile";
 
 /**
  * Passive gravity for the bodies no runtime drives. An actor animates its own
@@ -14,23 +15,6 @@ import shippedTiles from "../../data/tiles.json";
  * instantly, which is the point: a thing whose floor was pulled hanging in the
  * air reads as a broken mechanism, not as physics waiting to happen.
  */
-
-const frame = {
-  sprite: { tilesetId: "basic", rect: { x: 0, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } },
-  durationMs: 200,
-};
-
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    ...partial,
-  });
-}
 
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
@@ -72,7 +56,7 @@ const tiles: TileDef[] = [
     directional: true,
     affectedByGravity: true,
     walkable: false,
-    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
   }),
   // The hole: a floor tile you can see and cannot stand on.
   tile({ id: "hole-floor", height: 0, intangible: true }),

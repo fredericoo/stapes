@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { emptyMap, replaceStack } from "../lib/mapData";
-import type { MapFile, PlacedTile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
+import type { MapFile, PlacedTile } from "../lib/types";
 import { inscribedNearby } from "./nearbyInscriptions";
+import { tile } from "../lib/testTile";
 
 /**
  * Who speaks when you walk past, and who stays quiet.
@@ -13,27 +13,6 @@ import { inscribedNearby } from "./nearbyInscriptions";
  * since the number lives in `game/affordances` and nothing else here would
  * notice it moving.
  */
-
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    ...partial,
-  });
-}
 
 const tilesById = Object.fromEntries(
   [

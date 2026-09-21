@@ -7,7 +7,7 @@ import {
 import { DEFAULT_CONTAINER } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
+import { tile } from "../lib/testTile";
 
 /**
  * What the editor writes into a container placement.
@@ -17,27 +17,6 @@ import { normalizeTileDef } from "../lib/types";
  * arrive at the same list, because the field calls `stow` rather than keeping
  * its own idea of what fits.
  */
-
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(partial: Record<string, unknown>): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    height: 0,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    kind: "prop",
-    ...partial,
-  });
-}
 
 function food(id: string, pile: number): TileDef {
   return tile({

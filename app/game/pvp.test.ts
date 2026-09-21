@@ -3,10 +3,10 @@ import { defFrom, maxHpFrom } from "../lib/battler";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import { statusesById } from "../lib/status";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
 import { TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
 import { mayHarm } from "./pvp";
+import { FRAME, tile } from "../lib/testTile";
 
 /**
  * Two players do not hurt each other until both have asked to.
@@ -15,27 +15,6 @@ import { mayHarm } from "./pvp";
  * that is the four places harm can pass from one body to another, each checked
  * against the same board with the switches in different positions.
  */
-
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(partial: Record<string, unknown>): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    height: 0,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    kind: "prop",
-    ...partial,
-  });
-}
 
 const BASE_HP = 8;
 const TOUGHNESS = 92;
@@ -56,7 +35,7 @@ function body(id: string, extra: Record<string, unknown> = {}): TileDef {
     kind: "battler",
     directional: true,
     walkable: false,
-    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
     interactions: {
       battler: {
         baseHp: BASE_HP,

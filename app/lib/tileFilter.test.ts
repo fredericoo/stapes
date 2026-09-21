@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { BrainDef } from "./brain";
 import { filterTiles, matchesTileFilter, matchesTileQuery } from "./tileFilter";
 import { normalizeTileDef, type TileDef, type TileKind } from "./types";
+import { FRAME } from "./testTile";
 
 /**
  * The catalogue grew past the point where scrolling finds anything, so the page
@@ -9,15 +10,6 @@ import { normalizeTileDef, type TileDef, type TileKind } from "./types";
  * in the route because a filter that quietly drops a tile is invisible in a grid
  * of a hundred cards.
  */
-
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
 
 const wanderBrain: BrainDef = {
   initial: "idle",
@@ -34,7 +26,7 @@ function tile(
     height: 2,
     type: "simple",
     kind: props.kind ?? "prop",
-    sprite: { frames: [frame] },
+    sprite: { frames: [FRAME] },
     attributes: {},
     ...(props.brain ? { interactions: { brain: props.brain } } : {}),
   });
@@ -84,7 +76,7 @@ describe("the kind filter", () => {
       height: 2,
       type: "simple",
       kind: "prop",
-      sprite: { frames: [frame] },
+      sprite: { frames: [FRAME] },
       attributes: {},
       // Points at a state that does not exist, which is exactly what a rename
       // leaves behind.

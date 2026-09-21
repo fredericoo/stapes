@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
 import type { RoofCut } from "../lib/levelVisibility";
 import { coordKey } from "../lib/types";
 import { isCellVisible, isHiddenFromCamera } from "./cameraSight";
+import { tile } from "../lib/testTile";
 
 /**
  * What the camera can see, as opposed to what a body can.
@@ -33,27 +33,6 @@ function cutting(
     byZ.set(cell.z, level);
   }
   return { floor, cells: byZ };
-}
-
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    ...partial,
-  });
 }
 
 const tiles: TileDef[] = [

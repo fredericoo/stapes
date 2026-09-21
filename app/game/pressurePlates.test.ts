@@ -6,32 +6,10 @@ import { tilesByIdFromList } from "../lib/validation";
 import { TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
 import { findPlateCells, loadAbove, settlePlates } from "./pressurePlates";
+import { tile } from "../lib/testTile";
 
 /** Ticks a started walk needs to reach its destination and commit. */
 const TICKS_PER_STEP = Math.ceil(WALK_DURATION_MS / TICK_MS) + 1;
-
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: {
-      default: [
-        {
-          sprite: {
-            tilesetId: "basic",
-            rect: { x: 0, y: 0, w: 1, h: 1 },
-            base: { x: 0, y: 0 },
-          },
-          durationMs: 200,
-        },
-      ],
-    },
-    attributes: {},
-    ...partial,
-  });
-}
 
 function directionalTile(id: string, extra: Record<string, unknown> = {}) {
   const frames = [

@@ -3,10 +3,10 @@ import { DEFAULT_CONTAINER } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
 import { emptyEquipment, type Equipment } from "./equipment";
 import { GameSession } from "./GameSession";
 import type { SlotRef } from "./itemMoves";
+import { FRAME, tile } from "../lib/testTile";
 
 /**
  * Several of one thing, as the session moves them about.
@@ -15,27 +15,6 @@ import type { SlotRef } from "./itemMoves";
  * meet it — taking a pile off the board, putting one down, spending one of it,
  * and dragging the lot from square to square.
  */
-
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(partial: Record<string, unknown>): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    height: 0,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    kind: "prop",
-    ...partial,
-  });
-}
 
 /** A pile of at most `pile`, which is the whole of what makes it food. */
 function food(id: string, pile: number): TileDef {
@@ -59,7 +38,7 @@ const tiles: TileDef[] = [
     kind: "battler",
     directional: true,
     walkable: false,
-    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
     interactions: {
       battler: {
         baseHp: 8,

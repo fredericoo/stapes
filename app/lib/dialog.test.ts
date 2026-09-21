@@ -17,15 +17,7 @@ import {
   type DialogTrade,
 } from "./dialog";
 import { normalizeTileDef } from "./types";
-
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
+import { FRAME } from "./testTile";
 
 function tileWith(dialog: unknown, id = "seller", item?: unknown) {
   return normalizeTileDef({
@@ -33,7 +25,7 @@ function tileWith(dialog: unknown, id = "seller", item?: unknown) {
     name: id,
     height: 4,
     directional: false,
-    variants: { default: [frame] },
+    variants: { default: [FRAME] },
     attributes: {},
     kind: item ? "item" : "prop",
     interactions: { ...(dialog === undefined ? {} : { dialog }), ...(item ? { item } : {}) },

@@ -1,32 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { Direction, MapFile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
 import { standingAbs } from "./movement";
 import { findPlayers } from "./player";
-
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
-  const frame = {
-    sprite: {
-      tilesetId: "basic",
-      rect: { x: 0, y: 0, w: 1, h: 1 },
-      base: { x: 0, y: 0 },
-    },
-    durationMs: 200,
-  };
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    ...partial,
-  });
-}
+import { tile } from "../lib/testTile";
 
 const directionalFrames = () => {
   const frame = {

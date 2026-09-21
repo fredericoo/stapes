@@ -11,31 +11,10 @@
 import { describe, expect, it } from "vitest";
 import type { SlideSnapshot } from "../game/GameSession";
 import { emptyMap, replaceStack } from "../lib/mapData";
-import { HEIGHT_PER_LEVEL, normalizeTileDef, type MapFile, type TileDef } from "../lib/types";
+import { HEIGHT_PER_LEVEL, type MapFile } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { slideTileMotions } from "./slideMotion";
-
-function tile(partial: Record<string, unknown>): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    height: 0,
-    directional: false,
-    variants: {
-      default: [
-        {
-          sprite: {
-            tilesetId: "basic",
-            rect: { x: 0, y: 0, w: 1, h: 1 },
-            base: { x: 0, y: 0 },
-          },
-          durationMs: 200,
-        },
-      ],
-    },
-    attributes: {},
-    ...partial,
-  });
-}
+import { tile } from "../lib/testTile";
 
 const tilesById = tilesByIdFromList([
   tile({ id: "grass" }),

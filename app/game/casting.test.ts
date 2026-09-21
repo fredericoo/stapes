@@ -15,7 +15,7 @@ import { resolveBattler } from "../lib/battler";
 import { type Masteries, MAX_MASTERY, meetsRequirements } from "../lib/mastery";
 import { type Element, ELEMENTS } from "../lib/element";
 import type { MapFile, TileDef } from "../lib/types";
-import { normalizeTileDef, normalizeTiles } from "../lib/types";
+import { normalizeTiles } from "../lib/types";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import { tilesByIdFromList } from "../lib/validation";
 import {
@@ -40,6 +40,7 @@ import {
   weaponSwungBy,
   wornAccepts,
 } from "./equipment";
+import { tile } from "../lib/testTile";
 
 /**
  * Which stones can be cast, and why not the rest.
@@ -53,27 +54,6 @@ import {
  * than against a fixture, on the terms the equipment suite's "what we ship"
  * cases do: a design quietly ceasing to be true should fail here.
  */
-
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(partial: Record<string, unknown>): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    height: 0,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    kind: "prop",
-    ...partial,
-  });
-}
 
 function stoneTile(id: string, item: Record<string, unknown>): TileDef {
   return tile({

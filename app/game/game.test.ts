@@ -9,7 +9,7 @@ import {
   terrainHeight,
 } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
-import { HEIGHT_PER_LEVEL, normalizeTileDef } from "../lib/types";
+import { HEIGHT_PER_LEVEL } from "../lib/types";
 import {
   canReplaceStack,
   fitsTile,
@@ -26,33 +26,11 @@ import { GameSession } from "./GameSession";
 import { findLandingAbs, isSupported } from "./gravity";
 import { canWalk, groundWalkSpeedPercent, standingAbs } from "./movement";
 import { findPlayers, requireSinglePlayer } from "./player";
+import { tile } from "../lib/testTile";
 
 /** Run a session for `ms`, a tick at a time, the way a server does. */
 function advance(session: GameSession, ms: number) {
   for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) session.tick(TICK_MS);
-}
-
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: {
-      default: [
-        {
-          sprite: {
-            tilesetId: "basic",
-            rect: { x: 0, y: 0, w: 1, h: 1 },
-            base: { x: 0, y: 0 },
-          },
-          durationMs: 200,
-        },
-      ],
-    },
-    attributes: {},
-    ...partial,
-  });
 }
 
 const tiles: TileDef[] = [

@@ -14,31 +14,7 @@ import {
   resolveReceive,
   resolveSwitch,
 } from "./interactions";
-import type { TileDef } from "./types";
-import { normalizeTileDef } from "./types";
-
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: {
-      default: [
-        {
-          sprite: {
-            tilesetId: "basic",
-            rect: { x: 0, y: 0, w: 1, h: 1 },
-            base: { x: 0, y: 0 },
-          },
-          durationMs: 200,
-        },
-      ],
-    },
-    attributes: {},
-    ...partial,
-  });
-}
+import { tile } from "./testTile";
 
 describe("resolveSwitch", () => {
   it("reads a valid switch block", () => {

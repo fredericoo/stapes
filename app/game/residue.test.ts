@@ -3,10 +3,10 @@ import { DEFAULT_CONTAINER } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
 import { emptyEquipment, type Equipment } from "./equipment";
 import { slotKey } from "./itemMoves";
 import { leaveResidue, residueSlots } from "./residue";
+import { tile as baseTile } from "../lib/testTile";
 
 /**
  * Where a bottle goes once the potion is gone.
@@ -15,26 +15,10 @@ import { leaveResidue, residueSlots } from "./residue";
  * are tried in and the refusals, against a kit built by hand.
  */
 
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(partial: Record<string, unknown>): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    height: 0,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    kind: "item",
-    intangible: true,
-    ...partial,
-  });
+function tile(
+  partial: Record<string, unknown> & Pick<TileDef, "id">,
+): TileDef {
+  return baseTile({ kind: "item", intangible: true, ...partial });
 }
 
 const bottle = tile({

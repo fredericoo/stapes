@@ -2,12 +2,13 @@ import { describe, expect, it } from "vitest";
 import { MELEE_REACH } from "../lib/item";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
-import { HEIGHT_PER_LEVEL, normalizeTileDef } from "../lib/types";
+import { HEIGHT_PER_LEVEL } from "../lib/types";
 import type { RoofCut } from "../lib/levelVisibility";
 import { isHiddenFromCamera } from "../render/cameraSight";
 import { canReach } from "./combat";
 import { levelElevation } from "./distance";
 import { hasLineOfSight } from "./sight";
+import { tile } from "../lib/testTile";
 
 /**
  * The scenarios, as a spec.
@@ -28,27 +29,6 @@ import { hasLineOfSight } from "./sight";
  * least one disagreement. Each `describe` is one scenario from the design, with
  * the board written out so the case can be read without running it.
  */
-
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
-): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    ...partial,
-  });
-}
 
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),

@@ -5,11 +5,11 @@ import { emptyMap, getStack, parseMap, replaceStack, serializeMap } from "../lib
 import { parseServerMessage } from "../net/protocol";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { MapFile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
 import { guardBand, MIN_GUARD_SHARE } from "./combat";
 import { TICK_MS } from "./constants";
 import { emptyEquipment } from "./equipment";
 import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
+import { FRAME, tile } from "../lib/testTile";
 
 /**
  * The bag `player`'s kit is authored with — see `app/lib/kit.ts`. A literal
@@ -24,27 +24,6 @@ const BAG_TILE_ID = "basic-bag";
  * The arithmetic has its own file; this is about the wiring — who gets a kit,
  * who does not, and whether a weapon in a hand actually reaches the blow.
  */
-
-const frame = {
-  sprite: {
-    tilesetId: "basic",
-    rect: { x: 0, y: 0, w: 1, h: 1 },
-    base: { x: 0, y: 0 },
-  },
-  durationMs: 200,
-};
-
-function tile(partial: Record<string, unknown>): TileDef {
-  return normalizeTileDef({
-    name: partial.id,
-    height: 0,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    kind: "prop",
-    ...partial,
-  });
-}
 
 /** Certain to hit, certain to hurt, and as fast as the rules allow. */
 const CERTAIN = { accuracy: 100, variance: 0, spd: 100 };
@@ -137,7 +116,7 @@ const tiles: TileDef[] = [
     kind: "battler",
     directional: true,
     walkable: false,
-    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
     interactions: {
       battler: {
         baseHp: 8,
