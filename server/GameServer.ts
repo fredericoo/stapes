@@ -1525,10 +1525,7 @@ export class GameServer {
    */
   private async restoreActors() {
     const live: string[] = [];
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (attachment) live.push(attachment.actorId);
-    }
+    for (const [, actorId] of this.seated()) live.push(actorId);
     this.session?.reapAbsentActors(live);
     for (const id of live) {
       // A socket belonging to somebody who died stays open and stays empty.
@@ -2207,10 +2204,41 @@ export class GameServer {
    * {@link dropSocket} ignores its close when it lands — correct, because the
    * actor has not gone anywhere.
    */
-  private displaceSockets(actorId: string) {
+  /**
+   * Every socket with an actor on it, and which actor that is.
+   *
+   * The attachment read and its cast were written out at twenty-odd call sites,
+   * and every one of them had to remember the same thing: a socket can be
+   * attached to nothing. One accepted and not yet seated is, and so is one
+   * {@link displaceSockets} has just cleared ahead of a close. Skipping those
+   * is all the copies ever did.
+   *
+   * Deliberately not used by {@link broadcast}, which is the one loop that must
+   * *not* read an attachment. It walks every socket and asks who is behind one
+   * only while somebody is silenced, because an attachment read per socket per
+   * tick is a cost that loop cannot take on. @see isSilenced
+   */
+  private *seated(): Generator<[GameSocket, string]> {
     for (const ws of this.ctx.getWebSockets()) {
       const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (attachment?.actorId !== actorId) continue;
+      if (attachment) yield [ws, attachment.actorId];
+    }
+  }
+
+  /**
+   * Every socket seated on one actor.
+   *
+   * Plural because it is: {@link displaceSockets} closes the old connection
+   * from the new one's `join`, so for the length of that call a body has two.
+   */
+  private *socketsOf(actorId: string): Generator<GameSocket> {
+    for (const [ws, id] of this.seated()) {
+      if (id === actorId) yield ws;
+    }
+  }
+
+  private displaceSockets(actorId: string) {
+    for (const ws of this.socketsOf(actorId)) {
       ws.serializeAttachment(null);
       ws.close(CLOSE_REPLACED, "replaced");
     }
@@ -2228,10 +2256,9 @@ export class GameServer {
    */
   private playerCount(excluding?: GameSocket): number {
     const ids = new Set<string>();
-    for (const ws of this.ctx.getWebSockets()) {
+    for (const [ws, actorId] of this.seated()) {
       if (ws === excluding) continue;
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (attachment) ids.add(attachment.actorId);
+      ids.add(actorId);
     }
     return ids.size;
   }
@@ -3039,9 +3066,7 @@ export class GameServer {
   /** Send to one actor's socket, if they still have one. */
   private sendTo(actorId: string, message: ServerMessage) {
     const payload = JSON.stringify(message);
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (attachment?.actorId !== actorId) continue;
+    for (const ws of this.socketsOf(actorId)) {
       try {
         ws.send(payload);
       } catch {
@@ -3180,10 +3205,8 @@ export class GameServer {
   ) {
     const whereById = new Map(actors.map((actor) => [actor.id, actor]));
     const payload = JSON.stringify(message);
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (!attachment) continue;
-      const viewer = whereById.get(attachment.actorId);
+    for (const [ws, actorId] of this.seated()) {
+      const viewer = whereById.get(actorId);
       // The storey test stays as it was: a client takes one of these as already
       // theirs to draw, and a bubble from the floor below would be drawn
       // through it. The reach is what is new.
@@ -3393,10 +3416,7 @@ export class GameServer {
    */
   private presentActorIds(): Set<string> {
     const ids = new Set(this.lingering.keys());
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (attachment) ids.add(attachment.actorId);
-    }
+    for (const [, actorId] of this.seated()) ids.add(actorId);
     return ids;
   }
 
@@ -3623,10 +3643,7 @@ export class GameServer {
         { announce: false },
       );
     }
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (attachment) this.sendHello(ws, attachment.actorId);
-    }
+    for (const [ws, actorId] of this.seated()) this.sendHello(ws, actorId);
     this.wake();
   }
 
@@ -3711,10 +3728,7 @@ export class GameServer {
     // What it cannot fix is the client's own catalogue, which reaches a browser
     // only when the page loads. An author still reloads to see their new art;
     // what they no longer have to do is reload to make the *world* obey them.
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (attachment) this.sendHello(ws, attachment.actorId);
-    }
+    for (const [ws, actorId] of this.seated()) this.sendHello(ws, actorId);
     this.wake();
   }
 
@@ -3816,10 +3830,7 @@ export class GameServer {
     // the spawn point, with the starting kit, no rewards taken, and exactly the
     // masteries their tile says they have.
     await this.ensureLoaded();
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (attachment) this.sendHello(ws, attachment.actorId);
-    }
+    for (const [ws, actorId] of this.seated()) this.sendHello(ws, actorId);
     this.wake();
   }
 
@@ -4206,11 +4217,7 @@ export class GameServer {
   private async rebirth(actorId: string) {
     if (!this.dead.has(actorId)) return;
     await this.seatActor(actorId);
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (attachment?.actorId !== actorId) continue;
-      this.sendHello(ws, actorId);
-    }
+    for (const ws of this.socketsOf(actorId)) this.sendHello(ws, actorId);
     // A body appearing moves the board, so it has to be broadcast even though
     // nobody pressed anything.
     this.wake();
@@ -4225,10 +4232,8 @@ export class GameServer {
    *   its attachment, which is indistinguishable from the ones that are staying.
    */
   private hasSocket(actorId: string, excluding?: GameSocket): boolean {
-    for (const ws of this.ctx.getWebSockets()) {
-      if (ws === excluding) continue;
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (attachment?.actorId === actorId) return true;
+    for (const ws of this.socketsOf(actorId)) {
+      if (ws !== excluding) return true;
     }
     return false;
   }
@@ -4568,10 +4573,7 @@ export class GameServer {
     if (!session) return;
     const map = session.getMap();
     const sent = new Set<string>();
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (!attachment) continue;
-      const { actorId } = attachment;
+    for (const [ws, actorId] of this.seated()) {
       // Two tabs on one body are owed the same ground, and the first of them
       // through here has already moved the subscription on. Sending to both
       // would be right; computing it twice would not.
@@ -4635,9 +4637,7 @@ export class GameServer {
    */
   private sendToEverySocketOf(actorId: string, message: ServerMessage) {
     const payload = JSON.stringify(message);
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (attachment?.actorId !== actorId) continue;
+    for (const ws of this.socketsOf(actorId)) {
       try {
         ws.send(payload);
       } catch {
@@ -4674,10 +4674,7 @@ export class GameServer {
   private broadcastPatch(actors: ActorSnapshot[], patch: SharedPatch) {
     let shared: string | null = null;
     const payloads = new Map<string, string | null>();
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (!attachment) continue;
-      const { actorId } = attachment;
+    for (const [ws, actorId] of this.seated()) {
       // The dead hear nothing more until they come back. @see silenced
       if (this.silenced.has(actorId)) continue;
 
