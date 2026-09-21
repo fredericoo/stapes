@@ -2580,6 +2580,43 @@ export class GameServer {
   }
 
   /**
+   * Send one actor-shaped message to each player a queue names.
+   *
+   * Six flushes were this same dozen lines: drain a queue of actor ids, bail if
+   * it is empty, then walk the attached sockets and send the one whose id is in
+   * it. Only two things ever differed — which queue, and what to put on the
+   * wire — so those are what a caller supplies.
+   *
+   * **A null message means the body is gone**, and that case is why this is a
+   * builder rather than a message. An actor can die between the change being
+   * queued and this running — the blow that taught them something was also the
+   * one that killed them — and every copy of this loop had to remember to check
+   * for it separately. Here there is one place to forget, and it does not.
+   *
+   * Addressed rather than broadcast, which is what all six have in common and
+   * what keeps them cheap: a kit, a tag, an experience block and a status list
+   * are facts about one player that nothing else on any client draws, so a room
+   * of twenty people fighting is twenty small sends rather than twenty
+   * serializations of everybody's.
+   */
+  private flushPerActor(
+    drain: (session: GameSession) => readonly string[],
+    message: (session: GameSession, actorId: string) => ServerMessage | null,
+  ) {
+    const session = this.session;
+    if (!session) return;
+    const changed = drain(session);
+    if (changed.length === 0) return;
+
+    const wanted = new Set(changed);
+    for (const [ws, actorId] of this.seated()) {
+      if (!wanted.has(actorId)) continue;
+      const out = message(session, actorId);
+      if (out) ws.send(JSON.stringify(out));
+    }
+  }
+
+  /**
    * Tell anybody whose kit changed what they are carrying now.
    *
    * One message per affected socket rather than a field on the broadcast patch,
@@ -2595,39 +2632,23 @@ export class GameServer {
    * lookup and sends nothing.
    */
   private flushEquipment() {
-    const session = this.session;
-    if (!session) return;
-    const changed = session.drainEquipmentChanges();
-    if (changed.length === 0) return;
-
-    const wanted = new Set(changed);
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (!attachment || !wanted.has(attachment.actorId)) continue;
-      const equipment = session.equipmentOf(attachment.actorId);
-      // Gone between the change and the flush — a body that died still had its
-      // kit changed, and there is nobody left to tell.
-      if (!equipment) continue;
-      ws.send(
-        JSON.stringify({
+    this.flushPerActor(
+      (session) => session.drainEquipmentChanges(),
+      (session, actorId) => {
+        const equipment = session.equipmentOf(actorId);
+        if (!equipment) return null;
+        return {
           type: "equipment",
           equipment,
           // Beside the kit because it is the same fact about the same caster —
           // see `GameSession.spellCooldownsOf`. Empty for every body with no
           // spells of its own, which is almost every body.
-          spellCooldowns: session.spellCooldownsOf(attachment.actorId) ?? {},
-        } satisfies ServerMessage),
-      );
-    }
+          spellCooldowns: session.spellCooldownsOf(actorId) ?? {},
+        };
+      },
+    );
   }
 
-  /**
-   * Tell anybody whose tags changed what they have taken now.
-   *
-   * Its own drain and its own message, sent from the same places the kit is —
-   * they change together today, and the two queues are what keeps that a fact
-   * about rewards rather than an assumption in the plumbing.
-   */
   /**
    * Tell whoever started or stopped a pull what they are now working.
    *
@@ -2638,22 +2659,15 @@ export class GameServer {
    * would put a tag list on the wire every time somebody finished mining.
    */
   private flushExtracting() {
-    const session = this.session;
-    if (!session) return;
-    const changed = session.drainExtractionChanges();
-    if (changed.length === 0) return;
-
-    const wanted = new Set(changed);
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (!attachment || !wanted.has(attachment.actorId)) continue;
-      ws.send(
-        JSON.stringify({
-          type: "extracting",
-          extracting: session.extractionOf(attachment.actorId),
-        } satisfies ServerMessage),
-      );
-    }
+    this.flushPerActor(
+      (session) => session.drainExtractionChanges(),
+      // Null is the message here rather than the absence of one: it is how the
+      // bar learns to go away.
+      (session, actorId) => ({
+        type: "extracting",
+        extracting: session.extractionOf(actorId),
+      }),
+    );
   }
 
   /**
@@ -2683,10 +2697,7 @@ export class GameServer {
     const session = this.session;
     if (!session) return;
     const live = new Set<string>();
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (!attachment) continue;
-      const actorId = attachment.actorId;
+    for (const [ws, actorId] of this.seated()) {
       live.add(actorId);
       const now = session.nextBlowOf(actorId);
       // `has` before the compare, so the first flush after a hello says nothing:
@@ -2710,52 +2721,39 @@ export class GameServer {
     }
   }
 
+  /**
+   * Tell anybody whose tags changed what they have taken now.
+   *
+   * Its own drain and its own message, sent from the same places the kit is —
+   * they change together today, and the two queues are what keeps that a fact
+   * about rewards rather than an assumption in the plumbing.
+   */
   private flushTags() {
-    const session = this.session;
-    if (!session) return;
-    const changed = session.drainTagChanges();
-    if (changed.length === 0) return;
-
-    const wanted = new Set(changed);
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (!attachment || !wanted.has(attachment.actorId)) continue;
-      const tags = session.tagsOf(attachment.actorId);
-      // Gone between the change and the flush, exactly as a kit can be.
-      if (!tags) continue;
-      ws.send(
-        JSON.stringify({
-          type: "tags",
-          tags: [...tags],
-        } satisfies ServerMessage),
-      );
-    }
+    this.flushPerActor(
+      (session) => session.drainTagChanges(),
+      (session, actorId) => {
+        const tags = session.tagsOf(actorId);
+        if (!tags) return null;
+        return { type: "tags", tags: [...tags] };
+      },
+    );
   }
 
   /**
    * Tell each player whose conversation changed where they now stand in it.
    *
-   * Shaped exactly like {@link flushTags}, because it is the same kind of
-   * thing: per-player state, sent whole to the one socket it is about. Null is
-   * sent too — it is how the panel learns to close.
+   * A separate queue from {@link flushTags} rather than a flag on it, because
+   * a conversation moves on ticks a tag never does.
    */
   private flushConversations() {
-    const session = this.session;
-    if (!session) return;
-    const changed = session.drainConversationChanges();
-    if (changed.length === 0) return;
-
-    const wanted = new Set(changed);
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (!attachment || !wanted.has(attachment.actorId)) continue;
-      ws.send(
-        JSON.stringify({
-          type: "conversation",
-          conversation: session.conversationOf(attachment.actorId),
-        } satisfies ServerMessage),
-      );
-    }
+    this.flushPerActor(
+      (session) => session.drainConversationChanges(),
+      // Null is sent too — it is how the panel learns to close.
+      (session, actorId) => ({
+        type: "conversation",
+        conversation: session.conversationOf(actorId),
+      }),
+    );
   }
 
   /**
@@ -2774,10 +2772,8 @@ export class GameServer {
     const session = this.session;
     if (!session) return;
 
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (!attachment) continue;
-      for (const text of session.drainNotices(attachment.actorId)) {
+    for (const [ws, actorId] of this.seated()) {
+      for (const text of session.drainNotices(actorId)) {
         ws.send(JSON.stringify({ type: "notice", text } satisfies ServerMessage));
       }
     }
@@ -2866,43 +2862,28 @@ export class GameServer {
   /**
    * Tell anybody whose experience moved what they have learnt now.
    *
-   * The busiest of the three by a long way — roughly one message per landed
-   * blow, to one socket — and cheap for the same reason the others are: it is
-   * addressed rather than broadcast, so a room of twenty people fighting is
-   * twenty small sends rather than twenty serializations of everybody's.
-   *
-   * Copied on the way out, because what the session hands back is the live block
-   * it goes on adding to.
+   * The busiest of these queues by a long way — roughly one message per landed
+   * blow. @see flushPerActor for why that is affordable.
    */
   private flushMasteries() {
-    const session = this.session;
-    if (!session) return;
-    const changed = session.drainMasteryChanges();
-    if (changed.length === 0) return;
-
-    const wanted = new Set(changed);
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (!attachment || !wanted.has(attachment.actorId)) continue;
-      const masteryXp = session.masteryXpOf(attachment.actorId);
-      // Gone between the change and the flush — the blow that taught them
-      // something was also the one that killed them.
-      if (!masteryXp) continue;
-      ws.send(
-        JSON.stringify({
-          type: "masteries",
-          masteryXp: { ...masteryXp },
-        } satisfies ServerMessage),
-      );
-    }
+    this.flushPerActor(
+      (session) => session.drainMasteryChanges(),
+      (session, actorId) => {
+        const masteryXp = session.masteryXpOf(actorId);
+        if (!masteryXp) return null;
+        // Copied on the way out, because what the session hands back is the
+        // live block it goes on adding to.
+        return { type: "masteries", masteryXp: { ...masteryXp } };
+      },
+    );
   }
 
   /**
    * Tell anybody whose statuses have moved what is running on them now.
    *
-   * The fourth of these, and the only one whose queue fills on its own: a kit,
-   * a tag and a mastery all change because somebody did something, and this
-   * changes because time passed. `GameSession` compares a **reading** rather
+   * The only one of these queues that fills on its own: a kit, a tag and a
+   * mastery all change because somebody did something, and this changes
+   * because time passed. `GameSession` compares a **reading** rather
    * than the list, which is what keeps a status that runs for an hour to about
    * thirty-six hundred small sends instead of a hundred thousand.
    *
@@ -2911,21 +2892,14 @@ export class GameServer {
    * any use for them.
    */
   private flushStatuses() {
-    const session = this.session;
-    if (!session) return;
-    const changed = session.drainStatusChanges();
-    if (changed.length === 0) return;
-
-    const wanted = new Set(changed);
-    for (const ws of this.ctx.getWebSockets()) {
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (!attachment || !wanted.has(attachment.actorId)) continue;
-      const statuses = session.statusPatchesOf(attachment.actorId);
-      // Gone between the change and the flush — the poison that ticked was also
-      // the one that killed them.
-      if (!statuses) continue;
-      ws.send(JSON.stringify({ type: "statuses", statuses } satisfies ServerMessage));
-    }
+    this.flushPerActor(
+      (session) => session.drainStatusChanges(),
+      (session, actorId) => {
+        const statuses = session.statusPatchesOf(actorId);
+        if (!statuses) return null;
+        return { type: "statuses", statuses };
+      },
+    );
   }
 
   /**
