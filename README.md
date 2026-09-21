@@ -72,6 +72,24 @@ It is the path to open when the question is whether the game still works.
 
 Deploying is in [SETUP.md](SETUP.md).
 
+## Phones
+
+`native/` holds an iOS and an Android shell. Each is a window that loads the
+deployed origin — neither carries a copy of the client, so a client deploy
+reaches both without an App Store round trip. What they add is the short list a
+page cannot do for itself: a screen that stays awake, a session that survives a
+relaunch, and something other than a blank window when the world is
+unreachable.
+
+```bash
+brew install xcodegen && cd native/ios && xcodegen generate   # then open Stapes.xcodeproj
+cd native/android && ./gradlew installDebug
+```
+
+Both need the origin and a bundle id filled in first. [native/README.md](native/README.md)
+is the checklist, including what each store asks for that a repository cannot
+supply.
+
 ## Multiplayer
 
 `/` joins a shared world. Everyone spawns where the map's `player` tile is

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- `app/app.css`'s custom properties, kept in sync by hand. Android cannot
+     read them, and the shell needs `ink` before the page has painted anything. -->
+<resources>
+    <color name="ink">#FF1A1A1A</color>
+    <color name="paper">#FFF4F0E6</color>
+    <color name="muted">#FF7A7568</color>
+</resources>

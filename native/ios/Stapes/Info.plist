@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- The host `GameWebView` is allowed to navigate to, and the reason
+	     `limitsNavigationsToAppBoundDomains` is safe to turn on: WebKit treats
+	     a listed domain as the app's own, so the session cookie persists across
+	     launches instead of being aged out as a third party's.
+
+	     Must match `Config.origin`. At most ten entries, and they cannot be
+	     changed without shipping a build. -->
+	<key>WKAppBoundDomains</key>
+	<array>
+		<string>stapes.example.com</string>
+	</array>
+
+	<!-- Ink from the first frame. Without a colour here the launch image is
+	     white and every cold start flashes, which on a game made entirely of
+	     dark chrome is the most visible thing about opening it. -->
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string>LaunchBackground</string>
+	</dict>
+
+	<!-- The page owns the strip behind the status bar and paints it `#1a1a1a`,
+	     so the clock and the battery have to be light. Set app-wide rather than
+	     per view controller because there is one view controller and it never
+	     shows anything pale. -->
+	<key>UIStatusBarStyle</key>
+	<string>UIStatusBarStyleLightContent</string>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
+
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+
+	<!-- Answers the export-compliance question at build time instead of on
+	     every single upload. True of this app: the only cryptography it uses is
+	     HTTPS through the system. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+</dict>
+</plist>

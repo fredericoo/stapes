@@ -634,6 +634,45 @@ Adding a maximum scale to the viewport meta would also stop the zoom, and is the
 wrong fix: it takes pinch-zoom away from everybody, including anybody who needs
 it to read.
 
+## The native shells load the server, they do not carry the game
+
+`native/ios` and `native/android` are two windows onto `https://<origin>/`.
+Neither contains a build of the client, and that is the decision the rest of
+both shells follows from.
+
+**Bundling the client would break identity.** `app/lib/api.ts` takes its base
+URL from `window.location.origin` and `app/net/link.ts` builds the socket URL
+from `window.location.href`, so both are whatever served the page. A shell that
+loaded its own copy would serve it from `capacitor://localhost` or a `file:`
+origin, and then every API call and the socket upgrade is cross-site: the
+session cookie needs `SameSite=None`, the server needs a CORS policy, and the
+cookie on the upgrade is a third party's, which is the category WebKit's
+tracking prevention exists to drop. That is the same trade `server/index.ts`
+refuses at the top of the file, arriving from the other direction.
+
+**Bundling would also put the protocol behind App Review.** `PROTOCOL_VERSION`
+is checked at the upgrade and a client that does not match is closed and told to
+reload — which works because the client is files the server hands out and can
+replace under a running world (see "The client is files on the volume, not in
+the image"). Put those files in a signed binary and every protocol change waits
+days for two review queues, and everybody who has not updated is locked out
+until they do. Loading the origin keeps the existing deploy story exactly as it
+is: CI posts the build, the pointer flips, the app reloads.
+
+What is left for the shells is the short list of things a page genuinely cannot
+do: hold the display awake, persist a cookie across launches, and put something
+other than a blank window on screen when the origin cannot be reached.
+
+### The page is given the whole screen and is not inset
+
+Both shells draw edge to edge and hand the page the notch, the cutout and the
+gesture bar. That is not a flourish — `app/root.tsx` sets `viewport-fit=cover`
+and the interface insets its own chrome with `env(safe-area-inset-*)`, so a
+shell that also inset it would inset everything twice, and a shell that let the
+platform inset it would paint the cream page background into the bands the
+system kept back. That second one is the bug described under the viewport meta
+tag in `app/root.tsx`, reached by a different route.
+
 ## Known: a rebirth inherits the status that killed you
 
 **Not fixed, and deliberately left for a design decision.** Reported from the

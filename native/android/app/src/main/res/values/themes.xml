@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.Stapes" parent="Theme.AppCompat.NoActionBar">
+        <!-- Ink from the first frame. Without it the window starts pale and
+             every cold start flashes white before the game paints. -->
+        <item name="android:windowBackground">@color/ink</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <!-- The page asked for the whole screen with `viewport-fit=cover`, so
+             give it the cutout too rather than letting the system letterbox
+             around it. @see app/root.tsx -->
+        <item name="android:windowLayoutInDisplayCutoutMode" tools:targetApi="27">shortEdges</item>
+    </style>
+</resources>

@@ -21,3 +21,12 @@
 # repository is for — they go stale the moment the code lands, and a reader
 # finding one has no way to tell which parts still describe the game.
 /plans/
+
+# The native shells. Both projects are generated or built from what is checked
+# in beside them — see `native/README.md`.
+/native/ios/Stapes.xcodeproj/
+/native/ios/build/
+/native/android/.gradle/
+/native/android/build/
+/native/android/app/build/
+/native/android/local.properties
