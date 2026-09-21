@@ -219,7 +219,7 @@ export default function TilesPage() {
           {tiles.length === 0 ? (
             <div className="border-2 border-border bg-panel p-6 text-sm shadow-hard">
               No tiles yet. Generate placeholders with{" "}
-              <code className="bg-paper px-1">pnpm generate</code> or create one.
+              <code className="bg-paper px-1">bun run generate</code> or create one.
             </div>
           ) : visible.length === 0 ? (
             <div className="flex flex-col items-start gap-3 border-2 border-border bg-panel p-6 text-sm shadow-hard">
