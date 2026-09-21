@@ -852,10 +852,15 @@ type SentMotion = {
 export class GameServer {
   /**
    * Named `ctx` and `env` because that is what they were called when a platform
-   * base class supplied them. Several hundred `this.ctx.storage.*` and
-   * `this.ctx.getWebSockets()` call sites below are unchanged as a result, and
-   * so is the suite that guards them — which matters more than the names do,
-   * since that suite is the only reason to believe this file still works.
+   * base class supplied them. Renaming them would touch every `this.ctx.*` call
+   * site below and the suite that guards them, and that suite is the only
+   * reason to believe this file still works — which matters more than the names
+   * do.
+   *
+   * `this.ctx.storage.*` is the bulk of what is left, at thirty-odd sites.
+   * Sockets are down to two: {@link seated}, which every caller that wants the
+   * actor behind a connection goes through, and {@link broadcast}, which is
+   * deliberately not one of them.
    */
   constructor(
     protected readonly ctx: WorldContext,
