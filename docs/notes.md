@@ -3187,6 +3187,12 @@ somebody nobody had looked at.
 Every one of these gives way to ctrl, cmd and alt, so the browser's own
 shortcuts — ctrl-F, ctrl-1 — still reach the browser.
 
+Every key drawn on screen is a `KeyHint`: a pale rounded cap with a darker edge
+two pixels below it, so it reads as a key rather than a number in the margin.
+It fades with a disabled control around it (`in-aria-disabled`), so a greyed
+Trade does not keep a bright key. A shortcut named inside a tooltip's sentence,
+like "(Esc)", stays text.
+
 The pair of rows is drawn by `actionRows`, and the *labels* never change with
 the stance — only which of the two is `active`. That is still part of what
 `GameRenderer` diffs before handing the list to React, since it changes without

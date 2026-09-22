@@ -18,6 +18,7 @@ import {
 } from "../../lib/api";
 import { requireAdmin } from "../../lib/auth";
 import type { TileDef, TilesetDef } from "../../lib/types";
+import { KeyHint } from "../../components/KeyHint";
 import { Button, Dialog, Input, Segmented, useToast } from "../../ui";
 
 /** Reaches for the search field from anywhere on the page. */
@@ -190,12 +191,9 @@ export default function TilesPage() {
               room.
             */}
             {query === "" ? (
-              <kbd
-                aria-hidden="true"
-                className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 border border-border bg-paper px-1 text-[10px] leading-tight text-muted md:block"
-              >
-                {SEARCH_KEY}
-              </kbd>
+              <span className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 md:flex">
+                <KeyHint label={SEARCH_KEY} />
+              </span>
             ) : null}
           </div>
           <Segmented
