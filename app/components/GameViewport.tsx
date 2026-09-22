@@ -435,6 +435,7 @@ export function GameViewport({
       masteryXp={masteryXp}
       statusDefs={statusDefs}
       onTalk={(action) => onTalk?.(action)}
+      hotkeys={!coarse}
       className="scrolls-past-toolbar min-h-0 w-full flex-1"
     />
   ) : null;

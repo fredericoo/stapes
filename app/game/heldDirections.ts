@@ -451,6 +451,37 @@ export function numberKeyLabel(index: number): string {
   return index < NUMBER_CODES.length ? String(index + 1) : "";
 }
 
+/**
+ * The keys that step a count up or down: `+` and `-` on the main row and on the
+ * number pad.
+ *
+ * By code, like everything else here. `Equal` is the key `+` is printed on, so
+ * the press counts with or without shift — nobody should have to hold shift to
+ * type a plus when the minus beside it needs none.
+ */
+const STEP_UP_CODES = new Set(["Equal", "NumpadAdd"]);
+const STEP_DOWN_CODES = new Set(["Minus", "NumpadSubtract"]);
+
+/**
+ * Press `+` or `-` to step a count by one. Returns the unbind.
+ *
+ * **Repeats count**, unlike every other key in this module: holding `+` to go
+ * from one to twenty is what a held key is for, and the caller clamps.
+ */
+export function bindStepKeys(onStep: (delta: 1 | -1) => void): () => void {
+  const onKeyDown = (e: KeyboardEvent) => {
+    const delta = STEP_UP_CODES.has(e.code) ? 1 : STEP_DOWN_CODES.has(e.code) ? -1 : 0;
+    if (delta === 0) return;
+    if (isTypingTarget(e.target)) return;
+    if (withCommandModifier(e)) return;
+    e.preventDefault();
+    onStep(delta);
+  };
+
+  window.addEventListener("keydown", onKeyDown);
+  return () => window.removeEventListener("keydown", onKeyDown);
+}
+
 /** Drive `input` from the keyboard. Returns the unbind. */
 export function bindKeyboard(input: HeldDirections): () => void {
   const modifiers = (e: KeyboardEvent) => {

@@ -3177,6 +3177,13 @@ somebody nobody had looked at.
   alone inside a `dialog` or `alertdialog`, so the death screen's button still
   answers it.
 
+- **In a conversation the digits move to the panel.** `1`–`9` pick a choice; on
+  a trade, `1` is Trade and `2` is Cancel, and `+`/`-` step the quantity
+  (`bindStepKeys`, on `Equal`/`Minus` and the number pad, so `+` needs no
+  shift). The panel takes the column the list of what is in reach was in, so
+  only one of the two is mounted and the digits are never bound twice. Unlike
+  every other key here, the step keys repeat when held.
+
 Every one of these gives way to ctrl, cmd and alt, so the browser's own
 shortcuts — ctrl-F, ctrl-1 — still reach the browser.
 
