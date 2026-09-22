@@ -144,22 +144,60 @@ jobs:
       # skip marker — and GitHub does not always skip this workflow for the same
       # markers. That is a red mark on a preview nobody redeployed, which is
       # true, and the message below says where to look.
+      #
+      # **Coolify refusing the request is not Coolify being unreachable.** This
+      # used to be a `curl -f` piped into `jq`, so every failure arrived as an
+      # empty body and was waited out the same way. Run 35759038580, on #264,
+      # got a 401 on every poll because `COOLIFY_TOKEN` had been revoked. Coolify
+      # had finished the preview 35 seconds in, and the job waited the whole
+      # fifteen minutes and then pointed at watch paths and skip markers, which
+      # only explain an `absent` deployment. So the status code is read on its
+      # own: a rejected token or a missing application fails on the first poll,
+      # because no amount of waiting changes either, and only a network error or
+      # a 5xx is waited out.
       - name: Wait for Coolify to finish deploying this commit
         env:
           PR: ${{ github.event.number }}
           SHA: ${{ github.event.pull_request.head.sha }}
+          BODY: ${{ runner.temp }}/coolify-deployments.json
         run: |
+          give_up() {
+            MESSAGE="Coolify has not finished a deployment of ${SHA} for pull request ${PR} in fifteen minutes — the last it said was ${STATUS}."
+            if [ "$STATUS" = absent ]; then
+              MESSAGE="${MESSAGE} An absent one was never queued: check that the pull request is based on the default branch, then the preview application's watch paths, and whether the title or the head commit carries a skip marker."
+            fi
+            echo "::error::${MESSAGE}"
+            exit 1
+          }
+
           for i in $(seq 1 90); do
-            STATUS=$(curl -fsS --max-time 10 \
+            # Without `-f`, curl exits 0 on any HTTP answer, so a non-zero exit
+            # means there was no answer at all: DNS, a refused connection, the
+            # ten-second timeout. The step runs under `bash -e`, which is why
+            # the fallback is needed and not only tidy.
+            CODE=$(curl -sS --max-time 10 -o "$BODY" -w '%{http_code}' \
               "${{ vars.COOLIFY_URL }}/api/v1/deployments/applications/${{ vars.COOLIFY_PREVIEW_APP_UUID }}?take=20" \
-              -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
-              | jq -r --argjson pr "$PR" --arg sha "$SHA" \
-                  '[.deployments[] | select(.pull_request_id == $pr and .commit == $sha)][0].status // "absent"')
-            # A Coolify that cannot be reached answers with no status at all —
-            # `jq` reads the empty body and prints nothing — and that is as much
-            # a reason to keep waiting as a queued deployment is. Named only so
-            # the message at the end of the budget can say it.
-            STATUS=${STATUS:-unreachable}
+              -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}") || CODE=none
+            case "$CODE" in
+              2??)
+                STATUS=$(jq -r --argjson pr "$PR" --arg sha "$SHA" \
+                  '[.deployments[] | select(.pull_request_id == $pr and .commit == $sha)][0].status // "absent"' "$BODY")
+                ;;
+              401|403)
+                echo "::error::Coolify rejected COOLIFY_TOKEN with HTTP ${CODE}. Regenerate the token in Coolify and update the COOLIFY_TOKEN repository secret — waiting will not fix this."
+                exit 1
+                ;;
+              404)
+                echo "::error::Coolify answered HTTP 404 for the preview application's deployments. Check vars.COOLIFY_PREVIEW_APP_UUID against the application in Coolify, and vars.COOLIFY_URL against the panel's address."
+                exit 1
+                ;;
+              none)
+                STATUS="unreachable (no answer)"
+                ;;
+              *)
+                STATUS="unreachable (HTTP ${CODE})"
+                ;;
+            esac
             case "$STATUS" in
               finished)
                 echo "deployment finished after $((i * 10))s"; break
@@ -169,10 +207,7 @@ jobs:
                 exit 1
                 ;;
             esac
-            if [ "$i" = 90 ]; then
-              echo "::error::Coolify has not finished a deployment of ${SHA} for pull request ${PR} in fifteen minutes — the last it said was ${STATUS}. An absent one was never queued: check that the pull request is based on the default branch, then the preview application's watch paths, and whether the title or the head commit carries a skip marker."
-              exit 1
-            fi
+            if [ "$i" = 90 ]; then give_up; fi
             sleep 10
           done
 
