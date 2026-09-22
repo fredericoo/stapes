@@ -1,4 +1,4 @@
-# Agent notes — Stapes
+# Agent notes — The Last Stones
 
 ## The server is a Bun process that stays up
 

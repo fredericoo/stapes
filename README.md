@@ -1,4 +1,4 @@
-# Stapes Map Builder
+# The Last Stones
 
 Mini Tibia-inspired tile/map editor. Each tile is 8×8 pixels, rendered with an oblique cabinet projection in Three.js.
 

@@ -260,7 +260,7 @@ export function AppShell({
       >
         {headerHidden ? null : (
           <header className="flex flex-wrap items-center gap-3 border-b-2 border-border bg-ink px-3 py-2 text-paper">
-            <div className="text-sm font-bold tracking-wide uppercase">Stapes</div>
+            <div className="text-sm font-bold tracking-wide uppercase">The Last Stones</div>
 
             {narrow ? (
               destinations.length === 0 && !menuExtras ? null : (

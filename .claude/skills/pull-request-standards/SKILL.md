@@ -5,7 +5,7 @@ description: >
   updating pull request descriptions.
 ---
 
-# Stapes PR Descriptions
+# The Last Stones PR Descriptions
 
 Write functional PR descriptions that help reviewers quickly understand the change, intent, and impact.
 
