@@ -15,6 +15,15 @@ function tone(ms: number): string {
   return "text-paper/60";
 }
 
+/**
+ * Fixed widths for the two numbers, wide enough for their longest ordinary
+ * reading (`120`, `▲99.9ms`). Tabular figures stop the digits jittering but not
+ * the count of them changing, and a reading that grows by a character pushes
+ * everything laid out after it.
+ */
+const FPS_WIDTH_CLASS = "inline-block min-w-[3ch] text-center";
+const WORST_WIDTH_CLASS = "inline-block min-w-[7ch] text-right";
+
 function ms(value: number): string {
   return value.toFixed(1);
 }
@@ -22,28 +31,24 @@ function ms(value: number): string {
 export function FrameStatsReadout({ stats }: { stats: FrameStats | null }) {
   if (!stats) {
     return (
-      <div className="flex items-center gap-2">
-        <span className="text-xs uppercase text-paper/70">FPS</span>
-        <span className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper">
-          —
-        </span>
-      </div>
+      <span className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper">
+        <span className={FPS_WIDTH_CLASS}>—</span>
+      </span>
     );
   }
 
   return (
     <details className="group relative">
       <summary className="flex cursor-pointer list-none items-center gap-2">
-        <span className="text-xs uppercase text-paper/70">FPS</span>
         <span
           className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper"
           aria-live="polite"
           aria-label="Frames per second"
         >
-          {stats.fps}
+          <span className={FPS_WIDTH_CLASS}>{stats.fps}</span>
         </span>
         <span
-          className={`text-xs tabular-nums ${tone(stats.frame.worst)}`}
+          className={`text-xs tabular-nums ${WORST_WIDTH_CLASS} ${tone(stats.frame.worst)}`}
           aria-label="Worst frame in the last window, milliseconds"
         >
           ▲{ms(stats.frame.worst)}ms
