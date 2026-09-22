@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLoaderData } from "react-router";
-import { ADMIN_DESTINATIONS } from "../../components/AppShell";
+import { ADMIN_DESTINATIONS, MenuRow } from "../../components/AppShell";
 import { WorldPage } from "../../components/WorldPage";
 import { fetchBootstrap } from "../../lib/api";
 import { requireAdmin } from "../../lib/auth";
@@ -48,7 +48,11 @@ export default function PlayPage() {
       tilesets={tilesets}
       statuses={statuses}
       destinations={ADMIN_DESTINATIONS}
-      menuExtras={<ResetWorldButton />}
+      menuExtras={
+        <MenuRow label="World">
+          <ResetWorldButton />
+        </MenuRow>
+      }
     />
   );
 }

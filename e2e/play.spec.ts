@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { signInAsAdmin } from "./accounts";
+import { liveWorld, openGameMenu } from "./world";
 
 /**
  * `/admin/play`, which is the same game with the world in the tab.
@@ -50,7 +51,7 @@ test.describe("the world in the tab", () => {
     await expect(page.locator("canvas").first()).toBeVisible({
       timeout: BOOT_TIMEOUT_MS,
     });
-    await expect(page.getByText("live", { exact: true }).first()).toBeVisible({
+    await expect(liveWorld(page)).toBeAttached({
       timeout: 60_000,
     });
 
@@ -67,7 +68,7 @@ test.describe("the world in the tab", () => {
     await expect(page.locator("canvas").first()).toBeVisible({
       timeout: BOOT_TIMEOUT_MS,
     });
-    await expect(page.getByText("live", { exact: true }).first()).toBeVisible({
+    await expect(liveWorld(page)).toBeAttached({
       timeout: 60_000,
     });
     expect(await actor()).toBe(first);
@@ -86,6 +87,7 @@ test.describe("the world in the tab", () => {
 
     // And the way back to a known world, which is the control the shared world
     // keeps behind `ADMIN_SECRET` because it is everybody's.
+    await openGameMenu(page);
     const reset = page.getByRole("button", { name: "Reset world" });
     await expect(reset).toBeVisible();
     await reset.click();
@@ -93,12 +95,14 @@ test.describe("the world in the tab", () => {
     // The world is replaced under the socket rather than closing it: the page
     // redraws from a fresh `hello` and never leaves `live`.
     await expect(page.locator("canvas").first()).toBeVisible();
-    await expect(page.getByText("live", { exact: true }).first()).toBeVisible({
+    await expect(liveWorld(page)).toBeAttached({
       timeout: 60_000,
     });
 
-    // Unlike the game, this page is an authoring page and says so.
-    await expect(page.locator("header nav a").first()).toBeVisible();
+    // Unlike the game, this page is an authoring page and says so: its menu
+    // leads to the other editors.
+    await openGameMenu(page);
+    await expect(page.getByRole("link", { name: "Map" })).toBeVisible();
     // And unlike the game, there is nowhere to leave this world to: it is this
     // tab's, and closing the tab is the way out of it.
     await expect(page.getByRole("button", { name: "Leave world" })).toHaveCount(0);

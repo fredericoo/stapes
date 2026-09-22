@@ -237,7 +237,7 @@ game's menu has no account controls at all**, and the chooser has no way into
 the world except a character.
 
 - `app/components/LeaveWorldButton.tsx` sits in the menu the lighting switch is
-  in — the header on a wide window, the cog beside the d-pad on a phone. It
+  in — behind the cog, on every device: the game has no header. It
   forgets the character and navigates to `/characters`, which unmounts the world
   route and tears the connecting effect down with it: the canvas goes, and with
   it the renderer, the session and this player's body in the world. **It does
