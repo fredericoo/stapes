@@ -1,5 +1,5 @@
 import { Link, redirect, useNavigate } from "react-router";
-import { Door, DoorNote, DoorTitle, SYSTEM_MONO } from "../components/door";
+import { Door, DoorLogo, DoorNote, DoorTitle, SYSTEM_MONO } from "../components/door";
 import { SignInForm } from "../components/SignInForm";
 import { fetchMe } from "../lib/auth";
 
@@ -25,6 +25,7 @@ export default function SignInPage() {
 
   return (
     <Door>
+      <DoorLogo />
       <DoorTitle>Sign in</DoorTitle>
       <SignInForm onSignedIn={() => void navigate("/characters")} />
       <DoorNote>

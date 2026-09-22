@@ -29,6 +29,45 @@ export function Door({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * The wordmark, over the door.
+ *
+ * **Drawn at a whole multiple of its own 263x104, never between.** The artwork
+ * is pixel art in the same sense the tilesets are — 16 colours, and every pixel
+ * either fully opaque or fully clear — so `pixelated` reproduces it exactly and
+ * a fractional width would not: scaling a pixel grid by a fraction gives a grid
+ * of unequal pixels, which is the artefact `pixelated` exists to avoid.
+ *
+ * So two sizes rather than a fluid one: 526px is 2x and is the size this is
+ * meant to be seen at, and 263px is 1x for the screens 2x does not fit on. The
+ * breakpoint is that arithmetic and nothing else — 526 plus `Door`'s 24px of
+ * padding on each side is 574.
+ *
+ * `max-w-full` is a guard rather than a size. 1x fits down to a 320px viewport,
+ * narrower than anything still being sold; below that, shrinking beats a page
+ * that scrolls sideways.
+ *
+ * `width` and `height` are the file's own, so the box is reserved before the
+ * image arrives — `door.tsx` avoids downloaded faces because of the reflow they
+ * cause, and an image with no known ratio moves the form down the page when it
+ * lands.
+ */
+export function DoorLogo() {
+  return (
+    <img
+      src="/logo.png"
+      // The artwork is the name drawn out, so the name is what it is worth
+      // announcing: without this, a screen reader meets an unlabelled image
+      // where the title of the game is.
+      alt="The Last Stones"
+      width={263}
+      height={104}
+      className="w-[263px] max-w-full min-[574px]:w-[526px]"
+      style={{ imageRendering: "pixelated" }}
+    />
+  );
+}
+
 export function DoorTitle({ children }: { children: ReactNode }) {
   return <h1 className="text-xs uppercase tracking-widest text-paper/60">{children}</h1>;
 }
