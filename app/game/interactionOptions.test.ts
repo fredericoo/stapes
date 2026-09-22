@@ -18,7 +18,9 @@ import {
   applyInteraction,
   groupInteractionOptions,
   interactionText,
+  listedActionRows,
   listInteractionOptions,
+  rowPress,
   topInteractionAt,
   type InteractionOption,
 } from "./interactionOptions";
@@ -1820,6 +1822,67 @@ describe("actionRows", () => {
 
   it("has nothing to draw for a box with nothing in it", () => {
     expect(actionRows([])).toEqual([]);
+  });
+});
+
+/**
+ * The count the digit keys use, and what a digit on each kind of line runs. The
+ * list draws its digits from the same count, so these are what keep the badge
+ * beside a line and the key that presses it in agreement.
+ */
+describe("listedActionRows and rowPress", () => {
+  /** A player to the east and a crate to the west: two boxes, four lines. */
+  function bodyAndCrate() {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "player"]);
+    map = place(map, -1, 0, ["grass", "crate"]);
+    const me = playerAt(map);
+    const them = actor("them", "player", 1, 0, map, 10);
+    return listInteractionOptions(map, tilesById, me, [me, them], null, KIT);
+  }
+
+  it("counts lines across every box, a body's pair as one", () => {
+    const rows = listedActionRows(bodyAndCrate());
+
+    expect(rows.map((row) => row.map((o) => `${o.name}:${o.action}`))).toEqual([
+      ["Mira:target", "Mira:attack"],
+      ["Mira:follow"],
+      ["Mira:push"],
+      ["Crate:push"],
+    ]);
+  });
+
+  it("runs the only verb on a line of one", () => {
+    const [, , , crate] = listedActionRows(bodyAndCrate());
+
+    expect(rowPress(crate!)?.action).toBe("push");
+  });
+
+  it("walks the pair: watch first, then fight, then back to watching", () => {
+    const [pair] = listedActionRows(bodyAndCrate());
+    const [watch, fight] = pair!;
+    const lit = (on: InteractionOption | null) =>
+      pair!.map((option) => ({ ...option, active: option === on }));
+
+    // Nobody picked: the first press picks without swinging.
+    expect(rowPress(lit(null))?.action).toBe("target");
+    // Watching: the next press swings.
+    expect(rowPress(lit(watch!))?.action).toBe("attack");
+    // Fighting: the lit fight row again, which `applyInteraction` reads as stop.
+    const pressed = rowPress(lit(fight!));
+    expect(pressed?.action).toBe("attack");
+    expect(pressed?.active).toBe(true);
+  });
+
+  it("runs nothing for a line that is greyed", () => {
+    const [, , , crate] = listedActionRows(bodyAndCrate());
+
+    expect(rowPress([{ ...crate![0]!, blocked: { kind: "here" } }])).toBeNull();
+  });
+
+  it("has no lines and nothing to press for an empty list", () => {
+    expect(listedActionRows([])).toEqual([]);
+    expect(rowPress([])).toBeNull();
   });
 });
 

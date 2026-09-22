@@ -461,6 +461,7 @@ export function GameViewport({
       // never sends the matching leave, so the outline it lit would stay lit
       // over whatever the player did next.
       onHover={coarse ? undefined : onHoverInteraction}
+      hotkeys={!coarse}
       // The padding is inert in the desktop column — there is no inset to
       // speak of on a machine with no toolbar over the page — so one list
       // still serves both layouts. See `.scrolls-past-toolbar` in `../app.css`.
@@ -830,7 +831,7 @@ export function GameViewport({
             {panelButtons("compact")}
           </div>
           {/* The same row of stones a phone gets, with the same order and the
-              same buttons — a desktop simply also has `1`, `2` and `3` for them.
+              same buttons — a desktop simply also has `Q`, `E` and `F` for them.
               Below the panels rather than above, because those only open
               something and this is a thing you do to the world; and absent for
               anybody carrying no stones, so a column that has never seen magic

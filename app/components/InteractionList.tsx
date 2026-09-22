@@ -16,7 +16,7 @@ import {
   IconTransform,
   IconWalk,
 } from "@tabler/icons-react";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { Progress } from "../game/progress";
 import type {
   InteractionAction,
@@ -24,11 +24,14 @@ import type {
   InteractionOption,
   OptionBlock,
 } from "../game/interactionOptions";
+import { actionRowKeyLabel, bindActionRowKeys } from "../game/heldDirections";
 import {
   actionRows,
   groupInteractionOptions,
   groupSubject,
   interactionText,
+  listedActionRows,
+  rowPress,
 } from "../game/interactionOptions";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
@@ -145,6 +148,7 @@ export function InteractionList({
   tilesets,
   onAct,
   onHover,
+  hotkeys = false,
   className = "",
 }: {
   options: InteractionOption[];
@@ -162,10 +166,42 @@ export function InteractionList({
    * the same question being asked the same way.
    */
   onHover?: (optionId: string | null) => void;
+  /**
+   * Bind the digit row to the lines of the list, and draw each line's digit
+   * beside it. Off on a phone, where there is no keyboard to press them with and
+   * the digits would take width from a column that has none to spare.
+   */
+  hotkeys?: boolean;
   className?: string;
 }) {
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
   const groups = useMemo(() => groupInteractionOptions(options), [options]);
+  // Where each box's first line falls in the count the digits use. Counted with
+  // the same `actionRows` each box draws with, so the digit beside a line is the
+  // one `listedActionRows` hands the key handler.
+  const firstRows = useMemo(() => {
+    let next = 0;
+    return groups.map((group) => {
+      const first = next;
+      next += actionRows(group.options).length;
+      return first;
+    });
+  }, [groups]);
+
+  // Read through refs, because the keys are bound once and the list and the
+  // callback both change on every step — `onAct` is an inline arrow upstream.
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+  const onActRef = useRef(onAct);
+  onActRef.current = onAct;
+  useEffect(() => {
+    if (!hotkeys) return;
+    return bindActionRowKeys((index) => {
+      const row = listedActionRows(optionsRef.current)[index];
+      const option = row ? rowPress(row) : null;
+      if (option) onActRef.current(option);
+    });
+  }, [hotkeys]);
 
   return (
     <div
@@ -185,10 +221,11 @@ export function InteractionList({
         // empty frame reads as something failing to load.
         <p className="px-1 py-2 text-xs text-paper/50">Nothing in reach.</p>
       ) : (
-        groups.map((group) => (
+        groups.map((group, at) => (
           <InteractionBox
             key={group.key}
             group={group}
+            firstRow={hotkeys ? firstRows[at]! : null}
             tile={tilesById[groupSubject(group).tileId] ?? null}
             tilesets={tilesets}
             onAct={onAct}
@@ -327,12 +364,18 @@ export function fillElapsedMs(progress: Progress): number {
  */
 function InteractionBox({
   group,
+  firstRow,
   tile,
   tilesets,
   onAct,
   onHover,
 }: {
   group: InteractionGroup;
+  /**
+   * Which digit this box's first line answers to, less one — or null where the
+   * list has no keys, which draws no digits at all.
+   */
+  firstRow: number | null;
   tile: TileDef | null;
   tilesets: TilesetDef[];
   onAct: (option: InteractionOption) => void;
@@ -369,8 +412,9 @@ function InteractionBox({
             One line per verb, except the fight-or-watch pair on a body, which
             is one line with two ends — see `actionRows`. */}
         <div className="mt-1 flex flex-col gap-px">
-          {rows.map((row) => (
-            <div key={row[0]!.id} className="flex gap-px">
+          {rows.map((row, at) => (
+            <div key={row[0]!.id} className="flex items-center gap-px">
+              {firstRow === null ? null : <RowKey label={actionRowKeyLabel(firstRow + at)} />}
               {row.map((option) => (
                 <ActionButton
                   key={option.id}
@@ -385,6 +429,25 @@ function InteractionBox({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * The digit that presses a line, drawn in a gutter to its left.
+ *
+ * The gutter is kept for a line past the ninth as well, with nothing in it, so
+ * the verbs in a box stay in one column whether or not each has a key.
+ * `aria-hidden` because it is a keyboard hint and the button beside it already
+ * names what it does.
+ */
+function RowKey({ label }: { label: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="w-3 shrink-0 text-center text-[10px] leading-none tabular-nums text-paper/50"
+    >
+      {label}
+    </span>
   );
 }
 

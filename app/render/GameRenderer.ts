@@ -1113,7 +1113,7 @@ export class GameRenderer {
 
   /**
    * The three keys that are about pointing at the world rather than walking
-   * across it: shift reads what is under the pointer, E swings at whoever is
+   * across it: shift reads what is under the pointer, space swings at whoever is
    * picked, and Escape lets them go.
    *
    * Held here rather than by the page, because all three are answers to

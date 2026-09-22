@@ -231,7 +231,7 @@ export function SpellBar({
   return (
     <div
       // A list rather than a group, because what it is *is* an ordered set of
-      // things, and the order is load-bearing: the second button and the `2` key
+      // things, and the order is load-bearing: the second button and the `E` key
       // are the same stone by construction.
       role="list"
       aria-label="Spells"

@@ -92,7 +92,7 @@ export type InteractionAction =
    * one decision — see `./GameSession`'s {@link setAttackMode}, which is still
    * where the stance lives and still the server's to honour. Never what a plain
    * press on the world runs: it is the row beside the target, the right mouse
-   * button, and `E`. Pressing it again changes nothing: the way out of a fight
+   * button, and space. Pressing it again changes nothing: the way out of a fight
    * is the target beside it, or Escape, and a button that stopped a fight when
    * mashed mid-fight would be the worst possible answer to the gesture people
    * actually make.
@@ -387,7 +387,7 @@ const ACTION_ORDER: Record<InteractionAction, number> = {
   target: 1,
   // Never what a plain press runs, and reached three other ways: the row beside
   // the target in the list, the right button on the world (see
-  // `../render/GameRenderer`'s `fightAt`), and `E`.
+  // `../render/GameRenderer`'s `fightAt`), and space.
   attack: 2,
   // Directly under the pair, which is the only place it can go: they are the
   // rows about the same body and they are read together. Below rather than
@@ -856,6 +856,39 @@ export function actionRows(options: readonly InteractionOption[]): InteractionOp
   }
 
   return rows;
+}
+
+/**
+ * Every line of the list, top to bottom across all its boxes — the order the
+ * number keys count in.
+ *
+ * Written here beside {@link actionRows} rather than in the component, because
+ * two readers need the same answer: the list, to draw a digit beside each line,
+ * and the key handler, to find the line a digit names. Worked out twice, the
+ * badge and the press could disagree about which line is "3".
+ */
+export function listedActionRows(options: readonly InteractionOption[]): InteractionOption[][] {
+  return groupInteractionOptions(options).flatMap((group) => actionRows(group.options));
+}
+
+/**
+ * Which entry a key pressed on a line runs, or null for a line nothing on it
+ * can run.
+ *
+ * A line of one verb runs that verb. **The watch-or-fight pair walks along
+ * itself**: nobody picked runs the watch end, so the first press on a body picks
+ * it without swinging; watching runs the fight end; fighting runs the fight end
+ * again, which stops the fight and keeps the body (see {@link applyInteraction}).
+ * So the second and later presses are exactly what space does to whoever is
+ * picked, and the first press is the one thing space never does — choose a body.
+ */
+export function rowPress(row: readonly InteractionOption[]): InteractionOption | null {
+  const watch = row.find((option) => option.action === "target");
+  const fight = row.find((option) => option.action === "attack");
+  if (watch && fight) return watch.active || fight.active ? fight : watch;
+  const only = row[0];
+  if (!only || only.blocked) return null;
+  return only;
 }
 
 /**
