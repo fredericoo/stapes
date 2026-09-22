@@ -24,7 +24,7 @@ import type {
   InteractionOption,
   OptionBlock,
 } from "../game/interactionOptions";
-import { actionRowKeyLabel, bindActionRowKeys } from "../game/heldDirections";
+import { bindNumberKeys, numberKeyLabel } from "../game/heldDirections";
 import {
   actionRows,
   groupInteractionOptions,
@@ -41,6 +41,7 @@ import {
   healthBarFillBricks,
   healthFraction,
 } from "../render/healthBar";
+import { KeyHint } from "./KeyHint";
 import { TilePreview } from "./TilePreview";
 import { useTap } from "./useTap";
 
@@ -196,7 +197,7 @@ export function InteractionList({
   onActRef.current = onAct;
   useEffect(() => {
     if (!hotkeys) return;
-    return bindActionRowKeys((index) => {
+    return bindNumberKeys((index) => {
       const row = listedActionRows(optionsRef.current)[index];
       const option = row ? rowPress(row) : null;
       if (option) onActRef.current(option);
@@ -414,7 +415,7 @@ function InteractionBox({
         <div className="mt-1 flex flex-col gap-px">
           {rows.map((row, at) => (
             <div key={row[0]!.id} className="flex items-center gap-px">
-              {firstRow === null ? null : <RowKey label={actionRowKeyLabel(firstRow + at)} />}
+              {firstRow === null ? null : <KeyHint label={numberKeyLabel(firstRow + at)} />}
               {row.map((option) => (
                 <ActionButton
                   key={option.id}
@@ -429,25 +430,6 @@ function InteractionBox({
         </div>
       </div>
     </div>
-  );
-}
-
-/**
- * The digit that presses a line, drawn in a gutter to its left.
- *
- * The gutter is kept for a line past the ninth as well, with nothing in it, so
- * the verbs in a box stay in one column whether or not each has a key.
- * `aria-hidden` because it is a keyboard hint and the button beside it already
- * names what it does.
- */
-function RowKey({ label }: { label: string }) {
-  return (
-    <span
-      aria-hidden="true"
-      className="w-3 shrink-0 text-center text-[10px] leading-none tabular-nums text-paper/50"
-    >
-      {label}
-    </span>
   );
 }
 

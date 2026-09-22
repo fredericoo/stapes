@@ -329,7 +329,7 @@ export function bindAttackKey(onToggle: () => void): () => void {
  *
  * Q, E and F: the three letters the left hand reaches without leaving WASD. The
  * digit row used to be here, and moved to the list of what is in reach — see
- * {@link ACTION_ROW_CODES} — because that list is longer and changes as you
+ * {@link NUMBER_CODES} — because that list is longer and changes as you
  * walk, and a list that changes wants an index a player reads off the screen.
  * The stones are three at most and stay where they are, which is what a key
  * learnt by position is good for. Three of them, because three is the whole of
@@ -397,19 +397,19 @@ export function castKeyLabel(index: number): string {
 }
 
 /**
- * The keys that press a row in the list of what is in reach, top to bottom.
+ * The keys that press the Nth thing in whichever list the right-hand column is
+ * showing: the lines of what is in reach, or a conversation's choices.
  *
- * The digit row, because the list is a list and a list wants an index — one,
- * two, three is the one keyboard idiom that says "the first of these" without
+ * The digit row, because both are lists and a list wants an index — one, two,
+ * three is the one keyboard idiom that says "the first of these" without
  * anybody having to be told. Nine, because that is how many the row has before
  * zero, and zero reads as "none" rather than "tenth".
  *
- * **A row, not a box.** A box is one thing and every verb you could do to it; a
- * key per box would still need a second key to say which verb. A row is one
- * verb, except the watch-or-fight pair on a body, which is one decision — see
- * `./interactionOptions`' `rowPress` for what a key on that row asks.
+ * The two lists never compete for the keys: a conversation takes the column
+ * the list of what is in reach was drawn in, so only one of them is mounted and
+ * bound at a time. See `../components/GameViewport`.
  */
-const ACTION_ROW_CODES = [
+const NUMBER_CODES = [
   "Digit1",
   "Digit2",
   "Digit3",
@@ -422,21 +422,21 @@ const ACTION_ROW_CODES = [
 ] as const;
 
 /**
- * Press a number to press that row of the list. Returns the unbind.
+ * Press a number to press that entry of a list. Returns the unbind.
  *
  * Reports the position and nothing else, on {@link bindCastKeys}' terms: the list
  * is the caller's and changes every step, so only the caller can say what "the
  * third one" is at the moment of the press.
  */
-export function bindActionRowKeys(onRow: (index: number) => void): () => void {
+export function bindNumberKeys(onNumber: (index: number) => void): () => void {
   const onKeyDown = (e: KeyboardEvent) => {
-    const index = ACTION_ROW_CODES.indexOf(e.code as (typeof ACTION_ROW_CODES)[number]);
+    const index = NUMBER_CODES.indexOf(e.code as (typeof NUMBER_CODES)[number]);
     if (index < 0) return;
     if (isTypingTarget(e.target)) return;
     if (withCommandModifier(e)) return;
     e.preventDefault();
     if (e.repeat) return;
-    onRow(index);
+    onNumber(index);
   };
 
   window.addEventListener("keydown", onKeyDown);
@@ -444,11 +444,11 @@ export function bindActionRowKeys(onRow: (index: number) => void): () => void {
 }
 
 /**
- * What a row's key is called, or empty for a row past the ninth.
- * @see ACTION_ROW_CODES
+ * What an entry's key is called, or empty for an entry past the ninth.
+ * @see NUMBER_CODES
  */
-export function actionRowKeyLabel(index: number): string {
-  return index < ACTION_ROW_CODES.length ? String(index + 1) : "";
+export function numberKeyLabel(index: number): string {
+  return index < NUMBER_CODES.length ? String(index + 1) : "";
 }
 
 /** Drive `input` from the keyboard. Returns the unbind. */
