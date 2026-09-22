@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
-import { AppShell, type Destination } from "./AppShell";
+import { AppShell, type Destination, MenuRow } from "./AppShell";
 import { DeathScreen } from "./DeathScreen";
 import { FrameStatsReadout } from "./FrameStatsReadout";
 import { GameViewport } from "./GameViewport";
@@ -617,39 +617,48 @@ export function WorldPage({
           read aloud — none of which an overlay drawn on top of them covers. It
           exists for the attribute and takes the height back, because the shell
           under it is sized against its parent. */}
-      <div className="h-full" inert={dead || rebirthing}>
+      <div
+        className="h-full"
+        inert={dead || rebirthing}
+        // The connection's state where a test can wait on it without opening
+        // the menu the chip that says it lives in.
+        data-world-status={status}
+      >
         <AppShell
           destinations={destinations}
           menuExtras={
             <>
-              <div
-                className="flex items-center gap-2"
-                // Announced, unlike the clock: the headcount changes only when
-                // somebody actually arrives or leaves, which is worth hearing.
-                role="status"
-              >
-                <span className="text-xs uppercase text-paper/70">Players</span>
-                <span className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper">
-                  {players ?? "—"}
-                </span>
+              {/* Announced, unlike the clock: the headcount changes only when
+                  somebody actually arrives or leaves, which is worth hearing. */}
+              <div role="status">
+                <MenuRow label="Players">
+                  <span className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper">
+                    {players ?? "—"}
+                  </span>
+                </MenuRow>
               </div>
-              <FrameStatsReadout stats={stats} />
-              {status === "live" ? statusChip : null}
-              <LightingToggle enabled={lightingEnabled} onChange={setLightingEnabled} />
+              {status === "live" ? <MenuRow label="Connection">{statusChip}</MenuRow> : null}
+              <MenuRow label="Frame rate">
+                <FrameStatsReadout stats={stats} />
+              </MenuRow>
+              <MenuRow label="Lighting">
+                <LightingToggle enabled={lightingEnabled} onChange={setLightingEnabled} />
+              </MenuRow>
               {menuExtras}
-              {/* Last in the row, and last in the menu on a phone: it is the
-                    only thing here that ends the session rather than changing
-                    what is on screen. */}
+              {/* Last in the menu: it is the only thing here that ends the
+                  session rather than changing what is on screen. */}
               {onLeave ? (
-                <LeaveWorldButton
-                  inCombat={vitals.statuses.some((status) => status.defId === COMBAT_STATUS_ID)}
-                  onLeave={onLeave}
-                />
+                <div className="py-2">
+                  <LeaveWorldButton
+                    inCombat={vitals.statuses.some((status) => status.defId === COMBAT_STATUS_ID)}
+                    onLeave={onLeave}
+                  />
+                </div>
               ) : null}
             </>
           }
-          // The bar goes away entirely on a phone, because the game draws the
-          // menu itself — see `AppMenuButton` in the row of controls under the
+          // No bar at all, on any device, because the game draws the menu
+          // itself — see `AppMenuButton` in the row of controls beside the
           // world. Which is also why the readings below are handed to the
           // viewport rather than to the header: there is no header to hand them
           // to, and beside the world is where they belonged anyway.

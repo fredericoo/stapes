@@ -14,11 +14,12 @@ import { Tooltip } from "../ui/Tooltip";
  * and every one of those lines came out of the game underneath. So below the
  * breakpoint the whole set folds into one button.
  *
- * On a page that has somewhere better to put that button, the bar goes entirely
- * — see {@link menuInPage}. A phone playing the game has one screen of room and
- * every row of it is either the world or a control; a header holding a wordmark,
- * a hamburger and a clock was a row that was neither, and the clock and the menu
- * both had a home nearer the thumb that wanted them.
+ * On a page that has somewhere better to put that button, the bar goes entirely,
+ * at every width — see {@link menuInPage}. The game is the one page that does:
+ * a header holding a wordmark and a row of readings was a row that was neither
+ * world nor control, and on a desktop its readings reflowed the bar every time a
+ * number changed width, walking the buttons beside them left and right. One
+ * menu behind one cog on both devices means one place to learn.
  *
  * The breakpoint is the window's *width* and not the pointer, unlike the
  * on-screen arrows: a header is a layout problem, and a desktop window dragged
@@ -70,13 +71,32 @@ function linkClass(isActive: boolean, block: boolean): string {
  * Context rather than a second prop back down through the page, because the
  * alternative is the route handing the same node to two components and hoping
  * they never both render it. Here there is one definition and one drawing of it,
- * wherever it ends up: the header on a wide window, and the game's own row of
- * controls on a narrow one.
+ * wherever it ends up: an editor's header, or the game's own row of controls.
  */
 const AppMenuContents = createContext<{
   destinations: Destination[];
   extras: React.ReactNode;
-}>({ destinations: [], extras: null });
+  /** Whether the shell has handed its menu to the page, rather than drawing a header. */
+  inPage: boolean;
+}>({ destinations: [], extras: null, inPage: false });
+
+/**
+ * One line of the menu: what it is on the left, the reading or the control on
+ * the right.
+ *
+ * Every entry takes a whole row so the menu reads as a list rather than a
+ * paragraph of chips. The row layout used to be `flex-wrap`, which put
+ * whatever fitted beside whatever came before it — so a reading that grew by a
+ * digit could move the lighting switch onto the next line under the pointer.
+ */
+export function MenuRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-9 items-center justify-between gap-3">
+      <span className="text-xs uppercase text-paper/70">{label}</span>
+      <div className="flex shrink-0 items-center gap-2">{children}</div>
+    </div>
+  );
+}
 
 /**
  * The menu's contents: where you can go, and the switches that ride with the
@@ -122,9 +142,11 @@ function AppMenuPopup({
       {extras ? (
         // The rule separates the switches from the destinations above them, so
         // a menu that is only switches — the game's — does not open with one.
+        // A column rather than a wrapping row: each entry is its own line, and
+        // is ruled off from the next — see {@link MenuRow}.
         <div
           className={[
-            "flex flex-wrap items-center gap-2",
+            "flex flex-col divide-y-2 divide-paper/10",
             destinations.length === 0 ? "" : "border-t-2 border-paper/20 pt-2",
           ]
             .filter(Boolean)
@@ -150,11 +172,10 @@ function AppMenuPopup({
  * one menu, both on screen at once, is two things to learn for one destination.
  */
 export function AppMenuButton({ size = "touch" }: { size?: ActionButtonSize }) {
-  const { destinations, extras } = useContext(AppMenuContents);
-  const narrow = useMediaQuery(NARROW_VIEWPORT);
+  const { destinations, extras, inPage } = useContext(AppMenuContents);
   const [open, setOpen] = useState(false);
 
-  if (!narrow) return null;
+  if (!inPage) return null;
   // A button that opens an empty popup is a button that lies about having
   // something behind it.
   if (destinations.length === 0 && !extras) return null;
@@ -177,9 +198,10 @@ export function AppMenuButton({ size = "touch" }: { size?: ActionButtonSize }) {
         </Popover.Trigger>
       </Tooltip>
       <Popover.Portal>
-        {/* Opened upwards from a control near the bottom of the screen, which
-            `side` alone would not guarantee on a short phone. */}
-        <Popover.Positioner sideOffset={8} side="top" align="end">
+        {/* Upwards from the touch row, which sits at the bottom of a phone;
+            downwards from the desktop column, where the button is near the top
+            of the screen and there is no room above it. */}
+        <Popover.Positioner sideOffset={8} side={size === "touch" ? "top" : "bottom"} align="end">
           <AppMenuPopup
             destinations={destinations}
             extras={extras}
@@ -219,22 +241,22 @@ export function AppShell({
    */
   menuExtras?: React.ReactNode;
   /**
-   * This page draws the menu itself, so on a narrow window the bar goes away
-   * entirely rather than folding.
+   * This page draws the menu itself, so the bar goes away entirely, at every
+   * width.
    *
    * Opt-in per page, and deliberately not the default: it costs the page a
-   * {@link AppMenuButton} somewhere a thumb can reach, and a route that took the
-   * header away without drawing one would leave a phone with no way out of it.
-   * The editors keep their hamburger for exactly that reason.
+   * {@link AppMenuButton} somewhere a hand can reach, and a route that took the
+   * header away without drawing one would leave it with no way out. The editors
+   * keep their header for exactly that reason.
    */
   menuInPage?: boolean;
 }) {
   const narrow = useMediaQuery(NARROW_VIEWPORT);
   const [menuOpen, setMenuOpen] = useState(false);
-  const headerHidden = narrow && menuInPage;
+  const headerHidden = menuInPage;
 
   return (
-    <AppMenuContents.Provider value={{ destinations, extras: menuExtras }}>
+    <AppMenuContents.Provider value={{ destinations, extras: menuExtras, inPage: headerHidden }}>
       <div
         className="flex h-full flex-col"
         style={{

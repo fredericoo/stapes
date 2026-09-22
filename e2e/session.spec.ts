@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { ADMIN_USERNAME, freshCharacterName, signInAsAdmin } from "./accounts";
+import { liveWorld, openGameMenu } from "./world";
 
 /**
  * The screens a player meets, against a real world.
@@ -77,7 +78,7 @@ test.describe("the way in", () => {
      * is mounted as soon as the world route is, well before `hello` — so a
      * message typed against it is one the world never hears.
      */
-    const live = page.getByText("live", { exact: true }).first();
+    const live = liveWorld(page);
 
     // ---- every door redirects to the one before it -------------------------
     await page.goto("/", { waitUntil: "networkidle" });
@@ -121,7 +122,7 @@ test.describe("the way in", () => {
     await page.getByRole("button", { name: "Create and enter" }).click();
 
     // ---- the world --------------------------------------------------------
-    await expect(live).toBeVisible({ timeout: BOOT_TIMEOUT_MS });
+    await expect(live).toBeAttached({ timeout: BOOT_TIMEOUT_MS });
     await landsOn("/");
     // One connection, once the StrictMode remount above has settled.
     await expect.poll(() => openSockets().length, { timeout: 30_000 }).toBe(1);
@@ -139,7 +140,7 @@ test.describe("the way in", () => {
 
     // ---- leaving the world, which is not signing out ----------------------
     // Nothing to confirm out of a fight: the press is the whole of it.
-    await page.getByRole("button", { name: "Leave world" }).click();
+    await pressLeaveWorld(page);
     await expect(page.getByRole("button", { name: character })).toBeVisible({
       timeout: 30_000,
     });
@@ -209,8 +210,9 @@ test.describe("leaving mid-fight", () => {
       timeout: 30_000,
     });
 
-    await page.getByRole("button", { name: "Leave world" }).click();
-    const warning = page.getByRole("dialog");
+    await pressLeaveWorld(page);
+    // By name: the menu it was pressed from is a dialog too.
+    const warning = page.getByRole("dialog", { name: "Leave mid-fight" });
     await expect(warning).toContainText("your body stays in the world", {
       timeout: 30_000,
     });
@@ -220,7 +222,7 @@ test.describe("leaving mid-fight", () => {
     await expect(page.locator("canvas").first()).toBeVisible();
     expect(new URL(page.url()).pathname).toBe("/");
 
-    await page.getByRole("button", { name: "Leave world" }).click();
+    await pressLeaveWorld(page);
     await warning.getByRole("button", { name: "Leave", exact: true }).click();
     await expect(page.getByText(`Signed in as ${ADMIN_USERNAME}`)).toBeVisible({
       timeout: 30_000,
@@ -240,6 +242,12 @@ test.describe("leaving mid-fight", () => {
  * starting from an empty world every time, would never have said. The rows on
  * the chooser are the characters; everything else on that screen is a link.
  */
+/** Press **Leave world**, which lives in the game's menu behind the cog. */
+async function pressLeaveWorld(page: Page): Promise<void> {
+  await openGameMenu(page);
+  await page.getByRole("button", { name: "Leave world" }).click();
+}
+
 async function enterWorldAsAdmin(page: Page): Promise<void> {
   await signInAsAdmin(page);
   await page.goto("/characters", { waitUntil: "networkidle" });
@@ -259,7 +267,7 @@ async function enterWorldAsAdmin(page: Page): Promise<void> {
   // The chip, not the canvas: the canvas is mounted as soon as the world route
   // is, well before `hello`, so a command typed against it is one the world
   // never hears.
-  await expect(page.getByText("live", { exact: true }).first()).toBeVisible({
+  await expect(liveWorld(page)).toBeAttached({
     timeout: BOOT_TIMEOUT_MS,
   });
 }
