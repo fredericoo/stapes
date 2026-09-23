@@ -7383,8 +7383,10 @@ export class GameSession implements PlaySession {
    * moment an actor is created it may have no body at all. Null means the body
    * has none to give.
    */
-  private hpOf(actor: ActorRuntime): number | null {
-    const stats = this.battlerOf(actor);
+  private hpOf(
+    actor: ActorRuntime,
+    stats: FightingStats | null = this.battlerOf(actor),
+  ): number | null {
     if (!stats) return null;
     actor.hp ??= stats.maxHp;
     // Clamped on read rather than on edit, so lowering a tile's maximum in the
@@ -10493,6 +10495,11 @@ export class GameSession implements PlaySession {
     const loc = this.locate(actor);
     // Include leftover accumulator so 60fps+ renders interpolate between 30Hz ticks.
     const visualExtra = this.accumulatorMs;
+    // One reading of the battler for both figures below, which is one per actor
+    // per tick fewer. Except on the tick hit points are first filled in: a
+    // status formula reads them, so the maximum is read again once they are.
+    const hpUnset = actor.hp == null;
+    const stats = this.battlerOf(actor);
     return {
       id: actor.id,
       name: actor.name,
@@ -10524,8 +10531,8 @@ export class GameSession implements PlaySession {
       strikeProgress: actor.strike
         ? Math.min(1, (actor.strike.elapsedMs + visualExtra) / STRIKE_DURATION_MS)
         : 0,
-      hp: this.hpOf(actor),
-      maxHp: this.battlerOf(actor)?.maxHp ?? null,
+      hp: this.hpOf(actor, stats),
+      maxHp: (hpUnset ? this.battlerOf(actor) : stats)?.maxHp ?? null,
       rating: this.ratingOf(actor),
       // By reference, like the kit below: `advanceStatuses` replaces the list
       // wholesale, so the same array across two ticks is the same answer.
