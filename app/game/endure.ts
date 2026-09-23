@@ -36,6 +36,9 @@ function poolKey(cell: Coord, tileId: string): string {
   return `${cellKey(cell)}|${tileId}`;
 }
 
+/** Float slack for {@link EndureIndex.hold}'s period, as `GameSession`'s `COOLDOWN_EPSILON_MS`. */
+const HELD_EPSILON_MS = 1e-6;
+
 /** One placement being worn down, and what is doing it. */
 export type Endurance = {
   cell: Coord;
@@ -60,6 +63,14 @@ export type Endurance = {
    */
   endure: EndureInteraction;
   statuses: readonly StatusInstance[];
+  /**
+   * How long a source standing in this cell has been holding each status on it,
+   * towards its next helping. Keyed by status id, because a cell can hold a
+   * flame and something else at once and each keeps its own period.
+   *
+   * `ActorRuntime.standingStatusMs` for a placement. @see EndureIndex.hold
+   */
+  heldMs: Readonly<Record<string, number>>;
 };
 
 /**
@@ -343,11 +354,12 @@ export class EndureIndex {
    * spread and the wire all ask `afflictionFor` and none of them can come to a
    * different view of what burns.
    *
-   * **Nothing is re-applied to a placement already under it.** `applyStatus`
-   * would happily refresh or stack, and the caller is a per-tick sweep — so
-   * refreshing here would be a roll of the world's dice thirty times a second
-   * per burning tile, which is exactly the draw discipline `./decay` and
-   * `./statuses` are both written to protect. One roll per burn.
+   * **A placement already under the status takes it again**, through
+   * `applyStatus`, so it stacks where the status stacks and refreshes where it
+   * does not. That is what lets a share of a spreading fire land on a tree that
+   * is already burning and add to it: two burning neighbours feed a third more
+   * than one does. Every call is one roll of the world's dice, so a caller that
+   * runs every tick goes through {@link hold} instead.
    */
   afflict(
     cell: Coord,
@@ -359,22 +371,83 @@ export class EndureIndex {
     elements?: readonly Element[],
   ): boolean {
     if (!afflictionFor(endure, def.id)) return false;
-    const key = poolKey(cell, tileId);
-    const existing = this.pools.get(key);
-    if (existing?.statuses.some((one) => one.defId === def.id)) return false;
-
-    const pool: Endurance = existing ?? {
-      cell: { ...cell },
-      tileId,
-      hp: endure.durability,
-      endure,
-      statuses: [],
-    };
-    this.pools.set(key, {
+    const pool = this.poolFor(cell, tileId, endure);
+    this.pools.set(poolKey(cell, tileId), {
       ...pool,
       statuses: applyStatus(pool.statuses, def, this.rng, range, causedBy, elements),
     });
     return true;
+  }
+
+  /**
+   * Afflict a placement from a source standing in its cell: once on contact,
+   * then once every `everyMs` for as long as the source stays.
+   *
+   * **The ground's half of "a fire keeps burning you while you stand in it"**,
+   * on the terms `GameSession.tickStandingStatuses` gives a body and at its
+   * cadence, which the caller passes in so there is one figure for both. A
+   * flame stacks `burned` onto the grass under it every second, up to the
+   * status's `maxMs`, so a tile that stands in a fire for a while has a long
+   * burn to hand on when it goes — that remainder is what the spread divides.
+   *
+   * The caller is a per-tick sweep, and this is what keeps it to one roll of
+   * the world's dice per helping rather than thirty a second per burning tile.
+   * Contact is "the status is not running on this placement", so a burn that
+   * ran out on a tile that survived it is renewed on the next tick, and the
+   * period starts again from there.
+   */
+  hold(
+    cell: Coord,
+    tileId: string,
+    endure: EndureInteraction,
+    def: StatusDef,
+    tickMs: number,
+    everyMs: number,
+    causedBy?: string,
+    elements?: readonly Element[],
+  ): boolean {
+    if (!afflictionFor(endure, def.id)) return false;
+    const key = poolKey(cell, tileId);
+    const pool = this.poolFor(cell, tileId, endure);
+    const running = pool.statuses.some((one) => one.defId === def.id);
+
+    let heldMs = 0;
+    if (running) {
+      heldMs = (pool.heldMs[def.id] ?? 0) + tickMs;
+      // Against the epsilon rather than the figure itself, on
+      // `tickStandingStatuses`' terms: thirty ticks come to a hair over a
+      // second, and an exact comparison would be a tick late half the time.
+      if (heldMs + HELD_EPSILON_MS < everyMs) {
+        this.pools.set(key, { ...pool, heldMs: { ...pool.heldMs, [def.id]: heldMs } });
+        return false;
+      }
+      // Drained rather than zeroed, so the period stays a period.
+      heldMs -= everyMs;
+    }
+
+    this.pools.set(key, {
+      ...pool,
+      // The status's own range, unlike a spread's share: what standing in a
+      // fire does to the ground is a fact about fire, the reading
+      // `AddStatusInteraction` takes for a body.
+      statuses: applyStatus(pool.statuses, def, this.rng, undefined, causedBy, elements),
+      heldMs: { ...pool.heldMs, [def.id]: heldMs },
+    });
+    return true;
+  }
+
+  /** This placement's pool, or a fresh one at full durability. */
+  private poolFor(cell: Coord, tileId: string, endure: EndureInteraction): Endurance {
+    return (
+      this.pools.get(poolKey(cell, tileId)) ?? {
+        cell: { ...cell },
+        tileId,
+        hp: endure.durability,
+        endure,
+        statuses: [],
+        heldMs: {},
+      }
+    );
   }
 
   /**

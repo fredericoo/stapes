@@ -259,9 +259,9 @@ export type EndureInteraction = {
  * tile beneath it (see `GameSession.castConjure`), so a source and its fuel
  * already share a cell, and reaching further is what the spread is for.
  *
- * Re-applied whenever the source is still there and the target is no longer
- * under the status, which is what makes a permanent flame burn continuously —
- * one roll per burn, not one per tick. See `GameSession.tickAfflictions`.
+ * Applied on contact and again every second the source stays, stacking where
+ * the status stacks — the ground's version of standing in a fire. See
+ * `GameSession.tickAfflictions` and `../game/endure`'s `EndureIndex.hold`.
  */
 export type AfflictInteraction = {
   /**

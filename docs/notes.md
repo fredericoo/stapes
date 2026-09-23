@@ -8205,18 +8205,28 @@ nobody has set fire to costs one `size` check per tick and nothing else.
 `afflictCells` *is* seeded and maintained by `reindexCells`, because a source
 keeps working for as long as it is there.
 
-### One roll per burn, not one per tick
+### The ground under a flame is held like a body standing in it
 
-`tickAfflictions` is a per-tick sweep, and `EndureIndex.afflict` refuses a
-placement already under the status. That refusal is load-bearing: `applyStatus`
-would happily refresh, and refreshing on a per-tick sweep is thirty rolls of the
-world's seeded dice per second per burning tile — exactly the draw discipline
-decay lifetimes and swing rolls are both written to protect.
+`tickAfflictions` is a per-tick sweep, and it goes through `EndureIndex.hold`
+rather than `afflict`. The ground catches on contact and takes another helping
+every `STANDING_STATUS_EVERY_MS` — the second `tickStandingStatuses` holds a
+body to — so `burned` stacks on the grass under a flame exactly as it does on
+somebody standing in one, up to the status's `maxMs`. The clock lives on the
+pool (`Endurance.heldMs`, per status id), which keeps the sweep at one roll of
+the world's dice per helping rather than thirty a second per burning tile.
 
-What the refusal buys is **the eternal flame**. A hearth whose ground survives
-one burn sets it alight again the moment that burn ends, so a permanent fire
-burns permanently and still costs one roll per burn. That is why a flame carries
-`afflict` as a *separate* block from the `addStatus` it already had: one burns
+This is what gives a forest fire its reach. Ground that stood in a fire for a
+few seconds goes out carrying close to `maxMs` of burn, and that is the
+remainder the spread divides, so the first ring of neighbours catches long
+enough to fell a tree rather than to scorch it. Spread shares go through
+`afflict`, which also stacks on a placement already burning, so two burning
+neighbours feed a third more than one does. The source is the only thing that
+adds fuel. The spread still only divides it, and a stack that clamps at `maxMs`
+can only lose some, so a fire with no flame left in it still burns out.
+
+A hearth whose ground survives a burn is set alight again on the next tick,
+since contact is "the status is not running on this placement". A flame
+carries `afflict` as a *separate* block from the `addStatus` it already had: one burns
 whoever steps in it, the other burns the ground, and folding them together would
 have set every hearth in the world eating its own floor on the day it shipped.
 

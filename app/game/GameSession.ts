@@ -2208,10 +2208,10 @@ export class GameSession implements PlaySession {
    * grass. Same index discipline as {@link plateCells}.
    *
    * Indexed rather than swept because a source keeps working for as long as it
-   * is there: unlike a decay, which fires once, an eternal flame has to be asked
-   * every tick whether the ground under it has stopped burning. That question is
-   * one stack read, and this is what keeps it to one read per flame in the world
-   * rather than one per cell.
+   * is there: unlike a decay, which fires once, a flame keeps adding to the burn
+   * on the ground under it for as long as it stands. Asking is one stack read a
+   * tick, and this is what keeps it to one read per flame in the world rather
+   * than one per cell.
    */
   private readonly afflictCells = new Map<string, Coord>();
   /**
@@ -3459,7 +3459,7 @@ export class GameSession implements PlaySession {
     // releases whatever plate it held on the same frame. Afflicting first, so a
     // flame conjured this tick sets its ground alight this tick rather than a
     // tick late.
-    this.tickAfflictions();
+    this.tickAfflictions(tickMs);
     this.applyWornThrough(tickMs);
 
     // After the bodies and after decay, so a pull knows whether the person
@@ -3529,40 +3529,43 @@ export class GameSession implements PlaySession {
   }
 
   /**
-   * Set alight whatever is standing in a cell with a source in it.
+   * Set alight whatever is standing in a cell with a source in it, and keep it
+   * alight while the source stays.
    *
    * One stack read per source in the world per tick, which is what
    * {@link afflictCells} exists to bound — a map with three braziers on it pays
    * for three, not for the map.
    *
-   * **Re-applied only where the status is not already running**, and that
-   * refusal is `./endure`'s rather than this loop's: a sweep that refreshed on
-   * every tick would roll the world's dice thirty times a second per burning
-   * tile, which is exactly the draw discipline decay lifetimes and swing rolls
-   * are both written to protect. What it buys is the eternal flame — a hearth
-   * whose ground survives one burn is set alight again the moment that burn ends,
-   * so a permanent fire burns permanently at one roll per burn.
+   * **The ground is treated as a body standing in the fire**: it catches on
+   * contact and takes another helping every `STANDING_STATUS_EVERY_MS`, the
+   * cadence {@link tickStandingStatuses} holds a body to, so `burned` stacks on
+   * the grass under a flame exactly as it does on somebody standing in one. The
+   * clock is `./endure`'s `hold`, which is what keeps this at one roll of the
+   * world's dice per helping rather than one per tick.
    */
-  private tickAfflictions() {
+  private tickAfflictions(tickMs: number) {
     if (this.afflictCells.size === 0) return;
     for (const cell of this.afflictCells.values()) {
+      // Two sources of one status in a cell — a flame conjured onto a brazier —
+      // are one fire to the ground under them. Holding it twice would run its
+      // clock at double speed.
+      const held = new Set<string>();
       for (const source of afflictionsFrom(this.map, cell, this.tilesById)) {
+        if (held.has(source.statusId)) continue;
+        held.add(source.statusId);
         // A status the catalogue has not got is an affliction that does not
         // happen, on exactly `grantStatus`'s terms: renamed content costs one
         // effect rather than stopping the world.
         const def = this.statusDefs[source.statusId];
         if (!def) continue;
         for (const sufferer of sufferersIn(this.map, cell, source.statusId, this.tilesById)) {
-          this.endure.afflict(
+          this.endure.hold(
             cell,
             sufferer.tileId,
             sufferer.endure,
             def,
-            // The status's own range, unlike an item's `StatusGrant`: what
-            // standing in a fire does to the ground is a fact about fire, and an
-            // author who wants a longer one has authored a longer status. Same
-            // reading `AddStatusInteraction` takes for a body.
-            undefined,
+            tickMs,
+            STANDING_STATUS_EVERY_MS,
             source.causedBy,
             source.elements,
           );

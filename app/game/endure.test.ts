@@ -242,11 +242,48 @@ describe("EndureIndex", () => {
     expect(endure.pending()).toBe(false);
   });
 
-  it("does not re-roll a status already running, so a sweep costs one draw", () => {
+  it("adds to a status already running, so two burning neighbours feed a third", () => {
     const endure = index();
     expect(endure.afflict(ORIGIN, "grass", grassEndure(), BURNED)).toBe(true);
-    expect(endure.afflict(ORIGIN, "grass", grassEndure(), BURNED)).toBe(false);
+    expect(endure.afflict(ORIGIN, "grass", grassEndure(), BURNED)).toBe(true);
     expect(endure.statusesAt(ORIGIN, "grass")).toHaveLength(1);
+    expect(endure.statusesAt(ORIGIN, "grass")[0]?.remainingMs).toBe(BURN_MS * 2);
+  });
+
+  describe("a source held on a placement", () => {
+    const EVERY_MS = 1_000;
+    const hold = (endure: EndureIndex) =>
+      endure.hold(ORIGIN, "grass", grassEndure(), BURNED, TICK_MS, EVERY_MS);
+
+    it("catches on contact, then takes one more helping a second", () => {
+      const endure = index();
+      expect(hold(endure)).toBe(true);
+      expect(endure.statusesAt(ORIGIN, "grass")[0]?.remainingMs).toBe(BURN_MS);
+
+      // Thirty ticks is a second. The twenty-nine before it roll nothing.
+      const ticksPerSecond = Math.round(EVERY_MS / TICK_MS);
+      for (let i = 1; i < ticksPerSecond; i++) expect(hold(endure)).toBe(false);
+      expect(hold(endure)).toBe(true);
+      expect(endure.statusesAt(ORIGIN, "grass")[0]?.remainingMs).toBe(BURN_MS * 2);
+    });
+
+    it("stops adding at the status's own ceiling", () => {
+      const endure = index();
+      for (let i = 0; i < Math.round((EVERY_MS * 10) / TICK_MS); i++) hold(endure);
+      expect(endure.statusesAt(ORIGIN, "grass")[0]?.remainingMs).toBe(BURNED.maxMs);
+    });
+
+    it("renews a burn that ran out on a tile that survived it, on the next tick", () => {
+      const endure = index();
+      endure.afflict(ORIGIN, "tree", resolveEndure(tilesById.tree!)!, BURNED);
+      for (let ms = 0; ms < BURN_MS + TICK_MS; ms += TICK_MS) endure.advance(TICK_MS, catalogue);
+      expect(endure.statusesAt(ORIGIN, "tree")).toHaveLength(0);
+
+      expect(
+        endure.hold(ORIGIN, "tree", resolveEndure(tilesById.tree!)!, BURNED, TICK_MS, EVERY_MS),
+      ).toBe(true);
+      expect(endure.statusesAt(ORIGIN, "tree")).toHaveLength(1);
+    });
   });
 
   it("spends the pool at the status's own cadence", () => {
@@ -526,6 +563,25 @@ describe("a flame in a world", () => {
     // The first cell has gone, and the second is now alight from what was left.
     expect(stackIds(play.getMap(), 0, 0)).toEqual(["dirt", "flame"]);
     run(play, Math.ceil(BURN_MS / TICK_MS));
+    expect(stackIds(play.getMap(), 1, 0)).toEqual(["dirt"]);
+  });
+
+  /**
+   * The flame stacks `burned` on the grass under it once a second, so by the
+   * time the grass goes it is carrying close to the status's ceiling rather
+   * than what was left of a single burn. A single burn's remainder is five
+   * seconds — twenty of the tree's forty — and would leave it standing.
+   */
+  it("stacks the burn under a flame, so the grass hands on enough to fell a tree", () => {
+    const play = session(
+      world([
+        { at: ORIGIN, stack: ["grass", "flame"] },
+        { at: { x: 1, y: 0, z: 0 }, stack: ["dirt", "tree"] },
+      ]),
+    );
+    const grassSeconds = GRASS_DURABILITY / BURN_PER_SECOND;
+    const treeSeconds = TREE_DURABILITY / BURN_PER_SECOND;
+    run(play, Math.ceil(((grassSeconds + treeSeconds + 1) * 1_000) / TICK_MS));
     expect(stackIds(play.getMap(), 1, 0)).toEqual(["dirt"]);
   });
 
