@@ -21,7 +21,12 @@
  *
  * The crystal has six-fold symmetry, so turning it 60° brings it back to where
  * it started. The loop is those 60° only, which is why a full-looking turn fits
- * in `FRAMES` frames.
+ * in `FRAMES` frames. The frames are few and held long on purpose, so the turn
+ * steps like hand-drawn sprite animation rather than gliding.
+ *
+ * Both pyramids are the same height and the camera is level with the girdle,
+ * so the silhouette is the same upside down. Only the light, which comes from
+ * above, tells the top from the bottom.
  *
  * `CHROMIUM_PATH` points Playwright at a Chromium other than the one it
  * downloaded. Also writes `crystal-spinner@4x.gif`, the same frames scaled up by nearest
@@ -43,9 +48,9 @@ const SIZE = 32;
 const SUPERSAMPLE = 6;
 /** Fraction of a block that must be covered for its pixel to be drawn. */
 const COVERAGE = 0.5;
-const FRAMES = 16;
+const FRAMES = 8;
 /** Hundredths of a second per frame. */
-const DELAY_CS = 6;
+const DELAY_CS = 12;
 
 /**
  * The logo's sixteen colours (`public/logo.png`), outline first. The spinner
@@ -77,10 +82,10 @@ const SCENE: Omit<SceneParams, "size" | "frames"> = {
   sweepDeg: 60,
   sides: 6,
   radius: 0.62,
-  topHeight: 1.25,
-  bottomHeight: 0.85,
+  topHeight: 1.05,
+  bottomHeight: 1.05,
   girdle: 0.12,
-  pitchDeg: 18,
+  pitchDeg: 0,
   tiltDeg: 0,
   viewExtent: 1.25,
   frontOpacityMin: 0.7,
@@ -94,8 +99,8 @@ const SCENE: Omit<SceneParams, "size" | "frames"> = {
  */
 type Sparkle = { x: number; y: number; arms: readonly number[] };
 const SPARKLES: readonly Sparkle[] = [
-  { x: 24, y: 5, arms: [0, 0, 0, 0, 1, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0] },
-  { x: 6, y: 22, arms: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0] },
+  { x: 24, y: 5, arms: [0, 0, 1, 2, 1, 0, 0, 0] },
+  { x: 7, y: 26, arms: [0, 0, 0, 0, 0, 1, 1, 0] },
 ];
 
 // Index 0 is transparent, 1 is the outline, the rest are the logo's fills.
