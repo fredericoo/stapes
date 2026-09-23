@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  changedCellsInChunk,
+  changedCellsOnLevel,
+  chunkifyMap,
   clearStack,
   flattenMap,
   serializeMap,
@@ -20,11 +23,13 @@ import {
   updatePlacedContents,
   updatePlacedDescription,
   updatePlacedInscription,
+  setStacks,
   tileIdsInChunk,
+  type StackEdit,
 } from "./mapData";
 import { fixtureTown } from "./fixtureTown";
 import type { MapFile, PlacedTile } from "./types";
-import { MAP_FILE_VERSION, levelKey, physicalHeight } from "./types";
+import { CHUNK_SIZE, MAP_FILE_VERSION, levelKey, physicalHeight } from "./types";
 import { fitsAtElevation, fitsTile, tilesByIdFromList } from "./validation";
 import { tile } from "./testTile";
 
@@ -648,6 +653,114 @@ describe("tileIdsInChunk", () => {
     const listed = tileIdsInChunk(chunkOf(map, 0, 0, 0));
     for (const stack of Object.values(chunkOf(map, 0, 0, 0))) {
       for (const placed of stack) expect(listed.has(placed.tileId)).toBe(true);
+    }
+  });
+});
+
+/**
+ * What differs between two versions of the board, read off the writes between
+ * them where one descends from the other.
+ *
+ * The lineage is only a shortcut to the answer comparing every key gives, so
+ * that comparison is written out here and every case is held to it.
+ */
+describe("the cells that differ between two versions", () => {
+  /** Every cell key whose stack differs, found by comparing every key both hold. */
+  function everyKeyCompared(prev: MapFile, next: MapFile, z: number): Set<string> {
+    const out = new Set<string>();
+    const before = prev.levels[levelKey(z)] ?? {};
+    const after = next.levels[levelKey(z)] ?? {};
+    for (const chunk of new Set([...Object.keys(before), ...Object.keys(after)])) {
+      const a = before[chunk] ?? {};
+      const b = after[chunk] ?? {};
+      for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) {
+        if (a[key] !== b[key]) out.add(key);
+      }
+    }
+    return out;
+  }
+
+  const grass: PlacedTile = { tileId: "grass" };
+  const stone: PlacedTile = { tileId: "stone" };
+
+  /** A seeded sequence of edits, so a failure is the same failure every run. */
+  function versions(count: number): MapFile[] {
+    let seed = 7;
+    const random = () => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed / 2147483648;
+    };
+    const cell = () => Math.floor(random() * CHUNK_SIZE * 3) - CHUNK_SIZE;
+    let map = emptyMap();
+    const out: MapFile[] = [map];
+    for (let i = 0; i < count; i++) {
+      const edits: StackEdit[] = [];
+      const writes = 1 + Math.floor(random() * 4);
+      for (let w = 0; w < writes; w++) {
+        const roll = random();
+        // Some writes put back the very stack that was there, which a diff by
+        // lineage must still report as no change.
+        const z = random() < 0.8 ? 0 : -1;
+        const x = cell();
+        const y = cell();
+        const stack =
+          roll < 0.25
+            ? []
+            : roll < 0.35
+              ? getStack(map, x, y, z)
+              : roll < 0.7
+                ? [grass]
+                : [grass, stone];
+        edits.push({ x, y, z, stack });
+      }
+      map = setStacks(map, edits);
+      out.push(map);
+    }
+    return out;
+  }
+
+  it("is what comparing every key finds, between any version and any later one", () => {
+    const all = versions(300);
+    for (let i = 0; i < all.length; i += 7) {
+      for (let j = i; j < all.length; j += 11) {
+        for (const z of [0, -1, 1]) {
+          expect(changedCellsOnLevel(all[i]!, all[j]!, z)).toEqual(
+            everyKeyCompared(all[i]!, all[j]!, z),
+          );
+        }
+      }
+    }
+  });
+
+  it("is what comparing every key finds, the other way round and between strangers", () => {
+    const all = versions(120);
+    const stranger = chunkifyMap(flattenMap(all[60]!));
+    for (const [prev, next] of [
+      [all[90]!, all[30]!],
+      [all[45]!, stranger],
+      [stranger, all[119]!],
+    ] as const) {
+      for (const z of [0, -1]) {
+        expect(changedCellsOnLevel(prev, next, z)).toEqual(everyKeyCompared(prev, next, z));
+      }
+    }
+  });
+
+  it("is what comparing every key finds within one chunk", () => {
+    const all = versions(200);
+    for (let i = 0; i < all.length; i += 13) {
+      const j = Math.min(all.length - 1, i + 17);
+      for (const chunk of ["-1,-1", "0,0", "1,0", "0,1"]) {
+        const prev = all[i]!;
+        const next = all[j]!;
+        const expected = new Set(
+          [...everyKeyCompared(prev, next, 0)].filter((key) => {
+            const [x, y] = key.split(",").map(Number) as [number, number];
+            return chunkKeyFor(x, y) === chunk;
+          }),
+        );
+        expect(changedCellsInChunk(prev, next, 0, chunk)).toEqual(expected);
+      }
     }
   });
 });
