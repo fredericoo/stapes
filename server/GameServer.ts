@@ -4763,6 +4763,9 @@ export class GameServer {
    * here, so computing it twice would announce the same arrival twice.
    */
   private broadcastPatch(actors: ActorSnapshot[], patch: SharedPatch) {
+    // Each body's chunk, worked out once for the tick rather than once for
+    // every client that asks whether it holds it. @see isNearby
+    const chunkOf = actors.map((actor) => chunkKeyFor(actor.x, actor.y));
     let shared: string | null = null;
     const payloads = new Map<string, string | null>();
     for (const [ws, actorId] of this.seated()) {
@@ -4771,7 +4774,7 @@ export class GameServer {
 
       let payload = payloads.get(actorId);
       if (payload === undefined) {
-        const mine = this.scopedPatchFor(actorId, actors, patch);
+        const mine = this.scopedPatchFor(actorId, actors, chunkOf, patch);
         if (mine === null) {
           // Nothing was cut for this one, so it takes the shared string — which
           // is built at most once, and not at all if there is nothing in it.
@@ -4821,6 +4824,7 @@ export class GameServer {
   private scopedPatchFor(
     actorId: string,
     actors: ActorSnapshot[],
+    chunkOf: readonly string[],
     patch: SharedPatch,
   ): TickPatch | null {
     // No record means this instance has never handed this socket any ground:
@@ -4836,23 +4840,45 @@ export class GameServer {
     // death screen.
     const at = this.session?.actorPosition(actorId) ?? null;
 
-    const held = new Set<string>();
+    // Who this client holds after this tick: every body in reach, and their own
+    // whether or not the board has one for them — their own body is never
+    // something this client is told it has stopped holding. @see actorsInReach
+    //
+    // Counted first and built only if it differs from what they held. On
+    // almost every tick nobody has come or gone, and the set from last tick is
+    // still exactly right; building a fresh one per client per tick was most
+    // of what scoping cost with a crowd in one place.
+    const nearby: boolean[] = [];
     let entered: ActorSnapshot[] | null = null;
-    for (const actor of actors) {
-      if (actor.id !== actorId && !this.isNearby(at, chunks, actor)) continue;
-      held.add(actor.id);
+    let count = 0;
+    let selfSeen = false;
+    for (let i = 0; i < actors.length; i++) {
+      const actor = actors[i]!;
+      const self = actor.id === actorId;
+      const inReach = self || this.isNearby(at, chunks, actor, chunkOf[i]!);
+      nearby.push(inReach);
+      if (!inReach) continue;
+      count++;
+      if (self) selfSeen = true;
       if (!known.has(actor.id)) (entered ??= []).push(actor);
     }
-    // Whether or not the board has one for them: their own body is never
-    // something this client is told it has stopped holding. @see actorsInReach
-    held.add(actorId);
+    const heldCount = selfSeen ? count : count + 1;
 
+    let held: ReadonlySet<string> = known;
     let departed: string[] | null = null;
-    for (const id of known) {
-      if (held.has(id)) continue;
-      (departed ??= []).push(id);
+    // No arrivals means everybody held is already known, so equal sizes means
+    // the two are the same set and nobody left.
+    if (entered !== null || heldCount !== known.size || !known.has(actorId)) {
+      const next = new Set<string>();
+      for (let i = 0; i < actors.length; i++) if (nearby[i]) next.add(actors[i]!.id);
+      next.add(actorId);
+      for (const id of known) {
+        if (next.has(id)) continue;
+        (departed ??= []).push(id);
+      }
+      this.announcedActors.set(actorId, next);
+      held = next;
     }
-    this.announcedActors.set(actorId, held);
 
     const cells = cellsInScope(patch.cells, chunks, held, known);
     const events = eventsInScope(patch.events, chunks, held);
@@ -4945,10 +4971,12 @@ export class GameServer {
     at: { x: number; y: number; z: number } | null,
     chunks: ReadonlySet<string>,
     actor: ActorSnapshot,
+    chunk: string,
   ): boolean {
     if (!at) return false;
     if (!withinBodyReach(at, actor.x, actor.y, actor.z)) return false;
-    return covers(chunks, actor.x, actor.y);
+    // `covers`, with the chunk key already worked out. @see broadcastPatch
+    return chunks.has(chunk);
   }
 
   /**
