@@ -967,7 +967,8 @@
       "y": 0
     },
     "lightPassing": true,
-    "walkable": false,
+    "wade": true,
+    "walkSpeedPercent": -50,
     "slices": {
       "0": {
         "frames": [

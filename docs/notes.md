@@ -1811,6 +1811,55 @@ definition, so the `dropKit` check only fires for a death somewhere a body
 arrived by falling — into water, most likely — and it keeps the kit rather than
 spilling it.
 
+### A body in a `wade` tile is drawn wading, and nothing else changes
+
+`wade` changes nothing the simulation reads. A wading body stands where it
+would on dry ground, fits under what it would fit under, and walks at the pace
+the tile's `walkSpeedPercent` gives it — a slow wade is that field on the same
+tile, not a second mechanism. The renderer draws the body sunk by
+`WADE_SINK_PX` (one height unit, so 2px down-right) and makes the bottom and
+right `WADE_EDGE_PX` (2) pixels of it see-through: the outermost pixel is not
+drawn, and the one inside it is blended at half opacity over the water. Four
+pixels, all at half opacity, was the first version, and it read as too harsh
+and reached too far up the body.
+`app/render/wadeDepth.ts` works out how deep each body is, and a step between
+dry ground and water goes from one to the other across the step.
+
+Three things here look wrong and are not:
+
+- **The depth box does not sink with the sprite.** The water is drawn at the
+  plane the body stands on. A box pushed a unit below that plane sorts the
+  submerged pixels *behind* the water, and the depth test throws them away
+  instead of blending them.
+- **The see-through edge is measured from the middle of the foot cell, not
+  from the sprite's edge.** A body's sprite is a slot two cells square, and the
+  figure's feet are drawn at the centre of the bottom-right cell, about 4px in
+  from the slot's corner. A line measured from the slot's bottom and right
+  edges crosses no art at all: the first draft of this measured from there and
+  changed no pixel on screen.
+- **A wading mesh is drawn after the level it is in** (`WADING_RENDER_ORDER`).
+  It is the one blended fragment the world draws, and a blend is with whatever
+  is already in the frame, so the water has to be there first. Every other mesh
+  is opaque past the alpha cutoff and sorts by the depth it writes, which is why
+  nothing else needs an order.
+
+The blend goes through the palette pass like everything else, so what shows
+is the nearest palette colour to half body, half water. That is coarse, and it
+reads as pixel art.
+
+The shipped `water` tile is shallow: it is walkable, and it carries
+`wade: true`. Deep water, when there is some, is a liquid tile with
+`walkable: false`, and everything above about a plane something unstandable is
+lying on is now about that tile and the lilypad. The unit tests in
+`app/game/game.test.ts` that build an unwalkable `water` of their own are
+testing that case, not the shipped tile. A walkable pond is also somewhere a
+dropped thing can land, so a kit spilled by a death in shallow water lies in it.
+
+Walking in it is half speed (`walkSpeedPercent: -50`, a step takes twice as
+long), which is meant to be a heavy penalty. The pace is read off the ground a
+step starts from, so the step into the water is taken at the ordinary pace and
+every step taken from the water is slow, including the one back onto the bank.
+
 ## A roof over a cave is not what keeps the daylight out of it
 
 Anything underground that is meant to be dark has to be *checked* dark, against
