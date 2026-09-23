@@ -8,6 +8,7 @@ import {
 } from "../app/game/GameSession";
 import { TICK_MS } from "../app/game/constants";
 import {
+  BODY_REACH_CELLS,
   BodyGrid,
   INTEREST_REACH_CHUNKS,
   chunksEntered,
@@ -20,6 +21,7 @@ import {
 } from "../app/net/interest";
 import { audienceOf, cellInScope, type ScopedCell } from "../app/net/scope";
 import { handoverCellsJson, mapOfInterestJson } from "./chunkJson";
+import { NearIndex } from "./nearIndex";
 import { cellKey } from "../app/game/pressurePlates";
 import {
   findSpawnPoints,
@@ -1126,6 +1128,28 @@ type TickFrame = {
   };
   /** For each actor-keyed list, where the body each entry is about is in `actors`. */
   entryActor: Record<EntryList, Int32Array>;
+  /**
+   * The tick's changes filed by where they happened, for the clients whose cut
+   * is a question of distance. @see GameServer.cutByDistance
+   */
+  near: {
+    /** Each cell bodies moved in, filed where each of its bodies stands and where it stood. */
+    cells: NearIndex;
+    /** The cells no position files, which every such client is asked about: ground. */
+    everywhereCells: Int32Array;
+    /** Each event addressed to a body on the board, filed where that body stands. */
+    events: NearIndex;
+    /** The events every such client is asked about: the rest. */
+    everywhereEvents: Int32Array;
+    /** Each body in `changed`, filed where it stands and where it stood. */
+    changed: NearIndex;
+    /** For each cell, event and body in `changed`, the mark of the last client that found it near. */
+    cellStamp: Int32Array;
+    eventStamp: Int32Array;
+    changedStamp: Int32Array;
+    /** The last mark handed to a client. Each client's is its own, so none needs clearing. */
+    mark: number;
+  };
   json: {
     cells: Fragments<CellPatch>;
     /** Each cell with every body taken out: what a client too far away to hold them is sent. */
@@ -5432,6 +5456,43 @@ export class GameServer {
     const actorOf = (entries: ReadonlyArray<{ actorId: string }>) =>
       Int32Array.from(entries, (entry) => indexOf.get(entry.actorId) ?? -1);
 
+    // Filed wherever a distance check in `cutByDistance` or `reachSinceLastCut`
+    // could find them within reach, and nowhere else: a cell where each of its
+    // bodies stands and stood, an event where the body it is about stands, a
+    // body where it stands and stood. What no position files is asked of
+    // everybody.
+    const nearCells = new NearIndex();
+    const everywhereCells: number[] = [];
+    for (let i = 0; i < cellCount; i++) {
+      const cellKind = cells.kind[i]!;
+      if (cellKind === CELL_TERRAIN) {
+        everywhereCells.push(i);
+      } else if (cellKind === CELL_ONE_BODY) {
+        if (cells.now.has[i] === 1) nearCells.add(cells.now.x[i]!, cells.now.y[i]!, i);
+        if (cells.was.has[i] === 1) nearCells.add(cells.was.x[i]!, cells.was.y[i]!, i);
+      } else {
+        for (const body of cells.bodies[i]!) {
+          if (body.now !== null) nearCells.add(body.now.x, body.now.y, i);
+          if (body.was !== null) nearCells.add(body.was.x, body.was.y, i);
+        }
+      }
+    }
+    const nearEvents = new NearIndex();
+    const everywhereEvents: number[] = [];
+    for (let j = 0; j < eventCount; j++) {
+      const k = events.actor[j]!;
+      if (events.kind[j] === FOR_BODY && k >= 0) nearEvents.add(bodies.x[k]!, bodies.y[k]!, j);
+      else everywhereEvents.push(j);
+    }
+    const nearChanged = new NearIndex();
+    for (let c = 0; c < changedIds.length; c++) {
+      const i = changedIndex[c]!;
+      if (i >= 0) nearChanged.add(bodies.x[i]!, bodies.y[i]!, c);
+      if (changedWasColumns.has[c] === 1) {
+        nearChanged.add(changedWasColumns.x[c]!, changedWasColumns.y[c]!, c);
+      }
+    }
+
     return {
       actors,
       patch,
@@ -5449,6 +5510,17 @@ export class GameServer {
         pvp: actorOf(patch.pvp),
         extractions: actorOf(patch.extractions),
         castings: actorOf(patch.castings),
+      },
+      near: {
+        cells: nearCells.seal(),
+        everywhereCells: Int32Array.from(everywhereCells),
+        events: nearEvents.seal(),
+        everywhereEvents: Int32Array.from(everywhereEvents),
+        changed: nearChanged.seal(),
+        cellStamp: new Int32Array(cellCount),
+        eventStamp: new Int32Array(eventCount),
+        changedStamp: new Int32Array(changedIds.length),
+        mark: 0,
       },
       json: {
         cells: new Fragments(patch.cells.map((scoped) => scoped.cell)),
@@ -5537,10 +5609,21 @@ export class GameServer {
       samePoint(last.at, at) &&
       last.chunks === chunks;
     // Standing still inside a whole subscription, which is nine clients in ten
-    // on a busy tick: everything below can be asked by distance.
-    const square = stayed ? this.squareOf(chunks, at) : null;
+    // on a busy tick: everything below can be asked by distance. Only of a body
+    // that stands where the tick's snapshots put it, which is what files its
+    // own cells and events near it. @see TickFrame.near
+    const self = stayed ? frame.indexOf.get(actorId) : undefined;
+    const square =
+      self !== undefined &&
+      frame.bodies.x[self] === at!.x &&
+      frame.bodies.y[self] === at!.y &&
+      frame.bodies.z[self] === at!.z
+        ? this.squareOf(chunks, at!)
+        : null;
+    // This client's own mark on what the tick filed near it. @see NearIndex
+    const mark = square !== null ? ++frame.near.mark : 0;
     const { entered, departed, held, before } = stayed
-      ? this.reachSinceLastCut(actorId, frame, at, chunks, known as Set<string>, square !== null)
+      ? this.reachSinceLastCut(actorId, frame, at, chunks, known as Set<string>, mark)
       : this.reachFromScratch(actorId, frame, at, chunks, known);
     // Where the client stood at the last cut, read before the record moves on
     // to this one: it is what the cells below are asked against. @see mayConcern
@@ -5560,6 +5643,7 @@ export class GameServer {
         frame,
         at!,
         square,
+        mark,
         { entered, departed, held, before },
         chunks,
       );
@@ -5726,10 +5810,11 @@ export class GameServer {
     frame: TickFrame,
     at: Point,
     square: { cx: number; cy: number },
+    mark: number,
     { entered, departed, held, before }: Reach,
     chunks: ReadonlySet<string>,
   ): Cut | null {
-    const { patch, cells, events, bodies } = frame;
+    const { patch, cells, events, bodies, near } = frame;
     const inSquare = (cx: number, cy: number) =>
       Math.abs(cx - square.cx) <= INTEREST_REACH_CHUNKS &&
       Math.abs(cy - square.cy) <= INTEREST_REACH_CHUNKS;
@@ -5741,7 +5826,20 @@ export class GameServer {
     const cut = emptyCut();
     let whole = entered === null && departed === null;
 
+    // Only what the tick filed near here can be this client's; everything else
+    // is further off than a body can be seen from, on every level. Whatever is
+    // marked is then asked exactly what the whole walk would have asked it.
+    const cellStamp = near.cellStamp;
+    let cellsNear = near.cells.mark(at.x, at.y, BODY_REACH_CELLS, cellStamp, mark);
+    for (const i of near.everywhereCells) {
+      if (cellStamp[i] === mark) continue;
+      cellStamp[i] = mark;
+      cellsNear++;
+    }
+    if (cellsNear < patch.cells.length) whole = false;
+
     for (let i = 0; i < patch.cells.length; i++) {
+      if (cellStamp[i] !== mark) continue;
       const cellKind = cells.kind[i]!;
       if (
         (cellKind === CELL_ONE_BODY &&
@@ -5778,7 +5876,17 @@ export class GameServer {
       }
     }
 
+    const eventStamp = near.eventStamp;
+    let eventsNear = near.events.mark(at.x, at.y, BODY_REACH_CELLS, eventStamp, mark);
+    for (const j of near.everywhereEvents) {
+      if (eventStamp[j] === mark) continue;
+      eventStamp[j] = mark;
+      eventsNear++;
+    }
+    if (eventsNear < patch.events.length) whole = false;
+
     for (let j = 0; j < patch.events.length; j++) {
+      if (eventStamp[j] !== mark) continue;
       const audience = events.kind[j]!;
       const reaches =
         audience === FOR_EVERYBODY ||
@@ -5822,14 +5930,23 @@ export class GameServer {
     at: Point,
     chunks: ReadonlySet<string>,
     known: Set<string>,
-    /** The subscription is a whole square, so it holds every chunk within reach. @see squareOf */
-    whole: boolean,
+    /**
+     * This client's mark, when its subscription is a whole square — which
+     * then holds every chunk within reach — and 0 when it is not.
+     * @see squareOf @see NearIndex
+     */
+    mark: number,
   ): Reach {
     const { actors, chunkOf, bodies } = frame;
     const { ids, index, was } = frame.changed;
+    const whole = mark !== 0;
+    // Only a body filed near here can have come into reach or gone out of it.
+    const stamp = frame.near.changedStamp;
+    if (whole) frame.near.changed.mark(at.x, at.y, BODY_REACH_CELLS, stamp, mark);
     let entered: number[] | null = null;
     let departed: string[] | null = null;
     for (let c = 0; c < ids.length; c++) {
+      if (whole && stamp[c] !== mark) continue;
       const id = ids[c]!;
       if (id === actorId) continue;
       const i = index[c]!;
