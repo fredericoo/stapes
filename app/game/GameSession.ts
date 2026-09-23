@@ -8,10 +8,13 @@ import {
 import {
   absoluteStandingElevation,
   appendTile,
+  chunkIndexOf,
+  chunkKeyAt,
   getStack,
   isPlayerBody,
   removeTileAt,
   replaceStack,
+  tileIdsInChunk,
   walkableElevInStack,
 } from "../lib/mapData";
 import type { ExtractInteraction } from "../lib/interactions";
@@ -40,7 +43,14 @@ import {
 } from "../lib/item";
 import { appendItem, peelOne, pourInto, stackWithItem, stow } from "../lib/piles";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
-import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL, isDirectional, resolveActor } from "../lib/types";
+import {
+  HEIGHT_PER_LEVEL,
+  MAX_LEVEL,
+  MIN_LEVEL,
+  isDirectional,
+  levelKey,
+  resolveActor,
+} from "../lib/types";
 import { canPlace, canReplaceStack, fitsAtElevation, tilesByIdFromList } from "../lib/validation";
 import {
   actorDirection,
@@ -7827,11 +7837,66 @@ export class GameSession implements PlaySession {
     cells: number,
     sight: SightLevels,
   ): FoundThing | null {
+    const mayHold = this.chunksHolding(from, tileIds, cells, sight);
+    if (!mayHold) return null;
     for (let ring = 0; ring <= cells; ring++) {
-      const found = this.thingInRing(from, tileIds, ring, sight);
+      const found = this.thingInRing(from, tileIds, ring, sight, mayHold);
       if (found) return found;
     }
     return null;
+  }
+
+  /**
+   * Which chunks in a search's reach hold any of `tileIds` at all, as a test
+   * on a cell — or null when none of them does.
+   *
+   * **The search's answer is unchanged; this only says where not to look.**
+   * The rings still run in the same order and stop at the same first match. A
+   * column is skipped only when its chunk has no placement of any wanted tile
+   * on that level, which the chunk's own tile list says for certain. @see
+   * tileIdsInChunk
+   *
+   * It exists because the expensive case is the common one: a creature looking
+   * for something that is not near it reads every column in its reach on every
+   * level it can see, every round, and with players spread across the map that
+   * was a fifth of the server's time. Most chunks have none of what it wants,
+   * and ruling one out is a lookup instead of a few hundred.
+   */
+  private chunksHolding(
+    from: Coord,
+    tileIds: ReadonlySet<string>,
+    cells: number,
+    sight: SightLevels,
+  ): ((x: number, y: number, z: number) => boolean) | null {
+    const cx0 = chunkIndexOf(from.x - cells);
+    const cy0 = chunkIndexOf(from.y - cells);
+    const width = chunkIndexOf(from.x + cells) - cx0 + 1;
+    const height = chunkIndexOf(from.y + cells) - cy0 + 1;
+    const z0 = Math.max(MIN_LEVEL, from.z - sight.down);
+    const z1 = Math.min(MAX_LEVEL, from.z + sight.up);
+    if (z1 < z0) return null;
+    const holds = new Uint8Array((z1 - z0 + 1) * width * height);
+    let any = false;
+    for (let z = z0; z <= z1; z++) {
+      const level = this.map.levels[levelKey(z)];
+      if (!level) continue;
+      for (let cy = 0; cy < height; cy++) {
+        for (let cx = 0; cx < width; cx++) {
+          const chunk = level[chunkKeyAt(cx0 + cx, cy0 + cy)];
+          if (!chunk) continue;
+          const present = tileIdsInChunk(chunk);
+          for (const id of tileIds) {
+            if (!present.has(id)) continue;
+            holds[((z - z0) * height + cy) * width + cx] = 1;
+            any = true;
+            break;
+          }
+        }
+      }
+    }
+    if (!any) return null;
+    return (x, y, z) =>
+      holds[((z - z0) * height + (chunkIndexOf(y) - cy0)) * width + (chunkIndexOf(x) - cx0)] === 1;
   }
 
   /**
@@ -7847,13 +7912,14 @@ export class GameSession implements PlaySession {
     tileIds: ReadonlySet<string>,
     ring: number,
     sight: SightLevels,
+    mayHold: (x: number, y: number, z: number) => boolean,
   ): FoundThing | null {
     for (let dx = -ring; dx <= ring; dx++) {
       const dy = ring - Math.abs(dx);
       // At the poles of the diamond the two rows are the same row, and reading
       // it twice would only find the same cell again.
       for (const y of dy === 0 ? [from.y] : [from.y - dy, from.y + dy]) {
-        const found = this.thingInColumn(from.x + dx, y, from.z, tileIds, sight);
+        const found = this.thingInColumn(from.x + dx, y, from.z, tileIds, sight, mayHold);
         if (found) return found;
       }
     }
@@ -7867,10 +7933,12 @@ export class GameSession implements PlaySession {
     fromZ: number,
     tileIds: ReadonlySet<string>,
     sight: SightLevels,
+    mayHold: (x: number, y: number, z: number) => boolean,
   ): FoundThing | null {
     for (let dz = -sight.down; dz <= sight.up; dz++) {
       const z = fromZ + dz;
       if (z < MIN_LEVEL || z > MAX_LEVEL) continue;
+      if (!mayHold(x, y, z)) continue;
       for (const placed of getStack(this.map, x, y, z)) {
         if (tileIds.has(placed.tileId)) {
           return { at: { x, y, z }, tileId: placed.tileId };

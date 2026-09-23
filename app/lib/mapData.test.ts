@@ -20,6 +20,7 @@ import {
   updatePlacedContents,
   updatePlacedDescription,
   updatePlacedInscription,
+  tileIdsInChunk,
 } from "./mapData";
 import { fixtureTown } from "./fixtureTown";
 import type { MapFile, PlacedTile } from "./types";
@@ -615,5 +616,38 @@ describe("serializeMap and the ids that do not belong on disk", () => {
     const kept = flat.levels["0"]!["1,2"]![1]!;
     expect(kept.itemId).toBe("itm_minted");
     expect(kept.contents?.[0]?.id).toBe("itm_inside");
+  });
+});
+
+describe("tileIdsInChunk", () => {
+  const chunkOf = (map: MapFile, x: number, y: number, z: number) =>
+    map.levels[levelKey(z)]![chunkKeyFor(x, y)]!;
+
+  it("lists every tile placed anywhere in the chunk", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "bush" }]);
+    map = replaceStack(map, 3, 4, 0, [{ tileId: "stone" }]);
+    expect([...tileIdsInChunk(chunkOf(map, 0, 0, 0))].sort()).toEqual(["bush", "grass", "stone"]);
+  });
+
+  it("follows an edit, because the edit is a new chunk", () => {
+    const before = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
+    expect(tileIdsInChunk(chunkOf(before, 0, 0, 0)).has("bush")).toBe(false);
+    const after = replaceStack(before, 1, 1, 0, [{ tileId: "bush" }]);
+    expect(tileIdsInChunk(chunkOf(after, 0, 0, 0)).has("bush")).toBe(true);
+    // The old map is untouched, and so is what it says it holds.
+    expect(tileIdsInChunk(chunkOf(before, 0, 0, 0)).has("bush")).toBe(false);
+  });
+
+  it("never leaves out a tile the chunk holds, across a run of edits", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "bush" }]);
+    tileIdsInChunk(chunkOf(map, 0, 0, 0));
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }]);
+    map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }, { tileId: "deer" }]);
+    map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }]);
+    map = replaceStack(map, 5, 5, 0, [{ tileId: "wolf" }]);
+    const listed = tileIdsInChunk(chunkOf(map, 0, 0, 0));
+    for (const stack of Object.values(chunkOf(map, 0, 0, 0))) {
+      for (const placed of stack) expect(listed.has(placed.tileId)).toBe(true);
+    }
   });
 });
