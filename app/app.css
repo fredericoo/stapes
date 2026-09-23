@@ -42,6 +42,10 @@
   --color-muted: #7a7568;
   --color-accent: #2d6a4f;
   --color-danger: #9b2226;
+  /* The same meaning as `danger`, on `ink` rather than on paper. `danger` is
+     about 2:1 against `ink`, too dark to read as text there; this is about
+     6:1. The doors are the dark surface that needs it — see `DoorError`. */
+  --color-danger-on-ink: #ff6b6b;
   /* Acting on a thing. The same yellow the outline in the world wears when the
      pointer is over something you could act on — see `HOVER_COLOR` in
      `render/GameRenderer.ts`, which must be this value. A row and the cursor are
