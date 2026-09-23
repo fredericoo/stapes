@@ -9,17 +9,16 @@ import {
 import { TICK_MS } from "../app/game/constants";
 import {
   BodyGrid,
-  cellsOfChunks,
   chunksEntered,
   covers,
   interestChunks,
-  mapOfInterest,
   sameChunks,
   visibleStack,
   withinBodyReach,
   withinBodyReachOf,
 } from "../app/net/interest";
 import { audienceOf, cellInScope, type ScopedCell } from "../app/net/scope";
+import { handoverCellsJson, mapOfInterestJson } from "./chunkJson";
 import { cellKey } from "../app/game/pressurePlates";
 import {
   findSpawnPoints,
@@ -99,6 +98,32 @@ type TickPatch = Omit<Extract<ServerMessage, { type: "patch" }>, "type">;
  * NamePatch
  */
 type SharedPatch = Omit<TickPatch, "cells" | "names"> & { cells: ScopedCell[] };
+
+/**
+ * A patch that hands over ground and nothing else, as the two halves of its
+ * JSON either side of the cells.
+ *
+ * Built from a typed patch rather than written out, so a field added to the
+ * message is in here — empty — without anybody having to remember.
+ */
+const [GROUND_ONLY_HEAD, GROUND_ONLY_TAIL] = (() => {
+  const empty: Extract<ServerMessage, { type: "patch" }> = {
+    type: "patch",
+    cells: [],
+    events: [],
+    hps: [],
+    // Ground, and nothing standing on it: the bodies in handed-over cells are
+    // stripped out, so there is nobody here to name.
+    names: [],
+    carriedLights: [],
+    statusIds: [],
+    pvp: [],
+    extractions: [],
+    castings: [],
+  };
+  const [head, tail] = JSON.stringify(empty).split('"cells":[]');
+  return [`${head}"cells":[`, `]${tail}`];
+})();
 
 /** Which cell a burning placement is in, as a key. @see GameServer.sentAfflicted */
 function cellAfflictionKey(x: number, y: number, z: number): string {
@@ -2655,10 +2680,12 @@ export class GameServer {
     // it is news to announce. @see announcedActors
     const held = new Set(actors.map((actor) => actor.id));
     this.announcedActors.set(actorId, held);
-    const message: ServerMessage = {
-      type: "hello",
-      selfId: actorId,
-      map: mapOfInterest(session.getMap(), chunks, held),
+    // Everything after the map, in the order the message lists it. The map is
+    // spliced in ahead of it from each chunk's kept text, which is the same
+    // bytes `mapOfInterest` would have serialized to and a fraction of the
+    // work: a `hello` is the largest thing the world sends, and one goes out
+    // on every join and every rebirth. @see `./chunkJson`
+    const rest: Omit<Extract<ServerMessage, { type: "hello" }>, "type" | "selfId" | "map"> = {
       actorIds: actors.map((actor) => actor.id),
       hps: currentHps(actors),
       // Everybody in reach who has a name, so a tag is right on the first
@@ -2722,7 +2749,10 @@ export class GameServer {
       // while the object is hibernating.
       minutesOfDay: this.minutesOfDay(),
     };
-    ws.send(JSON.stringify(message));
+    const map = mapOfInterestJson(session.getMap(), chunks, held);
+    ws.send(
+      `{"type":"hello","selfId":${JSON.stringify(actorId)},"map":${map},${JSON.stringify(rest).slice(1)}`,
+    );
     // This socket is now current as of the map it was just sent, but the
     // broadcast diff is shared — so leave broadcastMap alone and let the next
     // patch be a no-op for them rather than replaying it.
@@ -5015,6 +5045,9 @@ export class GameServer {
     if (!session) return;
     const map = session.getMap();
     const sent = new Set<string>();
+    // Which chunks have anything burning in them, worked out the first time a
+    // chunk is handed over this tick — which on most ticks is never.
+    let burningChunks: Set<string> | null = null;
     for (const [, actorId] of this.seated()) {
       // Two tabs on one body are owed the same ground, and the first of them
       // through here has already moved the subscription on. Sending to both
@@ -5052,46 +5085,42 @@ export class GameServer {
       // a body is announced at two and a half. @see `../app/net/interest`
       // With what is burning in them, which is how a fire in ground coming into
       // reach is told: the handover is the cell, and the fire is on the cell.
-      const cells = cellsOfChunks(map, take, this.announcedActors.get(actorId) ?? NO_ACTORS).map(
-        (cell) => this.cellPatch(cell.x, cell.y, cell.z, cell.stack),
+      //
+      // Written from each chunk's kept text, which is the same bytes the cells
+      // would have been as objects. @see `./chunkJson`
+      burningChunks ??= this.burningChunks();
+      const cells = handoverCellsJson(
+        map,
+        take,
+        this.announcedActors.get(actorId) ?? NO_ACTORS,
+        (x, y, z) => this.burning.get(cellAfflictionKey(x, y, z)),
+        burningChunks,
       );
-      if (cells.length === 0) continue;
-      this.sendToEverySocketOf(actorId, {
-        type: "patch",
-        cells,
-        events: [],
-        hps: [],
-        // Ground, and nothing standing on it: the bodies in these cells were
-        // stripped out two lines above, so there is nobody here to name.
-        names: [],
-        carriedLights: [],
-        statusIds: [],
-        pvp: [],
-        extractions: [],
-        castings: [],
-      });
+      if (cells === "") continue;
+      const payload = `${GROUND_ONLY_HEAD}${cells}${GROUND_ONLY_TAIL}`;
+      // To **every** socket this actor has open, unlike {@link sendTo}, which
+      // answers one tab's own action and stops at the first socket. Ground
+      // coming into reach is not an answer to anything — it is a fact about the
+      // board that both tabs need, and a second tab that missed it would have a
+      // hole in its map for as long as it stayed open.
+      for (const ws of this.socketsOf(actorId)) {
+        try {
+          ws.send(payload);
+        } catch {
+          // Dropped by the runtime; webSocketClose cleans the actor up.
+        }
+      }
     }
   }
 
-  /**
-   * One message to **every** socket this actor has open.
-   *
-   * Beside {@link sendTo} rather than replacing it, and the difference is the
-   * whole reason both exist: `sendTo` answers one tab's own action and stops at
-   * the first socket, which is right for a rejected step. Ground coming into
-   * reach is not an answer to anything — it is a fact about the board that both
-   * tabs need, and a second tab that missed it would have a hole in its map for
-   * as long as it stayed open.
-   */
-  private sendToEverySocketOf(actorId: string, message: ServerMessage) {
-    const payload = JSON.stringify(message);
-    for (const ws of this.socketsOf(actorId)) {
-      try {
-        ws.send(payload);
-      } catch {
-        // Dropped by the runtime; webSocketClose cleans the actor up.
-      }
+  /** The chunks with anything burning in them, as `z:chunk`. @see `./chunkJson` */
+  private burningChunks(): Set<string> {
+    const out = new Set<string>();
+    for (const key of this.burning.keys()) {
+      const { x, y, z } = parseCellAfflictionKey(key);
+      out.add(`${z}:${chunkKeyFor(x, y)}`);
     }
+    return out;
   }
 
   /**
