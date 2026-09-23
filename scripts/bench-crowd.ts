@@ -13,7 +13,7 @@
  *   bun scripts/bench-crowd.ts                         # 1000 players, spread, 60s
  *   bun scripts/bench-crowd.ts --players 250 --clustered
  *   bun scripts/bench-crowd.ts --deflate               # and pay for compression
- *   bun --cpu-prof scripts/bench-crowd.ts              # and say where it went
+ *   bun scripts/bench-crowd.ts --profile crowd.cpuprofile  # and say where it went
  *
  * **Spread** seats each player at a random cell of the surface, the way a
  * returning player comes back where they left; **clustered** seats everybody at
@@ -33,6 +33,7 @@
  * copied into a temporary directory first, beside the database.
  */
 import { copyFile, mkdtemp, rm } from "node:fs/promises";
+import { Session } from "node:inspector";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DataStore } from "../app/lib/dataStore";
@@ -295,7 +296,24 @@ type Options = {
   deflate: boolean;
   /** Where to write one player's frames, if anywhere. */
   sample: string | undefined;
+  /**
+   * Where to write a CPU profile of the measured window, if anywhere.
+   *
+   * The window alone rather than the run, which is what `bun --cpu-prof`
+   * gives: seating a thousand players is a thousand `hello`s, and a profile
+   * of the whole run is mostly those.
+   */
+  profile: string | undefined;
 };
+
+/** Post one command to the inspector, and wait for its answer. */
+function inspect<T>(session: Session, method: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    session.post(method, (error: Error | null, result: unknown) =>
+      error ? reject(error) : resolve(result as T),
+    );
+  });
+}
 
 async function run(options: Options) {
   const directory = await mkdtemp(join(tmpdir(), "stapes-crowd-"));
@@ -424,6 +442,12 @@ async function run(options: Options) {
   driveMs = 0;
   messageMs = 0;
   const before = { ...counters };
+  const profiler = options.profile ? new Session() : null;
+  if (profiler) {
+    profiler.connect();
+    await inspect(profiler, "Profiler.enable");
+    await inspect(profiler, "Profiler.start");
+  }
   const cpuBefore = process.cpuUsage();
   const windowStart = performance.now();
   if (options.sample) {
@@ -440,6 +464,11 @@ async function run(options: Options) {
   }
   const elapsedMs = performance.now() - windowStart;
   const cpu = process.cpuUsage(cpuBefore);
+  if (profiler) {
+    const { profile } = await inspect<{ profile: unknown }>(profiler, "Profiler.stop");
+    await Bun.write(options.profile!, JSON.stringify(profile));
+    profiler.disconnect();
+  }
 
   clearInterval(driver);
   clearInterval(checkpoint);
@@ -521,4 +550,5 @@ await run({
   clustered: process.argv.includes("--clustered"),
   deflate: process.argv.includes("--deflate"),
   sample: argValue("--sample"),
+  profile: argValue("--profile"),
 });

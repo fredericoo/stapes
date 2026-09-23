@@ -64,8 +64,8 @@ It is the path to open when the question is whether the game still works.
   `GameServer` against `data/map.json`, and print the tick rate the world
   keeps, what a tick costs and which parts of it cost that. `--players <n>`
   (1000), `--clustered` to seat everybody at the spawn, `--deflate` to pay for
-  compression too, `--sample <file>` to keep one player's frames. Run it under
-  `bun --cpu-prof` to see where the time goes
+  compression too, `--sample <file>` to keep one player's frames,
+  `--profile <file>` for a CPU profile of the measured window alone
 - `bun scripts/anchor-tiles.ts` — a one-shot, already run: rewrote
   `data/tiles.json` into the anchored sprite encoding, where a tile names its
   sheet once and every rect is measured from `TileDef.anchor`. `--check` says
