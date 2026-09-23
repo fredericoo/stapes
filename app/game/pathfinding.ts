@@ -2,12 +2,14 @@ import {
   canWalk,
   DIR_DELTA,
   findLandingAbs,
+  groundWalkSpeedPercent,
   listStandingSurfaces,
   standingAbs,
   surfacesInClimbBand,
 } from "./movement";
 import { cellKey } from "./pressurePlates";
 import { getStack, removeTileAt } from "../lib/mapData";
+import { clampWalkSpeedPercent } from "../lib/walkSpeed";
 import { resolveAddStatus, resolveTeleportDef } from "../lib/interactions";
 import { sparesStander } from "./conjured";
 import type { StatusDef } from "../lib/status";
@@ -90,6 +92,28 @@ import { DIRECTIONS } from "../lib/types";
  * nothing will route into it, and walking in by hand is the way in. That is the
  * intended trade — a route is a plan, and a plan that walks you through fire to
  * save two steps is not one anybody asked for.
+ *
+ * ## A leg costs the time it takes, and slow ground is priced in
+ *
+ * A leg is not always one step's worth of time: a step taken *from* a tile with
+ * a negative `walkSpeedPercent` takes longer, and water at `-50` takes twice as
+ * long. Each leg is costed by {@link legCost}, read off the cell it starts
+ * from — the same cell the walk loop reads the pace from, so the cost is the
+ * duration the step will actually have. A snake with a river between it and you
+ * walks round when the bridge is close and wades when it is not.
+ *
+ * **Fast ground is priced as ordinary ground**, and that is what keeps the
+ * search cheap. The heuristic is plan distance at one per step; a leg that cost
+ * less than one would make it an overestimate, and A* with an overestimate
+ * returns routes that are not the shortest and prunes good ones against
+ * {@link PATH_DETOUR_SLACK}. Scaling the heuristic down by the fastest ground
+ * anywhere would keep it exact and make every search on an open field fan out
+ * five times wider. So a route avoids a bog and does not go looking for a road.
+ *
+ * Statuses on the walker are not read. They move every leg by the same
+ * percentage, and the sum is divided only once, so a chill changes the ratio
+ * between wet and dry legs slightly without changing which way round is shorter
+ * in any case worth caring about.
  *
  * ## Two facts about the searcher, not one
  *
@@ -514,6 +538,27 @@ function avoidRule(
 }
 
 /**
+ * What a leg taken from this cell costs, in ordinary steps' worth of time.
+ *
+ * The reciprocal of the speed the ground gives, which is what `./walkSpeed`'s
+ * `walkDurationFrom` divides by — so water at `-50` costs 2 and a bog at `-90`
+ * costs 10. Never under 1: fast ground is priced as ordinary ground, so that
+ * plan distance stays a heuristic that never overestimates. The section on leg
+ * costs at the top of the file says why that trade is the right one.
+ *
+ * Read with nobody excluded from the stack, because `map` is the board with the
+ * searcher already off it. @see PathStart.self
+ */
+export function legCost(map: MapFile, from: Coord, tilesById: Record<string, TileDef>): number {
+  const percent = groundWalkSpeedPercent(
+    map,
+    { ...from, stackIndex: NOBODY_IN_THIS_STACK },
+    tilesById,
+  );
+  return Math.max(1, 1 / (1 + clampWalkSpeedPercent(percent) / 100));
+}
+
+/**
  * Every cell one step from `at`, as the board would allow it.
  *
  * `map` is the board with the searcher's own body already off it — see
@@ -583,7 +628,7 @@ function neighbours(
 /** A cell on the frontier, with the leg that reached it. */
 type Node = {
   at: Coord;
-  /** Steps taken to get here. */
+  /** Time taken to get here, in ordinary steps. @see legCost */
   g: number;
   /** `g` plus what is still owed at best — what the queue is ordered on. */
   f: number;
@@ -831,13 +876,14 @@ export function findRefuge(
       }
     }
 
+    const cost = legCost(board, node.at, tilesById);
     for (const step of neighbours(board, node.at, tileDef, tilesById, mayDropTo, avoid)) {
       const key = cellKey(step.to);
-      const g = node.g + 1;
+      const g = node.g + cost;
       if (g >= (best.get(key) ?? Infinity)) continue;
       best.set(key, g);
       // No heuristic: there is nowhere to measure towards, so the queue is
-      // ordered on steps taken alone and the flood comes off it in rings.
+      // ordered on time taken alone and the flood comes off it in rings.
       frontier.push({ at: step.to, g, f: g, cameFrom: node, step });
     }
   }
@@ -899,9 +945,12 @@ export function findPath(
     if (arrived(node.at, goal, arrive)) return { ok: true, route: unwind(node) };
 
     const legs = neighbours(board, node.at, tileDef, tilesById, mayDropTo, avoid);
+    // Every leg from here is taken off the same ground, so it costs the same.
+    // Asked after `neighbours` so a cell with no way on pays nothing for it.
+    const cost = legs.length > 0 ? legCost(board, node.at, tilesById) : 0;
     for (const step of legs) {
       const key = cellKey(step.to);
-      const g = node.g + 1;
+      const g = node.g + cost;
       if (g >= (best.get(key) ?? Infinity)) continue;
       // `f` is the shortest this route could still turn out to be, so a node
       // over the cap cannot lead anywhere under it.

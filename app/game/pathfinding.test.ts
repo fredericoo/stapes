@@ -8,6 +8,7 @@ import { HEIGHT_PER_LEVEL } from "../lib/types";
 import {
   findPath,
   findRefuge,
+  legCost,
   PATH_MAX_NODES,
   REFUGE_MAX_NODES,
   type PathOutcome,
@@ -82,6 +83,10 @@ const tiles: TileDef[] = [
       teleport: { trigger: "step", destination: { kind: "absolute" } },
     },
   }),
+  /** Ground that takes four times as long to walk off. */
+  tile({ id: "mud", height: 0, walkSpeedPercent: -75 }),
+  /** Ground twice as fast to walk off. */
+  tile({ id: "road", height: 0, walkSpeedPercent: 100 }),
   /** A flame you have to press rather than land on. @see ActivationTrigger */
   tile({
     id: "brazier",
@@ -109,6 +114,31 @@ function field(half: number): MapFile {
 
 function put(map: MapFile, x: number, y: number, tileId: string): MapFile {
   return replaceStack(map, x, y, 0, [{ tileId: "grass" }, { tileId }]);
+}
+
+/** A different ground tile in place of the grass. */
+function ground(map: MapFile, x: number, y: number, tileId: string): MapFile {
+  return replaceStack(map, x, y, 0, [{ tileId }]);
+}
+
+/**
+ * A strip of `tileId` running north–south across a field, from `x0` to `x1`,
+ * with a grass crossing at each of `crossings`.
+ */
+function river(
+  map: MapFile,
+  half: number,
+  x0: number,
+  x1: number,
+  tileId: string,
+  crossings: number[],
+): MapFile {
+  for (let x = x0; x <= x1; x++) {
+    for (let y = -half; y <= half; y++) {
+      if (!crossings.includes(y)) map = ground(map, x, y, tileId);
+    }
+  }
+  return map;
 }
 
 /**
@@ -1099,5 +1129,75 @@ describe("finding somewhere to run", () => {
     const leapt = refuge(map, on, threat, { drops: "anywhere" })!;
     expect(leapt.z).toBe(0);
     expect(stepsApart(leapt, threat)).toBeGreaterThan(stepsApart(along, threat));
+  });
+});
+
+/**
+ * A leg costs the time it takes.
+ *
+ * The walk loop reads the pace off the ground a step starts from, so a leg out
+ * of mud at `-75` takes four times as long as a leg out of grass. A route that
+ * counted every leg as one would wade a river a bridge three cells away would
+ * have got it across sooner.
+ */
+describe("slow ground", () => {
+  const half = 6;
+  const from = standing(-3, 0);
+  /** Across the river, and beside it is `(3, 0)`. */
+  const goal = { x: 4, y: 0, z: 0 };
+  /** The furthest north the route goes, which is where it crossed. */
+  const northmost = (path: PathStep[] | null) => Math.min(...path!.map((step) => step.to.y));
+
+  it("costs a leg by the ground it is taken from, never under one step", () => {
+    const map = ground(ground(field(2), 1, 0, "mud"), 2, 0, "road");
+
+    expect(legCost(map, { x: 0, y: 0, z: 0 }, tilesById)).toBe(1);
+    expect(legCost(map, { x: 1, y: 0, z: 0 }, tilesById)).toBe(4);
+    expect(legCost(map, { x: 2, y: 0, z: 0 }, tilesById)).toBe(1);
+  });
+
+  it("walks round to a crossing when that is quicker than wading", () => {
+    // Straight across is six legs, three of them out of mud: 15. The crossing
+    // two cells north adds four legs of grass: 10.
+    const map = river(field(half), half, -1, 1, "mud", [-2]);
+
+    expect(northmost(route(map, from, goal))).toBe(-2);
+  });
+
+  it("wades straight across when the crossing is further off than that", () => {
+    // Five cells north is ten legs extra, 16 against the 15 straight across.
+    const map = river(field(half), half, -1, 1, "mud", [-5]);
+
+    expect(walked(route(map, from, goal))).toEqual(["e", "e", "e", "e", "e", "e"]);
+  });
+
+  it("does not go out of its way for fast ground", () => {
+    // A road one row north is two legs longer however fast it is, because a
+    // leg is never priced under one step.
+    let map = field(half);
+    for (let x = -3; x <= 4; x++) map = ground(map, x, -1, "road");
+
+    expect(walked(route(map, from, goal))).toEqual(["e", "e", "e", "e", "e", "e"]);
+  });
+
+  it("runs from a threat by the quickest ground, not the fewest steps", () => {
+    // One row of ground, mud to the west. The threat is a cell east of north,
+    // so by steps the west end is the better refuge; by time the east end is
+    // reached so much further out that it is better still.
+    let map = emptyMap();
+    for (let x = -12; x <= 12; x++) {
+      map = replaceStack(map, x, 0, 0, [{ tileId: x < 0 ? "mud" : "grass" }]);
+    }
+    const flooded = findRefuge(
+      map,
+      { at: standing(0, 0), self: standing(0, 0) },
+      { x: 1, y: -2, z: 0 },
+      rat,
+      tilesById,
+      statusDefs,
+      { maxNodes: 12 },
+    );
+
+    expect(flooded.ok && flooded.route.at(-1)!.to.x).toBeGreaterThan(0);
   });
 });

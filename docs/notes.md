@@ -1859,6 +1859,8 @@ Walking in it is half speed (`walkSpeedPercent: -50`, a step takes twice as
 long), which is meant to be a heavy penalty. The pace is read off the ground a
 step starts from, so the step into the water is taken at the ordinary pace and
 every step taken from the water is slow, including the one back onto the bank.
+A route prices those steps the same way — see `legCost` under "A chase is a
+route" — so it walks round water when going round is quicker.
 
 ## A roof over a cave is not what keeps the daylight out of it
 
@@ -1988,6 +1990,23 @@ target unreachable means exhausting every cell a body could stand on. Running
 out of either reads as no route at all, deliberately: a half-explored search has
 a best-so-far cell it could head for, and walking towards that is exactly how a
 creature ends up pressed against the nearest wall having made progress.
+
+**A leg costs the time it takes, and fast ground costs the same as ordinary
+ground.** `legCost` prices a leg by the `walkSpeedPercent` of the cell it is
+taken *from* — the cell the walk loop reads the pace from — as the reciprocal of
+the speed: water at `-50` costs 2 and mud at `-75` costs 4. So a creature with a
+river between it and you walks to a bridge that is close and wades when it is
+not, and a clicked walk does the same. A leg is never priced under 1. The
+heuristic is plan distance at one per step, and a cheaper leg would make it an
+overestimate: A* would then return routes that are not the shortest and prune
+good ones against `PATH_DETOUR_SLACK`, which is measured in the same units.
+Keeping the heuristic exact by scaling it down to the fastest ground in the
+game would make every open-field search fan out up to five times wider. The
+cost is that a route goes round a bog and does not go looking for a road.
+Statuses on the walker are not read: they shift every leg by the same
+percentage. `PATH_DETOUR_SLACK` is now in the same units as the cost — sixteen
+steps' worth of time, not sixteen cells. `bun scripts/bench-server.ts
+--scenario spread` read 2.01ms at p50 before and 1.99ms after.
 
 **Nothing is kept between two decisions.** A route is recomputed for every leg
 rather than followed, because a kept plan is a plan about a world that has
