@@ -11,7 +11,7 @@ import {
   walkableFloorAbove,
 } from "../lib/mapData";
 import { stackOcclusion } from "../lib/lighting";
-import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
+import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL, resolveClimbFrom } from "../lib/types";
 import { walkDurationFrom } from "../lib/walkSpeed";
 import type { FitOpts } from "../lib/validation";
@@ -194,6 +194,9 @@ export function listStandingSurfaces(
     out.push({ abs, z });
   };
 
+  // The level below's stack, carried up from the pass before rather than read
+  // again: every step anybody takes reads a whole column here.
+  let below: PlacedTile[] | null = null;
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     const stack = getStack(map, x, y, z);
     if (stack.length > 0) {
@@ -203,11 +206,11 @@ export function listStandingSurfaces(
       if (planeCoveredBy(footing)) (closed ??= []).push(z * HEIGHT_PER_LEVEL);
       if (footing?.walkable) add(z * HEIGHT_PER_LEVEL + footing.elev, z);
     }
-    if (z > MIN_LEVEL) {
-      const below = getStack(map, x, y, z - 1);
+    if (below !== null) {
       const floorAbs = walkableFloorAbove(z - 1, below, tilesById);
       if (floorAbs != null) add(floorAbs, z);
     }
+    below = stack;
   }
   if (!closed) return out;
   return out.filter((surface) => !closed.includes(surface.abs));
