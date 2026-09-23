@@ -44,6 +44,11 @@ It is the path to open when the question is whether the game still works.
 - `bun run generate:respawn` — redraw `data/tilesets/respawn.png`, the two-frame
   marker the `respawn-point` tile wears. Geometry rather than pixel art, so the
   shape and its palette entries live in the script where a diff can read them
+- `bun run generate:spinner` — render `public/crystal-spinner.gif`, the loading
+  spinner: a crystal modelled in Three.js, rendered in headless Chromium and
+  snapped to the logo's sixteen colours. Shape, light and timing are constants
+  at the top of the script. `CHROMIUM_PATH` overrides the browser Playwright
+  launches; `PREVIEW=<dir>` also writes a 4× copy there
 - `bun run generate:npcs` — recolour the one humanoid in `people.png` into a
   sheet per NPC, so nobody in town is the player's twin. Writes
   `data/tilesets/townsfolk.png`, `smith.png` and `armourer.png`

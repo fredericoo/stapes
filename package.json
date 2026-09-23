@@ -13,6 +13,7 @@
     "generate:npcs": "bun scripts/generate-npc-sheets.ts",
     "generate:respawn": "bun scripts/generate-respawn-tileset.ts",
     "generate:water": "bun scripts/generate-water-tileset.ts",
+    "generate:spinner": "bun scripts/generate-crystal-spinner.ts",
     "carve:caves": "bun scripts/carve-caves.ts",
     "bench:server": "bun scripts/bench-server.ts",
     "test": "bun run test:unit && bun run test:server && bun run test:perf",
