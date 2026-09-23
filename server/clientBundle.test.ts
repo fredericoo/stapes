@@ -61,6 +61,21 @@ describe("serving a build", () => {
     expect(await text(bundle.respond("/admin/map"))).toContain("aaa");
   });
 
+  it("serves a prerendered route's own page, and never caches it", async () => {
+    // `/home` is written out at build time. Falling through to `index.html`
+    // would hand a visitor the empty SPA shell instead of the page that was
+    // rendered for them, and caching it would pin them to the build it named.
+    const files = build("aaa");
+    files.set("home/index.html", new TextEncoder().encode("<title>home</title>"));
+    await bundle.store("aaa", files);
+    await bundle.activate("aaa");
+
+    expect(await text(bundle.respond("/home"))).toContain("home");
+    expect(await text(bundle.respond("/home/"))).toContain("home");
+    expect(bundle.respond("/home")!.headers.get("Cache-Control")).toBe("no-store");
+    expect(await text(bundle.respond("/admin/map"))).toContain("aaa");
+  });
+
   it("caches hashed assets forever and index.html never", async () => {
     // The pair is what makes a deploy visible at all: the entry point has to be
     // re-fetched, and everything it names is content-addressed.

@@ -209,17 +209,27 @@ export class ClientBundle {
    * mid-session tab above. Content-hashed filenames make that safe: two builds
    * that disagree about a path disagree about its name too.
    *
-   * Anything unrecognised falls through to `index.html`, because the client is a
-   * single-page app and `/admin/map` is a route rather than a file. `index.html` itself
-   * is `no-store`, which is what lets a deploy be noticed at all; the hashed
-   * assets beside it are immutable for a year.
+   * A route that was prerendered is a file after all — `/home` is written to
+   * `home/index.html` — and it is looked for in the active build only, since it
+   * is an entry point exactly as `index.html` is and an old build's copy would
+   * name chunks from before the deploy.
+   *
+   * Anything else unrecognised falls through to `index.html`, because the client
+   * is a single-page app and `/admin/map` is a route rather than a file. Every
+   * HTML file is `no-store`, which is what lets a deploy be noticed at all; the
+   * hashed assets beside them are immutable for a year.
    */
   respond(pathname: string): Response | null {
     if (!this.activeBuildId) return null;
     const path = pathname.replace(/^\/+/, "") || "index.html";
+    const active = this.builds.get(this.activeBuildId)!;
 
-    const fromActive = this.builds.get(this.activeBuildId)!.get(path);
+    const fromActive = active.get(path);
     if (fromActive) return toResponse(fromActive, path);
+
+    const page = `${path.replace(/\/+$/, "")}/index.html`;
+    const prerendered = active.get(page);
+    if (prerendered) return toResponse(prerendered, page);
 
     for (const [id, assets] of this.builds) {
       if (id === this.activeBuildId) continue;
@@ -227,7 +237,7 @@ export class ClientBundle {
       if (asset) return toResponse(asset, path);
     }
 
-    const index = this.builds.get(this.activeBuildId)!.get("index.html")!;
+    const index = active.get("index.html")!;
     return toResponse(index, "index.html");
   }
 }
@@ -298,7 +308,7 @@ async function walk(directory: string): Promise<string[]> {
 }
 
 function toResponse(asset: Asset, path: string): Response {
-  const immutable = path !== "index.html";
+  const immutable = !path.endsWith(".html");
   return new Response(asset.bytes as unknown as BodyInit, {
     headers: {
       "Content-Type": asset.contentType,
