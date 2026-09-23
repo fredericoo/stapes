@@ -941,6 +941,15 @@ describe("picking out a tile to follow", () => {
       walkable: false,
       interactions: { brain: flockBrain("rat") },
     }),
+    // Follows people, which is how a creature hunts one.
+    tile({
+      id: "stalker",
+      height: 2,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: { brain: flockBrain("player") },
+    }),
   ];
 
   /** An open field with a creature at each of the given cells. */
@@ -1000,6 +1009,48 @@ describe("picking out a tile to follow", () => {
 
     const chaser = cellOf(session, "ratcatcher");
     expect(Math.abs(chaser.x - rat.x) + Math.abs(chaser.y - rat.y)).toBeLessThan(NOTICE_CELLS);
+  });
+
+  /**
+   * A person the creature could see, and would go to. The control for the two
+   * below: without it, a stalker that never moved would pass them for the wrong
+   * reason.
+   */
+  it("goes to a person in sight", () => {
+    const session = warren(["stalker", 0, 0]);
+    session.spawn("bob", { at: { x: NOTICE_CELLS, y: 0, z: 0 } });
+
+    advance(session, BRAIN_TICK_MS * 4);
+
+    expect(cellOf(session, "stalker").x).toBeGreaterThan(0);
+  });
+
+  /** A hidden body is not there to be found. @see ActorRuntime.hidden */
+  it("does not notice a hidden person", () => {
+    const session = warren(["stalker", 0, 0]);
+    session.spawn("bob", { at: { x: NOTICE_CELLS, y: 0, z: 0 }, hidden: true });
+
+    advance(session, BRAIN_TICK_MS * 6);
+
+    expect(cellOf(session, "stalker").x).toBe(0);
+  });
+
+  /**
+   * Already bound to somebody who then hides. A creature that carried on
+   * towards the cell would point at them for everybody watching.
+   */
+  it("gives up on a person who hides partway through the chase", () => {
+    const session = warren(["stalker", 0, 0]);
+    session.spawn("bob", { at: { x: NOTICE_CELLS, y: 0, z: 0 } });
+    advance(session, BRAIN_TICK_MS);
+
+    session.setHidden(true, "bob");
+    // A step already under way lands, as it does whenever a chase ends.
+    advance(session, BRAIN_TICK_MS);
+    const whereItStopped = cellOf(session, "stalker").x;
+    advance(session, BRAIN_TICK_MS * 6);
+
+    expect(cellOf(session, "stalker").x).toBe(whereItStopped);
   });
 
   /** The one that would make a lone creature chase itself around the board. */

@@ -559,6 +559,15 @@ export type ActorSnapshot = {
    * decision anybody made.
    */
   pvp: boolean;
+  /**
+   * Whether this body is withheld from everybody but its owner. @see
+   * ActorRuntime.hidden
+   *
+   * On the snapshot because the snapshot is what the server scopes from: a
+   * viewer's set of held bodies is built off this list, and a hidden body left
+   * out of it takes its cell, its motion and every per-body diff with it.
+   */
+  hidden: boolean;
 };
 
 /**
@@ -1960,6 +1969,21 @@ type ActorRuntime = {
    * is a standing decision about who may do it to whom.
    */
   pvp: boolean;
+  /**
+   * Whether this body is invisible to other players, as though its owner were
+   * offline. Only an administrator can turn it on; the server decides that,
+   * because the role belongs to the account and never to the body. @see
+   * `../../server/GameServer`'s `setHidden`
+   *
+   * The session's half is the world's: a creature does not find, follow, hear
+   * or hold a grudge against a hidden body, because a wolf chasing somebody
+   * nobody can see is a wolf pointing at them. What the wire withholds is the
+   * server's half, done where each viewer's set of bodies is decided.
+   *
+   * What the body *does* still lands. A blow it strikes, a tile it places or a
+   * crate it pushes changes the world, and the world is not hidden.
+   */
+  hidden: boolean;
   input: GameInput;
   walk: WalkState | null;
   fall: FallState | null;
@@ -2750,6 +2774,8 @@ export class GameSession implements PlaySession {
       spawnAt?: Coord;
       /** Whether this player was fighting other players. @see ActorRuntime.pvp */
       pvp?: boolean;
+      /** Whether this body starts hidden. @see ActorRuntime.hidden */
+      hidden?: boolean;
     } = {},
   ): ActorRuntime {
     const resident = opts.resident === true;
@@ -2843,6 +2869,8 @@ export class GameSession implements PlaySession {
       // Off unless the world remembers otherwise, which is the state a body
       // nobody can hurt is in. @see ./pvp
       pvp: opts.pvp ?? false,
+      // Never a creature: nothing that has no owner can be anybody's secret.
+      hidden: !resident && opts.hidden === true,
       input: { directions: [] },
       walk: null,
       fall: null,
@@ -2954,6 +2982,11 @@ export class GameSession implements PlaySession {
        * @see `./pvp`
        */
       pvp?: boolean;
+      /**
+       * Whether this body arrives hidden. The server decides, off the role on
+       * the socket. @see ActorRuntime.hidden
+       */
+      hidden?: boolean;
     } = {},
     {
       /**
@@ -2972,7 +3005,10 @@ export class GameSession implements PlaySession {
       const cell = at ? findEntryCell(this.map, this.tilesById, at, this.spawnAt) : this.spawnAt;
       const stackIndex = getStack(this.map, cell.x, cell.y, cell.z).length;
       this.map = spawnActor(this.map, id, cell, at?.direction);
-      if (announce) this.noteTransition("appear", PLAYER_TILE_ID, cell, stackIndex);
+      // Nobody sees a hidden body arrive, so there is no way in to play.
+      if (announce && !restored.hidden) {
+        this.noteTransition("appear", PLAYER_TILE_ID, cell, stackIndex);
+      }
     }
     this.addActor(id, { ...restored, bodyTileId: PLAYER_TILE_ID });
   }
@@ -3048,7 +3084,9 @@ export class GameSession implements PlaySession {
     // stood — and a player leaving is their body going, which plays its way out.
     const loc = this.tryLocate(leaving);
     this.forgetTileIndex();
-    if (loc) this.noteTransition("disappear", loc.placed.tileId, loc, loc.stackIndex);
+    if (loc && !leaving.hidden) {
+      this.noteTransition("disappear", loc.placed.tileId, loc, loc.stackIndex);
+    }
     // Taken off the cell just located rather than by `despawnActor`, which
     // sweeps the whole board to find the same body again. The sweep is for a
     // body this session cannot find, and that is the only case it is left for.
@@ -3849,6 +3887,7 @@ export class GameSession implements PlaySession {
    * greeting summon a wolf. @see recordNoise
    */
   hear(speakerId: string, text: string) {
+    if (this.isConcealed(speakerId)) return;
     this.pendingHeard.push({ speakerId, text });
   }
 
@@ -4200,7 +4239,10 @@ export class GameSession implements PlaySession {
         return found;
       },
       thingStillThere: (at, tileId) => this.thingStillThere(at, tileId),
-      positionOf: (id) => this.actorCell(id),
+      // Null for a hidden body, which is what makes a chase already bound to
+      // somebody who has just gone hidden give up rather than carry on towards
+      // them. @see ActorRuntime.hidden
+      positionOf: (id) => (this.isConcealed(id) ? null : this.actorCell(id)),
       wouldDrop: (direction) => this.stepLeavesGround(loc, direction),
       wouldStepIntoHazard: (direction) => this.stepLandsInHazard(actor, loc, direction),
       step: (direction) => this.applyStepRequest(actor, { directions: [direction] }),
@@ -4213,7 +4255,7 @@ export class GameSession implements PlaySession {
       sight,
       heard: () => round.heard,
       heardNoise: () => soundsHeardBy(round.sounds, actor.id),
-      hurtBy: () => round.hurt.get(actor.id) ?? EMPTY_ATTACKERS,
+      hurtBy: () => this.visibleAttackers(round.hurt.get(actor.id)),
       attack: (id) => this.tryAttack(actor, id),
       cast: (spell, targetId) => this.castForBrain(actor, spell, targetId),
       extract: (at, tileId) => this.extractForBrain(actor, at, tileId),
@@ -4286,6 +4328,9 @@ export class GameSession implements PlaySession {
    * a single-player world, where speech never has been.
    */
   private recordNoise(sourceId: string, loc: ActorLocation, raw: string) {
+    // Not drawn for anybody and not heard by anything: a crunch at a cell is
+    // somebody standing there. @see ActorRuntime.hidden
+    if (this.isConcealed(sourceId)) return;
     const text = sanitizeChatText(raw);
     if (!text) return;
     const noise: NoiseEmission = {
@@ -5850,8 +5895,10 @@ export class GameSession implements PlaySession {
     this.actors.delete(target.id);
     this.forgetTileIndex();
     // A body that dies goes of its own accord, as a decayed tile does, and
-    // plays its way out where it fell.
-    if (loc) this.noteTransition("disappear", loc.placed.tileId, loc, loc.stackIndex);
+    // plays its way out where it fell — unless nobody could see it there.
+    if (loc && !target.hidden) {
+      this.noteTransition("disappear", loc.placed.tileId, loc, loc.stackIndex);
+    }
     this.map = despawnActor(this.map, target.id);
     this.pendingHurt.delete(target.id);
     for (const actor of this.actors.values()) {
@@ -7467,6 +7514,52 @@ export class GameSession implements PlaySession {
   }
 
   /**
+   * Hide this body from other players, or show it again. @see ActorRuntime.hidden
+   *
+   * Not a permission check. Whether the caller may is the server's question,
+   * answered off the account before this is ever reached; what is refused here
+   * is only what cannot be hidden at all — nobody, and creatures.
+   */
+  setHidden(enabled: boolean, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actors.get(id);
+    if (!actor || actor.resident) return false;
+    if (actor.hidden === enabled) return true;
+    // Plays the way out a logout plays, and the way in a login does, so that to
+    // everybody watching the cell the two are the same thing.
+    const loc = this.tryLocate(actor);
+    if (loc) {
+      this.noteTransition(enabled ? "disappear" : "appear", loc.placed.tileId, loc, loc.stackIndex);
+    }
+    actor.hidden = enabled;
+    return true;
+  }
+
+  /** Whether this body is hidden from other players. @see ActorRuntime.hidden */
+  hiddenOf(id: string): boolean {
+    return this.actors.get(id)?.hidden ?? false;
+  }
+
+  /** Whether `id` names a body that nothing else in the world may find or follow. */
+  private isConcealed(id: string): boolean {
+    return this.actors.get(id)?.hidden === true;
+  }
+
+  /**
+   * Who hurt a creature this round, less anybody hidden.
+   *
+   * A hidden body that strikes a creature still wounds it, because the blow is
+   * an act on the world. What the creature does not get is a name to turn on:
+   * retaliating is chasing, and chasing somebody nobody can see gives them away.
+   * The list is returned as it is whenever nobody on it is hidden, which is every
+   * round of every world that has no administrator hiding in it.
+   */
+  private visibleAttackers(attackers: readonly string[] | undefined): readonly string[] {
+    if (!attackers) return EMPTY_ATTACKERS;
+    if (!attackers.some((id) => this.isConcealed(id))) return attackers;
+    return attackers.filter((id) => !this.isConcealed(id));
+  }
+
+  /**
    * This body as the harm rule sees it. @see `./pvp`'s {@link Combatant}
    *
    * Its own method because four callers need the same three fields off a
@@ -7853,9 +7946,17 @@ export class GameSession implements PlaySession {
     return found.route[found.route.length - 1]!.to;
   }
 
-  /** Where a standing order is aimed, right now. @see WalkGoal */
+  /**
+   * Where a standing order is aimed, right now. @see WalkGoal
+   *
+   * Nowhere, for a body that has gone hidden: a creature bound to somebody
+   * before they hid would otherwise walk the rest of the way to them, and a
+   * player following one would lead everybody else to the cell. @see
+   * ActorRuntime.hidden
+   */
   private walkGoalCell(goal: WalkGoal): Coord | null {
-    return goal.of === "cell" ? goal.at : this.actorCell(goal.id);
+    if (goal.of === "cell") return goal.at;
+    return this.isConcealed(goal.id) ? null : this.actorCell(goal.id);
   }
 
   /**
@@ -7886,7 +7987,8 @@ export class GameSession implements PlaySession {
       for (const id of this.actorsOnTile(tileId)) {
         if (id === selfId) continue;
         const actor = this.actors.get(id);
-        if (!actor) continue;
+        // A hidden body is not there to be found. @see ActorRuntime.hidden
+        if (!actor || actor.hidden) continue;
         const loc = this.tryLocate(actor);
         // The tile is re-checked against the board rather than taken from the
         // index. Positions are read live here — the index only ever says who is
@@ -10541,6 +10643,7 @@ export class GameSession implements PlaySession {
       // time as its neighbour. @see ActorSnapshot.casting
       casting: actor.casting?.progress ?? null,
       pvp: actor.pvp,
+      hidden: actor.hidden,
     };
   }
 

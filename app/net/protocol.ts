@@ -823,6 +823,19 @@ export type ServerMessage =
       type: "clock";
       minutesOfDay: number;
     }
+  /**
+   * Whether this client's own body is hidden from other players.
+   *
+   * Sent to its owner and to nobody else — to everybody else a hidden body is
+   * not there, and a message saying so would be the one thing that says it is.
+   * Sent after a `hello` when it is on, and whenever it moves. Absent means off,
+   * which is what a client assumes at the start of every connection.
+   * @see ClientMessage `hidden`
+   */
+  | {
+      type: "hidden";
+      on: boolean;
+    }
   /** Full state, on join and after the world restarts. */
   | {
       type: "hello";
@@ -1445,6 +1458,16 @@ export type ClientMessage =
    */
   | { type: "pvp"; enabled: boolean }
   /**
+   * "Hide me from other players", or "show me again". Administrators only.
+   *
+   * While hidden, every other client is told the body has left, and nothing
+   * about it afterwards: not its cell, its motion, its health, its statuses,
+   * what it says or what it sounds like. Creatures stop noticing it too. The
+   * server ignores this from anybody who is not an administrator, and answers
+   * the owner with a {@link ServerMessage} `hidden` either way.
+   */
+  | { type: "hidden"; enabled: boolean }
+  /**
    * "Cast the stone in this square."
    *
    * **A square, never an instance id**, on exactly the grounds every
@@ -1652,6 +1675,10 @@ const clientMessageSchema = v.variant("type", [
     enabled: v.boolean(),
   }),
   v.object({
+    type: v.literal("hidden"),
+    enabled: v.boolean(),
+  }),
+  v.object({
     type: v.literal("cast"),
     // A square off the game's own list, or the name of a spell the body has —
     // so a square added to a body is a square this schema already accepts, a
@@ -1772,6 +1799,10 @@ const serverMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("clock"),
     minutesOfDay: v.number(),
+  }),
+  v.object({
+    type: v.literal("hidden"),
+    on: v.boolean(),
   }),
   v.object({
     type: v.literal("statuses"),
@@ -2042,7 +2073,7 @@ export const GAME_SOCKET_PATH = "/online/ws";
  * This is deliberately not the build id. A client deploy that changes no
  * messages should not disconnect anybody, and most client deploys are that.
  */
-export const PROTOCOL_VERSION = 17;
+export const PROTOCOL_VERSION = 18;
 
 /**
  * How often the world says nothing, to keep a proxy from hanging up.

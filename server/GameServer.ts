@@ -418,9 +418,41 @@ function actorsInReach(
   self: string,
 ): ActorSnapshot[] {
   if (!at) return actors.filter((actor) => actor.id === self);
+  // A hidden body is left out on the terms a distant one is: it is somebody
+  // this viewer is not told about. @see ActorSnapshot.hidden
   return actors.filter(
-    (actor) => actor.id === self || withinBodyReach(at, actor.x, actor.y, actor.z),
+    (actor) =>
+      actor.id === self || (!actor.hidden && withinBodyReach(at, actor.x, actor.y, actor.z)),
   );
+}
+
+/**
+ * The events a viewer is sent once the ones that would give a hidden body away
+ * are taken out. @see ActorSnapshot.hidden
+ *
+ * Two kinds get past the body scoping in `eventsInScope`, because they are sent
+ * by cell or to everybody rather than by body:
+ * - a damage number on a hidden body, which is a number floating over somebody
+ *   the viewer cannot see;
+ * - the viewer's own `left` or `joined`, sent to the room when the viewer hides
+ *   or shows. A client told it has left drops its own body.
+ *
+ * Returns the list it was given when nothing is removed, so that a patch nobody
+ * is hidden from still reaches every client as one shared string.
+ */
+function unconcealed(
+  events: MotionEvent[],
+  viewer: string,
+  concealed: ReadonlySet<string> | null,
+  viewerHidden: boolean,
+): MotionEvent[] {
+  if (concealed === null && !viewerHidden) return events;
+  const kept = events.filter((event) => {
+    if (event.kind === "damage") return !concealed?.has(event.targetId);
+    if (event.kind === "left" || event.kind === "joined") return event.actorId !== viewer;
+    return true;
+  });
+  return kept.length === events.length ? events : kept;
 }
 
 /** Everybody's casts in progress. @see currentCarriedLights for the omission rule. */
@@ -610,6 +642,20 @@ const HP_KEY_PREFIX = "hp:";
 const PVP_KEY_PREFIX = "pvp:";
 
 /**
+ * Key prefix under which an administrator's invisibility is kept. @see setHidden
+ *
+ * Kept so that a reload does not undo it: a hidden administrator whose tab
+ * reconnected visible would be announced to the whole room by the reconnect,
+ * which is the one thing the switch exists to prevent. Written the moment it
+ * moves, like the `pvp:` row and for the same reason.
+ *
+ * **It is honoured only while the socket is an administrator's.** The row
+ * records a choice; the role that allows it is read off the connection every
+ * time the body is seated, so an account demoted while hidden comes back seen.
+ */
+const HIDDEN_KEY_PREFIX = "hidden:";
+
+/**
  * How many actors the world remembers the whereabouts of.
  *
  * One entry per player who has ever connected — it grows with *visitors*, not
@@ -716,6 +762,9 @@ type SavedHp = { hp: number | null; savedAt: number };
  * the switch off a thing that lasted until the next reconnect.
  */
 type SavedPvp = { on: boolean; savedAt: number };
+
+/** An administrator's invisibility, on the `pvp:` row's terms. @see HIDDEN_KEY_PREFIX */
+type SavedHidden = { on: boolean; savedAt: number };
 
 /**
  * One stored status, checked rather than trusted.
@@ -1612,7 +1661,7 @@ export class GameServer {
    * them the default".
    */
   private async restoredActor(actorId: string) {
-    const [at, carrying, tagged, earned, statuses, hp, pvp] = await Promise.all([
+    const [at, carrying, tagged, earned, statuses, hp, pvp, hidden] = await Promise.all([
       this.lastPositionOf(actorId),
       this.lastEquipmentOf(actorId),
       this.lastTagsOf(actorId),
@@ -1620,8 +1669,9 @@ export class GameServer {
       this.lastStatusesOf(actorId),
       this.lastHpOf(actorId),
       this.lastPvpOf(actorId),
+      this.lastHiddenOf(actorId),
     ]);
-    return { at, carrying, tagged, earned, statuses, hp, pvp };
+    return { at, carrying, tagged, earned, statuses, hp, pvp, hidden };
   }
 
   /**
@@ -1725,6 +1775,60 @@ export class GameServer {
   private async lastPvpOf(actorId: string): Promise<boolean | undefined> {
     const saved = await this.ctx.storage.get<SavedPvp>(this.pvpKey(actorId));
     return saved?.on;
+  }
+
+  private hiddenKey(actorId: string): string {
+    return `${HIDDEN_KEY_PREFIX}${actorId}`;
+  }
+
+  /**
+   * Whether this body should be seated hidden: the row says so *and* it is an
+   * administrator's socket seating it. @see HIDDEN_KEY_PREFIX
+   *
+   * The role is checked first because it is a walk over open sockets rather
+   * than a read, and it is false for almost everybody.
+   */
+  private async lastHiddenOf(actorId: string): Promise<boolean> {
+    if (!this.seatedAsAdmin(actorId)) return false;
+    const saved = await this.ctx.storage.get<SavedHidden>(this.hiddenKey(actorId));
+    return saved?.on === true;
+  }
+
+  /** Whether any socket on this actor belongs to an administrator. */
+  private seatedAsAdmin(actorId: string): boolean {
+    for (const ws of this.socketsOf(actorId)) {
+      if ((ws.deserializeAttachment() as Attachment | null)?.admin) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Hide a body from every other player, or show it again. @see
+   * ActorRuntime.hidden in `../app/game/GameSession`
+   *
+   * The caller has already checked the role. To everybody else this is a
+   * logout and a login: `left` goes out with a headcount that no longer counts
+   * them, and the next patch takes the body back through the same `despawned`
+   * a body walking out of reach gets. Showing again is the reverse, `joined`
+   * and then `spawned` with the body's state in full.
+   *
+   * The owner is told the result by a message nobody else receives. @see
+   * ServerMessage `hidden`
+   */
+  private setHidden(actorId: string, enabled: boolean) {
+    const session = this.session!;
+    if (session.hiddenOf(actorId) !== enabled && session.setHidden(enabled, actorId)) {
+      this.ctx.storage
+        .put(this.hiddenKey(actorId), { on: enabled, savedAt: Date.now() } satisfies SavedHidden)
+        .catch(GameServer.reportWriteFailure("hidden write"));
+      this.events.push({
+        kind: enabled ? "left" : "joined",
+        actorId,
+        playerCount: this.playerCount(),
+      });
+      this.wake();
+    }
+    this.sendToEverySocketOf(actorId, { type: "hidden", on: session.hiddenOf(actorId) });
   }
 
   private masteriesKey(actorId: string): string {
@@ -2204,11 +2308,15 @@ export class GameServer {
     // stays honest beside it: whatever state a tab has got itself into, opening
     // the page again hands you a body.
     await this.seatActor(actorId);
-    this.events.push({
-      kind: "joined",
-      actorId,
-      playerCount: this.playerCount(),
-    });
+    // Nobody is told a hidden administrator arrived, because to them one has
+    // not. @see setHidden
+    if (!this.session!.hiddenOf(actorId)) {
+      this.events.push({
+        kind: "joined",
+        actorId,
+        playerCount: this.playerCount(),
+      });
+    }
 
     this.sendHello(socket, actorId);
     // A join moves the board, so it has to be broadcast even if nobody is
@@ -2284,6 +2392,9 @@ export class GameServer {
     const ids = new Set<string>();
     for (const [ws, actorId] of this.seated()) {
       if (ws === excluding) continue;
+      // Somebody hidden is, to everybody else, somebody who is not here, and a
+      // headcount one higher than the bodies anybody can find says otherwise.
+      if (this.session?.hiddenOf(actorId)) continue;
       ids.add(actorId);
     }
     return ids.size;
@@ -2370,6 +2481,11 @@ export class GameServer {
       minutesOfDay: this.minutesOfDay(),
     };
     ws.send(JSON.stringify(message));
+    // The switch, to its owner, and only when it is on: a client starts every
+    // connection believing it off, so off needs no message. @see setHidden
+    if (session.hiddenOf(actorId)) {
+      ws.send(JSON.stringify({ type: "hidden", on: true } satisfies ServerMessage));
+    }
     // This socket is now current as of the map it was just sent, but the
     // broadcast diff is shared — so leave broadcastMap alone and let the next
     // patch be a no-op for them rather than replaying it.
@@ -2465,6 +2581,11 @@ export class GameServer {
       // somebody turned off and a crash a second later must not add up to a
       // player who comes back fightable.
       this.saveActors([actorId], true);
+    } else if (message.type === "hidden") {
+      // The role is the account's and rides on the socket, so this is the one
+      // place that can ask it. Anybody else is ignored rather than refused:
+      // their client never offers the switch. @see setHidden
+      if (admin) this.setHidden(actorId, message.enabled);
     } else if (message.type === "attackMode") {
       // The wake below matters more here than for a target: a world at rest
       // stays at rest while somebody merely points at a deer, and turning this
@@ -3118,6 +3239,23 @@ export class GameServer {
     if (!author) return;
 
     this.lastSaidAt.set(actorId, now);
+    // Said to nobody but themselves: a bubble over a cell is somebody standing
+    // in it. Still written down, because the log is for whoever runs the world.
+    if (author.hidden) {
+      const said = {
+        actorId,
+        tileId: author.tileId,
+        name: author.name,
+        text,
+        x: author.x,
+        y: author.y,
+        z: author.z,
+        stackIndex: author.stackIndex,
+      };
+      this.sendToEverySocketOf(actorId, { type: "chat", ...said });
+      this.logChat(now, actorId, said, text);
+      return;
+    }
     // The simulation hears the same sanitised line the room does, and hears it
     // before it is broadcast so that a creature answering on the very next tick
     // cannot have its reply overtake the call that caused it.
@@ -3378,6 +3516,9 @@ export class GameServer {
     // and then left would otherwise be carrying an hour-old stamp into the queue
     // of who gets forgotten first, which is precisely backwards.
     this.saveActors([actorId], true);
+    // Read before the despawn, which forgets it. A hidden body leaving is
+    // nothing anybody else can see go. @see setHidden
+    const wasHidden = this.session?.hiddenOf(actorId) ?? false;
     this.session?.despawn(actorId);
     // Collected now, because the tick this wakes empties what is pending
     // before it drains: the body's way out rides the patch that removes it.
@@ -3391,11 +3532,13 @@ export class GameServer {
     // everything it knows about an actor on `left`, and a lingering body that
     // lost its name and health bar a minute early would be a body nobody could
     // tell was still there to be hit.
-    this.events.push({
-      kind: "left",
-      actorId,
-      playerCount: this.playerCount(closing),
-    });
+    if (!wasHidden) {
+      this.events.push({
+        kind: "left",
+        actorId,
+        playerCount: this.playerCount(closing),
+      });
+    }
     // Their tile just left the board, so the removal has to reach everyone else.
     this.wake();
   }
@@ -3645,6 +3788,10 @@ export class GameServer {
           statuses: running.get(actorId) ?? (await this.lastStatusesOf(actorId)),
           hp: health.get(actorId) ?? (await this.lastHpOf(actorId)),
           pvp: fighting.has(actorId) || (await this.lastPvpOf(actorId)),
+          // Off the row rather than the outgoing session, on the same grounds
+          // as the name above: the row is written the moment it moves, and it
+          // is checked against the socket's role on the way in. @see lastHiddenOf
+          hidden: await this.lastHiddenOf(actorId),
         },
         { announce: false },
       );
@@ -4852,10 +4999,15 @@ export class GameServer {
     let entered: ActorSnapshot[] | null = null;
     let count = 0;
     let selfSeen = false;
+    // Hidden bodies this viewer must not learn anything about. Never in reach,
+    // which by itself withholds their cells, their motion and every per-body
+    // diff; this set is for the events that are not scoped by body.
+    let concealed: Set<string> | null = null;
     for (let i = 0; i < actors.length; i++) {
       const actor = actors[i]!;
       const self = actor.id === actorId;
-      const inReach = self || this.isNearby(at, chunks, actor, chunkOf[i]!);
+      if (!self && actor.hidden) (concealed ??= new Set()).add(actor.id);
+      const inReach = self || (!actor.hidden && this.isNearby(at, chunks, actor, chunkOf[i]!));
       nearby.push(inReach);
       if (!inReach) continue;
       count++;
@@ -4881,7 +5033,12 @@ export class GameServer {
     }
 
     const cells = cellsInScope(patch.cells, chunks, held, known);
-    const events = eventsInScope(patch.events, chunks, held);
+    const events = unconcealed(
+      eventsInScope(patch.events, chunks, held),
+      actorId,
+      concealed,
+      this.session?.hiddenOf(actorId) ?? false,
+    );
     const hps = patchesInScope(patch.hps, held);
     const carriedLights = patchesInScope(patch.carriedLights, held);
     const statusIds = patchesInScope(patch.statusIds, held);
