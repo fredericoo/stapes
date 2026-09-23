@@ -951,6 +951,7 @@ export function TileEditorDialog({
       // body somebody may well want to be slow to cross. Zero is written as
       // absent, which is what ordinary ground says.
       walkSpeedPercent: draft.walkSpeedPercent || undefined,
+      wade: draft.wade ? true : undefined,
       connectsTo:
         draft.type === "autotile" && draft.connectsTo?.length ? draft.connectsTo : undefined,
       scatterSeed: draft.type === "scatter" && draft.scatterSeed ? draft.scatterSeed : undefined,
@@ -1996,6 +1997,18 @@ export function TileEditorDialog({
                   className="hard-checkbox"
                 />
                 Walkable
+              </label>
+              <label
+                className="flex items-center gap-2 text-sm"
+                title="A body standing on this is standing in it: drawn a little lower, with the bottom and right of its sprite see-through. Shallow water. Only the drawing changes — use Ground speed % to slow the wade."
+              >
+                <input
+                  type="checkbox"
+                  checked={draft.wade ?? false}
+                  onChange={(e) => setDraft({ ...draft, wade: e.target.checked })}
+                  className="hard-checkbox"
+                />
+                Wade
               </label>
               <label
                 className="flex items-center gap-2 text-sm"

@@ -9,6 +9,8 @@ import {
   depthBox,
   depthStackBias,
   spriteWorldOrigin,
+  WADE_EDGE_PX,
+  WADE_SINK_PX,
 } from "../lib/geometry";
 import {
   emitterCenter,
@@ -108,6 +110,7 @@ import {
   noCutUniforms,
   writeBoxAttr,
   writeLightUvAttr,
+  writeWadeAttr,
 } from "./worldQuads";
 import { AnimationTable, tableCanHold } from "./animTable";
 import {
@@ -187,6 +190,18 @@ type AnimatedInstance = {
  * one import, because this file is THREE and that one is deliberately not.
  */
 const PROJECTILE_STACK_BIAS = 32;
+
+/**
+ * Where a wading body falls in the draw order: after every level's geometry,
+ * before the plumes.
+ *
+ * Its see-through edge is blended, and a blend is with whatever is already in
+ * the frame, so the water under it has to have been drawn first. Nothing else
+ * the world draws depends on order — every other fragment is opaque past the
+ * alpha cutoff and sorts by the depth it writes — so only a mesh that is wading
+ * is moved. @see WorldView.wading
+ */
+const WADING_RENDER_ORDER = 0.5;
 
 /** One arrow's mesh and everything needed to keep drawing it. */
 type ProjectileMesh = {
@@ -535,6 +550,17 @@ export type WorldView = {
    * a merged tile is dropped rather than approximated.
    */
   spriteTints?: ReadonlyMap<string, StatusTint>;
+  /**
+   * How deep each placement is standing in a `wade` tile, from 0 (dry) to 1
+   * (all the way in), keyed by {@link TileInstanceKey}. Fractional while a body
+   * steps into or out of the water.
+   *
+   * Sparse, on the terms {@link spriteTints} is, and with the same reach: only a
+   * placement with its own mesh can wade, which is every actor. The sprite is
+   * moved down-right and its edge made see-through; the depth box is left where
+   * it is. @see TileDef.wade, `WADE_SINK_PX` in `../lib/geometry`
+   */
+  wading?: ReadonlyMap<string, number>;
   /**
    * The plumes on screen this frame.
    *
@@ -1247,7 +1273,7 @@ export class WorldRenderer {
       this.applySpriteTints(view.spriteTints);
     });
     this.time("motion", () => {
-      this.applyTileMotions(view.tileMotions);
+      this.applyTileMotions(view.tileMotions, view.wading);
       // Beside the motions, because it is the same kind of work at the same
       // point in the frame: something that is not where the map says it is.
       this.applyProjectiles(view.projectiles);
@@ -1899,7 +1925,10 @@ export class WorldRenderer {
     return tileInstanceKey(k);
   }
 
-  private applyTileMotions(motions: TileMotion[] | undefined) {
+  private applyTileMotions(
+    motions: TileMotion[] | undefined,
+    wading: ReadonlyMap<string, number> | undefined,
+  ) {
     const byKey = new Map<string, TileMotion>();
     for (const m of motions ?? []) byKey.set(this.tileKey(m), m);
     this.currentMotions = byKey;
@@ -1914,8 +1943,15 @@ export class WorldRenderer {
       // Sprite offset and depth box come from the same motion, so what is drawn
       // and where it sorts can never disagree for a frame.
       const motion = byKey.get(key);
-      mesh.position.x = base.x + (motion?.ox ?? 0);
-      mesh.position.y = base.y + (motion?.oy ?? 0);
+      const wade = wading?.get(key) ?? 0;
+      // Whole pixels, like every other sprite offset, so a body stepping into
+      // water drops by one pixel and then another rather than drawing between.
+      const sinkPx = Math.round(wade * WADE_SINK_PX);
+      const edgePx = Math.round(wade * WADE_EDGE_PX);
+      mesh.position.x = base.x + (motion?.ox ?? 0) + sinkPx;
+      mesh.position.y = base.y + (motion?.oy ?? 0) + sinkPx;
+      writeWadeAttr(mesh.geometry, sinkPx, edgePx);
+      mesh.renderOrder = edgePx > 0 ? WADING_RENDER_ORDER : 0;
       writeBoxAttr(
         mesh.geometry,
         motion
@@ -2216,6 +2252,7 @@ export class WorldRenderer {
 
   private syncMotionGhost(ghost: THREE.Mesh, source: THREE.Mesh) {
     ghost.position.copy(source.position);
+    ghost.renderOrder = source.renderOrder;
     const srcAttrs = source.geometry.attributes;
     const dstAttrs = ghost.geometry.attributes;
     for (const name of Object.keys(srcAttrs)) {

@@ -152,9 +152,21 @@ export function noAnimUniforms(placeholder: THREE.Texture): LevelAnimUniforms {
 
 const VERTS_PER_QUAD = 4;
 const BOX_COMPONENTS = 4;
+const WADE_COMPONENTS = 2;
+
+/**
+ * How opaque the see-through edge of a wading body is, past its first pixel.
+ *
+ * The first pixel — the bottom row and the right column of the figure — is not
+ * drawn at all. The rest of the edge is blended rather than dithered, so it
+ * reads as water over the body rather than as a hole in it. Blending is
+ * order-dependent, which is why a wading mesh is drawn after the level it
+ * stands in — see `WorldRenderer`'s `WADING_RENDER_ORDER`.
+ */
+const WADE_ALPHA = 0.5;
 
 /** Both renderers must agree, or the same tile sorts differently in each. */
-export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v11";
+export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v12";
 
 function glsl(n: number): string {
   return Number.isInteger(n) ? `${n}.0` : `${n}`;
@@ -333,6 +345,13 @@ export function buildSingleQuadGeometry(q: Omit<Quad, "x" | "y">): THREE.BufferG
   geo.setAttribute("aStack", new THREE.BufferAttribute(stacks, 1));
   geo.setAttribute("aLightScale", new THREE.BufferAttribute(lightScales, 2));
   geo.setAttribute("aAnim", new THREE.BufferAttribute(anims, 2));
+  // Dry until `writeWadeAttr` says otherwise. Only a quad with a mesh of its own
+  // carries this: a merged batch has no attribute, which reads as zero, which
+  // is dry — and nothing merged can be a body.
+  geo.setAttribute(
+    "aWade",
+    new THREE.BufferAttribute(new Float32Array(VERTS_PER_QUAD * WADE_COMPONENTS), WADE_COMPONENTS),
+  );
   geo.setIndex(new THREE.BufferAttribute(new Uint16Array([0, 2, 1, 2, 3, 1]), 1));
   return geo;
 }
@@ -367,6 +386,30 @@ export function writeLightUvAttr(
   uvs[6] = lightX1;
   uvs[7] = lightY0;
   attr.needsUpdate = true;
+}
+
+/**
+ * Say how deep a single-quad mesh is standing in a `wade` tile.
+ *
+ * `sinkPx` is how far the caller has moved the sprite down-right, which the
+ * shader needs because the see-through edge is measured from the sunk feet
+ * and the depth box does not sink. `edgePx` is how many pixels of the bottom
+ * and right are see-through; zero is dry. Returns whether anything changed, so
+ * a caller writing this every frame uploads only on the frame it moves.
+ *
+ * @see TileDef.wade
+ */
+export function writeWadeAttr(geo: THREE.BufferGeometry, sinkPx: number, edgePx: number): boolean {
+  const attr = geo.getAttribute("aWade") as THREE.BufferAttribute | undefined;
+  if (!attr) return false;
+  const arr = attr.array as Float32Array;
+  if (arr[0] === sinkPx && arr[1] === edgePx) return false;
+  for (let v = 0; v < VERTS_PER_QUAD; v++) {
+    arr[v * WADE_COMPONENTS] = sinkPx;
+    arr[v * WADE_COMPONENTS + 1] = edgePx;
+  }
+  attr.needsUpdate = true;
+  return true;
 }
 
 /**
@@ -422,6 +465,7 @@ attribute vec4 aBox;
 attribute float aStack;
 attribute vec2 aLightScale;
 attribute vec2 aAnim;
+attribute vec2 aWade;
 uniform sampler2D uAnimTable;
 uniform vec2 uAnimSize;
 uniform float uAnimClockMs;
@@ -432,6 +476,7 @@ varying vec4 vBox;
 varying float vStack;
 varying vec2 vWorldPx;
 varying vec2 vLightScale;
+varying vec2 vWade;
 ${TRANSITION_GLSL_VERTEX_COMMON}
 
 // Where this row's frame at clockMs sits, relative to frame 0, in UV space.
@@ -463,6 +508,7 @@ vUnlit = aUnlit;
 vBox = aBox;
 vStack = aStack;
 vLightScale = aLightScale;
+vWade = aWade;
 vWorldPx = (modelMatrix * vec4(position, 1.0)).xy;
 ${TRANSITION_GLSL_VERTEX}
 #ifdef USE_MAP
@@ -494,6 +540,7 @@ varying vec4 vBox;
 varying float vStack;
 varying vec2 vWorldPx;
 varying vec2 vLightScale;
+varying vec2 vWade;
 ${TINT_GLSL_COMMON}
 ${TRANSITION_GLSL_COMMON}`,
     )
@@ -572,5 +619,33 @@ gl_FragDepth = clamp(
   0.0,
   1.0
 );`,
+    )
+    .replace(
+      "#include <alphatest_fragment>",
+      /* glsl */ `#include <alphatest_fragment>
+// A body standing in shallow water: the bottom and right of the figure, below
+// the waterline, let the water show through. The first pixel in from the line
+// is gone, and the rest of the edge is thinned. After the cutoff, so a thinned
+// pixel is not then discarded for being thin. vWade.y is zero on everything
+// else.
+//
+// Anything past the line — art hanging beyond the feet, a wolf's head — counts
+// as the first pixel, since it is further under the water than that.
+//
+// The line is measured from where the figure's feet are drawn, which is the
+// middle of the cell it stands on — vBox.xy is that cell's far corner, less the
+// elevation shift — and moved by the same sink the caller gave the sprite,
+// since the box itself stays on the surface. Measuring from the sprite's own
+// edge would miss: a body's slot is two cells square, and the corner of it is
+// empty.
+if (vWade.y > 0.0) {
+  vec2 sunkFeet =
+    vBox.xy - ${glsl(CELL_SIZE / 2)} - vBox.z * ${glsl(PX_PER_HEIGHT)} + vWade.x;
+  vec2 fromFeet = sunkFeet - depthPx;
+  // A pixel centre, so the first pixel in from the line is at half a pixel.
+  float fromLine = min(fromFeet.x, fromFeet.y);
+  if (fromLine < 1.0) discard;
+  if (fromLine < vWade.y) diffuseColor.a *= ${glsl(WADE_ALPHA)};
+}`,
     );
 }

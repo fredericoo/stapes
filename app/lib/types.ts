@@ -503,6 +503,20 @@ export type TileDef = StateSprites & {
    */
   walkSpeedPercent?: number;
   /**
+   * A body standing on this tile is standing *in* it: shallow water, and any
+   * other liquid shallow enough to walk through.
+   *
+   * Only a drawing. The body is drawn a quarter of a level lower than the
+   * surface, and the bottom and right edges of its sprite are see-through —
+   * `WADE_SINK_PX` and `WADE_EDGE_PX` in `./geometry`. Where it stands, what it fits under and how fast it walks
+   * are all what they would be on dry ground, so a slower wade is
+   * {@link walkSpeedPercent} on the same tile, and deep water is a tile that is
+   * not {@link walkable} at all.
+   *
+   * Read by the renderer through `wadesAt` in `../game/movement`.
+   */
+  wade?: boolean;
+  /**
    * World-side dirs you may climb UP toward, keyed by facing.
    * Simple / autotile use `"default"`; directional use `n`/`e`/`s`/`w`
    * for each placement facing. Missing dirs default to true.

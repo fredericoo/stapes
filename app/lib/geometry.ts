@@ -11,6 +11,30 @@ export const PX_PER_HEIGHT = CELL_SIZE / HEIGHT_PER_LEVEL;
 export const RAY_DEPTH_ELEV = HEIGHT_PER_LEVEL + 0.5;
 
 /**
+ * How far a body standing in a `wade` tile is drawn below the surface, in
+ * world pixels along each axis.
+ *
+ * One height unit — a quarter of a level — so the sprite moves down-right the
+ * way the projection moves anything that is lower. Only the sprite moves: the
+ * depth box stays on the surface, because the water is drawn at that plane and
+ * a box below it would sort the submerged pixels behind the water and hide
+ * them instead of showing them through it.
+ */
+export const WADE_SINK_PX = PX_PER_HEIGHT;
+
+/**
+ * How many pixels along the bottom and the right of a wading body are drawn
+ * see-through: the first one not at all, the rest at half opacity.
+ *
+ * Measured from where its feet are drawn — the middle of the cell it stands
+ * on, sunk by {@link WADE_SINK_PX} — and not from the edge of its sprite. A
+ * body's sprite is a slot two cells square with the figure standing in the
+ * middle of its bottom-right cell, so the slot's own bottom and right edges
+ * are empty and a line measured from them would cross no art at all.
+ */
+export const WADE_EDGE_PX = 2;
+
+/**
  * Absolute foot elevation for a tile: level floor + in-stack elevation.
  * Matches gameplay (`absoluteStandingElevation`) so overflow stacks sort
  * against superior-level tiles by height, not by level membership.

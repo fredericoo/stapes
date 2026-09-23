@@ -42,6 +42,7 @@ import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
 import { slideTileMotions } from "./slideMotion";
 import { type AimAt, flightEmitter, flightLight, projectileViews } from "./projectileMotion";
 import { strikeOffset } from "./strikeMotion";
+import { wadingFor } from "./wadeDepth";
 import { isCellVisible } from "./cameraSight";
 import { labelHeadroomPx } from "./labelHeadroom";
 import { sceneryStack } from "../game/movement";
@@ -2567,6 +2568,7 @@ export class GameRenderer {
       spriteStates: spriteStatesFor(snap.actors),
       emitterOverrides: this.withFlightLights(snap, this.emitterOverridesFor(snap)),
       spriteTints: vfx.tints,
+      wading: wadingFor(snap.map, snap.actors, this.tilesById),
       particleEmitters: this.withFlightEffects(snap, vfx.emitters),
       roofCut: cut,
       transitions: transitions.length > 0 ? transitions : undefined,

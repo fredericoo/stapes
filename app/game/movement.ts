@@ -112,6 +112,40 @@ export function groundWalkSpeedPercent(
   return tilesById[surface.tileId]?.walkSpeedPercent ?? 0;
 }
 
+/**
+ * Whether this body is standing in a `wade` tile — shallow water, or another
+ * liquid shallow enough to walk through. @see TileDef.wade
+ *
+ * The surface under its feet on {@link groundWalkSpeedPercent}'s terms, with
+ * the body excluded from its own stack.
+ */
+export function wadesAt(
+  map: MapFile,
+  at: Coord & { stackIndex: number },
+  tilesById: Record<string, TileDef>,
+): boolean {
+  const abs = standingAbs(map, at.x, at.y, at.z, at.stackIndex, tilesById);
+  return surfaceWades(map, at.x, at.y, abs, tilesById, { z: at.z, stackIndex: at.stackIndex });
+}
+
+/**
+ * Whether the surface at `abs` in column (x, y) is a `wade` tile.
+ *
+ * {@link wadesAt} for a cell nobody is standing in yet — the far end of a step,
+ * where the body has to be drawn sinking before the simulation has put it there.
+ */
+export function surfaceWades(
+  map: MapFile,
+  x: number,
+  y: number,
+  abs: number,
+  tilesById: Record<string, TileDef>,
+  exclude?: { z: number; stackIndex: number },
+): boolean {
+  const surface = surfaceTileAt(map, x, y, abs, tilesById, exclude);
+  return surface != null && tilesById[surface.tileId]?.wade === true;
+}
+
 export function standingAbs(
   map: MapFile,
   x: number,
