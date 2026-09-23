@@ -2990,7 +2990,12 @@ export class GameSession implements PlaySession {
     const loc = this.tryLocate(leaving);
     this.forgetTileIndex();
     if (loc) this.noteTransition("disappear", loc.placed.tileId, loc, loc.stackIndex);
-    this.map = despawnActor(this.map, id);
+    // Taken off the cell just located rather than by `despawnActor`, which
+    // sweeps the whole board to find the same body again. The sweep is for a
+    // body this session cannot find, and that is the only case it is left for.
+    this.map = loc
+      ? removeTileAt(this.map, loc.x, loc.y, loc.z, loc.stackIndex)
+      : despawnActor(this.map, id);
   }
 
   /**
