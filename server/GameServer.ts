@@ -2182,8 +2182,17 @@ export class GameServer {
    * The rejection is swallowed for the same reason: there is nothing useful to
    * do about a position that did not stick, and an unhandled rejection here
    * would take the world down over it.
+   *
+   * @param only `"kits"` leaves out every actor whose kit, tags and masteries
+   *   are what storage last had — the actors a board written in this batch
+   *   cannot contradict. The others are written in full, as ever. It is what a
+   *   death's batch needs and no more: see {@link noteDeaths}.
    */
-  private saveActors(actorIds: Iterable<string>, force = false) {
+  private saveActors(
+    actorIds: Iterable<string>,
+    force = false,
+    only: "everything" | "kits" = "everything",
+  ) {
     const session = this.session;
     if (!session) return;
 
@@ -2201,8 +2210,6 @@ export class GameServer {
       | ChunkCells
     > = {};
     for (const actorId of actorIds) {
-      const at = session.actorPosition(actorId);
-      if (!at) continue;
       // What storage already believes, or nothing when the caller has asked for
       // this to be written whatever it says — see the `force` callers, which are
       // the two moments a stale `savedAt` would matter.
@@ -2210,6 +2217,17 @@ export class GameServer {
       const equipment = session.equipmentOf(actorId);
       const tags = session.tagsOf(actorId);
       const masteries = session.masteryXpOf(actorId);
+      if (
+        only === "kits" &&
+        written !== undefined &&
+        equipment === written.equipment &&
+        tags === written.tags &&
+        masteries === written.masteries
+      ) {
+        continue;
+      }
+      const at = session.actorPosition(actorId);
+      if (!at) continue;
       const statuses = session.statusesOf(actorId);
       const hp = session.storedHpOf(actorId);
       const pvp = session.pvpOf(actorId);
@@ -4512,15 +4530,25 @@ export class GameServer {
       // the telling waits until after this tick's patch has gone out.
       if (connected) this.justDied.push(death);
     }
-    // **Forced, here, rather than left to the next flush.** The board this tick
+    // **Written here, rather than left to the next flush.** The board this tick
     // leaves behind no longer holds the body and does hold its kit, and the rows
     // saying so are the ones above; a flush that carried one without the other
     // would hand somebody back a sword that is also lying on the floor, or take
     // one that is lying nowhere. They go in one batch, and it is this one —
     // deferring it would leave a reload in the gap reading the pre-death kit,
     // and a reload is the very next thing a dead player does.
+    //
+    // **Everybody else's kit rides with them, and only their kit.** The board
+    // in this batch is every chunk that moved since the last one, so it can
+    // also be where somebody else's pickup landed — and a kit left out of the
+    // batch that carries the board it was read off is the item existing twice.
+    // What cannot contradict the board is left to the ordinary flush: a
+    // position, a health bar and a status list are the same whenever they are
+    // written. This used to force every row of every actor, which with a
+    // thousand players was thousands of rows written for every death, most of
+    // them saying what storage already had.
     if (this.pendingDeathWrites.size > 0) {
-      this.saveActors(session.actorIds(), true);
+      this.saveActors(session.actorIds(), false, "kits");
     }
   }
 

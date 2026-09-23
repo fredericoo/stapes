@@ -3596,6 +3596,74 @@ describe("dying and coming back", () => {
     expect(bag?.contents ?? []).toEqual([]);
   });
 
+  /**
+   * The other half of what a death's batch owes: a kit that changed since the
+   * last flush and belongs to somebody still alive.
+   *
+   * The board in that batch is every chunk that moved since the last one, so
+   * it can be the board saying a sword is off the floor because somebody else
+   * picked it up. Their kit has to go in the same write, or a crash between
+   * the two loses the sword to both — which is why the batch wrote every row
+   * of every actor, until it learnt to write only the rows that can disagree
+   * with the board.
+   */
+  it("writes a bystander's changed kit in the batch that drops a body", async () => {
+    await putCheckpoint(checkpointWithSword());
+    const alice = await connect("alice");
+    await connect("bob");
+    // Everybody written as they stand, so the sword below is the one change to
+    // alice that storage has not been told about.
+    await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as {
+        session: { actorIds(): string[] };
+        saveActors(actorIds: Iterable<string>): void;
+      };
+      internals.saveActors(internals.session.actorIds());
+    });
+    alice.ws.send(
+      JSON.stringify({
+        type: "pickUp",
+        ref: { x: AWAY_FROM_SPAWN, y: 0, z: 0, stackIndex: SWORD_STACK_INDEX },
+      }),
+    );
+    await nextMessageOfType(alice.ws, "equipment");
+
+    // The batches the tick that kills bob writes, as they are handed to
+    // storage. Asked of the batch rather than of storage afterwards, because a
+    // world that goes quiet writes everybody down anyway and would answer for
+    // a death that left her out.
+    const batches = await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as {
+        ctx: { storage: { put(entries: unknown, options?: unknown): Promise<void> } };
+        session: {
+          actors: Map<string, unknown>;
+          applyDamage(actor: unknown, amount: number): void;
+        };
+        tick(): void;
+      };
+      const storage = internals.ctx.storage;
+      const put = storage.put.bind(storage);
+      const written: Record<string, unknown>[] = [];
+      storage.put = (entries, options) => {
+        if (typeof entries === "object" && entries !== null) {
+          written.push(entries as Record<string, unknown>);
+        }
+        return put(entries, options);
+      };
+      try {
+        internals.session.applyDamage(internals.session.actors.get("bob"), 10_000);
+        internals.tick();
+      } finally {
+        storage.put = put;
+      }
+      return written;
+    });
+
+    const deathBatch = batches.find((entries) => "equip:bob" in entries);
+    expect(deathBatch).toBeDefined();
+    expect(JSON.stringify(deathBatch!["equip:alice"])).toContain(`"tileId":"${SWORD}"`);
+  });
+
   it("sends them back to the spawn point, not to where the last flush caught them", async () => {
     await armedAlice();
     // She died two cells from the door, so "back at spawn" and "left where the
