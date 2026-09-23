@@ -1044,6 +1044,11 @@ function facingToward(from: Coord, to: Coord): Direction | null {
   return dy > 0 ? "s" : "n";
 }
 
+/** A cell and its level, as a key. @see GameSession.walkingInto */
+function walkKey(cell: Coord): string {
+  return `${cell.x},${cell.y},${cell.z}`;
+}
+
 /**
  * What the renderer needs from whatever is driving it.
  *
@@ -2149,6 +2154,17 @@ export class GameSession implements PlaySession {
   /** Insertion-ordered, which is what makes {@link tick} deterministic. */
   private readonly actors = new Map<string, ActorRuntime>();
   /**
+   * The actors walking into each cell, keyed by {@link walkKey}, for
+   * {@link destinationTaken} — which is asked for every step anybody tries,
+   * and used to ask every actor in the world.
+   *
+   * Written where a walk starts ({@link applyStepRequest} is the only place one
+   * does) and wherever one ends or its body leaves the world. Read with each
+   * entry's walk checked against the cell all the same, so an entry that
+   * outlived its walk is passed over rather than trusted.
+   */
+  private readonly walkingInto = new Map<string, ActorRuntime[]>();
+  /**
    * Who is standing on each tile, so {@link nearestOnTile} answers from the
    * handful of bodies that could possibly match rather than from every actor
    * alive.
@@ -3043,6 +3059,7 @@ export class GameSession implements PlaySession {
     // and has spent nothing — but the run is dropped with the body all the same,
     // so a player who reconnects is not mid-spell in a world they have left.
     this.cancelCasting(leaving);
+    this.forgetWalk(leaving);
     this.actors.delete(id);
     // Found before the tile comes off, which is the only record of where it
     // stood — and a player leaving is their body going, which plays its way out.
@@ -5847,6 +5864,7 @@ export class GameSession implements PlaySession {
     // going. No notice, on the line above's terms.
     this.cancelCasting(target);
 
+    this.forgetWalk(target);
     this.actors.delete(target.id);
     this.forgetTileIndex();
     // A body that dies goes of its own accord, as a decayed tile does, and
@@ -10303,6 +10321,7 @@ export class GameSession implements PlaySession {
    */
   private moveThrough(actor: ActorRuntime, to: Coord) {
     const loc = this.locate(actor);
+    this.forgetWalk(actor);
     actor.walk = null;
     actor.fall = null;
     actor.slide = null;
@@ -10799,6 +10818,7 @@ export class GameSession implements PlaySession {
       w.direction,
       this.tilesById,
     );
+    this.forgetWalk(actor);
     actor.walk = null;
   }
 
@@ -10823,15 +10843,30 @@ export class GameSession implements PlaySession {
    * against everybody. @see ../lib/validation's `FitOpts`
    */
   private destinationTaken(cell: Coord, except: ActorRuntime): boolean {
+    const walkers = this.walkingInto.get(walkKey(cell));
+    if (walkers === undefined) return false;
     const throughPlayers = this.defFor(except).id === PLAYER_TILE_ID;
-    for (const other of this.actors.values()) {
+    for (const other of walkers) {
       if (other === except) continue;
       const to = other.walk?.to;
       if (!to || to.x !== cell.x || to.y !== cell.y || to.z !== cell.z) continue;
+      if (this.actors.get(other.id) !== other) continue;
       if (throughPlayers && isPlayerBody(this.locate(other).placed)) continue;
       return true;
     }
     return false;
+  }
+
+  /** Take an actor's walk, if it has one, off the cell it was walking into. @see walkingInto */
+  private forgetWalk(actor: ActorRuntime) {
+    const to = actor.walk?.to;
+    if (!to) return;
+    const key = walkKey(to);
+    const walkers = this.walkingInto.get(key);
+    if (walkers === undefined) return;
+    const at = walkers.indexOf(actor);
+    if (at >= 0) walkers.splice(at, 1);
+    if (walkers.length === 0) this.walkingInto.delete(key);
   }
 
   /**
@@ -10906,6 +10941,7 @@ export class GameSession implements PlaySession {
     // is somebody else's doing.
     if (actor.casting) return false;
 
+    this.forgetWalk(actor);
     actor.walk = {
       from: { x: loc.x, y: loc.y, z: loc.z },
       to: choice.step.to,
@@ -10913,6 +10949,10 @@ export class GameSession implements PlaySession {
       elapsedMs: 0,
       durationMs: this.walkDurationOf(actor, loc),
     };
+    const key = walkKey(choice.step.to);
+    const walkers = this.walkingInto.get(key);
+    if (walkers === undefined) this.walkingInto.set(key, [actor]);
+    else walkers.push(actor);
     return true;
   }
 
