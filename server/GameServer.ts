@@ -2385,7 +2385,7 @@ export class GameServer {
       return;
     }
 
-    if (!session.actorIds().includes(actorId)) return;
+    if (!session.hasActor(actorId)) return;
 
     if (message.type === "say") {
       // Sent inline rather than queued into `events`, which is patch-scoped and
@@ -2403,11 +2403,21 @@ export class GameServer {
       return;
     }
 
-    if (message.type === "step") {
-      this.queueStep(actorId, message);
-    } else if (message.type === "face") {
-      this.queueAction(actorId, { kind: "face", direction: message.direction });
-    } else if (message.type === "target") {
+    // **Walking and turning skip the flushes below.** They are most of what a
+    // client sends — one message per cell walked — and a step is only queued
+    // here: it is taken on the tick, which runs every one of those flushes
+    // itself. A turn taken now changes a placement's facing, which reaches
+    // clients as a cell in the tick's patch, and nothing a flush reports. Each
+    // flush walks every socket, so running them per step made the cost of
+    // walking grow with the square of the player count.
+    if (message.type === "step" || message.type === "face") {
+      if (message.type === "step") this.queueStep(actorId, message);
+      else this.queueAction(actorId, { kind: "face", direction: message.direction });
+      this.wake();
+      return;
+    }
+
+    if (message.type === "target") {
       // Not validated here beyond the schema. Whether the named actor exists,
       // is a battler, or is anywhere near is re-asked on every swing — it has to
       // be, because all three change while both parties walk around.
