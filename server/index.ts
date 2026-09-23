@@ -37,13 +37,27 @@ await bundle.restore(config.CLIENT_BUILD_ID);
 /** Actor id per connection, for the close handler after the socket is gone. */
 const sockets = new WeakMap<object, GameSocket>();
 
+/**
+ * The shortest frame worth compressing, in characters.
+ *
+ * Deflate costs about 10µs a frame before it has read a byte, on the thread
+ * that runs the tick, and each socket's copy is compressed separately. Under
+ * this length that buys a few hundred bytes at most — a keepalive, a refused
+ * step, a patch with nothing in it — so those go as they are. Patches of a
+ * few kilobytes and up are the bulk of the traffic, and shrink about tenfold.
+ */
+const COMPRESS_MIN_LENGTH = 512;
+
 const app = new Elysia({
   /**
-   * Compress every frame the world sends. The wire is JSON of tile stacks,
-   * which is the most repetitive text there is: measured on the den map, the
-   * `hello` a joiner is sent goes 1.97MB to 135KB and a tick's patch shrinks
-   * by about the same factor. Bun leaves this off by default; the browser
-   * side negotiates it without being asked.
+   * Offer compression when a socket opens. The wire is JSON of tile stacks,
+   * which is the most repetitive text there is: a `hello` goes from about
+   * 2.5MB to under 180KB. The browser side accepts without being asked.
+   *
+   * **This only agrees to compress; it does not compress anything.** Bun
+   * deflates a frame only when `send` is passed `true` — see the transport
+   * below. Until that was added, every frame went out raw, and a hundred
+   * players cost 17MB/s.
    */
   websocket: { perMessageDeflate: true },
 })
@@ -51,7 +65,7 @@ const app = new Elysia({
   .ws(GAME_SOCKET_PATH, {
     open(ws) {
       const socket = new GameSocket({
-        send: (data) => void ws.send(data),
+        send: (data) => void ws.send(data, data.length >= COMPRESS_MIN_LENGTH),
         close: (code, reason) => void ws.close(code, reason),
         get closed() {
           return ws.readyState !== 1;

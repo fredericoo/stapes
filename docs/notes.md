@@ -2672,6 +2672,30 @@ file failed on both trees — a rat had been killing the player, who came back
 at the spawn point, which reads exactly like the step being thrown back that
 the file was written to look for.
 
+## A frame is compressed only when `send` is told to
+
+`perMessageDeflate: true` on the Elysia app makes Bun *agree* to
+permessage-deflate when a socket opens, and nothing more. A frame is deflated
+only when it is sent with `ws.send(data, true)`. The server called
+`ws.send(data)` from the day compression was switched on, so every frame went
+out raw while the browser and the comments both said it was compressed. The
+stress-test bots found it: at 100 players the bytes on the wire matched the
+JSON byte for byte, 17MB/s. The transport in `server/index.ts` now passes the
+flag. Measured against a local world:
+
+- **A frame costs about 10µs to deflate plus about 4µs per kilobyte**, on the
+  thread that runs the tick, and a patch is compressed once for each socket that
+  receives it. A 5.6KB patch goes to about 570 bytes for 33µs; a 100-byte frame
+  saves 30 bytes for 12µs. So frames under 512 characters go raw
+  (`COMPRESS_MIN_LENGTH`).
+- **At 100 players clustered at spawn**, traffic went from 17MB/s to 4.5MB/s,
+  and the median tick from 22ms to 26ms. That is load the tick did not carry
+  before, and it matters near the budget: at 150 players the world managed 10
+  ticks a second with compression on, against 19 without (30 is the target).
+- **A `hello` is about 2.5MB of JSON** and goes to under 180KB. One is sent on
+  every join and every rebirth, so a player who dies often is also a player who
+  downloads the map often.
+
 ## The wire is patches plus motion events
 
 Two kinds of thing travel, and keeping them apart is what makes it cheap.
