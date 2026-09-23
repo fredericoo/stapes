@@ -2966,7 +2966,8 @@ So the server keeps one `announcedActors` set **per client**, and:
 **`joined` and `left` are scoped like any other body's event.** They used to
 carry the headcount and went to everybody for it. Only administrators are told
 how many people are online now — `hello`'s `playerCount` and the `players`
-message, sent to administrators' sockets alone — so a player must not hear every arrival and departure
+message, sent to administrators' sockets alone, and `/api/health`'s `players`
+behind the same check — so a player must not hear every arrival and departure
 in the world either, which they could count.
 
 ### A noise and a bubble go to whoever could see the cell

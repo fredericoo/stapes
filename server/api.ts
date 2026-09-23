@@ -294,11 +294,14 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
       )
 
       // ---- operations ------------------------------------------------------
-      .get("/health", () => ({
+      .get("/health", async ({ request }) => ({
         // 503 while draining is what takes this container out of rotation
         // before its sockets are closed — see `World.drain`.
         status: world.accepting ? ("ok" as const) : ("draining" as const),
-        players: world.playerCount,
+        // Administrators only: a player is not told how many others are online,
+        // and this endpoint is unauthenticated. @see `./GameServer`'s
+        // `tellAdminsPlayerCount`
+        ...((await admin(request)) ? { players: world.playerCount } : {}),
         build: bundle.active,
         /**
          * What this server speaks, for the deploy that has to prove the served
