@@ -1,3 +1,4 @@
+import { IconAlertCircle } from "@tabler/icons-react";
 import type { ComponentProps, ReactNode } from "react";
 
 /**
@@ -105,11 +106,20 @@ export function DoorButton({ className = "", ...props }: ComponentProps<"button"
  *
  * An alert rather than a status: it is the answer to a press, and a press that
  * appeared to do nothing is exactly what this has to explain.
+ *
+ * Red with an icon, so it does not read as another `DoorNote`: grey text under
+ * the form was easy to miss after a wrong password. The icon is there for
+ * anybody who cannot tell the red from the grey. It is `aria-hidden` because
+ * the role already says this is an error.
  */
 export function DoorError({ children }: { children: ReactNode }) {
   return (
-    <p className="max-w-sm text-xs leading-relaxed text-paper/70" role="alert">
-      {children}
+    <p
+      className="flex max-w-sm items-start gap-2 text-xs leading-relaxed text-danger-on-ink"
+      role="alert"
+    >
+      <IconAlertCircle size={16} stroke={2} className="shrink-0" aria-hidden />
+      <span>{children}</span>
     </p>
   );
 }
