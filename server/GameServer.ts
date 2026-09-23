@@ -213,6 +213,7 @@ const NO_BODIES: string[] = [];
 /** A client that has been handed no ground, and one that knows no bodies. */
 const NO_CHUNKS: ReadonlySet<string> = new Set();
 const NO_ACTORS: ReadonlySet<string> = new Set();
+const NO_SOCKETS: ReadonlySet<GameSocket> = new Set();
 
 /** Key under which the running world is checkpointed when it goes idle. */
 const CHECKPOINT_KEY = "world";
@@ -1277,6 +1278,10 @@ export class GameServer {
    * thing besides a cut that decides what a client holds. @see scopedPatchFor
    */
   private readonly lastCut = new Map<string, CutMemo>();
+  /** The seated sockets, by the actor each is seated on. @see seat */
+  private readonly socketsByActor = new Map<string, Set<GameSocket>>();
+  /** {@link seated}'s answer, until somebody is seated or unseated. */
+  private seatedSockets: ReadonlyArray<readonly [GameSocket, string]> | null = null;
   /**
    * The hit points each client has been told about, so an unchanged bar costs
    * nothing on the wire. Same discipline as {@link broadcastMap}: everyone is at
@@ -2500,7 +2505,7 @@ export class GameServer {
   async join(socket: GameSocket, actorId: string, { admin }: { admin: boolean }): Promise<void> {
     this.displaceSockets(actorId);
     this.ctx.acceptWebSocket(socket);
-    socket.serializeAttachment({ actorId, admin } satisfies Attachment);
+    this.seat(socket, { actorId, admin });
 
     await this.ensureLoaded();
 
@@ -2548,12 +2553,22 @@ export class GameServer {
    * *not* read an attachment. It walks every socket and asks who is behind one
    * only while somebody is silenced, because an attachment read per socket per
    * tick is a cost that loop cannot take on. @see isSilenced
+   *
+   * **Worked out when somebody is seated or unseated, not when it is asked.**
+   * The broadcast and half a dozen flushes ask it on every tick, and each ask
+   * copied the socket list and read every attachment on it — a walk of the
+   * whole world per ask. The answer only changes at {@link seat} and
+   * {@link unseat}, so that is where it is thrown away. In the order the hub
+   * holds the sockets, as it always was.
    */
-  private *seated(): Generator<[GameSocket, string]> {
+  private seated(): ReadonlyArray<readonly [GameSocket, string]> {
+    if (this.seatedSockets) return this.seatedSockets;
+    const out: Array<readonly [GameSocket, string]> = [];
     for (const ws of this.ctx.getWebSockets()) {
       const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (attachment) yield [ws, attachment.actorId];
+      if (attachment) out.push([ws, attachment.actorId]);
     }
+    return (this.seatedSockets = out);
   }
 
   /**
@@ -2561,15 +2576,49 @@ export class GameServer {
    *
    * Plural because it is: {@link displaceSockets} closes the old connection
    * from the new one's `join`, so for the length of that call a body has two.
+   *
+   * A lookup rather than a walk of every socket, which is what it was, and what
+   * every refused step, death and spawn mark paid to find one socket.
    */
-  private *socketsOf(actorId: string): Generator<GameSocket> {
-    for (const [ws, id] of this.seated()) {
-      if (id === actorId) yield ws;
-    }
+  private socketsOf(actorId: string): ReadonlySet<GameSocket> {
+    return this.socketsByActor.get(actorId) ?? NO_SOCKETS;
+  }
+
+  /**
+   * Put an actor on a socket: the attachment that says who it is, and the
+   * index {@link socketsOf} and {@link seated} are answered from.
+   */
+  private seat(ws: GameSocket, attachment: Attachment) {
+    ws.serializeAttachment(attachment satisfies Attachment);
+    let sockets = this.socketsByActor.get(attachment.actorId);
+    if (!sockets) this.socketsByActor.set(attachment.actorId, (sockets = new Set()));
+    sockets.add(ws);
+    this.seatedSockets = null;
+  }
+
+  /**
+   * Take a socket out of the index, leaving its attachment for whoever is
+   * about to read it — {@link dropSocket} still has to know who it was.
+   *
+   * Called at the two moments a socket stops being seated: a newer one
+   * displacing it, and its close. Every close reaches here in the same breath
+   * as the hub lets the socket go — `server/world.ts` drops it and calls
+   * {@link webSocketClose} one after the other — so the index never holds a
+   * socket the hub does not.
+   */
+  private unseat(ws: GameSocket) {
+    const attachment = ws.deserializeAttachment() as Attachment | null;
+    if (!attachment) return;
+    const sockets = this.socketsByActor.get(attachment.actorId);
+    if (!sockets?.delete(ws)) return;
+    if (sockets.size === 0) this.socketsByActor.delete(attachment.actorId);
+    this.seatedSockets = null;
   }
 
   private displaceSockets(actorId: string) {
-    for (const ws of this.socketsOf(actorId)) {
+    // A copy, because unseating each one edits the set being walked.
+    for (const ws of [...this.socketsOf(actorId)]) {
+      this.unseat(ws);
       ws.serializeAttachment(null);
       ws.close(CLOSE_REPLACED, "replaced");
     }
@@ -2586,12 +2635,11 @@ export class GameServer {
    *   listed here, and the person it carried has already gone.
    */
   private playerCount(excluding?: GameSocket): number {
-    const ids = new Set<string>();
-    for (const [ws, actorId] of this.seated()) {
-      if (ws === excluding) continue;
-      ids.add(actorId);
-    }
-    return ids.size;
+    const leaving = excluding?.deserializeAttachment() as Attachment | null | undefined;
+    const theirs = leaving ? this.socketsByActor.get(leaving.actorId) : undefined;
+    // An actor counts while it has a seated socket other than the one leaving.
+    const gone = theirs?.size === 1 && theirs.has(excluding!) ? 1 : 0;
+    return this.socketsByActor.size - gone;
   }
 
   private sendHello(ws: GameSocket, actorId: string) {
@@ -3595,6 +3643,9 @@ export class GameServer {
   private async dropSocket(ws: GameSocket) {
     const attachment = ws.deserializeAttachment() as Attachment | null;
     if (!attachment) return;
+    // Before anything is awaited, so no tick in between takes this socket for
+    // one that is still seated. @see unseat
+    this.unseat(ws);
     await this.ensureLoaded();
 
     // Somebody is still driving this actor, so nothing here applies to them:
