@@ -41,6 +41,7 @@ import { minutesOfDayAt, wrapMinutes, type MinutesOfDay } from "../app/lib/clock
 import { masteryXpBlockSchema, type MasteryXp } from "../app/lib/mastery";
 import {
   changedCellsOnLevel,
+  chunkKeyFor,
   changedChunks,
   chunkifyMap,
   getStack,
@@ -1133,6 +1134,18 @@ export class GameServer {
    * {@link webSocketClose}.
    */
   private readonly subscribed = new Map<string, Set<string>>();
+  /**
+   * The chunk a subscription was last found complete around, keyed by the set
+   * itself.
+   *
+   * What lets {@link streamEnteredChunks} skip a player who has not crossed a
+   * chunk boundary, which is nearly every player on nearly every tick, instead
+   * of building their whole square of chunk keys to learn nothing changed.
+   * Keyed by the set rather than the actor because a subscription is only ever
+   * replaced, never edited, so a set that is here is still exactly what it was
+   * when it was checked — and a replacement is simply not found.
+   */
+  private readonly subscriptionCentre = new WeakMap<Set<string>, string>();
   /**
    * Players whose last socket closed while they were in combat, and whose body
    * is therefore still standing in the world.
@@ -4621,6 +4634,7 @@ export class GameServer {
     if (!at) return held ?? interestChunks(0, 0);
     const chunks = interestChunks(at.x, at.y);
     this.subscribed.set(actorId, chunks);
+    this.subscriptionCentre.set(chunks, chunkKeyFor(at.x, at.y));
     return chunks;
   }
 
@@ -4654,8 +4668,13 @@ export class GameServer {
       const before = this.subscribed.get(actorId);
       const at = session.actorPosition(actorId);
       if (!at) continue;
+      const centre = chunkKeyFor(at.x, at.y);
+      if (before && this.subscriptionCentre.get(before) === centre) continue;
       const now = interestChunks(at.x, at.y);
-      if (sameChunks(before, now)) continue;
+      if (sameChunks(before, now)) {
+        this.subscriptionCentre.set(before!, centre);
+        continue;
+      }
 
       const entered = chunksEntered(before, now, at);
       const take = entered.slice(0, CHUNKS_STREAMED_PER_TICK);
@@ -4669,6 +4688,7 @@ export class GameServer {
       for (const chunk of before ?? []) if (now.has(chunk)) reached.add(chunk);
       for (const chunk of take) reached.add(chunk);
       this.subscribed.set(actorId, reached);
+      if (sameChunks(reached, now)) this.subscriptionCentre.set(reached, centre);
 
       // Stripped of the bodies this client is not being told about, which is
       // every body in ground this far out: the handover reaches five chunks and
