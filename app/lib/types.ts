@@ -481,6 +481,18 @@ export type TileDef = StateSprites & {
    */
   walkDurationMs?: number;
   /**
+   * This body will walk into {@link wade} tiles of its own accord.
+   *
+   * Read only by what a brain decides: a creature without it does not step
+   * from dry ground into water, whether it is chasing, fleeing or wandering.
+   * Nothing stops it being *in* water — it can be pushed there, placed there
+   * or authored there — and while it is, it moves through water freely, since
+   * refusing every wet cell would strand it. The player is not a brain and
+   * walks wherever it is told. Absent → keeps out of water, which is what every
+   * creature did before water was walkable at all.
+   */
+  swims?: boolean;
+  /**
    * How much quicker or slower this tile is to walk *on*, as a percentage.
    *
    * {@link walkDurationMs}'s opposite number and the other half of one
@@ -506,14 +518,15 @@ export type TileDef = StateSprites & {
    * A body standing on this tile is standing *in* it: shallow water, and any
    * other liquid shallow enough to walk through.
    *
-   * Only a drawing. The body is drawn a quarter of a level lower than the
+   * To the walk loop, only a drawing. The body is drawn a quarter of a level lower than the
    * surface, and the bottom and right edges of its sprite are see-through —
    * `WADE_SINK_PX` and `WADE_EDGE_PX` in `./geometry`. Where it stands, what it fits under and how fast it walks
    * are all what they would be on dry ground, so a slower wade is
    * {@link walkSpeedPercent} on the same tile, and deep water is a tile that is
    * not {@link walkable} at all.
    *
-   * Read by the renderer through `wadesAt` in `../game/movement`.
+   * Read by the renderer through `wadesAt` in `../game/movement`, and by a
+   * creature's brain, which keeps out of it unless the creature {@link swims}.
    */
   wade?: boolean;
   /**

@@ -6,6 +6,7 @@ import {
   listStandingSurfaces,
   standingAbs,
   surfacesInClimbBand,
+  wadesAt,
 } from "./movement";
 import { cellKey } from "./pressurePlates";
 import { getStack, removeTileAt } from "../lib/mapData";
@@ -114,6 +115,20 @@ import { DIRECTIONS } from "../lib/types";
  * percentage, and the sum is divided only once, so a chill changes the ratio
  * between wet and dry legs slightly without changing which way round is shorter
  * in any case worth caring about.
+ *
+ * ## A body that cannot swim does not walk into water
+ *
+ * {@link PathOptions.avoidWade} takes every `wade` cell out of the search, on
+ * the same terms as a flame: it is not an edge. It is an option rather than a
+ * rule because the caller decides who cannot swim — `GameSession` sets it for a
+ * creature whose tile does not have `swims`, and a player's clicked walk never
+ * sets it.
+ *
+ * **Only a search that starts on dry ground keeps out of water.** A body that
+ * is already in water — pushed there, or placed there — searches as if it could
+ * swim, because refusing every wet cell would leave it with no way out of a
+ * river three cells wide. The route is asked again after every leg, so it keeps
+ * out of water again from the first leg that lands on the bank. @see keepsDry
  *
  * ## Two facts about the searcher, not one
  *
@@ -302,6 +317,17 @@ export type PathOptions = {
    * disagrees with, and return a route that is not the shortest.
    */
   arrive?: "beside" | "on";
+  /**
+   * Keep out of `wade` cells, for a body that cannot swim.
+   *
+   * Ignored when the search starts in water. @see keepsDry
+   *
+   * Off by default, which is how a player's clicked walk and every caller from
+   * before this option existed route. A cell the caller pointed at with
+   * `arrive: "on"` is exempt, as it is from every other avoided cell.
+   * @see avoidRule
+   */
+  avoidWade?: boolean;
 };
 
 /** Which legs may leave the ground. @see PathOptions.drops */
@@ -518,6 +544,34 @@ export function unsafeToStepOn(
 }
 
 /**
+ * Whether a body standing in this cell would be standing in a `wade` tile.
+ *
+ * `../game/movement`'s `wadesAt` for a cell nobody is standing in yet, which is
+ * every cell a route asks about. Exported for `GameSession`'s single-step
+ * check, so a creature that wanders keeps out of the same water a creature
+ * walking a route keeps out of.
+ */
+export function wadesIn(map: MapFile, cell: Coord, tilesById: Record<string, TileDef>): boolean {
+  return wadesAt(map, { ...cell, stackIndex: NOBODY_IN_THIS_STACK }, tilesById);
+}
+
+/**
+ * Whether a search keeps out of water: asked to, and not already standing in it.
+ *
+ * Read off the cell the search starts from, once per search. A body in the
+ * middle of a lake with every wet cell refused would have no route anywhere,
+ * so it is let through the water until it reaches the bank.
+ */
+function keepsDry(
+  map: MapFile,
+  from: Coord,
+  avoidWade: boolean | undefined,
+  tilesById: Record<string, TileDef>,
+): boolean {
+  return avoidWade === true && !wadesIn(map, from, tilesById);
+}
+
+/**
  * Which cells a route refuses to pass through, with the one exception folded in.
  *
  * Built once per search rather than asked per node, so the catalogues and the
@@ -532,9 +586,13 @@ function avoidRule(
   tilesById: Record<string, TileDef>,
   statusDefs: Record<string, StatusDef>,
   who: string | undefined,
+  avoidWade: boolean,
   asked: (cell: Coord) => boolean,
 ): (cell: Coord) => boolean {
-  return (cell) => !asked(cell) && unsafeToStepOn(map, cell, tilesById, statusDefs, who);
+  return (cell) =>
+    !asked(cell) &&
+    (unsafeToStepOn(map, cell, tilesById, statusDefs, who) ||
+      (avoidWade && wadesIn(map, cell, tilesById)));
 }
 
 /**
@@ -766,6 +824,8 @@ export type RefugeOptions = {
    * nothing for a cell that is not in the running.
    */
   seenFrom?: (cell: Coord) => boolean;
+  /** @see PathOptions.avoidWade */
+  avoidWade?: boolean;
 };
 
 /** A cell worth running to, and why it is the best one so far. */
@@ -844,7 +904,14 @@ export function findRefuge(
   // Nothing is exempt, on the same grounds: there is no goal here, so there is
   // no cell anybody has pointed at. An animal cornered against a fire is
   // cornered — running into it is not an escape. @see avoidRule
-  const avoid = avoidRule(board, tilesById, statusDefs, start.who, NOTHING_ASKED_FOR);
+  const avoid = avoidRule(
+    board,
+    tilesById,
+    statusDefs,
+    start.who,
+    keepsDry(board, from, opts.avoidWade, tilesById),
+    NOTHING_ASKED_FOR,
+  );
 
   const frontier = new Frontier();
   const best = new Map<string, number>();
@@ -913,6 +980,7 @@ export function findPath(
     tilesById,
     statusDefs,
     start.who,
+    keepsDry(board, from, opts.avoidWade, tilesById),
     (cell) => arrive === "on" && sameCell(cell, goal),
   );
 

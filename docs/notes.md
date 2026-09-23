@@ -1862,6 +1862,26 @@ every step taken from the water is slow, including the one back onto the bank.
 A route prices those steps the same way — see `legCost` under "A chase is a
 route" — so it walks round water when going round is quicker.
 
+### A creature that cannot swim does not walk into water
+
+A creature's brain keeps it out of `wade` cells unless its tile has
+`swims: true`. That covers `step_toward` and `step_away_from`, through
+`PathOptions.avoidWade` on `findPath` and `findRefuge`, and `step_random` and
+`walk_n_steps`, through `GameSession.stepLandsInHazard` — the same two places a
+flame is refused. Absent means cannot swim, because no creature walked into
+water before water was walkable, so the default changes nothing that was
+already happening. The player's clicked walk never sets `avoidWade`.
+
+**Only from dry ground.** A body already standing in water searches as if it
+could swim. It can get there by being pushed, by being placed, or by an author
+putting it there, and refusing every wet cell would leave it no route out of a
+river three cells wide. The route is asked again after every leg, so the rule
+applies again from the first leg that lands on the bank.
+
+A non-swimmer with water between it and its target reads the river as a wall:
+it walks to a crossing inside `PATH_DETOUR_SLACK`, or the search fails and the
+brain's `stuck` fires.
+
 ## A roof over a cave is not what keeps the daylight out of it
 
 Anything underground that is meant to be dark has to be *checked* dark, against

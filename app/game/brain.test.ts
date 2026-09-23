@@ -763,6 +763,18 @@ describe("chasing round an obstacle", () => {
       walkable: false,
       interactions: { brain: huntBrain() },
     }),
+    /** The same hunter, able to swim. */
+    tile({
+      id: "swimming-hunter",
+      height: 2,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      swims: true,
+      interactions: { brain: huntBrain() },
+    }),
+    /** The shipped water's shape: walkable, waded, half speed. */
+    tile({ id: "water", height: 0, walkSpeedPercent: -50, wade: true }),
   ];
 
   /** A hunter at the origin, somebody three cells east, and a wall between. */
@@ -783,7 +795,7 @@ describe("chasing round an obstacle", () => {
   /** Steps between the hunter and the player, on the plan. */
   function between(session: GameSession): number {
     const actors = session.actorSnapshots();
-    const hunter = actors.find((a) => a.tileId === "hunter")!;
+    const hunter = actors.find((a) => a.tileId !== "player")!;
     const player = actors.find((a) => a.tileId === "player")!;
     return Math.abs(hunter.x - player.x) + Math.abs(hunter.y - player.y);
   }
@@ -827,6 +839,43 @@ describe("chasing round an obstacle", () => {
 
     expect(heard).toContain("tsk");
     expect(between(session)).toBe(3);
+  });
+
+  /**
+   * A hunter at the origin, somebody three cells east, and a river one cell
+   * wide between them running the whole height of the field.
+   */
+  function acrossRiver(hunterId: string): GameSession {
+    let map = field(9);
+    map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
+    for (let y = -9; y <= 9; y++) map = replaceStack(map, 1, y, 0, [{ tileId: "water" }]);
+    map = withDeer(map, 0, 0, hunterId);
+    map = withPlayerAt(map, 3, 0);
+    return new GameSession(map, hunters, {
+      actorIds: ["alice"],
+      spawnAt: { x: -9, y: -9, z: 0, stackIndex: 1 },
+    });
+  }
+
+  it("gives up on somebody across water it cannot swim", () => {
+    const session = acrossRiver("hunter");
+
+    const heard: string[] = [];
+    for (let elapsed = 0; elapsed < BRAIN_TICK_MS * 6; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      for (const noise of session.drainNoise()) heard.push(noise.text);
+    }
+
+    expect(heard).toContain("tsk");
+    expect(between(session)).toBe(3);
+  });
+
+  it("wades across to them when it swims", () => {
+    const session = acrossRiver("swimming-hunter");
+
+    advance(session, BRAIN_TICK_MS * 10);
+
+    expect(between(session)).toBe(1);
   });
 });
 
@@ -1375,6 +1424,42 @@ describe("watching where it puts its feet", () => {
    */
   it("wanders over a shrine like any other ground", () => {
     const visited = wanderedThrough(corridor("shrine"), WANDER_MS);
+
+    expect(visited.has(`${CORRIDOR_END},0`)).toBe(true);
+  });
+
+  /**
+   * The corridor again with water for ground at the far end, walked by the
+   * deer and by the same deer able to swim. @see TileDef.swims
+   */
+  function wadingCorridor(deerId: string): GameSession {
+    let map = emptyMap();
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: deerId }]);
+    for (let x = 1; x < CORRIDOR_END; x++) {
+      map = replaceStack(map, x, 0, 0, [{ tileId: "grass" }]);
+    }
+    map = replaceStack(map, CORRIDOR_END, 0, 0, [{ tileId: "water" }]);
+    map = withPlayerAt(map, 0, WATCHER_Y);
+    return new GameSession(
+      map,
+      [
+        ...hazardTiles,
+        tile({ id: "water", height: 0, walkSpeedPercent: -50, wade: true }),
+        { ...hazardTiles.find((def) => def.id === "deer")!, id: "otter", swims: true },
+      ],
+      { actorIds: ["alice"], statuses },
+    );
+  }
+
+  it("never wanders into water when it cannot swim", () => {
+    const visited = wanderedThrough(wadingCorridor("deer"), WANDER_MS);
+
+    expect(visited.has(`${CORRIDOR_END},0`)).toBe(false);
+    expect(visited.has("1,0")).toBe(true);
+  });
+
+  it("wanders into water when it swims", () => {
+    const visited = wanderedThrough(wadingCorridor("otter"), WANDER_MS);
 
     expect(visited.has(`${CORRIDOR_END},0`)).toBe(true);
   });

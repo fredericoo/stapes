@@ -87,6 +87,8 @@ const tiles: TileDef[] = [
   tile({ id: "mud", height: 0, walkSpeedPercent: -75 }),
   /** Ground twice as fast to walk off. */
   tile({ id: "road", height: 0, walkSpeedPercent: 100 }),
+  /** The shipped water's shape: walkable, waded, half speed. */
+  tile({ id: "water", height: 0, walkSpeedPercent: -50, wade: true }),
   /** A flame you have to press rather than land on. @see ActivationTrigger */
   tile({
     id: "brazier",
@@ -1199,5 +1201,74 @@ describe("slow ground", () => {
     );
 
     expect(flooded.ok && flooded.route.at(-1)!.to.x).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * A body that cannot swim keeps out of water.
+ *
+ * `avoidWade` is the caller's to set, because who can swim is a fact about the
+ * body and not the board: `GameSession` sets it for a creature without
+ * `swims`, and a player's clicked walk never does.
+ */
+describe("water, for a body that cannot swim", () => {
+  const half = 6;
+  const from = standing(-3, 0);
+  const goal = { x: 4, y: 0, z: 0 };
+  const northmost = (path: PathStep[] | null) => Math.min(...path!.map((step) => step.to.y));
+
+  it("wades a narrow river when it may", () => {
+    const map = river(field(half), half, 0, 0, "water", [-4]);
+
+    expect(walked(route(map, from, goal))).toEqual(["e", "e", "e", "e", "e", "e"]);
+  });
+
+  it("walks to the crossing when it may not, however far round that is", () => {
+    const map = river(field(half), half, 0, 0, "water", [-4]);
+
+    expect(northmost(route(map, from, goal, { avoidWade: true }))).toBe(-4);
+  });
+
+  it("finds no way across a river with no crossing", () => {
+    const map = river(field(half), half, 0, 0, "water", []);
+
+    expect(route(map, from, goal, { avoidWade: true })).toBeNull();
+  });
+
+  it("wades on through water it is already standing in", () => {
+    const map = river(field(half), half, -1, 1, "water", []);
+
+    expect(walked(route(map, standing(0, 0), { x: 3, y: 0, z: 0 }, { avoidWade: true }))).toEqual([
+      "e",
+      "e",
+    ]);
+  });
+
+  it("steps into water that is the cell asked for", () => {
+    const map = ground(field(half), 2, 0, "water");
+
+    expect(
+      walked(route(map, standing(0, 0), { x: 2, y: 0, z: 0 }, { arrive: "on", avoidWade: true })),
+    ).toEqual(["e", "e"]);
+  });
+
+  it("does not run into water to open the distance", () => {
+    // Water everywhere east; the only dry way away is west, and it is shorter.
+    let map = field(half);
+    for (let x = 1; x <= half; x++) {
+      for (let y = -half; y <= half; y++) map = ground(map, x, y, "water");
+    }
+    const flooded = findRefuge(
+      map,
+      { at: standing(0, 0), self: standing(0, 0) },
+      { x: 0, y: -1, z: 0 },
+      rat,
+      tilesById,
+      statusDefs,
+      { avoidWade: true },
+    );
+
+    expect(flooded.ok).toBe(true);
+    for (const step of flooded.ok ? flooded.route : []) expect(step.to.x).toBeLessThanOrEqual(0);
   });
 });

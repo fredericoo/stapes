@@ -277,13 +277,13 @@ export const ACTIONS: Record<BrainActionDef["action"], CatalogEntry<BrainActionD
   },
   step_random: {
     label: "step random",
-    hint: "Step to a random walkable neighbour, never onto a flame or a portal. Fails when hemmed in.",
+    hint: "Step to a random walkable neighbour, never onto a flame or a portal, nor into water unless the body swims. Fails when hemmed in.",
     params: [{ key: "allowDrops", kind: "boolean", label: "allow drops" }],
     make: () => ({ action: "step_random" }),
   },
   step_toward: {
     label: "step toward",
-    hint: "Walk a route to a target. Fails once beside them, or with no way there.",
+    hint: "Walk a route to a target, round slow ground when that is quicker and round water unless the body swims. Fails once beside them, or with no way there.",
     params: [
       { key: "of", kind: "selector", label: "of" },
       { key: "allowDrops", kind: "boolean", label: "allow drops" },
@@ -292,7 +292,7 @@ export const ACTIONS: Record<BrainActionDef["action"], CatalogEntry<BrainActionD
   },
   step_away_from: {
     label: "step away from",
-    hint: "Open the distance to a target. Fails when cornered.",
+    hint: "Open the distance to a target, keeping out of water unless the body swims. Fails when cornered.",
     params: [
       { key: "of", kind: "selector", label: "of" },
       { key: "allowDrops", kind: "boolean", label: "allow drops" },

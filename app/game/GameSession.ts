@@ -268,9 +268,10 @@ import {
   listStandingSurfaces,
   standingAbs,
   surfacesInClimbBand,
+  wadesAt,
   walkDurationMsFor,
 } from "./movement";
-import { dropLanding, findPath, findRefuge, unsafeToStepOn } from "./pathfinding";
+import { dropLanding, findPath, findRefuge, unsafeToStepOn, wadesIn } from "./pathfinding";
 import { brainReach, resolveBrain } from "../lib/brain";
 import { resolveDialog } from "../lib/dialog";
 import {
@@ -7417,6 +7418,11 @@ export class GameSession implements PlaySession {
    * drop is what that leg walks into — the same reading `neighbours` takes of a
    * falling edge.
    *
+   * **Water, for a body that cannot swim.** The same `wade` cells a route
+   * keeps it out of — see `avoidWade` in {@link routeStep} — so a creature that
+   * cannot swim does not wander in either. Only from dry ground, on the route's
+   * terms: a body already in water may step on through it. @see TileDef.swims
+   *
    * Two answers of "no" that are not about safety. A step the board would
    * refuse is not a step, and a fall with nothing under it lands nowhere at
    * all: both are {@link stepLeavesGround}'s business or the walk loop's, and
@@ -7441,7 +7447,11 @@ export class GameSession implements PlaySession {
     if (!landing) return false;
     // Whose step this is, because a tile this body conjured is not a hazard to
     // it. @see ./conjured's `sparesStander`
-    return unsafeToStepOn(this.map, landing, this.tilesById, this.statusDefs, actor.id);
+    if (unsafeToStepOn(this.map, landing, this.tilesById, this.statusDefs, actor.id)) {
+      return true;
+    }
+    if (def.swims) return false;
+    return !wadesAt(this.map, loc, this.tilesById) && wadesIn(this.map, landing, this.tilesById);
   }
 
   /**
@@ -7494,13 +7504,14 @@ export class GameSession implements PlaySession {
     // are not for a body mid-step — see `./pathfinding`'s `PathStart`, and
     // `./walkTo`, which is where the two come apart.
     const self = { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex };
+    const def = this.defFor(actor);
     const found = findPath(
       this.map,
       // Named, so a creature that conjured a flame walks back through it rather
       // than round it. @see ./pathfinding's PathStart.who
       { at: self, self, who: actor.id },
       at,
-      this.defFor(actor),
+      def,
       this.tilesById,
       // Read for tone, so a route goes round a flame and over a shrine.
       // @see PathOptions and `./pathfinding`'s `unsafeToStepOn`
@@ -7509,7 +7520,10 @@ export class GameSession implements PlaySession {
       // fall lands: a drop is an edge like any other to it. The narrower rule is
       // the player's, whose click asked to be somewhere rather than to leap.
       // @see PathOptions.drops
-      { drops: allowDrops ? "anywhere" : "never", arrive },
+      //
+      // A creature that cannot swim keeps out of water; a player's clicked walk
+      // does not come through here and wades. @see TileDef.swims
+      { drops: allowDrops ? "anywhere" : "never", arrive, avoidWade: !def.swims },
     );
     // Which limit a refusal hit is not a distinction a brain has anything to do
     // with: unreachable, too far round and given up on all mean the same thing
@@ -7701,6 +7715,7 @@ export class GameSession implements PlaySession {
       {
         drops: allowDrops ? "anywhere" : "never",
         seenFrom: (cell) => hasLineOfSight(this.map, this.tilesById, threat, cell, def.height),
+        avoidWade: !def.swims,
       },
     );
     // An empty route is an animal with nowhere better than where it stands, on
