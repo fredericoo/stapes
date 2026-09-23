@@ -1,5 +1,5 @@
 import type { Affliction, EndureInteraction } from "../lib/interactions";
-import { afflictionFor, resolveAfflict, resolveEndure } from "../lib/interactions";
+import { afflictionFor, resolveAddStatus, resolveEndure } from "../lib/interactions";
 import { getStack, listCoords, replaceStack } from "../lib/mapData";
 import type { StatusDef } from "../lib/status";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
@@ -206,7 +206,7 @@ export function cellAfflicts(
 ): boolean {
   return getStack(map, cell.x, cell.y, cell.z).some((placed) => {
     const def = tilesById[placed.tileId];
-    return def != null && resolveAfflict(def) != null;
+    return def != null && resolveAddStatus(def)?.ground === true;
   });
 }
 
@@ -257,10 +257,10 @@ export function afflictionsFrom(
   }[] = [];
   for (const placed of getStack(map, cell.x, cell.y, cell.z)) {
     const def = tilesById[placed.tileId];
-    const afflict = def ? resolveAfflict(def) : null;
-    if (!afflict) continue;
+    const addStatus = def ? resolveAddStatus(def) : null;
+    if (!addStatus?.ground) continue;
     out.push({
-      statusId: afflict.statusId,
+      statusId: addStatus.statusId,
       ...(placed.castBy ? { causedBy: placed.castBy } : {}),
       ...(placed.castElements?.length ? { elements: placed.castElements } : {}),
     });

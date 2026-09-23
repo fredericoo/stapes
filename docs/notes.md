@@ -8129,16 +8129,18 @@ and put it back afterwards.
 ## Fire divides its fuel, which is the only reason a forest survives one
 
 A tile can be worn down by the statuses running on it and turn into another tile
-— grass to dirt, a tree to nothing. Two blocks and one index
+— grass to dirt, a tree to nothing. One block, one flag and one index
 (`app/game/endure.ts`), and almost all of it is machinery that already existed:
 `advanceStatuses` takes a bearer of `{hp, maxHp}` and nothing else, so a
 placement is a status bearer for free, and `burned`'s authored formula runs on a
 tile without a line of it changing.
 
-**`endure` is the sink and `afflict` is the source**, the second source-and-sink
-pair in `app/lib/interactions.ts` after `emit`/`receive`. A tile that endures
-names the statuses that can spend its `durability` and what each leaves behind; a
-tile that afflicts puts one status on everything sharing its cell.
+**`endure` is the sink, and `addStatus.ground` is the source.** A tile that
+endures names the statuses that can spend its `durability` and what each leaves
+behind. A tile whose `addStatus` has `ground: true` puts that same status on
+everything sharing its cell, as well as on whoever triggers it. One status id
+in one place: a flame cannot burn bodies with one status and the ground with
+another because somebody edited one block and not the other.
 
 **Flammability is not a flag.** A tile burns because its `suffers` list names
 `burned`, and stone does not because it does not. That is why
@@ -8208,7 +8210,7 @@ keeps working for as long as it is there.
 ### The ground under a flame is held like a body standing in it
 
 `tickAfflictions` is a per-tick sweep, and it goes through `EndureIndex.hold`
-rather than `afflict`. The ground catches on contact and takes another helping
+rather than `EndureIndex.afflict`. The ground catches on contact and takes another helping
 every `STANDING_STATUS_EVERY_MS` — the second `tickStandingStatuses` holds a
 body to — so `burned` stacks on the grass under a flame exactly as it does on
 somebody standing in one, up to the status's `maxMs`. The clock lives on the
@@ -8219,16 +8221,17 @@ This is what gives a forest fire its reach. Ground that stood in a fire for a
 few seconds goes out carrying close to `maxMs` of burn, and that is the
 remainder the spread divides, so the first ring of neighbours catches long
 enough to fell a tree rather than to scorch it. Spread shares go through
-`afflict`, which also stacks on a placement already burning, so two burning
+`EndureIndex.afflict`, which also stacks on a placement already burning, so two burning
 neighbours feed a third more than one does. The source is the only thing that
 adds fuel. The spread still only divides it, and a stack that clamps at `maxMs`
 can only lose some, so a fire with no flame left in it still burns out.
 
 A hearth whose ground survives a burn is set alight again on the next tick,
-since contact is "the status is not running on this placement". A flame
-carries `afflict` as a *separate* block from the `addStatus` it already had: one burns
-whoever steps in it, the other burns the ground, and folding them together would
-have set every hearth in the world eating its own floor on the day it shipped.
+since contact is "the status is not running on this placement". Burning the
+ground is **opt-in** through the `ground` flag, and off by default, so a tile
+that burns whoever steps in it does not also start eating its own floor. It is
+independent of `trigger`, which is about a body arriving or reaching, and a
+tile does neither.
 
 ### The arcanist is paid for the whole forest
 

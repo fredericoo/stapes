@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import statusesJson from "../../data/statuses.json";
 import tilesJson from "../../data/tiles.json";
-import { resolveAfflict, resolveEndure } from "../lib/interactions";
+import { resolveAddStatus, resolveEndure } from "../lib/interactions";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import { statusesById } from "../lib/status";
 import type { Coord, MapFile, TileDef } from "../lib/types";
@@ -93,7 +93,7 @@ const tiles: TileDef[] = [
     height: 2,
     intangible: true,
     lightPassing: true,
-    interactions: { afflict: { statusId: "burned" } },
+    interactions: { addStatus: { trigger: "step", statusId: "burned", ground: true } },
   }),
   // A source naming a status nothing in the catalogue holds, and one naming
   // nothing at all.
@@ -101,13 +101,13 @@ const tiles: TileDef[] = [
     id: "haunt",
     height: 2,
     intangible: true,
-    interactions: { afflict: { statusId: "cursed" } },
+    interactions: { addStatus: { trigger: "step", statusId: "cursed", ground: true } },
   }),
   tile({
     id: "unlit",
     height: 2,
     intangible: true,
-    interactions: { afflict: { statusId: "" } },
+    interactions: { addStatus: { trigger: "step", statusId: "", ground: true } },
   }),
   tile({
     id: "player",
@@ -199,17 +199,33 @@ describe("resolveEndure", () => {
   });
 });
 
-describe("resolveAfflict", () => {
-  it("reads an authored block", () => {
-    expect(resolveAfflict(tilesById.flame!)).toEqual({ statusId: "burned" });
+describe("addStatus on the ground", () => {
+  it("reads the flag off an authored block", () => {
+    expect(resolveAddStatus(tilesById.flame!)).toEqual({
+      trigger: "step",
+      statusId: "burned",
+      ground: true,
+    });
   });
 
-  it("refuses a block naming no status", () => {
-    expect(resolveAfflict(tilesById.unlit!)).toBeNull();
+  it("refuses a block naming no status, flag or not", () => {
+    expect(resolveAddStatus(tilesById.unlit!)).toBeNull();
   });
 
-  it("is nothing on a tile with no block at all", () => {
-    expect(resolveAfflict(tilesById.grass!)).toBeNull();
+  it("leaves the ground alone when the flag is off", () => {
+    const brazier = tile({
+      id: "brazier",
+      height: 2,
+      intangible: true,
+      interactions: { addStatus: { trigger: "step", statusId: "burned" } },
+    });
+    const play = new GameSession(
+      world([{ at: ORIGIN, stack: ["grass", "brazier"] }]),
+      [...tiles, brazier],
+      { statuses: catalogue },
+    );
+    run(play, Math.ceil(BURN_MS / TICK_MS));
+    expect(stackIds(play.getMap(), 0, 0)).toEqual(["grass", "brazier"]);
   });
 });
 

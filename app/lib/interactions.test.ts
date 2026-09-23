@@ -213,6 +213,19 @@ describe("receiveTriggers", () => {
 });
 
 describe("interactionsForSave", () => {
+  it("keeps an addStatus's ground flag when it is on, and writes nothing when it is off", () => {
+    expect(
+      interactionsForSave({
+        addStatus: { trigger: "step", statusId: "burned", ground: true },
+      }),
+    ).toEqual({ addStatus: { trigger: "step", statusId: "burned", ground: true } });
+    expect(
+      interactionsForSave({
+        addStatus: { trigger: "step", statusId: "burned", ground: false },
+      }),
+    ).toEqual({ addStatus: { trigger: "step", statusId: "burned" } });
+  });
+
   it("persists switch alongside push", () => {
     expect(
       interactionsForSave({

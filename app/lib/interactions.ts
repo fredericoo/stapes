@@ -238,42 +238,6 @@ export type EndureInteraction = {
   suffers: Affliction[];
 };
 
-/**
- * A placement of this tile puts a status on everything sharing its cell that
- * {@link EndureInteraction} says can suffer one — a flame that burns the grass
- * it is standing in.
- *
- * **The counterpart to {@link EndureInteraction}, and a separate block from
- * {@link AddStatusInteraction} rather than a widening of it.** That one's
- * {@link ActivationTrigger} is entirely about a body arriving or reaching, and a
- * tile does neither; adding a trigger for the stack would make every consumer of
- * that union handle a case that means nothing to it. `emit`/`receive` are
- * already a source-and-sink pair in this file, and this is the second.
- *
- * **Opting in is the point.** A flame carries both blocks and does two different
- * things with them: `addStatus` burns whoever steps into it, and this burns the
- * ground it is standing on. Folding the second into the first would have set
- * every hearth in the world eating its own floor on the day it shipped.
- *
- * **Its own cell only.** A conjured flame is spliced into the same stack as the
- * tile beneath it (see `GameSession.castConjure`), so a source and its fuel
- * already share a cell, and reaching further is what the spread is for.
- *
- * Applied on contact and again every second the source stays, stacking where
- * the status stacks — the ground's version of standing in a fire. See
- * `GameSession.tickAfflictions` and `../game/endure`'s `EndureIndex.hold`.
- */
-export type AfflictInteraction = {
-  /**
-   * The status handed to the stack, by id — see `./status`.
-   *
-   * The same trust model {@link AddStatusInteraction.statusId} is under: an id
-   * the catalogue has not got is an affliction that does not happen, and a blank
-   * one reads as unauthored and refuses the block.
-   */
-  statusId: string;
-};
-
 /** How a plate's authored {@link PressurePlateInteraction.height} reads its load. */
 export type PlateComparison = "eq" | "neq" | "gt" | "gte" | "lt" | "lte";
 
@@ -523,6 +487,21 @@ export type AddStatusInteraction = {
    * outlines nothing.
    */
   statusId: string;
+  /**
+   * Also put the status on the ground this tile stands in: every placement
+   * sharing its cell whose {@link EndureInteraction} suffers it — a flame that
+   * burns the grass under it as well as whoever steps in.
+   *
+   * **Independent of {@link trigger}**, which is about a body arriving or
+   * reaching; a tile does neither. The ground takes the status on contact and
+   * again every second the tile stays, the rhythm a body standing in it gets.
+   * See `GameSession.tickAfflictions` and `../game/endure`'s `EndureIndex.hold`.
+   *
+   * **Opt-in, and that is the point.** Off by default, so a tile that burns
+   * whoever touches it does not also start eating its own floor. Its own cell
+   * only: reaching further is what the spread is for.
+   */
+  ground?: boolean;
 };
 
 /**
@@ -900,7 +879,6 @@ export type TileInteractions = {
   teleport?: TeleportInteraction;
   addStatus?: AddStatusInteraction;
   setSpawn?: SetSpawnInteraction;
-  afflict?: AfflictInteraction;
   endure?: EndureInteraction;
   decay?: DecayInteraction;
   respawn?: RespawnInteraction;
@@ -980,10 +958,6 @@ export const DEFAULT_TELEPORT: TeleportInteraction = {
 export const DEFAULT_ADD_STATUS: AddStatusInteraction = {
   actionName: "",
   trigger: "step",
-  statusId: "",
-};
-
-export const DEFAULT_AFFLICT: AfflictInteraction = {
   statusId: "",
 };
 
@@ -1518,6 +1492,7 @@ const addStatusSchema = v.object({
   // that could only do nothing, and it should read as unauthored rather than as
   // a row that takes a press and shrugs.
   statusId: v.pipe(v.string(), v.trim(), v.minLength(1)),
+  ground: v.optional(v.boolean()),
 });
 
 const addStatusCache = new WeakMap<TileDef, AddStatusInteraction | null>();
@@ -1575,33 +1550,6 @@ export function resolveSetSpawn(def: TileDef): SetSpawnInteraction | null {
   const setSpawn = parsed?.success ? parsed.output : null;
   setSpawnCache.set(def, setSpawn);
   return setSpawn;
-}
-
-const afflictSchema = v.object({
-  // The real gate, and the only one: a block somebody switched on and never
-  // filled in inflicts nothing rather than inflicting a status called "".
-  statusId: v.pipe(v.string(), v.minLength(1)),
-});
-
-const afflictCache = new WeakMap<TileDef, AfflictInteraction | null>();
-
-/**
- * Parsed afflict config per tile def. Same trust model as {@link resolvePush}:
- * malformed, or with no status to hand over, → inflicts nothing.
- *
- * Whether the named status *exists* is deliberately not asked, on exactly
- * {@link resolveAddStatus}'s terms — the catalogue is the session's and this is
- * the tile's.
- */
-export function resolveAfflict(def: TileDef): AfflictInteraction | null {
-  const cached = afflictCache.get(def);
-  if (cached !== undefined) return cached;
-
-  const raw = def.interactions?.afflict;
-  const parsed = raw == null ? null : v.safeParse(afflictSchema, raw);
-  const afflict = parsed?.success ? parsed.output : null;
-  afflictCache.set(def, afflict);
-  return afflict;
 }
 
 const afflictionSchema = v.object({
@@ -1971,7 +1919,6 @@ export function hasAnyInteraction(interactions: TileInteractions | undefined): b
     interactions?.extract ||
     interactions?.teleport ||
     interactions?.addStatus ||
-    interactions?.afflict ||
     interactions?.endure ||
     interactions?.decay ||
     interactions?.respawn ||
@@ -2097,6 +2044,9 @@ export function interactionsForSave(
         ...(addStatusActionName ? { actionName: addStatusActionName } : {}),
         trigger: addStatus.trigger,
         statusId: addStatus.statusId.trim(),
+        // Written only when on, so every tile that never burned its floor
+        // saves exactly as it did.
+        ...(addStatus.ground ? { ground: true } : {}),
       }
     : undefined;
   // Gated on the block's presence alone, on the terms the reward and the
@@ -2111,9 +2061,6 @@ export function interactionsForSave(
         trigger: setSpawn.trigger,
       }
     : undefined;
-  const afflict = interactions?.afflict;
-  const afflictStatusId = afflict?.statusId.trim();
-  const savedAfflict = afflictStatusId ? { statusId: afflictStatusId } : undefined;
   // Gated on the durability *and* on there being something that spends it, which
   // is what the resolver asks: a pool nothing can spend is not a vulnerability.
   // Blank targets survive the trim for `decay.tileId`'s reason — vanishing is
@@ -2302,7 +2249,6 @@ export function interactionsForSave(
     !savedTeleport &&
     !savedAddStatus &&
     !savedSetSpawn &&
-    !savedAfflict &&
     !savedEndure &&
     !savedDecay &&
     !savedRespawn &&
@@ -2326,7 +2272,6 @@ export function interactionsForSave(
     ...(savedTeleport ? { teleport: savedTeleport } : {}),
     ...(savedAddStatus ? { addStatus: savedAddStatus } : {}),
     ...(savedSetSpawn ? { setSpawn: savedSetSpawn } : {}),
-    ...(savedAfflict ? { afflict: savedAfflict } : {}),
     ...(savedEndure ? { endure: savedEndure } : {}),
     ...(savedDecay ? { decay: savedDecay } : {}),
     ...(savedRespawn ? { respawn: savedRespawn } : {}),

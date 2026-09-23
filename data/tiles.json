@@ -29732,10 +29732,8 @@
       },
       "addStatus": {
         "trigger": "step",
-        "statusId": "burned"
-      },
-      "afflict": {
-        "statusId": "burned"
+        "statusId": "burned",
+        "ground": true
       }
     },
     "sprite": {
@@ -29848,15 +29846,13 @@
       },
       "addStatus": {
         "trigger": "step",
-        "statusId": "burned"
+        "statusId": "burned",
+        "ground": true
       },
       "decay": {
         "tileId": "",
         "fromMs": 30000,
         "toMs": 60000
-      },
-      "afflict": {
-        "statusId": "burned"
       }
     },
     "sprite": {
