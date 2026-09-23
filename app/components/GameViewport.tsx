@@ -435,7 +435,7 @@ export function GameViewport({
       masteryXp={masteryXp}
       statusDefs={statusDefs}
       onTalk={(action) => onTalk?.(action)}
-      hotkeys={!coarse}
+      hotkeys
       className="scrolls-past-toolbar min-h-0 w-full flex-1"
     />
   ) : null;
@@ -462,7 +462,7 @@ export function GameViewport({
       // never sends the matching leave, so the outline it lit would stay lit
       // over whatever the player did next.
       onHover={coarse ? undefined : onHoverInteraction}
-      hotkeys={!coarse}
+      hotkeys
       // The padding is inert in the desktop column — there is no inset to
       // speak of on a machine with no toolbar over the page — so one list
       // still serves both layouts. See `.scrolls-past-toolbar` in `../app.css`.

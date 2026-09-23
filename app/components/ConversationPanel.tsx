@@ -104,11 +104,12 @@ type Props = {
    * Bind the digit row to the choices, or to Trade and Cancel, and `+`/`-` to
    * a trade's quantity; and draw each control's key beside it.
    *
-   * Off unless asked for. The game asks on a desktop, where this panel has
-   * taken the column the list of what is in reach was bound in — so the digits
-   * move from one to the other rather than being claimed twice. The editor's
-   * try-out leaves it off: it sits beside fields a digit is typed into, and
-   * the page has keys of its own.
+   * Off unless asked for. The game asks, and this panel takes the column the
+   * list of what is in reach was bound in — so the digits move from one to the
+   * other rather than being claimed twice. The keys are drawn only where there
+   * is probably a keyboard; `KeyHint` decides. The editor's try-out leaves it
+   * off: it sits beside fields a digit is typed into, and the page has keys of
+   * its own.
    */
   hotkeys?: boolean;
 };

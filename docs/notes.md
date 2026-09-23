@@ -3193,6 +3193,16 @@ It fades with a disabled control around it (`in-aria-disabled`), so a greyed
 Trade does not keep a bright key. A shortcut named inside a tooltip's sentence,
 like "(Esc)", stays text.
 
+**The caps are drawn only where there is probably a keyboard**
+(`useKeyboardLikely`). A browser has no way to ask whether one is attached, so
+this guesses and corrects itself: any fine pointer (`(any-pointer: fine)`, so a
+touch laptop counts) says yes, and so does the first key pressed outside a text
+field, since an on-screen keyboard only types into the field it opened for.
+That is how a tablet with a paired keyboard gets its caps: the first step with
+WASD shows them. It never goes back to false — a finger on a laptop's screen
+says nothing about the keyboard. The bindings themselves are on everywhere;
+with no keyboard they are simply never pressed.
+
 The pair of rows is drawn by `actionRows`, and the *labels* never change with
 the stance — only which of the two is `active`. That is still part of what
 `GameRenderer` diffs before handing the list to React, since it changes without

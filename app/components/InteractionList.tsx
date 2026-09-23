@@ -169,8 +169,8 @@ export function InteractionList({
   onHover?: (optionId: string | null) => void;
   /**
    * Bind the digit row to the lines of the list, and draw each line's digit
-   * beside it. Off on a phone, where there is no keyboard to press them with and
-   * the digits would take width from a column that has none to spare.
+   * beside it. The digits are only drawn where there is probably a keyboard —
+   * `KeyHint` decides — so a phone's narrow column keeps its width.
    */
   hotkeys?: boolean;
   className?: string;

@@ -1,3 +1,5 @@
+import { useKeyboardLikely } from "./useKeyboardLikely";
+
 /**
  * The key that presses the control beside it, drawn as a key: a pale rounded
  * cap standing on a darker edge two pixels below it, so it reads as raised.
@@ -15,11 +17,15 @@
  * bright key that promises the press will work.
  *
  * Drawn for an empty label too, as an empty gutter of the same width, so a
- * column of controls stays aligned whether or not each one has a key.
+ * column of controls stays aligned whether or not each one has a key. Drawn
+ * not at all — no cap and no gutter — where there is probably no keyboard to
+ * press it with; see {@link useKeyboardLikely}.
  * `aria-hidden` because it is a hint for the eye, and the control beside it
  * already names what it does.
  */
 export function KeyHint({ label, className = "" }: { label: string; className?: string }) {
+  const keyboard = useKeyboardLikely();
+  if (!keyboard) return null;
   if (!label) return <span aria-hidden="true" className={`w-3.5 shrink-0 ${className}`} />;
   return (
     <kbd

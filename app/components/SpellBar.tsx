@@ -361,11 +361,9 @@ function SpellSquare({
 
         {/* The key that presses it, sitting on the rim at the foot of the disc:
             inside it, the cap covered the lower third of the sprite, and a
-            corner is where the circle has cut away. Drawn on both devices
-            rather than hidden behind a media query: a phone with a keyboard
-            attached is a real thing, and the cap costs a few pixels of a button
-            nobody is reading closely. Announced by the label above instead of
-            here, so it is not read out twice. */}
+            corner is where the circle has cut away. Only where there is
+            probably a keyboard, which `KeyHint` decides for itself. Announced
+            by the label above instead of here, so it is not read out twice. */}
         {key ? (
           <KeyHint
             label={key}
