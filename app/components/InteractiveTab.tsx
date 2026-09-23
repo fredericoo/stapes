@@ -911,6 +911,13 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
                 onChange={(actionName) => patchAddStatus({ actionName })}
               />
             )}
+
+            <SwitchField
+              checked={addStatus.ground === true}
+              onCheckedChange={(ground) => patchAddStatus({ ground })}
+              label="Also the ground"
+              info="Puts the same status on the tiles in this cell that suffer it — a flame burning the grass under it. Once on contact, then every second while this tile stays. Only tiles whose Endure lists this status take it. Works whatever the trigger is."
+            />
           </div>
         ) : null}
       </section>

@@ -64,6 +64,8 @@ import {
   CLOSE_REPLACED,
   parseClientMessage,
   type CarriedLightsPatch,
+  type AfflictedPatch,
+  type CellAffliction,
   type StatusIdsPatch,
   type PvpPatch,
   type CastingPatch,
@@ -94,6 +96,38 @@ type TickPatch = Omit<Extract<ServerMessage, { type: "patch" }>, "type">;
  * NamePatch
  */
 type SharedPatch = Omit<TickPatch, "cells" | "names"> & { cells: ScopedCell[] };
+
+/** Which cell a burning placement is in, as a key. @see GameServer.sentAfflicted */
+function cellAfflictionKey(x: number, y: number, z: number): string {
+  return `${x},${y},${z}`;
+}
+
+function parseCellAfflictionKey(key: string): { x: number; y: number; z: number } {
+  const [x, y, z] = key.split(",").map(Number);
+  return { x: x!, y: y!, z: z! };
+}
+
+/** What a cell's fire reads as, for comparing one tick's against the last sent. */
+function afflictionReading(entries: readonly CellAffliction[]): string {
+  // Sorted, so two placements in one cell read the same whichever the index
+  // happened to list first.
+  return entries
+    .map((one) => `${one.tileId}:${one.defIds.join(",")}`)
+    .sort()
+    .join("|");
+}
+
+/** The world's burning placements, grouped by the cell they are in. */
+function afflictionsByCell(burning: readonly AfflictedPatch[]): Map<string, CellAffliction[]> {
+  const out = new Map<string, CellAffliction[]>();
+  for (const one of burning) {
+    const key = cellAfflictionKey(one.x, one.y, one.z);
+    let entries = out.get(key);
+    if (!entries) out.set(key, (entries = []));
+    entries.push({ tileId: one.tileId, defIds: one.defIds });
+  }
+  return out;
+}
 
 /**
  * The shared patch as the wire shape, for a client that takes all of it.
@@ -990,6 +1024,15 @@ export class GameServer {
    * {@link sentExtractions}' terms and for its reason. @see diffCastings
    */
   private sentCastings = new Map<string, ActorSnapshot["casting"]>();
+  /**
+   * What was last sent as burning in each cell, as a reading, keyed by
+   * {@link cellAfflictionKey}. One map for the whole world rather than one per
+   * client, like {@link sentStatusIds}: it decides which cells changed, and the
+   * cell diff decides who hears about them. @see diffCells
+   */
+  private sentAfflicted = new Map<string, string>();
+  /** What is burning in each cell this tick, read once per flush. @see cellPatch */
+  private burning = new Map<string, CellAffliction[]>();
   private events: MotionEvent[] = [];
   /** Steps, turns and casts clients have sent, oldest first, per actor. */
   private readonly queuedIntents = new Map<string, QueuedIntent[]>();
@@ -2267,6 +2310,10 @@ export class GameServer {
       // Beside the pulls and for their reason: somebody half way through a
       // flame when this client arrived has to have a bar on the first frame.
       castings: currentCastings(actors),
+      // The fires in the ground this joiner is sent, and no others: the map
+      // above has no room for them, and every change after this arrives on a
+      // cell. @see `../app/net/protocol`'s `CellAffliction`
+      afflicted: session.afflictedPlacements().filter((one) => covers(chunks, one.x, one.y)),
       // Theirs alone, and sent in full here for the same reason the map and the
       // hit points are: a joiner has nothing to patch against.
       equipment: session.equipmentOf(actorId) ?? emptyEquipment(),
@@ -3495,6 +3542,7 @@ export class GameServer {
     // Re-seeded by the `hello` every socket is about to be sent: these are the
     // old world's names, and the next one may reuse them for other bodies.
     this.announcedActors.clear();
+    this.sentAfflicted.clear();
     this.sentHp.clear();
     // Everybody is about to be re-seated in the new world, so every
     // position this instance believed it had written is now a claim about a
@@ -3736,6 +3784,7 @@ export class GameServer {
     // Re-seeded by the `hello` every socket is about to be sent: these are the
     // old world's names, and the next one may reuse them for other bodies.
     this.announcedActors.clear();
+    this.sentAfflicted.clear();
     this.sentHp.clear();
     this.sentCarriedLights.clear();
     this.sentStatusIds.clear();
@@ -3867,6 +3916,9 @@ export class GameServer {
     this.broadcastSpeech(session, actors);
     this.broadcastNoise(session, actors);
 
+    // Before the cells are diffed, so a cell whose fire changed is among them
+    // and every cell sent this flush carries what is burning in it.
+    this.burning = afflictionsByCell(session.afflictedPlacements());
     const cells = this.diffCells(session.getMap());
     this.sweepRespawnCells(cells);
     const hps = this.diffHps(actors);
@@ -4468,25 +4520,81 @@ export class GameServer {
    * were involved, because that is what decides who it is news to — and it is
    * the same answer for every client, so it is worked out once here rather than
    * once per socket. @see `../app/net/scope`
+   *
+   * **A cell whose fire changed is a changed cell**, even when its stack is the
+   * same object: it joins the diff as terrain, so it reaches every client
+   * subscribed to its chunk and no other, by the same scoping a tile swap goes
+   * through. That is the whole of how a burning placement is scoped — there is
+   * no per-client record of what anybody was told. @see sentAfflicted
    */
   private diffCells(next: MapFile): ScopedCell[] {
     const prev = this.broadcastMap;
-    if (!prev || prev === next) return [];
+    const burned = this.afflictionChanges();
+    // Nothing to diff against yet: every client is about to get a `hello`,
+    // which carries the fires in its ground.
+    if (!prev) return [];
 
     const out: ScopedCell[] = [];
-    for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
-      for (const key of changedCellsOnLevel(prev, next, z)) {
-        const { x, y } = parseCoordKey(key);
-        const before = getStack(prev, x, y, z);
-        const stack = getStack(next, x, y, z);
-        out.push({
-          cell: { x, y, z, stack },
-          terrain: !onlyBodiesMoved(before, stack),
-          bodies: bodiesIn(before, stack),
-        });
+    if (prev !== next) {
+      for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+        for (const key of changedCellsOnLevel(prev, next, z)) {
+          const { x, y } = parseCoordKey(key);
+          const before = getStack(prev, x, y, z);
+          const stack = getStack(next, x, y, z);
+          // Already going out, and carrying what is burning in it.
+          burned.delete(cellAfflictionKey(x, y, z));
+          out.push({
+            cell: this.cellPatch(x, y, z, stack),
+            terrain: !onlyBodiesMoved(before, stack),
+            bodies: bodiesIn(before, stack),
+          });
+        }
       }
     }
+    for (const { x, y, z } of burned.values()) {
+      out.push({
+        cell: this.cellPatch(x, y, z, getStack(next, x, y, z)),
+        terrain: true,
+        bodies: [],
+      });
+    }
     return out;
+  }
+
+  /**
+   * The cells whose fire is not what was last sent, and the record moved on to
+   * match. Keyed by {@link cellAfflictionKey}, so the map diff can take out the
+   * ones it is already sending.
+   *
+   * Almost always the first line: nothing burning, nothing sent.
+   */
+  private afflictionChanges(): Map<string, { x: number; y: number; z: number }> {
+    const changed = new Map<string, { x: number; y: number; z: number }>();
+    if (this.burning.size === 0 && this.sentAfflicted.size === 0) return changed;
+
+    for (const [key, entries] of this.burning) {
+      const reading = afflictionReading(entries);
+      if (this.sentAfflicted.get(key) === reading) continue;
+      this.sentAfflicted.set(key, reading);
+      changed.set(key, parseCellAfflictionKey(key));
+    }
+    for (const key of this.sentAfflicted.keys()) {
+      if (this.burning.has(key)) continue;
+      this.sentAfflicted.delete(key);
+      changed.set(key, parseCellAfflictionKey(key));
+    }
+    return changed;
+  }
+
+  /**
+   * One cell as the wire carries it: its stack, and what is burning in it this
+   * tick. Every cell the tick sends is built here, so no cell can reach a client
+   * without its fire — which matters because a cell patch replaces what the
+   * client held for the cell, fire included. @see CellPatch
+   */
+  private cellPatch(x: number, y: number, z: number, stack: PlacedTile[]): CellPatch {
+    const afflicted = this.burning.get(cellAfflictionKey(x, y, z));
+    return afflicted ? { x, y, z, stack, afflicted } : { x, y, z, stack };
   }
 
   /**
@@ -4555,7 +4663,11 @@ export class GameServer {
       // Stripped of the bodies this client is not being told about, which is
       // every body in ground this far out: the handover reaches five chunks and
       // a body is announced at two and a half. @see `../app/net/interest`
-      const cells = cellsOfChunks(map, take, this.announcedActors.get(actorId) ?? NO_ACTORS);
+      // With what is burning in them, which is how a fire in ground coming into
+      // reach is told: the handover is the cell, and the fire is on the cell.
+      const cells = cellsOfChunks(map, take, this.announcedActors.get(actorId) ?? NO_ACTORS).map(
+        (cell) => this.cellPatch(cell.x, cell.y, cell.z, cell.stack),
+      );
       if (cells.length === 0) continue;
       this.sendToEverySocketOf(actorId, {
         type: "patch",
@@ -4842,7 +4954,7 @@ export class GameServer {
     const map = session.getMap();
     const out: CellPatch[] = [];
     const at = (x: number, y: number, z: number) => {
-      out.push({ x, y, z, stack: visibleStack(getStack(map, x, y, z), held) });
+      out.push(this.cellPatch(x, y, z, visibleStack(getStack(map, x, y, z), held)));
     };
     for (const actor of arrivals) at(actor.x, actor.y, actor.z);
     for (const id of departed) {

@@ -166,6 +166,71 @@ const stepCommitted: CellPatch[] = [
   { x: 1, y: 0, z: 0, stack: [grass, player] },
 ];
 
+describe("RemoteSession afflicted placements", () => {
+  const burning = [{ tileId: "grass", defIds: ["burned"] }];
+  const alight = { x: 1, y: 0, z: 0, tileId: "grass", defIds: ["burned"] };
+  const tree = { x: 2, y: 0, z: 0, tileId: "tree", defIds: ["burned"] };
+
+  it("starts with nothing alight", () => {
+    const { session } = connected();
+    expect(session.getSnapshot().afflicted).toEqual([]);
+  });
+
+  it("takes a cell's fire off the cell patch", () => {
+    const { socket, session } = connected();
+    socket.deliver(patch([{ x: 1, y: 0, z: 0, stack: [grass], afflicted: burning }]));
+
+    expect(session.getSnapshot().afflicted).toEqual([alight]);
+  });
+
+  /**
+   * Only the cells a patch names are touched, so a patch about somewhere else —
+   * which is almost every patch — leaves a fire alone.
+   */
+  it("keeps a fire when a patch does not name its cell", () => {
+    const { socket, session } = connected();
+    socket.deliver(patch([{ x: 1, y: 0, z: 0, stack: [grass], afflicted: burning }]));
+    const before = session.getSnapshot().afflicted;
+    socket.deliver(patch([{ x: 0, y: 0, z: 0, stack: [grass] }]));
+
+    expect(session.getSnapshot().afflicted).toBe(before);
+  });
+
+  /**
+   * A cell patch replaces the whole cell, fire included. That is what lets the
+   * server put a fire out, or hand back ground that went out while nobody here
+   * was holding it, without a message of its own.
+   */
+  it("puts a fire out when its cell arrives with nothing burning", () => {
+    const { socket, session } = connected();
+    socket.deliver(patch([{ x: 1, y: 0, z: 0, stack: [grass], afflicted: burning }]));
+    socket.deliver(patch([{ x: 1, y: 0, z: 0, stack: [grass] }]));
+
+    expect(session.getSnapshot().afflicted).toEqual([]);
+  });
+
+  it("takes a hello's fires in place of what it held", () => {
+    const { socket, session } = connected();
+    socket.deliver(patch([{ x: 1, y: 0, z: 0, stack: [grass], afflicted: burning }]));
+    socket.deliver({
+      type: "hello",
+      selfId: SELF,
+      map: flatMap(),
+      actorIds: [SELF],
+      playerCount: 1,
+      minutesOfDay: SERVER_MINUTES,
+      hps: [],
+      carriedLights: [],
+      afflicted: [tree],
+      equipment: emptyEquipment(),
+      tags: [],
+      statuses: [],
+    });
+
+    expect(session.getSnapshot().afflicted).toEqual([tree]);
+  });
+});
+
 describe("RemoteSession walk interpolation", () => {
   it("holds the sprite at the destination until the patch commits the step", () => {
     const { socket, session } = connected();

@@ -317,6 +317,17 @@ import { cellHasPlate, cellKey, findPlateCells, settlePlates } from "./pressureP
 import { cellIsWired, findWiredCells, settleSignals, type ExtraEmitter } from "./signals";
 import type { ItemDecay, PlacementDecay } from "./decay";
 import { DecayIndex, applyDecay, applyItemDecay, findDecayCells } from "./decay";
+import {
+  EndureIndex,
+  type AfflictedPlacement,
+  afflictionsFrom,
+  applyConsumed,
+  cellAfflicts,
+  findAfflictCells,
+  spreadShares,
+  sufferersIn,
+  type Consumed,
+} from "./endure";
 import { COMBAT_STATUS, COMBAT_STATUS_ID, type StatusDef } from "../lib/status";
 import { projectileEffect, resolveProjectile } from "../lib/projectile";
 import {
@@ -872,6 +883,19 @@ export type GameSnapshot = {
    * every hiss and crunch in it. @see NoiseEmission
    */
   noises: NoiseEmission[];
+  /**
+   * Placements with a status running on them — the ground that is on fire.
+   *
+   * Beside {@link actors} rather than folded into the map, because it is not a
+   * fact about the board: the map says a tile is grass, and this says that grass
+   * is currently burning. Nothing in the simulation reads it — a pool's
+   * arithmetic is `./endure`'s and never the renderer's — so this exists purely
+   * so a fire can be *seen*. @see `./endure`'s {@link AfflictedPlacement}
+   *
+   * Present in every session on {@link noises}' terms: a flame lit in `/play`
+   * has nobody to broadcast to and still has to draw.
+   */
+  afflicted: readonly AfflictedPlacement[];
 };
 
 /**
@@ -2177,6 +2201,30 @@ export class GameSession implements PlaySession {
    */
   private readonly decay: DecayIndex;
   /**
+   * Cells holding a placement that puts a status on its own stack — a flame on
+   * grass. Same index discipline as {@link plateCells}.
+   *
+   * Indexed rather than swept because a source keeps working for as long as it
+   * is there: unlike a decay, which fires once, a flame keeps adding to the burn
+   * on the ground under it for as long as it stands. Asking is one stack read a
+   * tick, and this is what keeps it to one read per flame in the world rather
+   * than one per cell.
+   */
+  private readonly afflictCells = new Map<string, Coord>();
+  /**
+   * Placements being worn down by the statuses running on them.
+   *
+   * Its own object beside {@link decay} and for the same reason: it carries a
+   * clock the tick has to wind, and it is not a question about which cells are
+   * worth re-reading. Unlike every index above it, **nothing seeds it at load** —
+   * a pool opens the first time something is actually inflicted, so a world full
+   * of trees nobody has set fire to costs it nothing.
+   *
+   * Assigned in the constructor rather than here, because it draws its durations
+   * from {@link rng}.
+   */
+  private readonly endure: EndureIndex;
+  /**
    * The status catalogue, as authored. Keyed by id and never mutated.
    *
    * Handed in beside the tiles because it is the same kind of thing — authored
@@ -2529,6 +2577,7 @@ export class GameSession implements PlaySession {
     this.statusDefs = { ...statusDefs, [COMBAT_STATUS_ID]: COMBAT_STATUS };
     this.rng = new Rng(seed);
     this.decay = new DecayIndex(this.rng);
+    this.endure = new EndureIndex(this.rng);
 
     if (spawnAt) {
       this.spawnAt = spawnAt;
@@ -2573,6 +2622,9 @@ export class GameSession implements PlaySession {
     }
     for (const cell of findLooseGravityCells(this.map, this.tilesById)) {
       this.looseGravityCells.set(cellKey(cell), cell);
+    }
+    for (const cell of findAfflictCells(this.map, this.tilesById)) {
+      this.afflictCells.set(cellKey(cell), cell);
     }
     // Authored decay starts counting from the moment the world opens, which is
     // also how a resumed one recovers: the deadlines were never checkpointed,
@@ -3171,6 +3223,11 @@ export class GameSession implements PlaySession {
       } else {
         this.looseGravityCells.delete(key);
       }
+      if (cellAfflicts(this.map, cell, this.tilesById)) {
+        this.afflictCells.set(key, cell);
+      } else {
+        this.afflictCells.delete(key);
+      }
     }
   }
 
@@ -3394,6 +3451,13 @@ export class GameSession implements PlaySession {
     // rather than one settle bleeding into the next.
     this.decay.advance(tickMs);
     this.applyDueDecay();
+    // After the decay and before the settle, on exactly the decay's terms: a
+    // tree that burns down this tick drops whatever was resting on it and
+    // releases whatever plate it held on the same frame. Afflicting first, so a
+    // flame conjured this tick sets its ground alight this tick rather than a
+    // tick late.
+    this.tickAfflictions(tickMs);
+    this.applyWornThrough(tickMs);
 
     // After the bodies and after decay, so a pull knows whether the person
     // making it moved and whether the thing they were working is still there.
@@ -3459,6 +3523,105 @@ export class GameSession implements PlaySession {
     }
 
     this.reindexCells(changed);
+  }
+
+  /**
+   * Set alight whatever is standing in a cell with a source in it, and keep it
+   * alight while the source stays.
+   *
+   * One stack read per source in the world per tick, which is what
+   * {@link afflictCells} exists to bound — a map with three braziers on it pays
+   * for three, not for the map.
+   *
+   * **The ground is treated as a body standing in the fire**: it catches on
+   * contact and takes another helping every `STANDING_STATUS_EVERY_MS`, the
+   * cadence {@link tickStandingStatuses} holds a body to, so `burned` stacks on
+   * the grass under a flame exactly as it does on somebody standing in one. The
+   * clock is `./endure`'s `hold`, which is what keeps this at one roll of the
+   * world's dice per helping rather than one per tick.
+   */
+  private tickAfflictions(tickMs: number) {
+    if (this.afflictCells.size === 0) return;
+    for (const cell of this.afflictCells.values()) {
+      // Two sources of one status in a cell — a flame conjured onto a brazier —
+      // are one fire to the ground under them. Holding it twice would run its
+      // clock at double speed.
+      const held = new Set<string>();
+      for (const source of afflictionsFrom(this.map, cell, this.tilesById)) {
+        if (held.has(source.statusId)) continue;
+        held.add(source.statusId);
+        // A status the catalogue has not got is an affliction that does not
+        // happen, on exactly `grantStatus`'s terms: renamed content costs one
+        // effect rather than stopping the world.
+        const def = this.statusDefs[source.statusId];
+        if (!def) continue;
+        for (const sufferer of sufferersIn(this.map, cell, source.statusId, this.tilesById)) {
+          this.endure.hold(
+            cell,
+            sufferer.tileId,
+            sufferer.endure,
+            def,
+            tickMs,
+            STANDING_STATUS_EVERY_MS,
+            source.causedBy,
+            source.elements,
+          );
+        }
+      }
+    }
+  }
+
+  /**
+   * Wind every pool down, turn what has been worn through, and pass on what is
+   * left of the status that did it.
+   *
+   * The order is load-bearing in one place: **the shares are worked out against
+   * the map as it was *before* the swap.** A tree that burns down is still in
+   * its cell when its neighbours are counted, which does not matter for its own
+   * cell — that is never a share target — but does for a stack of two burning
+   * things, where turning one first would change what the other divides by.
+   */
+  private applyWornThrough(tickMs: number) {
+    const consumed = this.endure.advance(tickMs, this.statusDefs);
+    if (consumed.length === 0) return;
+
+    for (const one of consumed) this.spreadFrom(one);
+
+    const turned = applyConsumed(this.map, consumed, this.tilesById);
+    this.map = turned.map;
+    this.reindexCells(turned.changed);
+  }
+
+  /**
+   * Hand what is left of a finished status to the neighbours that can take it.
+   *
+   * **Divided, never copied** — see `./endure`'s `spreadShares` for why that one
+   * choice is what keeps a forest fire bounded. The share arrives as an explicit
+   * range with equal ends, which is what `applyStatus`'s `range` parameter is
+   * for and costs exactly one draw, so a fire's spread perturbs the world's dice
+   * by a predictable amount rather than by however many trees it happened to
+   * find.
+   *
+   * The cause and the elements travel with it, which is the whole of how an
+   * arcanist is paid for a forest: the burn that kills a rat three trees away
+   * still names whoever cast the first flame. @see awardCausedDamage
+   */
+  private spreadFrom(consumed: Consumed) {
+    const def = this.statusDefs[consumed.statusId];
+    if (!def) return;
+    for (const { cell, shareMs } of spreadShares(this.map, consumed, this.tilesById)) {
+      for (const sufferer of sufferersIn(this.map, cell, consumed.statusId, this.tilesById)) {
+        this.endure.afflict(
+          cell,
+          sufferer.tileId,
+          sufferer.endure,
+          def,
+          { fromMs: shareMs, toMs: shareMs },
+          consumed.causedBy,
+          consumed.elements,
+        );
+      }
+    }
   }
 
   /**
@@ -10127,6 +10290,17 @@ export class GameSession implements PlaySession {
     return [...this.actors.values()].map((a) => this.actorSnapshot(a));
   }
 
+  /**
+   * Every placement with a status running on it.
+   *
+   * Public because the server broadcasts it and the local renderer reads it off
+   * the snapshot — two callers, one list, and nothing in the simulation reads it
+   * back. @see `./endure`'s `AfflictedPlacement`
+   */
+  afflictedPlacements(): AfflictedPlacement[] {
+    return this.endure.afflictedPlacements();
+  }
+
   getSnapshot(id: string = LOCAL_ACTOR_ID): GameSnapshot {
     const self = this.actor(id);
     const actors = this.actorSnapshots();
@@ -10159,6 +10333,7 @@ export class GameSession implements PlaySession {
       // noise is a thing that happened, and a world with one player in it still
       // has snakes in it.
       noises: this.liveNoise,
+      afflicted: this.afflictedPlacements(),
       damage: this.liveDamage,
       // By reference, and aged in place: the renderer reads the elapsed time off
       // the same object the tick loop is winding forward, exactly as a walk or a
@@ -10197,6 +10372,12 @@ export class GameSession implements PlaySession {
     // ticking for half a minute after the last blow; a tile authored to decay
     // in an hour would keep it ticking for an hour.
     if (this.decay.pending()) return false;
+    // Something is burning down, and this loop is the only clock winding it —
+    // exactly the decay clause above, and bounded more tightly: a status caps at
+    // its own `maxMs`, and a spread divides its fuel rather than multiplying it,
+    // so a fire cannot hold a world awake for longer than the fire it started
+    // as. @see `./endure`'s `spreadShares`
+    if (this.endure.pending()) return false;
     // An arrow in the air is a clock this loop owns, on exactly the terms a lean
     // is one below. Falling asleep under it would strand the thing mid-flight
     // for as long as nobody moved — and unlike a lean, which is over in 150ms,

@@ -5495,6 +5495,90 @@ describe("patches scoped to a subscription", () => {
     expect(gone).toMatchObject({ actorId: "bob" });
   });
 
+  /** Every cell a recording heard, with what was burning in it. */
+  function cellsHeard(heard: ReturnType<typeof record>) {
+    return heard.of("patch").flatMap(
+      (message) =>
+        message.cells as {
+          x: number;
+          stack: { tileId: string }[];
+          afflicted?: { tileId: string; defIds: string[] }[];
+        }[],
+    );
+  }
+
+  /**
+   * A fire rides its cell, so it reaches whoever holds the cell: alice holds the
+   * ground bob is standing on, and hears it catch and go out there.
+   */
+  it("sends a fire on its cell to whoever holds the ground, and puts it out there", async () => {
+    const { alice, bob } = await bothConnected();
+    const heard = record(alice.ws);
+
+    command(bob.ws, "/tile flame +1");
+    await tickTimes(3);
+    await settled(alice.ws);
+    const lit = cellsHeard(heard).filter((cell) => cell.x === BODY_OUT + 1);
+    expect(lit.at(-1)?.afflicted).toEqual([{ tileId: "grass", defIds: ["burned"] }]);
+
+    // Grass goes in about three seconds, and the dirt it becomes does not burn:
+    // the cell that says so is the one that puts the fire out.
+    await tickTimes(Math.ceil(5_000 / TICK_MS));
+    await settled(alice.ws);
+    const after = cellsHeard(heard)
+      .filter((cell) => cell.x === BODY_OUT + 1)
+      .at(-1);
+    expect(after?.stack.map((placed) => placed.tileId)).toEqual(["dirt", "flame"]);
+    expect(after?.afflicted).toBeUndefined();
+
+    // The grass beside it caught from what was left, and nothing in its stack
+    // changed when it did: the fire alone is what made it a changed cell.
+    const caught = cellsHeard(heard).filter((cell) => cell.x === BODY_OUT + 2);
+    expect(caught.some((cell) => cell.afflicted?.length)).toBe(true);
+  });
+
+  it("never sends a fire in ground a client does not hold", async () => {
+    const { alice, bob } = await bothConnected(OUT_OF_REACH);
+    const heard = record(alice.ws);
+    const bobHeard = record(bob.ws);
+
+    command(bob.ws, "/tile flame +1");
+    await tickTimes(10);
+    await settled(bob.ws);
+    await settled(alice.ws);
+
+    // Bob, standing beside it, is told.
+    expect(cellsHeard(bobHeard).some((cell) => cell.afflicted?.length)).toBe(true);
+    expect(cellsHeard(heard).filter((cell) => cell.afflicted)).toEqual([]);
+  });
+
+  /**
+   * A fire lit in ground a client walked away from is handed over with that
+   * ground when it comes back, because the handover is the cell and the fire is
+   * on the cell.
+   */
+  it("hands a fire back with its ground", async () => {
+    const { alice, bob } = await bothConnected(IN_REACH);
+    step(alice.ws, 1, "w");
+    await arrivedAt("alice", ALICE_CELL - 1);
+    await tickTimes(2);
+
+    const heard = record(alice.ws);
+    command(bob.ws, "/tile tree -1");
+    command(bob.ws, "/tile flame -1");
+    await tickTimes(3);
+    await settled(alice.ws);
+    expect(cellsHeard(heard).filter((cell) => cell.afflicted)).toEqual([]);
+
+    step(alice.ws, 2, "e");
+    await arrivedAt("alice", ALICE_CELL);
+    await tickTimes(30);
+    const handed = cellsHeard(heard)
+      .filter((cell) => cell.x === IN_REACH - 1)
+      .at(-1);
+    expect(handed?.afflicted).toContainEqual({ tileId: "tree", defIds: ["burned"] });
+  });
+
   /**
    * The whole round trip, which is the invariant the scoping rests on: what a
    * client holds is exact inside its subscription and frozen outside it, and a

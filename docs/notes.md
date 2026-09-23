@@ -8162,6 +8162,187 @@ one, raise its duration in `data/tiles.json`, post the file to the dev server
 (which, under `bun dev`, writes the file too — that is the editor's save path),
 and put it back afterwards.
 
+## Fire divides its fuel, which is the only reason a forest survives one
+
+A tile can be worn down by the statuses running on it and turn into another tile
+— grass to dirt, a tree to nothing. One block, one flag and one index
+(`app/game/endure.ts`), and almost all of it is machinery that already existed:
+`advanceStatuses` takes a bearer of `{hp, maxHp}` and nothing else, so a
+placement is a status bearer for free, and `burned`'s authored formula runs on a
+tile without a line of it changing.
+
+**`endure` is the sink, and `addStatus.ground` is the source.** A tile that
+endures names the statuses that can spend its `durability` and what each leaves
+behind. A tile whose `addStatus` has `ground: true` puts that same status on
+everything sharing its cell, as well as on whoever triggers it. One status id
+in one place: a flame cannot burn bodies with one status and the ground with
+another because somebody edited one block and not the other.
+
+**Flammability is not a flag.** A tile burns because its `suffers` list names
+`burned`, and stone does not because it does not. That is why
+`TileDef.attributes` is still `Record<string, never>` despite its comment
+reserving it for exactly this: a second source of truth about what catches fire
+is the trap that comment was holding space to avoid. The affliction, the spread
+and every future reader all ask `afflictionFor`, so none of them can come to a
+different view of what burns.
+
+### The division is the whole design
+
+When a placement is worn through, whatever is **left** of the status that
+finished it is divided equally among the neighbours that suffer the same status
+(`spreadShares`). Fuel is conserved and never created: eight seconds of burning
+split four ways is four two-second burns.
+
+That one line is why a fire is bounded. The obvious alternative — give each
+neighbour the *full* remainder, or conjure a fresh flame onto each — doubles the
+fuel at every branch, and one flame in a wood burns until the wood runs out.
+Under division a fire spends a budget and goes out on its own, which is what
+makes it safe to put a permanent hearth on a map. **Anything that lets a spread
+add burn time turns a bounded fire into an unbounded one**, and it will not look
+like a bug until somebody lights a forest.
+
+Two consequences worth knowing before tuning:
+
+- **A share that floors to zero does not catch.** The last embers go out at the
+  fire's edge rather than laying an infinitely thin burn across the map.
+- **The division is by what *catches*, not by what is there.** A fire beside a
+  stone wall does not lose half its fuel to the stone.
+- **`burned` stacks**, and a pool keeps its damage when a burn ends without
+  finishing the job. So a tile fed by two burning neighbours accumulates, and a
+  fire crosses dense ground it could not cross in one hop. That is emergent and
+  it is the good kind: it makes a thicket burn and a scattered copse not.
+
+Durability reads directly as seconds of fire, which is the only reason the
+authored numbers are legible: `burned` takes `ceil(MAX_HP / 100)` every 250 ms,
+so anything under a hundred durability loses exactly four a second. Grass at 12
+is three seconds; a tree at 28 is seven.
+
+### Beside the map, on the decay index's terms
+
+`EndureIndex` holds the pools. An `hp` written onto the placement would ride the
+cell patches and the checkpoint for free, and would also land in `data/map.json`
+the first time anybody saved from the editor — the same trap that keeps `decayAt`
+out of the map, and the reason `PlacedTile` carries `extractsLeft` only because
+`authoredMap` strips it again.
+
+Held out here, a half-burnt tree costs the map format nothing, the protocol
+nothing and the checkpoint nothing. **What it gives up is continuity across an
+eviction**: a resumed world finds every tree whole again, however far a fire had
+got. Same bargain hit points, brain memory and decay deadlines already take, and
+bounded by one burn. A tree that actually *burned down* is a real map change and
+survives, which is the half that matters.
+
+Keyed by cell plus tile id and never by stack index, for `DecayIndex`'s
+documented reason: an index shifts the moment anything is placed under it, so a
+burning tree in a doorway would forget its damage every time somebody walked
+across the cell.
+
+**Nothing seeds the index at load.** Unlike plates, wires and decay, a pool opens
+the first time something is actually inflicted on it — so a world full of trees
+nobody has set fire to costs one `size` check per tick and nothing else.
+`afflictCells` *is* seeded and maintained by `reindexCells`, because a source
+keeps working for as long as it is there.
+
+### The ground under a flame is held like a body standing in it
+
+`tickAfflictions` is a per-tick sweep, and it goes through `EndureIndex.hold`
+rather than `EndureIndex.afflict`. The ground catches on contact and takes another helping
+every `STANDING_STATUS_EVERY_MS` — the second `tickStandingStatuses` holds a
+body to — so `burned` stacks on the grass under a flame exactly as it does on
+somebody standing in one, up to the status's `maxMs`. The clock lives on the
+pool (`Endurance.heldMs`, per status id), which keeps the sweep at one roll of
+the world's dice per helping rather than thirty a second per burning tile.
+
+This is what gives a forest fire its reach. Ground that stood in a fire for a
+few seconds goes out carrying close to `maxMs` of burn, and that is the
+remainder the spread divides, so the first ring of neighbours catches long
+enough to fell a tree rather than to scorch it. Spread shares go through
+`EndureIndex.afflict`, which also stacks on a placement already burning, so two burning
+neighbours feed a third more than one does. The source is the only thing that
+adds fuel. The spread still only divides it, and a stack that clamps at `maxMs`
+can only lose some, so a fire with no flame left in it still burns out.
+
+A hearth whose ground survives a burn is set alight again on the next tick,
+since contact is "the status is not running on this placement". Burning the
+ground is **opt-in** through the `ground` flag, and off by default, so a tile
+that burns whoever steps in it does not also start eating its own floor. It is
+independent of `trigger`, which is about a body arriving or reaching, and a
+tile does neither.
+
+### The arcanist is paid for the whole forest
+
+`causedBy` and `elements` ride the status instance already, for the conjured
+flame that burns whoever walks into it. They are carried across the division too,
+so the burn that kills a rat three trees away still names whoever cast the first
+flame and still turns on the wheel that spell was made of. This falls out of
+`awardCausedDamage` with no new code, and it is worth not losing.
+
+### A burning tile draws a plume, and cannot draw a tint
+
+`AfflictedPlacement` is what the fire looks like from outside: cell, tile id and
+the status ids running on it. It reaches the renderer on the snapshot and the
+wire as `AfflictedPatch`, and `GameRenderer.groundEmitterFor` turns each one into
+the same plume a burning body gets, off the same authored `StatusVfx.particles`.
+
+**A tint is not on the table**, and it is worth knowing why before anybody tries:
+`applySpriteTints` reaches only `movableMeshes`, and a bush or a tree is merged
+into its floor's batch — tinting that material tints the ground. Particles are
+their own geometry and need no mesh, which is exactly what makes them the half a
+merged tile can have. A **cast light** is the other half that would work and is
+not wired up; `burned` already authors one, and it would ride the
+`EmitterOverride` overlay a torch already travels. Read the flicker note further
+down first — a light that varies per frame rebakes the window every frame.
+
+The plume is anchored to the **top** of the thing burning, not the floor it
+stands on: a tree burns in its canopy, and sparks rising from under a four-high
+sprite read as smoke from beneath it.
+
+**A fire rides its cell.** `CellPatch` carries `afflicted`, what is running on
+the placements in that cell, and like the stack it replaces what the client held
+for the cell: a cell sent with nothing burning in it puts the fire out. That
+makes a status change a cell change, and the cell transport already knows who
+to tell:
+
+- `GameServer.diffCells` adds every cell whose fire differs from what was last
+  sent (`sentAfflicted`, one map for the whole world, the pattern
+  `sentStatusIds` uses) to the tick's diff as terrain. `cellsInScope` then
+  sends it to the clients subscribed to its chunk and nobody else, exactly as
+  a tile swap.
+- A chunk handed over as it comes into reach is its cells, so it carries its
+  fires. Ground that went out while a client was away comes back without them.
+- Every cell the server sends goes through `cellPatch`, so no cell can reach a
+  client without its fire and put it out by mistake.
+- The `hello` carries the fires in the joiner's ground as a list beside the
+  map, since a `FlatMapFile` has no room for them.
+
+There is no per-client record of which fires anybody was told about. Scoping is
+the cell's, so a fire is exact inside a client's subscription and frozen outside
+it, the same bargain terrain takes: a fire that goes out after its chunk leaves
+reach is still held for a cell the client cannot see, and is corrected when the
+chunk is handed back.
+
+No countdown travels, so there is no taper — a burning tile burns at full
+strength until it turns, on exactly the terms a remote body's statuses do. When
+it turns, the emitter simply stops being offered and the particle system retires
+it, so the sparks already in the air finish their own lives rather than
+disappearing mid-rise.
+
+### What it does not do yet
+
+- **No cast light.** See above — the cheap remaining half.
+- **No editor UI.** Both blocks round-trip through `interactionsForSave`
+  untouched, so nothing is dropped, but they are authored in `tiles.json` by
+  hand.
+- **Orthogonal, same-level spread only.** Diagonals would let a fire cross a
+  one-cell firebreak, which is the one thing a player building one is entitled to
+  rely on. Climbing a storey is a second question about volume.
+- **A burnt berry bush does not come back.** `tree` and `small-bush` carry a
+  `respawn` and an empty cell is what a spawn point refills, but `bush` cannot
+  have one: it already turns into `picked-bush` when picked, and a spawn point
+  counting `bush` tiles would read that as an empty cell and grow a *second* bush
+  beside the picked one. Burning a bush to `picked-bush` instead of to nothing
+  would close the loop through machinery that already works.
+
 ## The save is the repair path, so it must not need a working world
 
 `replaceWorld` is the only way to change the world, which makes it the only way

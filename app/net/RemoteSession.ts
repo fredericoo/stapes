@@ -104,6 +104,7 @@ import {
   type CellPatch,
   type ClientMessage,
   type CarriedLightsPatch,
+  type AfflictedPatch,
   type StatusIdsPatch,
   type PvpPatch,
   type CastingPatch,
@@ -775,6 +776,7 @@ export class RemoteSession implements PlaySession {
       this.applyPvp(message.pvp);
       this.applyExtractions(message.extractions);
       this.applyCastings(message.castings);
+      this.resetAfflicted(message.afflicted);
       this.setPlayers(message.playerCount);
       // A `hello` is a body, whichever of the two sent it: the answer to
       // `rebirth`, or a world replaced under a socket that happened to be dead
@@ -1012,6 +1014,51 @@ export class RemoteSession implements PlaySession {
   }
 
   /**
+   * What is burning in each cell the server has sent, keyed by cell, and the
+   * same entries flattened for the snapshot.
+   *
+   * Written wherever a cell is: a cell patch replaces the cell's fire along with
+   * its stack, so a cell sent with nothing burning in it puts out whatever was
+   * held there. @see `./protocol`'s `CellAffliction`
+   *
+   * The array is rebuilt only when a cell's fire changes, so the snapshot keeps
+   * its identity on the ticks nothing about a fire moved.
+   */
+  private readonly afflictedByCell = new Map<string, AfflictedPatch[]>();
+  private afflicted: AfflictedPatch[] = [];
+
+  /** Take a `hello`'s fires in place of everything held. */
+  private resetAfflicted(burning: AfflictedPatch[]) {
+    this.afflictedByCell.clear();
+    for (const one of burning) {
+      const key = `${one.x},${one.y},${one.z}`;
+      const entries = this.afflictedByCell.get(key);
+      if (entries) entries.push(one);
+      else this.afflictedByCell.set(key, [one]);
+    }
+    this.afflicted = [...this.afflictedByCell.values()].flat();
+  }
+
+  /** Take each patched cell's fire, which replaces what was held for it. */
+  private applyAfflicted(cells: CellPatch[]) {
+    let changed = false;
+    for (const cell of cells) {
+      const key = `${cell.x},${cell.y},${cell.z}`;
+      if (cell.afflicted?.length) {
+        const { x, y, z } = cell;
+        this.afflictedByCell.set(
+          key,
+          cell.afflicted.map((one) => ({ x, y, z, ...one })),
+        );
+        changed = true;
+      } else if (this.afflictedByCell.delete(key)) {
+        changed = true;
+      }
+    }
+    if (changed) this.afflicted = [...this.afflictedByCell.values()].flat();
+  }
+
+  /**
    * Rebuild what each body is under from the ids the server broadcast.
    *
    * An empty list is stored rather than deleted, on the terms
@@ -1189,6 +1236,7 @@ export class RemoteSession implements PlaySession {
    */
   private applyCells(cells: CellPatch[]): readonly string[] {
     if (cells.length === 0) return NO_OWNERS;
+    this.applyAfflicted(cells);
     const leaving = this.ownersLeaving(cells);
     this.serverMap = setStacks(this.serverMap, cells);
     return leaving;
@@ -2228,6 +2276,7 @@ export class RemoteSession implements PlaySession {
       pvp: { on: mine.pvp, changeable: this.canSetPvp() },
       chats: this.chats,
       noises: this.noises,
+      afflicted: this.afflicted,
       damage: this.damage,
       projectiles: this.projectiles,
       flightEffects: this.flightEffects,
