@@ -61,7 +61,7 @@ const SEEDED_ADMIN_EMAIL = "admin@stapes.invalid";
  */
 export function createAuth(db: Database, config: Config, secret: string) {
   return betterAuth({
-    appName: "Stapes",
+    appName: "The Last Stones",
     secret,
     baseURL: config.PUBLIC_ORIGIN,
     // Lives under the same `/api` prefix everything else does, because the one

@@ -1,6 +1,7 @@
 # The Arcane
 
-Canon for the world of Stapes: what is true, and in what order it happened.
+Canon for the world of The Last Stones: what is true, and in what order it
+happened.
 Terms marked *(coined)* were invented in the writing and are open to being
 renamed. Everything else came from the original telling.
 

@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "stapes",
+      "name": "the-last-stones",
       "dependencies": {
         "@tursodatabase/database": "0.7.2",
         "better-auth": "^1.7.5",

@@ -13,6 +13,18 @@ import "./app.css";
 import { ToastProvider } from "./ui/Toast";
 import { TooltipProvider } from "./ui/Tooltip";
 
+/**
+ * What the tab is called, everywhere.
+ *
+ * The root route's, because no other route sets one: with `ssr: false` there is
+ * no server-rendered document to carry a title, so without this the tab shows
+ * the URL until the bundle has run — and on a game that is mostly one route,
+ * shows it for the whole session.
+ */
+export function meta(): Route.MetaDescriptors {
+  return [{ title: "The Last Stones" }];
+}
+
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
   {
