@@ -946,6 +946,7 @@ export function TileEditorDialog({
       // actorhood needs no redundant `actor: true` alongside it.
       actor: draft.actor ? true : undefined,
       walkDurationMs: isActor ? draft.walkDurationMs : undefined,
+      swims: isActor && draft.swims ? true : undefined,
       // On every tile rather than on scenery alone, unlike the pace above: what
       // a body walks on is whatever its feet are resting on, and a raft is a
       // body somebody may well want to be slow to cross. Zero is written as
@@ -2046,6 +2047,21 @@ export function TileEditorDialog({
                   onChange={(walkDurationMs) => setDraft({ ...draft, walkDurationMs })}
                   className="w-24"
                 />
+              </label>
+            ) : null}
+
+            {isActor ? (
+              <label
+                className="flex items-center gap-2 text-sm"
+                title="Its brain will walk it into Wade tiles. Off, it routes round water, flees on dry ground and wanders nowhere wet — though it still walks out of water it finds itself in."
+              >
+                <input
+                  type="checkbox"
+                  checked={draft.swims ?? false}
+                  onChange={(e) => setDraft({ ...draft, swims: e.target.checked })}
+                  className="hard-checkbox"
+                />
+                Swims
               </label>
             ) : null}
 

@@ -26405,6 +26405,7 @@
     "lightPassing": true,
     "affectedByGravity": true,
     "walkDurationMs": 320,
+    "swims": true,
     "interactions": {
       "brain": {
         "initial": "coiled",

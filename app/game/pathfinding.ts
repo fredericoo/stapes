@@ -2,12 +2,15 @@ import {
   canWalk,
   DIR_DELTA,
   findLandingAbs,
+  groundWalkSpeedPercent,
   listStandingSurfaces,
   standingAbs,
   surfacesInClimbBand,
+  wadesAt,
 } from "./movement";
 import { cellKey } from "./pressurePlates";
 import { getStack, removeTileAt } from "../lib/mapData";
+import { clampWalkSpeedPercent } from "../lib/walkSpeed";
 import { resolveAddStatus, resolveTeleportDef } from "../lib/interactions";
 import { sparesStander } from "./conjured";
 import type { StatusDef } from "../lib/status";
@@ -90,6 +93,42 @@ import { DIRECTIONS } from "../lib/types";
  * nothing will route into it, and walking in by hand is the way in. That is the
  * intended trade — a route is a plan, and a plan that walks you through fire to
  * save two steps is not one anybody asked for.
+ *
+ * ## A leg costs the time it takes, and slow ground is priced in
+ *
+ * A leg is not always one step's worth of time: a step taken *from* a tile with
+ * a negative `walkSpeedPercent` takes longer, and water at `-50` takes twice as
+ * long. Each leg is costed by {@link legCost}, read off the cell it starts
+ * from — the same cell the walk loop reads the pace from, so the cost is the
+ * duration the step will actually have. A snake with a river between it and you
+ * walks round when the bridge is close and wades when it is not.
+ *
+ * **Fast ground is priced as ordinary ground**, and that is what keeps the
+ * search cheap. The heuristic is plan distance at one per step; a leg that cost
+ * less than one would make it an overestimate, and A* with an overestimate
+ * returns routes that are not the shortest and prunes good ones against
+ * {@link PATH_DETOUR_SLACK}. Scaling the heuristic down by the fastest ground
+ * anywhere would keep it exact and make every search on an open field fan out
+ * five times wider. So a route avoids a bog and does not go looking for a road.
+ *
+ * Statuses on the walker are not read. They move every leg by the same
+ * percentage, and the sum is divided only once, so a chill changes the ratio
+ * between wet and dry legs slightly without changing which way round is shorter
+ * in any case worth caring about.
+ *
+ * ## A body that cannot swim does not walk into water
+ *
+ * {@link PathOptions.avoidWade} takes every `wade` cell out of the search, on
+ * the same terms as a flame: it is not an edge. It is an option rather than a
+ * rule because the caller decides who cannot swim — `GameSession` sets it for a
+ * creature whose tile does not have `swims`, and a player's clicked walk never
+ * sets it.
+ *
+ * **Only a search that starts on dry ground keeps out of water.** A body that
+ * is already in water — pushed there, or placed there — searches as if it could
+ * swim, because refusing every wet cell would leave it with no way out of a
+ * river three cells wide. The route is asked again after every leg, so it keeps
+ * out of water again from the first leg that lands on the bank. @see keepsDry
  *
  * ## Two facts about the searcher, not one
  *
@@ -278,6 +317,17 @@ export type PathOptions = {
    * disagrees with, and return a route that is not the shortest.
    */
   arrive?: "beside" | "on";
+  /**
+   * Keep out of `wade` cells, for a body that cannot swim.
+   *
+   * Ignored when the search starts in water. @see keepsDry
+   *
+   * Off by default, which is how a player's clicked walk and every caller from
+   * before this option existed route. A cell the caller pointed at with
+   * `arrive: "on"` is exempt, as it is from every other avoided cell.
+   * @see avoidRule
+   */
+  avoidWade?: boolean;
 };
 
 /** Which legs may leave the ground. @see PathOptions.drops */
@@ -494,6 +544,34 @@ export function unsafeToStepOn(
 }
 
 /**
+ * Whether a body standing in this cell would be standing in a `wade` tile.
+ *
+ * `../game/movement`'s `wadesAt` for a cell nobody is standing in yet, which is
+ * every cell a route asks about. Exported for `GameSession`'s single-step
+ * check, so a creature that wanders keeps out of the same water a creature
+ * walking a route keeps out of.
+ */
+export function wadesIn(map: MapFile, cell: Coord, tilesById: Record<string, TileDef>): boolean {
+  return wadesAt(map, { ...cell, stackIndex: NOBODY_IN_THIS_STACK }, tilesById);
+}
+
+/**
+ * Whether a search keeps out of water: asked to, and not already standing in it.
+ *
+ * Read off the cell the search starts from, once per search. A body in the
+ * middle of a lake with every wet cell refused would have no route anywhere,
+ * so it is let through the water until it reaches the bank.
+ */
+function keepsDry(
+  map: MapFile,
+  from: Coord,
+  avoidWade: boolean | undefined,
+  tilesById: Record<string, TileDef>,
+): boolean {
+  return avoidWade === true && !wadesIn(map, from, tilesById);
+}
+
+/**
  * Which cells a route refuses to pass through, with the one exception folded in.
  *
  * Built once per search rather than asked per node, so the catalogues and the
@@ -508,9 +586,34 @@ function avoidRule(
   tilesById: Record<string, TileDef>,
   statusDefs: Record<string, StatusDef>,
   who: string | undefined,
+  avoidWade: boolean,
   asked: (cell: Coord) => boolean,
 ): (cell: Coord) => boolean {
-  return (cell) => !asked(cell) && unsafeToStepOn(map, cell, tilesById, statusDefs, who);
+  return (cell) =>
+    !asked(cell) &&
+    (unsafeToStepOn(map, cell, tilesById, statusDefs, who) ||
+      (avoidWade && wadesIn(map, cell, tilesById)));
+}
+
+/**
+ * What a leg taken from this cell costs, in ordinary steps' worth of time.
+ *
+ * The reciprocal of the speed the ground gives, which is what `./walkSpeed`'s
+ * `walkDurationFrom` divides by — so water at `-50` costs 2 and a bog at `-90`
+ * costs 10. Never under 1: fast ground is priced as ordinary ground, so that
+ * plan distance stays a heuristic that never overestimates. The section on leg
+ * costs at the top of the file says why that trade is the right one.
+ *
+ * Read with nobody excluded from the stack, because `map` is the board with the
+ * searcher already off it. @see PathStart.self
+ */
+export function legCost(map: MapFile, from: Coord, tilesById: Record<string, TileDef>): number {
+  const percent = groundWalkSpeedPercent(
+    map,
+    { ...from, stackIndex: NOBODY_IN_THIS_STACK },
+    tilesById,
+  );
+  return Math.max(1, 1 / (1 + clampWalkSpeedPercent(percent) / 100));
 }
 
 /**
@@ -583,7 +686,7 @@ function neighbours(
 /** A cell on the frontier, with the leg that reached it. */
 type Node = {
   at: Coord;
-  /** Steps taken to get here. */
+  /** Time taken to get here, in ordinary steps. @see legCost */
   g: number;
   /** `g` plus what is still owed at best — what the queue is ordered on. */
   f: number;
@@ -721,6 +824,8 @@ export type RefugeOptions = {
    * nothing for a cell that is not in the running.
    */
   seenFrom?: (cell: Coord) => boolean;
+  /** @see PathOptions.avoidWade */
+  avoidWade?: boolean;
 };
 
 /** A cell worth running to, and why it is the best one so far. */
@@ -799,7 +904,14 @@ export function findRefuge(
   // Nothing is exempt, on the same grounds: there is no goal here, so there is
   // no cell anybody has pointed at. An animal cornered against a fire is
   // cornered — running into it is not an escape. @see avoidRule
-  const avoid = avoidRule(board, tilesById, statusDefs, start.who, NOTHING_ASKED_FOR);
+  const avoid = avoidRule(
+    board,
+    tilesById,
+    statusDefs,
+    start.who,
+    keepsDry(board, from, opts.avoidWade, tilesById),
+    NOTHING_ASKED_FOR,
+  );
 
   const frontier = new Frontier();
   const best = new Map<string, number>();
@@ -831,13 +943,14 @@ export function findRefuge(
       }
     }
 
+    const cost = legCost(board, node.at, tilesById);
     for (const step of neighbours(board, node.at, tileDef, tilesById, mayDropTo, avoid)) {
       const key = cellKey(step.to);
-      const g = node.g + 1;
+      const g = node.g + cost;
       if (g >= (best.get(key) ?? Infinity)) continue;
       best.set(key, g);
       // No heuristic: there is nowhere to measure towards, so the queue is
-      // ordered on steps taken alone and the flood comes off it in rings.
+      // ordered on time taken alone and the flood comes off it in rings.
       frontier.push({ at: step.to, g, f: g, cameFrom: node, step });
     }
   }
@@ -867,6 +980,7 @@ export function findPath(
     tilesById,
     statusDefs,
     start.who,
+    keepsDry(board, from, opts.avoidWade, tilesById),
     (cell) => arrive === "on" && sameCell(cell, goal),
   );
 
@@ -899,9 +1013,12 @@ export function findPath(
     if (arrived(node.at, goal, arrive)) return { ok: true, route: unwind(node) };
 
     const legs = neighbours(board, node.at, tileDef, tilesById, mayDropTo, avoid);
+    // Every leg from here is taken off the same ground, so it costs the same.
+    // Asked after `neighbours` so a cell with no way on pays nothing for it.
+    const cost = legs.length > 0 ? legCost(board, node.at, tilesById) : 0;
     for (const step of legs) {
       const key = cellKey(step.to);
-      const g = node.g + 1;
+      const g = node.g + cost;
       if (g >= (best.get(key) ?? Infinity)) continue;
       // `f` is the shortest this route could still turn out to be, so a node
       // over the cap cannot lead anywhere under it.
