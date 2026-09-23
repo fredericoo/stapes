@@ -5,6 +5,7 @@ import type {
   AddStatusInteraction,
   PlacedReward,
   PlacedTeleport,
+  RemoveStatusInteraction,
   SetSpawnInteraction,
   TransmuteInteraction,
 } from "../lib/interactions";
@@ -12,6 +13,7 @@ import {
   isInteractive,
   resolveAddStatus,
   resolvePush,
+  resolveRemoveStatus,
   resolveReward,
   resolveSetSpawn,
   resolveSwitch,
@@ -1040,6 +1042,49 @@ export function canAddStatusFrom(
   ref: ObjectRef,
 ): boolean {
   return reachableAddStatusAt(map, tilesById, actor, ref) != null;
+}
+
+/**
+ * The status-removing gesture at a stack slot, if this actor could set it off
+ * by pressing it. {@link reachableAddStatusAt}'s reach, for the same reasons;
+ * a `step` one is fired by `GameSession.statusOnArrival` instead.
+ */
+export function reachableRemoveStatusAt(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+): RemoveStatusInteraction | null {
+  const def = interactiveDefAt(map, tilesById, actor, ref);
+  if (!def) return null;
+
+  const removeStatus = resolveRemoveStatus(def);
+  if (!removeStatus) return null;
+
+  if (removeStatus.trigger === "interact") {
+    return pushDirectionFrom(actor, ref) ? removeStatus : null;
+  }
+  if (removeStatus.trigger === "interactOver") {
+    const over = actor.x === ref.x && actor.y === ref.y && actor.z === ref.z;
+    return over ? removeStatus : null;
+  }
+  return null;
+}
+
+/**
+ * Could this actor press the status-removing gesture right now?
+ *
+ * Offered whether or not they are under the status, on the terms a brazier is
+ * offered to somebody already burning: the row is about the tile, and a press
+ * that finds nothing to remove does nothing.
+ */
+export function canRemoveStatusFrom(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+): boolean {
+  return reachableRemoveStatusAt(map, tilesById, actor, ref) != null;
 }
 
 /**

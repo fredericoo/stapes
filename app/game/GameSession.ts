@@ -17,6 +17,7 @@ import {
 import type { ExtractInteraction } from "../lib/interactions";
 import {
   resolveAddStatus,
+  resolveRemoveStatus,
   resolveExtract,
   resolveSetSpawn,
   resolveSwitch,
@@ -60,6 +61,7 @@ import {
 } from "./actors";
 import {
   canAddStatusFrom,
+  canRemoveStatusFrom,
   canConsumeFrom,
   canEquipFrom,
   canSetSpawnFrom,
@@ -74,6 +76,7 @@ import {
   equipSlotFrom,
   interactiveDefAt,
   reachableAddStatusAt,
+  reachableRemoveStatusAt,
   reachableRewardAt,
   reachableSetSpawnAt,
   reachableTeleportAt,
@@ -9790,6 +9793,34 @@ export class GameSession implements PlaySession {
     return true;
   }
 
+  canRemoveStatus(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actor(id);
+    if (!this.idle(actor)) return false;
+    if (this.hpOf(actor) === null) return false;
+    return canRemoveStatusFrom(this.map, this.tilesById, this.locate(actor), ref);
+  }
+
+  /**
+   * Take the authored condition off whoever pressed this. Returns false when
+   * the gesture is not on offer; a press that finds nothing to take still
+   * counts, so the tap does not fall through to whatever else the tile offers.
+   *
+   * The pressed half only — a `step` one is fired by {@link statusOnArrival}.
+   * A body with no hit points is refused on {@link activateAddStatus}'s terms.
+   */
+  activateRemoveStatus(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actor(id);
+    if (!this.idle(actor)) return false;
+    if (this.hpOf(actor) === null) return false;
+
+    const loc = this.locate(actor);
+    const removeStatus = reachableRemoveStatusAt(this.map, this.tilesById, loc, ref);
+    if (!removeStatus) return false;
+
+    this.clearStatus(actor, removeStatus.statusId);
+    return true;
+  }
+
   canSetSpawn(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.idle(actor)) return false;
@@ -9937,7 +9968,35 @@ export class GameSession implements PlaySession {
    */
   private statusOnArrival(actor: ActorRuntime) {
     actor.standingStatusMs = 0;
+    this.clearStandingStatus(actor);
     this.grantStandingStatus(actor);
+  }
+
+  /**
+   * Take off whatever the cell under this actor removes, once.
+   *
+   * Every `step` removal in the column below the body, rather than only the
+   * topmost as a grant is: a removal is not something a rug over the water
+   * could be said to cover, and walking into a cell that both puts out a fire
+   * and washes off a poison should do both.
+   *
+   * **Before the grant**, so a cell authored to both take a status off and put
+   * one on ends with the one it hands over. Called on arrival and on every
+   * standing second, beside {@link grantStandingStatus}, which is what puts out
+   * a burn that lands on a body already standing in the water.
+   */
+  private clearStandingStatus(actor: ActorRuntime) {
+    if (actor.statuses.length === 0) return;
+
+    const loc = this.locate(actor);
+    const stack = getStack(this.map, loc.x, loc.y, loc.z);
+
+    for (let i = 0; i < loc.stackIndex && i < stack.length; i++) {
+      const def = this.tilesById[stack[i]!.tileId];
+      const removeStatus = def ? resolveRemoveStatus(def) : null;
+      if (!removeStatus || removeStatus.trigger !== "step") continue;
+      this.clearStatus(actor, removeStatus.statusId);
+    }
   }
 
   /**
@@ -10031,6 +10090,7 @@ export class GameSession implements PlaySession {
       // a whole number of milliseconds and zeroing would lose the remainder
       // every second, drifting a standing body a tick further behind each time.
       actor.standingStatusMs -= STANDING_STATUS_EVERY_MS;
+      this.clearStandingStatus(actor);
       this.grantStandingStatus(actor);
     }
   }
@@ -10140,6 +10200,8 @@ export class GameSession implements PlaySession {
       // burn the hand that lit it should light the room: the half of the tap the
       // player can see is the half they were aiming at.
       this.activateAddStatus(ref, id) ||
+      // Directly under its inverse, on `../game/interactionOptions`' order.
+      this.activateRemoveStatus(ref, id) ||
       // Below the status, on the status's own argument one rung further down: a
       // shrine authored to both bless you and take you as its own spends the tap
       // on the blessing, which is the half that shows.
@@ -10164,6 +10226,7 @@ export class GameSession implements PlaySession {
       this.canTeleport(ref, id) ||
       this.canSwitch(ref, id) ||
       this.canAddStatus(ref, id) ||
+      this.canRemoveStatus(ref, id) ||
       this.canSetSpawn(ref, id) ||
       this.canExtract(ref, id) ||
       this.canEquip(ref, id) ||

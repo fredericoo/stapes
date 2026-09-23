@@ -43,6 +43,7 @@ import {
   canRewardFrom,
   canSwitchFrom,
   canAddStatusFrom,
+  canRemoveStatusFrom,
   canSetSpawnFrom,
   canTeleportFrom,
   type ObjectRef,
@@ -2567,6 +2568,8 @@ export class RemoteSession implements PlaySession {
       // everything this client can drive is a battler, so a row this offers is
       // one the server will honour.
       canAddStatusFrom(this.map, this.tilesById, loc, ref) ||
+      // No wrapper, on the status's own argument.
+      canRemoveStatusFrom(this.map, this.tilesById, loc, ref) ||
       // No wrapper either, on the status's own argument and with less left to
       // ask: the cell this would record is the one the body is already standing
       // in. Whether the presser is somebody who comes back at all is the

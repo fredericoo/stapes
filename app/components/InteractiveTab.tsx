@@ -10,6 +10,7 @@ import type {
   PressurePlateInteraction,
   PushInteraction,
   ReceiveInteraction,
+  RemoveStatusInteraction,
   RewardInteraction,
   SetSpawnInteraction,
   SignalMode,
@@ -30,6 +31,7 @@ import {
   DEFAULT_PRESSURE_PLATE,
   DEFAULT_PUSH,
   DEFAULT_RECEIVE,
+  DEFAULT_REMOVE_STATUS,
   DEFAULT_REWARD,
   DEFAULT_SET_SPAWN,
   DEFAULT_SWITCH,
@@ -216,6 +218,7 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
   const extract = draft.interactions?.extract;
   const teleport = draft.interactions?.teleport;
   const addStatus = draft.interactions?.addStatus;
+  const removeStatus = draft.interactions?.removeStatus;
   const setSpawn = draft.interactions?.setSpawn;
   const decay = draft.interactions?.decay;
   const plate = draft.interactions?.pressurePlate;
@@ -397,6 +400,14 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
   const patchAddStatus = (patch: Partial<AddStatusInteraction>) => {
     if (!addStatus) return;
     setAddStatus({ ...addStatus, ...patch });
+  };
+
+  const setRemoveStatus = (next: RemoveStatusInteraction | undefined) => {
+    patchKind("removeStatus", next ?? null);
+  };
+  const patchRemoveStatus = (patch: Partial<RemoveStatusInteraction>) => {
+    if (!removeStatus) return;
+    setRemoveStatus({ ...removeStatus, ...patch });
   };
 
   const statusOptions = Object.values(statusDefs).map((def) => ({
@@ -918,6 +929,58 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
               label="Also the ground"
               info="Puts the same status on the tiles in this cell that suffer it — a flame burning the grass under it. Once on contact, then every second while this tile stays. Only tiles whose Endure lists this status take it. Works whatever the trigger is."
             />
+          </div>
+        ) : null}
+      </section>
+
+      <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
+        <SectionSwitch
+          on={Boolean(removeStatus)}
+          onToggle={(on) => setRemoveStatus(on ? { ...DEFAULT_REMOVE_STATUS } : undefined)}
+          label="Remove status"
+          info="Takes a status off whoever triggers it — water putting out a burn. On Step, it is taken on arrival and again every second while they stand here. Only a battler has statuses. Repeatable."
+        />
+
+        {removeStatus ? (
+          <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
+            <div className="flex flex-wrap items-start gap-4">
+              <div className="flex flex-col gap-1 text-xs">
+                <FieldLabel info={TRIGGER_INFO}>Trigger</FieldLabel>
+                <Segmented<ActivationTrigger>
+                  value={removeStatus.trigger}
+                  onChange={(trigger) => patchRemoveStatus({ trigger })}
+                  options={TRIGGER_OPTIONS}
+                  size="sm"
+                  ariaLabel="Remove status trigger"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1 text-xs">
+                <FieldLabel info="Until one is picked the tile removes nothing and offers no row.">
+                  Status
+                </FieldLabel>
+                {statusOptions.length === 0 ? (
+                  <span className="text-[11px] leading-snug text-muted">
+                    None authored — see the Statuses page.
+                  </span>
+                ) : (
+                  <Select
+                    ariaLabel="Status to remove"
+                    value={removeStatus.statusId || null}
+                    onValueChange={(id) => id && patchRemoveStatus({ statusId: id })}
+                    options={statusOptions}
+                  />
+                )}
+              </div>
+            </div>
+
+            {removeStatus.trigger === "step" ? null : (
+              <ActionLabelField
+                value={removeStatus.actionName}
+                fallback="Touch"
+                onChange={(actionName) => patchRemoveStatus({ actionName })}
+              />
+            )}
           </div>
         ) : null}
       </section>
