@@ -1,12 +1,13 @@
-import { IconTool } from "@tabler/icons-react";
+import { IconRobot, IconTool } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { useFetcher, useLoaderData } from "react-router";
 import type { Route } from "./+types/actions";
 import { AdminShell } from "../../components/AppShell";
-import { fetchMaintenance, saveMaintenance } from "../../lib/api";
+import { fetchMaintenance, fetchStress, saveMaintenance, saveStressCount } from "../../lib/api";
 import { requireAdmin } from "../../lib/auth";
 import { MAINTENANCE_MESSAGE_MAX_LENGTH } from "../../../server/maintenance";
-import { Button, Dialog, Textarea } from "../../ui";
+import type { StressStatus } from "../../../server/stressBots";
+import { Button, Dialog, NumberInput, Textarea } from "../../ui";
 
 /**
  * Things an administrator does to the running world, as opposed to authoring it.
@@ -22,7 +23,8 @@ import { Button, Dialog, Textarea } from "../../ui";
  */
 export async function clientLoader() {
   await requireAdmin();
-  return { maintenance: await fetchMaintenance() };
+  const [maintenance, stress] = await Promise.all([fetchMaintenance(), fetchStress()]);
+  return { maintenance, stress };
 }
 
 export async function clientAction({ request }: Route.ClientActionArgs) {
@@ -36,6 +38,9 @@ export async function clientAction({ request }: Route.ClientActionArgs) {
   if (intent === "open-world") {
     return { ok: true as const, maintenance: await saveMaintenance(false, null) };
   }
+  if (intent === "stress") {
+    return { ok: true as const, stress: await saveStressCount(Number(form.get("count") ?? 0)) };
+  }
   return { ok: false as const, error: "Unknown intent" };
 }
 
@@ -45,6 +50,7 @@ export default function ActionsPage() {
       <div className="flex max-w-2xl flex-col gap-3 p-3">
         <h1 className="text-sm font-bold uppercase tracking-wide">Actions</h1>
         <MaintenanceCard />
+        <StressCard />
       </div>
     </AdminShell>
   );
@@ -175,4 +181,156 @@ function MaintenanceCard() {
       </Dialog>
     </ActionCard>
   );
+}
+
+/** How often the card asks for the bots' figures while it is open. */
+const STRESS_POLL_MS = 2_000;
+
+/**
+ * Put bots in another world and watch how it holds up. @see `server/stressBots.ts`
+ *
+ * The bots run in the server that serves this page and play the target named
+ * on the card, which is production unless the server was told otherwise. The
+ * count is the whole control: bots `1..count` play, so raising it adds bots
+ * and lowering it takes the highest-numbered ones out.
+ */
+function StressCard() {
+  const loaded = useLoaderData<typeof clientLoader>().stress;
+  const fetcher = useFetcher<typeof clientAction>();
+  const [status, setStatus] = useState<StressStatus>(loaded);
+  const [count, setCount] = useState(loaded.desired);
+  const pending = fetcher.state !== "idle";
+
+  useEffect(() => {
+    const next = fetcher.data?.ok ? fetcher.data.stress : undefined;
+    if (next) setStatus(next);
+  }, [fetcher.data]);
+
+  useEffect(() => {
+    let live = true;
+    const timer = setInterval(() => {
+      fetchStress()
+        .then((next) => live && setStatus(next))
+        .catch(() => {
+          // A missed poll is shown by the figures not moving; the next one
+          // tries again.
+        });
+    }, STRESS_POLL_MS);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  const apply = (next: number) => {
+    setCount(next);
+    fetcher.submit({ intent: "stress", count: String(next) }, { method: "post" });
+  };
+
+  const { byState, health } = status;
+  const inWorld = byState.walking + byState.dead;
+  const running = status.desired > 0;
+
+  return (
+    <ActionCard
+      title="Stress test"
+      status={
+        <span
+          className={`border-2 px-1.5 py-0.5 text-xs uppercase ${
+            running ? "border-danger text-danger" : "border-border text-muted"
+          }`}
+        >
+          {running ? `${inWorld} of ${status.desired} in world` : "Off"}
+        </span>
+      }
+    >
+      <p className="text-sm leading-relaxed">
+        Bots sign in to <strong>{status.target}</strong> and walk around at random, over the same
+        socket and protocol (v{status.protocolVersion}) a browser uses. Other players see them. Each
+        bot keeps its account and character, so raising the count only adds new bots.
+      </p>
+      {status.halted ? <p className="text-sm text-danger">{status.halted}</p> : null}
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="flex flex-col gap-1 text-sm">
+          Bots
+          <NumberInput
+            // 16px so Safari on iOS does not zoom the page in when it is
+            // focused. @see docs/notes.md, "A field the phone focuses has to be
+            // 16px"
+            className="w-24 text-base"
+            min={0}
+            max={status.max}
+            step={1}
+            value={count}
+            onChange={setCount}
+          />
+        </label>
+        <Button
+          variant="primary"
+          disabled={pending || count === status.desired}
+          onClick={() => apply(count)}
+        >
+          <IconRobot size={16} stroke={2} aria-hidden="true" />
+          Apply
+        </Button>
+        {running ? (
+          <Button variant="danger" disabled={pending} onClick={() => apply(0)}>
+            Stop all
+          </Button>
+        ) : null}
+      </div>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-3">
+        <Figure label="Walking" value={byState.walking} />
+        <Figure label="Joining" value={byState.joining} />
+        <Figure label="Signing in" value={byState.account} />
+        <Figure label="Waiting" value={byState.waiting} />
+        <Figure label="Dead" value={byState.dead} />
+        <Figure label="Failed" value={byState.failed} />
+        <Figure label="Step latency p50 / p95" value={timing(status.stepLatencyMs)} />
+        <Figure label="Join time p50 / p95" value={timing(status.joinMs)} />
+        <Figure label="Steps per second" value={status.stepsPerSecond} />
+        <Figure
+          label="Received per second, uncompressed"
+          value={`${(status.bytesInPerSecond / 1024).toFixed(1)} KB · ${status.messagesInPerSecond} msgs`}
+        />
+        <Figure
+          label="Steps refused / unanswered"
+          value={`${status.stepsRejected} / ${status.stepsTimedOut}`}
+        />
+        <Figure label="Reconnects" value={status.reconnects} />
+        <Figure
+          label="Target health"
+          value={
+            health
+              ? health.ok
+                ? `${health.players ?? "?"} players · ${health.responseMs} ms`
+                : (health.error ?? "Not answering")
+              : "Not asked yet"
+          }
+        />
+      </dl>
+      {status.errors.length > 0 ? (
+        <ul className="flex flex-col gap-0.5 text-xs text-muted">
+          {status.errors.map((error) => (
+            <li key={error.reason}>
+              {error.bots} × {error.reason}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </ActionCard>
+  );
+}
+
+function Figure({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex flex-col">
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className="tabular-nums">{value}</dd>
+    </div>
+  );
+}
+
+function timing(samples: StressStatus["stepLatencyMs"]): string {
+  return samples ? `${samples.p50} / ${samples.p95} ms` : "—";
 }

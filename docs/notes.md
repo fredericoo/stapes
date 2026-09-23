@@ -781,6 +781,58 @@ switch there would read as belonging to it.
   rows for anybody who is not an administrator, so nobody presses a name only to
   be refused by the socket from behind the loading screen.
 
+## Stress-test bots play another world from `/admin/actions`
+
+**Stress test** at `/admin/actions` runs bots `1..count` from the server that
+serves the page, against `STRESS_TARGET_ORIGIN` — production
+(`https://stapes.frederic.ooo`) when it is unset. The intended setup is a pull
+request's preview running the bots and production receiving them, so the
+process under test is not also the one generating the load.
+`server/stressBots.ts` is all of it; `GET` and `POST /api/stress` answer an
+administrator's session only.
+
+- **A bot is a player in every way the target can see.** It makes its account
+  through `POST /api/account`, its character through `POST /api/characters`,
+  and opens `/online/ws` with the session cookie and this build's
+  `PROTOCOL_VERSION`. Bun's `WebSocket` takes headers, which is how the cookie
+  reaches the upgrade, and it negotiates permessage-deflate as a browser does.
+  So the target pays for sign-in, seating, interest and compression exactly as
+  it would for people. A bot is not an administrator, so maintenance closes it
+  out; it tries again every 30 seconds.
+- **Names, passwords and characters come from the bot's number.** Bot 7 is
+  `stressbot_0007`, character `Stressbotaah`, with a password that is an HMAC
+  of the username under `STRESS_BOT_SECRET`. Raising the count adds only the new
+  numbers; lowering it closes the highest-numbered sockets; nothing is ever
+  deleted on the target. The default secret is in the repository, so set one
+  where a bot's password matters, and keep it: a new one locks the bots out of
+  the accounts they already made.
+- **Sign-in is the slow part, and it is avoided.** Better Auth allows three
+  sign-ins per ten seconds from one address, and every bot shares this one —
+  and a target that cannot see client addresses puts real players in the same
+  bucket. So sign-ins are spaced four seconds apart across all bots, a new
+  account signs in through sign-up (which is not limited), and each bot's
+  cookie and character id are kept in `DATA_DIR/stress-bots.json`. After a
+  redeploy the bots are back in seconds rather than seven minutes for a
+  hundred. The count itself is not kept: a restarted server runs no bots until
+  somebody applies a count again.
+- **They walk the way a held key does, without reading the map.** A heading for
+  one to eight cells, sometimes a pause first, and a new heading when the world
+  refuses a step. One step is in flight at a time, and the time from sending it
+  to seeing this body's `walkStarted` is the **step latency** on the card — the
+  delay a player would feel, and the figure that says whether the tick is
+  keeping up. **Join time** is socket open to the first `hello`. A dead bot
+  asks for a rebirth after three seconds.
+- **The bots parse as little as they can.** Every frame starts
+  `{"type":"…"`, so the type is sliced out, a `hello` is never parsed, and a
+  patch is parsed only when a step is waiting and the frame names this body.
+  Measured locally with 100 bots against a production-mode target on the same
+  machine: the bot process sat at 15–20% of a core while the target was at 80–90%,
+  step latency p50 was 30–50 ms, and the bots received about 15 MB/s of
+  uncompressed JSON between them.
+- **A target that speaks another protocol halts every bot**, with the version
+  it named on the card. The bots are this branch's build, so the fix is to
+  merge main and redeploy the preview, not to retry.
+
 ## The simulation holds N actors
 
 `GameSession` runs any number of actors, and `GameServer` is the only thing that

@@ -1,6 +1,7 @@
 import { treaty } from "@elysiajs/eden";
 import type { Api } from "../../server/api";
 import type { MaintenanceState } from "../../server/maintenance";
+import type { StressStatus } from "../../server/stressBots";
 import type { TileDef, TilesetDef } from "./types";
 
 /**
@@ -128,4 +129,14 @@ export async function saveMaintenance(
 /** Where a tileset PNG is served from, for the renderer's image loads. */
 export function tilesetUrl(file: string): string {
   return `/api/tilesets/${encodeURIComponent(file)}`;
+}
+
+/** The stress-test bots and what they measure. Answered only for an administrator. */
+export async function fetchStress(): Promise<StressStatus> {
+  return unwrap(await client.api.stress.get()) as StressStatus;
+}
+
+/** Run bots `1..count` against the target world. @see `server/stressBots.ts` */
+export async function saveStressCount(count: number): Promise<StressStatus> {
+  return unwrap(await client.api.stress.post({ count })) as StressStatus;
 }

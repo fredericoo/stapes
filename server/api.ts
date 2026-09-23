@@ -8,6 +8,7 @@ import type { World } from "./world";
 import type { ClientBundle } from "./clientBundle";
 import type { Config } from "./config";
 import { MAINTENANCE_MESSAGE_MAX_LENGTH } from "./maintenance";
+import { MAX_STRESS_BOTS, type StressBots } from "./stressBots";
 
 /**
  * Everything the pages used to get from a loader.
@@ -22,7 +23,7 @@ import { MAINTENANCE_MESSAGE_MAX_LENGTH } from "./maintenance";
  * gets the return types of these handlers with no codegen and no duplicated
  * schema. That is what pays back the typed loader data that `ssr: false` costs.
  */
-export function createApi(world: World, bundle: ClientBundle, config: Config) {
+export function createApi(world: World, bundle: ClientBundle, config: Config, stress: StressBots) {
   const store = world.blobs;
 
   /**
@@ -390,6 +391,32 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
             ),
           }),
           detail: { summary: "Close the world to everybody but administrators, or reopen it" },
+        },
+      )
+      /**
+       * How many stress-test bots are playing the target world, and how it is
+       * holding up. An administrator's session only: the answer names the
+       * target and what it is refusing. @see `./stressBots`
+       */
+      .get("/stress", async ({ request, status }) => {
+        if (!(await admin(request))) return status(404, "Not found");
+        return stress.status();
+      })
+      /**
+       * Run bots `1..count` against the target. Raising the count starts only
+       * the new ones, lowering it stops only the ones above it, and 0 stops
+       * them all.
+       */
+      .post(
+        "/stress",
+        async ({ body, request, status }) => {
+          if (!(await admin(request))) return status(404, "Not found");
+          await stress.setCount(body.count);
+          return stress.status();
+        },
+        {
+          body: t.Object({ count: t.Integer({ minimum: 0, maximum: MAX_STRESS_BOTS }) }),
+          detail: { summary: "Set how many stress-test bots play the target world" },
         },
       )
       .post("/backup", async ({ headers, status }) => {
