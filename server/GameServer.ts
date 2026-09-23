@@ -1303,6 +1303,11 @@ export class GameServer {
    * thing besides a cut that decides what a client holds. @see scopedPatchFor
    */
   private readonly lastCut = new Map<string, CutMemo>();
+  /**
+   * The clients whose subscription is still being handed over, and so are owed
+   * ground next tick whether or not they move. @see streamEnteredChunks
+   */
+  private readonly subscriptionsToCheck = new Set<string>();
   /** The seated sockets, by the actor each is seated on. @see seat */
   private readonly socketsByActor = new Map<string, Set<GameSocket>>();
   /** {@link seated}'s answer, until somebody is seated or unseated. */
@@ -3754,6 +3759,7 @@ export class GameServer {
     // opens the next one seeds it again.
     this.announcedActors.delete(actorId);
     this.lastCut.delete(actorId);
+    this.subscriptionsToCheck.delete(actorId);
     // A step nobody is holding the key for any more.
     this.queuedIntents.delete(actorId);
     this.lastSaidAt.delete(actorId);
@@ -3970,6 +3976,7 @@ export class GameServer {
     // Re-seeded by the `hello` every socket is about to be sent: these are the
     // old world's names, and the next one may reuse them for other bodies.
     this.announcedActors.clear();
+    this.lastCut.clear();
     this.sentAfflicted.clear();
     this.sentHp.clear();
     // Everybody is about to be re-seated in the new world, so every
@@ -4212,6 +4219,7 @@ export class GameServer {
     // Re-seeded by the `hello` every socket is about to be sent: these are the
     // old world's names, and the next one may reuse them for other bodies.
     this.announcedActors.clear();
+    this.lastCut.clear();
     this.sentAfflicted.clear();
     this.sentHp.clear();
     this.sentCarriedLights.clear();
@@ -4359,7 +4367,7 @@ export class GameServer {
     // subscription moved this tick has bodies to be told about and the diff
     // above says nothing about them. {@link broadcastPatch} is what decides
     // whether any given socket has something to hear.
-    this.broadcastPatch(actors, {
+    const moved = this.broadcastPatch(actors, {
       cells,
       events: this.events,
       hps,
@@ -4380,7 +4388,7 @@ export class GameServer {
     // After the shared patch, and that ordering is the point: a chunk coming
     // into reach is handed over as it stands *now*, so it must not be followed
     // by a diff computed against a board this client had not been shown.
-    this.streamEnteredChunks();
+    this.streamEnteredChunks(moved);
 
     // After the patch, which is the whole of the ordering: that patch is the
     // last thing these sockets will hear, and this is what tells them so.
@@ -5068,29 +5076,40 @@ export class GameServer {
    * walking pace a player has a whole chunk to cross before any of the ground
    * ahead is on screen, so a handful a tick is far ahead of need.
    */
-  private streamEnteredChunks() {
+  private streamEnteredChunks(moved: readonly string[]) {
     const session = this.session;
     if (!session) return;
     const map = session.getMap();
-    const sent = new Set<string>();
     // Which chunks have anything burning in them, worked out the first time a
     // chunk is handed over this tick — which on most ticks is never.
     let burningChunks: Set<string> | null = null;
-    for (const [, actorId] of this.seated()) {
-      // Two tabs on one body are owed the same ground, and the first of them
-      // through here has already moved the subscription on. Sending to both
-      // would be right; computing it twice would not.
-      if (sent.has(actorId)) continue;
-      sent.add(actorId);
-
+    // **Only whoever could be owed anything**: a client whose body moved, and
+    // one still being handed ground it walked into. A subscription is a
+    // function of where the body stands, so a client standing still with the
+    // whole of its square already sent is owed nothing — and asking every
+    // client where it was, every tick, to learn that was a cost per player per
+    // tick for nothing. One set per actor rather than per socket: two tabs on
+    // one body are owed the same ground, and computing it twice would not be
+    // right.
+    for (const id of moved) if (this.socketsByActor.has(id)) this.subscriptionsToCheck.add(id);
+    for (const actorId of this.subscriptionsToCheck) {
       const before = this.subscribed.get(actorId);
-      const at = session.actorPosition(actorId);
-      if (!at) continue;
+      const at = this.socketsByActor.has(actorId) ? session.actorPosition(actorId) : null;
+      // Gone, or dead: nothing to hand them. Coming back is a `hello`, which
+      // sends a whole subscription of its own.
+      if (!at) {
+        this.subscriptionsToCheck.delete(actorId);
+        continue;
+      }
       const centre = chunkKeyFor(at.x, at.y);
-      if (before && this.subscriptionCentre.get(before) === centre) continue;
+      if (before && this.subscriptionCentre.get(before) === centre) {
+        this.subscriptionsToCheck.delete(actorId);
+        continue;
+      }
       const now = interestChunks(at.x, at.y);
       if (sameChunks(before, now)) {
         this.subscriptionCentre.set(before!, centre);
+        this.subscriptionsToCheck.delete(actorId);
         continue;
       }
 
@@ -5106,7 +5125,10 @@ export class GameServer {
       for (const chunk of before ?? []) if (now.has(chunk)) reached.add(chunk);
       for (const chunk of take) reached.add(chunk);
       this.subscribed.set(actorId, reached);
-      if (sameChunks(reached, now)) this.subscriptionCentre.set(reached, centre);
+      if (sameChunks(reached, now)) {
+        this.subscriptionCentre.set(reached, centre);
+        this.subscriptionsToCheck.delete(actorId);
+      }
 
       // Stripped of the bodies this client is not being told about, which is
       // every body in ground this far out: the handover reaches five chunks and
@@ -5176,7 +5198,7 @@ export class GameServer {
    * owed the same message, and the set of bodies each client holds is advanced
    * here, so computing it twice would announce the same arrival twice.
    */
-  private broadcastPatch(actors: ActorSnapshot[], patch: SharedPatch) {
+  private broadcastPatch(actors: ActorSnapshot[], patch: SharedPatch): readonly string[] {
     const frame = this.frameFor(actors, patch);
     let shared: string | null = null;
     const payloads = new Map<string, string | null>();
@@ -5211,6 +5233,9 @@ export class GameServer {
         // runtime; webSocketClose will clean the actor up.
       }
     }
+    // Whose bodies moved, arrived or left, which is who {@link
+    // streamEnteredChunks} has to ask about next.
+    return frame.changed.ids;
   }
 
   /**
