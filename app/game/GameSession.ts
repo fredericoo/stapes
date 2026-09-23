@@ -10,6 +10,7 @@ import {
   appendTile,
   chunkIndexOf,
   chunkKeyAt,
+  chunkKeyFor,
   getStack,
   isPlayerBody,
   removeTileAt,
@@ -42,7 +43,7 @@ import {
   resolveCharm,
 } from "../lib/item";
 import { appendItem, peelOne, pourInto, stackWithItem, stow } from "../lib/piles";
-import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
+import type { ChunkCells, Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import {
   HEIGHT_PER_LEVEL,
   MAX_LEVEL,
@@ -1958,8 +1959,20 @@ type ActorRuntime = {
    *
    * Map mutation is persistent, so object identity is an exact staleness check:
    * this recomputes once per edit and never returns a stale answer.
+   *
+   * `chunk` is the chunk the body stood in on that map, with the two keys that
+   * find it. A later map whose chunk there is the same object has not touched
+   * one cell of it, so the body is still exactly where it was — which answers
+   * the memo without a stack lookup after an edit somewhere else entirely, the
+   * usual reason a map has changed. @see GameSession's `tryLocate`
    */
-  memo: { map: MapFile; loc: ActorLocation } | null;
+  memo: {
+    map: MapFile;
+    loc: ActorLocation;
+    levelKey: string;
+    chunkKey: string;
+    chunk: ChunkCells | undefined;
+  } | null;
 };
 
 /**
@@ -3315,9 +3328,25 @@ export class GameSession implements PlaySession {
   private tryLocate(actor: ActorRuntime): ActorLocation | null {
     const memo = actor.memo;
     if (memo?.map === this.map) return memo.loc;
+    // An edit elsewhere on the board: the chunk this body stands in is the same
+    // object, so the body is too. @see ActorRuntime.memo
+    if (memo?.chunk && this.map.levels[memo.levelKey]?.[memo.chunkKey] === memo.chunk) {
+      memo.map = this.map;
+      return memo.loc;
+    }
 
     const loc = locateActor(this.map, actor.id, memo?.loc);
-    if (loc) actor.memo = { map: this.map, loc };
+    if (loc) {
+      const zk = levelKey(loc.z);
+      const ck = chunkKeyFor(loc.x, loc.y);
+      actor.memo = {
+        map: this.map,
+        loc,
+        levelKey: zk,
+        chunkKey: ck,
+        chunk: this.map.levels[zk]?.[ck],
+      };
+    }
     return loc;
   }
 
