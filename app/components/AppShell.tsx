@@ -49,6 +49,7 @@ export const ADMIN_DESTINATIONS: Destination[] = [
   { to: "/admin/play", label: "Play" },
   { to: "/admin/arena", label: "Arena" },
   { to: "/admin/voxel", label: "Voxel" },
+  { to: "/admin/actions", label: "Actions" },
   // The way back out. The game itself offers no way in here, so this is the
   // only link between the two halves, and it points at the front door.
   { to: "/", label: "Game" },

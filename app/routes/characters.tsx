@@ -29,11 +29,24 @@ import type { Character } from "../../server/characters";
 export async function clientLoader() {
   const me = await fetchMe();
   if (!me.user) throw redirect("/sign-in");
-  return { username: me.user.username, characters: me.characters };
+  return {
+    username: me.user.username,
+    characters: me.characters,
+    maintenance: me.maintenance,
+    admin: me.user.role === "ADMIN",
+  };
 }
 
 export default function CharactersPage() {
-  const { username, characters } = useLoaderData<typeof clientLoader>();
+  const { username, characters, maintenance, admin } = useLoaderData<typeof clientLoader>();
+  /**
+   * The world is closed, and this account is not one it lets in.
+   *
+   * Said here rather than left to the socket, which would refuse the press a
+   * moment later from behind a loading screen. An administrator is let in, so
+   * their rows stay live. @see `server/maintenance.ts`
+   */
+  const closed = maintenance !== null && !admin;
   const navigate = useNavigate();
   /**
    * Which row was pressed.
@@ -63,13 +76,20 @@ export default function CharactersPage() {
     <Door>
       <DoorTitle>Signed in as {username}</DoorTitle>
 
+      {maintenance ? (
+        <DoorNote>
+          {maintenance.message ?? "The world is closed for maintenance."}
+          {admin ? " Only administrators can enter." : ""}
+        </DoorNote>
+      ) : null}
+
       {characters.length > 0 ? (
         <ul className="flex w-full max-w-xs flex-col gap-2">
           {characters.map((character) => (
             <li key={character.id}>
               <DoorButton
                 className="w-full"
-                disabled={entering !== null}
+                disabled={entering !== null || closed}
                 onClick={() => enter(character)}
               >
                 {entering === character.id ? "Entering…" : character.name}

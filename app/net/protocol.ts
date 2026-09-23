@@ -1979,7 +1979,7 @@ export const GAME_SOCKET_PATH = "/online/ws";
  * This is deliberately not the build id. A client deploy that changes no
  * messages should not disconnect anybody, and most client deploys are that.
  */
-export const PROTOCOL_VERSION = 16;
+export const PROTOCOL_VERSION = 17;
 
 /**
  * How often the world says nothing, to keep a proxy from hanging up.
@@ -2040,3 +2040,15 @@ export const CLOSE_REPLACED = 4002;
  * `../routes/game`
  */
 export const CLOSE_SIGNED_OUT = 4003;
+
+/**
+ * Close code for a socket closed, or refused, because the world is in
+ * maintenance.
+ *
+ * The client must not reconnect on it, on the terms {@link CLOSE_SIGNED_OUT}
+ * gives: every attempt would be refused the same way until somebody switches
+ * maintenance off. The page shows `app/components/MaintenanceScreen.tsx`
+ * instead, which asks `GET /api/maintenance` on a slow timer and reloads when
+ * the answer is that the world is open.
+ */
+export const CLOSE_MAINTENANCE = 4004;

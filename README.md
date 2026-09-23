@@ -156,6 +156,11 @@ map changes nothing anybody can see, and it deliberately carries each player's
 kit, tags and masteries across a save. `POST /api/reset` is the way out — it
 destroys every position, kit, reward and mastery, and needs `ADMIN_SECRET`.
 
+To keep players out without a deploy — for a fix, a reset, or an alpha that is
+only open some hours — use maintenance mode: `POST /api/maintenance` with the
+`ADMIN_SECRET` bearer token, or **Close world** at `/admin/actions` for an
+`ADMIN` account. Administrators can still enter. See [SETUP.md](SETUP.md).
+
 Accounts and characters are a fourth, and none of the above touches them. They
 are their own tables rather than keys in the world's checkpoint, so a reset
 hands everybody a fresh body under the name they already have.

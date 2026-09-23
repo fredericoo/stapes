@@ -7,6 +7,7 @@ import { InkDocument } from "./InkDocument";
 import { LightingToggle } from "./LightingToggle";
 import { LoadingScreen } from "./LoadingScreen";
 import { LeaveWorldButton } from "./LeaveWorldButton";
+import { MaintenanceScreen } from "./MaintenanceScreen";
 import { OutdatedScreen } from "./OutdatedScreen";
 import { ReplacedScreen } from "./ReplacedScreen";
 import { WorldClock } from "./WorldClock";
@@ -23,6 +24,7 @@ import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import { type CastSlot, type SpellButton, spellPress } from "../game/casting";
 import type { Direction, TileDef, TilesetDef } from "../lib/types";
 import {
+  CLOSE_MAINTENANCE,
   CLOSE_OUTDATED_CLIENT,
   CLOSE_REPLACED,
   CLOSE_SIGNED_OUT,
@@ -80,7 +82,14 @@ const RESTART_RECONNECT_JITTER_MS = 750;
 /** Guards the reload-on-stale-client path against looping. */
 const RELOADED_FOR_VERSION = "stapes:reloaded-for-version";
 
-type Status = "connecting" | "live" | "reconnecting" | "restarting" | "outdated" | "replaced";
+type Status =
+  | "connecting"
+  | "live"
+  | "reconnecting"
+  | "restarting"
+  | "outdated"
+  | "replaced"
+  | "maintenance";
 
 export function WorldPage({
   link,
@@ -547,6 +556,17 @@ export function WorldPage({
           return;
         }
 
+        // The world is closed to players. Reconnecting would be refused the
+        // same way until it opens, and the screen is what finds out when that
+        // is. @see ./MaintenanceScreen
+        if (event.code === CLOSE_MAINTENANCE) {
+          teardownRenderer();
+          setStatus("maintenance");
+          setStats(null);
+          setPlayers(null);
+          return;
+        }
+
         teardownRenderer();
         setStatus(restarting ? "restarting" : "reconnecting");
         setStats(null);
@@ -710,15 +730,17 @@ export function WorldPage({
                 tilesets={tilesets}
               />
             ) : null}
-            {/* The wait, and the two cases where it is not a wait. A refused
-                  version, or another tab taking this player, is the end of the
-                  road for this tab — there is no reconnect pending and no world
-                  coming — so each takes the loading screen's place rather than
-                  sitting behind it, whether or not the canvas ever painted. */}
+            {/* The wait, and the three cases where it is not a wait. A refused
+                  version, another tab taking this player, or a world closed for
+                  maintenance leaves no reconnect pending — so each takes the
+                  loading screen's place rather than sitting behind it, whether
+                  or not the canvas ever painted. */}
             {status === "outdated" ? (
               <OutdatedScreen serverVersion={serverVersion} />
             ) : status === "replaced" ? (
               <ReplacedScreen />
+            ) : status === "maintenance" ? (
+              <MaintenanceScreen />
             ) : painted ? null : (
               <LoadingScreen />
             )}

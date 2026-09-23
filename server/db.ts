@@ -183,6 +183,17 @@ const MIGRATIONS: readonly string[] = [
                      OR key LIKE 'tags:%' OR key LIKE 'mast:%'
                      OR key LIKE 'spawn:%' OR key LIKE 'status:%'
                      OR key LIKE 'hp:%' OR key LIKE 'pvp:%'`,
+  // Whether the world is closed to players, and what they are told about it.
+  //
+  // A single row, and its presence is the switch: no row is open, which is
+  // what every database that predates this reads as. Not in `kv`, because
+  // `POST /api/reset` empties that table and a reset is exactly the kind of
+  // thing somebody does *during* maintenance. @see `server/maintenance.ts`
+  `CREATE TABLE IF NOT EXISTS maintenance (
+     id       INTEGER PRIMARY KEY CHECK (id = 0),
+     message  TEXT,
+     since_ms INTEGER NOT NULL
+   )`,
 ];
 
 /**
