@@ -15,6 +15,11 @@
  * either is a message that cannot be read until roughly the moment it stops
  * being needed. `font-display: block` makes that literal for the pixel font:
  * invisible text on a black square.
+ *
+ * The crystal above the text is a download too, which is why it sits beside
+ * the message rather than replacing it. It is 1.7 KB and usually lands first,
+ * but the text does not wait for it. `width` and `height` reserve its box, so
+ * the text does not move down when it arrives.
  */
 
 /**
@@ -27,12 +32,21 @@ const SYSTEM_MONO = 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, m
 export function LoadingScreen() {
   return (
     <div
-      className="absolute inset-0 z-10 flex items-center justify-center bg-ink"
+      className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-ink"
       // A live region rather than a caption, because the interesting moment is
       // the one where it goes away: anything reading the page aloud otherwise
       // announces the world exists at a point of its own choosing.
       role="status"
     >
+      <img
+        // Rendered by `bun run generate:spinner`, at 32px; shown at 2x.
+        src="/crystal-spinner.gif"
+        // Decorative: the text beside it is what the live region announces.
+        alt=""
+        width={64}
+        height={64}
+        style={{ imageRendering: "pixelated" }}
+      />
       <span
         className="text-xs uppercase tracking-widest text-paper/70"
         style={{ fontFamily: SYSTEM_MONO }}
