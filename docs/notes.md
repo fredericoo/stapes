@@ -614,6 +614,20 @@ break by accident:
   become the live page, and a tab that loaded five minutes ago must still be able
   to fetch *its* chunks — so old builds stay resident and are still served.
 
+### A prerendered route is a file in the build
+
+`/home`, the landing page, is rendered to HTML at build time (`prerender` in
+`react-router.config.ts`) so it is not blank before the bundle runs. The build
+writes it to `home/index.html`, and `ClientBundle.respond` looks for
+`<path>/index.html` in the active build before falling through to the SPA
+shell. Every `.html` file is `no-store`, not only `index.html`: a prerendered
+page names hashed chunks exactly as the shell does, so caching it would pin a
+visitor to the build it came from.
+
+`/` stays off the prerender list. With it on, React Router moves the SPA
+fallback to `__spa-fallback.html`, and the server would hand every other route
+a rendered game page instead of the shell.
+
 ## A field the phone focuses has to be 16px
 
 Safari on iOS zooms the page in when it focuses a text field whose font is
