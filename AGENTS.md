@@ -27,6 +27,11 @@ an oblique cabinet projection with Three.js.
 - **`.agents/skills/`** — skills that load on demand (renderer performance,
   React Router).
 - **`.claude/skills/pull-request-standards/`** — how to write a PR description here.
+- **`.claude/skills/better-ui/` and `.claude/skills/ux-writing/`** — third-party
+  skills for interface detail (radii, shadows, icons, motion) and for interface
+  copy (buttons, errors, empty states). They were installed with `npx skills add`
+  and are recorded in `skills-lock.json`. Update them with `npx skills update`.
+  The house rules in this file win where the two disagree.
 - **`README.md`** — every script, and what it is for.
 - **`.oxlintrc.json` and `.oxfmtrc.json`** — the lint and format rules, and a
   paragraph per exception saying why the rule is wrong here. A rule turned off
