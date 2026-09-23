@@ -310,6 +310,20 @@ unlike everything else in that file, because its adapter builds every query from
 its own field names — a snake_case column there is a column it never selects.
 Dates are TEXT and booleans INTEGER, which is what the adapter sends for SQLite.
 
+**The dialect has its own introspector, because Kysely's lost every account.**
+Better Auth checks its tables on its first query, through Kysely's
+`SqliteIntrospector`, which reads columns with the `pragma_table_info(name)`
+table-valued function. On Turso 0.7 that function leaves the connection in a
+state where every *autocommit* write after it is visible to this process and
+gone when the file is next opened. Explicit transactions still commit, so the
+world's checkpoints came back after a deploy while every account, session and
+character made since the boot did not — and the seeded administrator was seeded
+again on every boot, which is the sign to look for. The statement form,
+`PRAGMA table_info("name")`, reads the same columns without the problem, and
+`TursoIntrospector` asks it one table at a time. `server/accounts.test.ts` has
+the test that closes the database and opens it again; every other test there
+asks the connection that did the writing, which cannot see this.
+
 ### An email is stored, and nothing else happens to it
 
 Sign-up asks for a username, an email and a password. **Signing in never asks
