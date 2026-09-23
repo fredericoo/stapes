@@ -1,6 +1,7 @@
 import { Elysia } from "elysia";
 import {
   CHARACTER_PARAM,
+  CLOSE_MAINTENANCE,
   CLOSE_OUTDATED_CLIENT,
   CLOSE_SIGNED_OUT,
   GAME_SOCKET_PATH,
@@ -108,14 +109,21 @@ const app = new Elysia({
         // already gone, and nothing would take it off the board until the next
         // load reaped it.
         if (socket.closed) return;
+        // Asked after the account rather than before it, because an
+        // administrator is let in: the point of closing the world is usually
+        // that somebody wants to look at it without players in it. @see
+        // `./maintenance`
+        const admin = viewer.role === "ADMIN";
+        if (world.maintenance.state && !admin) {
+          socket.close(CLOSE_MAINTENANCE, "maintenance");
+          return;
+        }
         // The role rides with the seating, from the same viewer the character
         // was looked up against. It is what lets the world tell an
         // administrator's `/mastery` from a fabricated frame — see
         // `GameServer`'s `Attachment`, which is where it is kept and why it is
         // kept there rather than on the body.
-        await world.join(socket, character.id, {
-          admin: viewer.role === "ADMIN",
-        });
+        await world.join(socket, character.id, { admin });
       })();
     },
 

@@ -150,6 +150,39 @@ describe("the seeded administrator", () => {
   });
 });
 
+/**
+ * What an account is written through, and whether it is still there after a
+ * restart.
+ *
+ * Every other test here asks the connection that did the writing, which
+ * cannot see this failure: on Turso 0.7 the introspection query Kysely ships
+ * made every autocommit write after it vanish at the next open, while staying
+ * visible to the process that made it. @see `./authDialect`'s
+ * `TursoIntrospector`
+ */
+describe("an account across a restart", () => {
+  it("is still there, with its character, when the database is opened again", async () => {
+    const userId = await makeAccount("durable");
+    const made = await characters.create(userId, "Keeper");
+    if ("error" in made) throw new Error(made.error);
+
+    await db.close?.();
+    db = await openDatabase(join(directory, "stapes.db"));
+    auth = createAuth(
+      db,
+      readConfig({ DATA_DIR: directory } as never),
+      await resolveAuthSecret(db, undefined),
+    );
+    characters = new Characters(db);
+
+    const viewer = await viewerOf(auth, await sessionHeaders("durable", "a-long-enough-password"));
+    expect(viewer?.id).toBe(userId);
+    expect((await characters.listFor(userId)).map((character) => character.name)).toEqual([
+      "Keeper",
+    ]);
+  });
+});
+
 describe("an ordinary account", () => {
   it("is a USER, and cannot ask to be anything else", async () => {
     // `role` is declared `input: false`, so this is dropped before it reaches

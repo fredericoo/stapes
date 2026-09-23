@@ -2103,3 +2103,15 @@ export const CLOSE_REPLACED = 4002;
  * `../routes/game`
  */
 export const CLOSE_SIGNED_OUT = 4003;
+
+/**
+ * Close code for a socket closed, or refused, because the world is in
+ * maintenance.
+ *
+ * The client must not reconnect on it, on the terms {@link CLOSE_SIGNED_OUT}
+ * gives: every attempt would be refused the same way until somebody switches
+ * maintenance off. The page shows `app/components/MaintenanceScreen.tsx`
+ * instead, which asks `GET /api/maintenance` on a slow timer and reloads when
+ * the answer is that the world is open.
+ */
+export const CLOSE_MAINTENANCE = 4004;

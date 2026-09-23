@@ -7,6 +7,7 @@ import { viewerOf, type Viewer } from "./auth";
 import type { World } from "./world";
 import type { ClientBundle } from "./clientBundle";
 import type { Config } from "./config";
+import { MAINTENANCE_MESSAGE_MAX_LENGTH } from "./maintenance";
 
 /**
  * Everything the pages used to get from a loader.
@@ -132,10 +133,16 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
        */
       .get("/me", async ({ request }) => {
         const viewer = await signedIn(request);
-        if (!viewer) return { user: null, characters: [] };
+        // On this reply because the character chooser is where somebody would
+        // otherwise press a name and be turned away by the socket a moment
+        // later. Sent signed out too: the sign-in screen is a fine place to
+        // learn the world is closed.
+        const maintenance = world.maintenance.state;
+        if (!viewer) return { user: null, characters: [], maintenance };
         return {
           user: viewer,
           characters: await world.characters.listFor(viewer.id),
+          maintenance,
         };
       })
       /**
@@ -309,7 +316,22 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
          * workflow fetches it two steps later anyway.
          */
         protocolVersion: PROTOCOL_VERSION,
+        /**
+         * Whether players are being kept out. Still `ok` while they are: the
+         * process is healthy, and a health check that failed during
+         * maintenance would have the platform restart a world somebody closed
+         * on purpose.
+         */
+        maintenance: world.maintenance.state !== null,
       }))
+      /**
+       * Whether the world is closed, and what it says.
+       *
+       * Unauthenticated, because the page asking is one the world has just
+       * closed — see `app/components/MaintenanceScreen.tsx`, which polls this
+       * and reloads when the answer turns to null.
+       */
+      .get("/maintenance", () => ({ maintenance: world.maintenance.state }))
       .guard({ headers: t.Object({ authorization: t.Optional(t.String()) }) })
       .post(
         "/reset",
@@ -341,13 +363,35 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
         { detail: { summary: "Replace the authored content with the image's" } },
       )
       /**
-       * Take a built client from continuous integration.
+       * Close the world to players, or open it again, without a deploy.
        *
-       * A tar archive rather than a file per request: a build is a few hundred
-       * files, and a request each would be a deploy that can half-finish. This
-       * either stores the whole thing or throws, and the build does not become
-       * the live page until it is activated separately.
+       * Either credential will do: the bearer token, so it can be flipped
+       * with `curl` from anywhere, or an administrator's session, so it can be
+       * flipped from `/admin/actions`. Players who are inside are closed
+       * out at once; administrators stay. @see `./maintenance`
        */
+      .post(
+        "/maintenance",
+        async ({ headers, body, request, status }) => {
+          const allowed =
+            (await authorized(headers.authorization, config)) || (await admin(request));
+          if (!allowed) return status(404, "Not found");
+          if (!body.on) {
+            await world.endMaintenance();
+            return { maintenance: null };
+          }
+          return { maintenance: await world.beginMaintenance(body.message ?? null) };
+        },
+        {
+          body: t.Object({
+            on: t.Boolean(),
+            message: t.Optional(
+              t.Nullable(t.String({ maxLength: MAINTENANCE_MESSAGE_MAX_LENGTH })),
+            ),
+          }),
+          detail: { summary: "Close the world to everybody but administrators, or reopen it" },
+        },
+      )
       .post("/backup", async ({ headers, status }) => {
         if (!(await authorized(headers.authorization, config))) {
           return status(404, "Not found");
@@ -357,6 +401,14 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
         const path = await world.snapshot(config.BACKUP_DIR);
         return { ok: true as const, path };
       })
+      /**
+       * Take a built client from continuous integration.
+       *
+       * A tar archive rather than a file per request: a build is a few hundred
+       * files, and a request each would be a deploy that can half-finish. This
+       * either stores the whole thing or throws, and the build does not become
+       * the live page until it is activated separately.
+       */
       .post(
         "/client/upload",
         async ({ headers, body, status }) => {

@@ -1,6 +1,7 @@
 import { redirect } from "react-router";
 import type { Character } from "../../server/characters";
 import type { Role } from "../../server/auth";
+import type { MaintenanceState } from "../../server/maintenance";
 
 /**
  * The account, from the browser's side.
@@ -22,6 +23,8 @@ import type { Role } from "../../server/auth";
 export type Me = {
   user: { id: string; username: string; role: Role } | null;
   characters: Character[];
+  /** Null while the world is open. @see `server/maintenance.ts` */
+  maintenance: MaintenanceState | null;
 };
 
 /**
@@ -82,10 +85,10 @@ async function reasonFrom(response: Response): Promise<string> {
 export async function fetchMe(): Promise<Me> {
   try {
     const response = await fetch("/api/me", { credentials: "same-origin" });
-    if (!response.ok) return { user: null, characters: [] };
+    if (!response.ok) return { user: null, characters: [], maintenance: null };
     return (await response.json()) as Me;
   } catch {
-    return { user: null, characters: [] };
+    return { user: null, characters: [], maintenance: null };
   }
 }
 

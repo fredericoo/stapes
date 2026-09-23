@@ -310,6 +310,20 @@ unlike everything else in that file, because its adapter builds every query from
 its own field names — a snake_case column there is a column it never selects.
 Dates are TEXT and booleans INTEGER, which is what the adapter sends for SQLite.
 
+**The dialect has its own introspector, because Kysely's lost every account.**
+Better Auth checks its tables on its first query, through Kysely's
+`SqliteIntrospector`, which reads columns with the `pragma_table_info(name)`
+table-valued function. On Turso 0.7 that function leaves the connection in a
+state where every *autocommit* write after it is visible to this process and
+gone when the file is next opened. Explicit transactions still commit, so the
+world's checkpoints came back after a deploy while every account, session and
+character made since the boot did not — and the seeded administrator was seeded
+again on every boot, which is the sign to look for. The statement form,
+`PRAGMA table_info("name")`, reads the same columns without the problem, and
+`TursoIntrospector` asks it one table at a time. `server/accounts.test.ts` has
+the test that closes the database and opens it again; every other test there
+asks the connection that did the writing, which cannot see this.
+
 ### An email is stored, and nothing else happens to it
 
 Sign-up asks for a username, an email and a password. **Signing in never asks
@@ -726,6 +740,46 @@ connection wins, because it is the one somebody just opened or reloaded.
   from before 4002 existed treats it as an ordinary close and reconnects, which
   is the loop above. The bump reloads every open tab onto a bundle that knows
   the code.
+
+## Maintenance closes the world to players, and is a row
+
+`POST /api/maintenance` with `{ on, message? }` closes the world to every
+account that is not `ADMIN`, or opens it again. It takes the `ADMIN_SECRET`
+bearer token or an administrator's session, so it works from `curl` and from
+**Close world** at `/admin/actions`. `server/maintenance.ts` is the store.
+
+`/admin/actions` is the page for acting on the running world, as opposed to
+authoring its content: one card per action, each saying what it does to whoever
+is playing. Maintenance is the first. It is not in the game's own menu because
+an administrator should not need a character standing in the world to close
+it, and not in `/admin/play`'s menu because that world runs in the tab and a
+switch there would read as belonging to it.
+
+- **A row in its own table, not an environment variable.** Changing a variable
+  is a redeploy, and a redeploy restarts the world, which is what somebody
+  closing it usually wants to do *while* it is closed. The row survives that
+  restart. It is not in `kv` because `POST /api/reset` empties `kv`, and a reset
+  is a likely thing to do during maintenance.
+- **Administrators stay in and can still enter.** The socket checks the role
+  after the character lookup in `server/index.ts`, and `World` remembers which
+  sockets were seated by an administrator so that closing the world closes
+  everybody else. The point of closing it is usually to look at it without
+  players in it.
+- **4004 (`CLOSE_MAINTENANCE`) is a close the page does not reconnect on**, for
+  the reason 4002 and 4003 are not: every retry would be refused the same way.
+  The page shows `app/components/MaintenanceScreen.tsx`, which asks
+  `GET /api/maintenance` every 30 seconds and reloads when the world is open.
+  Nothing is pushed to the closed tabs when it opens; they are no longer
+  connected to receive it.
+- **`PROTOCOL_VERSION` went to 17 for the new code**, on the terms it went to 9
+  for 4002: a bundle that does not know 4004 would treat it as an ordinary close
+  and reconnect in its backoff loop, being refused each time.
+- **`/api/health` still answers `ok` during maintenance**, with
+  `maintenance: true` beside it. The process is healthy, and a health check that
+  failed would have the platform restart a world somebody closed on purpose.
+- The character chooser reads `maintenance` off `/api/me` and disables its
+  rows for anybody who is not an administrator, so nobody presses a name only to
+  be refused by the socket from behind the loading screen.
 
 ## The simulation holds N actors
 

@@ -1,15 +1,16 @@
 import {
   SqliteAdapter,
-  SqliteIntrospector,
   SqliteQueryCompiler,
   type CompiledQuery,
   type DatabaseConnection,
   type DatabaseIntrospector,
+  type DatabaseMetadataOptions,
   type Dialect,
   type Driver,
-  type Kysely,
   type QueryCompiler,
   type QueryResult,
+  type SchemaMetadata,
+  type TableMetadata,
 } from "kysely";
 import type { Database } from "./db";
 
@@ -50,8 +51,8 @@ export class TursoDialect implements Dialect {
     return new SqliteAdapter();
   }
 
-  createIntrospector(db: Kysely<unknown>): DatabaseIntrospector {
-    return new SqliteIntrospector(db);
+  createIntrospector(): DatabaseIntrospector {
+    return new TursoIntrospector(this.db);
   }
 }
 
@@ -127,5 +128,89 @@ class TursoConnection implements DatabaseConnection {
   // oxlint-disable-next-line require-yield -- it exists to refuse, see above
   async *streamQuery<R>(): AsyncIterableIterator<QueryResult<R>> {
     throw new Error("The auth dialect does not stream — see TursoDialect");
+  }
+}
+
+/**
+ * Kysely's `SqliteIntrospector`, without the one query Turso cannot survive.
+ *
+ * **Kysely's reads every table's columns through `pragma_table_info(name)`, the
+ * table-valued function, and on Turso 0.7 that loses every autocommit write
+ * made on the connection afterwards.** They are visible in the process that
+ * made them and are gone when the file is next opened. Writes inside an
+ * explicit transaction still land, which is why the world's checkpoints —
+ * `WorldStore.flush` commits a batch — came back after a restart while
+ * accounts, sessions and characters did not. Better Auth introspects the
+ * schema on its first query, which is `seedAdmin` at boot, so every account
+ * made after that was lost at the next restart; the visible sign was the
+ * administrator being seeded again on every boot. The `PRAGMA table_info(…)`
+ * statement reads the same columns without this, so this asks one table at a
+ * time.
+ *
+ * Otherwise a transcription of Kysely 0.29's: the same tables, the same
+ * exclusions and the same guess at which column autoincrements.
+ */
+class TursoIntrospector implements DatabaseIntrospector {
+  constructor(private readonly db: Database) {}
+
+  async getSchemas(): Promise<SchemaMetadata[]> {
+    // SQLite has no schemas.
+    return [];
+  }
+
+  async getTables(
+    options: DatabaseMetadataOptions = { withInternalKyselyTables: false },
+  ): Promise<TableMetadata[]> {
+    const listing = await this.db.prepare(
+      "SELECT name, sql, type FROM sqlite_master " +
+        "WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%' ORDER BY name",
+    );
+    const tables = (await listing.all([])) as { name: string; sql: string | null; type: string }[];
+    // Kysely's own migration tables, which it leaves out unless asked.
+    const internal = new Set(["kysely_migration", "kysely_migration_lock"]);
+
+    const result: TableMetadata[] = [];
+    for (const { name, sql, type } of tables) {
+      if (!options.withInternalKyselyTables && internal.has(name)) continue;
+      const info = await this.db.prepare(`PRAGMA table_info("${name.replaceAll('"', '""')}")`);
+      const columns = (await info.all([])) as {
+        name: string;
+        type: string;
+        notnull: number;
+        dflt_value: unknown;
+        pk: number;
+      }[];
+
+      // The column named beside AUTOINCREMENT in the table's own SQL, or else
+      // a lone INTEGER PRIMARY KEY, which is a rowid alias. @see
+      // https://www.sqlite.org/autoinc.html
+      let autoIncrementing = sql
+        ?.split(/[(),]/)
+        .find((part) => part.toLowerCase().includes("autoincrement"))
+        ?.trimStart()
+        .split(/\s+/)[0]
+        ?.replace(/["`]/g, "");
+      if (!autoIncrementing) {
+        const keys = columns.filter((column) => column.pk > 0);
+        if (keys.length === 1 && keys[0]!.type.toLowerCase() === "integer") {
+          autoIncrementing = keys[0]!.name;
+        }
+      }
+
+      result.push({
+        name,
+        isView: type === "view",
+        isForeign: false,
+        columns: columns.map((column) => ({
+          name: column.name,
+          dataType: column.type,
+          isNullable: !column.notnull,
+          isAutoIncrementing: column.name === autoIncrementing,
+          hasDefaultValue: column.dflt_value != null,
+          comment: undefined,
+        })),
+      });
+    }
+    return result;
   }
 }

@@ -1,5 +1,6 @@
 import { treaty } from "@elysiajs/eden";
 import type { Api } from "../../server/api";
+import type { MaintenanceState } from "../../server/maintenance";
 import type { TileDef, TilesetDef } from "./types";
 
 /**
@@ -106,6 +107,22 @@ export async function uploadTileset(file: File, name: string): Promise<void> {
 /** Upload raw PNG bytes under a name, for the editors that render their own. */
 export async function uploadTilesetBytes(name: string, bytes: Uint8Array): Promise<void> {
   await uploadTileset(new File([bytes as BlobPart], name, { type: "image/png" }), name);
+}
+
+/** Whether the world is closed to players, and what it says. Null when open. */
+export async function fetchMaintenance(): Promise<MaintenanceState | null> {
+  return unwrap(await client.api.maintenance.get()).maintenance;
+}
+
+/**
+ * Close the world to players, or open it again. Answered only for an
+ * administrator's session. @see `server/maintenance.ts`
+ */
+export async function saveMaintenance(
+  on: boolean,
+  message: string | null,
+): Promise<MaintenanceState | null> {
+  return unwrap(await client.api.maintenance.post({ on, message })).maintenance;
 }
 
 /** Where a tileset PNG is served from, for the renderer's image loads. */

@@ -9,7 +9,8 @@ import { seedFromDirectory } from "./seed";
 import { createAuth, seedAdmin, type Auth } from "./auth";
 import { resolveAuthSecret } from "./authSecret";
 import { Characters } from "./characters";
-import { KEEPALIVE_INTERVAL_MS } from "../app/net/protocol";
+import { Maintenance, type MaintenanceState } from "./maintenance";
+import { CLOSE_MAINTENANCE, KEEPALIVE_INTERVAL_MS } from "../app/net/protocol";
 import type { Config } from "./config";
 import type { Database } from "./db";
 import { mkdir } from "node:fs/promises";
@@ -28,6 +29,13 @@ export class World {
   private keepaliveTimer: ReturnType<typeof setInterval> | null = null;
   private alarmTimer: ReturnType<typeof setTimeout> | null = null;
   private draining = false;
+  /**
+   * The sockets seated by an administrator, which maintenance leaves alone.
+   *
+   * Kept here rather than read off `GameServer`'s attachment: which sockets to
+   * close for maintenance is a question about the process, not the simulation.
+   */
+  private readonly adminSockets = new WeakSet<GameSocket>();
 
   private constructor(
     readonly server: GameServer,
@@ -41,6 +49,8 @@ export class World {
     readonly auth: Auth,
     /** Who may play which body. @see `./characters` */
     readonly characters: Characters,
+    /** Whether players may enter. @see `./maintenance` */
+    readonly maintenance: Maintenance,
     private readonly rawBlobs: Blobs,
     private readonly db: Database,
     private readonly config: Config,
@@ -99,6 +109,7 @@ export class World {
       new DataStore(blobs),
       auth,
       characters,
+      await Maintenance.load(db),
       blobs,
       db,
       config,
@@ -195,7 +206,39 @@ export class World {
     characterId: string,
     { admin }: { admin: boolean },
   ): Promise<void> {
+    if (admin) this.adminSockets.add(socket);
     await this.server.join(socket, characterId, { admin });
+  }
+
+  /**
+   * Close the world to players, or change what it tells them.
+   *
+   * Everybody already inside who is not an administrator is closed with
+   * {@link CLOSE_MAINTENANCE}, which the page answers with a screen rather than
+   * a reconnect. Administrators stay, so the person who switched it on can go
+   * on looking at whatever it was switched on for.
+   *
+   * Written before anybody is closed, so a failed write leaves everybody where
+   * they were rather than out of a world that still says it is open.
+   */
+  async beginMaintenance(message: string | null): Promise<MaintenanceState> {
+    const state = await this.maintenance.begin(message);
+    for (const socket of this.hub.all()) {
+      if (this.adminSockets.has(socket)) continue;
+      socket.close(CLOSE_MAINTENANCE, "maintenance");
+    }
+    return state;
+  }
+
+  /**
+   * Open the world again.
+   *
+   * Nobody is told. The pages that were closed are polling
+   * `GET /api/maintenance` and reload themselves when it says the world is
+   * open — see `app/components/MaintenanceScreen.tsx`.
+   */
+  async endMaintenance(): Promise<void> {
+    await this.maintenance.end();
   }
 
   async message(socket: GameSocket, raw: string): Promise<void> {

@@ -497,6 +497,29 @@ curl -X POST https://stapes.example.com/api/reset \
   -H "Authorization: Bearer $ADMIN_SECRET"
 ```
 
+### Closing the world for maintenance
+
+Close the world to everybody but administrators, with no deploy. Players who
+are inside are put out at once and shown the message; administrators stay in and
+can still enter. It is a row in the database, so it stays on through any deploys
+made while it is on.
+
+```bash
+# close, with an optional message for players
+curl -X POST https://stapes.example.com/api/maintenance \
+  -H "Authorization: Bearer $ADMIN_SECRET" -H "Content-Type: application/json" \
+  -d '{"on": true, "message": "Back by 18:00 UTC."}'
+
+# open again
+curl -X POST https://stapes.example.com/api/maintenance \
+  -H "Authorization: Bearer $ADMIN_SECRET" -H "Content-Type: application/json" \
+  -d '{"on": false}'
+```
+
+An `ADMIN` account can do the same at `/admin/actions`: **Close world**, on the
+Maintenance card, which also changes the message while the world is closed. `GET /api/maintenance` says whether it is on, and
+`/api/health` still answers `ok` while it is, with `maintenance: true`.
+
 ---
 
 ## What it costs
