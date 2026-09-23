@@ -14,8 +14,8 @@ import { canReplaceStack, fitsTile, tilesByIdFromList } from "../lib/validation"
 import { FALL_MS_PER_HEIGHT, PUSH_STEP_MS, TICK_MS, WALK_DURATION_MS } from "./constants";
 import { resolveStatus } from "../lib/status";
 import { GameSession } from "./GameSession";
-import { findLandingAbs, isSupported } from "./gravity";
-import { canWalk, groundWalkSpeedPercent, standingAbs } from "./movement";
+import { isSupported } from "./gravity";
+import { canWalk, findLandingAbs, groundWalkSpeedPercent, standingAbs } from "./movement";
 import { findPlayers, requireSinglePlayer } from "./player";
 import { tile } from "../lib/testTile";
 

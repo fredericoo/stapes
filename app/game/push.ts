@@ -4,8 +4,7 @@ import { CLIMB_HEIGHT_UNITS } from "../lib/interactions";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, physicalHeight } from "../lib/types";
 import { fitsHeightAtElevation } from "../lib/validation";
-import { findLandingAbs } from "./gravity";
-import { DIR_DELTA, listStandingSurfaces } from "./movement";
+import { DIR_DELTA, findLandingAbs, listStandingSurfaces } from "./movement";
 
 export type PushCheck = { ok: true; to: Coord } | { ok: false; reason: string };
 

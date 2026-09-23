@@ -16,7 +16,7 @@ export type {
   WalkState,
 } from "./GameSession";
 export { despawnActor, locateActor, spawnActor, spawnPoint, type ActorLocation } from "./actors";
-export { canWalk } from "./movement";
+export { canWalk, findLandingAbs } from "./movement";
 export { fitsTile } from "../lib/validation";
 export { findPlayers, requireSinglePlayer } from "./player";
-export { isSupported, findLandingAbs } from "./gravity";
+export { isSupported } from "./gravity";
