@@ -13,6 +13,7 @@
  *   bun scripts/bench-crowd.ts                         # 1000 players, spread, 60s
  *   bun scripts/bench-crowd.ts --players 250 --clustered
  *   bun scripts/bench-crowd.ts --deflate               # and pay for compression
+ *   bun scripts/bench-crowd.ts --idle                  # nobody walks: what a player costs standing still
  *   bun scripts/bench-crowd.ts --profile crowd.cpuprofile  # and say where it went
  *
  * **Spread** seats each player at a random cell of the surface, the way a
@@ -204,6 +205,8 @@ class Bot {
     readonly actorId: string,
     private readonly counters: Counters,
     deflate: boolean,
+    /** Stands where it arrives, for measuring what a player costs doing nothing. */
+    private readonly idle: boolean,
   ) {
     const bot = this;
     this.socket = new GameSocket({
@@ -262,7 +265,7 @@ class Bot {
       this.nextAt = Number.POSITIVE_INFINITY;
       return JSON.stringify({ type: "rebirth" });
     }
-    if (this.state !== "walking") return null;
+    if (this.state !== "walking" || this.idle) return null;
 
     if (this.runLeft <= 0) {
       // A new heading, and sometimes a stop first: people look around.
@@ -294,6 +297,7 @@ type Options = {
   joinsPerSecond: number;
   clustered: boolean;
   deflate: boolean;
+  idle: boolean;
   /** Where to write one player's frames, if anywhere. */
   sample: string | undefined;
   /**
@@ -372,7 +376,7 @@ async function run(options: Options) {
   };
   const bots: Bot[] = [];
   for (let i = 0; i < options.players; i++) {
-    const bot = new Bot(crypto.randomUUID(), counters, options.deflate);
+    const bot = new Bot(crypto.randomUUID(), counters, options.deflate, options.idle);
     if (surface.length > 0) {
       const at = surface[Math.floor(Math.random() * surface.length)]!;
       await store.put(`pos:${bot.actorId}`, {
@@ -485,7 +489,7 @@ async function run(options: Options) {
   const report = {
     players: options.players,
     residents,
-    scenario: options.clustered ? "clustered" : "spread",
+    scenario: `${options.clustered ? "clustered" : "spread"}${options.idle ? ", idle" : ""}`,
     deflate: options.deflate,
     seconds: Number(seconds.toFixed(1)),
     ticksPerSecond: Number((ticks / seconds).toFixed(2)),
@@ -549,6 +553,7 @@ await run({
   joinsPerSecond: Number(argValue("--joins-per-second") ?? 50),
   clustered: process.argv.includes("--clustered"),
   deflate: process.argv.includes("--deflate"),
+  idle: process.argv.includes("--idle"),
   sample: argValue("--sample"),
   profile: argValue("--profile"),
 });
