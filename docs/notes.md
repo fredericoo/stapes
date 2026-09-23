@@ -1811,6 +1811,19 @@ The blend goes through the palette pass like everything else, so what shows
 is the nearest palette colour to half body, half water. That is coarse, and it
 reads as pixel art.
 
+The shipped `water` tile is shallow: it is walkable, and it carries
+`wade: true`. Deep water, when there is some, is a liquid tile with
+`walkable: false`, and everything above about a plane something unstandable is
+lying on is now about that tile and the lilypad. The unit tests in
+`app/game/game.test.ts` that build an unwalkable `water` of their own are
+testing that case, not the shipped tile. A walkable pond is also somewhere a
+dropped thing can land, so a kit spilled by a death in shallow water lies in it.
+
+Walking in it is half speed (`walkSpeedPercent: -50`, a step takes twice as
+long), which is meant to be a heavy penalty. The pace is read off the ground a
+step starts from, so the step into the water is taken at the ordinary pace and
+every step taken from the water is slow, including the one back onto the bank.
+
 ## A roof over a cave is not what keeps the daylight out of it
 
 Anything underground that is meant to be dark has to be *checked* dark, against

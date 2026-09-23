@@ -3,10 +3,11 @@
  * out of it sinks or rises over the step. Every board is built here.
  */
 import { describe, expect, it } from "vitest";
+import tilesRaw from "../../data/tiles.json";
 import type { WalkState } from "../game/GameSession";
-import { wadesAt } from "../game/movement";
+import { canWalk, wadesAt } from "../game/movement";
 import { emptyMap, replaceStack } from "../lib/mapData";
-import type { TileDef } from "../lib/types";
+import { normalizeTiles, type TileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { tile } from "../lib/testTile";
 import { wadeDepth, wadingFor } from "./wadeDepth";
@@ -89,5 +90,21 @@ describe("wadingFor", () => {
     const wet = { ...dry, x: 1 };
     expect(wadingFor(map, [dry, wet], by)).toEqual(new Map([["0:1,0:1", 1]]));
     expect(wadingFor(map, [dry], by)).toBeUndefined();
+  });
+});
+
+/**
+ * The shipped `water` is shallow. Whether it is is a fact about the catalogue,
+ * and a pond nobody can walk into is what `wade` was added to stop.
+ */
+describe("the shipped water", () => {
+  const shipped = normalizeTiles(tilesRaw as unknown[]).find((t) => t.id === "water")!;
+  const withShipped = tilesByIdFromList([shipped, ...tiles.filter((t) => t.id !== "water")]);
+
+  it("is walked into rather than stopped at, and waded in", () => {
+    const map = bank();
+    const step = canWalk(map, { x: 0, y: 0, z: 0, stackIndex: 1 }, "e", by.body!, withShipped);
+    expect(step).toEqual({ ok: true, to: { x: 1, y: 0, z: 0 } });
+    expect(wadeDepth(map, walking(1, [0, 0], [1, 0]), withShipped)).toBe(1);
   });
 });
