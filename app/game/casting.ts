@@ -20,7 +20,7 @@ import type { Progress } from "./progress";
  * Which stones a body could cast right now, and why not the rest.
  *
  * **The one pure question this whole feature turns on**, and it has four callers
- * who must never disagree: the phone's buttons and the desktop's number keys,
+ * who must never disagree: the phone's buttons and the desktop's cast keys,
  * to dim and to refuse; the session, to honour or decline a cast; and the tests.
  * That is the same arrangement `./itemMoves` and `./affordances` are under — the
  * client asks the question to decide what to offer, the server asks it again
@@ -47,9 +47,9 @@ import type { Progress } from "./progress";
  * The three squares a stone can be cast from, in the order they are offered.
  *
  * **Two hands and a charm, which is the whole of a caster's loadout**, and the
- * reason the desktop binding is `1`, `2`, `3` and nothing more. The order is the
+ * reason the desktop binding is `Q`, `E`, `F` and nothing more. The order is the
  * order the buttons appear in and the order the keys are bound in, so the second
- * button and `2` are the same stone by construction rather than by a lookup
+ * button and `E` are the same stone by construction rather than by a lookup
  * anybody has to keep in step.
  *
  * The hands come first because a hand is the square you *choose* to give up: an
@@ -678,7 +678,7 @@ export function castableSpells(context: CastContext): SpellButton[] {
 
   // After the squares, because the squares are the loadout a player chose and
   // these are what the body came with — and because the order is the order the
-  // number keys are bound in, so picking up a stone must not renumber what a
+  // cast keys are bound in, so picking up a stone must not renumber what a
   // body could already do.
   for (const spell of context.spells) {
     if (!meetsRequirements(context.masteries, spell.requirements)) continue;
@@ -756,7 +756,7 @@ export const CAST_REFUSAL_NOTES: Record<CastRefusal, string> = {
  * is stopped here, because there is nothing to say that the dimming has not
  * already said.
  *
- * Here rather than in the component, because the number keys ask the same
+ * Here rather than in the component, because the cast keys ask the same
  * question — see `../routes`' cast key bindings — and two answers to "what does
  * pressing this do" would be a button and a key that disagree.
  */

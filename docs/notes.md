@@ -3095,7 +3095,7 @@ are load-bearing.
 
 **Both rows answer a second press, and the fight row did not used to.** Pressing
 the lit `attack` row turns the mode off and keeps the body, which is exactly what
-the keyboard's half — `GameRenderer.toggleSwing`, bound to E — has always done;
+the keyboard's half — `GameRenderer.toggleSwing`, bound to space — has always done;
 pressing the lit `target` row lets the body go. The fight row used to re-send the
 same two calls and change nothing, on the grounds that the pair already says
 everything: watching is the off position, so there was one. What that missed is
@@ -3153,10 +3153,55 @@ What replaced each of the three:
   square without using it; a held finger already did that job on a phone, and a
   mouse has hover for the asking.
 
-Escape drops the target *and* the stance, and `E` swings at whoever is picked or
+Escape drops the target *and* the stance, and space swings at whoever is picked or
 stops. Neither can pick a body: choosing who you are fighting is done by
 pointing at them, and a key that chose for you is how a fight used to start with
 somebody nobody had looked at.
+
+**The desktop keys.** WASD or the arrows walk. The rest of the left hand is laid out around them:
+
+- **`1`–`9` press a line of the list of what is in reach**, top to bottom across
+  every box — `listedActionRows` is the count, and the list draws each line's
+  digit in a gutter beside it so the number is read off the screen rather than
+  remembered. A line is one verb, except the watch-or-fight pair on a body; a
+  digit on that line walks along it (`rowPress`): the first press picks the body
+  without swinging, and every press after that is what space does. That first
+  press is the keyboard's way to *choose* a body, and it is not a key choosing
+  for you — the player read the number off the row naming the creature.
+- **`Q`, `E`, `F` cast the stones** in the order the spell bar draws them. They
+  were `1`, `2`, `3` until the digits went to the list, which is longer and
+  changes as you walk, so it is the one that needs an index read off the screen.
+- **Space swings at whoever is picked, or stops** (`bindAttackKey`). It was `E`.
+  It prevents the default on the press and the release, because a button that
+  was last clicked keeps focus and space would press it as well; it leaves space
+  alone inside a `dialog` or `alertdialog`, so the death screen's button still
+  answers it.
+
+- **In a conversation the digits move to the panel.** `1`–`9` pick a choice; on
+  a trade, `1` is Trade and `2` is Cancel, and `+`/`-` step the quantity
+  (`bindStepKeys`, on `Equal`/`Minus` and the number pad, so `+` needs no
+  shift). The panel takes the column the list of what is in reach was in, so
+  only one of the two is mounted and the digits are never bound twice. Unlike
+  every other key here, the step keys repeat when held.
+
+Every one of these gives way to ctrl, cmd and alt, so the browser's own
+shortcuts — ctrl-F, ctrl-1 — still reach the browser.
+
+Every key drawn on screen is a `KeyHint`: a pale rounded cap with a darker edge
+two pixels below it, so it reads as a key rather than a number in the margin.
+It fades with a disabled control around it (`in-aria-disabled`), so a greyed
+Trade does not keep a bright key. A shortcut named inside a tooltip's sentence,
+like "(Esc)", stays text.
+
+**The caps are drawn only where there is probably a keyboard**
+(`useKeyboardLikely`). A browser has no way to ask whether one is attached, so
+this guesses and corrects itself: any fine pointer (`(any-pointer: fine)`, so a
+touch laptop counts) says yes, and so does the first key pressed outside a text
+field, since an on-screen keyboard only types into the field it opened for.
+That is how a tablet with a paired keyboard gets its caps: the first step with
+WASD shows them. It never goes back to false — a finger on a laptop's screen
+says nothing about the keyboard. The bindings themselves are on everywhere;
+with no keyboard they are simply never pressed.
 
 The pair of rows is drawn by `actionRows`, and the *labels* never change with
 the stance — only which of the two is `active`. That is still part of what
@@ -3960,7 +4005,7 @@ There is no mana, no spell book and no spell slots. What a caster can do is
 decided by which **arcane stones** they are carrying, how recently each was used
 and — for the stones that take time — how far past what one asks the caster has
 got. The whole of a loadout is two hands and a charm, which is why the desktop
-binding is `1`, `2`, `3` and stops there.
+binding is `Q`, `E`, `F` and stops there.
 
 A stone is an arm of the item union beside weapon, armour, shield, consumable,
 container and artifact, and it is a kind of its own for the reason a shield is:
@@ -4378,7 +4423,7 @@ authored at three seconds.
   which is the one refusal a press still does something with.
 - **Pressing the stone again stops the cast.** `spellPress` is the one place
   that says what a press asks for — `cast`, `stop`, or nothing — and both the
-  button and the number keys ask it, so `1` on the stone being cast stops it
+  button and the cast keys ask it, so `Q` on the stone being cast stops it
   exactly as a tap does. The button wears a fourth appearance for it, lit in the
   accent and pulsing with a cross over the sprite, because a lit button in a
   row that has just dimmed would otherwise read as the one stone that somehow

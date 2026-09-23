@@ -24,10 +24,12 @@ import { TilePreview } from "./TilePreview";
 import { itemCard } from "../game/itemCard";
 import type { MasteryXp } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
+import { bindNumberKeys, bindStepKeys, numberKeyLabel } from "../game/heldDirections";
 import { useCoarsePointer } from "../lib/useMediaQuery";
 import { useDwell } from "../lib/useDwell";
 import { Tooltip } from "../ui";
 import { ItemCard } from "./ItemCard";
+import { KeyHint } from "./KeyHint";
 import { useTap } from "./useTap";
 
 /**
@@ -98,6 +100,18 @@ type Props = {
   dialog?: DialogDef;
   /** The heading, instead of the tile's name — for the same caller. */
   title?: string;
+  /**
+   * Bind the digit row to the choices, or to Trade and Cancel, and `+`/`-` to
+   * a trade's quantity; and draw each control's key beside it.
+   *
+   * Off unless asked for. The game asks, and this panel takes the column the
+   * list of what is in reach was bound in — so the digits move from one to the
+   * other rather than being claimed twice. The keys are drawn only where there
+   * is probably a keyboard; `KeyHint` decides. The editor's try-out leaves it
+   * off: it sits beside fields a digit is typed into, and the page has keys of
+   * its own.
+   */
+  hotkeys?: boolean;
 };
 
 export function ConversationPanel({
@@ -111,6 +125,7 @@ export function ConversationPanel({
   className = "",
   dialog: draft,
   title: heading,
+  hotkeys = false,
 }: Props) {
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
   const def = tilesById[conversation.tileId];
@@ -132,6 +147,18 @@ export function ConversationPanel({
     const line = body.querySelector<HTMLElement>(`[data-line="${lastPress}"]`);
     if (line) body.scrollTop = line.offsetTop;
   }, [conversation, lastPress]);
+
+  // Through refs, because the keys are bound once per set of choices and
+  // `onTalk` is an inline arrow upstream.
+  const choices = waiting?.kind === "choices" ? waiting.options.length : 0;
+  const onTalkRef = useRef(onTalk);
+  onTalkRef.current = onTalk;
+  useEffect(() => {
+    if (!hotkeys || choices === 0) return;
+    return bindNumberKeys((index) => {
+      if (index < choices) onTalkRef.current({ kind: "choose", index });
+    });
+  }, [hotkeys, choices]);
 
   return (
     <section
@@ -184,6 +211,7 @@ export function ConversationPanel({
           <div className="flex flex-col gap-1" key={conversation.pc.join(".")}>
             {waiting.options.map((option, index) => (
               <PanelButton key={index} onPress={() => onTalk({ kind: "choose", index })}>
+                {hotkeys ? <KeyHint label={numberKeyLabel(index)} /> : null}
                 <span className={LABEL_CLASS}>{option.label}</span>
               </PanelButton>
             ))}
@@ -199,6 +227,7 @@ export function ConversationPanel({
             masteryXp={masteryXp}
             statusDefs={statusDefs}
             onTalk={onTalk}
+            hotkeys={hotkeys}
           />
         ) : null}
       </div>
@@ -275,6 +304,7 @@ function TradeOffer({
   masteryXp,
   statusDefs,
   onTalk,
+  hotkeys,
 }: {
   trade: DialogTrade;
   tilesById: Record<string, TileDef>;
@@ -283,6 +313,8 @@ function TradeOffer({
   masteryXp: MasteryXp;
   statusDefs: Record<string, StatusDef>;
   onTalk: (action: TalkAction) => void;
+  /** `1` trades, `2` cancels, `+` and `-` step the quantity. @see Props.hotkeys */
+  hotkeys: boolean;
 }) {
   const [amount, setAmount] = useState(clampAmount(trade, undefined));
   const scaled = scaledTrade(trade, amount);
@@ -297,8 +329,32 @@ function TradeOffer({
   const possible = plan !== null;
   const stepClass =
     "grid w-8 shrink-0 place-items-center border border-paper/30 text-paper hover:border-paper hover:bg-paper/10 aria-disabled:text-paper/30 aria-disabled:hover:border-paper/30 aria-disabled:hover:bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent pointer-coarse:w-9";
-  const less = useTap(() => setAmount((c) => Math.max(trade.min, c - 1)));
-  const more = useTap(() => setAmount((c) => Math.min(trade.max, c + 1)));
+  const step = (delta: 1 | -1) =>
+    setAmount((c) => Math.min(trade.max, Math.max(trade.min, c + delta)));
+  const less = useTap(() => step(-1));
+  const more = useTap(() => step(1));
+
+  // What a key press reads is whatever is on screen at the moment of the press,
+  // so the refs are refreshed on every render and the keys bound once.
+  const pressRef = useRef({ possible, amount, onTalk, step });
+  pressRef.current = { possible, amount, onTalk, step };
+  useEffect(() => {
+    if (!hotkeys) return;
+    const unbindNumbers = bindNumberKeys((index) => {
+      const now = pressRef.current;
+      // The same refusal the button makes: a greyed Trade does nothing.
+      if (index === 0 && now.possible) now.onTalk({ kind: "trade", amount: now.amount });
+      if (index === 1) now.onTalk({ kind: "cancel" });
+    });
+    // A trade with one possible amount has no stepper drawn, and nothing for
+    // the keys to change.
+    const unbindSteps =
+      trade.max > trade.min ? bindStepKeys((delta) => pressRef.current.step(delta)) : null;
+    return () => {
+      unbindNumbers();
+      unbindSteps?.();
+    };
+  }, [hotkeys, trade.min, trade.max]);
   const nameOf = (tileId: string) => tilesById[tileId]?.name ?? tileId;
 
   return (
@@ -368,12 +424,14 @@ function TradeOffer({
           disabled={!possible}
           onPress={() => possible && onTalk({ kind: "trade", amount })}
         >
+          {hotkeys ? <KeyHint label={numberKeyLabel(0)} /> : null}
           <span className={LABEL_CLASS}>Trade</span>
         </PanelButton>
         <PanelButton
           className={`${OPTION_CLASS} flex-1`}
           onPress={() => onTalk({ kind: "cancel" })}
         >
+          {hotkeys ? <KeyHint label={numberKeyLabel(1)} /> : null}
           <span className={LABEL_CLASS}>Cancel</span>
         </PanelButton>
       </div>

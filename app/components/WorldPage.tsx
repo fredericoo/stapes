@@ -358,7 +358,7 @@ export function WorldPage({
     const unbindCast = bindCastKeys((index) => {
       const spell = spellsRef.current[index];
       if (!spell) return;
-      // The same question the button asks, so `1` on the stone being cast
+      // The same question the button asks, so `Q` on the stone being cast
       // stops it exactly as a tap on it does. @see `../game/casting`'s `spellPress`
       if (spellPress(spell.castability) === "stop") sessionRef.current?.cancelCast();
       else sessionRef.current?.cast(spell.slot);

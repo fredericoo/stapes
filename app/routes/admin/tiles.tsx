@@ -18,6 +18,7 @@ import {
 } from "../../lib/api";
 import { requireAdmin } from "../../lib/auth";
 import type { TileDef, TilesetDef } from "../../lib/types";
+import { KeyHint } from "../../components/KeyHint";
 import { Button, Dialog, Input, Segmented, useToast } from "../../ui";
 
 /** Reaches for the search field from anywhere on the page. */
@@ -185,17 +186,14 @@ export default function TilesPage() {
               spot the moment there is something to clear. The two never show at
               once, so one corner does both jobs.
 
-              Hidden below the breakpoint as well: a phone has no key to press,
-              and the hint would be the one thing in the bar earning none of its
-              room.
+              Hidden where there is probably no keyboard, which `KeyHint`
+              decides for itself: a phone has no key to press, and the hint
+              would be the one thing in the bar earning none of its room.
             */}
             {query === "" ? (
-              <kbd
-                aria-hidden="true"
-                className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 border border-border bg-paper px-1 text-[10px] leading-tight text-muted md:block"
-              >
-                {SEARCH_KEY}
-              </kbd>
+              <span className="pointer-events-none absolute top-1/2 right-2 flex -translate-y-1/2">
+                <KeyHint label={SEARCH_KEY} />
+              </span>
             ) : null}
           </div>
           <Segmented

@@ -245,11 +245,36 @@ export function bindLookKey(onChange: (looking: boolean) => void): () => void {
 }
 
 /** The key that starts and stops swinging at whoever is picked. */
-const ATTACK_MODE_CODE = "KeyE";
+const ATTACK_MODE_CODE = "Space";
 
 /**
- * Press E to fight whoever you have picked, press it again to stop. Returns the
- * unbind.
+ * Is a modifier other than shift being held?
+ *
+ * The letter and digit bindings below give way to it, so ctrl-F still finds
+ * text in the page and ctrl-1 still switches tabs. Shift is left out because it
+ * already means "read the world" in this module, and a player holding it to look
+ * at something should still be able to press a row.
+ */
+function withCommandModifier(e: KeyboardEvent): boolean {
+  return e.ctrlKey || e.metaKey || e.altKey;
+}
+
+/**
+ * Is this keystroke aimed at a dialog standing over the game?
+ *
+ * Space is how a focused button is pressed from the keyboard, and the rebirth
+ * button on the death screen is a focused button. The attack key is bound on the
+ * window, so without this it would swallow the press that asks for a body back.
+ */
+function inDialog(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element && target.closest('[role="dialog"], [role="alertdialog"]') !== null
+  );
+}
+
+/**
+ * Press space to fight whoever you have picked, press it again to stop. Returns
+ * the unbind.
  *
  * A latch rather than a modifier, which is the opposite of {@link bindLookKey}
  * and deliberately so: reading something is what you do for a second while your
@@ -257,8 +282,18 @@ const ATTACK_MODE_CODE = "KeyE";
  * is going to hold a key down for that, and a stance that ended whenever a hand
  * moved would end mid-swing.
  *
- * Gated on {@link isTypingTarget} for the same reason the directions are: an "e"
- * typed into the chat bar is a letter, not a decision to start swinging.
+ * Space rather than a letter, because the letters beside the movement keys are
+ * the stones now — see {@link CAST_CODES} — and the thumb is the one digit on the
+ * left hand that is not on WASD or reaching past it.
+ *
+ * The default is prevented, because space scrolls the page and presses whichever
+ * button has focus — which, after a click on the list, is a row. A key that
+ * toggled the fight *and* pressed the row last clicked would be two actions for
+ * one press.
+ *
+ * Gated on {@link isTypingTarget} for the same reason the directions are: a
+ * space typed into the chat bar is a gap between words, not a decision to start
+ * swinging.
  *
  * Deliberately reports the press rather than a state, leaving the caller to read
  * the stance off the session it belongs to: the rows on a body say the same
@@ -267,50 +302,68 @@ const ATTACK_MODE_CODE = "KeyE";
 export function bindAttackKey(onToggle: () => void): () => void {
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.code !== ATTACK_MODE_CODE) return;
+    if (isTypingTarget(e.target) || inDialog(e.target)) return;
+    if (withCommandModifier(e)) return;
+    e.preventDefault();
     if (e.repeat) return;
-    if (isTypingTarget(e.target)) return;
     onToggle();
+  };
+  // A focused button fires its click on the release of space, not the press, so
+  // the release has to be swallowed as well.
+  const onKeyUp = (e: KeyboardEvent) => {
+    if (e.code !== ATTACK_MODE_CODE) return;
+    if (isTypingTarget(e.target) || inDialog(e.target)) return;
+    e.preventDefault();
   };
 
   window.addEventListener("keydown", onKeyDown);
-  return () => window.removeEventListener("keydown", onKeyDown);
+  window.addEventListener("keyup", onKeyUp);
+  return () => {
+    window.removeEventListener("keydown", onKeyDown);
+    window.removeEventListener("keyup", onKeyUp);
+  };
 }
 
 /**
  * The keys that press a stone, in the order the buttons appear in.
  *
- * The digit row rather than letters, because casting is a *list* and a list
- * wants an index — one, two, three is the one keyboard idiom that says "the
- * first of these" without anybody having to be told. Three of them, because
- * three is the whole of a caster's *loadout*: two hands and a charm. See
- * `./casting`'s `CAST_SQUARES`.
+ * Q, E and F: the three letters the left hand reaches without leaving WASD. The
+ * digit row used to be here, and moved to the list of what is in reach — see
+ * {@link NUMBER_CODES} — because that list is longer and changes as you
+ * walk, and a list that changes wants an index a player reads off the screen.
+ * The stones are three at most and stay where they are, which is what a key
+ * learnt by position is good for. Three of them, because three is the whole of
+ * a caster's *loadout*: two hands and a charm. See `./casting`'s `CAST_SQUARES`.
  *
  * **The row can be longer than this, and that is not a mismatch to fix here.**
  * A body's own spells come after the squares — see `../lib/battler`'s
  * `BattlerDef.spells` — so a creature authored three of them has six buttons.
- * Three is what a hand reaching for the digit row can find without looking, and
- * everything past it is pressed the way a phone presses all of them. What a
- * position with no key looks like is {@link castKeyLabel}'s empty string, which
- * the button already draws as nothing rather than as a gap.
+ * Three is what a hand on WASD can find without looking, and everything past it
+ * is pressed the way a phone presses all of them. What a position with no key
+ * looks like is {@link castKeyLabel}'s empty string, which the button already
+ * draws as nothing rather than as a gap.
  *
- * `Digit1`–`Digit3` rather than the characters, on the terms the direction keys
- * are bound by code: a French keyboard types `&` where a British one types `1`,
- * and what a player is reaching for is the key in that position.
+ * By code rather than by character, on the terms the direction keys are bound
+ * by: on an AZERTY keyboard `KeyQ` is the key labelled A, and what a player is
+ * reaching for is the key in that position.
  */
-const CAST_CODES = ["Digit1", "Digit2", "Digit3"] as const;
+const CAST_CODES = ["KeyQ", "KeyE", "KeyF"] as const;
+
+/** What each of {@link CAST_CODES} is called on the button. */
+const CAST_LABELS = ["Q", "E", "F"] as const;
 
 /**
- * Press a number to cast the stone in that position. Returns the unbind.
+ * Press Q, E or F to cast the stone in that position. Returns the unbind.
  *
  * **Reports the position, not the square**, and that is what keeps the keyboard
  * and the buttons the same control: which stones a body has is a question with a
  * moving answer — a player carrying one stone has one button and one key — and a
- * key bound to a *square* would leave `2` doing nothing while the only spell in
- * the game sat under `1`. The caller holds the list, so the two cannot disagree
+ * key bound to a *square* would leave `E` doing nothing while the only spell in
+ * the game sat under `Q`. The caller holds the list, so the two cannot disagree
  * about what "the second one" is.
  *
- * Gated on {@link isTypingTarget} for the reason every other binding here is: a
- * "1" typed into the chat bar is a digit, not a decision to set somebody on
+ * Gated on {@link isTypingTarget} for the reason every other binding here is: an
+ * "e" typed into the chat bar is a letter, not a decision to set somebody on
  * fire. Repeats are dropped, because a held key is one press — the cooldown is
  * what decides how often a stone answers, and a keyboard that could ask faster
  * would be asking for permission it is going to be refused.
@@ -319,9 +372,10 @@ export function bindCastKeys(onCast: (index: number) => void): () => void {
   const onKeyDown = (e: KeyboardEvent) => {
     const index = CAST_CODES.indexOf(e.code as (typeof CAST_CODES)[number]);
     if (index < 0) return;
-    if (e.repeat) return;
     if (isTypingTarget(e.target)) return;
+    if (withCommandModifier(e)) return;
     e.preventDefault();
+    if (e.repeat) return;
     onCast(index);
   };
 
@@ -330,7 +384,7 @@ export function bindCastKeys(onCast: (index: number) => void): () => void {
 }
 
 /**
- * What a stone's key is called, for a tooltip and for anything read aloud.
+ * What a stone's key is called, for the button and for anything read aloud.
  *
  * Here rather than in the component, so the label and the binding are one list:
  * a fourth key added above would be a fourth label without anybody remembering.
@@ -339,7 +393,93 @@ export function bindCastKeys(onCast: (index: number) => void): () => void {
  * it *has* rather than holds. @see CAST_CODES
  */
 export function castKeyLabel(index: number): string {
-  return index < CAST_CODES.length ? String(index + 1) : "";
+  return CAST_LABELS[index] ?? "";
+}
+
+/**
+ * The keys that press the Nth thing in whichever list the right-hand column is
+ * showing: the lines of what is in reach, or a conversation's choices.
+ *
+ * The digit row, because both are lists and a list wants an index — one, two,
+ * three is the one keyboard idiom that says "the first of these" without
+ * anybody having to be told. Nine, because that is how many the row has before
+ * zero, and zero reads as "none" rather than "tenth".
+ *
+ * The two lists never compete for the keys: a conversation takes the column
+ * the list of what is in reach was drawn in, so only one of them is mounted and
+ * bound at a time. See `../components/GameViewport`.
+ */
+const NUMBER_CODES = [
+  "Digit1",
+  "Digit2",
+  "Digit3",
+  "Digit4",
+  "Digit5",
+  "Digit6",
+  "Digit7",
+  "Digit8",
+  "Digit9",
+] as const;
+
+/**
+ * Press a number to press that entry of a list. Returns the unbind.
+ *
+ * Reports the position and nothing else, on {@link bindCastKeys}' terms: the list
+ * is the caller's and changes every step, so only the caller can say what "the
+ * third one" is at the moment of the press.
+ */
+export function bindNumberKeys(onNumber: (index: number) => void): () => void {
+  const onKeyDown = (e: KeyboardEvent) => {
+    const index = NUMBER_CODES.indexOf(e.code as (typeof NUMBER_CODES)[number]);
+    if (index < 0) return;
+    if (isTypingTarget(e.target)) return;
+    if (withCommandModifier(e)) return;
+    e.preventDefault();
+    if (e.repeat) return;
+    onNumber(index);
+  };
+
+  window.addEventListener("keydown", onKeyDown);
+  return () => window.removeEventListener("keydown", onKeyDown);
+}
+
+/**
+ * What an entry's key is called, or empty for an entry past the ninth.
+ * @see NUMBER_CODES
+ */
+export function numberKeyLabel(index: number): string {
+  return index < NUMBER_CODES.length ? String(index + 1) : "";
+}
+
+/**
+ * The keys that step a count up or down: `+` and `-` on the main row and on the
+ * number pad.
+ *
+ * By code, like everything else here. `Equal` is the key `+` is printed on, so
+ * the press counts with or without shift — nobody should have to hold shift to
+ * type a plus when the minus beside it needs none.
+ */
+const STEP_UP_CODES = new Set(["Equal", "NumpadAdd"]);
+const STEP_DOWN_CODES = new Set(["Minus", "NumpadSubtract"]);
+
+/**
+ * Press `+` or `-` to step a count by one. Returns the unbind.
+ *
+ * **Repeats count**, unlike every other key in this module: holding `+` to go
+ * from one to twenty is what a held key is for, and the caller clamps.
+ */
+export function bindStepKeys(onStep: (delta: 1 | -1) => void): () => void {
+  const onKeyDown = (e: KeyboardEvent) => {
+    const delta = STEP_UP_CODES.has(e.code) ? 1 : STEP_DOWN_CODES.has(e.code) ? -1 : 0;
+    if (delta === 0) return;
+    if (isTypingTarget(e.target)) return;
+    if (withCommandModifier(e)) return;
+    e.preventDefault();
+    onStep(delta);
+  };
+
+  window.addEventListener("keydown", onKeyDown);
+  return () => window.removeEventListener("keydown", onKeyDown);
 }
 
 /** Drive `input` from the keyboard. Returns the unbind. */

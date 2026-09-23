@@ -10,6 +10,7 @@ import {
 import { castKeyLabel } from "../game/heldDirections";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { Tooltip } from "../ui/Tooltip";
+import { KeyHint } from "./KeyHint";
 import { useTap } from "./useTap";
 import { SpritePreview, TilePreview } from "./TilePreview";
 
@@ -231,7 +232,7 @@ export function SpellBar({
   return (
     <div
       // A list rather than a group, because what it is *is* an ordered set of
-      // things, and the order is load-bearing: the second button and the `2` key
+      // things, and the order is load-bearing: the second button and the `E` key
       // are the same stone by construction.
       role="list"
       aria-label="Spells"
@@ -358,19 +359,16 @@ function SpellSquare({
           />
         ) : null}
 
-        {/* The number that presses it, at the foot of the disc rather than in a
-            corner the circle has cut off. Drawn on both devices rather than
-            hidden behind a media query: a phone with a keyboard attached is a
-            real thing, and the glyph costs a few pixels of a button nobody is
-            reading closely. Announced by the label above instead of here, so it
-            is not read out twice. */}
+        {/* The key that presses it, sitting on the rim at the foot of the disc:
+            inside it, the cap covered the lower third of the sprite, and a
+            corner is where the circle has cut away. Only where there is
+            probably a keyboard, which `KeyHint` decides for itself. Announced
+            by the label above instead of here, so it is not read out twice. */}
         {key ? (
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute bottom-[6%] left-1/2 -translate-x-1/2 text-[10px] leading-none text-paper/50"
-          >
-            {key}
-          </span>
+          <KeyHint
+            label={key}
+            className="pointer-events-none absolute -bottom-2 left-1/2 -translate-x-1/2"
+          />
         ) : null}
 
         {/* A cross over the sprite of the stone being cast: the mark on every
