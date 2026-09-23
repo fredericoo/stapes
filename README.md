@@ -60,6 +60,12 @@ It is the path to open when the question is whether the game still works.
   with players standing in a few scenarios, and print what a tick costs and
   how many bytes it puts on the wire. `--scenario <name>` for one,
   `--seconds <n>` for a shorter run
+- `bun run bench:crowd` — seat a crowd of walking players on a real
+  `GameServer` against `data/map.json`, and print the tick rate the world
+  keeps, what a tick costs and which parts of it cost that. `--players <n>`
+  (1000), `--clustered` to seat everybody at the spawn, `--deflate` to pay for
+  compression too, `--sample <file>` to keep one player's frames. Run it under
+  `bun --cpu-prof` to see where the time goes
 - `bun scripts/anchor-tiles.ts` — a one-shot, already run: rewrote
   `data/tiles.json` into the anchored sprite encoding, where a tile names its
   sheet once and every rect is measured from `TileDef.anchor`. `--check` says
