@@ -9,6 +9,7 @@ import {
 import { TICK_MS } from "../app/game/constants";
 import {
   BodyGrid,
+  INTEREST_REACH_CHUNKS,
   chunksEntered,
   covers,
   interestChunks,
@@ -42,6 +43,7 @@ import { minutesOfDayAt, wrapMinutes, type MinutesOfDay } from "../app/lib/clock
 import { masteryXpBlockSchema, type MasteryXp } from "../app/lib/mastery";
 import {
   changedCellsOnLevel,
+  chunkIndexOf,
   chunkKeyFor,
   changedChunks,
   chunkifyMap,
@@ -953,12 +955,19 @@ type CutMemo = {
 class Fragments<T> {
   private readonly text: Array<string | undefined>;
 
-  constructor(private readonly items: readonly T[]) {
+  /**
+   * @param make the element at `i`, for a list whose elements are themselves
+   *   made on demand — the bare form of a cell, which most ticks nobody needs.
+   */
+  constructor(
+    private readonly items: readonly T[],
+    private readonly make?: (i: number) => T,
+  ) {
     this.text = new Array(items.length);
   }
 
   at(i: number): string {
-    return (this.text[i] ??= JSON.stringify(this.items[i]));
+    return (this.text[i] ??= JSON.stringify(this.make ? this.make(i) : this.items[i]));
   }
 }
 
@@ -1082,6 +1091,19 @@ type TickFrame = {
   cells: {
     /** {@link CELL_TERRAIN}, {@link CELL_ONE_BODY} or {@link CELL_BODIES}. */
     kind: Uint8Array;
+    /** Where each cell is, and the chunk it is in, in chunk coordinates. */
+    at: Columns;
+    cx: Int32Array;
+    cy: Int32Array;
+    /**
+     * Whether every body standing in the cell now is a body of this tick's
+     * snapshots, standing here — so that a client either holds all of them or
+     * none, by its distance from the cell. 0 for a cell that breaks that,
+     * which is asked the slow way. @see GameServer.cutByDistance
+     */
+    bodiesHere: Uint8Array;
+    /** Whether anybody stands in the cell now. */
+    anyBody: Uint8Array;
     /** For a cell one body moved in, whose body it is. */
     owner: Array<string | null>;
     /** For a cell one body moved in, where that body stands now and stood at the last cut. */
@@ -1093,6 +1115,9 @@ type TickFrame = {
   events: {
     /** {@link FOR_EVERYBODY}, {@link FOR_PLACE} or {@link FOR_BODY}. */
     kind: Uint8Array;
+    /** For an event addressed to a place, its chunk in chunk coordinates. */
+    cx: Int32Array;
+    cy: Int32Array;
     /** The chunk an event addressed to a place happened in. */
     chunk: Array<string | null>;
     /** The body an event addressed to one is about, and where it is in `actors` (-1 if nowhere). */
@@ -1103,6 +1128,8 @@ type TickFrame = {
   entryActor: Record<EntryList, Int32Array>;
   json: {
     cells: Fragments<CellPatch>;
+    /** Each cell with every body taken out: what a client too far away to hold them is sent. */
+    bare: Fragments<CellPatch>;
     events: Fragments<MotionEvent>;
   } & { [L in EntryList]: Fragments<SharedPatch[L][number]> };
 };
@@ -1127,6 +1154,7 @@ type EntryList = (typeof ENTRY_LISTS)[number];
  * it brings, a departure, or a cell with a body taken out of it.
  */
 type Cut = {
+  /** A cell of the shared patch as `i`, or with every body taken out as `-(i + 1)`. */
   cells: Array<number | CellPatch>;
   events: Array<number | MotionEvent>;
   names: NamePatch[];
@@ -1140,6 +1168,23 @@ function listJson<T>(parts: ReadonlyArray<number | T>, shared: Fragments<T>): st
     const part = parts[k]!;
     if (k > 0) out += ",";
     out += typeof part === "number" ? shared.at(part) : JSON.stringify(part);
+  }
+  return `${out}]`;
+}
+
+/** {@link listJson} for a cut's cells, whose negative numbers are the bare form. @see Cut */
+function cellsJson(
+  parts: ReadonlyArray<number | CellPatch>,
+  cells: Fragments<CellPatch>,
+  bare: Fragments<CellPatch>,
+): string {
+  if (parts.length === 0) return "[]";
+  let out = "[";
+  for (let k = 0; k < parts.length; k++) {
+    const part = parts[k]!;
+    if (k > 0) out += ",";
+    if (typeof part !== "number") out += JSON.stringify(part);
+    else out += part >= 0 ? cells.at(part) : bare.at(-part - 1);
   }
   return `${out}]`;
 }
@@ -1159,7 +1204,7 @@ function listJson<T>(parts: ReadonlyArray<number | T>, shared: Fragments<T>): st
 function serializeCut(cut: Cut, frame: TickFrame): string {
   const { json } = frame;
   return (
-    `{"type":"patch","cells":${listJson(cut.cells, json.cells)}` +
+    `{"type":"patch","cells":${cellsJson(cut.cells, json.cells, json.bare)}` +
     `,"events":${listJson(cut.events, json.events)}` +
     `,"hps":${listJson(cut.hps, json.hps)}` +
     `,"names":${JSON.stringify(cut.names)}` +
@@ -1169,6 +1214,21 @@ function serializeCut(cut: Cut, frame: TickFrame): string {
     `,"extractions":${listJson(cut.extractions, json.extractions)}` +
     `,"castings":${listJson(cut.castings, json.castings)}}`
   );
+}
+
+/** A cut with nothing in it yet. */
+function emptyCut(): Cut {
+  return {
+    cells: [],
+    events: [],
+    names: [],
+    hps: [],
+    carriedLights: [],
+    statusIds: [],
+    pvp: [],
+    extractions: [],
+    castings: [],
+  };
 }
 
 /** Is there anything in this cut for the client it was cut for? @see isEmptyPatch */
@@ -5300,6 +5360,11 @@ export class GameServer {
     const cellCount = patch.cells.length;
     const cells: TickFrame["cells"] = {
       kind: new Uint8Array(cellCount),
+      at: columns(cellCount),
+      cx: new Int32Array(cellCount),
+      cy: new Int32Array(cellCount),
+      bodiesHere: new Uint8Array(cellCount),
+      anyBody: new Uint8Array(cellCount),
       owner: new Array<string | null>(cellCount).fill(null),
       now: columns(cellCount),
       was: columns(cellCount),
@@ -5312,6 +5377,19 @@ export class GameServer {
     };
     for (let i = 0; i < cellCount; i++) {
       const scoped = patch.cells[i]!;
+      const { x, y, z, stack } = scoped.cell;
+      setColumn(cells.at, i, scoped.cell);
+      cells.cx[i] = chunkIndexOf(x);
+      cells.cy[i] = chunkIndexOf(y);
+      let here = 1;
+      for (const placed of stack) {
+        if (!placed.owner) continue;
+        cells.anyBody[i] = 1;
+        const k = indexOf.get(placed.owner);
+        const body = k === undefined ? undefined : actors[k]!;
+        if (!body || body.x !== x || body.y !== y || body.z !== z) here = 0;
+      }
+      cells.bodiesHere[i] = here;
       if (scoped.terrain) {
         cells.kind[i] = CELL_TERRAIN;
       } else if (scoped.bodies.length === 1) {
@@ -5329,6 +5407,8 @@ export class GameServer {
     const eventCount = patch.events.length;
     const events: TickFrame["events"] = {
       kind: new Uint8Array(eventCount),
+      cx: new Int32Array(eventCount),
+      cy: new Int32Array(eventCount),
       chunk: new Array<string | null>(eventCount).fill(null),
       actorId: new Array<string | null>(eventCount).fill(null),
       actor: new Int32Array(eventCount).fill(-1),
@@ -5340,6 +5420,8 @@ export class GameServer {
       } else if (audience.kind === "cell") {
         events.kind[j] = FOR_PLACE;
         events.chunk[j] = chunkKeyFor(audience.x, audience.y);
+        events.cx[j] = chunkIndexOf(audience.x);
+        events.cy[j] = chunkIndexOf(audience.y);
       } else {
         events.kind[j] = FOR_BODY;
         events.actorId[j] = audience.actorId;
@@ -5370,6 +5452,14 @@ export class GameServer {
       },
       json: {
         cells: new Fragments(patch.cells.map((scoped) => scoped.cell)),
+        // `cellInScope`'s own shape for a cell it took bodies out of.
+        bare: new Fragments(
+          patch.cells.map((scoped) => scoped.cell),
+          (i) => {
+            const cell = patch.cells[i]!.cell;
+            return { ...cell, stack: visibleStack(cell.stack, NO_ACTORS) };
+          },
+        ),
         events: new Fragments(patch.events),
         hps: new Fragments(patch.hps),
         carriedLights: new Fragments(patch.carriedLights),
@@ -5414,7 +5504,7 @@ export class GameServer {
    * not be this client's before asking the sets that decide.
    */
   private scopedPatchFor(actorId: string, frame: TickFrame): Cut | null {
-    const { actors, patch } = frame;
+    const { patch } = frame;
     // No record means this instance has never handed this socket any ground:
     // an inherited socket after a wake, whose `hello` was sent by an instance
     // that no longer exists. An empty subscription is the honest reading —
@@ -5446,8 +5536,11 @@ export class GameServer {
       last.at !== null &&
       samePoint(last.at, at) &&
       last.chunks === chunks;
+    // Standing still inside a whole subscription, which is nine clients in ten
+    // on a busy tick: everything below can be asked by distance.
+    const square = stayed ? this.squareOf(chunks, at) : null;
     const { entered, departed, held, before } = stayed
-      ? this.reachSinceLastCut(actorId, frame, at, chunks, known as Set<string>)
+      ? this.reachSinceLastCut(actorId, frame, at, chunks, known as Set<string>, square !== null)
       : this.reachFromScratch(actorId, frame, at, chunks, known);
     // Where the client stood at the last cut, read before the record moves on
     // to this one: it is what the cells below are asked against. @see mayConcern
@@ -5461,17 +5554,18 @@ export class GameServer {
       this.lastCut.set(actorId, { cut: this.cutCount, at, chunks, known: held });
     }
 
-    const cut: Cut = {
-      cells: [],
-      events: [],
-      names: [],
-      hps: [],
-      carriedLights: [],
-      statusIds: [],
-      pvp: [],
-      extractions: [],
-      castings: [],
-    };
+    if (square !== null) {
+      return this.cutByDistance(
+        actorId,
+        frame,
+        at!,
+        square,
+        { entered, departed, held, before },
+        chunks,
+      );
+    }
+
+    const cut = emptyCut();
     // Whether this client takes every element unchanged, and nothing of its
     // own — in which case the shared string is what it is sent.
     let whole = entered === null && departed === null;
@@ -5524,12 +5618,26 @@ export class GameServer {
     }
 
     if (whole) return null;
-    // Nobody came or went, so there is nothing of its own to add: the cut is
-    // the elements it takes, and nearly every client on nearly every tick is
-    // this.
+    return this.withArrivals(cut, frame, entered, departed, held);
+  }
+
+  /**
+   * A cut, with whoever came into this client's reach or left it added: their
+   * announcements, the state an arrival brings, and the cells both stand in.
+   *
+   * Nobody came or went on nearly every tick for nearly every client, and
+   * then there is nothing to add: the cut is the elements it takes.
+   */
+  private withArrivals(
+    cut: Cut,
+    frame: TickFrame,
+    entered: number[] | null,
+    departed: string[] | null,
+    held: ReadonlySet<string>,
+  ): Cut {
     if (entered === null && departed === null) return cut;
 
-    const arrivals = entered === null ? [] : entered.map((i) => actors[i]!);
+    const arrivals = entered === null ? [] : entered.map((i) => frame.actors[i]!);
     // An arrival brings its cell with it, and that is not the same fact as the
     // announcement beside it. While a body was out of reach this client heard
     // nothing about the cells it was standing in, and nothing re-hands that
@@ -5576,6 +5684,126 @@ export class GameServer {
   }
 
   /**
+   * The square of chunks this client's subscription is whole around, if it is
+   * — which it is from its `hello` on, except while a step over a chunk
+   * boundary is still being handed over. @see streamEnteredChunks
+   */
+  private squareOf(chunks: ReadonlySet<string>, at: Point): { cx: number; cy: number } | null {
+    // Only ever asked of a set this instance recorded, and a missing entry is
+    // simply not whole.
+    if (this.subscriptionCentre.get(chunks as Set<string>) !== chunkKeyFor(at.x, at.y)) {
+      return null;
+    }
+    return { cx: chunkIndexOf(at.x), cy: chunkIndexOf(at.y) };
+  }
+
+  /**
+   * One client's cut, when it stood still inside a subscription that is whole.
+   *
+   * **Then what it holds is exactly the bodies within its reach.** A whole
+   * square reaches further than a body can be seen from in every direction
+   * (`interest.test.ts` pins it), so the subscription turns no body in reach
+   * away, and a body in reach is a body held. Each question the cut asks of the
+   * sets is then a question of distance, and is asked as one, on the columns
+   * {@link frameFor} filed:
+   *
+   * - A cell only bodies moved in is news if one of them stands, or stood at
+   *   the last cut, within reach — held now, or held then from the same spot.
+   * - Everybody standing in a cell stands the same distance away, so it is
+   *   sent with all of its bodies or with none of them, and both forms are
+   *   written once for the tick. A cell whose bodies are not where the tick's
+   *   snapshots put them is asked the long way, the way
+   *   {@link scopedPatchFor} asks everybody else.
+   * - Ground, and an event that names a place, is this client's if its chunk
+   *   is in the square.
+   *
+   * What comes out is what {@link scopedPatchFor}'s own path makes. With a
+   * thousand players it is most clients on most ticks, and what it replaces
+   * was a set lookup per client per changed cell.
+   */
+  private cutByDistance(
+    actorId: string,
+    frame: TickFrame,
+    at: Point,
+    square: { cx: number; cy: number },
+    { entered, departed, held, before }: Reach,
+    chunks: ReadonlySet<string>,
+  ): Cut | null {
+    const { patch, cells, events, bodies } = frame;
+    const inSquare = (cx: number, cy: number) =>
+      Math.abs(cx - square.cx) <= INTEREST_REACH_CHUNKS &&
+      Math.abs(cy - square.cy) <= INTEREST_REACH_CHUNKS;
+    const holds = (id: string, index: number) =>
+      id === actorId ||
+      (index >= 0 &&
+        withinBodyReachOf(at.x, at.y, at.z, bodies.x[index]!, bodies.y[index]!, bodies.z[index]!));
+
+    const cut = emptyCut();
+    let whole = entered === null && departed === null;
+
+    for (let i = 0; i < patch.cells.length; i++) {
+      const cellKind = cells.kind[i]!;
+      if (
+        (cellKind === CELL_ONE_BODY &&
+          cells.owner[i] !== actorId &&
+          !mayHold(cells.now, cells.was, i, at, at)) ||
+        (cellKind === CELL_BODIES && !this.mayConcern(cells.bodies[i]!, actorId, at, at))
+      ) {
+        whole = false;
+        continue;
+      }
+      if (cells.bodiesHere[i] === 0) {
+        const scoped = patch.cells[i]!;
+        const mine = cellInScope(scoped, chunks, held, before);
+        if (mine === scoped.cell) {
+          cut.cells.push(i);
+          continue;
+        }
+        whole = false;
+        if (mine) cut.cells.push(mine);
+        continue;
+      }
+      if (!inSquare(cells.cx[i]!, cells.cy[i]!)) {
+        whole = false;
+        continue;
+      }
+      if (
+        cells.anyBody[i] === 0 ||
+        withinBodyReachOf(at.x, at.y, at.z, cells.at.x[i]!, cells.at.y[i]!, cells.at.z[i]!)
+      ) {
+        cut.cells.push(i);
+      } else {
+        whole = false;
+        cut.cells.push(-i - 1);
+      }
+    }
+
+    for (let j = 0; j < patch.events.length; j++) {
+      const audience = events.kind[j]!;
+      const reaches =
+        audience === FOR_EVERYBODY ||
+        (audience === FOR_PLACE
+          ? inSquare(events.cx[j]!, events.cy[j]!)
+          : holds(events.actorId[j]!, events.actor[j]!));
+      if (reaches) cut.events.push(j);
+      else whole = false;
+    }
+
+    for (const list of ENTRY_LISTS) {
+      const entries = patch[list];
+      const actorIndex = frame.entryActor[list];
+      const mine = cut[list] as number[];
+      for (let k = 0; k < entries.length; k++) {
+        if (holds(entries[k]!.actorId, actorIndex[k]!)) mine.push(k);
+        else whole = false;
+      }
+    }
+
+    if (whole) return null;
+    return this.withArrivals(cut, frame, entered, departed, held);
+  }
+
+  /**
    * Who a client that stood still holds now, from who it held at the last cut.
    *
    * Nothing about it moved — not where it stands, not its subscription, not
@@ -5594,6 +5822,8 @@ export class GameServer {
     at: Point,
     chunks: ReadonlySet<string>,
     known: Set<string>,
+    /** The subscription is a whole square, so it holds every chunk within reach. @see squareOf */
+    whole: boolean,
   ): Reach {
     const { actors, chunkOf, bodies } = frame;
     const { ids, index, was } = frame.changed;
@@ -5606,13 +5836,14 @@ export class GameServer {
       const isIn =
         i >= 0 &&
         withinBodyReachOf(at.x, at.y, at.z, bodies.x[i]!, bodies.y[i]!, bodies.z[i]!) &&
-        chunks.has(chunkOf[i]!);
+        (whole || chunks.has(chunkOf[i]!));
       // Held at the last cut only if it stood within reach then, which rules
-      // out most of the world before the set is asked.
+      // out most of the world before the set is asked — and inside a whole
+      // square is the answer outright: the last cut held every body in reach.
       const wasIn =
         was.has[c] === 1 &&
         withinBodyReachOf(at.x, at.y, at.z, was.x[c]!, was.y[c]!, was.z[c]!) &&
-        known.has(id);
+        (whole || known.has(id));
       if (isIn === wasIn) continue;
       if (isIn) (entered ??= []).push(i);
       else (departed ??= []).push(id);
