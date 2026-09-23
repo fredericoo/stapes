@@ -19,6 +19,8 @@ import { MAP_FILE_VERSION, MAX_LEVEL, MIN_LEVEL, levelKey } from "../app/lib/typ
  * copy-on-write (`../app/lib/mapData`'s `setStacks`), so its text is the same
  * text. It is written the first time anybody needs it and kept against the
  * chunk object, and an edit, which replaces the object, is what retires it.
+ * Each cell's text is kept against its stack array as well, which an edit to
+ * the chunk does not replace for the cells it did not touch. @see StackText
  *
  * **What is kept is the chunk with every body taken out**, which is what
  * almost every client is owed: a client is told about the bodies near it and
@@ -38,24 +40,74 @@ type ChunkText = {
   z: number;
   /** The chunk's cell keys, in the order the chunk holds them. */
   keys: string[];
-  /** Whose bodies stand in each cell, or null for a cell with none — which is nearly all. */
-  owners: Array<string[] | null>;
+  /** Each cell's stack as kept, in the same order. */
+  stacks: StackText[];
   /** Whether any cell has a body in it at all. */
   anyBody: boolean;
-  /** Each cell as a handover carries it (`CellPatch`), with every body taken out. */
-  cells: string[] | null;
-  /** Each cell as a `hello`'s map carries it (`"x,y":[...]`), with every body taken out. */
-  entries: string[] | null;
-  /** `cells`, joined. */
+  /** Each cell as a handover carries it (`CellPatch`), with every body taken out, joined. */
   cellsJoined: string | null;
-  /** `entries`, joined. */
+  /** Each cell as a `hello`'s map carries it (`"x,y":[...]`), with every body taken out, joined. */
   entriesJoined: string | null;
 };
 
+/**
+ * One cell's stack as kept: whose bodies stand in it, and its text with them
+ * taken out, in both of the shapes a chunk is written in.
+ *
+ * **Kept against the stack array, which outlives the chunk around it.** A step
+ * copies the chunk it lands in, and with a thousand people walking nearly
+ * every chunk anybody is handed is a copy made this tick — so text kept only
+ * against the chunk was text written again, cell by cell, for the two cells in
+ * it that changed. The copy holds the same stack arrays for every other cell,
+ * and a stack array's contents never change: every edit builds a new one.
+ * @see `../app/lib/mapData`'s `setStacks`
+ */
+type StackText = {
+  /** The cell and level it was written for. A stack found anywhere else is written again. */
+  key: string;
+  z: number;
+  /** Whose bodies stand in the cell, or null for a cell with none — which is nearly all. */
+  owners: string[] | null;
+  /** The cell as a handover carries it (`CellPatch`), with every body taken out. */
+  cell: string | null;
+  /** The cell as a `hello`'s map carries it (`"x,y":[...]`), with every body taken out. */
+  entry: string | null;
+};
+
 const texts = new WeakMap<ChunkCells, ChunkText>();
+const stackTexts = new WeakMap<PlacedTile[], StackText>();
 
 /** Nobody, for writing a chunk with every body taken out. */
 const NOBODY: ReadonlySet<string> = new Set();
+
+function stackTextOf(stack: PlacedTile[], key: string, z: number): StackText {
+  const kept = stackTexts.get(stack);
+  if (kept !== undefined && kept.key === key && kept.z === z) return kept;
+  let owners: string[] | null = null;
+  for (const placed of stack) {
+    if (placed.owner) (owners ??= []).push(placed.owner);
+  }
+  const text: StackText = { key, z, owners, cell: null, entry: null };
+  stackTexts.set(stack, text);
+  return text;
+}
+
+/** The stack with every body taken out, which is most stacks as they are. */
+function bareStack(text: StackText, stack: PlacedTile[]): PlacedTile[] {
+  return text.owners ? visibleStack(stack, NOBODY) : stack;
+}
+
+function cellTextOf(text: StackText, stack: PlacedTile[]): string {
+  if (text.cell !== null) return text.cell;
+  const { x, y } = cellXY(text.key);
+  text.cell = JSON.stringify(cellPatchOf(x, y, text.z, bareStack(text, stack), undefined));
+  return text.cell;
+}
+
+function entryTextOf(text: StackText, stack: PlacedTile[]): string {
+  text.entry ??= `${JSON.stringify(text.key)}:${JSON.stringify(bareStack(text, stack))}`;
+  return text.entry;
+}
 
 function textOf(chunk: ChunkCells, z: number): ChunkText {
   const kept = texts.get(chunk);
@@ -63,25 +115,19 @@ function textOf(chunk: ChunkCells, z: number): ChunkText {
   // one; the level is part of what is written, so it is part of the key.
   if (kept && kept.z === z) return kept;
   const keys: string[] = [];
-  const owners: Array<string[] | null> = [];
+  const stacks: StackText[] = [];
   let anyBody = false;
   for (const key in chunk) {
+    const stack = stackTextOf(chunk[key]!, key, z);
     keys.push(key);
-    let whose: string[] | null = null;
-    for (const placed of chunk[key]!) {
-      if (!placed.owner) continue;
-      (whose ??= []).push(placed.owner);
-    }
-    owners.push(whose);
-    if (whose) anyBody = true;
+    stacks.push(stack);
+    if (stack.owners) anyBody = true;
   }
   const text: ChunkText = {
     z,
     keys,
-    owners,
+    stacks,
     anyBody,
-    cells: null,
-    entries: null,
     cellsJoined: null,
     entriesJoined: null,
   };
@@ -136,27 +182,24 @@ export function handoverCellsJson(
       if (!chunk) continue;
       const text = textOf(chunk, z);
       if (text.keys.length === 0) continue;
-      text.cells ??= text.keys.map((key, i) => {
-        const { x, y } = cellXY(key);
-        const stack = chunk[key]!;
-        return JSON.stringify(
-          cellPatchOf(x, y, z, text.owners[i] ? visibleStack(stack, NOBODY) : stack, undefined),
-        );
-      });
       const onFire = burningChunks.has(`${z}:${chunkKey}`);
-      const bodiesHeld = text.anyBody && text.owners.some((whose) => holdsAny(whose, held));
+      const bodiesHeld = text.anyBody && text.stacks.some((stack) => holdsAny(stack.owners, held));
       if (!onFire && !bodiesHeld) {
-        parts.push((text.cellsJoined ??= text.cells.join(",")));
+        text.cellsJoined ??= text.keys
+          .map((key, i) => cellTextOf(text.stacks[i]!, chunk[key]!))
+          .join(",");
+        parts.push(text.cellsJoined);
         continue;
       }
       // Written cell by cell, and only the cells that differ from the kept text:
       // one with a body this client holds, or one with a fire in it.
       for (let i = 0; i < text.keys.length; i++) {
         const key = text.keys[i]!;
+        const stack = text.stacks[i]!;
         const { x, y } = cellXY(key);
         const afflicted = onFire ? burning(x, y, z) : undefined;
-        if (!afflicted && !holdsAny(text.owners[i]!, held)) {
-          parts.push(text.cells[i]!);
+        if (!afflicted && !holdsAny(stack.owners, held)) {
+          parts.push(cellTextOf(stack, chunk[key]!));
           continue;
         }
         parts.push(
@@ -192,23 +235,21 @@ export function mapOfInterestJson(
       if (!chunk) continue;
       const text = textOf(chunk, z);
       if (text.keys.length === 0) continue;
-      text.entries ??= text.keys.map(
-        (key, i) =>
-          `${JSON.stringify(key)}:${JSON.stringify(
-            text.owners[i] ? visibleStack(chunk[key]!, NOBODY) : chunk[key]!,
-          )}`,
-      );
       parts ??= [];
-      if (!text.anyBody || !text.owners.some((whose) => holdsAny(whose, held))) {
-        parts.push((text.entriesJoined ??= text.entries.join(",")));
+      if (!text.anyBody || !text.stacks.some((stack) => holdsAny(stack.owners, held))) {
+        text.entriesJoined ??= text.keys
+          .map((key, i) => entryTextOf(text.stacks[i]!, chunk[key]!))
+          .join(",");
+        parts.push(text.entriesJoined);
         continue;
       }
       for (let i = 0; i < text.keys.length; i++) {
         const key = text.keys[i]!;
+        const stack = text.stacks[i]!;
         parts.push(
-          holdsAny(text.owners[i]!, held)
+          holdsAny(stack.owners, held)
             ? `${JSON.stringify(key)}:${JSON.stringify(visibleStack(chunk[key]!, held))}`
-            : text.entries[i]!,
+            : entryTextOf(stack, chunk[key]!),
         );
       }
     }

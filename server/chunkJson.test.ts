@@ -106,6 +106,26 @@ describe("ground handed over as it comes into reach", () => {
     );
   });
 
+  it("writes a stack for the cell it is in now, not the cell it was first written for", () => {
+    let map = board();
+    handoverCellsJson(map, ALL_CHUNKS, new Set(), NOT_BURNING, new Set());
+    // The same array, moved to another cell and put on another level too.
+    const moved = map.levels["0"]!["0,0"]!["1,1"]!;
+    map = setStacks(map, [
+      { x: 1, y: 1, z: 0, stack: [] },
+      { x: 2, y: 2, z: 0, stack: moved },
+      { x: 3, y: 3, z: 2, stack: moved },
+    ]);
+    for (const held of HELD_SETS) {
+      expect(handoverCellsJson(map, ALL_CHUNKS, held, NOT_BURNING, new Set())).toBe(
+        handoverByObjects(map, ALL_CHUNKS, held, NOT_BURNING),
+      );
+      expect(mapOfInterestJson(map, new Set(ALL_CHUNKS), held)).toBe(
+        JSON.stringify(mapOfInterest(map, new Set(ALL_CHUNKS), held)),
+      );
+    }
+  });
+
   it("says nothing about chunks the board does not have", () => {
     expect(handoverCellsJson(board(), ["40,40"], new Set(), NOT_BURNING, new Set())).toBe("");
   });
