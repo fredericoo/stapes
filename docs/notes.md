@@ -1682,6 +1682,42 @@ highest solid below the feet, so a fall lands on the plate rather than under it.
 And a creature already stranded off its home level is not rescued by this; it
 only stops any more from joining it.
 
+### A step is refused when its fall would end on something nobody stands on
+
+`canWalk` lets a body step into a column with no surface in its climb band so
+that gravity can take it down a drop too steep to climb. It used to check only
+the top at the walker's own level. What the fall then landed on was gravity's
+business: `findLandingAbs` stops at the highest solid below the feet, walkable
+or not, and `GameSession.land` handled a non-walkable landing by walking the
+body on in the direction it faced until it found a surface, or dropping it
+through to the next walkable one below.
+
+The client predicts steps and does not predict that walk. Standing on a
+full-level block and stepping toward a fence on the ground beside it was a
+legal step into open air, a two-unit settle onto the fence, and a walk the
+server started on its own — so the avatar stood on the fence for a round trip
+and then snapped to wherever the server had put it.
+
+**Now `canWalk` asks where the body comes to rest and refuses the step if that
+is a top nobody can stand on**, however many levels down: `findLandingAbs` from
+one unit above the entry elevation, so a top level with the entry counts too,
+checked with `isWalkableSurfaceAt` — the same check `land` used to decide on
+the walk. Both machines run `canWalk`, so the client never predicts the step and
+the server never takes it. `dropLanding`, which the route search and a click
+into a hole ask, reads the same landing and answers null for it instead of
+skipping down to the next walkable surface, so a route never plans a fall that
+`canWalk` will refuse.
+
+Water is a non-walkable top, so stepping off a ledge into a pond is refused too.
+
+`land` now puts a body down wherever gravity stopped it, walkable or not. A
+walk can no longer get it there; the board changing under it still can — a
+floor taken away, a tile laid in its path — and it walks off the top it landed
+on like anybody else. That is also what the shipped map's holes now depend on:
+a hole whose bottom is a `half-wall`, a tree or water is one nobody can step
+into, and content that wants a way down has to put walkable ground at the
+bottom.
+
 ### The topmost tile decides what a stack is
 
 `walkableElevInStack` reads the top of a stack and nothing under it. Whatever

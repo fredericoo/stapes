@@ -3,20 +3,16 @@ import {
   climbFromSourceAt,
   footingOfStack,
   getStack,
+  isSolidPlacement,
+  isWalkableSurfaceAt,
   planeCoveredBy,
   stackHeight,
   surfaceTileAt,
   walkableFloorAbove,
 } from "../lib/mapData";
 import { stackOcclusion } from "../lib/lighting";
-import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
-import {
-  HEIGHT_PER_LEVEL,
-  MAX_LEVEL,
-  MIN_LEVEL,
-  resolveClimbFrom,
-  resolveWalkable,
-} from "../lib/types";
+import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
+import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL, resolveClimbFrom } from "../lib/types";
 import { walkDurationFrom } from "../lib/walkSpeed";
 import type { FitOpts } from "../lib/validation";
 import { fitsAtElevation, fitsTile } from "../lib/validation";
@@ -271,15 +267,54 @@ export function surfacesInClimbBand(
   });
 }
 
-/** Scenery tile whose solid top is at absolute `abs`, if any. */
-function solidTopAt(
+/**
+ * Highest solid surface absolute elevation strictly below `feetAbs` at (x,y).
+ * Includes non-walkable tops (caller may slide or fall through).
+ * Returns null if nothing is below (open void).
+ */
+export function findLandingAbs(
   map: MapFile,
   x: number,
   y: number,
-  abs: number,
+  feetAbs: number,
   tilesById: Record<string, TileDef>,
-): PlacedTile | null {
-  return surfaceTileAt(map, x, y, abs, tilesById);
+  /** Stack index of falling entity at its current cell, if on this column. */
+  exclude?: { z: number; stackIndex: number },
+): number | null {
+  let best: number | null = null;
+
+  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+    let stack = getStack(map, x, y, z);
+    if (exclude && exclude.z === z) {
+      stack = sceneryStack(map, x, y, z, exclude.stackIndex);
+    }
+
+    // A stack of nothing but intangibles is open air with art in it, and its
+    // "top" is the bare level base — landing on that is how a body came to
+    // hover in a ladder shaft with no floor under it.
+    if (stack.some((placed) => isSolidPlacement(placed, tilesById))) {
+      const top = absoluteStandingElevation(z, stack, tilesById);
+      if (top < feetAbs) {
+        best = best == null ? top : Math.max(best, top);
+      }
+    }
+
+    // Full stack below forms a floor at the base of this level.
+    if (z > MIN_LEVEL) {
+      let below = getStack(map, x, y, z - 1);
+      if (exclude && exclude.z === z - 1) {
+        below = sceneryStack(map, x, y, z - 1, exclude.stackIndex);
+      }
+      if (stackHeight(below, tilesById) >= HEIGHT_PER_LEVEL) {
+        const floorAbs = z * HEIGHT_PER_LEVEL;
+        if (floorAbs < feetAbs) {
+          best = best == null ? floorAbs : Math.max(best, floorAbs);
+        }
+      }
+    }
+  }
+
+  return best;
 }
 
 /**
@@ -380,14 +415,18 @@ export function canWalk(
     return { ok: false, reason: `Climb ${climb} exceeds max ${MAX_CLIMB_HEIGHT}` };
   }
 
-  // Reject standing on a non-walkable solid top (including a full-height tree
-  // whose top coincides with an empty level's base above it).
-  const solidTop = solidTopAt(map, destX, destY, destAbs, tilesById);
-  if (solidTop) {
-    const topDef = tilesById[solidTop.tileId];
-    if (topDef && !resolveWalkable(topDef)) {
-      return { ok: false, reason: "Destination surface is not walkable" };
-    }
+  // Refuse a step whose body would come to rest on a top nobody can stand on,
+  // however far down the fall takes it. `destAbs + 1` makes the search include
+  // a top at `destAbs` itself — a full-height tree whose top coincides with an
+  // empty level's base above it — so standing and falling are one check.
+  //
+  // This used to stop at `destAbs`, and a body that fell onto a fence was
+  // walked on in the direction it faced until it found somewhere to land. The
+  // client predicts steps and not that walk, so the body snapped to wherever
+  // the server put it. Refusing the step here refuses it on both machines.
+  const restAbs = findLandingAbs(map, destX, destY, destAbs + 1, tilesById);
+  if (restAbs != null && !isWalkableSurfaceAt(map, destX, destY, restAbs, tilesById)) {
+    return { ok: false, reason: "Destination surface is not walkable" };
   }
 
   if (!climbUpAllowed(map, from, fromAbs, destAbs, direction, tilesById)) {

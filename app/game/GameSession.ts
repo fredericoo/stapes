@@ -10,7 +10,6 @@ import {
   appendTile,
   getStack,
   isPlayerBody,
-  isWalkableSurfaceAt,
   removeTileAt,
   replaceStack,
   walkableElevInStack,
@@ -133,7 +132,6 @@ import {
   DAMAGE_NUMBER_LIFETIME_MS,
   FALL_MS_PER_HEIGHT,
   NOISE_LIFETIME_MS,
-  MAX_CLIMB_HEIGHT,
   PLAYER_TILE_ID,
   PUSH_STEP_MS,
   STRIKE_DURATION_MS,
@@ -253,7 +251,6 @@ import {
   cellForFeetAbs,
   cellHasLooseGravity,
   findLooseGravityCells,
-  findWalkableLandingAbs,
   gravityPullOn,
   settleGravity,
 } from "./gravity";
@@ -7770,8 +7767,8 @@ export class GameSession implements PlaySession {
   /**
    * How long this body's next step takes, with everything that has a say in it.
    *
-   * The one place the sources are gathered, so a step begun by held input, by a
-   * creature's legs and by a slide off a ledge are all timed the same way. The
+   * The one place the sources are gathered, so a step begun by held input and
+   * by a creature's legs are timed the same way. The
    * browser gathers the same two for itself — see `../net/RemoteSession`'s
    * `walkDurationAt` — which is the arrangement a pace that never travels is
    * under. @see `./movement`'s `walkDurationMsFor`
@@ -10010,11 +10007,11 @@ export class GameSession implements PlaySession {
    * and then whatever the cell they ended it in does to them.
    *
    * The arrival check is here, around the whole of motion, rather than at the
-   * end of the walk that usually causes it. A body reaches a new cell three
-   * ways — it walks there, it falls there, or it slides off a ledge and does
-   * both — and a `step` teleport that only answered to the first would be a pad
-   * you could drop onto without going through. Comparing the cell either side of
-   * the tick is one rule for all three, and it is what keeps a body still in
+   * end of the walk that usually causes it. A body reaches a new cell two
+   * ways — it walks there or it falls there — and a `step` teleport that only
+   * answered to the first would be a pad you could drop onto without going
+   * through. Comparing the cell either side of the tick is one rule for both,
+   * and it is what keeps a body still in
    * mid-air out of it: they have not arrived anywhere yet.
    */
   private tickMotion(actor: ActorRuntime, tickMs: number) {
@@ -10603,60 +10600,18 @@ export class GameSession implements PlaySession {
     this.relocateActorToFeet(actor, nextFeet);
   }
 
+  /**
+   * Put a falling body down where gravity stopped it.
+   *
+   * **Wherever that is, walkable or not.** `canWalk` refuses a step whose fall
+   * ends on a top nobody can stand on, so a walk never gets a body here. What
+   * still can is the board changing under it — a floor taken away, a tile laid
+   * in its path — and then it stands on what it landed on and walks off like
+   * anybody else. It used to be walked on in the direction it faced until it
+   * found a surface, which is motion the client could not predict.
+   */
   private land(actor: ActorRuntime, landingAbs: number) {
     actor.fall = null;
-    const loc = this.locate(actor);
-    const exclude = { z: loc.z, stackIndex: loc.stackIndex };
-
-    if (!isWalkableSurfaceAt(this.map, loc.x, loc.y, landingAbs, this.tilesById, exclude)) {
-      this.commitLandAt(actor, landingAbs);
-      const after = this.locate(actor);
-      const facing = actorDirection(after);
-      const slide = canWalk(
-        this.map,
-        { x: after.x, y: after.y, z: after.z, stackIndex: after.stackIndex },
-        facing,
-        this.defFor(actor),
-        this.tilesById,
-      );
-      if (slide.ok) {
-        actor.walk = {
-          from: { x: after.x, y: after.y, z: after.z },
-          to: slide.to,
-          direction: facing,
-          elapsedMs: 0,
-          durationMs: this.walkDurationOf(actor, after),
-        };
-        return;
-      }
-
-      const nextWalkable = findWalkableLandingAbs(
-        this.map,
-        after.x,
-        after.y,
-        landingAbs,
-        this.tilesById,
-        { z: after.z, stackIndex: after.stackIndex },
-      );
-      if (nextWalkable != null && nextWalkable < landingAbs) {
-        const feetAbs = standingAbs(
-          this.map,
-          after.x,
-          after.y,
-          after.z,
-          after.stackIndex,
-          this.tilesById,
-        );
-        if (feetAbs - nextWalkable <= MAX_CLIMB_HEIGHT) {
-          this.commitLandAt(actor, nextWalkable);
-          return;
-        }
-        actor.fall = { feetAbs, landingAbs: nextWalkable, elapsedMs: 0 };
-        return;
-      }
-      return;
-    }
-
     this.commitLandAt(actor, landingAbs);
   }
 
