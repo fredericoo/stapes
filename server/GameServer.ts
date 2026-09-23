@@ -1093,12 +1093,13 @@ function holdsBody(
  * Whether an event that reaches this viewer by its audience would give a
  * hidden body away to them. @see ActorSnapshot.hidden
  *
- * Two kinds get past the body scoping, because they are addressed to a place
- * or to everybody rather than to a body:
- * - a damage number on a hidden body, which is a number floating over somebody
- *   the viewer cannot see. Its owner is still sent it;
- * - the viewer's own `left` or `joined`, sent to the room when the viewer hides
- *   or shows. A client told it has left drops its own body.
+ * Two kinds get past the body scoping:
+ * - a damage number on a hidden body, which is addressed to a place rather
+ *   than a body: a number floating over somebody the viewer cannot see. Its
+ *   owner is still sent it;
+ * - the viewer's own `left` or `joined`, sent when the viewer hides or shows,
+ *   which the viewer holds as its own body. A client told it has left drops
+ *   its own body.
  *
  * Only asked while {@link TickFrame.concealing} says some event needs it,
  * which is never in a world with nobody hidden in it: then every client that
@@ -1118,7 +1119,6 @@ const CELL_ONE_BODY = 1;
 const CELL_BODIES = 2;
 
 /** Who an event is for, as {@link TickFrame} files it. @see Audience */
-const FOR_EVERYBODY = 0;
 const FOR_PLACE = 1;
 const FOR_BODY = 2;
 
@@ -1185,7 +1185,7 @@ type TickFrame = {
     bodies: Array<CellBody[] | null>;
   };
   events: {
-    /** {@link FOR_EVERYBODY}, {@link FOR_PLACE} or {@link FOR_BODY}. */
+    /** {@link FOR_PLACE} or {@link FOR_BODY}. */
     kind: Uint8Array;
     /** For an event addressed to a place, its chunk in chunk coordinates. */
     cx: Int32Array;
@@ -1476,6 +1476,13 @@ export class GameServer {
   private readonly subscriptionsToCheck = new Set<string>();
   /** The seated sockets, by the actor each is seated on. @see seat */
   private readonly socketsByActor = new Map<string, Set<GameSocket>>();
+  /**
+   * The seated sockets that belong to an administrator, kept beside
+   * {@link socketsByActor} and for its reason: {@link tellAdminsPlayerCount}
+   * runs on every join and leave, and reading every attachment to find the few
+   * administrators would be a walk of the whole world each time.
+   */
+  private readonly adminSockets = new Set<GameSocket>();
   /** {@link seated}'s answer, until somebody is seated or unseated. */
   private seatedSockets: ReadonlyArray<readonly [GameSocket, string]> | null = null;
   /** Settles when the last join to start has finished. @see joinTurn */
@@ -2269,8 +2276,8 @@ export class GameServer {
    * ActorRuntime.hidden in `../app/game/GameSession`
    *
    * The caller has already checked the role. To everybody else this is a
-   * logout and a login: `left` goes out with a headcount that no longer counts
-   * them, and the next patch takes the body back through the same `despawned`
+   * logout and a login: `left` goes out, administrators are sent a headcount
+   * that no longer counts them, and the next patch takes the body back through the same `despawned`
    * a body walking out of reach gets. Showing again is the reverse, `joined`
    * and then `spawned` with the body's state in full.
    *
@@ -2283,11 +2290,8 @@ export class GameServer {
       this.ctx.storage
         .put(this.hiddenKey(actorId), { on: enabled, savedAt: Date.now() } satisfies SavedHidden)
         .catch(GameServer.reportWriteFailure("hidden write"));
-      this.events.push({
-        kind: enabled ? "left" : "joined",
-        actorId,
-        playerCount: this.playerCount(),
-      });
+      this.events.push({ kind: enabled ? "left" : "joined", actorId });
+      this.tellAdminsPlayerCount({});
       this.wake();
     }
     this.sendToEverySocketOf(actorId, { type: "hidden", on: session.hiddenOf(actorId) });
@@ -2834,15 +2838,10 @@ export class GameServer {
     await this.seatActor(actorId);
     // Nobody is told a hidden administrator arrived, because to them one has
     // not. @see setHidden
-    if (!this.session!.hiddenOf(actorId)) {
-      this.events.push({
-        kind: "joined",
-        actorId,
-        playerCount: this.playerCount(),
-      });
-    }
+    if (!this.session!.hiddenOf(actorId)) this.events.push({ kind: "joined", actorId });
 
     this.sendHello(socket, actorId);
+    this.tellAdminsPlayerCount({ told: socket });
     // A join moves the board, so it has to be broadcast even if nobody is
     // pressing anything.
     this.wake();
@@ -2915,6 +2914,7 @@ export class GameServer {
     let sockets = this.socketsByActor.get(attachment.actorId);
     if (!sockets) this.socketsByActor.set(attachment.actorId, (sockets = new Set()));
     sockets.add(ws);
+    if (attachment.admin) this.adminSockets.add(ws);
     this.seatedSockets = null;
   }
 
@@ -2932,6 +2932,7 @@ export class GameServer {
     const attachment = ws.deserializeAttachment() as Attachment | null;
     if (!attachment) return;
     const sockets = this.socketsByActor.get(attachment.actorId);
+    this.adminSockets.delete(ws);
     if (!sockets?.delete(ws)) return;
     if (sockets.size === 0) this.socketsByActor.delete(attachment.actorId);
     this.seatedSockets = null;
@@ -2969,8 +2970,37 @@ export class GameServer {
     return count;
   }
 
+  /**
+   * Send the headcount to every administrator's socket.
+   *
+   * Only to administrators, because a player is not told how many others are
+   * online. Sent at once rather than riding the tick's patch, because the patch
+   * is shared by every socket and this is not.
+   *
+   * @param closing the socket on its way out, on {@link playerCount}'s terms.
+   * @param told a socket whose `hello` already carried this count.
+   */
+  private tellAdminsPlayerCount({ closing, told }: { closing?: GameSocket; told?: GameSocket }) {
+    const payload = JSON.stringify({
+      type: "players",
+      playerCount: this.playerCount(closing),
+    } satisfies ServerMessage);
+    for (const ws of this.adminSockets) {
+      if (ws === closing || ws === told) continue;
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (!attachment || this.silenced.has(attachment.actorId)) continue;
+      try {
+        ws.send(payload);
+      } catch {
+        // A socket that died since it was listed is dropped by the runtime;
+        // webSocketClose will clean the actor up.
+      }
+    }
+  }
+
   private sendHello(ws: GameSocket, actorId: string) {
     const session = this.session!;
+    const attachment = ws.deserializeAttachment() as Attachment | null;
     // Recorded as this socket is told, so the stream below hands over what
     // comes into reach *after* this rather than replaying what is in it.
     const chunks = this.subscriptionFor(actorId);
@@ -3045,7 +3075,8 @@ export class GameServer {
       // are: there is nothing to patch against, and the lane that draws them is
       // on screen before the first berry.
       statuses: session.statusPatchesOf(actorId) ?? [],
-      playerCount: this.playerCount(),
+      // Administrators only. @see tellAdminsPlayerCount
+      ...(attachment?.admin ? { playerCount: this.playerCount() } : {}),
       // Read here rather than tracked: time of day is a function of the
       // server's clock, so it costs nothing to keep and cannot fall behind
       // while the object is hibernating.
@@ -4132,13 +4163,8 @@ export class GameServer {
     // everything it knows about an actor on `left`, and a lingering body that
     // lost its name and health bar a minute early would be a body nobody could
     // tell was still there to be hit.
-    if (!wasHidden) {
-      this.events.push({
-        kind: "left",
-        actorId,
-        playerCount: this.playerCount(closing),
-      });
-    }
+    if (!wasHidden) this.events.push({ kind: "left", actorId });
+    this.tellAdminsPlayerCount({ closing });
     // Their tile just left the board, so the removal has to reach everyone else.
     this.wake();
   }
@@ -5752,9 +5778,7 @@ export class GameServer {
     let concealing = false;
     for (let j = 0; j < eventCount; j++) {
       const audience = audienceOf(patch.events[j]!);
-      if (audience.kind === "everybody") {
-        events.kind[j] = FOR_EVERYBODY;
-      } else if (audience.kind === "cell") {
+      if (audience.kind === "cell") {
         events.kind[j] = FOR_PLACE;
         events.chunk[j] = chunkKeyFor(audience.x, audience.y);
         events.cx[j] = chunkIndexOf(audience.x);
@@ -6019,10 +6043,9 @@ export class GameServer {
     for (let j = 0; j < patch.events.length; j++) {
       const audience = events.kind[j]!;
       const reaches =
-        (audience === FOR_EVERYBODY ||
-          (audience === FOR_PLACE
-            ? chunks.has(events.chunk[j]!)
-            : holdsBody(frame, events.actorId[j]!, events.actor[j]!, actorId, at, held))) &&
+        (audience === FOR_PLACE
+          ? chunks.has(events.chunk[j]!)
+          : holdsBody(frame, events.actorId[j]!, events.actor[j]!, actorId, at, held)) &&
         !(frame.concealing && concealedFrom(frame, j, actorId));
       if (reaches) cut.events.push(j);
       else whole = false;
@@ -6231,10 +6254,9 @@ export class GameServer {
       if (eventStamp[j] !== mark) continue;
       const audience = events.kind[j]!;
       const reaches =
-        (audience === FOR_EVERYBODY ||
-          (audience === FOR_PLACE
-            ? inSquare(events.cx[j]!, events.cy[j]!)
-            : holds(events.actorId[j]!, events.actor[j]!))) &&
+        (audience === FOR_PLACE
+          ? inSquare(events.cx[j]!, events.cy[j]!)
+          : holds(events.actorId[j]!, events.actor[j]!)) &&
         !(frame.concealing && concealedFrom(frame, j, actorId));
       if (reaches) cut.events.push(j);
       else whole = false;

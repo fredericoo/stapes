@@ -490,8 +490,9 @@ export class RemoteSession implements PlaySession {
   /** Told which protocol the server speaks. See {@link setOnOutdated}. */
   private onOutdated: ((serverVersion: number) => void) | null = null;
   /** How many people the server last said were here. */
-  private players = 0;
-  private onPlayers: ((count: number) => void) | null = null;
+  /** Null for everybody but an administrator, who is the only one told. */
+  private players: number | null = null;
+  private onPlayers: ((count: number | null) => void) | null = null;
   /** Whether the server says this body is hidden from other players. @see setHidden */
   private hidden = false;
   private onHidden: ((hidden: boolean) => void) | null = null;
@@ -596,12 +597,13 @@ export class RemoteSession implements PlaySession {
    * the same number sixty times a second. Fires on registration too, for a
    * listener that arrives after the `hello` it would have learnt from.
    */
-  setOnPlayers(cb: ((count: number) => void) | null) {
+  setOnPlayers(cb: ((count: number | null) => void) | null) {
     this.onPlayers = cb;
     if (this.ready) cb?.(this.players);
   }
 
-  playerCount(): number {
+  /** Null unless this connection is an administrator's. */
+  playerCount(): number | null {
     return this.players;
   }
 
@@ -643,7 +645,7 @@ export class RemoteSession implements PlaySession {
   }
 
   /** Take a headcount from the wire, telling anyone watching if it moved. */
-  private setPlayers(count: number) {
+  private setPlayers(count: number | null) {
     if (count === this.players) return;
     this.players = count;
     this.onPlayers?.(count);
@@ -709,6 +711,11 @@ export class RemoteSession implements PlaySession {
 
     if (message.type === "clock") {
       this.setClock(message.minutesOfDay);
+      return;
+    }
+
+    if (message.type === "players") {
+      this.setPlayers(message.playerCount);
       return;
     }
 
@@ -812,7 +819,7 @@ export class RemoteSession implements PlaySession {
       this.applyExtractions(message.extractions);
       this.applyCastings(message.castings);
       this.resetAfflicted(message.afflicted);
-      this.setPlayers(message.playerCount);
+      this.setPlayers(message.playerCount ?? null);
       // A `hello` is a body, whichever of the two sent it: the answer to
       // `rebirth`, or a world replaced under a socket that happened to be dead
       // in the old one. Either way there is somebody on the board again, and
@@ -1368,20 +1375,15 @@ export class RemoteSession implements PlaySession {
   }
 
   private applyEvent(event: MotionEvent) {
-    // The headcount and nothing else. `joined` goes to everybody, wherever the
-    // joiner is, so it is not a claim that this client holds them: the body
-    // arrives as a `spawned` if and when it is in reach. It used to add an
-    // entry here too, and an entry for a body on none of this client's cells
-    // is a sweep of the whole board every frame — one per arrival, kept until
-    // the tab was reloaded. It also replaced the entry of a body already held,
-    // dropping whatever walk it was half way through. @see `./scope`
-    if (event.kind === "joined") {
-      this.setPlayers(event.playerCount);
-      return;
-    }
+    // Nothing to do. It used to carry the headcount, which only administrators
+    // are told now, by `players`. It is not a claim that this client holds the
+    // body either: the body arrives as a `spawned` if and when it is in reach.
+    // Adding an entry here for a body on none of this client's cells is a sweep
+    // of the whole board every frame, and replacing the entry of a body already
+    // held drops whatever walk it was half way through. @see `./scope`
+    if (event.kind === "joined") return;
     if (event.kind === "left") {
       this.forgetActor(event.actorId);
-      this.setPlayers(event.playerCount);
       return;
     }
 
