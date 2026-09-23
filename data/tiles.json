@@ -11216,6 +11216,12 @@
           "y": -1
         }
       }
+    },
+    "interactions": {
+      "removeStatus": {
+        "trigger": "step",
+        "statusId": "burned"
+      }
     }
   },
   {

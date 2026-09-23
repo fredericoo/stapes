@@ -3,6 +3,7 @@ import type { InteractionKind } from "../lib/interactions";
 import {
   DEFAULT_EXTRACT_VERB,
   resolveAddStatus,
+  resolveRemoveStatus,
   resolveExtract,
   resolveRewardDef,
   resolveSetSpawn,
@@ -16,6 +17,7 @@ import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import type { Progress } from "./progress";
 import {
   canAddStatusFrom,
+  canRemoveStatusFrom,
   canConsumeFrom,
   canTalkFrom,
   canOpenFrom,
@@ -312,6 +314,9 @@ const LABELS: Record<InteractionAction, string> = {
   // leaves you burning says whether you reached into it or knelt at it. See
   // `AddStatusInteraction.actionName`.
   addStatus: "Touch",
+  // The fallback only, on the terms the status above is. See
+  // `RemoveStatusInteraction.actionName`.
+  removeStatus: "Touch",
   // The fallback only, on the same terms: nothing derivable from a tile that
   // changes where you wake up says whether you slept in it or knelt at it. See
   // `SetSpawnInteraction.actionName`. "Mark" rather than "Rest", because the
@@ -409,41 +414,44 @@ const ACTION_ORDER: Record<InteractionAction, number> = {
   // both lights a room and burns the hand that lit it spends the tap on the
   // half the player can see.
   addStatus: 7,
+  // Directly under its inverse, which it would only meet on a tile authored to
+  // do both — and there the status handed over is the half that shows.
+  removeStatus: 8,
   // Directly under the status, because it is the same kind of entry — the
   // other one that changes the *presser* rather than the board — and below it
   // because a tile authored as both would be a shrine that blesses you and
   // takes you as its own, and the blessing is the half you can see happen.
-  setSpawn: 8,
+  setSpawn: 9,
   // Below the switch and above everything to do with carrying, which is where
   // an explicit authored act belongs — and it never competes with the tap
   // anyway, since a transmute row is reached by name and a tile that both
   // cooked and swung open would spend its tap on the hinge either way.
-  transmute: 9,
+  transmute: 10,
   // Below the transmute and above everything to do with carrying, which is
   // where the session's own precedence puts it and for the same reason: an
   // explicit authored act comes before lifting a thing off the floor. It never
   // actually competes with the four above it — nobody authors a door you can
   // also mine — and if they did, the hinge is the half the player can see.
-  extract: 10,
+  extract: 11,
   // Above pick-up, and this is the one that decides what a plain tap on a sword
   // does. An empty hand is the strongest thing a player can be saying about what
   // they want done with a weapon on the floor, and stowing it afterwards is one
   // drag; the reverse — fishing a sword back out of a bag you did not mean it to
   // go into — is the annoying direction. It only ever appears when the slot is
   // free, so it cannot take a tap away from anybody who is already armed.
-  equip: 11,
+  equip: 12,
   // Above pick-up, and only ever up against it on a container: a pack you are
   // already wearing the twin of can be taken into a hand now, and a tap that
   // picked it up rather than looking inside would be answering the less
   // interesting of the two questions. Nothing else in the game is both.
-  open: 12,
-  pickUp: 13,
+  open: 13,
+  pickUp: 14,
   // Below pick-up on purpose, and pick-up is what a plain tap on the tile runs:
   // eating destroys the thing where lifting it is reversible, so the row you
   // have to *find* is the destructive one and the gesture you can fire by
   // accident is the safe one.
-  consume: 14,
-  push: 15,
+  consume: 15,
+  push: 16,
 };
 
 /**
@@ -1334,6 +1342,7 @@ function objectAction(
   }
   if (canSwitchFrom(map, tilesById, self, ref)) return "switch";
   if (canAddStatusFrom(map, tilesById, self, ref)) return "addStatus";
+  if (canRemoveStatusFrom(map, tilesById, self, ref)) return "removeStatus";
   // Below the status, on the session's own precedence. Whether pressing it
   // would actually *move* the mark is not asked: the row names what a tap on
   // this tile is for, and a bed you are already anchored to is still a bed.
@@ -1380,6 +1389,9 @@ function objectActionLabel(action: InteractionAction, def: TileDef | undefined):
   // `resolveAddStatus`.
   if (action === "addStatus") {
     return resolveAddStatus(def)?.actionName?.trim() || LABELS.addStatus;
+  }
+  if (action === "removeStatus") {
+    return resolveRemoveStatus(def)?.actionName?.trim() || LABELS.removeStatus;
   }
   // The whole of it is the def's too, and more completely than any of the
   // above: there is no placement half of this block at all, not even a

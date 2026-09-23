@@ -2,6 +2,7 @@ import {
   IconApple,
   IconBoxSeam,
   IconDoorEnter,
+  IconDroplet,
   IconFlame,
   IconGift,
   IconHandGrab,
@@ -118,6 +119,10 @@ const ICONS: Record<InteractionAction, typeof IconTarget> = {
   // covers a blessing too, and the authored verb beside it is what tells them
   // apart — the same trade the transmute row makes below.
   addStatus: IconFlame,
+  // A drop of water against the flame above, for the same reason: the
+  // motivating case is water putting a fire out, and the authored verb beside
+  // it says what else a tile might wash away.
+  removeStatus: IconDroplet,
   // A pin in a map, because what the row does is mark a place and every other
   // shape that could say it — a bed, a flag, a shrine — names one of the tiles
   // that might carry the block and misleads about the rest. The same trade the

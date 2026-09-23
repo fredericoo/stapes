@@ -505,6 +505,35 @@ export type AddStatusInteraction = {
 };
 
 /**
+ * Take a status off whoever sets this off — water that puts out a fire, a
+ * spring that washes a poison away.
+ *
+ * The inverse of {@link AddStatusInteraction}, and on its terms throughout:
+ * wholly on the tile, nothing spent, nothing remembered, and set off by the
+ * same three triggers. A `step` one is asked on arrival and again every second
+ * a body stands in it, so a burn that lands while you are already in the water
+ * is put out on the next second rather than lasting its full length.
+ *
+ * Only the named status is taken. A body under two conditions keeps the other.
+ */
+export type RemoveStatusInteraction = {
+  /**
+   * What doing it is called — "Wash" in a basin, "Drink" from a spring.
+   * Optional, and blank reads as "Touch". Never shown for a `step` trigger,
+   * which offers no row.
+   */
+  actionName?: string;
+  /** What sets it off. See {@link ActivationTrigger}. */
+  trigger: ActivationTrigger;
+  /**
+   * The status taken away, by id — see `./status`. Blank is refused by
+   * {@link resolveRemoveStatus}, on {@link AddStatusInteraction.statusId}'s
+   * terms; an id the catalogue does not hold removes nothing.
+   */
+  statusId: string;
+};
+
+/**
  * Move whoever sets this off to *come back* here — the shipped `respawn-point`
  * marker, or a bed you sleep in, or a shrine you claim.
  *
@@ -878,6 +907,7 @@ export type TileInteractions = {
   extract?: ExtractInteraction;
   teleport?: TeleportInteraction;
   addStatus?: AddStatusInteraction;
+  removeStatus?: RemoveStatusInteraction;
   setSpawn?: SetSpawnInteraction;
   endure?: EndureInteraction;
   decay?: DecayInteraction;
@@ -956,6 +986,16 @@ export const DEFAULT_TELEPORT: TeleportInteraction = {
  * switching a switch on leaves them a target to pick.
  */
 export const DEFAULT_ADD_STATUS: AddStatusInteraction = {
+  actionName: "",
+  trigger: "step",
+  statusId: "",
+};
+
+/**
+ * Water you walk into, which is the shape this was authored for. The status is
+ * blank for {@link DEFAULT_ADD_STATUS}'s reason.
+ */
+export const DEFAULT_REMOVE_STATUS: RemoveStatusInteraction = {
   actionName: "",
   trigger: "step",
   statusId: "",
@@ -1523,6 +1563,33 @@ export function resolveAddStatus(def: TileDef): AddStatusInteraction | null {
   return addStatus;
 }
 
+const removeStatusSchema = v.object({
+  actionName: v.optional(v.string()),
+  trigger: v.picklist(ACTIVATION_TRIGGERS),
+  // Blank is refused for the reason it is on `addStatusSchema`.
+  statusId: v.pipe(v.string(), v.trim(), v.minLength(1)),
+});
+
+const removeStatusCache = new WeakMap<TileDef, RemoveStatusInteraction | null>();
+
+/**
+ * Parsed status-removing config for a tile def — whether this tile takes a
+ * status off anybody, what the gesture is called, and how it is set off.
+ *
+ * Same trust model as {@link resolveAddStatus}: malformed → removes nothing,
+ * and whether the named status exists is not asked.
+ */
+export function resolveRemoveStatus(def: TileDef): RemoveStatusInteraction | null {
+  const cached = removeStatusCache.get(def);
+  if (cached !== undefined) return cached;
+
+  const raw = def.interactions?.removeStatus;
+  const parsed = raw == null ? null : v.safeParse(removeStatusSchema, raw);
+  const removeStatus = parsed?.success ? parsed.output : null;
+  removeStatusCache.set(def, removeStatus);
+  return removeStatus;
+}
+
 const setSpawnSchema = v.object({
   actionName: v.optional(v.string()),
   trigger: v.picklist(ACTIVATION_TRIGGERS),
@@ -1774,6 +1841,7 @@ export type InteractionKind =
   | "teleport"
   | "switch"
   | "addStatus"
+  | "removeStatus"
   | "setSpawn"
   | "transmute"
   | "extract"
@@ -1797,6 +1865,8 @@ export function interactionKinds(def: TileDef): InteractionKind[] {
   // you walk into answers to no press, so listing it would outline a floor tile
   // and offer a row for something that has already happened.
   if (pressable(resolveAddStatus(def))) kinds.push("addStatus");
+  // The same question, for the same reason: water you wade into is not a row.
+  if (pressable(resolveRemoveStatus(def))) kinds.push("removeStatus");
   // The same second question again, and this one has the sharpest version of
   // it: a `step` block is the whole of "walking in here anchors you", which is
   // a thing that happens to you rather than a thing you can press.
@@ -1919,6 +1989,7 @@ export function hasAnyInteraction(interactions: TileInteractions | undefined): b
     interactions?.extract ||
     interactions?.teleport ||
     interactions?.addStatus ||
+    interactions?.removeStatus ||
     interactions?.endure ||
     interactions?.decay ||
     interactions?.respawn ||
@@ -2047,6 +2118,16 @@ export function interactionsForSave(
         // Written only when on, so every tile that never burned its floor
         // saves exactly as it did.
         ...(addStatus.ground ? { ground: true } : {}),
+      }
+    : undefined;
+  // Gated on the status, for the reason the block above is.
+  const removeStatus = interactions?.removeStatus;
+  const removeStatusActionName = removeStatus?.actionName?.trim();
+  const savedRemoveStatus = removeStatus?.statusId.trim()
+    ? {
+        ...(removeStatusActionName ? { actionName: removeStatusActionName } : {}),
+        trigger: removeStatus.trigger,
+        statusId: removeStatus.statusId.trim(),
       }
     : undefined;
   // Gated on the block's presence alone, on the terms the reward and the
@@ -2248,6 +2329,7 @@ export function interactionsForSave(
     !savedExtract &&
     !savedTeleport &&
     !savedAddStatus &&
+    !savedRemoveStatus &&
     !savedSetSpawn &&
     !savedEndure &&
     !savedDecay &&
@@ -2271,6 +2353,7 @@ export function interactionsForSave(
     ...(savedExtract ? { extract: savedExtract } : {}),
     ...(savedTeleport ? { teleport: savedTeleport } : {}),
     ...(savedAddStatus ? { addStatus: savedAddStatus } : {}),
+    ...(savedRemoveStatus ? { removeStatus: savedRemoveStatus } : {}),
     ...(savedSetSpawn ? { setSpawn: savedSetSpawn } : {}),
     ...(savedEndure ? { endure: savedEndure } : {}),
     ...(savedDecay ? { decay: savedDecay } : {}),

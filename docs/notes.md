@@ -8431,6 +8431,35 @@ disappearing mid-rise.
   beside the picked one. Burning a bush to `picked-bush` instead of to nothing
   would close the loop through machinery that already works.
 
+### Water puts out a burn: `removeStatus`
+
+`interactions.removeStatus` is the inverse of `addStatus`: `{ trigger, statusId,
+actionName? }`, the same three triggers, the same reach, and a blank
+`statusId` refused by the resolver. The shipped `water` carries
+`{ trigger: "step", statusId: "burned" }`, so a player or a creature wading in
+stops burning.
+
+- **A `step` removal runs on arrival and every standing second**, in
+  `GameSession.clearStandingStatus`, called beside `grantStandingStatus` from
+  `statusOnArrival` and `tickStandingStatuses`. A burn a bolt puts on somebody
+  already in the water therefore lasts at most one standing period, not its
+  full length. Refusing the grant outright would need the grant to ask what
+  the body stands in, and a second is short enough that it was not worth it.
+- **It runs before the grant**, so a cell authored to both take a status off
+  and put one on leaves the body with the one it hands over.
+- **Every removal in the column counts**, not only the topmost one as for a
+  grant. Nothing lying over the water stops it being water.
+- **Only the named status goes.** A body burning and poisoned comes out of
+  the water poisoned.
+- **Bodies only.** It does not put out burning ground: nothing in the endure
+  sweep reads it, and water in the same cell as a burning floor is not a case
+  the shipped map has.
+- **A creature does not seek water when it burns.** Brains have no rule that
+  reads the body's own statuses as a reason to move. A creature that cannot
+  swim still keeps out of water (see "A creature that cannot swim does not
+  walk into water"), so only swimmers, and creatures pushed or chased in, are
+  put out.
+
 ## The save is the repair path, so it must not need a working world
 
 `replaceWorld` is the only way to change the world, which makes it the only way
