@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { Link } from "react-router";
 import { DoorLogo, SYSTEM_MONO } from "../components/door";
 import type { Route } from "./+types/home";
@@ -9,8 +9,8 @@ import type { Route } from "./+types/home";
  * Prerendered at build time (see `react-router.config.ts`), so it has no loader
  * and reads nothing from the server — everything it says is in this file.
  *
- * The screenshots are placeholders until the captures exist. Each one says what
- * it should show, so replacing it is dropping a file in `public/home/` and
+ * The screenshots below the hero are placeholders until the captures exist.
+ * Each one says what it should show, so replacing it is dropping a file in `public/home/` and
  * swapping the `<Shot>` for an `<img>`.
  *
  * Body text is set in the machine's own monospace for the reason `door.tsx`
@@ -83,20 +83,8 @@ const GALLERY = [
 export default function HomePage() {
   return (
     <div className="min-h-dvh bg-ink text-paper" style={{ fontFamily: SYSTEM_MONO }}>
+      <Hero />
       <main className="mx-auto flex max-w-3xl flex-col gap-24 px-4 py-16 sm:px-6">
-        <header className="flex flex-col items-center gap-8 text-center">
-          <DoorLogo />
-          <p className="text-[20px] leading-[30px] text-paper" style={{ fontFamily: PIXEL }}>
-            A small MMO that runs in your browser.
-          </p>
-          <p className="max-w-md text-sm leading-relaxed text-paper/70">
-            Walk around, fight, cast, trade and explore with other people. On your phone or your
-            computer, in the same world.
-          </p>
-          <PlayButtons />
-          <Shot label="GIF: walking through a town as the lights come on at dusk" />
-        </header>
-
         <section className="flex flex-col gap-16">
           {FEATURES.map((feature) => (
             <article key={feature.title} className="flex flex-col gap-4">
@@ -142,6 +130,72 @@ export default function HomePage() {
         </footer>
       </main>
     </div>
+  );
+}
+
+/**
+ * Full-bleed, with the town walking by behind it.
+ *
+ * The video is a square recording of the play view with the labels hidden
+ * (`scripts/record-hero.ts`), cropped to whatever shape the screen is by
+ * `object-cover`. The character is in the middle of every frame. `object-top`
+ * is what keeps them out from behind the logo on a wide screen, where the crop
+ * is vertical: anchored to the top, the middle of the video lands under the
+ * buttons rather than under the words. The poster is its first frame, so the prerendered page shows the
+ * town before the video has loaded, and shows it instead of the video to
+ * anybody who has asked for less motion.
+ *
+ * `pixelated` because the recording is the game's own pixels scaled up by a
+ * whole number; the browser scaling it again to fit should not smooth them.
+ */
+function Hero() {
+  const video = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const element = video.current;
+    if (!element) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const apply = () => {
+      if (reduce.matches) element.pause();
+      else void element.play().catch(() => {});
+    };
+    apply();
+    reduce.addEventListener("change", apply);
+    return () => reduce.removeEventListener("change", apply);
+  }, []);
+
+  return (
+    <header className="relative isolate flex min-h-[100svh] flex-col items-center justify-center gap-8 overflow-hidden px-4 py-16 text-center">
+      <video
+        ref={video}
+        className="absolute inset-0 -z-20 h-full w-full object-cover object-top"
+        style={{ imageRendering: "pixelated" }}
+        poster="/home/hero.jpg"
+        muted
+        loop
+        playsInline
+        preload="auto"
+        aria-hidden="true"
+      >
+        <source src="/home/hero.webm" type="video/webm" />
+        <source src="/home/hero.mp4" type="video/mp4" />
+      </video>
+      {/* Darkens the town enough that the words over it read, and fades the
+          bottom edge into the page so the section does not end on a hard line. */}
+      <div className="absolute inset-0 -z-10 bg-gradient-to-b from-ink/70 via-ink/40 to-ink" />
+      <DoorLogo />
+      <p
+        className="text-[20px] leading-[30px] text-paper [text-shadow:2px_2px_0_#1a1a1a]"
+        style={{ fontFamily: PIXEL }}
+      >
+        A small MMO that runs in your browser.
+      </p>
+      <p className="max-w-md text-sm leading-relaxed text-paper/90 [text-shadow:1px_1px_0_#1a1a1a]">
+        Walk around, fight, cast, trade and explore with other people. On your phone or your
+        computer, in the same world.
+      </p>
+      <PlayButtons />
+    </header>
   );
 }
 
