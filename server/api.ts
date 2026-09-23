@@ -340,14 +340,6 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
         },
         { detail: { summary: "Replace the authored content with the image's" } },
       )
-      /**
-       * Take a built client from continuous integration.
-       *
-       * A tar archive rather than a file per request: a build is a few hundred
-       * files, and a request each would be a deploy that can half-finish. This
-       * either stores the whole thing or throws, and the build does not become
-       * the live page until it is activated separately.
-       */
       .post("/backup", async ({ headers, status }) => {
         if (!(await authorized(headers.authorization, config))) {
           return status(404, "Not found");
@@ -357,6 +349,14 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
         const path = await world.snapshot(config.BACKUP_DIR);
         return { ok: true as const, path };
       })
+      /**
+       * Take a built client from continuous integration.
+       *
+       * A tar archive rather than a file per request: a build is a few hundred
+       * files, and a request each would be a deploy that can half-finish. This
+       * either stores the whole thing or throws, and the build does not become
+       * the live page until it is activated separately.
+       */
       .post(
         "/client/upload",
         async ({ headers, body, status }) => {
