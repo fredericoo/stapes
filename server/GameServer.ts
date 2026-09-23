@@ -41,6 +41,7 @@ import { minutesOfDayAt, wrapMinutes, type MinutesOfDay } from "../app/lib/clock
 import { masteryXpBlockSchema, type MasteryXp } from "../app/lib/mastery";
 import {
   changedCellsOnLevel,
+  chunkKeyFor,
   changedChunks,
   chunkifyMap,
   getStack,
@@ -1133,6 +1134,18 @@ export class GameServer {
    * {@link webSocketClose}.
    */
   private readonly subscribed = new Map<string, Set<string>>();
+  /**
+   * The chunk a subscription was last found complete around, keyed by the set
+   * itself.
+   *
+   * What lets {@link streamEnteredChunks} skip a player who has not crossed a
+   * chunk boundary, which is nearly every player on nearly every tick, instead
+   * of building their whole square of chunk keys to learn nothing changed.
+   * Keyed by the set rather than the actor because a subscription is only ever
+   * replaced, never edited, so a set that is here is still exactly what it was
+   * when it was checked — and a replacement is simply not found.
+   */
+  private readonly subscriptionCentre = new WeakMap<Set<string>, string>();
   /**
    * Players whose last socket closed while they were in combat, and whose body
    * is therefore still standing in the world.
@@ -2385,7 +2398,7 @@ export class GameServer {
       return;
     }
 
-    if (!session.actorIds().includes(actorId)) return;
+    if (!session.hasActor(actorId)) return;
 
     if (message.type === "say") {
       // Sent inline rather than queued into `events`, which is patch-scoped and
@@ -2403,11 +2416,21 @@ export class GameServer {
       return;
     }
 
-    if (message.type === "step") {
-      this.queueStep(actorId, message);
-    } else if (message.type === "face") {
-      this.queueAction(actorId, { kind: "face", direction: message.direction });
-    } else if (message.type === "target") {
+    // **Walking and turning skip the flushes below.** They are most of what a
+    // client sends — one message per cell walked — and a step is only queued
+    // here: it is taken on the tick, which runs every one of those flushes
+    // itself. A turn taken now changes a placement's facing, which reaches
+    // clients as a cell in the tick's patch, and nothing a flush reports. Each
+    // flush walks every socket, so running them per step made the cost of
+    // walking grow with the square of the player count.
+    if (message.type === "step" || message.type === "face") {
+      if (message.type === "step") this.queueStep(actorId, message);
+      else this.queueAction(actorId, { kind: "face", direction: message.direction });
+      this.wake();
+      return;
+    }
+
+    if (message.type === "target") {
       // Not validated here beyond the schema. Whether the named actor exists,
       // is a battler, or is anywhere near is re-asked on every swing — it has to
       // be, because all three change while both parties walk around.
@@ -4611,6 +4634,7 @@ export class GameServer {
     if (!at) return held ?? interestChunks(0, 0);
     const chunks = interestChunks(at.x, at.y);
     this.subscribed.set(actorId, chunks);
+    this.subscriptionCentre.set(chunks, chunkKeyFor(at.x, at.y));
     return chunks;
   }
 
@@ -4644,8 +4668,13 @@ export class GameServer {
       const before = this.subscribed.get(actorId);
       const at = session.actorPosition(actorId);
       if (!at) continue;
+      const centre = chunkKeyFor(at.x, at.y);
+      if (before && this.subscriptionCentre.get(before) === centre) continue;
       const now = interestChunks(at.x, at.y);
-      if (sameChunks(before, now)) continue;
+      if (sameChunks(before, now)) {
+        this.subscriptionCentre.set(before!, centre);
+        continue;
+      }
 
       const entered = chunksEntered(before, now, at);
       const take = entered.slice(0, CHUNKS_STREAMED_PER_TICK);
@@ -4659,6 +4688,7 @@ export class GameServer {
       for (const chunk of before ?? []) if (now.has(chunk)) reached.add(chunk);
       for (const chunk of take) reached.add(chunk);
       this.subscribed.set(actorId, reached);
+      if (sameChunks(reached, now)) this.subscriptionCentre.set(reached, centre);
 
       // Stripped of the bodies this client is not being told about, which is
       // every body in ground this far out: the handover reaches five chunks and
@@ -4733,6 +4763,9 @@ export class GameServer {
    * here, so computing it twice would announce the same arrival twice.
    */
   private broadcastPatch(actors: ActorSnapshot[], patch: SharedPatch) {
+    // Each body's chunk, worked out once for the tick rather than once for
+    // every client that asks whether it holds it. @see isNearby
+    const chunkOf = actors.map((actor) => chunkKeyFor(actor.x, actor.y));
     let shared: string | null = null;
     const payloads = new Map<string, string | null>();
     for (const [ws, actorId] of this.seated()) {
@@ -4741,7 +4774,7 @@ export class GameServer {
 
       let payload = payloads.get(actorId);
       if (payload === undefined) {
-        const mine = this.scopedPatchFor(actorId, actors, patch);
+        const mine = this.scopedPatchFor(actorId, actors, chunkOf, patch);
         if (mine === null) {
           // Nothing was cut for this one, so it takes the shared string — which
           // is built at most once, and not at all if there is nothing in it.
@@ -4791,6 +4824,7 @@ export class GameServer {
   private scopedPatchFor(
     actorId: string,
     actors: ActorSnapshot[],
+    chunkOf: readonly string[],
     patch: SharedPatch,
   ): TickPatch | null {
     // No record means this instance has never handed this socket any ground:
@@ -4806,23 +4840,45 @@ export class GameServer {
     // death screen.
     const at = this.session?.actorPosition(actorId) ?? null;
 
-    const held = new Set<string>();
+    // Who this client holds after this tick: every body in reach, and their own
+    // whether or not the board has one for them — their own body is never
+    // something this client is told it has stopped holding. @see actorsInReach
+    //
+    // Counted first and built only if it differs from what they held. On
+    // almost every tick nobody has come or gone, and the set from last tick is
+    // still exactly right; building a fresh one per client per tick was most
+    // of what scoping cost with a crowd in one place.
+    const nearby: boolean[] = [];
     let entered: ActorSnapshot[] | null = null;
-    for (const actor of actors) {
-      if (actor.id !== actorId && !this.isNearby(at, chunks, actor)) continue;
-      held.add(actor.id);
+    let count = 0;
+    let selfSeen = false;
+    for (let i = 0; i < actors.length; i++) {
+      const actor = actors[i]!;
+      const self = actor.id === actorId;
+      const inReach = self || this.isNearby(at, chunks, actor, chunkOf[i]!);
+      nearby.push(inReach);
+      if (!inReach) continue;
+      count++;
+      if (self) selfSeen = true;
       if (!known.has(actor.id)) (entered ??= []).push(actor);
     }
-    // Whether or not the board has one for them: their own body is never
-    // something this client is told it has stopped holding. @see actorsInReach
-    held.add(actorId);
+    const heldCount = selfSeen ? count : count + 1;
 
+    let held: ReadonlySet<string> = known;
     let departed: string[] | null = null;
-    for (const id of known) {
-      if (held.has(id)) continue;
-      (departed ??= []).push(id);
+    // No arrivals means everybody held is already known, so equal sizes means
+    // the two are the same set and nobody left.
+    if (entered !== null || heldCount !== known.size || !known.has(actorId)) {
+      const next = new Set<string>();
+      for (let i = 0; i < actors.length; i++) if (nearby[i]) next.add(actors[i]!.id);
+      next.add(actorId);
+      for (const id of known) {
+        if (next.has(id)) continue;
+        (departed ??= []).push(id);
+      }
+      this.announcedActors.set(actorId, next);
+      held = next;
     }
-    this.announcedActors.set(actorId, held);
 
     const cells = cellsInScope(patch.cells, chunks, held, known);
     const events = eventsInScope(patch.events, chunks, held);
@@ -4915,10 +4971,12 @@ export class GameServer {
     at: { x: number; y: number; z: number } | null,
     chunks: ReadonlySet<string>,
     actor: ActorSnapshot,
+    chunk: string,
   ): boolean {
     if (!at) return false;
     if (!withinBodyReach(at, actor.x, actor.y, actor.z)) return false;
-    return covers(chunks, actor.x, actor.y);
+    // `covers`, with the chunk key already worked out. @see broadcastPatch
+    return chunks.has(chunk);
   }
 
   /**

@@ -8,10 +8,14 @@ import {
 import {
   absoluteStandingElevation,
   appendTile,
+  chunkIndexOf,
+  chunkKeyAt,
+  chunkKeyFor,
   getStack,
   isPlayerBody,
   removeTileAt,
   replaceStack,
+  tileIdsInChunk,
   walkableElevInStack,
 } from "../lib/mapData";
 import type { ExtractInteraction } from "../lib/interactions";
@@ -39,8 +43,15 @@ import {
   resolveCharm,
 } from "../lib/item";
 import { appendItem, peelOne, pourInto, stackWithItem, stow } from "../lib/piles";
-import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
-import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL, isDirectional, resolveActor } from "../lib/types";
+import type { ChunkCells, Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
+import {
+  HEIGHT_PER_LEVEL,
+  MAX_LEVEL,
+  MIN_LEVEL,
+  isDirectional,
+  levelKey,
+  resolveActor,
+} from "../lib/types";
 import { canPlace, canReplaceStack, fitsAtElevation, tilesByIdFromList } from "../lib/validation";
 import {
   actorDirection,
@@ -131,6 +142,8 @@ import { findEntryCell } from "./entry";
 import {
   BRAIN_ATTENTION_FLOOR_CELLS,
   BRAIN_DOZE_BUDGET,
+  BRAIN_ROUND_TICKS,
+  BRAIN_TURNS_PER_TICK_MIN,
   BRAIN_TICK_MS,
   DAMAGE_NUMBER_LIFETIME_MS,
   FALL_MS_PER_HEIGHT,
@@ -1376,6 +1389,22 @@ type StatusGrantOutcome = "acquired" | "refreshed" | "refused";
 type HealthMove = { kind: "harm" | "mend"; amount: number };
 
 /**
+ * One round of creature decisions, planned on the tick it fell due and taken a
+ * share per tick after that. @see GameSession's `brainRound`
+ */
+type BrainRound = {
+  /** Who thinks this round, in order, each with the time its turn covers. */
+  turns: { actor: ActorRuntime; tickMs: number }[];
+  /** The next turn to take. */
+  next: number;
+  /** How many turns each tick takes. */
+  perTick: number;
+  /** What was made to be heard, said, and struck before the round began. */
+  sounds: readonly Sound[];
+  heard: readonly Utterance[];
+  hurt: ReadonlyMap<string, string[]>;
+};
+/**
  * One blow, settled, waiting out the flight of the thing that depicts it.
  *
  * Two fields and no more, because everything a blow *is* stayed in the method
@@ -1948,8 +1977,20 @@ type ActorRuntime = {
    *
    * Map mutation is persistent, so object identity is an exact staleness check:
    * this recomputes once per edit and never returns a stale answer.
+   *
+   * `chunk` is the chunk the body stood in on that map, with the two keys that
+   * find it. A later map whose chunk there is the same object has not touched
+   * one cell of it, so the body is still exactly where it was — which answers
+   * the memo without a stack lookup after an edit somewhere else entirely, the
+   * usual reason a map has changed. @see GameSession's `tryLocate`
    */
-  memo: { map: MapFile; loc: ActorLocation } | null;
+  memo: {
+    map: MapFile;
+    loc: ActorLocation;
+    levelKey: string;
+    chunkKey: string;
+    chunk: ChunkCells | undefined;
+  } | null;
 };
 
 /**
@@ -2351,6 +2392,24 @@ export class GameSession implements PlaySession {
    * the sound, which the wire deliberately does not. @see NoiseEmission
    */
   private pendingSound: Sound[] = [];
+  /**
+   * The round of decisions being taken, while it is spread over the ticks it
+   * covers — null between rounds.
+   *
+   * A round used to be taken whole on the tick it fell due, which put every
+   * awake creature's thinking on one tick in six. With a hundred players spread
+   * over the map that tick ran three times over its budget while the five
+   * between idled, and the lateness showed as a stutter every fifth of a second.
+   * So the round is decided on the tick it falls due — who is awake, whose
+   * dozing turn it is, and what was said, struck and heard — and then its turns
+   * are taken a share per tick until it is done. @see tickBrains
+   *
+   * What a round delivers is fixed when it is planned: speech, blows and sounds
+   * are taken off their pages then, so everything that happens while it is
+   * being worked through is the next round's to hear, exactly as a sound made
+   * during a round always was. @see pendingSound
+   */
+  private brainRound: BrainRound | null = null;
   /**
    * Damage dealt this tick, waiting to be broadcast. Drained by the server
    * exactly as {@link pendingSpeech} is, and emptied at the top of every tick so
@@ -2990,7 +3049,12 @@ export class GameSession implements PlaySession {
     const loc = this.tryLocate(leaving);
     this.forgetTileIndex();
     if (loc) this.noteTransition("disappear", loc.placed.tileId, loc, loc.stackIndex);
-    this.map = despawnActor(this.map, id);
+    // Taken off the cell just located rather than by `despawnActor`, which
+    // sweeps the whole board to find the same body again. The sweep is for a
+    // body this session cannot find, and that is the only case it is left for.
+    this.map = loc
+      ? removeTileAt(this.map, loc.x, loc.y, loc.z, loc.stackIndex)
+      : despawnActor(this.map, id);
   }
 
   /**
@@ -3300,9 +3364,25 @@ export class GameSession implements PlaySession {
   private tryLocate(actor: ActorRuntime): ActorLocation | null {
     const memo = actor.memo;
     if (memo?.map === this.map) return memo.loc;
+    // An edit elsewhere on the board: the chunk this body stands in is the same
+    // object, so the body is too. @see ActorRuntime.memo
+    if (memo?.chunk && this.map.levels[memo.levelKey]?.[memo.chunkKey] === memo.chunk) {
+      memo.map = this.map;
+      return memo.loc;
+    }
 
     const loc = locateActor(this.map, actor.id, memo?.loc);
-    if (loc) actor.memo = { map: this.map, loc };
+    if (loc) {
+      const zk = levelKey(loc.z);
+      const ck = chunkKeyFor(loc.x, loc.y);
+      actor.memo = {
+        map: this.map,
+        loc,
+        levelKey: zk,
+        chunkKey: ck,
+        chunk: this.map.levels[zk]?.[ck],
+      };
+    }
     return loc;
   }
 
@@ -3665,25 +3745,53 @@ export class GameSession implements PlaySession {
       this.pendingHeard = [];
       this.pendingHurt.clear();
       this.pendingSound = [];
+      this.brainRound = null;
       return;
     }
 
     this.brainAccumulatorMs += tickMs;
-    if (this.brainAccumulatorMs < BRAIN_TICK_MS) return;
-    this.brainAccumulatorMs -= BRAIN_TICK_MS;
+    if (this.brainAccumulatorMs >= BRAIN_TICK_MS) {
+      this.brainAccumulatorMs -= BRAIN_TICK_MS;
+      // Whatever the last round left undone is taken now rather than dropped.
+      // It only happens when a round covers fewer ticks than it was split over,
+      // which the accumulator's rounding can do once in a long while.
+      if (this.brainRound) this.takeBrainTurns(this.brainRound, Infinity);
+      this.brainRound = this.planBrainRound();
+    }
+    if (this.brainRound) this.takeBrainTurns(this.brainRound, this.brainRound.perTick);
+  }
 
-    // Taken before anybody decides anything, so a howl made during this pass is
-    // next pass's business for every ear alike. @see pendingSound
-    const sounds = this.pendingSound;
+  /**
+   * Decide who thinks this round, and take what they will hear off the pages.
+   *
+   * Two kinds of creature, and the split is what keeps a round's cost a
+   * function of who is here rather than of how big the world is. A creature
+   * somebody could notice — anybody within the furthest distance its brain
+   * ever asks about, or within a screen — thinks every round, so every authored
+   * chase, flight and investigation is exactly what it was. Everybody else is
+   * dozing: still on the clock, but given a turn only as the budget comes round
+   * to them. @see BRAIN_DOZE_BUDGET
+   */
+  private planBrainRound(): BrainRound {
+    // Taken before anybody decides anything, so a howl made during this round
+    // is next round's business for every ear alike. @see pendingSound
+    //
+    // Speech and blows are taken the same way, which is what lets a round be
+    // spread over several ticks: one word reaches every ear this round, and a
+    // blow struck while the round is under way is noticed next round rather
+    // than by only the creatures whose turns had not come yet.
+    const round: BrainRound = {
+      turns: [],
+      next: 0,
+      perTick: 0,
+      sounds: this.pendingSound,
+      heard: this.pendingHeard,
+      hurt: this.pendingHurt,
+    };
     this.pendingSound = [];
+    this.pendingHeard = [];
+    this.pendingHurt = new Map();
 
-    // Two kinds of creature this round, and the split is what keeps a round's
-    // cost a function of who is here rather than of how big the world is.
-    // A creature somebody could notice — anybody within the furthest distance
-    // its brain ever asks about, or within a screen — thinks now, every round,
-    // so every authored chase, flight and investigation is exactly what it was.
-    // Everybody else is dozing: still on the clock, but given a turn only as
-    // the budget comes round to them. @see BRAIN_DOZE_BUDGET
     const players = this.playerPlans();
     const dozing: ActorRuntime[] = [];
     for (const actor of this.actors.values()) {
@@ -3691,25 +3799,39 @@ export class GameSession implements PlaySession {
       // Written down rather than only branched on: a standing walk order is
       // pressed at the tick rate, and this is the flag that decides whether a
       // dozing creature's is. @see ActorRuntime.brainAttentive
-      actor.brainAttentive = this.attentive(actor, players);
+      actor.brainAttentive = this.attentive(actor, players, round.hurt);
       if (actor.brainAttentive) {
-        this.tickOneBrain(actor, sounds, BRAIN_TICK_MS + actor.brainDeferredMs);
+        round.turns.push({ actor, tickMs: BRAIN_TICK_MS + actor.brainDeferredMs });
         actor.brainDeferredMs = 0;
       } else {
         dozing.push(actor);
       }
     }
-    this.tickDozing(dozing, sounds);
+    this.planDozing(dozing, round);
 
-    // Every brain has now had its one chance at this round of speech. Clearing
-    // after the whole pass rather than per creature is what makes one word
-    // reach every ear at once — and clearing at all is what keeps it an event
-    // instead of a standing fact about the world.
-    this.pendingHeard = [];
-    // And its one chance to notice being hit, on the same terms: a blow is an
-    // event, so a creature that was struck reacts once rather than reacting
-    // forever to a fact that never goes away.
-    this.pendingHurt.clear();
+    round.perTick = Math.max(
+      BRAIN_TURNS_PER_TICK_MIN,
+      Math.ceil(round.turns.length / BRAIN_ROUND_TICKS),
+    );
+    return round;
+  }
+
+  /**
+   * Take up to `count` of a round's turns, and close the round when none are
+   * left.
+   *
+   * A creature that has left the board since the round was planned — killed
+   * by a blow on one of the ticks in between — is passed over: the turn was for
+   * a body that is no longer there.
+   */
+  private takeBrainTurns(round: BrainRound, count: number) {
+    const stop = Math.min(round.turns.length, round.next + count);
+    for (; round.next < stop; round.next++) {
+      const { actor, tickMs } = round.turns[round.next]!;
+      if (this.actors.get(actor.id) !== actor) continue;
+      this.tickOneBrain(actor, round, tickMs);
+    }
+    if (round.next >= round.turns.length && this.brainRound === round) this.brainRound = null;
   }
 
   /**
@@ -3966,14 +4088,14 @@ export class GameSession implements PlaySession {
    * the budget, which is the one place the size of the world reaches a round.
    * The creatures passed over bank the round they missed instead.
    */
-  private tickDozing(dozing: readonly ActorRuntime[], sounds: readonly Sound[]) {
+  private planDozing(dozing: readonly ActorRuntime[], round: BrainRound) {
     if (dozing.length === 0) return;
     const turns = Math.min(BRAIN_DOZE_BUDGET, dozing.length);
     const start = this.dozeCursor % dozing.length;
     for (let i = 0; i < dozing.length; i++) {
       const actor = dozing[(start + i) % dozing.length]!;
       if (i < turns) {
-        this.tickOneBrain(actor, sounds, BRAIN_TICK_MS + actor.brainDeferredMs);
+        round.turns.push({ actor, tickMs: BRAIN_TICK_MS + actor.brainDeferredMs });
         actor.brainDeferredMs = 0;
       } else {
         actor.brainDeferredMs += BRAIN_TICK_MS;
@@ -3997,8 +4119,12 @@ export class GameSession implements PlaySession {
    * distance a condition reckons in. Being generous here costs a turn; being
    * mean would cost a creature its chance to notice somebody.
    */
-  private attentive(actor: ActorRuntime, players: readonly PlanCoord[]): boolean {
-    if (this.pendingHurt.has(actor.id)) return true;
+  private attentive(
+    actor: ActorRuntime,
+    players: readonly PlanCoord[],
+    hurt: ReadonlyMap<string, string[]>,
+  ): boolean {
+    if (hurt.has(actor.id)) return true;
     const loc = this.tryLocate(actor);
     if (!loc) return false;
     const reach = Math.max(BRAIN_ATTENTION_FLOOR_CELLS, this.reachOf(this.defFor(actor)));
@@ -4027,7 +4153,7 @@ export class GameSession implements PlaySession {
     return out;
   }
 
-  private tickOneBrain(actor: ActorRuntime, sounds: readonly Sound[], tickMs: number) {
+  private tickOneBrain(actor: ActorRuntime, round: BrainRound, tickMs: number) {
     // Nothing left to decide with. An actor outlives its body for as long as it
     // takes something to notice — a creature killed by a status, or one that
     // fell out of the world — and until then it is still in {@link actors} and
@@ -4085,9 +4211,9 @@ export class GameSession implements PlaySession {
       canSee: (at) => this.canSeeFrom(actor, loc, at),
       talking: () => this.anyoneTalkingTo(actor.id),
       sight,
-      heard: () => this.pendingHeard,
-      heardNoise: () => soundsHeardBy(sounds, actor.id),
-      hurtBy: () => this.pendingHurt.get(actor.id) ?? EMPTY_ATTACKERS,
+      heard: () => round.heard,
+      heardNoise: () => soundsHeardBy(round.sounds, actor.id),
+      hurtBy: () => round.hurt.get(actor.id) ?? EMPTY_ATTACKERS,
       attack: (id) => this.tryAttack(actor, id),
       cast: (spell, targetId) => this.castForBrain(actor, spell, targetId),
       extract: (at, tileId) => this.extractForBrain(actor, at, tileId),
@@ -7822,11 +7948,66 @@ export class GameSession implements PlaySession {
     cells: number,
     sight: SightLevels,
   ): FoundThing | null {
+    const mayHold = this.chunksHolding(from, tileIds, cells, sight);
+    if (!mayHold) return null;
     for (let ring = 0; ring <= cells; ring++) {
-      const found = this.thingInRing(from, tileIds, ring, sight);
+      const found = this.thingInRing(from, tileIds, ring, sight, mayHold);
       if (found) return found;
     }
     return null;
+  }
+
+  /**
+   * Which chunks in a search's reach hold any of `tileIds` at all, as a test
+   * on a cell — or null when none of them does.
+   *
+   * **The search's answer is unchanged; this only says where not to look.**
+   * The rings still run in the same order and stop at the same first match. A
+   * column is skipped only when its chunk has no placement of any wanted tile
+   * on that level, which the chunk's own tile list says for certain. @see
+   * tileIdsInChunk
+   *
+   * It exists because the expensive case is the common one: a creature looking
+   * for something that is not near it reads every column in its reach on every
+   * level it can see, every round, and with players spread across the map that
+   * was a fifth of the server's time. Most chunks have none of what it wants,
+   * and ruling one out is a lookup instead of a few hundred.
+   */
+  private chunksHolding(
+    from: Coord,
+    tileIds: ReadonlySet<string>,
+    cells: number,
+    sight: SightLevels,
+  ): ((x: number, y: number, z: number) => boolean) | null {
+    const cx0 = chunkIndexOf(from.x - cells);
+    const cy0 = chunkIndexOf(from.y - cells);
+    const width = chunkIndexOf(from.x + cells) - cx0 + 1;
+    const height = chunkIndexOf(from.y + cells) - cy0 + 1;
+    const z0 = Math.max(MIN_LEVEL, from.z - sight.down);
+    const z1 = Math.min(MAX_LEVEL, from.z + sight.up);
+    if (z1 < z0) return null;
+    const holds = new Uint8Array((z1 - z0 + 1) * width * height);
+    let any = false;
+    for (let z = z0; z <= z1; z++) {
+      const level = this.map.levels[levelKey(z)];
+      if (!level) continue;
+      for (let cy = 0; cy < height; cy++) {
+        for (let cx = 0; cx < width; cx++) {
+          const chunk = level[chunkKeyAt(cx0 + cx, cy0 + cy)];
+          if (!chunk) continue;
+          const present = tileIdsInChunk(chunk);
+          for (const id of tileIds) {
+            if (!present.has(id)) continue;
+            holds[((z - z0) * height + cy) * width + cx] = 1;
+            any = true;
+            break;
+          }
+        }
+      }
+    }
+    if (!any) return null;
+    return (x, y, z) =>
+      holds[((z - z0) * height + (chunkIndexOf(y) - cy0)) * width + (chunkIndexOf(x) - cx0)] === 1;
   }
 
   /**
@@ -7842,13 +8023,14 @@ export class GameSession implements PlaySession {
     tileIds: ReadonlySet<string>,
     ring: number,
     sight: SightLevels,
+    mayHold: (x: number, y: number, z: number) => boolean,
   ): FoundThing | null {
     for (let dx = -ring; dx <= ring; dx++) {
       const dy = ring - Math.abs(dx);
       // At the poles of the diamond the two rows are the same row, and reading
       // it twice would only find the same cell again.
       for (const y of dy === 0 ? [from.y] : [from.y - dy, from.y + dy]) {
-        const found = this.thingInColumn(from.x + dx, y, from.z, tileIds, sight);
+        const found = this.thingInColumn(from.x + dx, y, from.z, tileIds, sight, mayHold);
         if (found) return found;
       }
     }
@@ -7862,10 +8044,12 @@ export class GameSession implements PlaySession {
     fromZ: number,
     tileIds: ReadonlySet<string>,
     sight: SightLevels,
+    mayHold: (x: number, y: number, z: number) => boolean,
   ): FoundThing | null {
     for (let dz = -sight.down; dz <= sight.up; dz++) {
       const z = fromZ + dz;
       if (z < MIN_LEVEL || z > MAX_LEVEL) continue;
+      if (!mayHold(x, y, z)) continue;
       for (const placed of getStack(this.map, x, y, z)) {
         if (tileIds.has(placed.tileId)) {
           return { at: { x, y, z }, tileId: placed.tileId };
@@ -10443,6 +10627,9 @@ export class GameSession implements PlaySession {
     if (this.pendingHurt.size > 0) return false;
     // A sound nobody has had a turn to hear, on exactly those grounds again.
     if (this.pendingSound.length > 0) return false;
+    // A round of decisions part-way through, whose remaining turns are owed on
+    // the ticks after this one. @see brainRound
+    if (this.brainRound) return false;
     // Something is counting down, and this loop is the only clock it has. The
     // world therefore stays awake for as long as the longest lifetime on the
     // board — which is the price of decay being simulated rather than read off

@@ -34,6 +34,39 @@ export function getStack(map: MapFile, x: number, y: number, z: number): PlacedT
   return map.levels[levelKey(z)]?.[chunkKeyFor(x, y)]?.[coordKey(x, y)] ?? [];
 }
 
+const tileIdsByChunk = new WeakMap<ChunkCells, ReadonlySet<string>>();
+
+/**
+ * Tile ids that may be placed in a chunk: every one that is, and possibly some
+ * that were.
+ *
+ * For a search that wants to rule a chunk out before reading its cells — see
+ * `GameSession`'s `nearestThing`, where a creature looking for a bush that is
+ * nowhere near would otherwise read every column in its reach. An id missing
+ * from here is certainly not in the chunk; an id present may have left it.
+ *
+ * **Cached by the chunk object, and that is safe because a chunk never
+ * changes.** Maps are copy-on-write: {@link setStacks} copies a chunk before it
+ * edits one, and every stack edit copies the stack, so a chunk object that
+ * exists holds the same placements for as long as it exists.
+ *
+ * **A copy inherits its source's set rather than being read again**, which is
+ * where the "possibly some that were" comes from. Chunks are copied on every
+ * step anybody takes, so re-reading each copy's few hundred cells cost as much
+ * as the searches it saved. {@link setStacks} hands the copy the same set when
+ * the edit brought no new id, and the set plus the new ids when it did. What
+ * an edit removed stays listed until the chunk is read afresh, which costs a
+ * search a look it did not need and never a thing it would have found.
+ */
+export function tileIdsInChunk(chunk: ChunkCells): ReadonlySet<string> {
+  const cached = tileIdsByChunk.get(chunk);
+  if (cached) return cached;
+  const found = new Set<string>();
+  for (const key in chunk) for (const placed of chunk[key]!) found.add(placed.tileId);
+  tileIdsByChunk.set(chunk, found);
+  return found;
+}
+
 /** Chunk a cell belongs to. Hot enough to inline the arithmetic. */
 export function chunkKeyFor(x: number, y: number): string {
   return `${Math.floor(x / CHUNK_SIZE)},${Math.floor(y / CHUNK_SIZE)}`;
@@ -666,6 +699,9 @@ export function setStacks(map: MapFile, edits: readonly StackEdit[]): MapFile {
   const levels = { ...map.levels };
   // Chunks copied so far, so several edits landing in one chunk share a copy.
   const copied = new Map<string, ChunkCells>();
+  // What each copy's source already knew it held, and the stacks written into
+  // it since. @see tileIdsInChunk
+  const inherited = new Map<ChunkCells, { ids: ReadonlySet<string>; written: PlacedTile[][] }>();
   let deleted = false;
 
   for (const edit of edits) {
@@ -676,10 +712,14 @@ export function setStacks(map: MapFile, edits: readonly StackEdit[]): MapFile {
     let chunk = copied.get(path);
     if (!chunk) {
       const level = levels[zk];
-      chunk = { ...level?.[chk] };
+      const source = level?.[chk];
+      chunk = { ...source };
       copied.set(path, chunk);
       levels[zk] = { ...level, [chk]: chunk };
+      const ids = source && tileIdsByChunk.get(source);
+      if (ids) inherited.set(chunk, { ids, written: [] });
     }
+    inherited.get(chunk)?.written.push(edit.stack);
 
     const ck = coordKey(edit.x, edit.y);
     if (edit.stack.length === 0) {
@@ -688,6 +728,18 @@ export function setStacks(map: MapFile, edits: readonly StackEdit[]): MapFile {
     } else {
       chunk[ck] = edit.stack;
     }
+  }
+
+  for (const [chunk, { ids, written }] of inherited) {
+    let next: Set<string> | null = null;
+    for (const stack of written) {
+      for (const placed of stack) {
+        if ((next ?? ids).has(placed.tileId)) continue;
+        next ??= new Set(ids);
+        next.add(placed.tileId);
+      }
+    }
+    tileIdsByChunk.set(chunk, next ?? ids);
   }
 
   // Only a delete can empty anything, and emptiness checks are not free.

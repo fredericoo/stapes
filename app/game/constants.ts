@@ -83,6 +83,24 @@ export const BRAIN_ATTENTION_FLOOR_CELLS = 24;
 export const BRAIN_DOZE_BUDGET = 24;
 
 /**
+ * How many ticks a round of decisions is spread over: every tick it covers.
+ * @see BRAIN_TURNS_PER_TICK_MIN
+ */
+export const BRAIN_ROUND_TICKS = Math.max(1, Math.floor(BRAIN_TICK_MS / TICK_MS));
+
+/**
+ * The fewest brain turns a tick takes while a round is being worked through.
+ *
+ * A round is spread over {@link BRAIN_ROUND_TICKS} so that a crowded world
+ * does its thinking a share per tick instead of all on one — but a world with
+ * a handful of creatures awake has nothing worth spreading, and splitting it
+ * would only make each creature's turn land a tick or two later than the
+ * round it belongs to. Up to this many, a round is taken whole on the tick it
+ * falls due, exactly as every round was before rounds were spread.
+ */
+export const BRAIN_TURNS_PER_TICK_MIN = 16;
+
+/**
  * Max climb up in absolute height units when walking into a cell.
  *
  * Half a level, derived rather than written down, so subdividing a level never

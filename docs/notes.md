@@ -2421,8 +2421,97 @@ The seams worth knowing:
   those tests was checked red by breaking the rule it pins — dropping the
   banked time, making everybody attentive, ignoring the reach.
 - A round used to be one loop and one clock. It is still one clock: nothing
-  here changes `BRAIN_TICK_MS` or the accumulator, and a test that advances
-  one `BRAIN_TICK_MS` still sees every attentive creature decide.
+  here changes `BRAIN_TICK_MS` or the accumulator. What changed later is that
+  a round with more than `BRAIN_TURNS_PER_TICK_MIN` turns is spread over the
+  ticks it covers — see "A hundred players, profiled" below — so a test with
+  a crowd has to count turns on every tick of a round, and from the tick the
+  round falls due. `alignToRounds` and `roundOfTurns` in `brain.test.ts` do
+  that. A test with a handful of creatures still sees every one of them decide
+  on the tick the round falls due.
+
+## A hundred players, profiled
+
+The stress-test bots (`/admin/actions` on the branch that carries them) put a
+hundred players into a local world, and `bun --cpu-prof` on the server said
+where a tick went. The target was the 30Hz tick staying inside its 33ms with
+a hundred players in the world, both all at the spawn — which is launch day —
+and spread over the surface, which is every day after.
+
+**Where it started.** Pinned to one core, a hundred players held the world to
+22 ticks a second clustered and 20 spread: the world ran a quarter to a third
+slow, and one tick in twenty took 65ms clustered and 105ms spread.
+
+**Spreading the players out made it worse, not better.** Clustered, a patch is
+scoped per client and nearly every body is in nearly every client's reach, so
+the broadcast was the largest single cost. Spread out, the broadcast shrank to
+half and the creatures took its place: players all over the map wake
+creatures all over the map, and those brains were the bottleneck. Turning
+brains off entirely put the world at full speed with a 9ms median tick.
+
+**What each change bought**, in the order they were made:
+
+- **A step or a turn no longer runs the per-message flushes.** Walking is most
+  of what clients send, and each message ran thirteen flushes that each walk
+  every socket — a cost that grew with the square of the player count. A step
+  is only queued there and the tick runs every flush anyway.
+- **Seating and removing a body stopped sweeping the board.**
+  `findActorAnywhere` built an object per cell of every level; walking the
+  chunk records took it from 27ms to 6.5ms on the shipped map, and `despawn`
+  now removes the body from the cell it has just located rather than sweeping
+  again. Every join, rebirth and departure used to stall the tick for 40ms.
+- **A player's interest is recomputed when they cross a chunk boundary**,
+  not every tick. `subscriptionCentre` remembers the chunk a subscription was
+  found complete around, keyed by the set, which is only ever replaced.
+- **A creature's search for a thing skips chunks that cannot hold it.**
+  `tileIdsInChunk` is cached per chunk object — safe because chunks are
+  copy-on-write — and a copy inherits its source's set plus whatever was
+  written into it, so it may list a tile that has since left and never misses
+  one that has not. The search's answer and order are unchanged.
+- **A location memo survives edits elsewhere.** A body whose chunk is the
+  same object on the new map is where it was; that answers `tryLocate`
+  without a stack lookup.
+- **A round of decisions is spread over the ticks it covers.** It used to be
+  taken whole on the tick it fell due, one tick in six three times over
+  budget and the five after it idle. It is planned on that tick — who is
+  awake, whose dozing turn it is, and the speech, blows and sounds it will
+  deliver — and taken a share per tick after that, at least
+  `BRAIN_TURNS_PER_TICK_MIN` a tick so a small world is exactly what it was.
+  Speech, blows and sounds that arrive while a round is being worked through
+  belong to the next round, which is the rule sounds already followed.
+- **Scoping reuses a client's set of known bodies when nobody came or went**,
+  and works each body's chunk out once a tick rather than once per client.
+
+**Where it ended**, same machine, same bots. The "after" rows have
+`server/index.ts`'s compression turned on and the "before" rows do not, so the
+"before" rows are, if anything, better than a like-for-like comparison would show:
+
+| | ticks/s | median tick | p95 tick |
+|---|---|---|---|
+| clustered, before | 22 | 21ms | 65ms |
+| clustered, after | 27 | 19ms | 32ms |
+| spread, before | 20 | 22ms | 105ms |
+| spread, after | 28 | 20ms | 34ms |
+
+29.4 is the ceiling: `setInterval(…, 33.3)` fires every 34ms in Bun.
+
+**What is left**, for whoever takes this further:
+
+- **The ticks still missing are stalls outside the tick.** The gap between
+  ticks has a p99 around 100ms. The largest thing that happens between ticks is
+  a `hello`: about 2.5MB of JSON, serialized on every join and every rebirth,
+  and the bots die about once every two minutes each. Smaller hellos, or a
+  rebirth that does not resend the whole map, is the next step.
+- **`getStack` is a fifth of what remains.** Three string keys and three
+  lookups on objects with hundreds of keys, per call, and pathfinding, movement
+  and gravity call it constantly. Interning the key strings bought 5–15% in a
+  microbenchmark; a numeric index would buy far more and means changing the
+  map's in-memory shape.
+- **Pathfinding runs once per step of every chasing creature.** Reusing a route
+  while its goal stands still is the obvious saving, and it is a behaviour
+  change that needs the chase notes above read first.
+- **This was one core to itself.** Production shares two vCPUs with its
+  previews and Traefik, so the margin measured here is the most it has.
+
 ## A joiner is sent the chunks its view can reach
 
 The per-tick patch stream is bounded by how much the world changes, and since
