@@ -1,21 +1,18 @@
 import {
   absoluteStandingElevation,
-  absoluteWalkableElevation,
   appendTile,
   getStack,
   isSolidPlacement,
   listCoords,
-  planeCoveredAt,
   replaceStack,
   stackHeight,
-  walkableFloorAbove,
 } from "../lib/mapData";
 import { pourInto } from "../lib/piles";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import { MAX_CLIMB_HEIGHT } from "./constants";
 import { placeEntityOnSurface, removeEntity } from "./mapMutations";
-import { findLandingAbs, sceneryStack, standingAbs } from "./movement";
+import { findLandingAbs, standingAbs } from "./movement";
 
 /**
  * True when the entity has solid underfoot:
@@ -44,53 +41,6 @@ export function isSupported(
   }
 
   return false;
-}
-
-/**
- * Highest walkable surface absolute elevation strictly below `feetAbs`.
- * Skips non-walkable solid tops (fall-through after a failed slide).
- *
- * A plane with water lying on it is one of those tops, on the same terms
- * `./movement`'s `listStandingSurfaces` refuses to offer it: a body cannot end
- * up standing somewhere it could not have walked to. @see planeCoveredAt
- */
-export function findWalkableLandingAbs(
-  map: MapFile,
-  x: number,
-  y: number,
-  feetAbs: number,
-  tilesById: Record<string, TileDef>,
-  exclude?: { z: number; stackIndex: number },
-): number | null {
-  let best: number | null = null;
-  const consider = (abs: number) => {
-    if (abs >= feetAbs) return;
-    if (planeCoveredAt(map, x, y, abs, tilesById)) return;
-    best = best == null ? abs : Math.max(best, abs);
-  };
-
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
-    let stack = getStack(map, x, y, z);
-    if (exclude && exclude.z === z) {
-      stack = sceneryStack(map, x, y, z, exclude.stackIndex);
-    }
-
-    if (stack.length > 0) {
-      const walkAbs = absoluteWalkableElevation(z, stack, tilesById);
-      if (walkAbs != null) consider(walkAbs);
-    }
-
-    if (z > MIN_LEVEL) {
-      let below = getStack(map, x, y, z - 1);
-      if (exclude && exclude.z === z - 1) {
-        below = sceneryStack(map, x, y, z - 1, exclude.stackIndex);
-      }
-      const floorAbs = walkableFloorAbove(z - 1, below, tilesById);
-      if (floorAbs != null) consider(floorAbs);
-    }
-  }
-
-  return best;
 }
 
 /**

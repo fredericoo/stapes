@@ -539,20 +539,15 @@ export class WalkTo {
  * All of the above asks what the *picked tile* holds up, which is the right
  * question everywhere a body could already be standing. It is the wrong one
  * looking down a hole, where the pointer names whatever is visible at the
- * bottom and a body would never come to rest on it. The tutorial's first hole
- * is exactly that: nothing at the walker's level, a `half-wall` on the level
- * below, and bare ground a level below *that*. The pick names the half-wall,
- * nothing stands on a half-wall, and the click was refused about a hole the
- * player was standing at the mouth of — while the route, one step north and a
- * fall, had been available the whole time.
+ * bottom, on a level below the one the walker is on.
  *
  * So a column with nothing at all at the walker's own level is read as a hole,
  * and the answer is where a body entering it comes to rest. That question
  * belongs to `./pathfinding`'s {@link dropLanding} and is asked rather than
  * re-derived, because a click that aimed anywhere else would be a route to a
- * cell the search will not put the body in. It also reaches past what the
- * *pointer* can: `PICK_LEVEL_SLACK` lets a pick name one level down, and this
- * hole is two.
+ * cell the search will not put the body in. When the fall would end on a top
+ * nobody can stand on, `canWalk` refuses the step into the hole and this is
+ * null, the same as for a wall.
  *
  * Narrow deliberately. Nothing at the walker's level is what makes a column a
  * hole rather than a thing with a wall on it, so the rule above still stands

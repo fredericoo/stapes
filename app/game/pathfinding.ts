@@ -1,6 +1,7 @@
 import {
   canWalk,
   DIR_DELTA,
+  findLandingAbs,
   listStandingSurfaces,
   standingAbs,
   surfacesInClimbBand,
@@ -13,7 +14,6 @@ import type { StatusDef } from "../lib/status";
 import { fitsAtElevation } from "../lib/validation";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { DIRECTIONS } from "../lib/types";
-import { MAX_CLIMB_HEIGHT } from "./constants";
 
 /**
  * A route across the board, one step at a time.
@@ -368,6 +368,11 @@ function remaining(at: Coord, goal: Coord, arrive: Arrival): number {
  * a half-wall is drawn and cannot be stood on, so the fall carries past it. One
  * definition, because a click that aimed somewhere the search would not put the
  * body is a route to a cell nobody ends up in.
+ *
+ * **The first solid top the fall meets, and null when nobody can stand on
+ * it.** Gravity stops at whatever is solid, walkable or not, and `canWalk`
+ * refuses a step whose fall ends on a fence or a tree. Skipping down to the
+ * next walkable surface instead would plan a landing no body ever reaches.
  */
 export function dropLanding(
   map: MapFile,
@@ -377,16 +382,15 @@ export function dropLanding(
   tileDef: TileDef,
   tilesById: Record<string, TileDef>,
 ): Coord | null {
-  const below = listStandingSurfaces(map, x, y, tilesById)
-    .filter((surface) => surface.abs < fromAbs - MAX_CLIMB_HEIGHT)
-    .sort((a, b) => b.abs - a.abs);
-
-  for (const surface of below) {
-    if (fitsAtElevation(map, x, y, surface.abs, tileDef, tilesById).ok) {
-      return { x, y, z: surface.z };
-    }
-  }
-  return null;
+  // From the feet down, not from the bottom of the climb band: a walkable top
+  // inside the band is a step rather than a drop and never gets here, but a
+  // fence inside it is still what the fall lands on.
+  const landingAbs = findLandingAbs(map, x, y, fromAbs + 1, tilesById);
+  if (landingAbs == null) return null;
+  const surface = listStandingSurfaces(map, x, y, tilesById).find((s) => s.abs === landingAbs);
+  if (!surface) return null;
+  if (!fitsAtElevation(map, x, y, surface.abs, tileDef, tilesById).ok) return null;
+  return { x, y, z: surface.z };
 }
 
 /**

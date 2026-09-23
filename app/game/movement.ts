@@ -4,20 +4,15 @@ import {
   footingOfStack,
   getStack,
   isSolidPlacement,
+  isWalkableSurfaceAt,
   planeCoveredBy,
   stackHeight,
   surfaceTileAt,
   walkableFloorAbove,
 } from "../lib/mapData";
 import { stackOcclusion } from "../lib/lighting";
-import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
-import {
-  HEIGHT_PER_LEVEL,
-  MAX_LEVEL,
-  MIN_LEVEL,
-  resolveClimbFrom,
-  resolveWalkable,
-} from "../lib/types";
+import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
+import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL, resolveClimbFrom } from "../lib/types";
 import { walkDurationFrom } from "../lib/walkSpeed";
 import type { FitOpts } from "../lib/validation";
 import { fitsAtElevation, fitsTile } from "../lib/validation";
@@ -272,17 +267,6 @@ export function surfacesInClimbBand(
   });
 }
 
-/** Scenery tile whose solid top is at absolute `abs`, if any. */
-function solidTopAt(
-  map: MapFile,
-  x: number,
-  y: number,
-  abs: number,
-  tilesById: Record<string, TileDef>,
-): PlacedTile | null {
-  return surfaceTileAt(map, x, y, abs, tilesById);
-}
-
 /**
  * Highest solid surface absolute elevation strictly below `feetAbs` at (x,y).
  * Includes non-walkable tops (caller may slide or fall through).
@@ -431,14 +415,18 @@ export function canWalk(
     return { ok: false, reason: `Climb ${climb} exceeds max ${MAX_CLIMB_HEIGHT}` };
   }
 
-  // Reject standing on a non-walkable solid top (including a full-height tree
-  // whose top coincides with an empty level's base above it).
-  const solidTop = solidTopAt(map, destX, destY, destAbs, tilesById);
-  if (solidTop) {
-    const topDef = tilesById[solidTop.tileId];
-    if (topDef && !resolveWalkable(topDef)) {
-      return { ok: false, reason: "Destination surface is not walkable" };
-    }
+  // Refuse a step whose body would come to rest on a top nobody can stand on,
+  // however far down the fall takes it. `destAbs + 1` makes the search include
+  // a top at `destAbs` itself — a full-height tree whose top coincides with an
+  // empty level's base above it — so standing and falling are one check.
+  //
+  // This used to stop at `destAbs`, and a body that fell onto a fence was
+  // walked on in the direction it faced until it found somewhere to land. The
+  // client predicts steps and not that walk, so the body snapped to wherever
+  // the server put it. Refusing the step here refuses it on both machines.
+  const restAbs = findLandingAbs(map, destX, destY, destAbs + 1, tilesById);
+  if (restAbs != null && !isWalkableSurfaceAt(map, destX, destY, restAbs, tilesById)) {
+    return { ok: false, reason: "Destination surface is not walkable" };
   }
 
   if (!climbUpAllowed(map, from, fromAbs, destAbs, direction, tilesById)) {

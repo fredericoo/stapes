@@ -13,7 +13,7 @@ import { HEIGHT_PER_LEVEL } from "../lib/types";
 import { canReplaceStack, fitsTile, tilesByIdFromList } from "../lib/validation";
 import { FALL_MS_PER_HEIGHT, PUSH_STEP_MS, TICK_MS, WALK_DURATION_MS } from "./constants";
 import { resolveStatus } from "../lib/status";
-import { GameSession } from "./GameSession";
+import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
 import { isSupported } from "./gravity";
 import { canWalk, findLandingAbs, groundWalkSpeedPercent, standingAbs } from "./movement";
 import { findPlayers, requireSinglePlayer } from "./player";
@@ -1005,8 +1005,7 @@ describe("GameSession fall", () => {
   it("lands on a floor sealed over a full-height non-walkable tile", () => {
     // The landing check reads the tile that owns the plane. Reading the buried
     // tree instead made the meadow an unwalkable hole, and a lander dropped
-    // through it into the cave. The wall is there so the alternative to
-    // landing is falling rather than sliding out of shot.
+    // through it into the cave.
     let map = replaceStack(emptyMap(), 0, 0, -1, [{ tileId: "dirt" }, { tileId: "tree" }]);
     map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }]);
     map = replaceStack(map, 0, 1, 0, [{ tileId: "wall" }]);
@@ -1339,7 +1338,7 @@ describe("preferDescend", () => {
   });
 });
 
-describe("GameSession faceOnly and slide", () => {
+describe("GameSession faceOnly", () => {
   it("Shift/faceOnly updates facing without walking", () => {
     let map = mapWithPlayer({ x: 0, y: 0 });
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
@@ -1351,25 +1350,85 @@ describe("GameSession faceOnly and slide", () => {
     expect(snap.self.x).toBe(0);
     expect(snap.self.direction).toBe("e");
   });
+});
 
-  it("slides in facing direction when landing on a non-walkable top", () => {
-    // Tree at (0,0) abs 2; grass east. Player falls from z=2 facing east.
+/**
+ * A step whose fall ends on a top nobody can stand on is refused, however far
+ * down that top is. The reported case: on top of a full-level block, stepping
+ * toward a fence on the ground beside it. The fence is inside the climb band,
+ * so this used to be a walk into open air, a settle onto the fence, and then a
+ * walk on in the facing direction that the client never predicted.
+ */
+describe("canWalk onto a fall", () => {
+  /** A player on a wall at (0,0), facing east, and `east` in the cell east. */
+  function ledge(east: { z: number; stack: string[] }): MapFile {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "wall" }]);
+    map = replaceStack(map, 0, 0, 1, [{ tileId: "player", direction: "e" }]);
+    return replaceStack(
+      map,
+      1,
+      0,
+      east.z,
+      east.stack.map((tileId) => ({ tileId })),
+    );
+  }
+
+  function stepEast(map: MapFile) {
+    const loc = requireSinglePlayer(map);
+    return canWalk(
+      map,
+      { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+      "e",
+      tilesById.player!,
+      tilesById,
+    );
+  }
+
+  it("refuses a step down onto a fence", () => {
+    expect(stepEast(ledge({ z: 0, stack: ["grass", "fence"] })).ok).toBe(false);
+  });
+
+  it("refuses a fall that ends on a fence several levels down", () => {
+    expect(stepEast(ledge({ z: -2, stack: ["grass", "fence"] })).ok).toBe(false);
+  });
+
+  it("refuses a fall into water", () => {
+    expect(stepEast(ledge({ z: -1, stack: ["water"] })).ok).toBe(false);
+  });
+
+  it("allows a fall that ends on ground", () => {
+    const check = stepEast(ledge({ z: -2, stack: ["grass"] }));
+    expect(check).toEqual({ ok: true, to: { x: 1, y: 0, z: 1 } });
+  });
+
+  it("allows a step over a column with nothing under it", () => {
+    expect(stepEast(ledge({ z: 0, stack: [] })).ok).toBe(true);
+  });
+
+  it("refuses the same step on the server, so the body never leaves the wall", () => {
+    const session = new GameSession(ledge({ z: 0, stack: ["grass", "fence"] }), tiles);
+    expect(session.requestStep(LOCAL_ACTOR_ID, "e")).toBe("refused");
+    expect(session.getSnapshot().self).toMatchObject({ x: 0, y: 0, z: 1 });
+  });
+});
+
+describe("GameSession landing", () => {
+  it("lands on a non-walkable top when the board drops a body onto one", () => {
+    // Tree at (0,0), top at abs 4. Player starts in the air above it facing
+    // east, with grass east of the tree that it used to be walked onto.
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "tree" }]);
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
     map = replaceStack(map, 0, 0, 2, [{ tileId: "player", direction: "e" }]);
     const session = new GameSession(map, tiles);
 
-    let elapsed = 0;
-    const budget = FALL_MS_PER_HEIGHT * 8 + WALK_DURATION_MS + 100;
-    while (elapsed < budget) {
-      session.tick(1000 / 30);
-      elapsed += 1000 / 30;
-    }
+    advance(session, FALL_MS_PER_HEIGHT * 8 + WALK_DURATION_MS + 100);
 
     const snap = session.getSnapshot();
     expect(snap.self.fall).toBeNull();
-    // Slid onto grass east of the tree.
-    expect(snap.self).toMatchObject({ x: 1, y: 0, z: 0 });
+    expect(snap.self.walk).toBeNull();
+    expect(snap.self).toMatchObject({ x: 0, y: 0 });
+    const self = snap.self;
+    expect(standingAbs(snap.map, self.x, self.y, self.z, self.stackIndex, tilesById)).toBe(4);
   });
 });
 

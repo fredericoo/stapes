@@ -849,23 +849,23 @@ describe("asking the board only when the answer could have changed", () => {
 /**
  * A hole is a column, not a tile.
  *
- * The shipped tutorial opens with a hole whose bottom is a `half-wall` on one
- * level and bare ground on the level below it. The pointer names the half-wall,
- * nothing stands on a half-wall, and a click at the very mouth of the hole was
- * refused about a fall that was one step away — so what the pick *names* and
- * where a body *lands* had to stop being the same question.
+ * The pick names whatever is visible at the bottom of a hole, which is a level
+ * below the walker and not a cell anybody stands in from here. What a click
+ * into a hole means is where a body stepping into it comes to rest — and when
+ * that is on top of something nobody can stand on, `canWalk` refuses the step,
+ * so the click has nowhere to go either.
  *
- * The pair of cases is the whole rule: a column empty at the walker's own level
- * is read as somewhere to fall into, and every other column is read exactly as
+ * The cases are the whole rule: a column empty at the walker's own level is
+ * read as somewhere to fall into, and every other column is read exactly as
  * before, including one with a wall standing in it.
  */
 describe("clicking into a hole", () => {
   /**
-   * Ground at level -1, a floor of blocks at level 0 over all of it, and one
-   * column where that floor is missing — with a half-wall at the bottom of the
-   * gap, so the fall carries past the level the pointer can see.
+   * Ground at level -2, a floor of blocks at level -1 under all of the ground
+   * at level 0, and one column where that floor is missing, with `bottom`
+   * standing on the ground at the bottom of the gap.
    */
-  function pit(): MapFile {
+  function pit(bottom: string[]): MapFile {
     let map = emptyMap();
     for (let x = -3; x <= 3; x++) {
       for (let y = -3; y <= 3; y++) {
@@ -874,33 +874,43 @@ describe("clicking into a hole", () => {
         map = replaceStack(map, x, y, 0, [{ tileId: "grass" }]);
       }
     }
-    // The hole: nothing at the walker's level, and the level below it holds a
-    // wall nobody can stand on, so a body falls through to the ground under it.
+    // The hole: nothing at the walker's level, and whatever it was given at the
+    // level below.
     map = replaceStack(map, 0, -1, 0, []);
-    map = replaceStack(map, 0, -1, -1, [{ tileId: "grass" }, { tileId: "crate" }]);
+    map = replaceStack(
+      map,
+      0,
+      -1,
+      -1,
+      bottom.map((tileId) => ({ tileId })),
+    );
     return replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: PLAYER_TILE_ID }]);
   }
 
-  it("steps in, falling past the level the pointer could name", () => {
+  it("steps in when the fall ends on ground", () => {
     const { walk, last } = walker();
-    const map = pit();
-    // What a pick reaches: the crate at the bottom of the gap, one level down —
-    // half a level tall, exactly as the shipped hole's `half-wall` is.
-    const wall = { x: 0, y: -1, z: -1, stackIndex: 1 };
+    const map = pit(["grass"]);
+    const ground = { x: 0, y: -1, z: -1, stackIndex: 0 };
 
-    walk.start(wall, view(map));
+    walk.start(ground, view(map));
 
+    expect(standingCellOn(view(map), ground)).toEqual({ x: 0, y: -1, z: -1 });
     expect(last()).toEqual(["n"]);
     expect(walk.walking).toBe(true);
     expect(walk.drainNotices()).toEqual([]);
   });
 
-  it("resolves the click to where a body lands, not to what was pointed at", () => {
-    const map = pit();
-    const wall = { x: 0, y: -1, z: -1, stackIndex: 1 };
+  it("does not step in when the fall ends on a crate nobody can stand on", () => {
+    const { walk, asked } = walker();
+    // Half a level tall and not walkable, the shape of a `half-wall` or a
+    // fence: the fall stops on its top, and nobody may end up standing there.
+    const map = pit(["grass", "crate"]);
+    const crate = { x: 0, y: -1, z: -1, stackIndex: 1 };
 
-    // Two levels down from the walker, and one below what the pick can reach.
-    expect(standingCellOn(view(map), wall)).toEqual({ x: 0, y: -1, z: -2 });
+    walk.start(crate, view(map));
+
+    expect(standingCellOn(view(map), crate)).toBeNull();
+    expect(asked.flatMap((input) => input.directions)).not.toContain("n");
   });
 
   it("still reads a wall on ordinary ground as a thing, not a hole", () => {
