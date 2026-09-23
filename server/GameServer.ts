@@ -5471,6 +5471,10 @@ export class GameServer {
     }
 
     if (whole) return null;
+    // Nobody came or went, so there is nothing of its own to add: the cut is
+    // the elements it takes, and nearly every client on nearly every tick is
+    // this.
+    if (entered === null && departed === null) return cut;
 
     const arrivals = entered === null ? [] : entered.map((i) => actors[i]!);
     // An arrival brings its cell with it, and that is not the same fact as the
