@@ -61,6 +61,7 @@ import {
   listResidentBodies,
   residentHome,
   residentOwnerId,
+  actorStillAt,
   despawnActor,
   findActorAnywhere,
   listActorOwners,
@@ -2984,13 +2985,21 @@ export class GameSession implements PlaySession {
     const { at } = restored;
     // Only a body that was not on the board arrives. A wake re-seats
     // somebody onto the body the checkpoint kept, which nobody saw leave.
-    if (!findActorAnywhere(this.map, id)) {
+    let where: (Coord & { stackIndex: number }) | null = findActorAnywhere(this.map, id);
+    if (!where) {
       const cell = at ? findEntryCell(this.map, this.tilesById, at, this.spawnAt) : this.spawnAt;
       const stackIndex = getStack(this.map, cell.x, cell.y, cell.z).length;
       this.map = spawnActor(this.map, id, cell, at?.direction);
       if (announce) this.noteTransition("appear", PLAYER_TILE_ID, cell, stackIndex);
+      where = { x: cell.x, y: cell.y, z: cell.z, stackIndex };
     }
     this.addActor(id, { ...restored, bodyTileId: PLAYER_TILE_ID });
+    // Where the body is, known here for nothing, so the first question asked
+    // about it — the `hello` that follows every join asks at once — is one
+    // stack read rather than a second sweep of the board. @see tryLocate
+    const actor = this.actors.get(id)!;
+    const placed = actorStillAt(this.map, id, where);
+    if (placed) this.remember(actor, placed);
   }
 
   /**
@@ -3389,18 +3398,21 @@ export class GameSession implements PlaySession {
     }
 
     const loc = locateActor(this.map, actor.id, memo?.loc);
-    if (loc) {
-      const zk = levelKey(loc.z);
-      const ck = chunkKeyFor(loc.x, loc.y);
-      actor.memo = {
-        map: this.map,
-        loc,
-        levelKey: zk,
-        chunkKey: ck,
-        chunk: this.map.levels[zk]?.[ck],
-      };
-    }
+    if (loc) this.remember(actor, loc);
     return loc;
+  }
+
+  /** Record where an actor stands on the current map. @see ActorRuntime.memo */
+  private remember(actor: ActorRuntime, loc: ActorLocation) {
+    const zk = levelKey(loc.z);
+    const ck = chunkKeyFor(loc.x, loc.y);
+    actor.memo = {
+      map: this.map,
+      loc,
+      levelKey: zk,
+      chunkKey: ck,
+      chunk: this.map.levels[zk]?.[ck],
+    };
   }
 
   private locate(actor: ActorRuntime): ActorLocation {
