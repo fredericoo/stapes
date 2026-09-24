@@ -34,6 +34,21 @@ export function getStack(map: MapFile, x: number, y: number, z: number): PlacedT
   return map.levels[levelKey(z)]?.[chunkKeyFor(x, y)]?.[coordKey(x, y)] ?? [];
 }
 
+/**
+ * {@link getStack} for a loop down one column, which reads the same cell on
+ * every level: the caller builds the cell's chunk key and cell key once, rather
+ * than once a level. Undefined for an empty cell, where `getStack` makes an
+ * empty array.
+ */
+export function stackOnLevel(
+  map: MapFile,
+  z: number,
+  chunkKey: string,
+  cellKey: string,
+): PlacedTile[] | undefined {
+  return map.levels[levelKey(z)]?.[chunkKey]?.[cellKey];
+}
+
 const tileIdsByChunk = new WeakMap<ChunkCells, ReadonlySet<string>>();
 
 /**
@@ -67,9 +82,49 @@ export function tileIdsInChunk(chunk: ChunkCells): ReadonlySet<string> {
   return found;
 }
 
-/** Chunk a cell belongs to. Hot enough to inline the arithmetic. */
+/**
+ * Every chunk key built so far, by the chunk's coordinates packed into one
+ * number. @see chunkKeyFor
+ */
+const chunkKeys = new Map<number, string>();
+/** How far from the origin, in chunks either way, a key is kept in {@link chunkKeys}. */
+const CHUNK_KEY_SPAN = 0x8000;
+/**
+ * How many keys {@link chunkKeys} holds before it is emptied and starts again,
+ * so that an editor camera panned across empty space cannot grow it for ever.
+ * A world needs a few hundred.
+ */
+const MAX_CHUNK_KEYS = 0x10000;
+
+/**
+ * Chunk a cell belongs to.
+ *
+ * **The same string each time for the same chunk.** Nearly every read of the
+ * board builds one of these, and a string built afresh has to be formatted and
+ * then hashed before it can index a level. At a thousand players `getStack` was
+ * an eighth of the tick. The keys kept are one per chunk anything has asked
+ * about, up to {@link MAX_CHUNK_KEYS}; a chunk further out than any map reaches
+ * gets a new string each time.
+ */
 export function chunkKeyFor(x: number, y: number): string {
-  return `${Math.floor(x / CHUNK_SIZE)},${Math.floor(y / CHUNK_SIZE)}`;
+  const cx = Math.floor(x / CHUNK_SIZE);
+  const cy = Math.floor(y / CHUNK_SIZE);
+  if (
+    cx >= -CHUNK_KEY_SPAN &&
+    cx < CHUNK_KEY_SPAN &&
+    cy >= -CHUNK_KEY_SPAN &&
+    cy < CHUNK_KEY_SPAN
+  ) {
+    const packed = (cx + CHUNK_KEY_SPAN) * 2 * CHUNK_KEY_SPAN + (cy + CHUNK_KEY_SPAN);
+    let key = chunkKeys.get(packed);
+    if (key === undefined) {
+      if (chunkKeys.size >= MAX_CHUNK_KEYS) chunkKeys.clear();
+      key = `${cx},${cy}`;
+      chunkKeys.set(packed, key);
+    }
+    return key;
+  }
+  return `${cx},${cy}`;
 }
 
 /** Key of the chunk at chunk-space coordinates — for addressing a rect's chunks. */

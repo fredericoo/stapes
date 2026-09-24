@@ -1,5 +1,6 @@
 import {
   absoluteStandingElevation,
+  chunkKeyFor,
   climbFromSourceAt,
   footingOfStack,
   getStack,
@@ -7,12 +8,13 @@ import {
   isWalkableSurfaceAt,
   planeCoveredBy,
   stackHeight,
+  stackOnLevel,
   surfaceTileAt,
   walkableFloorAbove,
 } from "../lib/mapData";
 import { stackOcclusion } from "../lib/lighting";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
-import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL, resolveClimbFrom } from "../lib/types";
+import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL, coordKey, resolveClimbFrom } from "../lib/types";
 import { walkDurationFrom } from "../lib/walkSpeed";
 import type { FitOpts } from "../lib/validation";
 import { fitsAtElevation, fitsTile } from "../lib/validation";
@@ -194,19 +196,23 @@ export function listStandingSurfaces(
     out.push({ abs, z });
   };
 
-  // The level below's stack, carried up from the pass before rather than read
-  // again: every step anybody takes reads a whole column here.
-  let below: PlacedTile[] | null = null;
+  // Every step anybody takes reads a whole column here, so the column's keys
+  // are built once for all its levels, and the level below's stack is carried
+  // up from the pass before rather than read again. An empty cell below has no
+  // floor to offer, so it is skipped rather than handed over as an empty array.
+  const chunkKey = chunkKeyFor(x, y);
+  const cellKey = coordKey(x, y);
+  let below: PlacedTile[] | undefined;
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
-    const stack = getStack(map, x, y, z);
-    if (stack.length > 0) {
+    const stack = stackOnLevel(map, z, chunkKey, cellKey);
+    if (stack !== undefined && stack.length > 0) {
       // One scan for both questions, and read before anything else can ask
       // again — the footing object is reused. @see footingOfStack
       const footing = footingOfStack(stack, tilesById);
       if (planeCoveredBy(footing)) (closed ??= []).push(z * HEIGHT_PER_LEVEL);
       if (footing?.walkable) add(z * HEIGHT_PER_LEVEL + footing.elev, z);
     }
-    if (below !== null) {
+    if (below !== undefined) {
       const floorAbs = walkableFloorAbove(z - 1, below, tilesById);
       if (floorAbs != null) add(floorAbs, z);
     }

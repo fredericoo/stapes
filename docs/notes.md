@@ -2574,6 +2574,7 @@ three hundred changes for each of a thousand clients.
 | three loops the JIT kept exiting, indexed (below) | 14.1 and 13.1 → 14.7 and 14.6 ticks/s, alternated |
 | the tick on a timeline (below) | 400 players: 25.4 → 29.8 ticks/s |
 | spawn remembers where it put a body; a hello builds only the snapshots it sends | seating a thousand as fast as they come: 20.8s → 15.7s |
+| level and chunk keys built once and reused; a column's keys built once for all its levels | 14.65 → 15.32 ticks/s, the mean of five runs each taken in turn; `getStack` had been an eighth of the tick |
 
 And smaller ones: sockets indexed by actor; subscriptions checked only for
 clients that moved; a death's batch writing only the kits its board can
