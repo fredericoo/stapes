@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { AppShell, type Destination, MenuRow } from "./AppShell";
+import { InvisibleToggle } from "./InvisibleToggle";
 import { DeathScreen } from "./DeathScreen";
 import { FrameStatsReadout } from "./FrameStatsReadout";
 import { GameViewport } from "./GameViewport";
@@ -98,6 +99,7 @@ export function WorldPage({
   statuses,
   destinations,
   menuExtras,
+  admin = false,
   onLeave,
   onRefused,
 }: {
@@ -114,6 +116,12 @@ export function WorldPage({
   destinations?: Destination[];
   /** Controls this page has and the other does not, in the same menu. */
   menuExtras?: React.ReactNode;
+  /**
+   * Whether the account is an administrator's, which is what draws the
+   * **Invisible** switch. Only the game passes it: `/admin/play` is a world of
+   * one, with nobody in it to hide from.
+   */
+  admin?: boolean;
   /**
    * Take this character out of the world, if there is anywhere to take it.
    *
@@ -224,6 +232,8 @@ export function WorldPage({
   // same as an empty world — an unknown headcount reads as a dash rather than
   // claiming nobody is here.
   const [players, setPlayers] = useState<number | null>(null);
+  /** Whether the server says this body is hidden. @see InvisibleToggle */
+  const [hidden, setHidden] = useState(false);
   const [interactions, setInteractions] = useState<InteractionOption[]>([]);
   const [equipment, setEquipment] = useState<Equipment>(emptyEquipment);
   const [conversation, setConversation] = useState<Conversation | null>(null);
@@ -453,6 +463,7 @@ export function WorldPage({
       // is not missed — it lands well ahead of the renderer this page otherwise
       // waits for.
       remote.setOnPlayers(setPlayers);
+      remote.setOnHidden(setHidden);
       // Registered here rather than in `setOnReady` for a sharper version of
       // the same reason: a death can only reach a session that is live, but a
       // *reconnect* builds a fresh one, and a listener attached on the renderer
@@ -693,6 +704,14 @@ export function WorldPage({
               <MenuRow label="Lighting">
                 <LightingToggle enabled={lightingEnabled} onChange={setLightingEnabled} />
               </MenuRow>
+              {admin ? (
+                <MenuRow label="Invisible">
+                  <InvisibleToggle
+                    hidden={hidden}
+                    onChange={(next) => sessionRef.current?.setHidden(next)}
+                  />
+                </MenuRow>
+              ) : null}
               {menuExtras}
               {/* Last in the menu: it is the only thing here that ends the
                   session rather than changing what is on screen. */}

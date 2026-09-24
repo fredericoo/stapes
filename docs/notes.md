@@ -2978,6 +2978,64 @@ in flight and a floating damage number both deliberately carry no actor id —
 whoever they were measured against may be off the board by the time they are
 drawn — so the place is what decides who hears them.
 
+### A hidden administrator is a body left out of everybody else's `held`
+
+An administrator can switch on **Invisible** in the game menu, for recording
+footage or watching the world without being part of it. To every other client
+this is a logout: they are sent `left` with a headcount that no longer counts
+the body, then `despawned`, then nothing about it until it is switched off.
+Switching it off is a login, sent as `joined` and `spawned` with full state.
+
+**Most of it is keeping the body out of `held`.** `held` already decides the
+cells (a placement whose owner is not held is stripped), the actor-scoped
+events and every per-body diff, so a hidden body other than the viewer's own is
+never put in it. `actorsInReach` does the same for `hello`. The toggle then
+reuses the transitions that already existed for a body walking out of reach.
+
+`held` is no longer worked out from every body each tick (see *A thousand
+players, profiled*), so the rule is in each place that decides it. `frameFor`
+files which bodies are hidden. `reachFromScratch` and `reachSinceLastCut` leave
+them out, and `cutByDistance` asks the same column before it answers "held"
+from distance alone. Hiding and showing count as a change in `frameFor`, as a
+step does, so a client that stood still is told on the next tick. A cell that
+names a body hidden now or at the last cut is cut the slow way, through
+`cellInScope`, which strips the body. The per-cell shortcut would send it with
+the body in it, or send the empty cell a hidden body just left, which gives
+away where it walks.
+
+Five things are not scoped by body, and each has its own check:
+
+- `joined` and `left` go to everybody. They are not sent for a hidden body's
+  own join and leave. The switch itself sends them instead. `playerCount`
+  skips hidden bodies.
+- A `damage` event is scoped by cell, so a number over a hidden body is dropped
+  per viewer (`concealedFrom`).
+- Chat from a hidden body goes back to its author and to the log, and to
+  nobody else.
+- A noise is never recorded, which also means creatures do not hear it.
+- The appear and disappear effects are scoped by cell. Spawning, leaving and
+  dying play none while hidden. Hiding plays the disappear effect a logout
+  plays, and showing plays the appear effect, so the cell looks the same as it
+  would for a real logout and login.
+
+**Creatures stop noticing the body too.** Without this, a wolf chasing a hidden
+admin shows everyone where they are. `nearestOnTile` skips it, `positionOf`
+and `walkGoalCell` answer null for it (so a chase already bound to the body
+ends after the step in flight lands), `hear` ignores what it says, and
+`hurtBy` leaves it out. What the body does to the world still happens: a blow
+still wounds, a pushed crate still moves. Only the body itself is hidden.
+
+**The role is checked on the socket, not stored on the body.** The switch is
+persisted in a `hidden:` row, so a reload does not announce the admin to the
+room. But `lastHiddenOf` honours that row only while an administrator's socket
+is seating the body, so an account demoted while hidden comes back visible.
+The server sends the state to its owner (`ServerMessage` `hidden`) and to
+nobody else.
+
+**Known gap:** `destinationTaken` still counts a hidden admin's walk, so a
+creature cannot end a step in a cell the admin is walking into. It is a
+one-step window, and seeing it means watching the creature closely.
+
 ## A test that reads the wire is not a test that plays the game
 
 `server/roundTrip.test.ts` drives a real `RemoteSession` over the same socket

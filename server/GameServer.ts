@@ -449,8 +449,11 @@ function actorsInReach(
   self: string,
 ): ActorSnapshot[] {
   if (!at) return session.actorSnapshotsWhere((id) => id === self);
+  // A hidden body is left out on the terms a distant one is: it is somebody
+  // this viewer is not told about. @see ActorSnapshot.hidden
   return session.actorSnapshotsWhere(
-    (id, where) => id === self || withinBodyReach(at, where.x, where.y, where.z),
+    (id, where) =>
+      id === self || (withinBodyReach(at, where.x, where.y, where.z) && !session.hiddenOf(id)),
   );
 }
 
@@ -641,6 +644,20 @@ const HP_KEY_PREFIX = "hp:";
 const PVP_KEY_PREFIX = "pvp:";
 
 /**
+ * Key prefix under which an administrator's invisibility is kept. @see setHidden
+ *
+ * Kept so that a reload does not undo it: a hidden administrator whose tab
+ * reconnected visible would be announced to the whole room by the reconnect,
+ * which is the one thing the switch exists to prevent. Written the moment it
+ * moves, like the `pvp:` row and for the same reason.
+ *
+ * **It is honoured only while the socket is an administrator's.** The row
+ * records a choice; the role that allows it is read off the connection every
+ * time the body is seated, so an account demoted while hidden comes back seen.
+ */
+const HIDDEN_KEY_PREFIX = "hidden:";
+
+/**
  * How many actors the world remembers the whereabouts of.
  *
  * One entry per player who has ever connected — it grows with *visitors*, not
@@ -759,6 +776,9 @@ type SavedHp = { hp: number | null; savedAt: number };
  * the switch off a thing that lasted until the next reconnect.
  */
 type SavedPvp = { on: boolean; savedAt: number };
+
+/** An administrator's invisibility, on the `pvp:` row's terms. @see HIDDEN_KEY_PREFIX */
+type SavedHidden = { on: boolean; savedAt: number };
 
 /**
  * One stored status, checked rather than trusted.
@@ -1062,6 +1082,27 @@ function holdsBody(
   );
 }
 
+/**
+ * Whether an event that reaches this viewer by its audience would give a
+ * hidden body away to them. @see ActorSnapshot.hidden
+ *
+ * Two kinds get past the body scoping, because they are addressed to a place
+ * or to everybody rather than to a body:
+ * - a damage number on a hidden body, which is a number floating over somebody
+ *   the viewer cannot see. Its owner is still sent it;
+ * - the viewer's own `left` or `joined`, sent to the room when the viewer hides
+ *   or shows. A client told it has left drops its own body.
+ *
+ * Only asked while {@link TickFrame.concealing} says some event needs it,
+ * which is never in a world with nobody hidden in it: then every client that
+ * takes the whole patch still shares one string.
+ */
+function concealedFrom(frame: TickFrame, j: number, viewer: string): boolean {
+  const { onlyTo, notTo } = frame.events;
+  const only = onlyTo[j];
+  return (only !== null && only !== viewer) || notTo[j] === viewer;
+}
+
 /** What changed in a cell, for deciding who it can be news to. @see TickFrame */
 const CELL_TERRAIN = 0;
 /** Only one body moved in it: the common case, asked about without a list. */
@@ -1096,9 +1137,16 @@ type TickFrame = {
   /** Where each body in `actors` stands. */
   bodies: Columns;
   /**
-   * Every body that moved, arrived or left since the last cut, in snapshot
-   * order: its id, where it is in `actors` (-1 once it has left the board),
-   * and where it stood at the last cut (nowhere, for an arrival).
+   * Whether each body in `actors` is hidden, which puts it in nobody's reach
+   * but its owner's, however near. @see ActorSnapshot.hidden
+   */
+  hidden: Uint8Array;
+  /**
+   * Every body that moved, arrived, left, hid or showed itself since the last
+   * cut, in snapshot order: its id, where it is in `actors` (-1 once it has
+   * left the board), and where it stood at the last cut — nowhere, for an
+   * arrival, and nowhere for a body that was hidden then, because to every
+   * client but its owner's the two are the same thing.
    */
   changed: { ids: string[]; index: Int32Array; was: Columns };
   cells: {
@@ -1113,6 +1161,10 @@ type TickFrame = {
      * snapshots, standing here — so that a client either holds all of them or
      * none, by its distance from the cell. 0 for a cell that breaks that,
      * which is asked the slow way. @see GameServer.cutByDistance
+     *
+     * A hidden body breaks it, and so does one that was hidden at the last
+     * cut: nobody but its owner holds it, however near. So a cell that names
+     * one is asked the slow way, which leaves it out.
      */
     bodiesHere: Uint8Array;
     /** Whether anybody stands in the cell now. */
@@ -1136,7 +1188,16 @@ type TickFrame = {
     /** The body an event addressed to one is about, and where it is in `actors` (-1 if nowhere). */
     actorId: Array<string | null>;
     actor: Int32Array;
+    /**
+     * For an event that would give a hidden body away, the one client it is
+     * sent to, or the one it is kept from. Null for every other event.
+     * @see concealedFrom
+     */
+    onlyTo: Array<string | null>;
+    notTo: Array<string | null>;
   };
+  /** Whether any event of the tick has to be asked {@link concealedFrom}. */
+  concealing: boolean;
   /** For each actor-keyed list, where the body each entry is about is in `actors`. */
   entryActor: Record<EntryList, Int32Array>;
   /**
@@ -1384,8 +1445,11 @@ export class GameServer {
    * them is what keeps a crowd from costing the product of its two numbers:
    * with a thousand players on the shipped map, each holds a couple of hundred
    * bodies and a tick moves a few dozen. @see scopedPatchFor
+   *
+   * With whether it was hidden, because hiding and showing change who holds a
+   * body without moving it. @see ActorSnapshot.hidden
    */
-  private readonly bodiesAtLastCut = new Map<string, Point & { cut: number }>();
+  private readonly bodiesAtLastCut = new Map<string, Point & { cut: number; hidden: boolean }>();
   /** How many patches have been cut, which is what stamps {@link bodiesAtLastCut}. */
   private cutCount = 0;
   /**
@@ -2050,7 +2114,7 @@ export class GameServer {
    * them the default".
    */
   private async restoredActor(actorId: string) {
-    const [at, carrying, tagged, earned, statuses, hp, pvp] = await Promise.all([
+    const [at, carrying, tagged, earned, statuses, hp, pvp, hidden] = await Promise.all([
       this.lastPositionOf(actorId),
       this.lastEquipmentOf(actorId),
       this.lastTagsOf(actorId),
@@ -2058,8 +2122,9 @@ export class GameServer {
       this.lastStatusesOf(actorId),
       this.lastHpOf(actorId),
       this.lastPvpOf(actorId),
+      this.lastHiddenOf(actorId),
     ]);
-    return { at, carrying, tagged, earned, statuses, hp, pvp };
+    return { at, carrying, tagged, earned, statuses, hp, pvp, hidden };
   }
 
   /**
@@ -2163,6 +2228,60 @@ export class GameServer {
   private async lastPvpOf(actorId: string): Promise<boolean | undefined> {
     const saved = await this.ctx.storage.get<SavedPvp>(this.pvpKey(actorId));
     return saved?.on;
+  }
+
+  private hiddenKey(actorId: string): string {
+    return `${HIDDEN_KEY_PREFIX}${actorId}`;
+  }
+
+  /**
+   * Whether this body should be seated hidden: the row says so *and* it is an
+   * administrator's socket seating it. @see HIDDEN_KEY_PREFIX
+   *
+   * The role is checked first because it is a walk over open sockets rather
+   * than a read, and it is false for almost everybody.
+   */
+  private async lastHiddenOf(actorId: string): Promise<boolean> {
+    if (!this.seatedAsAdmin(actorId)) return false;
+    const saved = await this.ctx.storage.get<SavedHidden>(this.hiddenKey(actorId));
+    return saved?.on === true;
+  }
+
+  /** Whether any socket on this actor belongs to an administrator. */
+  private seatedAsAdmin(actorId: string): boolean {
+    for (const ws of this.socketsOf(actorId)) {
+      if ((ws.deserializeAttachment() as Attachment | null)?.admin) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Hide a body from every other player, or show it again. @see
+   * ActorRuntime.hidden in `../app/game/GameSession`
+   *
+   * The caller has already checked the role. To everybody else this is a
+   * logout and a login: `left` goes out with a headcount that no longer counts
+   * them, and the next patch takes the body back through the same `despawned`
+   * a body walking out of reach gets. Showing again is the reverse, `joined`
+   * and then `spawned` with the body's state in full.
+   *
+   * The owner is told the result by a message nobody else receives. @see
+   * ServerMessage `hidden`
+   */
+  private setHidden(actorId: string, enabled: boolean) {
+    const session = this.session!;
+    if (session.hiddenOf(actorId) !== enabled && session.setHidden(enabled, actorId)) {
+      this.ctx.storage
+        .put(this.hiddenKey(actorId), { on: enabled, savedAt: Date.now() } satisfies SavedHidden)
+        .catch(GameServer.reportWriteFailure("hidden write"));
+      this.events.push({
+        kind: enabled ? "left" : "joined",
+        actorId,
+        playerCount: this.playerCount(),
+      });
+      this.wake();
+    }
+    this.sendToEverySocketOf(actorId, { type: "hidden", on: session.hiddenOf(actorId) });
   }
 
   private masteriesKey(actorId: string): string {
@@ -2660,11 +2779,15 @@ export class GameServer {
     // stays honest beside it: whatever state a tab has got itself into, opening
     // the page again hands you a body.
     await this.seatActor(actorId);
-    this.events.push({
-      kind: "joined",
-      actorId,
-      playerCount: this.playerCount(),
-    });
+    // Nobody is told a hidden administrator arrived, because to them one has
+    // not. @see setHidden
+    if (!this.session!.hiddenOf(actorId)) {
+      this.events.push({
+        kind: "joined",
+        actorId,
+        playerCount: this.playerCount(),
+      });
+    }
 
     this.sendHello(socket, actorId);
     // A join moves the board, so it has to be broadcast even if nobody is
@@ -2781,11 +2904,16 @@ export class GameServer {
    *   listed here, and the person it carried has already gone.
    */
   private playerCount(excluding?: GameSocket): number {
-    const leaving = excluding?.deserializeAttachment() as Attachment | null | undefined;
-    const theirs = leaving ? this.socketsByActor.get(leaving.actorId) : undefined;
-    // An actor counts while it has a seated socket other than the one leaving.
-    const gone = theirs?.size === 1 && theirs.has(excluding!) ? 1 : 0;
-    return this.socketsByActor.size - gone;
+    let count = 0;
+    for (const [actorId, sockets] of this.socketsByActor) {
+      // An actor counts while it has a seated socket other than the one leaving.
+      if (excluding && sockets.size === 1 && sockets.has(excluding)) continue;
+      // Somebody hidden is, to everybody else, somebody who is not here, and a
+      // headcount one higher than the bodies anybody can find says otherwise.
+      if (this.session?.hiddenOf(actorId)) continue;
+      count++;
+    }
+    return count;
   }
 
   private sendHello(ws: GameSocket, actorId: string) {
@@ -2874,6 +3002,11 @@ export class GameServer {
     ws.send(
       `{"type":"hello","selfId":${JSON.stringify(actorId)},"map":${map},${JSON.stringify(rest).slice(1)}`,
     );
+    // The switch, to its owner, and only when it is on: a client starts every
+    // connection believing it off, so off needs no message. @see setHidden
+    if (session.hiddenOf(actorId)) {
+      ws.send(JSON.stringify({ type: "hidden", on: true } satisfies ServerMessage));
+    }
     // This socket is now current as of the map it was just sent, but the
     // broadcast diff is shared — so leave broadcastMap alone and let the next
     // patch be a no-op for them rather than replaying it.
@@ -2969,6 +3102,11 @@ export class GameServer {
       // somebody turned off and a crash a second later must not add up to a
       // player who comes back fightable.
       this.saveActors([actorId], true);
+    } else if (message.type === "hidden") {
+      // The role is the account's and rides on the socket, so this is the one
+      // place that can ask it. Anybody else is ignored rather than refused:
+      // their client never offers the switch. @see setHidden
+      if (admin) this.setHidden(actorId, message.enabled);
     } else if (message.type === "attackMode") {
       // The wake below matters more here than for a target: a world at rest
       // stays at rest while somebody merely points at a deer, and turning this
@@ -3600,6 +3738,27 @@ export class GameServer {
   }
 
   /**
+   * One message to **every** socket this actor has open.
+   *
+   * Beside {@link sendTo} rather than replacing it, and the difference is the
+   * whole reason both exist: `sendTo` answers one tab's own action and stops at
+   * the first socket, which is right for a rejected step. Whether a body is
+   * hidden, and what it said while nobody else could hear, are facts about the
+   * body rather than answers to a tab, and a second tab that missed one would
+   * be wrong about it for as long as it stayed open.
+   */
+  private sendToEverySocketOf(actorId: string, message: ServerMessage) {
+    const payload = JSON.stringify(message);
+    for (const ws of this.socketsOf(actorId)) {
+      try {
+        ws.send(payload);
+      } catch {
+        // Dropped by the runtime; webSocketClose cleans the actor up.
+      }
+    }
+  }
+
+  /**
    * Say something, to the people standing on the same floor.
    *
    * Every drop here is silent. A refused message has no honest thing to tell the
@@ -3622,6 +3781,23 @@ export class GameServer {
     if (!author) return;
 
     this.lastSaidAt.set(actorId, now);
+    // Said to nobody but themselves: a bubble over a cell is somebody standing
+    // in it. Still written down, because the log is for whoever runs the world.
+    if (author.hidden) {
+      const said = {
+        actorId,
+        tileId: author.tileId,
+        name: author.name,
+        text,
+        x: author.x,
+        y: author.y,
+        z: author.z,
+        stackIndex: author.stackIndex,
+      };
+      this.sendToEverySocketOf(actorId, { type: "chat", ...said });
+      this.logChat(now, actorId, said, text);
+      return;
+    }
     // The simulation hears the same sanitised line the room does, and hears it
     // before it is broadcast so that a creature answering on the very next tick
     // cannot have its reply overtake the call that caused it.
@@ -3887,6 +4063,9 @@ export class GameServer {
     // and then left would otherwise be carrying an hour-old stamp into the queue
     // of who gets forgotten first, which is precisely backwards.
     this.saveActors([actorId], true);
+    // Read before the despawn, which forgets it. A hidden body leaving is
+    // nothing anybody else can see go. @see setHidden
+    const wasHidden = this.session?.hiddenOf(actorId) ?? false;
     this.session?.despawn(actorId);
     // Collected now, because the tick this wakes empties what is pending
     // before it drains: the body's way out rides the patch that removes it.
@@ -3900,11 +4079,13 @@ export class GameServer {
     // everything it knows about an actor on `left`, and a lingering body that
     // lost its name and health bar a minute early would be a body nobody could
     // tell was still there to be hit.
-    this.events.push({
-      kind: "left",
-      actorId,
-      playerCount: this.playerCount(closing),
-    });
+    if (!wasHidden) {
+      this.events.push({
+        kind: "left",
+        actorId,
+        playerCount: this.playerCount(closing),
+      });
+    }
     // Their tile just left the board, so the removal has to reach everyone else.
     this.wake();
   }
@@ -4155,6 +4336,10 @@ export class GameServer {
           statuses: running.get(actorId) ?? (await this.lastStatusesOf(actorId)),
           hp: health.get(actorId) ?? (await this.lastHpOf(actorId)),
           pvp: fighting.has(actorId) || (await this.lastPvpOf(actorId)),
+          // Off the row rather than the outgoing session, on the same grounds
+          // as the name above: the row is written the moment it moves, and it
+          // is checked against the socket's role on the way in. @see lastHiddenOf
+          hidden: await this.lastHiddenOf(actorId),
         },
         { announce: false },
       );
@@ -5385,6 +5570,11 @@ export class GameServer {
     const chunkOf = new Array<string>(actors.length);
     const indexOf = new Map<string, number>();
     const bodies = columns(actors.length);
+    const hidden = new Uint8Array(actors.length);
+    let anyHidden = false;
+    // Whoever is hidden now or was at the last cut: a cell that names one of
+    // them is asked the slow way. @see TickFrame.cells.bodiesHere
+    let concealed: Set<string> | null = null;
     const changedIds: string[] = [];
     const changedIndex: number[] = [];
     const changedWas: Array<Point | null> = [];
@@ -5397,33 +5587,47 @@ export class GameServer {
       indexOf.set(actor.id, i);
       setColumn(bodies, i, actor);
       const was = this.bodiesAtLastCut.get(actor.id);
+      if (actor.hidden) {
+        hidden[i] = 1;
+        anyHidden = true;
+      }
+      if (actor.hidden || was?.hidden) (concealed ??= new Set()).add(actor.id);
       if (!was) {
         changedIds.push(actor.id);
         changedIndex.push(i);
         changedWas.push(null);
         before.set(actor.id, null);
-        this.bodiesAtLastCut.set(actor.id, { x: actor.x, y: actor.y, z: actor.z, cut });
+        this.bodiesAtLastCut.set(actor.id, {
+          x: actor.x,
+          y: actor.y,
+          z: actor.z,
+          cut,
+          hidden: actor.hidden,
+        });
         continue;
       }
       was.cut = cut;
-      if (was.x === actor.x && was.y === actor.y && was.z === actor.z) continue;
+      const moved = was.x !== actor.x || was.y !== actor.y || was.z !== actor.z;
+      if (!moved && was.hidden === actor.hidden) continue;
       const from = { x: was.x, y: was.y, z: was.z };
       changedIds.push(actor.id);
       changedIndex.push(i);
-      changedWas.push(from);
-      before.set(actor.id, from);
+      changedWas.push(was.hidden ? null : from);
+      if (moved) before.set(actor.id, from);
       was.x = actor.x;
       was.y = actor.y;
       was.z = actor.z;
+      was.hidden = actor.hidden;
     }
     // Whoever stood on the board at the last cut and does not now — killed, or
     // gone with the socket that drove them.
     for (const [id, was] of this.bodiesAtLastCut) {
       if (was.cut === cut) continue;
+      if (was.hidden) (concealed ??= new Set()).add(id);
       const from = { x: was.x, y: was.y, z: was.z };
       changedIds.push(id);
       changedIndex.push(-1);
-      changedWas.push(from);
+      changedWas.push(was.hidden ? null : from);
       before.set(id, from);
       this.bodiesAtLastCut.delete(id);
     }
@@ -5462,6 +5666,10 @@ export class GameServer {
         const body = k === undefined ? undefined : actors[k]!;
         if (!body || body.x !== x || body.y !== y || body.z !== z) here = 0;
       }
+      if (concealed !== null && here === 1) {
+        for (const placed of stack) if (placed.owner && concealed.has(placed.owner)) here = 0;
+        for (const id of scoped.bodies) if (concealed.has(id)) here = 0;
+      }
       cells.bodiesHere[i] = here;
       if (scoped.terrain) {
         cells.kind[i] = CELL_TERRAIN;
@@ -5485,7 +5693,10 @@ export class GameServer {
       chunk: new Array<string | null>(eventCount).fill(null),
       actorId: new Array<string | null>(eventCount).fill(null),
       actor: new Int32Array(eventCount).fill(-1),
+      onlyTo: new Array<string | null>(eventCount).fill(null),
+      notTo: new Array<string | null>(eventCount).fill(null),
     };
+    let concealing = false;
     for (let j = 0; j < eventCount; j++) {
       const audience = audienceOf(patch.events[j]!);
       if (audience.kind === "everybody") {
@@ -5499,6 +5710,18 @@ export class GameServer {
         events.kind[j] = FOR_BODY;
         events.actorId[j] = audience.actorId;
         events.actor[j] = indexOf.get(audience.actorId) ?? -1;
+      }
+      if (!anyHidden) continue;
+      const event = patch.events[j]!;
+      if (event.kind === "damage") {
+        const k = indexOf.get(event.targetId);
+        if (k !== undefined && hidden[k] === 1) {
+          events.onlyTo[j] = event.targetId;
+          concealing = true;
+        }
+      } else if (event.kind === "left" || event.kind === "joined") {
+        events.notTo[j] = event.actorId;
+        concealing = true;
       }
     }
 
@@ -5561,9 +5784,11 @@ export class GameServer {
       indexOf,
       grid: new BodyGrid(actors),
       bodies,
+      hidden,
       changed: { ids: changedIds, index: Int32Array.from(changedIndex), was: changedWasColumns },
       cells,
       events,
+      concealing,
       entryActor: {
         hps: actorOf(patch.hps),
         carriedLights: actorOf(patch.carriedLights),
@@ -5741,10 +5966,11 @@ export class GameServer {
     for (let j = 0; j < patch.events.length; j++) {
       const audience = events.kind[j]!;
       const reaches =
-        audience === FOR_EVERYBODY ||
-        (audience === FOR_PLACE
-          ? chunks.has(events.chunk[j]!)
-          : holdsBody(frame, events.actorId[j]!, events.actor[j]!, actorId, at, held));
+        (audience === FOR_EVERYBODY ||
+          (audience === FOR_PLACE
+            ? chunks.has(events.chunk[j]!)
+            : holdsBody(frame, events.actorId[j]!, events.actor[j]!, actorId, at, held))) &&
+        !(frame.concealing && concealedFrom(frame, j, actorId));
       if (reaches) cut.events.push(j);
       else whole = false;
     }
@@ -5848,9 +6074,10 @@ export class GameServer {
    * **Then what it holds is exactly the bodies within its reach.** A whole
    * square reaches further than a body can be seen from in every direction
    * (`interest.test.ts` pins it), so the subscription turns no body in reach
-   * away, and a body in reach is a body held. Each question the cut asks of the
-   * sets is then a question of distance, and is asked as one, on the columns
-   * {@link frameFor} filed:
+   * away, and a body in reach is a body held — unless it is somebody else's
+   * hidden body, which is held by nobody but its owner. Each question the cut
+   * asks of the sets is then a question of distance, and is asked as one, on
+   * the columns {@link frameFor} filed:
    *
    * - A cell only bodies moved in is news if one of them stands, or stood at
    *   the last cut, within reach — held now, or held then from the same spot.
@@ -5875,13 +6102,14 @@ export class GameServer {
     { entered, departed, held, before }: Reach,
     chunks: ReadonlySet<string>,
   ): Cut | null {
-    const { patch, cells, events, bodies, near } = frame;
+    const { patch, cells, events, bodies, hidden, near } = frame;
     const inSquare = (cx: number, cy: number) =>
       Math.abs(cx - square.cx) <= INTEREST_REACH_CHUNKS &&
       Math.abs(cy - square.cy) <= INTEREST_REACH_CHUNKS;
     const holds = (id: string, index: number) =>
       id === actorId ||
       (index >= 0 &&
+        hidden[index] === 0 &&
         withinBodyReachOf(at.x, at.y, at.z, bodies.x[index]!, bodies.y[index]!, bodies.z[index]!));
 
     const cut = emptyCut();
@@ -5950,10 +6178,11 @@ export class GameServer {
       if (eventStamp[j] !== mark) continue;
       const audience = events.kind[j]!;
       const reaches =
-        audience === FOR_EVERYBODY ||
-        (audience === FOR_PLACE
-          ? inSquare(events.cx[j]!, events.cy[j]!)
-          : holds(events.actorId[j]!, events.actor[j]!));
+        (audience === FOR_EVERYBODY ||
+          (audience === FOR_PLACE
+            ? inSquare(events.cx[j]!, events.cy[j]!)
+            : holds(events.actorId[j]!, events.actor[j]!))) &&
+        !(frame.concealing && concealedFrom(frame, j, actorId));
       if (reaches) cut.events.push(j);
       else whole = false;
     }
@@ -5977,13 +6206,14 @@ export class GameServer {
    *
    * Nothing about it moved — not where it stands, not its subscription, not
    * the set it was left holding — so the only bodies whose answer can have
-   * changed are the ones that did: moved, arrived or left. Each is asked the
-   * question the whole walk would have asked it, and the set is edited in
-   * place, which is what keeps a set of two hundred bodies from being copied
-   * because one of them stepped over the edge.
+   * changed are the ones that did: moved, arrived, left, hid or showed
+   * themselves. Each is asked the question the whole walk would have asked
+   * it, and the set is edited in place, which is what keeps a set of two
+   * hundred bodies from being copied because one of them stepped over the
+   * edge.
    *
    * Arrivals come out in snapshot order, as {@link reachFromScratch}'s do.
-   * Departures come out in the order the set holds them.
+   * Departures come out in the order the set holds them. @see TickFrame.changed
    */
   private reachSinceLastCut(
     actorId: string,
@@ -5998,7 +6228,7 @@ export class GameServer {
      */
     mark: number,
   ): Reach {
-    const { actors, chunkOf, bodies } = frame;
+    const { actors, chunkOf, bodies, hidden } = frame;
     const { ids, index, was } = frame.changed;
     const whole = mark !== 0;
     // Only a body filed near here can have come into reach or gone out of it.
@@ -6013,11 +6243,13 @@ export class GameServer {
       const i = index[c]!;
       const isIn =
         i >= 0 &&
+        hidden[i] === 0 &&
         withinBodyReachOf(at.x, at.y, at.z, bodies.x[i]!, bodies.y[i]!, bodies.z[i]!) &&
         (whole || chunks.has(chunkOf[i]!));
       // Held at the last cut only if it stood within reach then, which rules
       // out most of the world before the set is asked — and inside a whole
-      // square is the answer outright: the last cut held every body in reach.
+      // square is the answer outright: the last cut held every body in reach
+      // that was not hidden, and a hidden one has nowhere it stood.
       const wasIn =
         was.has[c] === 1 &&
         withinBodyReachOf(at.x, at.y, at.z, was.x[c]!, was.y[c]!, was.z[c]!) &&
@@ -6041,9 +6273,9 @@ export class GameServer {
   /**
    * Who a client holds now, worked out afresh from the bodies near it.
    *
-   * Every body in reach, and their own whether or not the board has one for
-   * them — their own body is never something this client is told it has
-   * stopped holding. @see actorsInReach
+   * Every body in reach that is not hidden, and their own whether or not the
+   * board has one for them — their own body is never something this client is
+   * told it has stopped holding. @see actorsInReach
    *
    * The set is left alone if nobody came or went. Counted first, because on
    * most ticks nobody has and the set from last time is still exactly right.
@@ -6062,7 +6294,7 @@ export class GameServer {
     chunks: ReadonlySet<string>,
     known: ReadonlySet<string>,
   ): Reach {
-    const { actors, chunkOf, bodies } = frame;
+    const { actors, chunkOf, bodies, hidden } = frame;
     const self = frame.indexOf.get(actorId);
     // A subscription whole around where the client stands holds every chunk in
     // reach, so no body in reach needs its chunk asked about. @see squareOf
@@ -6073,6 +6305,8 @@ export class GameServer {
         // Their own is held however far the board has it from where they are
         // looking — which is nowhere, when it is off the board.
         if (i === self) continue;
+        // Anybody else's hidden body is not held however near it stands.
+        if (hidden[i] === 1) continue;
         // A body announced on ground its client has not been handed is a body
         // that client can only find by searching its whole board. The reach is
         // well inside the subscription by construction (`interest.test.ts`
@@ -6093,8 +6327,8 @@ export class GameServer {
     }
 
     // Whoever it held that the walk above did not find: every body but its
-    // own that is off the board, out of reach, or on ground it has not been
-    // handed.
+    // own that is off the board, hidden, out of reach, or on ground it has not
+    // been handed.
     let departed: string[] | null = null;
     for (const id of known) {
       if (id === actorId) continue;
@@ -6102,6 +6336,7 @@ export class GameServer {
       if (
         i !== undefined &&
         at !== null &&
+        hidden[i] === 0 &&
         withinBodyReachOf(at.x, at.y, at.z, bodies.x[i]!, bodies.y[i]!, bodies.z[i]!) &&
         (whole || chunks.has(chunkOf[i]!))
       ) {

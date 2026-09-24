@@ -5124,6 +5124,170 @@ describe("the pvp switch", () => {
 });
 
 /**
+ * An administrator's invisibility. @see GameServer.setHidden
+ *
+ * The claim is that everybody else is sent exactly what they would be if the
+ * administrator had logged out. So most of these record another client and
+ * assert what does *not* reach it, with a control on the same socket where one
+ * is needed to show the socket was listening.
+ */
+describe("an administrator hiding", () => {
+  /** Anything in a message that names this actor, anywhere in it. */
+  function mentions(message: Record<string, unknown>, actorId: string): boolean {
+    return JSON.stringify(message).includes(`"${actorId}"`);
+  }
+
+  /** Wait for the owner to be told the switch reads `on`, or null. */
+  function hiddenWithin(ws: TestSocket, on: boolean): Promise<Record<string, unknown> | null> {
+    return new Promise((resolve) => {
+      const done = (value: Record<string, unknown> | null) => {
+        clearTimeout(timer);
+        ws.removeEventListener("message", onMessage);
+        resolve(value);
+      };
+      const onMessage = (event: { data: string }) => {
+        const message = JSON.parse(event.data) as Record<string, unknown>;
+        // Matched on the value as well as the type, so a test pressing it off
+        // is not answered by the one sent after a `hello` while it was on.
+        if (message.type === "hidden" && message.on === on) done(message);
+      };
+      const timer = setTimeout(() => done(null), MESSAGE_TIMEOUT_MS);
+      ws.addEventListener("message", onMessage);
+    });
+  }
+
+  async function hide(ws: TestSocket) {
+    const answer = hiddenWithin(ws, true);
+    send(ws, { type: "hidden", enabled: true });
+    expect(await answer).toEqual({ type: "hidden", on: true });
+  }
+
+  it("reads as a logout to everybody else", async () => {
+    const alice = await connect("alice");
+    const bob = await connect("bob", { admin: false });
+
+    const left = eventWithin(bob.ws, "left", MESSAGE_TIMEOUT_MS, (e) => e.actorId === "alice");
+    const gone = eventWithin(bob.ws, "despawned", MESSAGE_TIMEOUT_MS, (e) => e.actorId === "alice");
+    await hide(alice.ws);
+
+    // Counted out of the room, and the body taken back.
+    expect(await left).toMatchObject({ kind: "left", actorId: "alice", playerCount: 1 });
+    expect(await gone).not.toBeNull();
+  });
+
+  it("does not tell the administrator they have left", async () => {
+    const alice = await connect("alice");
+    await connect("bob", { admin: false });
+    const seen = record(alice.ws);
+
+    await hide(alice.ws);
+    await Bun.sleep(300);
+
+    const aboutSelf = seen
+      .of("patch")
+      .flatMap((patch) => patch.events as Record<string, unknown>[])
+      .filter((event) => event.actorId === "alice");
+    expect(aboutSelf.map((event) => event.kind)).not.toContain("left");
+    expect(aboutSelf.map((event) => event.kind)).not.toContain("despawned");
+  });
+
+  it("sends nobody else anything about the body afterwards", async () => {
+    const alice = await connect("alice");
+    const bob = await connect("bob", { admin: false });
+    await hide(alice.ws);
+    await Bun.sleep(200);
+    const seen = record(bob.ws);
+
+    step(alice.ws, 1, "e");
+    say(alice.ws, "can anybody see me");
+    const own = await chatWithin(alice.ws, 1000);
+    await Bun.sleep(300);
+
+    // The author still hears themselves…
+    expect(own).toMatchObject({ actorId: "alice", text: "can anybody see me" });
+    // …and nothing bob was sent says alice is anywhere: not a cell with her
+    // body in it, not her step, not her words.
+    expect(seen.of("chat")).toEqual([]);
+    expect(seen.of("patch").filter((patch) => mentions(patch, "alice"))).toEqual([]);
+  });
+
+  it("is left out of what somebody arriving afterwards is handed", async () => {
+    const alice = await connect("alice");
+    await hide(alice.ws);
+
+    const carol = await connect("carol", { admin: false });
+
+    expect(carol.hello.actorIds).toEqual(["carol"]);
+    expect(carol.hello.playerCount).toBe(1);
+    expect(mentions(carol.hello, "alice")).toBe(false);
+  });
+
+  it("is ignored from somebody who is not an administrator", async () => {
+    const alice = await connect("alice");
+    const bob = await connect("bob", { admin: false });
+    const seen = record(alice.ws);
+    const bobSeen = record(bob.ws);
+
+    send(bob.ws, { type: "hidden", enabled: true });
+    say(bob.ws, "still here");
+
+    // The control: alice hears bob, so she was listening all along.
+    expect(await chatWithin(alice.ws, 1000)).toMatchObject({ actorId: "bob" });
+    const events = seen.of("patch").flatMap((patch) => patch.events as Record<string, unknown>[]);
+    expect(events.filter((event) => event.kind === "left")).toEqual([]);
+    expect(bobSeen.of("hidden")).toEqual([]);
+  });
+
+  /**
+   * The reason the switch is written down: a reload that came back visible
+   * would announce a hidden administrator to the whole room.
+   */
+  it("stays on across a reconnect, which nobody else hears", async () => {
+    const first = await connect("alice");
+    const bob = await connect("bob", { admin: false });
+    await hide(first.ws);
+    first.ws.close();
+    await Bun.sleep(200);
+    const seen = record(bob.ws);
+
+    const second = await connect("alice");
+    expect(await hiddenWithin(second.ws, true)).toEqual({ type: "hidden", on: true });
+    await Bun.sleep(300);
+
+    expect(seen.of("patch").filter((patch) => mentions(patch, "alice"))).toEqual([]);
+  });
+
+  it("is not honoured for an account that is no longer an administrator", async () => {
+    const first = await connect("alice");
+    await hide(first.ws);
+    first.ws.close();
+    await Bun.sleep(200);
+
+    await connect("alice", { admin: false });
+    const bob = await connect("bob", { admin: false });
+
+    expect(bob.hello.actorIds).toContain("alice");
+  });
+
+  it("comes back as a login when it is turned off", async () => {
+    const alice = await connect("alice");
+    const bob = await connect("bob", { admin: false });
+    await hide(alice.ws);
+    // Alice's own arrival reached bob on the first tick after he connected, and
+    // is still queued; the `joined` this is about is the next one.
+    await Bun.sleep(200);
+    bob.ws.discardPending();
+
+    const joined = eventWithin(bob.ws, "joined", MESSAGE_TIMEOUT_MS, (e) => e.actorId === "alice");
+    const back = eventWithin(bob.ws, "spawned", MESSAGE_TIMEOUT_MS, (e) => e.actorId === "alice");
+    send(alice.ws, { type: "hidden", enabled: false });
+
+    expect(await joined).toMatchObject({ kind: "joined", playerCount: 2 });
+    expect(await back).not.toBeNull();
+  });
+});
+
+/**
  * What `GameServer.diffPerActor` promises.
  *
  * Six patch fields are built by one loop now, and these are the three things
