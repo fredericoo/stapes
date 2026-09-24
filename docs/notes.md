@@ -3036,6 +3036,33 @@ flag. Measured against a local world:
   every join and every rebirth, so a player who dies often is also a player who
   downloads the map often.
 
+**What a client sends is decompressed per socket.** `perMessageDeflate: true`
+answers every offer with `client_no_context_takeover` and reads client frames
+with one decompressor shared by every socket, reset between messages. Safari 27
+compresses each message against the ones it sent before whatever the handshake
+says, so it joined, received its `hello`, and was dropped the moment it sent a
+second message — the second step of a walk. Bun cannot inflate a frame that
+refers back to bytes it has already thrown away, and it closes the socket
+without a close frame, which Safari reports as "The network connection was
+lost". The page reconnected into the same thing, over and over, while Chrome,
+which resets as asked, played normally. `PER_MESSAGE_DEFLATE` in
+`server/sockets.ts` gives each socket a dedicated decompressor instead: Bun
+stops asking for `client_no_context_takeover`, and reads a client that resets
+between messages and one that does not. It costs about 16KB a socket, 16MB at
+a thousand.
+
+- **It needs Bun 1.4.2.** Bun 1.3.8's dedicated decompressor dropped the same
+  frames. `server/sockets.test.ts` speaks the protocol by hand, compressing the
+  way Safari does, because every client library does what the handshake tells
+  it and so would never send the frames in question.
+- **The dedicated decompressor refuses two encodings the shared one took**: a
+  message sent as a whole deflate stream with its final block set, and one that
+  keeps the `00 00 ff ff` tail a sender is meant to strip. RFC 7692 allows the
+  first. Chrome sends neither, and Safari's frames cannot be either, since the
+  shared decompressor would have read them.
+- The server's own frames stay on the shared compressor, which keeps no state
+  between messages and says so with `server_no_context_takeover`.
+
 ## The wire is patches plus motion events
 
 Two kinds of thing travel, and keeping them apart is what makes it cheap.

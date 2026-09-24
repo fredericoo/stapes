@@ -12,7 +12,7 @@ import { viewerOf } from "./auth";
 import { readConfig } from "./config";
 import { createApi } from "./api";
 import { ClientBundle } from "./clientBundle";
-import { GameSocket } from "./sockets";
+import { GameSocket, PER_MESSAGE_DEFLATE } from "./sockets";
 import { World } from "./world";
 
 /**
@@ -58,8 +58,11 @@ const app = new Elysia({
    * deflates a frame only when `send` is passed `true` — see the transport
    * below. Until that was added, every frame went out raw, and a hundred
    * players cost 17MB/s.
+   *
+   * Not `true`, because Safari's frames need a decompressor per connection:
+   * see {@link PER_MESSAGE_DEFLATE}.
    */
-  websocket: { perMessageDeflate: true },
+  websocket: { perMessageDeflate: PER_MESSAGE_DEFLATE },
 })
   .use(createApi(world, bundle, config))
   .ws(GAME_SOCKET_PATH, {

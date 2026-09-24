@@ -10,6 +10,31 @@
  * ordinary way to hang an id off a connection.
  */
 
+/**
+ * How the game socket compresses: the server's frames one message at a time,
+ * and each client's frames with a decompressor of that connection's own.
+ *
+ * **Safari compresses against everything it sent before, whatever the
+ * handshake says.** With `perMessageDeflate: true`, Bun answers every offer
+ * with `client_no_context_takeover` and reads client frames with one
+ * decompressor shared by every socket and reset between messages. Safari 27
+ * compresses each message against the ones before it anyway, so its second
+ * message — the second step of a walk — refers back to bytes the server has
+ * already thrown away. Bun fails to inflate it and drops the connection
+ * without a close frame, which Safari reports as "The network connection was
+ * lost", and the page reconnects into the same thing. Chrome resets as it is
+ * asked to, which is why only Safari looped.
+ *
+ * A dedicated decompressor keeps each connection's window, so Bun stops asking
+ * for `client_no_context_takeover` and reads a client that resets and one that
+ * does not alike. It costs about 16KB a connection, 16MB at a thousand. Bun
+ * 1.3.8's dedicated decompressor dropped the same messages and 1.4.2's reads
+ * them; `server/sockets.test.ts` holds it to that. The server's own frames stay
+ * on the shared compressor, which keeps no state between messages and says so
+ * with `server_no_context_takeover`.
+ */
+export const PER_MESSAGE_DEFLATE = { compress: "shared", decompress: "dedicated" } as const;
+
 /** What a socket can be asked to do, once the transport is abstracted away. */
 export interface Transport {
   send(data: string): void;
