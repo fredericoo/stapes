@@ -403,8 +403,8 @@ describe("walking about with a creature in the world", () => {
 });
 
 /**
- * Somebody arriving out of reach. `joined` goes to every client, and the client
- * used to take it as a body to track, one this client held no cell for, so
+ * Somebody arriving out of reach. `joined` used to go to every client, and the
+ * client took it as a body to track, one this client held no cell for, so
  * every frame searched the whole board for it. A hundred players arriving at
  * once made each frame take hundreds of milliseconds, until a reload.
  */

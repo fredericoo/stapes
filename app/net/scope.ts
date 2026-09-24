@@ -65,22 +65,19 @@ import type { CellPatch, MotionEvent } from "./protocol";
 /**
  * Who a piece of a patch is about.
  *
- * Three cases rather than two, because an event may name a body, a place, or
- * neither:
+ * Two cases, because an event names either a body or a place:
  *
- * - **`everybody`** is the headcount. `joined` and `left` carry the number of
- *   people in the world, which is a fact about the world rather than about
- *   anywhere in it, and a client that missed one would draw a wrong number for
- *   the rest of the session with nothing to correct it.
  * - **`actor`** is anything keyed on a body — its walk, its fall, its lean, its
- *   arrival, its going.
+ *   arrival, its going. `joined` and `left` are here too: they once carried
+ *   the headcount and went to everybody, and a player is no longer told how
+ *   many others are online — so they also do not hear about arrivals and
+ *   departures out of reach, which they could count.
  * - **`cell`** is for the events that deliberately carry no actor id: an arrow
  *   in flight and a floating damage number both outlive whoever they were
  *   measured against, so they are placed rather than owned, and the place is
  *   what decides who hears them.
  */
 export type Audience =
-  | { kind: "everybody" }
   | { kind: "actor"; actorId: string }
   | {
       kind: "cell";
@@ -96,14 +93,9 @@ export type Audience =
       chunk?: string;
     };
 
-const EVERYBODY: Audience = { kind: "everybody" };
-
 /** Who this event is for. @see Audience */
 export function audienceOf(event: MotionEvent): Audience {
   switch (event.kind) {
-    case "joined":
-    case "left":
-      return EVERYBODY;
     case "projectileFired":
       // The end it was loosed from, because that is where the shooter is and
       // therefore the half of the flight a client is most likely to hold. A
@@ -134,8 +126,6 @@ export function reaches(
   known: ReadonlySet<string>,
 ): boolean {
   switch (audience.kind) {
-    case "everybody":
-      return true;
     case "actor":
       return known.has(audience.actorId);
     case "cell":

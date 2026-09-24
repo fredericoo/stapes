@@ -134,8 +134,8 @@ not confirm what it has.
 does. A player-facing page therefore cannot grow a link to the editor by
 copying a shell call, which is the failure the old module-wide list invited.
 The game still uses `AppShell` for the rest of what the shell is: the menu it
-folds into the cog on a phone, holding the lighting switch, the headcount and
-the frame readout.
+folds into the cog on a phone, holding the lighting switch, the headcount (an
+administrator's only) and the frame readout.
 
 ### One route per question, under one layout
 
@@ -2963,10 +2963,12 @@ So the server keeps one `announcedActors` set **per client**, and:
   on it, so the only way out of it is to have no body at all, and a player's own
   death is told rather than inferred.
 
-**Two events that stay unscoped**, and the reason is the same for both:
-`joined` and `left` carry the headcount, which is a fact about the world rather
-than about anywhere in it, and a client that missed one would draw a wrong
-number for the rest of the session with nothing to correct it.
+**`joined` and `left` are scoped like any other body's event.** They used to
+carry the headcount and went to everybody for it. Only administrators are told
+how many people are online now — `hello`'s `playerCount` and the `players`
+message, sent to administrators' sockets alone, and `/api/health`'s `players`
+behind the same check — so a player must not hear every arrival and departure
+in the world either, which they could count.
 
 ### A noise and a bubble go to whoever could see the cell
 
@@ -3003,9 +3005,10 @@ drawn — so the place is what decides who hears them.
 
 An administrator can switch on **Invisible** in the game menu, for recording
 footage or watching the world without being part of it. To every other client
-this is a logout: they are sent `left` with a headcount that no longer counts
-the body, then `despawned`, then nothing about it until it is switched off.
-Switching it off is a login, sent as `joined` and `spawned` with full state.
+this is a logout: they are sent `despawned`, administrators are sent a
+headcount that no longer counts the body, and then nothing about it until it
+is switched off. Switching it off is a login, sent as `joined` and `spawned`
+with full state.
 
 **Most of it is keeping the body out of `held`.** `held` already decides the
 cells (a placement whose owner is not held is stripped), the actor-scoped
@@ -3024,11 +3027,13 @@ names a body hidden now or at the last cut is cut the slow way, through
 the body in it, or send the empty cell a hidden body just left, which gives
 away where it walks.
 
-Five things are not scoped by body, and each has its own check:
+Five things are not scoped by body alone, and each has its own check:
 
-- `joined` and `left` go to everybody. They are not sent for a hidden body's
-  own join and leave. The switch itself sends them instead. `playerCount`
-  skips hidden bodies.
+- `joined` and `left` are scoped by body, so nobody else holds a hidden one to
+  be told, but its owner holds its own body and would drop it on its own
+  `left`: `concealedFrom` keeps them from the owner. They are not sent for a
+  hidden body's own join and leave; the switch sends them instead.
+  `playerCount` skips hidden bodies.
 - A `damage` event is scoped by cell, so a number over a hidden body is dropped
   per viewer (`concealedFrom`).
 - Chat from a hidden body goes back to its author and to the log, and to
@@ -3247,26 +3252,24 @@ cell is there to keep the receiver off the board sweep — see the scoping secti
 above, which is also why the set is now one per client rather than one for the
 world.
 
-**It is a separate event from `joined` because a joiner is a person.** `joined`
-carries the headcount the players bar reads, and a rat is not one of the people
-in the world.
+**It is a separate event from `joined` because a joiner is a person**, and a
+rat is not one of the people in the world.
 
 **And `joined` does not touch the set.** It used to add an entry, and `joined`
-goes to every client wherever the joiner is, so each arrival out of reach was an
+went to every client wherever the joiner was, so each arrival out of reach was an
 entry for a body on none of this client's cells. `locate` confirms the last
 known cell before it searches, and an entry with no cell and no body to find
 searches the whole board, every frame, and never finds anything. Nothing
 removed those entries either: no `despawned` comes for a body the client was
 never told about. A hundred players joining at once made every frame take
 about 300ms, until a reload replaced the set with the `hello`'s. A joiner in
-reach is announced by `spawned`, like any other body, and `joined` now only
-carries the headcount.
+reach is announced by `spawned`, like any other body. `joined` no longer
+carries the headcount either, and the client does nothing with it.
 
 **A body leaving the *board* still announces nothing, and needs to.** Its tile
 goes off the board in the same frame's cell patches, and `actorSnapshot` finds
 nobody to answer for a stale entry — so a client holding one draws nothing and
-the next snapshot is clean. `left` exists for the other half of `joined`'s
-headcount, not for the set. What does announce itself is a body leaving one
+the next snapshot is clean. What does announce itself is a body leaving one
 client's *reach*, which is `despawned` and a different fact: the world still has
 it, and this client has stopped being kept current about it.
 

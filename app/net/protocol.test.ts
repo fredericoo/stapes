@@ -356,7 +356,7 @@ describe("a kit that will not parse", () => {
       }),
     );
     expect(message).not.toBeNull();
-    expect(message).toMatchObject({ type: "hello", selfId: "a", playerCount: 1 });
+    expect(message).toMatchObject({ type: "hello", selfId: "a" });
     expect(message?.type === "hello" && message.equipment).toEqual(EMPTY_KIT);
   });
 
@@ -572,8 +572,8 @@ describe("nothing is quietly dropped in transit", () => {
       },
       teleported: { kind: "teleported", actorId: "rat" },
       swung: { kind: "swung", actorId: "rat" },
-      joined: { kind: "joined", actorId: "rat", playerCount: 2 },
-      left: { kind: "left", actorId: "rat", playerCount: 1 },
+      joined: { kind: "joined", actorId: "rat" },
+      left: { kind: "left", actorId: "rat" },
       spawned: {
         kind: "spawned",
         actorId: "rat",

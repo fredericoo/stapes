@@ -689,14 +689,18 @@ export function WorldPage({
           menuExtras={
             <>
               {/* Announced, unlike the clock: the headcount changes only when
-                  somebody actually arrives or leaves, which is worth hearing. */}
-              <div role="status">
-                <MenuRow label="Players">
-                  <span className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper">
-                    {players ?? "—"}
-                  </span>
-                </MenuRow>
-              </div>
+                  somebody actually arrives or leaves, which is worth hearing.
+                  Only an administrator is sent it, so for everybody else the
+                  count stays null and the row is not drawn. */}
+              {players === null ? null : (
+                <div role="status">
+                  <MenuRow label="Players">
+                    <span className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper">
+                      {players}
+                    </span>
+                  </MenuRow>
+                </div>
+              )}
               {status === "live" ? <MenuRow label="Connection">{statusChip}</MenuRow> : null}
               <MenuRow label="Frame rate">
                 <FrameStatsReadout stats={stats} />

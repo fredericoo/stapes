@@ -638,8 +638,8 @@ export type MotionEvent =
    * this tells them nothing they are not about to be shown.
    */
   | { kind: "swung"; actorId: string }
-  | { kind: "joined"; actorId: string; playerCount: number }
-  | { kind: "left"; actorId: string; playerCount: number }
+  | { kind: "joined"; actorId: string }
+  | { kind: "left"; actorId: string }
   /**
    * A body the world has taken on since this client's `hello`.
    *
@@ -813,6 +813,14 @@ export type MotionEvent =
 
 export type ServerMessage =
   /**
+   * The headcount moved: somebody connected or left. Sent to administrators
+   * only, on the terms of `hello`'s `playerCount`.
+   */
+  | {
+      type: "players";
+      playerCount: number;
+    }
+  /**
    * The world's clock was moved, by `/time`, to this hour.
    *
    * Broadcast to everybody, because a client anchors its clock once from
@@ -844,13 +852,15 @@ export type ServerMessage =
       map: unknown;
       actorIds: string[];
       /**
-       * How many people are in the world, this joiner included.
+       * How many people are in the world, this joiner included. Sent to
+       * administrators only, and absent for everybody else: a player is not
+       * told how many others are online. Kept current by {@link players}.
        *
        * Not derivable from `actorIds`: creatures are actors too, and from here
        * they are indistinguishable from players. The server counts sockets,
        * which is the one place the two are told apart.
        */
-      playerCount: number;
+      playerCount?: number;
       /**
        * The world's time of day, as the server reads it right now. Clients
        * carry it forward at the shared rate rather than keeping a clock of
@@ -1714,7 +1724,7 @@ const serverMessageSchema = v.variant("type", [
     selfId: v.string(),
     map: v.unknown(),
     actorIds: v.array(v.string()),
-    playerCount: v.number(),
+    playerCount: v.optional(v.number()),
     minutesOfDay: v.number(),
     hps: v.array(hpPatchSchema),
     // Optional with an empty default, on `statusIds`' terms below: a skew
@@ -1803,6 +1813,10 @@ const serverMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("hidden"),
     on: v.boolean(),
+  }),
+  v.object({
+    type: v.literal("players"),
+    playerCount: v.number(),
   }),
   v.object({
     type: v.literal("statuses"),
@@ -1898,12 +1912,10 @@ const serverMessageSchema = v.variant("type", [
         v.object({
           kind: v.literal("joined"),
           actorId: v.string(),
-          playerCount: v.number(),
         }),
         v.object({
           kind: v.literal("left"),
           actorId: v.string(),
-          playerCount: v.number(),
         }),
         v.object({
           kind: v.literal("spawned"),
@@ -2073,7 +2085,7 @@ export const GAME_SOCKET_PATH = "/online/ws";
  * This is deliberately not the build id. A client deploy that changes no
  * messages should not disconnect anybody, and most client deploys are that.
  */
-export const PROTOCOL_VERSION = 18;
+export const PROTOCOL_VERSION = 19;
 
 /**
  * How many steps a client may send that the world has not yet walked.
