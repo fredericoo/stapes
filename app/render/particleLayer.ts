@@ -6,7 +6,6 @@ import {
   MAX_PARTICLE_RADIUS_PX,
   rampIndexAt,
 } from "../lib/particleVfx";
-import { type RoofCut, cutHides } from "../lib/levelVisibility";
 import { CELL_SIZE } from "../lib/types";
 import {
   type ParticleEmitterSpec,
@@ -15,6 +14,7 @@ import {
   type Random,
 } from "./particles";
 import { noTintUniforms } from "./spriteTint";
+import type { CellHidden } from "./tileEmitters";
 import {
   injectWorldShader,
   noAnimUniforms,
@@ -216,6 +216,12 @@ export class ParticleLayer {
    */
   private readonly buckets = new Map<number, number[]>();
 
+  /**
+   * This frame's visibility answer per plume, so a hundred sparks off one fire
+   * ask once. Cleared rather than rebuilt, for the reason {@link buckets} is.
+   */
+  private readonly hiddenSpecs = new Map<ParticleEmitterSpec, boolean>();
+
   /** Reused across every particle of every frame. @see ParticleSystem.read */
   private readonly reading: ParticleReading = {
     x: 0,
@@ -299,9 +305,9 @@ export class ParticleLayer {
   }
 
   /** Advance the plumes and rewrite the buffers. True when anything is drawn. */
-  update(dtMs: number, cut: RoofCut | undefined): boolean {
+  update(dtMs: number, hidden: CellHidden | undefined): boolean {
     this.system.advance(dtMs);
-    const drawn = this.writeQuads(cut);
+    const drawn = this.writeQuads(hidden);
     this.mesh.visible = drawn > 0;
     return drawn > 0;
   }
@@ -320,14 +326,21 @@ export class ParticleLayer {
   }
 
   /**
-   * Fill the buffers from the pool, skipping what the roof cut hides.
+   * Fill the buffers from the pool, skipping plumes on cells the viewer cannot
+   * see.
    *
    * The skip is here rather than in the simulation because a particle behind a
    * ceiling is still *there* — walking under a roof and back out should find the
    * fire still burning, not restarted.
+   *
+   * It is also here and not only in the emitter list because a retired plume's
+   * sparks are left to finish: climbing out of a cave, the fire you left behind
+   * stops being listed, and without this its last sparks would rise through the
+   * ground you are now standing on.
    */
-  private writeQuads(cut: RoofCut | undefined): number {
+  private writeQuads(hidden: CellHidden | undefined): number {
     for (const bucket of this.buckets.values()) bucket.length = 0;
+    this.hiddenSpecs.clear();
 
     for (let i = 0; i < this.system.count; i++) {
       const spec = this.system.specAt(i);
@@ -336,7 +349,14 @@ export class ParticleLayer {
       // A chimney on a roof the view has cut away is gone with the roof, and a
       // spark that has risen a cell north of it is part of that plume rather
       // than a thing happening on the cell it happens to be over.
-      if (cutHides(cut, Math.floor(spec.cx), Math.floor(spec.cy), z)) continue;
+      if (hidden) {
+        let isHidden = this.hiddenSpecs.get(spec);
+        if (isHidden === undefined) {
+          isHidden = hidden(Math.floor(spec.cx), Math.floor(spec.cy), z);
+          this.hiddenSpecs.set(spec, isHidden);
+        }
+        if (isHidden) continue;
+      }
       let bucket = this.buckets.get(z);
       if (!bucket) {
         bucket = [];

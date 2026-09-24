@@ -2641,6 +2641,7 @@ export class GameRenderer {
       wading: wadingFor(snap.map, snap.actors, this.tilesById),
       particleEmitters: this.withFlightEffects(snap, vfx.emitters),
       roofCut: cut,
+      viewerZ: snap.self.z,
       transitions: transitions.length > 0 ? transitions : undefined,
       // Absent unless the camera has been pulled off the play square, which is
       // what stops every window in the renderer growing with the zoom-out and

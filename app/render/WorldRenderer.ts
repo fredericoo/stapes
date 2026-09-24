@@ -58,6 +58,7 @@ import {
 } from "./tileTransitions";
 import { transitionOf, type HeldTransition } from "../lib/tileTransition";
 import { type RoofCut, cutHides, cutHidesWholeLevel } from "../lib/levelVisibility";
+import { isCellVisible } from "./cameraSight";
 import { countOf } from "../lib/piles";
 import { cutMaskFor } from "./cutMask";
 import type {
@@ -140,7 +141,12 @@ import { noTintUniforms, tintCacheKey, tintUniforms } from "./spriteTint";
 import type { StatusTint } from "../lib/statusVfx";
 import { ParticleLayer } from "./particleLayer";
 import type { ParticleEmitterSpec } from "./particles";
-import { appendVisibleTileEmitters, tileEmitterId, tileEmitterPrefix } from "./tileEmitters";
+import {
+  appendVisibleTileEmitters,
+  type CellHidden,
+  tileEmitterId,
+  tileEmitterPrefix,
+} from "./tileEmitters";
 import { PLAYER_TILE_ID } from "../game/constants";
 
 /**
@@ -420,8 +426,18 @@ function poseTransitionMesh(
 /** A transitioning sprite stood as it is on the board. */
 const WHOLE_POSE: TransitionPose = { scale: 1, dropLevels: 0 };
 
+/** Copy the plumes whose cell the viewer can see onto the end of `into`. */
+function keepVisiblePlumes(
+  specs: readonly ParticleEmitterSpec[],
+  hidden: CellHidden,
+  into: ParticleEmitterSpec[],
+) {
+  for (const spec of specs) {
+    if (!hidden(Math.floor(spec.cx), Math.floor(spec.cy), spec.z)) into.push(spec);
+  }
+}
+
 /** Shared empties, so the common frame allocates nothing to say "none". */
-const EMPTY_EMITTERS: readonly ParticleEmitterSpec[] = [];
 const EMPTY_TINTS: ReadonlyMap<string, StatusTint> = new Map();
 
 const LIGHT_MAP_CELL_OFFSET = 0.5;
@@ -537,6 +553,13 @@ export type WorldView = {
    * into, not a whole storey. Omit to draw everything (editor / preview).
    */
   roofCut?: RoofCut;
+  /**
+   * The level the viewer's eye is on, for culling plumes the viewer cannot see:
+   * a fire in the cave under their feet, a chimney behind a roof that is drawn.
+   * The rule is `isCellVisible`'s, the one name tags use. Omit to cull plumes by
+   * the roof-cut alone (editor / preview).
+   */
+  viewerZ?: number;
   /**
    * The colour each placement is wearing, keyed by {@link TileInstanceKey}.
    *
@@ -1297,17 +1320,42 @@ export class WorldRenderer {
    */
   private emittersFor(view: WorldView): readonly ParticleEmitterSpec[] {
     if (this.tileEmittersStale) this.refreshTileEmitters();
-    if (this.tileEmittersByLevel.size === 0 && this.liveTransitions.size === 0) {
-      return view.particleEmitters ?? EMPTY_EMITTERS;
-    }
 
     const out = this.visibleEmitters;
     out.length = 0;
-    if (view.particleEmitters) out.push(...view.particleEmitters);
-    appendVisibleTileEmitters(this.tileEmittersByLevel, this.cameraWindow(view), view.roofCut, out);
+    const hidden = this.plumeCellHidden;
+    if (view.particleEmitters) keepVisiblePlumes(view.particleEmitters, hidden, out);
+    if (this.tileEmittersByLevel.size === 0 && this.liveTransitions.size === 0) return out;
+
+    appendVisibleTileEmitters(this.tileEmittersByLevel, this.cameraWindow(view), hidden, out);
+    // Culled after the fact rather than on the way in, because a transition
+    // also rewrites a tile plume already in the list by id, and that plume has
+    // been through the cull above.
+    const board = out.length;
     appendTransitionEmitters(out, this.liveTransitions.values(), this.animClock);
+    let kept = board;
+    for (let i = board; i < out.length; i++) {
+      const spec = out[i]!;
+      if (!hidden(Math.floor(spec.cx), Math.floor(spec.cy), spec.z)) out[kept++] = spec;
+    }
+    out.length = kept;
     return out;
   }
+
+  /**
+   * Whether the viewer cannot see the cell a plume hangs from.
+   *
+   * The roof-cut alone when the view names no viewer, which is the editor's and
+   * the preview's case. Otherwise `isCellVisible`, so a plume is hidden exactly
+   * when a name tag on the same cell would be: a fire one storey down in a cave
+   * is under the ground the viewer stands on, and its sparks must not rise
+   * through it. @see CellHidden
+   */
+  private readonly plumeCellHidden: CellHidden = (x, y, z) => {
+    const view = this.view;
+    if (!view || view.viewerZ === undefined) return cutHides(this.roofCut, x, y, z);
+    return !isCellVisible(view.map, view.tilesById, { x, y, z }, view.viewerZ, this.roofCut);
+  };
 
   /**
    * Draw the world unlit, and stop computing light at all.
@@ -1799,7 +1847,7 @@ export class WorldRenderer {
     // thing that moves while the world is perfectly still, which is exactly the
     // case `updateAnimations` reports nothing to do in.
     if (this.particles.active) {
-      this.particles.update(dt, this.roofCut);
+      this.particles.update(dt, this.plumeCellHidden);
       this.needsRender = true;
     }
     if (!this.updateAnimations()) return;

@@ -9312,6 +9312,21 @@ Four things about the machinery are worth knowing before touching it:
   from the middle of its cell, so `cx` is `x + 0.5`; comparing that against an
   integer cell rect silently drops the whole eastern and southern edge of the
   window, since every emitter there sits half a cell past its own bound.
+- **A plume is culled by what the viewer can see, not by the roof-cut alone.**
+  A fire one storey down in a cave is not cut away — nothing is cut outdoors —
+  and the depth test does not hide all of it either: every spark sorts on the
+  fire's own box, so one that has risen far up-left of that box lands on the
+  box's far-face fallback plane, which is in front of the ground above. Sparks
+  came up through solid rock. Every plume (status, board and transition) is now
+  asked `isCellVisible` for the cell it hangs from, the same rule a name tag
+  uses, with `WorldView.viewerZ` as the eye. It is asked twice: in
+  `emittersFor`, so a hidden plume spends none of the pool, and per plume per
+  frame in `ParticleLayer.writeQuads`, because a retired plume's sparks are left
+  to finish and climbing out of the cave would otherwise leave them rising
+  through the ground you now stand on. The editor and the preview pass no
+  `viewerZ` and are culled by the cut alone. A plume on the viewer's own level
+  is always kept — a fire inside a house across the street still smokes through
+  its roof, on the same terms the name tag of a rat in there stays readable.
 - **The board's plumes come after the caller's, and that order is load-bearing.**
   The pool is fixed and emission is served in emitter order, so a crowded board
   thins its own smoke rather than dropping the fire on the rat.
