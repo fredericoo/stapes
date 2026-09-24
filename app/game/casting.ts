@@ -132,9 +132,7 @@ function reachability(context: CastContext, stone: ArcaneStoneItem): Castability
   const target = context.target;
   if (!target && stone.effect.kind !== "conjure") return refused("noTarget");
 
-  if (target && !canReach(context.map, context.tilesById, context.caster, target, reachOf(stone))) {
-    return refused("outOfRange");
-  }
+  if (!targetInReach(context, stone)) return refused("outOfRange");
 
   if (target && harmsOnLanding(stone) && context.mayHarmTarget === false) {
     return refused("peaceful");
@@ -144,6 +142,12 @@ function reachability(context: CastContext, stone: ArcaneStoneItem): Castability
     return refused("blocked");
   }
   return CASTABLE;
+}
+
+export function targetInReach(context: CastContext, stone: ArcaneStoneItem): boolean {
+  const target = context.target;
+  if (!target || !needsTarget(stone)) return true;
+  return canReach(context.map, context.tilesById, context.caster, target, reachOf(stone));
 }
 
 export type ConjureLanding = {

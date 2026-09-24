@@ -229,6 +229,7 @@ import {
   needsTarget,
   spellIn,
   type SpellButton,
+  targetInReach,
 } from "./casting";
 import { type Progress, windProgress } from "./progress";
 import { countDown, reached, TICK_SLACK_MS } from "./ticks";
@@ -592,6 +593,8 @@ function castTargetOf(actor: { targetId: string | null }, aimed: boolean): strin
 }
 
 const CAST_INTERRUPTED_NOTICE = "Your cast is broken";
+
+const CAST_OUT_OF_REACH_NOTICE = "Your target is out of reach";
 
 const EXTRACT_INTERRUPTED_NOTICE = "You are interrupted";
 
@@ -2869,9 +2872,28 @@ export class GameSession implements PlaySession {
       run.progress = targetId ? { ...rest, targetId } : rest;
     }
 
+    if (targetId && !this.castReachesTarget(actor, run)) {
+      this.cancelCasting(actor, CAST_OUT_OF_REACH_NOTICE);
+      return;
+    }
+
     run.progress.remainingMs = countDown(run.progress.remainingMs, tickMs);
     if (run.progress.remainingMs > 0) return;
     this.finishCasting(actor, run);
+  }
+
+  /**
+   * True when the square now holds a different item, or the caster or the stone cannot be
+   * found: `finishCasting` ends those casts without a notice, so they are not broken here.
+   */
+  private castReachesTarget(actor: ActorRuntime, run: CastingRun): boolean {
+    const slot = run.progress.slot;
+    if (slot.from === "square" && actor.equipment[slot.square]?.id !== run.itemId) return true;
+    const context = this.castContextFor(actor);
+    if (!context) return true;
+    const stone = spellIn(context, slot);
+    if (!stone) return true;
+    return targetInReach(context, stone);
   }
 
   private finishCasting(actor: ActorRuntime, run: CastingRun) {
