@@ -2073,7 +2073,7 @@ export const GAME_SOCKET_PATH = "/online/ws";
  * This is deliberately not the build id. A client deploy that changes no
  * messages should not disconnect anybody, and most client deploys are that.
  */
-export const PROTOCOL_VERSION = 18;
+export const PROTOCOL_VERSION = 19;
 
 /**
  * How often the world says nothing, to keep a proxy from hanging up.
@@ -2146,3 +2146,16 @@ export const CLOSE_SIGNED_OUT = 4003;
  * the answer is that the world is open.
  */
 export const CLOSE_MAINTENANCE = 4004;
+
+/**
+ * Close code for a socket refused because the world already holds
+ * `MAX_ONLINE_PLAYERS` (`server/GameServer.ts`). Administrators are never
+ * refused with it.
+ *
+ * Unlike {@link CLOSE_MAINTENANCE}, the next attempt may succeed — a seat
+ * opens whenever somebody leaves. So the client does try again, but on a slow
+ * timer rather than its reconnect backoff: every refused tab is knocking on a
+ * server that is, by definition, at its limit. @see
+ * `app/components/WorldFullScreen.tsx`
+ */
+export const CLOSE_WORLD_FULL = 4005;

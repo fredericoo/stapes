@@ -10,7 +10,7 @@ import { createAuth, seedAdmin, type Auth } from "./auth";
 import { resolveAuthSecret } from "./authSecret";
 import { Characters } from "./characters";
 import { Maintenance, type MaintenanceState } from "./maintenance";
-import { CLOSE_MAINTENANCE, KEEPALIVE_INTERVAL_MS } from "../app/net/protocol";
+import { CLOSE_MAINTENANCE, CLOSE_WORLD_FULL, KEEPALIVE_INTERVAL_MS } from "../app/net/protocol";
 import type { Config } from "./config";
 import type { Database } from "./db";
 import { mkdir } from "node:fs/promises";
@@ -196,16 +196,25 @@ export class World {
    * nothing below could: the socket is open and there is no longer a request
    * to read a cookie off.
    *
-   * `admin` travels for that reason and no other. It is the account's role,
-   * read off the same viewer the character was looked up against, and it is
-   * what decides whether this connection may run a command — see
-   * `GameServer`'s `Attachment`.
+   * `admin` travels for that reason. It is the account's role, read off the
+   * same viewer the character was looked up against, and it decides two
+   * things: whether this connection may run a command — see `GameServer`'s
+   * `Attachment` — and whether it is let in past `MAX_ONLINE_PLAYERS`. An
+   * administrator is, on the terms maintenance lets one in: somebody who
+   * needs to look at a full world should not be the one kept out of it.
+   *
+   * The check and the seating happen with no `await` between them, so two
+   * joins cannot both take the last seat.
    */
   async join(
     socket: GameSocket,
     characterId: string,
     { admin }: { admin: boolean },
   ): Promise<void> {
+    if (!admin && !this.server.hasRoomFor(characterId)) {
+      socket.close(CLOSE_WORLD_FULL, "world full");
+      return;
+    }
     if (admin) this.adminSockets.add(socket);
     await this.server.join(socket, characterId, { admin });
   }

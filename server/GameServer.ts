@@ -670,6 +670,21 @@ const HIDDEN_KEY_PREFIX = "hidden:";
 export const MAX_REMEMBERED_ACTORS = 1_000;
 
 /**
+ * How many people may be in the world at once before the next one is refused.
+ *
+ * A limit on this server's capacity, not a rule of the game: 250 is the most
+ * players the host is trusted to carry, and it is here to be changed when that
+ * changes. Administrators are let in past it — see `World.join` — but they are
+ * counted in it, because a seated administrator costs the tick the same as
+ * anybody else.
+ *
+ * Counted in actors with a connection, which is what {@link GameServer.hasRoomFor}
+ * reads. A body lingering after its connection dropped does not count, so a
+ * player coming back to one can be refused at the limit like anybody else.
+ */
+export const MAX_ONLINE_PLAYERS = 250;
+
+/**
  * How often what has changed is written out while the world is being played.
  *
  * The ceiling on how much a crash can cost somebody, and the whole reason this
@@ -2882,6 +2897,17 @@ export class GameServer {
     if (!sockets?.delete(ws)) return;
     if (sockets.size === 0) this.socketsByActor.delete(attachment.actorId);
     this.seatedSockets = null;
+  }
+
+  /**
+   * Whether this actor may join without taking the world past
+   * {@link MAX_ONLINE_PLAYERS}.
+   *
+   * An actor already seated always may: its join is a reload, and it displaces
+   * its own connection rather than adding one.
+   */
+  hasRoomFor(actorId: string): boolean {
+    return this.socketsByActor.has(actorId) || this.socketsByActor.size < MAX_ONLINE_PLAYERS;
   }
 
   private displaceSockets(actorId: string) {
