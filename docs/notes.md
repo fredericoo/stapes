@@ -2716,10 +2716,18 @@ one part of what is left is most of it:
 - **A `hello` is about 16ms and 2.4MB.** One goes out on every join and
   rebirth. `spawn` still sweeps the board once, to find a body a checkpoint
   kept, before it places a new one.
-- **Memory.** A thousand players put the process at about 550MB resident
-  before this work and about 600MB after (the JSON caches are about 40MB).
-  `docker-compose.yml` caps the container at 512MB by default, so a world
-  meant to hold a thousand needs `MEM_LIMIT` raised.
+- **Memory.** At a thousand walking players, the branch point and the end of
+  this work taken in turn: resident memory averaged 520–600MB before and
+  550–625MB after, about 30MB more. The live heap after a full collection
+  went from 95–160MB to 162–178MB. The difference is mostly the chunk JSON
+  text caches, which hold about 23MB for one version of the shipped map, and
+  it held flat over 150 seconds with a full collection every 15, so it grows
+  with the board and not with time. The peak while a thousand join is lower
+  after (about 800MB against 740–1,000MB), because a `hello` is written from
+  kept text rather than built as objects first. `docker-compose.yml` caps the
+  container at 512MB by default, which a thousand players exceed before this
+  work and after, so a world meant to hold a thousand needs `MEM_LIMIT`
+  raised.
 
 ## A joiner is sent the chunks its view can reach
 
