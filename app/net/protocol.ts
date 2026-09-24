@@ -2076,6 +2076,22 @@ export const GAME_SOCKET_PATH = "/online/ws";
 export const PROTOCOL_VERSION = 18;
 
 /**
+ * How many steps a client may send that the world has not yet walked.
+ *
+ * One number for both halves, because they used to be two. The client walks up
+ * to this many cells ahead of the server's answer, and the server refuses a step
+ * once this many are waiting in its queue. When the server kept two and the
+ * client drew eight, a server busy for half a second — a burst of players
+ * joining — received the steps sent meanwhile in one batch, refused all but
+ * two, and the client rolled its player back to where the refusals began.
+ *
+ * Eight covers a round trip well past a second. Past that something is wrong
+ * rather than slow, and `STEP_CONFIRM_GRACE_MS` is what notices. It does not
+ * change the pace: the world takes a queued step only when the body is free.
+ */
+export const MAX_STEPS_AHEAD = 8;
+
+/**
  * How often the world says nothing, to keep a proxy from hanging up.
  *
  * Well inside the shortest idle timeout worth designing against — Cloudflare

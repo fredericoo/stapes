@@ -67,6 +67,7 @@ import { MAX_LEVEL, MIN_LEVEL, parseCoordKey } from "../app/lib/types";
 import { CHAT_MIN_INTERVAL_MS, sanitizeChatText } from "../app/net/chat";
 import {
   CLOSE_REPLACED,
+  MAX_STEPS_AHEAD,
   parseClientMessage,
   type CarriedLightsPatch,
   type AfflictedPatch,
@@ -511,25 +512,31 @@ export const CHAT_LOG_MAX_ROWS = 5_000;
  * A predicting client is half a round trip ahead of this object by design, so
  * its next intent routinely arrives while the last one is still being walked —
  * without somewhere to put it, every step would be refused and the world would
- * be unwalkable. Two deep, so a pair of intents bunched by jitter into the same
- * tick both survive.
+ * be unwalkable.
+ *
+ * **As deep as the client is allowed to draw ahead, and no shallower.** Steps
+ * arrive bunched whenever this process has been busy, since the ones a client
+ * sent meanwhile are all read at once. This was two, while the client drew up
+ * to eight: a burst of joins held the loop for over a second, a walking player's
+ * steps landed together, all but two were refused, and the client rolled back
+ * several cells. @see MAX_STEPS_AHEAD
  *
  * It is not a speed control and does not need to be: steps are only ever taken
  * by an idle actor, so a client flooding this queue still walks at one cell per
  * {@link WALK_DURATION_MS}. The cap is here so a client cannot make the queue
  * itself grow.
  */
-const MAX_QUEUED_STEPS = 2;
+const MAX_QUEUED_STEPS = MAX_STEPS_AHEAD;
 
 /**
  * How long one actor's queue may get once turns and casts are counted too.
  *
- * Those only queue while a step is waiting, and {@link MAX_QUEUED_STEPS} keeps
- * that short, so an honest client has one or two of them here at most. The cap
- * is for the same reason that one exists: a client must not be able to make the
- * queue grow.
+ * Those only queue while a step is waiting, so an honest client has one or two
+ * of them among its steps at most — twice the step cap leaves room for a turn
+ * behind every step. The cap is for the same reason that one exists: a client
+ * must not be able to make the queue grow.
  */
-const MAX_QUEUED_INTENTS = 8;
+const MAX_QUEUED_INTENTS = MAX_QUEUED_STEPS * 2;
 
 /** Key prefix under which one actor's last known position is kept. */
 const POSITION_KEY_PREFIX = "pos:";

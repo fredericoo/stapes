@@ -2446,6 +2446,27 @@ The seams worth knowing:
   that. A test with a handful of creatures still sees every one of them decide
   on the tick the round falls due.
 
+## A burst of joins takes turns with the tick
+
+A join is about 20ms that never yields on the shipped map: `spawn` sweeps the
+board to check the body is not already on it, and the `hello` is 2.4MB of JSON.
+The storage reads it awaits resolve as microtasks, so joins that arrive together
+run back to back. A hundred of them held the event loop for about 1.5s, and in
+that time no tick ran and no message was read.
+
+What players saw was being thrown back. A walking client drew its steps as
+usual, the server read them all at once when the burst ended, and its step queue
+held two while the client draws up to eight. The rest were refused and the
+client rolled back several cells. Two changes, each covering one half:
+
+- **`join` waits its turn.** One join at a time, each after a `setTimeout(0)`,
+  so the tick loop and the socket reads run between them. A burst takes a
+  little longer to seat, and everybody already walking keeps walking.
+- **The queue is as deep as the prediction.** `MAX_STEPS_AHEAD` in
+  `app/net/protocol.ts` is both the client's limit and the server's queue, so
+  a server that was busy for any reason never refuses a step the client was
+  allowed to draw.
+
 ## A hundred players, profiled
 
 The stress-test bots (`/admin/actions` on the branch that carries them) put a

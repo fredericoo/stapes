@@ -113,6 +113,7 @@ import {
   type HpPatch,
   type NamePatch,
   type MotionEvent,
+  MAX_STEPS_AHEAD,
 } from "./protocol";
 
 /** A bubble on screen, with the clock that will take it away. */
@@ -173,10 +174,10 @@ type PredictedStep = {
  * A step is confirmed a round trip *plus* a walk after it was sent, so several
  * are legitimately outstanding at once on exactly the slow link this prediction
  * exists for — a tight cap here would reinstate the stall it is meant to
- * remove. Eight covers a round trip well past a second. Past that something is
- * wrong rather than slow, and {@link STEP_CONFIRM_GRACE_MS} is what notices.
+ * remove. The server holds the same number, so it never refuses a step for
+ * being one this client was allowed to draw. @see MAX_STEPS_AHEAD
  */
-const MAX_PREDICTED_STEPS = 8;
+const MAX_PREDICTED_STEPS = MAX_STEPS_AHEAD;
 
 /**
  * How long the oldest unconfirmed step waits **past its own walk** before this
