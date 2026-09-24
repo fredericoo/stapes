@@ -126,6 +126,76 @@ describe("ground handed over as it comes into reach", () => {
     }
   });
 
+  it("is the bytes the objects were after bodies walk about over several copies", () => {
+    let map = board();
+    handoverCellsJson(map, ALL_CHUNKS, new Set(), NOT_BURNING, new Set());
+    mapOfInterestJson(map, new Set(ALL_CHUNKS), new Set());
+    // One copy per step, as the simulation makes them: alice walks east, bob
+    // walks out of the cell he shares with carol, the rat turns round.
+    const steps: StackEdit[][] = [
+      [
+        { x: 1, y: 1, z: 0, stack: [grass] },
+        { x: 2, y: 1, z: 0, stack: [grass, body("alice")] },
+      ],
+      [
+        { x: -3, y: 9, z: 0, stack: [grass, body("carol")] },
+        { x: -3, y: 10, z: 0, stack: [grass, body("bob")] },
+      ],
+      [{ x: 20 - CHUNK_SIZE, y: -2, z: 0, stack: [grass, body("npc:rat", "rat")] }],
+      [
+        { x: 2, y: 1, z: 0, stack: [grass] },
+        { x: 3, y: 1, z: 0, stack: [grass, body("alice")] },
+      ],
+    ];
+    for (const edits of steps) {
+      map = setStacks(map, edits);
+      for (const held of HELD_SETS) {
+        expect(handoverCellsJson(map, ALL_CHUNKS, held, NOT_BURNING, new Set())).toBe(
+          handoverByObjects(map, ALL_CHUNKS, held, NOT_BURNING),
+        );
+        expect(mapOfInterestJson(map, new Set(ALL_CHUNKS), held)).toBe(
+          JSON.stringify(mapOfInterest(map, new Set(ALL_CHUNKS), held)),
+        );
+      }
+    }
+  });
+
+  it("lists a chunk's cells in the order a copy holds them after one goes and comes back", () => {
+    let map = board();
+    handoverCellsJson(map, ALL_CHUNKS, new Set(), NOT_BURNING, new Set());
+    mapOfInterestJson(map, new Set(ALL_CHUNKS), new Set());
+    // Emptied, which takes the key out of the chunk; then filled again, which
+    // puts it back at the end. Then a cell nobody had, which also goes last.
+    map = setStacks(map, [{ x: 4, y: 3, z: 2, stack: [] }]);
+    map = setStacks(map, [{ x: 4, y: 3, z: 2, stack: [wall] }]);
+    map = setStacks(map, [{ x: 5, y: 3, z: 2, stack: [grass] }]);
+    for (const held of HELD_SETS) {
+      expect(handoverCellsJson(map, ALL_CHUNKS, held, NOT_BURNING, new Set())).toBe(
+        handoverByObjects(map, ALL_CHUNKS, held, NOT_BURNING),
+      );
+      expect(mapOfInterestJson(map, new Set(ALL_CHUNKS), held)).toBe(
+        JSON.stringify(mapOfInterest(map, new Set(ALL_CHUNKS), held)),
+      );
+    }
+  });
+
+  it("writes a copy's ground again when a cell's ground changed, not only its bodies", () => {
+    let map = board();
+    handoverCellsJson(map, ALL_CHUNKS, new Set(), NOT_BURNING, new Set());
+    mapOfInterestJson(map, new Set(ALL_CHUNKS), new Set());
+    map = setStacks(map, [{ x: 2, y: 2, z: 0, stack: [grass, wall] }]);
+    map = setStacks(map, [
+      { x: 1, y: 1, z: 0, stack: [grass] },
+      { x: 1, y: 2, z: 0, stack: [grass, body("alice")] },
+    ]);
+    expect(handoverCellsJson(map, ALL_CHUNKS, new Set(), NOT_BURNING, new Set())).toBe(
+      handoverByObjects(map, ALL_CHUNKS, new Set(), NOT_BURNING),
+    );
+    expect(mapOfInterestJson(map, new Set(ALL_CHUNKS), new Set())).toBe(
+      JSON.stringify(mapOfInterest(map, new Set(ALL_CHUNKS), new Set())),
+    );
+  });
+
   it("says nothing about chunks the board does not have", () => {
     expect(handoverCellsJson(board(), ["40,40"], new Set(), NOT_BURNING, new Set())).toBe("");
   });

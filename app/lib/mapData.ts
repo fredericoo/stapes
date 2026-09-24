@@ -130,6 +130,23 @@ function keysWrittenSince(ancestor: object, record: object): string[] | null {
   return null;
 }
 
+/**
+ * The chunk this one was copied from by {@link setStacks}, and the cell keys
+ * written into the copy in the order they were written — or null for a chunk
+ * made any other way, or whose source nobody holds any more. @see Lineage
+ *
+ * For a cache kept against chunk objects, which a copy can inherit from its
+ * source for every cell it was not handed. @see `../../server/chunkJson`
+ */
+export function chunkCopiedFrom(
+  chunk: ChunkCells,
+): { from: ChunkCells; keys: readonly string[] } | null {
+  const link = lineage.get(chunk);
+  if (!link) return null;
+  const from = link.parent.deref() as ChunkCells | undefined;
+  return from === undefined ? null : { from, keys: link.keys };
+}
+
 /** Add the cell keys whose stack differs between two versions of one chunk. */
 function addChangedCells(out: Set<string>, a: ChunkCells | undefined, b: ChunkCells | undefined) {
   if (a === b) return;
