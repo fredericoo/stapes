@@ -5870,7 +5870,11 @@ export class GameSession implements PlaySession {
     // A body that dies goes of its own accord, as a decayed tile does, and
     // plays its way out where it fell.
     if (loc) this.noteTransition("disappear", loc.placed.tileId, loc, loc.stackIndex);
-    this.map = despawnActor(this.map, target.id);
+    // Off the cell just located, as {@link despawn} takes a leaver off: the
+    // sweep `despawnActor` makes is for a body this session cannot find.
+    this.map = loc
+      ? removeTileAt(this.map, loc.x, loc.y, loc.z, loc.stackIndex)
+      : despawnActor(this.map, target.id);
     this.pendingHurt.delete(target.id);
     for (const actor of this.actors.values()) {
       if (actor.targetId === target.id) actor.targetId = null;
