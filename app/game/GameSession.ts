@@ -224,6 +224,7 @@ import {
   needsTarget,
   spellIn,
   type SpellButton,
+  targetInReach,
 } from "./casting";
 import { type Progress, windProgress } from "./progress";
 import { type Attributes, attributesOf } from "./attributes";
@@ -1374,6 +1375,16 @@ function castTargetOf(actor: { targetId: string | null }, aimed: boolean): strin
  * screen.
  */
 const CAST_INTERRUPTED_NOTICE = "Your cast is broken";
+
+/**
+ * What a player is told when the target of their cast walks out of its reach
+ * or behind something, and the cast is taken off them for it.
+ *
+ * Said on {@link CAST_INTERRUPTED_NOTICE}'s grounds — a bar that vanishes looks
+ * like one that landed — and worded for the cause, because the fix is the
+ * caster's to make: step closer, or wait for a clear line.
+ */
+const CAST_OUT_OF_REACH_NOTICE = "Your target is out of reach";
 
 /**
  * What a player is told when a pull is taken off them.
@@ -6732,14 +6743,18 @@ export class GameSession implements PlaySession {
   /**
    * Wind one cast on, and see whether it has landed.
    *
-   * **Nothing is re-checked here.** A pull asks every tick whether the person
-   * making it has moved and whether the thing they were working is still there;
-   * a cast asks nothing until the moment it lands, and that difference is the
-   * design. What takes a cast off you is a blow — see {@link applyDamage} — and
-   * making it also depend on standing still would mean a caster could not walk
-   * out of a fire while finishing a spell, which is a rule nobody would guess at
-   * from watching. Everything else the cast depends on is asked once, at the
-   * end, where a stone swapped or a target lost simply comes to nothing.
+   * **Reach is the one thing re-checked here.** A cast aimed at somebody is
+   * broken, and said so, on the first tick its target is out of the stone's
+   * reach or behind something — the same `canReach` the button dims on. Left to
+   * the end, a target who stepped away at the first second held the caster
+   * rooted for the whole bar and then nothing happened, which from the caster's
+   * side is a spell that silently failed. Broken now, the caster is free to move
+   * the moment the cast can no longer land.
+   *
+   * Everything else is asked once, at the end — see {@link finishCasting} —
+   * where a stone swapped or a target lost simply comes to nothing. A target
+   * cleared or dead mid-cast is one of those: there is nobody to measure to,
+   * and the line to them is already gone.
    */
   private advanceCasting(actor: ActorRuntime, tickMs: number) {
     const run = actor.casting;
@@ -6755,12 +6770,36 @@ export class GameSession implements PlaySession {
       run.progress = targetId ? { ...rest, targetId } : rest;
     }
 
+    if (targetId && !this.castReachesTarget(actor, run)) {
+      this.cancelCasting(actor, CAST_OUT_OF_REACH_NOTICE);
+      return;
+    }
+
     run.progress.remainingMs -= tickMs;
     if (run.progress.remainingMs > 0) return;
     // Floored rather than left negative, on a pull's terms: whatever draws this
     // reads it as a fraction of the whole.
     run.progress.remainingMs = 0;
     this.finishCasting(actor, run);
+  }
+
+  /**
+   * Whether a running cast can still reach whoever it is aimed at.
+   *
+   * True when the stone cannot be found — swapped out of the hand, or renamed
+   * by an author — because that is {@link finishCasting}'s case and it comes to
+   * nothing there, quietly. This asks only about distance and walls.
+   */
+  private castReachesTarget(actor: ActorRuntime, run: CastingRun): boolean {
+    const slot = run.progress.slot;
+    // Not a different stone's reach: a square now holding something else is a
+    // cast that will come to nothing, whatever that something reaches.
+    if (slot.from === "square" && actor.equipment[slot.square]?.id !== run.itemId) return true;
+    const context = this.castContextFor(actor);
+    if (!context) return true;
+    const stone = spellIn(context, slot);
+    if (!stone) return true;
+    return targetInReach(context, stone);
   }
 
   /**
@@ -6774,9 +6813,10 @@ export class GameSession implements PlaySession {
    * **A cast that can no longer be made simply does not happen**, which is the
    * whole of what the second check is for. The obvious case is the motivating
    * one — a flame aimed at a cell somebody has since dropped a crate on — and
-   * the rest fall out of the same call for free: a target who walked out of
-   * range, a target who died, a stone swapped into the other hand, a stone put
-   * away entirely. Nothing is spent and nothing is said. The stone is still
+   * the rest fall out of the same call for free: a target who died, a stone
+   * swapped into the other hand, a stone put away entirely. Nothing is spent
+   * and nothing is said. A target out of reach is caught before this, on the
+   * tick it happens, and said. @see advanceCasting The stone is still
    * ready, which is the sentence a player would have wanted anyway, and it is
    * said in the one way that cannot be missed.
    */

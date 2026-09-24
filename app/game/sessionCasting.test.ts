@@ -2330,6 +2330,58 @@ describe("a cast that takes time", () => {
       expect(casting(play)).not.toHaveProperty("targetId");
     });
 
+    /**
+     * Broken the tick it can no longer land, rather than left to fill and come
+     * to nothing: the caster is rooted while it runs, and a bar they cannot
+     * finish is seconds they could have spent stepping closer.
+     */
+    it("is broken when its target is out of reach, and costs the caster nothing", () => {
+      const BEYOND = { x: 5, y: 0, z: 0 };
+      const play = session(
+        { charm: "slow-flame-stone" },
+        spawnRat(spawnRat(world(), NEAR), BEYOND),
+      );
+      play.setTarget(ratAt(play, NEAR));
+      play.cast(squareSlot("charm"));
+      run(play, 1);
+      play.drainNotices();
+
+      play.setTarget(ratAt(play, BEYOND));
+      run(play, 1);
+
+      expect(casting(play)).toBeNull();
+      expect(play.drainNotices()).toContain("Your target is out of reach");
+      expect(coolingIn(play, "charm")).toBeUndefined();
+      expect(play.cast(squareSlot("charm"))).toBe(false);
+    });
+
+    it("is broken when something comes between the caster and its target", () => {
+      const play = session({ charm: "slow-flame-stone" }, spawnRat(world(), NEAR));
+      play.setTarget(ratAt(play, NEAR));
+      play.cast(squareSlot("charm"));
+      run(play, 1);
+      play.drainNotices();
+
+      play.runCommand("/tile wall +1");
+      run(play, 1);
+
+      expect(casting(play)).toBeNull();
+      expect(play.drainNotices()).toContain("Your target is out of reach");
+      expect(coolingIn(play, "charm")).toBeUndefined();
+    });
+
+    it("keeps running while its target stays in reach", () => {
+      const play = session({ charm: "slow-flame-stone" }, spawnRat(world(), NEAR));
+      play.setTarget(ratAt(play, NEAR));
+      play.cast(squareSlot("charm"));
+      play.drainNotices();
+
+      run(play, CAST_TICKS - 1);
+
+      expect(casting(play)?.targetId).toBe(ratAt(play, NEAR));
+      expect(play.drainNotices()).not.toContain("Your target is out of reach");
+    });
+
     it("keeps the same object while the target holds, so nothing is resent", () => {
       const play = session({ charm: "slow-flame-stone" }, spawnRat(world(), NEAR));
       play.setTarget(ratAt(play, NEAR));
