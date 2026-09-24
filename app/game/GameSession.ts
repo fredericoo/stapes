@@ -6374,7 +6374,12 @@ export class GameSession implements PlaySession {
         actor.statuses,
         tickMs,
         {
-          hp: this.hpOf(actor) ?? base.maxHp,
+          // `battlerOf`, from the base just read rather than from a second one.
+          hp:
+            this.hpOf(
+              actor,
+              withStatusModifiers(base, actor.statuses, this.statusDefs, actor.hp ?? base.maxHp),
+            ) ?? base.maxHp,
           maxHp: base.maxHp,
           statuses: actor.statuses,
         },
