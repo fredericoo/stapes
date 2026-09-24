@@ -444,13 +444,13 @@ function currentExtractions(actors: ActorSnapshot[]): ExtractionPatch[] {
  * camera, its kit panel and its own footwork all hang on.
  */
 function actorsInReach(
-  actors: ActorSnapshot[],
+  session: GameSession,
   at: { x: number; y: number; z: number } | null,
   self: string,
 ): ActorSnapshot[] {
-  if (!at) return actors.filter((actor) => actor.id === self);
-  return actors.filter(
-    (actor) => actor.id === self || withinBodyReach(at, actor.x, actor.y, actor.z),
+  if (!at) return session.actorSnapshotsWhere((id) => id === self);
+  return session.actorSnapshotsWhere(
+    (id, where) => id === self || withinBodyReach(at, where.x, where.y, where.z),
   );
 }
 
@@ -2796,7 +2796,7 @@ export class GameServer {
     // The bodies near enough to be worth drawing, and no others: a client told
     // about a body it holds no cell for cannot draw it, and pays a sweep of its
     // whole board every frame looking for it. @see `../app/net/scope`
-    const actors = actorsInReach(session.actorSnapshots(), session.actorPosition(actorId), actorId);
+    const actors = actorsInReach(session, session.actorPosition(actorId), actorId);
     // Everything named below is a body this socket now knows about, so none of
     // it is news to announce. @see announcedActors
     const held = new Set(actors.map((actor) => actor.id));

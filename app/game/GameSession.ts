@@ -10595,6 +10595,24 @@ export class GameSession implements PlaySession {
   }
 
   /**
+   * {@link actorSnapshots}, of the actors standing where `keep` says and of
+   * nobody else — in the same order, without building the rest.
+   *
+   * A `hello` wants the bodies near one joiner, and with a thousand players
+   * building a snapshot of everybody in order to keep a hundred of them was
+   * most of what choosing them cost. An actor that is not on the board is
+   * left out rather than thrown over, which {@link actorSnapshots} does.
+   */
+  actorSnapshotsWhere(keep: (id: string, at: Coord) => boolean): ActorSnapshot[] {
+    const out: ActorSnapshot[] = [];
+    for (const actor of this.actors.values()) {
+      const loc = this.tryLocate(actor);
+      if (loc && keep(actor.id, loc)) out.push(this.actorSnapshot(actor));
+    }
+    return out;
+  }
+
+  /**
    * Every placement with a status running on it.
    *
    * Public because the server broadcasts it and the local renderer reads it off
