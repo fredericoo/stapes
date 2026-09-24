@@ -1033,14 +1033,13 @@ terms: a conversation is a state of play.
 - **Passed through the tile save untouched**, like the brain and for the same
   reason: the script is `./dialog`'s to know.
 
-### A trade is `app/game/trade.ts`, and it is deliberately not a transmute
+### A trade is `app/game/trade.ts`, and a craft is a trade with a roll in front
 
 Several things on each side, counted, because a price is a number and a
 number is what a pile already is: fourteen shards may be one pile or three
 and `takeUnits` peels across them. Every square a body has — hands, the worn
-bag, *and bags held in a hand*, which `carriedSlotOf` deliberately skips for
-a recipe: offering what you carry is a different act from asking to be paid.
-Gives land worn-bag → hand-held bags → off hand → weapon hand, pouring onto
+bag, *and bags held in a hand*. A craft uses the same arithmetic (`planTrade`)
+for its inputs and outputs; see *A craft spends what you carry*. Gives land worn-bag → hand-held bags → off hand → weapon hand, pouring onto
 piles first. **The plan is the kit**: there is no separate run, because
 finding room for every last thing is the check and having found it there is
 nothing left to decide. All or nothing, and nothing ever reaches the floor. A
@@ -7060,77 +7059,62 @@ it is the only one that can happen to a given player once: a chest authored to
 both give its contents and swing open would otherwise spend its one chance on the
 hinge. It falls through cleanly, since a reward already taken is not on offer.
 
-## A transmutation spends what you carry, not what is on the board
+## A craft spends what you carry and rolls for what comes back
 
-`interactions.transmute` turns one carried thing into one or more others — a
-flame that cooks `raw-meat` into `cooked-meat`, a rat salesman who takes a
-carcass for a coin. It is the reward's near neighbour and the differences are
-the interesting part.
+`interactions.craft` turns carried things into others — a forge that turns two
+cinders into an ember, a flame that cooks `raw-meat` into `cooked-meat`. It
+replaced `transmute` (one input, fixed outputs, one row per recipe), which could
+not express either half of the stone forge: two inputs, or a result left to
+luck.
 
-- **Wholly on the tile, with no placement half.** A reward splits because what a
-  chest gives is which chest it is; what a fire does to meat is a fact about
-  fire, and every fire cut from the tile does it. So there is nothing for a slot
-  to vary, `resolveTransmute` is the only resolver, and there is no join.
-- **The board is not touched, exactly as a reward's is not.** No cell patch, no
-  swap, nothing removed — the fire is still a fire for the next person. What
-  changes is one kit, which travels as an `equipment` message. `GameSession.transmute`
-  therefore does not call `settleBoardNow`: there is nothing to settle.
-- **No tag, and that is the whole difference from a reward.** A reward is once
-  per player and the tag is what closes it; a fire cooks the second steak too.
-  What limits a transmutation is having something to spend, so the recipe simply
-  stops being offered when your bag runs out — which is the same "not on offer"
-  an emptied chest reads as, arrived at from the other side.
-- **A list of recipes, and each is a row.** One tile may cook meat and cook fish
-  and trade a pelt. `offeredTransmutations` returns only the ones the player can
-  actually run, so a fire you have nothing to cook at offers nothing at all —
-  the menu is what you could cook, not what fires can do.
-- **The row is named for what is *spent*, not for the tile.** "Cook Raw Meat":
-  the verb is the recipe's (`Transmutation.verb`, per recipe rather than per
-  tile, because one stall may both trade and cook) and the name and sprite are
-  the input's. The `ref` stays the transmuter, so the outline still goes round
-  the fire. It is the only row in `listInteractionOptions` whose subject is not
-  its `ref`, and the only one that needs a third part in its id
-  (`transmute:<ref>:<index>`) because one placement offers several. It is also
-  why `groupInteractionOptions` — which gathers the rows about one thing into
-  one box, so a sprite and a name are drawn once however many verbs they carry —
-  groups by the *subject* rather than by the placement: a fire offering to cook
-  meat and to cook fish is two boxes, and one box would have to pick one of the
-  two sprites to lie with.
-- **A recipe is addressed by position**, and `ClientMessage.transmute` carries
-  that index. The same argument `SlotRef` makes for indices over instance ids:
-  both ends hold the same tile catalogue, so a position is something the server
-  can check against a list it already has. An index past the end is a refusal in
-  `planTransmute`, not a malformed frame — the schema does not hold the
-  catalogue.
-- **The input is looked for in the hands first, then in the bag.** What you are
-  already holding out is what you meant. Never the bag slot itself and never a
-  container in a hand: a pack is not a thing you spend, and a row saying "Trade
-  Backpack" that destroyed an inventory is the one footgun this refuses outright.
-- **What comes back goes where the payment came from, then overflows onto the
-  body.** `returnSlots` lists the destinations best first: the slot that paid,
-  then the pack, then the free hands (off hand before weapon, on
-  `pickUpDestination`'s reasoning). So a one-for-one swap puts the steak in the
-  hand that held out the meat and needs no other room at all, and a trade that
-  gives back three finds squares for the other two rather than refusing.
-- **Nothing ever lands on the floor.** When the body has no room left the recipe
-  is simply not offered — `landingsFor` returns null and there is no row. The
-  room check and the placement are one question: whether a recipe may run *is*
-  whether every result has somewhere to go, so `TransmutePlan.landings` is what
-  the check produced and `runTransmute` only mints and files. A run that worked
-  it out again could work it out differently from the check that offered the row.
-- **Asked against the kit with the input already gone**, which is what makes the
-  ordinary case free: the square the payment vacated is the square its result
-  lands in. Cooking the last steak in a full pack needs no room, and neither
-  does cooking one held in a hand while the pack is full — and that second case
-  is not a corner, because a pickup reaches for a hand only once the pack has
-  none, so "input in a hand" and "bag full" are the same moment. `slotTakes` is
-  `slotAccepts` asked of a tile rather than an instance, because the results do
-  not exist until the recipe is allowed to run.
-- **`app/game/transmute.ts` holds the rules and never returns a map.** It sits
-  outside `./affordances` because it needs a kit, which the board's questions
-  deliberately know nothing about — `reachableTransmuteAt` is the board's half
-  (reach, cover, the def) and this joins it to the kit. Both ends read it: the
-  client to offer the row, the server to validate the message.
+- **Wholly on the tile, with no placement half.** What a forge does to two
+  cinders is a fact about forges, so `resolveCraft` is the only resolver and
+  there is no join.
+- **The board is not touched.** No cell patch, no swap — the forge is still a
+  forge for the next person. What changes is one kit, which travels as an
+  `equipment` message, plus a notice ("You forge at Stone Forge and make 1
+  Ember" / "… and it comes to nothing").
+- **No tag.** A reward is once per player; a fire cooks the second steak too.
+  What limits a craft is having something to spend.
+- **A recipe is `{ name, inputs: {tileId, count}[], output }`.** Inputs are
+  counted and peeled across piles, on a trade's terms. The output is a
+  discriminated union: `all` rolls each item's `chance` (1–100) on its own and
+  may come back empty — `2× Ember → Pyre at 75%` takes the embers either way —
+  and `one` picks exactly one item by relative `weight`. The union is there so
+  that a weight on an `all` item cannot be left behind by the editor;
+  `craftForSave` rebuilds the output by its arm.
+- **One row per crafter, and a window behind it.** The row is named by the
+  tile's `actionName` ("Forge", "Cook"; blank reads "Craft") and appears only
+  while at least one recipe is affordable. Pressing it opens `CraftPanel` in
+  the interaction list's place, the way Talk does, listing only the affordable
+  recipes by their authored names with their inputs drawn beside them. What a
+  recipe gives is deliberately not drawn — the odds are part of the game.
+- **The window is the client's own.** `GameRenderer.setCrafting` holds a
+  reference; `pushCrafting` re-asks `offeredRecipes` whenever the map, the
+  viewer's cell or the kit changes identity, and drops the reference when the
+  answer is null. So walking off, the forge going away, or spending your last
+  affordable input closes it, and walking back does not reopen it — the opened
+  container's "closed is closed" rule. The `craft` row press goes through
+  `applyInteraction` to `Follower.setCrafting`, like `follow`, and never
+  reaches a session; only a recipe press does.
+- **Room is checked for the worst outcome.** `affordsRecipe` asks
+  `planTrade(inputs, outcome)` for every outcome the dice could produce — all
+  of an `all` output at once, each option of a `one` output alone — so a
+  recipe is never listed that could roll something the body cannot hold. A
+  gamble that took the stones and then refused the prize for want of a square
+  is the one failure this exists to rule out. Outputs land as a trade's gives
+  do: worn bag, bags in hands, off hand, weapon hand, pouring onto piles. The
+  old transmute rule — results go back into the slot that paid — went with it.
+- **A recipe is addressed by position**, and `ClientMessage.craft` carries
+  that index. An index past the end is a refusal in `craftableRecipe`, not a
+  malformed frame.
+- **Only the server rolls.** `rollCraft` takes the session's `Rng`, with a
+  fixed number of draws per output (one per `all` item, one for `one`), on
+  `rollExtract`'s terms. The client never predicts the result; it learns it
+  from the kit and the notice.
+- **`app/game/craft.ts` holds the rules and never returns a map.**
+  `reachableCraftAt` in `./affordances` is the board's half (reach, cover, the
+  def); `craft.ts` joins it to the kit. Both ends read it.
 
 ## Food piles, and so does an artifact that is only ever counted
 
@@ -7264,13 +7248,10 @@ with a **mesh of its own draws once** whatever its count says: `tileKey` and
 animated or mobile, so that is an invariant kept rather than a limit anybody
 meets.
 
-Two deliberate gaps. **A recipe's outputs do not pour** — `landingsFor`
-(`app/game/transmute.ts`) decides where a result goes by counting *empty*
-squares, so pouring in `runTransmute` alone would leave a plan reaching for a
-free hand while the pour it knew nothing about freed the square it had given up
-on; both halves want changing together. And **a rolled kit's contents do not
-pour**, for the same reason one rung further back: what a body is born carrying
-is written straight into the bag.
+One deliberate gap: **a rolled kit's contents do not pour** — what a body is
+born carrying is written straight into the bag. (A recipe's outputs used to be
+the other gap; since crafting moved onto `planTrade` they pour like a trade's
+gives.)
 
 **An extract's yield does pour**, and it is the counter-example that says what
 those two gaps actually cost. It could because it has one destination and no
@@ -7322,7 +7303,7 @@ contrast.
 |            | who it is spent by      | what runs out              | what stops you        |
 | ---------- | ----------------------- | -------------------------- | --------------------- |
 | reward     | one player, once        | nothing on the board       | a tag on you          |
-| transmute  | anybody, repeatedly     | nothing on the board       | your bag              |
+| craft      | anybody, repeatedly     | nothing on the board       | your bag              |
 | extract    | everybody, together     | the placement's durability | anything that moves or hurts you, or a spell you start |
 
 - **The cost is paid in front, not after.** A tap buys a place at the vein and
@@ -7414,7 +7395,7 @@ contrast.
 - **No new inbound message.** A resource is reached by a plain tap, so
   `GameSession.interact` routes it — below every authored swap, above everything
   to do with carrying — and there is no `PlaySession.extract` that could disagree
-  with that precedence about what a tap does. A transmuter needs its own verb
+  with that precedence about what a tap does. A crafter needs its own verb
   because one placement offers several recipes; a bush offers one thing, which is
   the bush.
 

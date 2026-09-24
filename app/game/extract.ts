@@ -35,7 +35,7 @@ import type { Progress } from "./progress";
  * - the roll, which is not a clock at all and happens exactly once, on the
  *   server, at the moment the pull finishes.
  *
- * Pure, and read by both ends on `./transmute`'s terms: the client to decide
+ * Pure, and read by both ends on `./craft`'s terms: the client to decide
  * whether to offer the row, the server to validate the message it is sent.
  * Being the same functions is what stops the client offering a pull the server
  * would refuse.
@@ -63,7 +63,7 @@ export function extractKey(cell: Coord, tileId: string): string {
  * The resource at a stack slot, if this actor could reach it.
  *
  * The tile's half and all of it — a resource has no placement half that could
- * make it *not* one, on `reachableTransmuteAt`'s terms: what a crystal is made
+ * make it *not* one, on `reachableCraftAt`'s terms: what a crystal is made
  * of is a fact about crystal. What the *placement* carries is how much of it is
  * left, and that is {@link pullsLeftAt}'s question rather than this one's.
  *

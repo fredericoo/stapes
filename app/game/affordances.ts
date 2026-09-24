@@ -7,7 +7,7 @@ import type {
   PlacedTeleport,
   RemoveStatusInteraction,
   SetSpawnInteraction,
-  TransmuteInteraction,
+  CraftInteraction,
 } from "../lib/interactions";
 import {
   isInteractive,
@@ -18,7 +18,7 @@ import {
   resolveSetSpawn,
   resolveSwitch,
   resolveTeleport,
-  resolveTransmute,
+  resolveCraft,
 } from "../lib/interactions";
 import { armorSlotOf, resolveConsumable, resolveContainer, resolveItem } from "../lib/item";
 import type { EquipSlot } from "../lib/kit";
@@ -854,39 +854,38 @@ export function canRewardFrom(
 }
 
 /**
- * The recipes at a stack slot, if this actor could reach whatever is offering
- * them.
+ * The crafting block at a stack slot, if this actor could reach whatever is
+ * offering it.
  *
- * The tile's half and all of it — a transmuter has no placement half to join,
- * unlike a reward or a teleport, because what a fire does to meat is a fact
- * about fire. So this is `resolveTransmute` plus the reach every other reaching
- * affordance takes.
+ * The tile's half and all of it — a crafter has no placement half to join,
+ * unlike a reward or a teleport, because what a forge does to two cinders is a
+ * fact about forges. So this is `resolveCraft` plus the reach every other
+ * reaching affordance takes.
  *
  * Reach is the round {@link REACH_CELLS} rather than push's orthogonal step, on
- * the same grounds a reward's is: handing a trader a carcass needs no
- * unambiguous "one cell further away", and a salesman standing diagonally who
- * would not deal with you would read as a bug.
+ * the same grounds a reward's is: standing diagonally at a forge and being
+ * refused would read as a bug.
  *
  * Cover is the rule everything else takes — a fire under a crate is out — and a
  * body is not cover, which matters here for the reason it matters to a reward:
- * half the transmuters worth authoring are people.
+ * a crafter worth authoring may be a person.
  *
  * Says nothing about whether the actor has anything to spend. That is a
- * question about their kit and it is `../game/transmute`'s.
+ * question about their kit and it is `../game/craft`'s.
  */
-export function reachableTransmuteAt(
+export function reachableCraftAt(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   actor: Actor,
   ref: ObjectRef,
-): TransmuteInteraction | null {
+): CraftInteraction | null {
   if (!withinReach(map, tilesById, actor, ref)) return null;
   const stack = getStack(map, ref.x, ref.y, ref.z);
   if (coveredBySomething(stack, ref.stackIndex, tilesById)) return null;
   const placed = stack[ref.stackIndex];
   if (!placed) return null;
   const def = tilesById[placed.tileId];
-  return def ? resolveTransmute(def) : null;
+  return def ? resolveCraft(def) : null;
 }
 
 /**
@@ -991,7 +990,7 @@ export function canTeleportFrom(
  * pressing it.
  *
  * The tile's half and all of it — there is no placement to join, on the terms
- * {@link reachableTransmuteAt} has none. So this is `resolveAddStatus` plus the
+ * {@link reachableCraftAt} has none. So this is `resolveAddStatus` plus the
  * reach, and the reach is the *teleport's* rather than the reward's: the two
  * pressed triggers mean the same two things here as they do there, and a
  * brazier you could touch diagonally while a doorway one square further round

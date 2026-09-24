@@ -69,7 +69,7 @@ import { type NaturalSpell, resolveBattler } from "../lib/battler";
 import type { StatusDef } from "../lib/status";
 import { canMoveItem, itemInSlot, type SlotRef } from "../game/itemMoves";
 import type { ConsumeSource } from "../game/itemUse";
-import { canTransmuteFrom } from "../game/transmute";
+import { canCraftFrom } from "../game/craft";
 import { resolveConsumable } from "../lib/item";
 import { moveEntity, setEntityDirection } from "../game/mapMutations";
 import { chooseStep } from "../game/stepping";
@@ -2759,7 +2759,7 @@ export class RemoteSession implements PlaySession {
   /**
    * Open, press, go back, or close — sent, and answered by the `conversation`
    * message that follows. Only the open is checked here, on the terms a
-   * transmute is: reach is a thing the client can see, and a press on a
+   * craft is: reach is a thing the client can see, and a press on a
    * button the server no longer offers is a race it will simply not answer.
    */
   talk(action: TalkAction): boolean {
@@ -2775,18 +2775,18 @@ export class RemoteSession implements PlaySession {
     return true;
   }
 
-  transmute(ref: ObjectRef, recipe: number): boolean {
+  craft(ref: ObjectRef, recipe: number): boolean {
     const motion = this.motions.get(this.selfId);
     if (!motion) return false;
     if (motion.walk || motion.fall || motion.slide) return false;
     if (this.pending.length > 0) return false;
     const loc = this.locate(this.selfId, motion);
     if (!loc) return false;
-    if (!canTransmuteFrom(this.map, this.tilesById, loc, this.equipment, ref, recipe)) {
+    if (!canCraftFrom(this.map, this.tilesById, loc, this.equipment, ref, recipe)) {
       return false;
     }
 
-    this.send({ type: "transmute", ref, recipe });
+    this.send({ type: "craft", ref, recipe });
     return true;
   }
 

@@ -27,6 +27,7 @@ import { statusReading } from "../game/statuses";
 import { type SpellButton, spellReading } from "../game/casting";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import { readOpenedContainer } from "../game/openedContainer";
+import { offeredRecipes, type CraftingWindow } from "../game/craft";
 import {
   applyInteraction,
   interactionText,
@@ -451,6 +452,15 @@ export class GameRenderer {
   private openedFrom = "";
   /** Last value handed on. `undefined` means "nothing said yet". */
   private openedSent: OpenedContainer | null | undefined = undefined;
+  private onCrafting: ((window: CraftingWindow | null) => void) | null = null;
+  /** Which crafter's window is open, if any. @see pushCrafting */
+  private craftingRef: ObjectRef | null = null;
+  /** Board, cell and kit the window was last worked out from. */
+  private craftingMap: MapFile | null = null;
+  private craftingFrom = "";
+  private craftingEquipment: Equipment | null = null;
+  /** What the window last listed, so an unchanged one is not re-sent. */
+  private craftingSent: string | null | undefined = undefined;
   private onInteractions: ((options: InteractionOption[]) => void) | null = null;
   /** Board and cell the held list was derived from. @see pushInteractionOptions */
   private interactionsMap: MapFile | null = null;
@@ -964,6 +974,78 @@ export class GameRenderer {
     this.openedSent = undefined;
   }
 
+  /**
+   * Open the crafting window on this crafter, or close it.
+   *
+   * Held as a reference rather than a list, for the reason the opened box is:
+   * which recipes it offers is a function of the board, the viewer's cell and
+   * their kit, and all three are read fresh every frame by {@link pushCrafting}.
+   */
+  setCrafting(ref: ObjectRef | null) {
+    this.craftingRef = ref;
+    this.craftingMap = null;
+    this.craftingSent = undefined;
+  }
+
+  setOnCrafting(cb: ((window: CraftingWindow | null) => void) | null) {
+    this.onCrafting = cb;
+    this.craftingMap = null;
+    this.craftingSent = undefined;
+  }
+
+  /**
+   * Work the crafting window out off the live board, once a frame.
+   *
+   * **Closed is closed**, on `readOpenedContainer`'s terms: walking out of
+   * reach, the forge being taken away, or running out of anything you can
+   * afford drops the reference, and walking back does not reopen a window
+   * nobody asked for.
+   *
+   * Gated on the map, the viewer's cell and the kit — the three things the
+   * answer is a function of — by identity, so standing at a forge costs three
+   * compares a frame. A craft replaces the kit, which is what re-lists the
+   * window after every press.
+   */
+  private pushCrafting(snap: GameSnapshot) {
+    if (!this.onCrafting) return;
+
+    const ref = this.craftingRef;
+    if (!ref) {
+      if (this.craftingSent === null) return;
+      this.craftingSent = null;
+      this.onCrafting(null);
+      return;
+    }
+
+    const from = `${snap.self.x},${snap.self.y},${snap.self.z}`;
+    if (
+      snap.map === this.craftingMap &&
+      from === this.craftingFrom &&
+      snap.equipment === this.craftingEquipment
+    ) {
+      return;
+    }
+    this.craftingMap = snap.map;
+    this.craftingFrom = from;
+    this.craftingEquipment = snap.equipment;
+
+    const offered = offeredRecipes(snap.map, this.tilesById, snap.self, snap.equipment, ref);
+    const tileId = getStack(snap.map, ref.x, ref.y, ref.z)[ref.stackIndex]?.tileId;
+    if (!offered || !tileId) {
+      this.craftingRef = null;
+      this.craftingSent = null;
+      this.onCrafting(null);
+      return;
+    }
+
+    // The ref and the affordable indices are the whole of what the window
+    // draws that can change; the recipes themselves are the catalogue's.
+    const key = `${ref.x},${ref.y},${ref.z},${ref.stackIndex}:${offered.recipes.map((r) => r.index).join(",")}`;
+    if (key === this.craftingSent) return;
+    this.craftingSent = key;
+    this.onCrafting({ ref, tileId, craft: offered.craft, recipes: offered.recipes });
+  }
+
   setOnOpenedContainer(cb: ((container: OpenedContainer | null) => void) | null) {
     this.onOpenedContainer = cb;
     this.openedPlacement = null;
@@ -1114,6 +1196,7 @@ export class GameRenderer {
     this.onEquipment = null;
     this.onSpells = null;
     this.onOpenedContainer = null;
+    this.onCrafting = null;
     this.onInteractions = null;
     this.stop();
     this.detachPointer();
@@ -2659,6 +2742,7 @@ export class GameRenderer {
     this.pushNotices(nowMs);
     this.pushVitals(snap);
     this.pushOpenedContainer(snap);
+    this.pushCrafting(snap);
     // Written from inside the render loop's own rAF, so the style change and the
     // canvas paint land in the same commit — which is what stops DOM text from
     // trailing the sprite it belongs to.
@@ -2725,7 +2809,13 @@ export class GameRenderer {
     // board having moved — a follow that ends when its subject leaves the
     // screen changes nothing else in here.
     const following = this.walkTo?.followingId ?? "";
-    const at = `${snap.self.x},${snap.self.y},${snap.self.z},${snap.targetId},${opened},${snap.attacking},${talking},${following}`;
+    // The open forge is in the key for the reason the conversation is: its row
+    // reads as lit while its window is the one open.
+    const craftingAt = this.craftingRef;
+    const crafting = craftingAt
+      ? `${craftingAt.x},${craftingAt.y},${craftingAt.z},${craftingAt.stackIndex}`
+      : "";
+    const at = `${snap.self.x},${snap.self.y},${snap.self.z},${snap.targetId},${opened},${snap.attacking},${talking},${following},${crafting}`;
     const health = healthSignature(snap.actors);
     if (
       snap.map === this.interactionsMap &&
@@ -2774,6 +2864,7 @@ export class GameRenderer {
       // Handed on as it arrived, on the pull's terms above: the bar on the
       // fight row is drawn from the object the session winds in place.
       snap.nextBlow,
+      this.craftingRef,
     );
     // Held whether or not it is handed on, because the *references* inside it go
     // stale even when the list reads the same: a walking deer keeps its row and

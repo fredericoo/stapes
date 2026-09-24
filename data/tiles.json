@@ -29740,14 +29740,26 @@
       ]
     },
     "interactions": {
-      "transmute": {
+      "craft": {
+        "actionName": "Cook",
         "recipes": [
           {
-            "verb": "Cook",
-            "fromTileId": "raw-meat",
-            "toTileIds": [
-              "cooked-meat"
-            ]
+            "name": "Cook Raw Meat",
+            "inputs": [
+              {
+                "tileId": "raw-meat",
+                "count": 1
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "cooked-meat",
+                  "chance": 100
+                }
+              ]
+            }
           }
         ]
       },
@@ -29854,14 +29866,26 @@
       ]
     },
     "interactions": {
-      "transmute": {
+      "craft": {
+        "actionName": "Cook",
         "recipes": [
           {
-            "verb": "Cook",
-            "fromTileId": "raw-meat",
-            "toTileIds": [
-              "cooked-meat"
-            ]
+            "name": "Cook Raw Meat",
+            "inputs": [
+              {
+                "tileId": "raw-meat",
+                "count": 1
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "cooked-meat",
+                  "chance": 100
+                }
+              ]
+            }
           }
         ]
       },
@@ -32654,14 +32678,26 @@
     },
     "walkable": false,
     "interactions": {
-      "transmute": {
+      "craft": {
+        "actionName": "Forge",
         "recipes": [
           {
-            "verb": "Forge Cinder",
-            "fromTileId": "arcane-stone",
-            "toTileIds": [
-              "arcane-stone-of-cinder"
-            ]
+            "name": "Forge Cinder",
+            "inputs": [
+              {
+                "tileId": "arcane-stone",
+                "count": 1
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "arcane-stone-of-cinder",
+                  "chance": 100
+                }
+              ]
+            }
           }
         ]
       }
@@ -32725,14 +32761,26 @@
     },
     "walkable": false,
     "interactions": {
-      "transmute": {
+      "craft": {
+        "actionName": "Forge",
         "recipes": [
           {
-            "verb": "Forge Flame",
-            "fromTileId": "arcane-stone",
-            "toTileIds": [
-              "arcane-stone-of-flame"
-            ]
+            "name": "Forge Flame",
+            "inputs": [
+              {
+                "tileId": "arcane-stone",
+                "count": 1
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "arcane-stone-of-flame",
+                  "chance": 100
+                }
+              ]
+            }
           }
         ]
       }
@@ -32796,14 +32844,26 @@
     },
     "walkable": false,
     "interactions": {
-      "transmute": {
+      "craft": {
+        "actionName": "Forge",
         "recipes": [
           {
-            "verb": "Forge Spark",
-            "fromTileId": "arcane-stone",
-            "toTileIds": [
-              "arcane-stone-of-spark"
-            ]
+            "name": "Forge Spark",
+            "inputs": [
+              {
+                "tileId": "arcane-stone",
+                "count": 1
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "arcane-stone-of-spark",
+                  "chance": 100
+                }
+              ]
+            }
           }
         ]
       }
@@ -32867,14 +32927,26 @@
     },
     "walkable": false,
     "interactions": {
-      "transmute": {
+      "craft": {
+        "actionName": "Forge",
         "recipes": [
           {
-            "verb": "Forge Bolt",
-            "fromTileId": "arcane-stone",
-            "toTileIds": [
-              "arcane-stone-of-bolt"
-            ]
+            "name": "Forge Bolt",
+            "inputs": [
+              {
+                "tileId": "arcane-stone",
+                "count": 1
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "arcane-stone-of-bolt",
+                  "chance": 100
+                }
+              ]
+            }
           }
         ]
       }
@@ -32938,14 +33010,26 @@
     },
     "walkable": false,
     "interactions": {
-      "transmute": {
+      "craft": {
+        "actionName": "Forge",
         "recipes": [
           {
-            "verb": "Forge Lance",
-            "fromTileId": "arcane-stone",
-            "toTileIds": [
-              "arcane-stone-of-lance"
-            ]
+            "name": "Forge Lance",
+            "inputs": [
+              {
+                "tileId": "arcane-stone",
+                "count": 1
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "arcane-stone-of-lance",
+                  "chance": 100
+                }
+              ]
+            }
           }
         ]
       }

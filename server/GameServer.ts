@@ -3255,16 +3255,16 @@ export class GameServer {
       session.consume(message.from, actorId);
     } else if (message.type === "talk") {
       // Reach for an open, and that there is a button at that position for a
-      // press — re-asked in the session on the terms a transmute's recipe
+      // press — re-asked in the session on the terms a craft's recipe
       // index is. Whatever it comes to, the `conversation` flush below tells
       // this socket the whole of where it now stands.
       session.talk(message.action, actorId);
-    } else if (message.type === "transmute") {
-      // Reach, the recipe existing, having the input, and having room for what
-      // comes back — all re-asked in the session, on the same terms a reward
-      // is. The client offered the row from these rules, on a board and a bag
-      // that may both be a round trip old.
-      session.transmute(message.ref, message.recipe, actorId);
+    } else if (message.type === "craft") {
+      // Reach, the recipe existing, having the inputs, and having room for the
+      // worst the dice could give — all re-asked in the session, on the same
+      // terms a reward is. The client listed the recipe from these rules, on a
+      // board and a bag that may both be a round trip old.
+      session.craft(message.ref, message.recipe, actorId);
     } else if (message.type === "command") {
       // **The one gate in the protocol that is about who is asking rather than
       // about the board.** Every other message is re-validated against the

@@ -102,6 +102,7 @@ import {
 import {
   castRefusalNotice,
   commandRefusalNotice,
+  craftNotice,
   extractNotice,
   masteryNotice,
   otherMasteryNotice,
@@ -316,7 +317,7 @@ import {
   type WalkOrderState,
 } from "./brainRuntime";
 import type { ConsumeSource } from "./itemUse";
-import { canTransmuteFrom, planTransmute, runTransmute } from "./transmute";
+import { canCraftFrom, craftableRecipe, runCraft } from "./craft";
 import type { Extraction, ExtractionProgress } from "./extract";
 import {
   canBeginExtract,
@@ -1183,14 +1184,15 @@ export interface PlaySession {
    */
   consume(from: ConsumeSource): boolean;
   /**
-   * Spend one carried thing at a transmuter, and take back what it makes.
+   * Run one recipe at a crafter: spend its inputs and take back what the dice
+   * give.
    *
    * On the interface for the reason {@link pickUp} is, and one step further: a
-   * transmuter may offer several recipes on one placement, so there is no `ref`
-   * a bare {@link interact} could disambiguate. The index is the position in
-   * the tile's authored list — see `./transmute`.
+   * crafter offers several recipes on one placement, so there is no `ref` a
+   * bare {@link interact} could disambiguate. The index is the position in the
+   * tile's authored list — see `./craft`.
    */
-  transmute(ref: ObjectRef, recipe: number): boolean;
+  craft(ref: ObjectRef, recipe: number): boolean;
   /**
    * Talk to a body, press one of its buttons, go back, or close the panel.
    *
@@ -1203,10 +1205,10 @@ export interface PlaySession {
   /**
    * Take one pull out of a resource — mine a crystal, pick a bush.
    *
-   * **Not on the interface**, unlike {@link pickUp} and {@link transmute}, and
+   * **Not on the interface**, unlike {@link pickUp} and {@link craft}, and
    * the omission is the design: a resource is reached by a plain tap, so
    * {@link interact} routes it and there is no second entry point that could
-   * disagree with the precedence about what a tap does. A transmuter needs its
+   * disagree with the precedence about what a tap does. A crafter needs its
    * own verb because one placement offers several recipes and a `ref` cannot say
    * which; a bush offers exactly one thing, which is the bush.
    */
@@ -9229,51 +9231,51 @@ export class GameSession implements PlaySession {
     return true;
   }
 
-  canTransmute(ref: ObjectRef, recipe: number, id: string = LOCAL_ACTOR_ID): boolean {
+  canCraft(ref: ObjectRef, recipe: number, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.idle(actor)) return false;
-    return canTransmuteFrom(
-      this.map,
-      this.tilesById,
-      this.locate(actor),
-      actor.equipment,
-      ref,
-      recipe,
-    );
+    return canCraftFrom(this.map, this.tilesById, this.locate(actor), actor.equipment, ref, recipe);
   }
 
   /**
-   * Spend one carried thing at a transmuter and take back what it makes.
+   * Run one recipe at a crafter: spend its inputs, roll, and take back what
+   * came up.
    *
    * **The board is not touched**, on exactly a reward's terms and for a related
-   * reason: the fire has to still be a fire for the next person, so there is no
-   * cell patch to send and `settleBoardNow` has nothing to settle. What changes
-   * is one kit, which travels as an `equipment` message.
+   * reason: the forge has to still be a forge for the next person, so there is
+   * no cell patch to send and `settleBoardNow` has nothing to settle. What
+   * changes is one kit, which travels as an `equipment` message.
    *
    * Unlike a reward it leaves **no tag and no mark of any kind**, because there
    * is nothing to stop: a fire cooks the second steak too, and what limits it is
-   * having something to spend. That is the whole difference between "once per
-   * player" and "as often as you can pay for it".
+   * having something to spend.
+   *
+   * The dice are the session's, so a craft is as reproducible as a swing. Only
+   * the server holds them, which is why the client never predicts the result —
+   * it is told by the kit and the line that follow.
    *
    * Gated on {@link idle} like every other board-side act. It is a kit change,
    * but it is one you reach out and do to something in the world, and a player
    * mid-stride is not standing next to it yet.
    */
-  transmute(ref: ObjectRef, recipe: number, id: string = LOCAL_ACTOR_ID): boolean {
+  craft(ref: ObjectRef, recipe: number, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.idle(actor)) return false;
 
-    const plan = planTransmute(
-      this.map,
-      this.tilesById,
-      this.locate(actor),
-      actor.equipment,
-      ref,
-      recipe,
-    );
-    if (!plan) return false;
+    const at = this.locate(actor);
+    const chosen = craftableRecipe(this.map, this.tilesById, at, actor.equipment, ref, recipe);
+    if (!chosen) return false;
 
-    this.setEquipment(actor, runTransmute(plan, mintItemId));
+    const random = () => this.rng.next();
+    const result = runCraft(this.tilesById, actor.equipment, chosen.recipe, random, mintItemId);
+    if (!result) return false;
+
+    this.setEquipment(actor, result.equipment);
+    const crafterTileId = getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex]?.tileId;
+    const crafterDef = crafterTileId ? this.tilesById[crafterTileId] : undefined;
+    if (crafterDef) {
+      this.say(actor.id, craftNotice(chosen.craft, crafterDef, result.made, this.tilesById));
+    }
     return true;
   }
 

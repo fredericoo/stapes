@@ -275,9 +275,9 @@ export function slotAccepts(
 /**
  * The same question of a *tile*, for callers with no instance to offer.
  *
- * `../game/transmute` is one: a recipe names what comes back by tile, and the
- * things do not exist until the recipe is allowed to run — so asking whether
- * they may land somewhere cannot mean minting them first.
+ * The Arena is one: it offers kit by tile for a fighter who does not exist
+ * yet — so asking whether a thing may go in a slot cannot mean minting it
+ * first.
  */
 export function slotTakes(kind: SlotKind, def: TileDef): boolean {
   // Both hands, one rule, and it is a generous one — see `handAccepts`. A drag

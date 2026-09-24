@@ -6,6 +6,7 @@ import { emptyEquipment } from "../game/equipment";
 import type { InteractionOption } from "../game/interactionOptions";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import type { CastSlot, SpellButton } from "../game/casting";
+import type { CraftingWindow } from "../game/craft";
 import { itemUseFor } from "../game/itemUse";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { MasteryXp } from "../lib/mastery";
@@ -20,6 +21,7 @@ import { DirectionPad, PAD_SIZE_PX } from "./DirectionPad";
 import { EquipmentPanel } from "./EquipmentPanel";
 import { DragLayer } from "./DragLayer";
 import { ConversationPanel } from "./ConversationPanel";
+import { CraftPanel } from "./CraftPanel";
 import { InteractionList } from "./InteractionList";
 import type { ActionButtonSize } from "./actionButton";
 import { SpellBar } from "./SpellBar";
@@ -100,6 +102,9 @@ export function GameViewport({
   onInteract,
   conversation = null,
   onTalk,
+  crafting = null,
+  onCraft,
+  onCloseCrafting,
   onHoverInteraction,
   equipment = emptyEquipment(),
   masteryXp = {},
@@ -164,6 +169,14 @@ export function GameViewport({
    */
   conversation?: Conversation | null;
   onTalk?: (action: TalkAction) => void;
+  /**
+   * The crafting window open on a forge or a fire, or null. When set it takes
+   * the list's place on a conversation's terms — see `./CraftPanel`.
+   */
+  crafting?: CraftingWindow | null;
+  /** Run the recipe at this position on the open crafter. */
+  onCraft?: (ref: ObjectRef, recipeIndex: number) => void;
+  onCloseCrafting?: () => void;
   /**
    * The row being pointed at, so the world can outline its subject. Wired only
    * where there is a pointer that hovers — see the call site.
@@ -440,6 +453,22 @@ export function GameViewport({
     />
   ) : null;
 
+  // A conversation wins over a forge, which can only happen when somebody talks
+  // to a crafter's neighbour with the window still open — and the words are
+  // the half that needs answering.
+  const craftPanel = crafting ? (
+    <CraftPanel
+      crafting={crafting}
+      tiles={tiles}
+      tilesets={tilesets}
+      onCraft={(recipeIndex) => onCraft?.(crafting.ref, recipeIndex)}
+      onClose={() => onCloseCrafting?.()}
+      hotkeys
+      className="scrolls-past-toolbar min-h-0 w-full flex-1"
+    />
+  ) : null;
+  const replacesList = talkPanel ?? craftPanel;
+
   const list = (
     <InteractionList
       options={interactions}
@@ -694,7 +723,7 @@ export function GameViewport({
               className="flex min-h-0 flex-1 flex-col items-start gap-2"
               style={{ minWidth: INTERACTION_LIST_MIN_WIDTH_PX }}
             >
-              {talkPanel ??
+              {replacesList ??
                 (panelCoversList ? (
                   // Scrolls on its own rather than growing the row: a bag with
                   // thirty things in it must not be able to push the arrows off
@@ -862,7 +891,7 @@ export function GameViewport({
           {/* The panel takes the list's place rather than a place of its own: a
               conversation is what is in reach, said longer, and the aside is
               already the column for that. */}
-          {talkPanel ?? list}
+          {replacesList ?? list}
         </aside>
       )}
     </div>

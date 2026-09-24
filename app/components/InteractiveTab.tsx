@@ -19,8 +19,7 @@ import type {
   TeleportDestinationKind,
   TeleportInteraction,
   TileInteractions,
-  Transmutation,
-  TransmuteInteraction,
+  CraftInteraction,
 } from "../lib/interactions";
 import {
   DEFAULT_ADD_STATUS,
@@ -36,17 +35,15 @@ import {
   DEFAULT_SET_SPAWN,
   DEFAULT_SWITCH,
   DEFAULT_TELEPORT,
-  DEFAULT_TRANSMUTATION,
-  DEFAULT_TRANSMUTE,
-  DEFAULT_TRANSMUTE_VERB,
+  DEFAULT_CRAFT,
+  DEFAULT_CRAFT_VERB,
   MAX_EXTRACT_CHANCE,
   MAX_EXTRACT_SLOTS,
-  MAX_TRANSMUTATION_OUTPUTS,
-  MAX_TRANSMUTATIONS,
   MIN_EXTRACT_CHANCE,
   hasAnyInteraction,
 } from "../lib/interactions";
 import { DEFAULT_BATTLER } from "../lib/battler";
+import { CraftFields } from "./CraftFields";
 import { DEFAULT_WEAPON, resolveContainer, resolveItem } from "../lib/item";
 import { DEFAULT_PROJECTILE_SPEED } from "../lib/projectile";
 import type { StatusDef } from "../lib/status";
@@ -214,7 +211,7 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
   const push = draft.interactions?.push;
   const sw = draft.interactions?.switch;
   const reward = draft.interactions?.reward;
-  const transmute = draft.interactions?.transmute;
+  const craft = draft.interactions?.craft;
   const extract = draft.interactions?.extract;
   const teleport = draft.interactions?.teleport;
   const addStatus = draft.interactions?.addStatus;
@@ -303,44 +300,8 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
     setReward({ ...reward, ...patch });
   };
 
-  const setTransmute = (next: TransmuteInteraction | undefined) => {
-    patchKind("transmute", next ?? null);
-  };
-
-  /**
-   * Rewrite one recipe, leaving its siblings alone.
-   *
-   * By position rather than by identity because a recipe has none — it *is* its
-   * position, which is how the row the player presses names it. See
-   * `Transmutation`.
-   */
-  const patchRecipe = (index: number, patch: Partial<Transmutation>) => {
-    if (!transmute) return;
-    setTransmute({
-      recipes: transmute.recipes.map((recipe, i) =>
-        i === index ? { ...recipe, ...patch } : recipe,
-      ),
-    });
-  };
-
-  const addRecipe = () => {
-    if (!transmute || transmute.recipes.length >= MAX_TRANSMUTATIONS) return;
-    setTransmute({
-      recipes: [...transmute.recipes, { ...DEFAULT_TRANSMUTATION }],
-    });
-  };
-
-  /**
-   * Drop a recipe, and the whole block with the last one.
-   *
-   * A transmuter with no recipes is not a transmuter — the resolver reads an
-   * emptied block as "does not transmute" — so leaving one behind would be an
-   * editor showing a switch that is on and a tile that does nothing.
-   */
-  const removeRecipe = (index: number) => {
-    if (!transmute) return;
-    const recipes = transmute.recipes.filter((_, i) => i !== index);
-    setTransmute(recipes.length > 0 ? { recipes } : undefined);
+  const setCraft = (next: CraftInteraction | undefined) => {
+    patchKind("craft", next ?? null);
   };
 
   const setExtract = (next: ExtractInteraction | undefined) => {
@@ -611,75 +572,25 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets, statusDefs }:
 
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
         <SectionSwitch
-          on={Boolean(transmute)}
-          onToggle={(on) =>
-            setTransmute(on ? { recipes: [...DEFAULT_TRANSMUTE.recipes] } : undefined)
-          }
-          label="Transmute"
-          info="Spends one carried item and mints the outputs fresh. Repeatable, and only offered while the input is carried. Outputs go where the input came from, spilling to pack then hands, never the floor — with no room the recipe is not offered."
+          on={Boolean(craft)}
+          onToggle={(on) => setCraft(on ? DEFAULT_CRAFT : undefined)}
+          label="Craft"
+          info="One row that opens a crafting window listing every recipe the player can afford right now. A recipe spends its inputs and mints its outputs fresh, rolled by chance or by weight. Repeatable. Outputs land in the pack then the hands, never the floor — without room for the worst outcome the recipe is not listed."
         />
 
-        {transmute ? (
+        {craft ? (
           <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
-            {transmute.recipes.map((recipe, index) => (
-              <div key={index} className="flex flex-col gap-3 border-2 border-border bg-paper p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <FieldLabel>Recipe {index + 1}</FieldLabel>
-                  <Button variant="ghost" size="sm" onClick={() => removeRecipe(index)}>
-                    Remove
-                  </Button>
-                </div>
-
-                <label className="flex flex-col gap-1 text-xs">
-                  <FieldLabel
-                    info={`The row reads as verb plus input — “Cook Raw Meat”. Blank reads as “${DEFAULT_TRANSMUTE_VERB}”.`}
-                  >
-                    Action label
-                  </FieldLabel>
-                  <Input
-                    value={recipe.verb ?? ""}
-                    onChange={(e) => patchRecipe(index, { verb: e.target.value })}
-                    placeholder={DEFAULT_TRANSMUTE_VERB}
-                    className="w-48"
-                  />
-                </label>
-
-                <TileIdMultiSelect
-                  tiles={giveable}
-                  tilesets={tilesets}
-                  selectedIds={recipe.fromTileId ? [recipe.fromTileId] : []}
-                  onChange={(ids) => patchRecipe(index, { fromTileId: ids[0] ?? "" })}
-                  label="Input"
-                  info="Looked for in the player's hands first, then the bag."
-                  emptyHint="None."
-                  single
-                />
-
-                <TileIdMultiSelect
-                  tiles={giveable}
-                  tilesets={tilesets}
-                  selectedIds={recipe.toTileIds}
-                  onChange={(toTileIds) =>
-                    patchRecipe(index, {
-                      toTileIds: toTileIds.slice(0, MAX_TRANSMUTATION_OUTPUTS),
-                    })
-                  }
-                  label="Outputs"
-                  info={`Up to ${MAX_TRANSMUTATION_OUTPUTS}, never a container.`}
-                  emptyHint="None — the recipe is dropped on save."
-                />
-              </div>
-            ))}
-
-            {transmute.recipes.length < MAX_TRANSMUTATIONS ? (
-              <Button variant="secondary" size="sm" onClick={addRecipe}>
-                Add recipe
-              </Button>
-            ) : (
-              <span className="text-[11px] leading-snug text-muted">
-                Up to {MAX_TRANSMUTATIONS} recipes.
-              </span>
-            )}
+            <ActionLabelField
+              value={craft.actionName}
+              fallback={DEFAULT_CRAFT_VERB}
+              onChange={(actionName) => setCraft({ ...craft, actionName })}
+            />
+            <CraftFields
+              craft={craft}
+              onChange={setCraft}
+              giveable={giveable}
+              tilesets={tilesets}
+            />
           </div>
         ) : null}
       </section>

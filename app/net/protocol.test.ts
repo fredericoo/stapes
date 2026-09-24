@@ -173,10 +173,10 @@ describe("consume", () => {
   });
 });
 
-describe("transmute", () => {
+describe("craft", () => {
   it("carries the placement and which of its recipes was pressed", () => {
     const message = {
-      type: "transmute",
+      type: "craft",
       ref: { x: -2, y: 3, z: 1, stackIndex: 2 },
       recipe: 1,
     };
@@ -184,13 +184,13 @@ describe("transmute", () => {
   });
 
   it("drops one with no recipe named", () => {
-    expect(parsed({ type: "transmute", ref: { x: 0, y: 0, z: 0, stackIndex: 0 } })).toBeNull();
+    expect(parsed({ type: "craft", ref: { x: 0, y: 0, z: 0, stackIndex: 0 } })).toBeNull();
   });
 
   it("drops a negative recipe, which is no position at all", () => {
     expect(
       parsed({
-        type: "transmute",
+        type: "craft",
         ref: { x: 0, y: 0, z: 0, stackIndex: 0 },
         recipe: -1,
       }),
@@ -202,7 +202,7 @@ describe("transmute", () => {
     // not hold the catalogue — so an index out of range is a refusal in the one
     // place the list is understood, not a malformed frame.
     const message = {
-      type: "transmute",
+      type: "craft",
       ref: { x: 0, y: 0, z: 0, stackIndex: 0 },
       recipe: 99,
     };

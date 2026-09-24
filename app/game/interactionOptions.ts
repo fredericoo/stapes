@@ -9,7 +9,8 @@ import {
   resolveSetSpawn,
   resolveSwitch,
   resolveTeleportDef,
-  transmuteVerb,
+  craftVerb,
+  DEFAULT_CRAFT_VERB,
 } from "../lib/interactions";
 import { consumeVerb, EQUIP_FALLBACK_VERB, equipVerb, resolveConsumable } from "../lib/item";
 import type { Coord, MapFile, TileDef } from "../lib/types";
@@ -46,7 +47,7 @@ import {
   pullsFreeAt,
   type Extraction,
 } from "./extract";
-import { offeredTransmutations } from "./transmute";
+import { offeredRecipes } from "./craft";
 import type { ActorSnapshot, PlaySession } from "./GameSession";
 import type { Conversation } from "./dialogRuntime";
 import { hasLineOfSight } from "./sight";
@@ -153,17 +154,6 @@ export type InteractionOption = {
    * Only `target` and `follow` act on it.
    */
   actorId: string | null;
-  /**
-   * Which of the tile's recipes this row runs, for `transmute`; null for every
-   * other action.
-   *
-   * The one entry in the list that cannot be addressed by its `ref` alone — a
-   * fire offers a row per thing you could cook at it, all on the same
-   * placement — so the position of the recipe travels on the row exactly as
-   * {@link actorId} does for a target. See `./transmute`'s
-   * `offeredTransmutations` for why a position rather than a name.
-   */
-  recipeIndex: number | null;
   /** The tile standing for this entry — its front sprite is what gets drawn. */
   tileId: string;
   /** A person by their handle, anything else by what its tile is called. */
@@ -327,11 +317,10 @@ const LABELS: Record<InteractionAction, string> = {
   // from a tile that hands you a shard says whether you chipped it off or
   // plucked it. See `ExtractInteraction.actionName`.
   extract: DEFAULT_EXTRACT_VERB,
-  // Never actually read: a transmute row is named by its *recipe* rather than
-  // by its tile — see `transmuteVerb` — because one fire may cook and trade.
-  // Present because the record is exhaustive, which is what stops an action
-  // being added without somebody deciding what it is called.
-  transmute: "Transmute",
+  // The fallback only, on a switch's terms: nothing derivable from a tile that
+  // turns stones into stones says whether you forge at it or cook at it. See
+  // `CraftInteraction.actionName`.
+  craft: DEFAULT_CRAFT_VERB,
 };
 
 /**
@@ -424,10 +413,10 @@ const ACTION_ORDER: Record<InteractionAction, number> = {
   setSpawn: 9,
   // Below the switch and above everything to do with carrying, which is where
   // an explicit authored act belongs — and it never competes with the tap
-  // anyway, since a transmute row is reached by name and a tile that both
+  // anyway, since a craft row is reached by name and a tile that both
   // cooked and swung open would spend its tap on the hinge either way.
-  transmute: 10,
-  // Below the transmute and above everything to do with carrying, which is
+  craft: 10,
+  // Below the craft and above everything to do with carrying, which is
   // where the session's own precedence puts it and for the same reason: an
   // explicit authored act comes before lifting a thing off the floor. It never
   // actually competes with the four above it — nobody authors a door you can
@@ -622,6 +611,7 @@ export function listInteractionOptions(
   followId: string | null = null,
   previous: readonly InteractionOption[] = [],
   nextBlow: Progress | null = null,
+  craftingRef: ObjectRef | null = null,
 ): InteractionOption[] {
   const bodies = bodiesByCell(self, visibleActors);
   // Who a conjured tile belongs to, named off the bodies this viewer can see —
@@ -643,6 +633,7 @@ export function listInteractionOptions(
       tags,
       spawnAt,
       extracting,
+      craftingRef,
     ),
   ];
   const tiers = tiersBySubject(map, tilesById, self, options);
@@ -757,11 +748,10 @@ function subjectOrder(previous: readonly InteractionOption[]): Map<string, numbe
  * separate and the *subject* is said once.
  *
  * Grouped by what the entry is **about**, which is its placement and the thing
- * standing for it rather than the placement alone. Almost everywhere those are
- * the same question; the exception is the one the transmute row already makes —
- * a fire offering to cook meat and to cook fish is two entries on one placement
- * wearing two different sprites and names, and a box that merged them would
- * have to pick one of the two to lie with.
+ * standing for it rather than the placement alone. Today those are the same
+ * question everywhere; the tile and name stay in the key so that a row which
+ * one day wears a different sprite from its placement gets a box of its own
+ * rather than one that has to pick a sprite to lie with.
  *
  * Order is the list's own, twice over: groups run in the order their first
  * entry does and entries keep their order inside one. Nothing is re-sorted
@@ -808,8 +798,7 @@ export function groupInteractionOptions(options: readonly InteractionOption[]): 
  * step, which remounted its box under the pointer and made "the place it held
  * last time" a place it never held. The placement is the key for everything
  * else, which does not walk. The tile and the name are in the key rather than
- * assumed to follow from either, because for a transmute row they do not — see
- * {@link InteractionGroup}.
+ * assumed to follow from either — see {@link InteractionGroup}.
  */
 function subjectKey(option: InteractionOption): string {
   const subject = option.actorId ?? refKey(option.ref);
@@ -910,6 +899,13 @@ export function rowPress(row: readonly InteractionOption[]): InteractionOption |
 export type Follower = {
   /** Walk after this body until told otherwise, or stop. @see ../game/walkTo */
   setFollow(actorId: string | null): void;
+  /**
+   * Open the crafting window on this crafter, or close it. The window is the
+   * client's own — which recipes you can afford is worked out on this side
+   * from the kit it already holds — so like following it never reaches a
+   * session until a recipe inside it is pressed.
+   */
+  setCrafting(ref: ObjectRef | null): void;
 };
 
 /**
@@ -942,6 +938,12 @@ export function applyInteraction(
   // business until the steps go over the wire. @see InteractionAction
   if (option.action === "follow") {
     follower?.setFollow(option.active ? null : option.actorId);
+    return;
+  }
+  // The same, for the same reason: the row opens a window, and the window is
+  // this side's. Pressing it again while lit closes it, on Talk's terms.
+  if (option.action === "craft") {
+    follower?.setCrafting(option.active ? null : option.ref);
     return;
   }
   if (!session) return;
@@ -992,14 +994,6 @@ export function applyInteraction(
   // whatever the precedence currently happens to put in front.
   if (option.action === "equip") {
     session.equip(option.ref);
-    return;
-  }
-  // Named because it has to be: a fire offering three recipes is three rows on
-  // one placement, and `interact` has no way to say which. The index is the
-  // row's own — see `InteractionOption.recipeIndex`.
-  if (option.action === "transmute") {
-    if (option.recipeIndex === null) return;
-    session.transmute(option.ref, option.recipeIndex);
     return;
   }
   // Named for the same reason pick-up is: the row says "Eat", and `interact`'s
@@ -1084,6 +1078,7 @@ function objectOptions(
   tags: readonly string[],
   spawnAt: Coord | null,
   extracting: Extraction | null,
+  craftingRef: ObjectRef | null,
 ): InteractionOption[] {
   const out: InteractionOption[] = [];
   const zMin = Math.max(MIN_LEVEL, self.z - INTERACT_LEVEL_SLACK);
@@ -1121,6 +1116,7 @@ function objectOptions(
               tags,
               spawnAt,
               extracting,
+              craftingRef,
             ),
           );
         }
@@ -1144,6 +1140,7 @@ function slotOptions(
   tags: readonly string[],
   spawnAt: Coord | null,
   extracting: Extraction | null,
+  craftingRef: ObjectRef | null,
 ): InteractionOption[] {
   const placed = getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex];
   if (!placed) return [];
@@ -1187,7 +1184,6 @@ function slotOptions(
       label,
       ref,
       actorId: body?.id ?? null,
-      recipeIndex: null,
       blocked,
       wait: null,
       tileId: placed.tileId,
@@ -1250,32 +1246,15 @@ function slotOptions(
     add("open", isOpen ? CLOSE_LABEL : LABELS.open, isOpen);
   }
 
-  // One row per recipe the player could actually run, which is the only entry
-  // in the list that is not one-per-verb-per-thing: a fire that cooks meat and
-  // fish offers "Cook Raw Meat" and "Cook Raw Fish", and the verb alone would
-  // not tell them apart. So the row is named for what is being *spent* — its
-  // sprite and its name are the input's, while its `ref` stays the fire, which
-  // is what the outline goes round.
-  for (const { index, recipe } of offeredTransmutations(map, tilesById, self, equipment, ref)) {
-    const input = tilesById[recipe.fromTileId];
-    out.push({
-      // `action:ref` like every other row, plus the recipe — the one id in the
-      // list that needs a third part, because one placement offers several.
-      // `MAX_TRANSMUTATIONS` keeps the index a single digit, so the string sort
-      // that settles ties between equal rows is also the authored order.
-      id: `transmute:${refKey(ref)}:${index}`,
-      action: "transmute",
-      label: transmuteVerb(recipe),
-      ref,
-      actorId: null,
-      recipeIndex: index,
-      blocked: null,
-      wait: null,
-      tileId: recipe.fromTileId,
-      name: input?.name ?? recipe.fromTileId,
-      health: null,
-      active: false,
-    });
+  // One row per crafter, whatever it offers, and only while something on it is
+  // affordable: the recipes live in a window behind the row, on Talk's terms,
+  // because a forge with ten of them would otherwise be ten rows crowding
+  // everything else in reach. Lit and left named while its window is the one
+  // open, on Talk's terms too — the verb is still what pressing it does.
+  const offered = offeredRecipes(map, tilesById, self, equipment, ref);
+  if (offered) {
+    const isCrafting = craftingRef != null && refKey(craftingRef) === refKey(ref);
+    add("craft", craftVerb(offered.craft), isCrafting);
   }
 
   // The other beside-a-tap row: a cherry on the floor is "Pick up" and "Eat",
@@ -1470,7 +1449,6 @@ function talkOptions(
       label: LABELS.talk,
       ref,
       actorId: actor.id,
-      recipeIndex: null,
       blocked: null,
       wait: null,
       tileId: actor.tileId,
@@ -1550,7 +1528,6 @@ function battlerOptions(
         label: LABELS.attack,
         ref,
         actorId: actor.id,
-        recipeIndex: null,
         blocked: null,
         // The lit fight row and no other: a fight row on a body nobody has
         // picked is an offer, and a clock drawn on it would be counting down to
@@ -1568,7 +1545,6 @@ function battlerOptions(
       label: LABELS.target,
       ref,
       actorId: actor.id,
-      recipeIndex: null,
       blocked: null,
       wait: null,
       tileId: actor.tileId,
@@ -1589,7 +1565,6 @@ function battlerOptions(
       label: LABELS.follow,
       ref,
       actorId: actor.id,
-      recipeIndex: null,
       blocked: null,
       wait: null,
       tileId: actor.tileId,

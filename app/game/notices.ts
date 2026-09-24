@@ -1,6 +1,6 @@
 import { formatClock, type MinutesOfDay } from "../lib/clock";
-import type { ExtractInteraction, PlacedReward } from "../lib/interactions";
-import { DEFAULT_EXTRACT_VERB } from "../lib/interactions";
+import type { CraftInteraction, ExtractInteraction, PlacedReward } from "../lib/interactions";
+import { DEFAULT_CRAFT_VERB, DEFAULT_EXTRACT_VERB } from "../lib/interactions";
 import { MASTERIES, MAX_MASTERY, MIN_MASTERY, type Mastery } from "../lib/mastery";
 import type { Coord, TileDef } from "../lib/types";
 import type { CastRefusal } from "./casting";
@@ -176,6 +176,29 @@ export function extractNotice(
   if (tileIds.length === 0) return `${opening} and find nothing`;
   return `${opening} and take ${countedItems([...tileIds], tilesById)}`;
 }
+
+/**
+ * What running a recipe says to whoever ran it — "You forge at Stone Forge and
+ * make 1 Ember".
+ *
+ * The tile's verb, as the row said it, on {@link extractNotice}'s rule. And a
+ * gamble that came up empty gets its own sentence for the reason an empty pull
+ * does: the inputs are gone, and silence there reads as the press having
+ * missed rather than as the forge having taken them.
+ */
+export function craftNotice(
+  craft: CraftInteraction,
+  crafter: TileDef,
+  tileIds: readonly string[],
+  tilesById: Record<string, TileDef>,
+): string {
+  const opening = `You ${sentenceVerb(craft.actionName, DEFAULT_CRAFT_SENTENCE_VERB)} at ${crafter.name}`;
+  if (tileIds.length === 0) return `${opening} and it comes to nothing`;
+  return `${opening} and make ${countedItems([...tileIds], tilesById)}`;
+}
+
+/** {@link DEFAULT_CRAFT_VERB} mid-sentence, derived on the extract line's terms. */
+const DEFAULT_CRAFT_SENTENCE_VERB = DEFAULT_CRAFT_VERB.toLowerCase();
 
 /**
  * What an unnamed resource reads as mid-sentence.

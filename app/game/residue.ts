@@ -16,9 +16,9 @@ import { placeInSlot, slotKey, type ItemMoveResult, type SlotRef } from "./itemM
  * for what it did to their kit.
  *
  * Kept out of `./itemMoves`, which knows how to put a thing in a slot and
- * deliberately not which slots to try, and out of `./transmute`, whose order
- * this borrows but whose destinations are typed for a recipe's `PaidFrom` — a
- * drink can come out of a chest on the floor, which a recipe never does.
+ * deliberately not which slots to try, and out of `./trade`, whose places are
+ * all on the body — a drink can come out of a chest on the floor, which a
+ * trade or a craft never does.
  */
 
 /**

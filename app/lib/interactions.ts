@@ -446,7 +446,7 @@ export type PlacedTeleport = {
  * blesses you.
  *
  * **Wholly on the tile, with no placement half at all**, on the terms
- * {@link TransmuteInteraction} has none: what standing in a fire does to a body
+ * {@link CraftInteraction} has none: what standing in a fire does to a body
  * is a fact about fire, and every flame cut from the tile does it. There is
  * nothing left for a slot to vary.
  *
@@ -649,72 +649,145 @@ export type PlacedReward = {
 };
 
 /**
- * One thing this tile turns into others: spend that, get these.
+ * One kind of thing a recipe spends, and how many of it.
  *
- * **A recipe, not a trade of objects.** The input is destroyed and the outputs
+ * Counted, on a trade's terms: a price is a number and a number is what a pile
+ * already is, so two cinders may be one pile or two squares and the recipe
+ * peels across them. Two inputs naming *different* tiles are two entries.
+ */
+export type CraftInput = {
+  tileId: string;
+  count: number;
+};
+
+/** A thing an `all` output may hand back, and its chance in percent. */
+export type CraftChanceItem = {
+  tileId: string;
+  /** 1–{@link MAX_CRAFT_CHANCE}. Rolled on its own, whatever the others did. */
+  chance: number;
+};
+
+/** A thing a `one` output may pick, and how heavily it leans that way. */
+export type CraftWeightedItem = {
+  tileId: string;
+  /**
+   * Relative, not a percentage: weights 1, 3 and 2 are a sixth, a half and a
+   * third. What matters is the ratio, so an author adding a fourth option does
+   * not have to re-balance the other three to keep them summing to anything.
+   */
+  weight: number;
+};
+
+/**
+ * What a recipe hands back, and which of two kinds of luck decides it.
+ *
+ * - `all` — every item is rolled for on its own. The common case is one item at
+ *   100%, which is a recipe with no luck in it at all; one item at 75% is a
+ *   gamble where losing takes the inputs and gives **nothing**. Several items
+ *   are a meal with a chance of leftovers.
+ * - `one` — exactly one item comes back, picked by weight. A blank stone forged
+ *   into one of five low stones. Never empty: a gamble on *which*, not *whether*.
+ *
+ * A discriminated union rather than one list with both numbers on every entry,
+ * on {@link TeleportDestination}'s terms: a weight on an `all` item or a chance
+ * on a `one` item is a number nothing reads, and the union is what stops one
+ * being left behind when an author changes their mind.
+ */
+export type CraftOutput =
+  | { kind: "all"; items: CraftChanceItem[] }
+  | { kind: "one"; items: CraftWeightedItem[] };
+
+export type CraftOutputKind = CraftOutput["kind"];
+
+/**
+ * Spend these, and roll for those.
+ *
+ * **A recipe, not a trade of objects.** The inputs are destroyed and the outputs
  * are minted fresh, on exactly the terms {@link RewardInteraction} hands its
  * items over — so a fire that cooks meat is not moving a particular steak
  * around, it is answering "what does raw meat become here".
  *
- * Wholly on the tile, with no placement half at all, and that is the one place
- * this parts company with a reward: what a fire does to meat is a fact about
- * fire, and every fire cut from the tile does it. There is nothing left for a
- * slot to vary.
+ * Wholly on the tile, with no placement half at all: what a forge does to two
+ * cinders is a fact about forges, and every forge cut from the tile does it.
  */
-export type Transmutation = {
+export type CraftRecipe = {
   /**
-   * What doing it is called — "Cook" at a fire, "Trade" with a salesman.
-   *
-   * Authored per *recipe* rather than per tile, unlike every other verb in this
-   * file, because a tile may offer several and they need not be the same act: a
-   * stall that trades a carcass for a coin may also cook. It is also the half
-   * the player is choosing between, since the thing being spent is the other.
-   *
-   * Optional, and blank reads as "Transmute" — which is deliberately an ugly
-   * word to see in play, because a recipe worth authoring is worth naming.
+   * What the recipe is called in the crafting window — "Forge a blank stone",
+   * "Cook meat". Per recipe, because the window lists several and the player
+   * is choosing between them. Blank reads as the tile's verb.
    */
-  verb?: string;
-  /** The item spent. One, always: a recipe with two inputs is two decisions. */
-  fromTileId: string;
-  /** What comes back. Order is the author's, as a reward's is. */
-  toTileIds: string[];
+  name: string;
+  /** Everything spent, all at once. At least one. */
+  inputs: CraftInput[];
+  output: CraftOutput;
 };
 
 /**
- * This tile turns one carried thing into others — a fire you cook at, a trader
- * you sell to.
+ * This tile turns carried things into others — a forge you reforge stones at,
+ * a fire you cook at.
  *
  * **Nothing on the board changes**, exactly as nothing changes when a reward is
- * taken, and for a related reason: the fire has to still be a fire for the next
- * person. What changes is the kit of whoever pressed it. Unlike a reward it is
- * *not* once per player and carries no tag — a fire cooks the second steak too,
- * and what limits it is having something to spend.
+ * taken: the forge has to still be a forge for the next person. What changes is
+ * the kit of whoever used it. Unlike a reward it is *not* once per player and
+ * carries no tag — a fire cooks the second steak too, and what limits it is
+ * having something to spend.
  *
- * A list rather than a single recipe, because "what will this fire do for me"
- * is a question with several answers and each is its own row: an author who had
- * to cut one tile per recipe would be cutting one fire per food in the game.
+ * **One row, and a window behind it.** The tile offers a single row named by
+ * {@link actionName}, and pressing it opens a list of the recipes the player
+ * can afford right now — the same shape a conversation takes. A forge with ten
+ * recipes would otherwise be ten rows crowding everything else in reach, and a
+ * recipe you cannot afford is not on either list: the menu is what you could
+ * make, not what forges can do.
  */
-export type TransmuteInteraction = {
-  recipes: Transmutation[];
+export type CraftInteraction = {
+  /**
+   * What using it is called — "Forge", "Cook". The row's verb, and the
+   * window's title beside the tile's name. Optional, and blank reads as
+   * "Craft".
+   */
+  actionName?: string;
+  recipes: CraftRecipe[];
 };
 
 /**
  * Most things one recipe may hand back.
  *
  * {@link MAX_REWARD_ITEMS}' argument, because it is the same constraint: the
- * outputs all arrive at once and all have to fit, so a recipe authored bigger
- * than any bag in the game is one nobody can ever run.
+ * outputs may all arrive at once and all have to fit, so a recipe authored
+ * bigger than any bag in the game is one nobody can ever run.
  */
-export const MAX_TRANSMUTATION_OUTPUTS = MAX_CONTAINER_SIZE;
+export const MAX_CRAFT_OUTPUTS = MAX_CONTAINER_SIZE;
+
+/**
+ * Most kinds of thing one recipe may spend. A recipe that asks for more than
+ * this is a shopping list, not a recipe, and the window has to draw every one.
+ */
+export const MAX_CRAFT_INPUTS = 4;
+
+/**
+ * Most of one thing a recipe may spend — a pile's largest size, so a price is
+ * never more than the biggest pile anybody could be carrying in one square.
+ */
+export const MAX_CRAFT_INPUT_COUNT = 99;
+
+/** A certain outcome, on {@link MAX_EXTRACT_CHANCE}'s terms. */
+export const MAX_CRAFT_CHANCE = 100;
+
+/**
+ * Heaviest one option may lean. A bound for the file's sake rather than the
+ * game's — the sum is walked once per craft — so a hand edit cannot ask for a
+ * weight that overflows into nonsense.
+ */
+export const MAX_CRAFT_WEIGHT = 1000;
 
 /**
  * Most recipes one tile may offer.
  *
- * A bound on a *list the player reads*, rather than on anything the simulation
- * would struggle with: every runnable recipe is a row in the interaction list,
- * and a fire offering twenty of them has stopped being something you can scan.
+ * A bound on a *list the player reads*: every affordable recipe is a row in the
+ * crafting window, and a forge offering fifty has stopped being something you
+ * can scan.
  */
-export const MAX_TRANSMUTATIONS = 8;
+export const MAX_CRAFT_RECIPES = 16;
 
 /**
  * Most items one placement may hand over.
@@ -765,8 +838,8 @@ export const MAX_EXTRACT_SLOTS = 4;
  * Work this thing for what it is made of — mine a crystal, pick a bush.
  *
  * **The one authored interaction that is shared and spends the world.** A reward
- * is once per *player* and leaves the chest standing; a transmute is as often as
- * you can pay for it and leaves the fire burning. This is the other arrangement,
+ * is once per *player* and leaves the chest standing; a craft is as often as
+ * you can pay for it and leaves the forge standing. This is the other arrangement,
  * and it is the one a resource wants: the crystal is the same crystal for
  * everybody who walks up to it, and what everybody takes out of it comes out of
  * one shared {@link durability}. Two people mining one vein race each other.
@@ -903,7 +976,7 @@ export type TileInteractions = {
   push?: PushInteraction;
   switch?: SwitchInteraction;
   reward?: RewardInteraction;
-  transmute?: TransmuteInteraction;
+  craft?: CraftInteraction;
   extract?: ExtractInteraction;
   teleport?: TeleportInteraction;
   addStatus?: AddStatusInteraction;
@@ -927,18 +1000,19 @@ export const DEFAULT_REWARD: RewardInteraction = {
 };
 
 /**
- * One blank recipe, because a transmuter with no recipes is not a transmuter —
+ * One blank recipe, because a crafter with no recipes is not a crafter —
  * switching the block on has to leave the author with the row they came to
  * fill in, exactly as switching a switch on leaves them a target to pick.
  */
-export const DEFAULT_TRANSMUTATION: Transmutation = {
-  verb: "",
-  fromTileId: "",
-  toTileIds: [],
+export const DEFAULT_CRAFT_RECIPE: CraftRecipe = {
+  name: "",
+  inputs: [{ tileId: "", count: 1 }],
+  output: { kind: "all", items: [{ tileId: "", chance: MAX_CRAFT_CHANCE }] },
 };
 
-export const DEFAULT_TRANSMUTE: TransmuteInteraction = {
-  recipes: [{ ...DEFAULT_TRANSMUTATION }],
+export const DEFAULT_CRAFT: CraftInteraction = {
+  actionName: "",
+  recipes: [DEFAULT_CRAFT_RECIPE],
 };
 
 /**
@@ -1022,7 +1096,7 @@ export const DEFAULT_ENDURE: EndureInteraction = {
 /**
  * How many statuses one tile may be authored to suffer.
  *
- * A bound rather than a judgement, on {@link MAX_TRANSMUTATIONS}' terms: the
+ * A bound rather than a judgement, on {@link MAX_CRAFT_RECIPES}' terms: the
  * list is walked per tick per afflicted placement, and a file that can ask for
  * a thousand is a file that can make the tick cost whatever it likes.
  */
@@ -1215,62 +1289,95 @@ function readPlacedReward(placed: PlacedTile, def: TileDef): PlacedReward | null
   };
 }
 
+const craftTileIdSchema = v.pipe(v.string(), v.trim(), v.minLength(1));
+
+const craftInputSchema = v.object({
+  tileId: craftTileIdSchema,
+  count: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_CRAFT_INPUT_COUNT)),
+});
+
+const craftOutputSchema = v.variant("kind", [
+  v.object({
+    kind: v.literal("all"),
+    items: v.pipe(
+      v.array(
+        v.object({
+          tileId: craftTileIdSchema,
+          chance: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_CRAFT_CHANCE)),
+        }),
+      ),
+      v.minLength(1),
+      v.maxLength(MAX_CRAFT_OUTPUTS),
+    ),
+  }),
+  v.object({
+    kind: v.literal("one"),
+    items: v.pipe(
+      v.array(
+        v.object({
+          tileId: craftTileIdSchema,
+          weight: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_CRAFT_WEIGHT)),
+        }),
+      ),
+      v.minLength(1),
+      v.maxLength(MAX_CRAFT_OUTPUTS),
+    ),
+  }),
+]);
+
 /**
  * One recipe, as it is allowed to arrive from a hand-edited file.
  *
- * The input must name something and the outputs must not be empty, because
- * either half missing makes the recipe a verb that does nothing — the same line
+ * Every input must name something and so must every output, because either
+ * half missing makes the recipe a button that does nothing — the same line
  * {@link readPlacedReward} draws, and it lands in the same place: a
  * half-authored recipe is dropped and the rest of the tile still works.
  */
-const transmutationSchema = v.object({
-  verb: v.optional(v.string()),
-  fromTileId: v.pipe(v.string(), v.trim(), v.minLength(1)),
-  toTileIds: v.pipe(v.array(v.string()), v.minLength(1), v.maxLength(MAX_TRANSMUTATION_OUTPUTS)),
+const craftRecipeSchema = v.object({
+  name: v.fallback(v.pipe(v.string(), v.trim()), ""),
+  inputs: v.pipe(v.array(craftInputSchema), v.minLength(1), v.maxLength(MAX_CRAFT_INPUTS)),
+  output: craftOutputSchema,
 });
 
 /**
  * Malformed recipes are dropped one at a time rather than taking the block down
- * with them, which is this schema's whole shape: a fire that cooks three things
- * and has a typo in the third should still cook the other two, and an author
- * who broke one row should see that row go missing rather than the tile go
- * inert.
+ * with them: a forge with ten recipes and a typo in the third should still
+ * offer the other nine, and an author who broke one should see that one go
+ * missing rather than the tile go inert.
  */
-const transmuteSchema = v.object({
+const craftSchema = v.object({
+  actionName: v.optional(v.string()),
   recipes: v.pipe(
-    v.array(v.fallback(v.nullable(transmutationSchema), null)),
+    v.array(v.fallback(v.nullable(craftRecipeSchema), null)),
     v.transform((recipes) =>
-      recipes
-        .filter((recipe): recipe is Transmutation => recipe != null)
-        .slice(0, MAX_TRANSMUTATIONS),
+      recipes.filter((recipe): recipe is CraftRecipe => recipe != null).slice(0, MAX_CRAFT_RECIPES),
     ),
   ),
 });
 
-const transmuteCache = new WeakMap<TileDef, TransmuteInteraction | null>();
+const craftCache = new WeakMap<TileDef, CraftInteraction | null>();
 
 /**
- * Parsed transmutation config for a tile def — every recipe it offers, in the
- * order the author wrote them.
+ * Parsed crafting config for a tile def — every recipe it offers, in the order
+ * the author wrote them.
  *
  * Same trust model as {@link resolvePush}, and one refusal of its own: a block
- * whose recipes all turned out to be malformed is *not* a transmuter, so it
- * offers no rows rather than an empty menu. Unlike a reward's, an empty block
- * here says nothing — there is no placement half for it to be pointing at.
+ * whose recipes all turned out to be malformed is *not* a crafter, so it offers
+ * no row rather than an empty window.
  *
  * Memoised on def identity, on the same grounds every other resolver here is:
  * the interaction list asks this per reachable cell every time the board or the
  * player moves.
  */
-export function resolveTransmute(def: TileDef): TransmuteInteraction | null {
-  const cached = transmuteCache.get(def);
+export function resolveCraft(def: TileDef): CraftInteraction | null {
+  const cached = craftCache.get(def);
   if (cached !== undefined) return cached;
 
-  const raw = def.interactions?.transmute;
-  const parsed = raw == null ? null : v.safeParse(transmuteSchema, raw);
-  const transmute = parsed?.success && parsed.output.recipes.length > 0 ? parsed.output : null;
-  transmuteCache.set(def, transmute);
-  return transmute;
+  const raw = def.interactions?.craft;
+  const parsed = raw == null ? null : v.safeParse(craftSchema, raw);
+  const craft = parsed?.success && parsed.output.recipes.length > 0 ? parsed.output : null;
+  craftCache.set(def, craft);
+  return craft;
 }
 
 /**
@@ -1317,7 +1424,7 @@ const extractCache = new WeakMap<TileDef, ExtractInteraction | null>();
  * Parsed extract config per tile def. Same trust model as {@link resolvePush}:
  * malformed → cannot be worked.
  *
- * One refusal of its own, and it is `resolveTransmute`'s: a block whose slots
+ * One refusal of its own, and it is `resolveCraft`'s: a block whose slots
  * all turned out to be malformed yields nothing, so it is not a resource. A
  * tile that offered a verb and handed back nothing would be a row that takes a
  * press and shrugs, and it would spend the world's durability doing it.
@@ -1336,9 +1443,8 @@ export function resolveExtract(def: TileDef): ExtractInteraction | null {
 /**
  * What an unnamed resource reads as.
  *
- * A real word rather than the mechanism's own, unlike {@link
- * DEFAULT_TRANSMUTE_VERB} and on the same grounds "Take" and "Enter" are real
- * words: "Extract" is what the code calls it, and a player reading a row over a
+ * A real word rather than the mechanism's own, on the same grounds "Take" and
+ * "Enter" are real words: "Extract" is what the code calls it, and a player reading a row over a
  * bush should see something a person would say.
  */
 export const DEFAULT_EXTRACT_VERB = "Gather";
@@ -1386,26 +1492,23 @@ export function extractsReserved(placed: PlacedTile): number {
   return Math.max(0, Math.floor(held));
 }
 
-/**
- * What an unnamed recipe reads as.
- *
- * Deliberately the mechanism's own name and deliberately unlovely: every other
- * fallback in here ("Take", "Enter") is a word a player might actually want,
- * because those blocks were authored before their verb existed and the fallback
- * has to carry real content. Recipes have had a verb since the day they existed,
- * so this only ever shows on one somebody forgot to name.
- */
-export const DEFAULT_TRANSMUTE_VERB = "Transmute";
+/** What an unnamed crafter's row reads as. */
+export const DEFAULT_CRAFT_VERB = "Craft";
 
 /**
- * What a recipe's row is called, with the fallback applied.
+ * What a crafter's row is called, with the fallback applied.
  *
- * One place, because the list draws it and the tile editor previews it, and a
- * verb that read as "Transmute" in one and blank in the other would be two
- * answers to a question the author asked once.
+ * One place, because the list draws it, the window titles itself with it and
+ * the tile editor previews it, and a verb that read as "Craft" in one and
+ * blank in another would be two answers to a question the author asked once.
  */
-export function transmuteVerb(recipe: Transmutation): string {
-  return recipe.verb?.trim() || DEFAULT_TRANSMUTE_VERB;
+export function craftVerb(craft: CraftInteraction): string {
+  return craft.actionName?.trim() || DEFAULT_CRAFT_VERB;
+}
+
+/** What a recipe is called in the window: its own name, else the tile's verb. */
+export function craftRecipeName(craft: CraftInteraction, recipe: CraftRecipe): string {
+  return recipe.name.trim() || craftVerb(craft);
 }
 
 const coordSchema = v.object({
@@ -1543,7 +1646,7 @@ const addStatusCache = new WeakMap<TileDef, AddStatusInteraction | null>();
  *
  * Same trust model as {@link resolvePush}: malformed → grants nothing. The
  * whole of it is here, with no placement half to join, on the terms
- * {@link resolveTransmute} is — so unlike a teleport there is no second
+ * {@link resolveCraft} is — so unlike a teleport there is no second
  * resolver that could refuse what this one allowed.
  *
  * Whether the named status *exists* is deliberately not asked. The catalogue is
@@ -1821,7 +1924,7 @@ export function receiveTriggers(receive: ReceiveInteraction, powered: boolean): 
  * for its own reason: it is the only kind here that changes the *presser*
  * rather than the board, so a brazier authored to both light a room and burn
  * the hand that lit it lights the room first — the visible half of the tap is
- * the one the player was aiming at. Transmute follows both and for the
+ * the one the player was aiming at. Craft follows both and for the
  * same argument one step weaker — it is authored and explicit, but it is the
  * only kind here that can offer *several* rows on one tile, so it is named by
  * its row rather than reached by a bare tap. Pick-up comes after, because
@@ -1843,7 +1946,7 @@ export type InteractionKind =
   | "addStatus"
   | "removeStatus"
   | "setSpawn"
-  | "transmute"
+  | "craft"
   | "extract"
   | "pickUp"
   | "push";
@@ -1871,11 +1974,11 @@ export function interactionKinds(def: TileDef): InteractionKind[] {
   // it: a `step` block is the whole of "walking in here anchors you", which is
   // a thing that happens to you rather than a thing you can press.
   if (pressable(resolveSetSpawn(def))) kinds.push("setSpawn");
-  // The def's half and the whole of it — a transmuter carries no placement
+  // The def's half and the whole of it — a crafter carries no placement
   // half at all. Whether the player has anything to spend is a question about
   // *them*, which is the affordances', not this one's.
-  if (resolveTransmute(def)) kinds.push("transmute");
-  // The def's half and the whole of it, on a transmuter's terms — there is no
+  if (resolveCraft(def)) kinds.push("craft");
+  // The def's half and the whole of it, on a crafter's terms — there is no
   // placement half that could make a resource *not* one. Whether this
   // particular bush has anything left in it, and whether this particular player
   // has waited long enough, are questions about a placement and about a person;
@@ -1985,7 +2088,7 @@ export function hasAnyInteraction(interactions: TileInteractions | undefined): b
     interactions?.push ||
     interactions?.switch ||
     interactions?.reward ||
-    interactions?.transmute ||
+    interactions?.craft ||
     interactions?.extract ||
     interactions?.teleport ||
     interactions?.addStatus ||
@@ -2044,23 +2147,7 @@ export function interactionsForSave(
   // arm knows which fields belong. A `delta` left behind on an absolute teleport
   // would be inert *and* invisible — sitting in `data/tiles.json` waiting for
   // somebody to flip the control back and find numbers they never authored.
-  // Rebuilt recipe by recipe, and the half-authored ones dropped on the way
-  // out rather than only on the way in: a row an author added and never filled
-  // in is a row the resolver would refuse anyway, and writing it to
-  // `data/tiles.json` would leave the file claiming a recipe the game does not
-  // have. A block left with nothing in it is not a transmuter, so it goes.
-  const transmute = interactions?.transmute;
-  const savedRecipes = (transmute?.recipes ?? []).flatMap((recipe) => {
-    const fromTileId = recipe.fromTileId.trim();
-    const toTileIds = recipe.toTileIds.filter((id) => id.trim());
-    if (!fromTileId || toTileIds.length === 0) return [];
-    const verb = recipe.verb?.trim();
-    // A blank verb is dropped rather than written as `""`, exactly as a
-    // switch's is: an empty string meaning "no name" is a second way of saying
-    // what an absent key already says.
-    return [{ ...(verb ? { verb } : {}), fromTileId, toTileIds }];
-  });
-  const savedTransmute = savedRecipes.length > 0 ? { recipes: savedRecipes } : undefined;
+  const savedCraft = interactions?.craft ? craftForSave(interactions.craft) : undefined;
   // Rebuilt slot by slot and the blank ones dropped on the way out, exactly as
   // a recipe's rows are: a slot somebody added and never filled in is one the
   // resolver would refuse anyway, and writing it to `data/tiles.json` would
@@ -2325,7 +2412,7 @@ export function interactionsForSave(
     !savedPush &&
     !savedSwitch &&
     !savedReward &&
-    !savedTransmute &&
+    !savedCraft &&
     !savedExtract &&
     !savedTeleport &&
     !savedAddStatus &&
@@ -2349,7 +2436,7 @@ export function interactionsForSave(
     ...(savedPush ? { push: savedPush } : {}),
     ...(savedSwitch ? { switch: savedSwitch } : {}),
     ...(savedReward ? { reward: savedReward } : {}),
-    ...(savedTransmute ? { transmute: savedTransmute } : {}),
+    ...(savedCraft ? { craft: savedCraft } : {}),
     ...(savedExtract ? { extract: savedExtract } : {}),
     ...(savedTeleport ? { teleport: savedTeleport } : {}),
     ...(savedAddStatus ? { addStatus: savedAddStatus } : {}),
@@ -2362,4 +2449,53 @@ export function interactionsForSave(
     ...(savedEmit ? { emit: savedEmit } : {}),
     ...(savedReceive ? { receive: savedReceive } : {}),
   };
+}
+
+/**
+ * A crafting block as it goes to `data/tiles.json`, or undefined when nothing
+ * in it would survive being read back.
+ *
+ * Rebuilt recipe by recipe, and the half-authored ones dropped on the way out
+ * rather than only on the way in: a row an author added and never filled in is
+ * a row the resolver would refuse anyway, and writing it would leave the file
+ * claiming a recipe the game does not have. A block left with nothing in it is
+ * not a crafter, so it goes.
+ *
+ * The output is rebuilt by its arm, for the reason a teleport's destination
+ * is: flipping the control between "all of" and "one of" leaves the editor's
+ * draft carrying both numbers, and only the arm knows which one it reads.
+ */
+function craftForSave(craft: CraftInteraction): CraftInteraction | undefined {
+  const recipes = craft.recipes.flatMap((recipe) => {
+    const saved = craftRecipeForSave(recipe);
+    return saved ? [saved] : [];
+  });
+  if (recipes.length === 0) return undefined;
+  const actionName = craft.actionName?.trim();
+  // A blank verb is dropped rather than written as `""`, exactly as a
+  // switch's is: an empty string meaning "no name" is a second way of saying
+  // what an absent key already says.
+  return { ...(actionName ? { actionName } : {}), recipes };
+}
+
+function craftRecipeForSave(recipe: CraftRecipe): CraftRecipe | null {
+  const inputs = recipe.inputs
+    .map((input) => ({ tileId: input.tileId.trim(), count: input.count }))
+    .filter((input) => input.tileId);
+  const output = craftOutputForSave(recipe.output);
+  if (inputs.length === 0 || !output) return null;
+  return { name: recipe.name.trim(), inputs, output };
+}
+
+function craftOutputForSave(output: CraftOutput): CraftOutput | null {
+  if (output.kind === "all") {
+    const items = output.items
+      .map((item) => ({ tileId: item.tileId.trim(), chance: item.chance }))
+      .filter((item) => item.tileId);
+    return items.length > 0 ? { kind: "all", items } : null;
+  }
+  const items = output.items
+    .map((item) => ({ tileId: item.tileId.trim(), weight: item.weight }))
+    .filter((item) => item.tileId);
+  return items.length > 0 ? { kind: "one", items } : null;
 }
