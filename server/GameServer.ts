@@ -8,7 +8,6 @@ import {
 } from "../app/game/GameSession";
 import { TICK_MS } from "../app/game/constants";
 import {
-  BODY_REACH_CELLS,
   BodyGrid,
   INTEREST_REACH_CHUNKS,
   chunksEntered,
@@ -5468,12 +5467,16 @@ export class GameServer {
       if (cellKind === CELL_TERRAIN) {
         everywhereCells.push(i);
       } else if (cellKind === CELL_ONE_BODY) {
-        if (cells.now.has[i] === 1) nearCells.add(cells.now.x[i]!, cells.now.y[i]!, i);
-        if (cells.was.has[i] === 1) nearCells.add(cells.was.x[i]!, cells.was.y[i]!, i);
+        if (cells.now.has[i] === 1) {
+          nearCells.add(cells.now.x[i]!, cells.now.y[i]!, cells.now.z[i]!, i);
+        }
+        if (cells.was.has[i] === 1) {
+          nearCells.add(cells.was.x[i]!, cells.was.y[i]!, cells.was.z[i]!, i);
+        }
       } else {
         for (const body of cells.bodies[i]!) {
-          if (body.now !== null) nearCells.add(body.now.x, body.now.y, i);
-          if (body.was !== null) nearCells.add(body.was.x, body.was.y, i);
+          if (body.now !== null) nearCells.add(body.now.x, body.now.y, body.now.z, i);
+          if (body.was !== null) nearCells.add(body.was.x, body.was.y, body.was.z, i);
         }
       }
     }
@@ -5481,15 +5484,23 @@ export class GameServer {
     const everywhereEvents: number[] = [];
     for (let j = 0; j < eventCount; j++) {
       const k = events.actor[j]!;
-      if (events.kind[j] === FOR_BODY && k >= 0) nearEvents.add(bodies.x[k]!, bodies.y[k]!, j);
-      else everywhereEvents.push(j);
+      if (events.kind[j] === FOR_BODY && k >= 0) {
+        nearEvents.add(bodies.x[k]!, bodies.y[k]!, bodies.z[k]!, j);
+      } else {
+        everywhereEvents.push(j);
+      }
     }
     const nearChanged = new NearIndex();
     for (let c = 0; c < changedIds.length; c++) {
       const i = changedIndex[c]!;
-      if (i >= 0) nearChanged.add(bodies.x[i]!, bodies.y[i]!, c);
+      if (i >= 0) nearChanged.add(bodies.x[i]!, bodies.y[i]!, bodies.z[i]!, c);
       if (changedWasColumns.has[c] === 1) {
-        nearChanged.add(changedWasColumns.x[c]!, changedWasColumns.y[c]!, c);
+        nearChanged.add(
+          changedWasColumns.x[c]!,
+          changedWasColumns.y[c]!,
+          changedWasColumns.z[c]!,
+          c,
+        );
       }
     }
 
@@ -5826,11 +5837,11 @@ export class GameServer {
     const cut = emptyCut();
     let whole = entered === null && departed === null;
 
-    // Only what the tick filed near here can be this client's; everything else
-    // is further off than a body can be seen from, on every level. Whatever is
+    // Only what the tick filed within reach of here can be this client's:
+    // everything else is further off than a body can be seen from. Whatever is
     // marked is then asked exactly what the whole walk would have asked it.
     const cellStamp = near.cellStamp;
-    let cellsNear = near.cells.mark(at.x, at.y, BODY_REACH_CELLS, cellStamp, mark);
+    let cellsNear = near.cells.markWithinReach(at.x, at.y, at.z, cellStamp, mark);
     for (const i of near.everywhereCells) {
       if (cellStamp[i] === mark) continue;
       cellStamp[i] = mark;
@@ -5877,7 +5888,7 @@ export class GameServer {
     }
 
     const eventStamp = near.eventStamp;
-    let eventsNear = near.events.mark(at.x, at.y, BODY_REACH_CELLS, eventStamp, mark);
+    let eventsNear = near.events.markWithinReach(at.x, at.y, at.z, eventStamp, mark);
     for (const j of near.everywhereEvents) {
       if (eventStamp[j] === mark) continue;
       eventStamp[j] = mark;
@@ -5942,7 +5953,7 @@ export class GameServer {
     const whole = mark !== 0;
     // Only a body filed near here can have come into reach or gone out of it.
     const stamp = frame.near.changedStamp;
-    if (whole) frame.near.changed.mark(at.x, at.y, BODY_REACH_CELLS, stamp, mark);
+    if (whole) frame.near.changed.markWithinReach(at.x, at.y, at.z, stamp, mark);
     let entered: number[] | null = null;
     let departed: string[] | null = null;
     for (let c = 0; c < ids.length; c++) {
