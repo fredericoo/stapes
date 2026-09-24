@@ -11,6 +11,7 @@ import { LeaveWorldButton } from "./LeaveWorldButton";
 import { MaintenanceScreen } from "./MaintenanceScreen";
 import { OutdatedScreen } from "./OutdatedScreen";
 import { ReplacedScreen } from "./ReplacedScreen";
+import { WorldFullScreen } from "./WorldFullScreen";
 import { WorldClock } from "./WorldClock";
 import { type Equipment, emptyEquipment } from "../game/equipment";
 import type { Conversation, TalkAction } from "../game/dialogRuntime";
@@ -29,6 +30,7 @@ import {
   CLOSE_OUTDATED_CLIENT,
   CLOSE_REPLACED,
   CLOSE_SIGNED_OUT,
+  CLOSE_WORLD_FULL,
   PROTOCOL_VERSION,
 } from "../net/protocol";
 import type { WorldLink } from "../net/link";
@@ -80,6 +82,17 @@ const RECONNECT_MAX_MS = 10_000;
 const RESTART_RECONNECT_MS = 250;
 const RESTART_RECONNECT_JITTER_MS = 750;
 
+/**
+ * How long to wait before knocking again on a full world, and how much to
+ * smear it.
+ *
+ * Slow on purpose, on the terms `./MaintenanceScreen` polls slowly: every tab
+ * refused is asking a server that is already at its limit. The jitter keeps
+ * the tabs refused together from all asking again together.
+ */
+const WORLD_FULL_RETRY_MS = 20_000;
+const WORLD_FULL_RETRY_JITTER_MS = 10_000;
+
 /** Guards the reload-on-stale-client path against looping. */
 const RELOADED_FOR_VERSION = "stapes:reloaded-for-version";
 
@@ -90,7 +103,8 @@ type Status =
   | "restarting"
   | "outdated"
   | "replaced"
-  | "maintenance";
+  | "maintenance"
+  | "full";
 
 export function WorldPage({
   link,
@@ -599,6 +613,23 @@ export function WorldPage({
           return;
         }
 
+        // The world is at its player limit. Unlike maintenance, a seat opens
+        // whenever somebody leaves, so this does try again — on a slow timer of
+        // its own, and without growing the backoff for the next ordinary drop.
+        // The screen stays up until a `hello` sets the page live.
+        // @see ./WorldFullScreen
+        if (event.code === CLOSE_WORLD_FULL) {
+          teardownRenderer();
+          setStatus("full");
+          setStats(null);
+          setPlayers(null);
+          retryTimer = setTimeout(
+            connect,
+            WORLD_FULL_RETRY_MS + Math.random() * WORLD_FULL_RETRY_JITTER_MS,
+          );
+          return;
+        }
+
         teardownRenderer();
         setStatus(restarting ? "restarting" : "reconnecting");
         setStats(null);
@@ -782,17 +813,19 @@ export function WorldPage({
                 tilesets={tilesets}
               />
             ) : null}
-            {/* The wait, and the three cases where it is not a wait. A refused
-                  version, another tab taking this player, or a world closed for
-                  maintenance leaves no reconnect pending — so each takes the
-                  loading screen's place rather than sitting behind it, whether
-                  or not the canvas ever painted. */}
+            {/* The wait, and the cases where it is not an ordinary wait. A
+                  refused version, another tab taking this player, a world closed
+                  for maintenance or a world that is full each takes the loading
+                  screen's place rather than sitting behind it, whether or not the
+                  canvas ever painted. */}
             {status === "outdated" ? (
               <OutdatedScreen serverVersion={serverVersion} />
             ) : status === "replaced" ? (
               <ReplacedScreen />
             ) : status === "maintenance" ? (
               <MaintenanceScreen />
+            ) : status === "full" ? (
+              <WorldFullScreen />
             ) : painted ? null : (
               <LoadingScreen />
             )}

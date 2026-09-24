@@ -798,6 +798,31 @@ switch there would read as belonging to it.
   rows for anybody who is not an administrator, so nobody presses a name only to
   be refused by the socket from behind the loading screen.
 
+## The world holds at most `MAX_ONLINE_PLAYERS`
+
+`MAX_ONLINE_PLAYERS` in `server/GameServer.ts` is 250: the most players this
+host is trusted to carry. It is a capacity limit, not a game rule, and it is a
+constant so that it is changed in one place when the host changes.
+
+- **Checked in `GameServer.join`, inside its join turn.** A player who would be
+  seat 251 is closed with 4005 (`CLOSE_WORLD_FULL`). Joins are seated one at a
+  time (`joinTurn`), and the check runs after a join's turn has come and before
+  it is seated. Checked any earlier, two joins waiting their turns would both
+  find the last seat free and both take it.
+- **Administrators are let in past it, and counted in it.** Let in on the terms
+  maintenance lets them in. Counted because a seated administrator costs the
+  tick what anybody else does, so 250 is 250 connections whoever holds them.
+- **A reload is always let in.** An actor that already has a socket displaces
+  it rather than adding one, so it does not need a seat.
+- **A body lingering after its connection dropped does not hold a seat.** The
+  count is actors with a socket (`socketsByActor`), so somebody coming back to
+  a lingering body at the limit is refused like anybody else.
+- **4005 is retried, unlike 4004.** A seat opens whenever somebody leaves, so
+  the page shows `app/components/WorldFullScreen.tsx` and tries again every
+  20–30 seconds, jittered, rather than on its ordinary backoff: every refused
+  tab is asking a server already at its limit. `PROTOCOL_VERSION` went to 20
+  for the new code, on the terms it went to 17 for 4004.
+
 ## The simulation holds N actors
 
 `GameSession` runs any number of actors, and `GameServer` is the only thing that
