@@ -493,6 +493,7 @@ function castProgressOf(casting: CastProgress): CastProgress {
     remainingMs: casting.remainingMs,
     durationMs: casting.durationMs,
     slot: casting.slot,
+    ...(casting.targetId ? { targetId: casting.targetId } : {}),
   };
 }
 
