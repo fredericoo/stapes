@@ -5984,9 +5984,15 @@ export class GameServer {
    * them — their own body is never something this client is told it has
    * stopped holding. @see actorsInReach
    *
-   * The set is rebuilt only if it differs from what they held. Counted first,
-   * because on most ticks nobody has come or gone and the set from last time is
-   * still exactly right.
+   * The set is left alone if nobody came or went. Counted first, because on
+   * most ticks nobody has and the set from last time is still exactly right.
+   * Otherwise it is edited in place, as {@link reachSinceLastCut} edits it:
+   * a client that walks sees a few bodies come and go at the edges of its
+   * reach, and rebuilding a set of a hundred or so for that was most of what
+   * a walking client's cut cost.
+   *
+   * Arrivals come out in snapshot order. Departures come out in the order the
+   * set holds them.
    */
   private reachFromScratch(
     actorId: string,
@@ -5995,8 +6001,11 @@ export class GameServer {
     chunks: ReadonlySet<string>,
     known: ReadonlySet<string>,
   ): Reach {
-    const { actors, chunkOf } = frame;
+    const { actors, chunkOf, bodies } = frame;
     const self = frame.indexOf.get(actorId);
+    // A subscription whole around where the client stands holds every chunk in
+    // reach, so no body in reach needs its chunk asked about. @see squareOf
+    const whole = at !== null && this.squareOf(chunks, at) !== null;
     const inReach: number[] = [];
     if (at !== null) {
       for (const i of frame.grid.near(at)) {
@@ -6008,7 +6017,7 @@ export class GameServer {
         // well inside the subscription by construction (`interest.test.ts`
         // pins it), so this only ever bites while a client is still being
         // handed its ground.
-        if (chunks.has(chunkOf[i]!)) inReach.push(i);
+        if (whole || chunks.has(chunkOf[i]!)) inReach.push(i);
       }
     }
     if (self !== undefined) inReach.push(self);
@@ -6022,16 +6031,38 @@ export class GameServer {
       return { entered: null, departed: null, held: known, before: known };
     }
 
+    // Whoever it held that the walk above did not find: every body but its
+    // own that is off the board, out of reach, or on ground it has not been
+    // handed.
+    let departed: string[] | null = null;
+    for (const id of known) {
+      if (id === actorId) continue;
+      const i = frame.indexOf.get(id);
+      if (
+        i !== undefined &&
+        at !== null &&
+        withinBodyReachOf(at.x, at.y, at.z, bodies.x[i]!, bodies.y[i]!, bodies.z[i]!) &&
+        (whole || chunks.has(chunkOf[i]!))
+      ) {
+        continue;
+      }
+      (departed ??= []).push(id);
+    }
     // Snapshot order, which is the order a body's arrival is announced in.
     entered?.sort((a, b) => a - b);
-    inReach.sort((a, b) => a - b);
-    const next = new Set<string>();
-    for (const i of inReach) next.add(actors[i]!.id);
-    next.add(actorId);
-    let departed: string[] | null = null;
-    for (const id of known) if (!next.has(id)) (departed ??= []).push(id);
-    this.announcedActors.set(actorId, next);
-    return { entered, departed, held: next, before: known };
+    const held = known === NO_ACTORS ? new Set<string>() : (known as Set<string>);
+    if (departed !== null) for (const id of departed) held.delete(id);
+    if (entered !== null) for (const i of entered) held.add(actors[i]!.id);
+    held.add(actorId);
+    if (held !== known) this.announcedActors.set(actorId, held);
+    return {
+      entered,
+      departed,
+      held,
+      // The ones it let go of are all the old set adds to the new one, so they
+      // are all a cell has to be asked about beside it. @see reachSinceLastCut
+      before: departed === null ? NO_ACTORS : new Set(departed),
+    };
   }
 
   /**
