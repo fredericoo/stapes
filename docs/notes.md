@@ -2642,30 +2642,33 @@ and the end of this work run back to back:
 
 | players | before: ticks/s | before: median tick | after: ticks/s | after: median tick | after: p95 tick |
 |---|---|---|---|---|---|
-| 400 | 18.78 | 46ms | 29.43 | 20ms | 39ms |
-| 600 | 10.99 | 81ms | 26.15 | 33ms | 53ms |
-| 800 | 6.34 | 150ms | 18.13 | 49ms | 70ms |
-| 1000 | 4.32 | 222ms | 14.46 | 62ms | 95ms |
+| 400 | 19.66 | 44ms | 29.99 | 20ms | 38ms |
+| 600 | 11.09 | 82ms | 28.92 | 29ms | 52ms |
+| 800 | 6.36 | 146ms | 22.13 | 42ms | 64ms |
+| 1000 | 4.32 | 222ms | 15.81 | 58ms | 88ms |
 
-At a thousand the median tick is about 62ms against a 33ms budget.
+The longest gap between two ticks in those runs went from 210–468ms to
+112–167ms, most of it the shorter checkpoint (above).
+
+At a thousand the median tick is about 58ms against a 33ms budget.
 Fewer ticks a second also means more work per tick — each carries more steps —
 so the gap to 30 is narrower than the rate suggests, but it is there, and no
 one part of what is left is most of it:
 
 | phase | ms a tick |
 |---|---|
-| the whole tick | 63.5 |
-| the simulation (`GameSession.tick`) | 28.1 |
-| cutting and sending every client's patch | 22.1 |
-| of which: cutting | 13.7 |
-| movement, including committing steps to the board | 11.4 |
-| creatures deciding | 13.9 |
-| handing over ground as players cross chunks | 4.1 |
-| applying the steps clients sent | 3.7 |
-| snapshots of every actor | 2.4 |
-| statuses | 1.2 |
-| hellos (joins and rebirths) | 0.7 |
-| diffing the board | 0.9 |
+| the whole tick | 59.8 |
+| the simulation (`GameSession.tick`) | 26.0 |
+| cutting and sending every client's patch | 21.4 |
+| of which: cutting | 13.1 |
+| movement, including committing steps to the board | 10.4 |
+| creatures deciding | 12.8 |
+| handing over ground as players cross chunks | 3.7 |
+| applying the steps clients sent | 3.5 |
+| snapshots of every actor | 2.2 |
+| statuses | 1.6 |
+| hellos (joins and rebirths) | 0.8 |
+| diffing the board | 0.7 |
 
 **What is left**, for whoever takes this further:
 
@@ -2689,11 +2692,18 @@ one part of what is left is most of it:
   pass over the thousand — about 3ms a tick. A spatial answer has to keep the
   tie on insertion order, which is what keeps a seeded world reproducible, and
   has to know every place a body can move.
-- **A chunk copy is 13–17µs.** A chunk is a 256-key object, which the engine
-  keeps as a dictionary, so copying one rebuilds its table and allocates a new
-  shape. A step copies one twice: on the turn and on the commit. Editing in
+- **A chunk copy is 13–17µs, and the level around it is copied too.** A chunk
+  is a 256-key object, which the engine keeps as a dictionary, so copying one
+  rebuilds its table and allocates a new shape; the surface level is another
+  200 keys. A step copies both twice: on the turn and on the commit. In a
+  profile at a thousand players these copies (`cloneObject`, called from
+  `setStacks`) were 12.5% of all samples, a third of it the level. Editing in
   place is not an option: tile-id sets, location memos and the JSON caches all
-  assume a chunk object never changes.
+  assume a chunk object never changes. Editing only the copies made during the
+  current tick in place would keep that true for everything outside the tick,
+  but not inside it: `GameSession.tryLocate` takes an unchanged chunk object to
+  mean an unmoved body, so a chunk edited in place would need its own record of
+  having changed.
 - **Smaller exits from optimized code remain.** `reachSinceLastCut`,
   `scopedPatchFor`, `cellsOfChangedReach`, `reachFromScratch`,
   `withStatusModifiers` and `setStacks` still leave optimized code about
