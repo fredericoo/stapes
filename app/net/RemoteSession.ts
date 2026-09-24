@@ -491,6 +491,9 @@ export class RemoteSession implements PlaySession {
   /** How many people the server last said were here. */
   private players = 0;
   private onPlayers: ((count: number) => void) | null = null;
+  /** Whether the server says this body is hidden from other players. @see setHidden */
+  private hidden = false;
+  private onHidden: ((hidden: boolean) => void) | null = null;
   /** Told the hour whenever the server says one. See {@link setOnClockSet}. */
   private onClockSet: ((minutes: MinutesOfDay) => void) | null = null;
 
@@ -599,6 +602,36 @@ export class RemoteSession implements PlaySession {
 
   playerCount(): number {
     return this.players;
+  }
+
+  /**
+   * Hear whether this client's own body is hidden from other players. @see
+   * setHidden
+   *
+   * Pushed on the terms {@link setOnPlayers} is, and for the same reason: it
+   * changes when the server says so and not otherwise.
+   */
+  setOnHidden(cb: ((hidden: boolean) => void) | null) {
+    this.onHidden = cb;
+    cb?.(this.hidden);
+  }
+
+  /**
+   * Ask to be hidden from other players, or shown again. Administrators only.
+   *
+   * Not predicted: the switch shows what the server last said, because what
+   * it controls is what *other* people are sent, and a switch that flipped
+   * before the server agreed would claim a privacy nobody had granted yet. The
+   * server ignores this from anybody who is not an administrator.
+   */
+  setHidden(enabled: boolean) {
+    this.send({ type: "hidden", enabled });
+  }
+
+  private setHiddenState(hidden: boolean) {
+    if (hidden === this.hidden) return;
+    this.hidden = hidden;
+    this.onHidden?.(hidden);
   }
 
   /** Note a death or a return, telling anyone watching if it changed. */
@@ -874,6 +907,11 @@ export class RemoteSession implements PlaySession {
       // stays up are the renderer's questions, and this side's only job is not
       // to lose the line between the socket and the next frame.
       this.pendingNotices.push(message.text);
+      return;
+    }
+
+    if (message.type === "hidden") {
+      this.setHiddenState(message.on);
       return;
     }
 
@@ -2228,6 +2266,10 @@ export class RemoteSession implements PlaySession {
       // Off the broadcast for everybody including the viewer, on the cast's
       // terms: the switch is the server's state and nothing here predicts it.
       pvp: this.pvpOn.has(id),
+      // Never told. A client holds the bodies it may see and no others, so the
+      // only hidden body it can hold is its own, and nothing here draws that
+      // one differently. @see ActorSnapshot.hidden
+      hidden: false,
     };
   }
 
@@ -2912,5 +2954,6 @@ function offscreenActor(id: string): ActorSnapshot {
     // Unmarked, like everything else here: a body that has not arrived is not
     // in anybody's fight.
     pvp: false,
+    hidden: false,
   };
 }
