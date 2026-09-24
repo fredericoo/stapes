@@ -2446,6 +2446,27 @@ The seams worth knowing:
   that. A test with a handful of creatures still sees every one of them decide
   on the tick the round falls due.
 
+## A burst of joins takes turns with the tick
+
+A join is about 20ms that never yields on the shipped map: `spawn` sweeps the
+board to check the body is not already on it, and the `hello` is 2.4MB of JSON.
+The storage reads it awaits resolve as microtasks, so joins that arrive together
+run back to back. A hundred of them held the event loop for about 1.5s, and in
+that time no tick ran and no message was read.
+
+What players saw was being thrown back. A walking client drew its steps as
+usual, the server read them all at once when the burst ended, and its step queue
+held two while the client draws up to eight. The rest were refused and the
+client rolled back several cells. Two changes, each covering one half:
+
+- **`join` waits its turn.** One join at a time, each after a `setTimeout(0)`,
+  so the tick loop and the socket reads run between them. A burst takes a
+  little longer to seat, and everybody already walking keeps walking.
+- **The queue is as deep as the prediction.** `MAX_STEPS_AHEAD` in
+  `app/net/protocol.ts` is both the client's limit and the server's queue, so
+  a server that was busy for any reason never refuses a step the client was
+  allowed to draw.
+
 ## A hundred players, profiled
 
 The stress-test bots (`/admin/actions` on the branch that carries them) put a
@@ -3229,6 +3250,17 @@ world.
 **It is a separate event from `joined` because a joiner is a person.** `joined`
 carries the headcount the players bar reads, and a rat is not one of the people
 in the world.
+
+**And `joined` does not touch the set.** It used to add an entry, and `joined`
+goes to every client wherever the joiner is, so each arrival out of reach was an
+entry for a body on none of this client's cells. `locate` confirms the last
+known cell before it searches, and an entry with no cell and no body to find
+searches the whole board, every frame, and never finds anything. Nothing
+removed those entries either: no `despawned` comes for a body the client was
+never told about. A hundred players joining at once made every frame take
+about 300ms, until a reload replaced the set with the `hello`'s. A joiner in
+reach is announced by `spawned`, like any other body, and `joined` now only
+carries the headcount.
 
 **A body leaving the *board* still announces nothing, and needs to.** Its tile
 goes off the board in the same frame's cell patches, and `actorSnapshot` finds

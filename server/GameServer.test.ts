@@ -20,7 +20,7 @@ import { CHUNK_SIZE, levelKey } from "../app/lib/types";
 import type { FlatMapFile, MapFile, TileDef } from "../app/lib/types";
 import { tilesByIdFromList } from "../app/lib/validation";
 import { CHAT_MIN_INTERVAL_MS } from "../app/net/chat";
-import { CLOSE_REPLACED } from "../app/net/protocol";
+import { CLOSE_REPLACED, MAX_STEPS_AHEAD } from "../app/net/protocol";
 import { COMBAT_STATUS_ID } from "../app/lib/status";
 import { fightingStats, resolveBattler } from "../app/lib/battler";
 import { swingWindupMs } from "../app/game/combat";
@@ -367,6 +367,46 @@ describe("joining and leaving", () => {
 
     const bob = await connect("bob");
     expect(bob.hello.playerCount).toBe(2);
+  });
+
+  /**
+   * A join does not yield on its own: the reads it awaits resolve without
+   * going back to the event loop, so joins that arrive together used to be
+   * seated back to back. A hundred of them held the loop for two seconds, and
+   * nobody already in the world had a tick or a message read in that time.
+   */
+  it("lets the event loop run between joins that arrive together", async () => {
+    await connect("alice");
+    const order: string[] = [];
+    const joins = ["bob", "carol", "dave"].map((actorId) => {
+      const pair = new Pair();
+      pair.client().addEventListener("message", () => {
+        if (!order.includes(actorId)) order.push(actorId);
+      });
+      return stub().join(pair.server, actorId, { admin: false });
+    });
+    setTimeout(() => order.push("loop"), 0);
+    await Promise.all(joins);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // Every joiner is seated, in the order they arrived, and the loop had a
+    // turn before the last of them.
+    expect(order.filter((one) => one !== "loop")).toEqual(["bob", "carol", "dave"]);
+    expect(order.indexOf("loop")).toBeLessThan(order.indexOf("dave"));
+  });
+
+  it("does not seat a socket that closed while it waited its turn", async () => {
+    await connect("alice");
+    const pair = new Pair();
+    const joined = stub().join(pair.server, "bob", { admin: false });
+    pair.server.close();
+    await joined;
+
+    const seated = await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as { socketsByActor: Map<string, unknown> };
+      return internals.socketsByActor.has("bob");
+    });
+    expect(seated).toBe(false);
   });
 
   it("tells the room when somebody arrives", async () => {
@@ -1740,25 +1780,35 @@ describe("stepping", () => {
 
   it("refuses a step further ahead than it will hold", async () => {
     const { ws } = await connect("alice");
-    // Three in a burst, before any tick can take one: two fit in the queue and
-    // the third is more than any honest client is ahead by.
-    step(ws, 0, "e");
-    step(ws, 1, "e");
-    step(ws, 2, "e");
+    // One more than a client may draw ahead, in a burst before any tick can
+    // take one: the last is more than any honest client is ahead by.
+    for (let seq = 0; seq <= MAX_STEPS_AHEAD; seq++) step(ws, seq, "e");
 
     expect(await messageWithin(ws, "stepRejected", 1000)).toEqual({
       type: "stepRejected",
-      seq: 2,
+      seq: MAX_STEPS_AHEAD,
     });
+  });
+
+  /**
+   * The burst a busy server reads: every step a client drew while this process
+   * was doing something else, arriving at once. A client draws up to
+   * {@link MAX_STEPS_AHEAD} ahead, so that many are all walked — refusing any
+   * of them rolls the player back across cells they have already been shown
+   * walking.
+   */
+  it("holds as many steps as a client may draw ahead", async () => {
+    const { ws } = await connect("alice");
+    for (let seq = 0; seq < MAX_STEPS_AHEAD; seq++) step(ws, seq, "e");
+
+    expect(await messageWithin(ws, "stepRejected", QUIET_MS)).toBeNull();
   });
 
   it("tells only the client whose step it was", async () => {
     const alice = await connect("alice");
     const bob = await connect("bob");
 
-    step(alice.ws, 0, "e");
-    step(alice.ws, 1, "e");
-    step(alice.ws, 2, "e");
+    for (let seq = 0; seq <= MAX_STEPS_AHEAD; seq++) step(alice.ws, seq, "e");
 
     expect(await messageWithin(alice.ws, "stepRejected", 1000)).not.toBeNull();
     // A refusal is about one client's guess, not about the board, so it has no
