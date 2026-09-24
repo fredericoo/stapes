@@ -1367,8 +1367,14 @@ export class RemoteSession implements PlaySession {
   }
 
   private applyEvent(event: MotionEvent) {
+    // The headcount and nothing else. `joined` goes to everybody, wherever the
+    // joiner is, so it is not a claim that this client holds them: the body
+    // arrives as a `spawned` if and when it is in reach. It used to add an
+    // entry here too, and an entry for a body on none of this client's cells
+    // is a sweep of the whole board every frame — one per arrival, kept until
+    // the tab was reloaded. It also replaced the entry of a body already held,
+    // dropping whatever walk it was half way through. @see `./scope`
     if (event.kind === "joined") {
-      this.motions.set(event.actorId, emptyMotion());
       this.setPlayers(event.playerCount);
       return;
     }

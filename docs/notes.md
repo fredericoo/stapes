@@ -3230,6 +3230,17 @@ world.
 carries the headcount the players bar reads, and a rat is not one of the people
 in the world.
 
+**And `joined` does not touch the set.** It used to add an entry, and `joined`
+goes to every client wherever the joiner is, so each arrival out of reach was an
+entry for a body on none of this client's cells. `locate` confirms the last
+known cell before it searches, and an entry with no cell and no body to find
+searches the whole board, every frame, and never finds anything. Nothing
+removed those entries either: no `despawned` comes for a body the client was
+never told about. A hundred players joining at once made every frame take
+about 300ms, until a reload replaced the set with the `hello`'s. A joiner in
+reach is announced by `spawned`, like any other body, and `joined` now only
+carries the headcount.
+
 **A body leaving the *board* still announces nothing, and needs to.** Its tile
 goes off the board in the same frame's cell patches, and `actorSnapshot` finds
 nobody to answer for a stale entry — so a client holding one draws nothing and
