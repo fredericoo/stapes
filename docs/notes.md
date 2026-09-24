@@ -2514,6 +2514,170 @@ up the time a long tick took instead of losing it and puts the ceiling at 30.)
 - **This was one core to itself.** Production shares two vCPUs with its
   previews and Traefik, so the margin measured here is the most it has.
 
+## A thousand players, profiled
+
+`bun run bench:crowd` seats players on a real `GameServer` — a `WorldStore` on a
+copy of `data/`, the checkpoint loop running, sockets that record rather than
+send — and walks them the way the stress bots do: runs of one to eight steps, a
+pause now and then, a turn when a step is refused, a rebirth three seconds after
+dying. It is one process with no network, so what it measures is the tick. It
+reports ticks a second, tick and gap percentiles, and the time each phase of the
+tick took; `--profile` writes a CPU profile of the measured window alone, and
+`--idle`, `--clustered` and `--deflate` change what the players do and what a
+send costs.
+
+**Compare runs made with the same `BUN_OPTIONS`, alternated.** Some shells
+export `BUN_OPTIONS=--smol`, which makes Bun collect garbage far more often: the
+same build measured about a tick a second slower with it. Production runs
+`bun run server/index.ts` without it. And one run moves by a tick or two from
+the next — which bots died, which creatures woke, and a shared machine that is
+slower at two in the morning than at midnight — so a change is judged by the
+phase it touched, or by runs of the two builds taken in turn.
+
+**Where it started.** A thousand players spread over the surface, all walking:
+4.7 ticks a second, a median tick of 199ms. More than half of every tick was
+cutting the shared patch per client: each client asked every changed cell,
+event and entry of the tick whether it was theirs, through set lookups — about
+three hundred changes for each of a thousand clients.
+
+**What each change bought**, a thousand walking, in the order they were made:
+
+| change | effect |
+|---|---|
+| each client cut against what changed since its own last cut | 4.7 → about 10 ticks/s |
+| `hello`s and handovers written from per-chunk JSON (`server/chunkJson.ts`) | 11.0 ticks/s; seating a thousand at 50 a second went from 31s to 22s |
+| two versions of the board diffed by the writes between them | `diffCells` 7.3 → 0.8ms a tick |
+| a client standing still inside a whole subscription cut by distance alone | 11.0 → 13.8 ticks/s |
+| a cell's handover text kept against its stack array | `streamEnteredChunks` 6.2 → 4.8ms |
+| one battler reading per snapshot | `actorSnapshots` 3.7 → 2.6ms |
+| the tick's changes filed by position (`server/nearIndex.ts`) | 13.7 → 16.1 ticks/s; `cutByDistance` 9.8 → 5.2ms |
+| a moved client's held set edited in place | `reachFromScratch` 4.3 → 2.9ms |
+| changes marked by exact reach, level included | `cutByDistance` 6.7 → 5.6ms |
+| a chunk copy's text carried down its lineage | `streamEnteredChunks` 4.6 → 3.6ms |
+| three loops the JIT kept exiting, indexed (below) | 14.1 and 13.1 → 14.7 and 14.6 ticks/s, alternated |
+| the tick on a timeline (below) | 400 players: 25.4 → 29.8 ticks/s |
+| spawn remembers where it put a body; a hello builds only the snapshots it sends | seating a thousand as fast as they come: 20.8s → 15.7s |
+
+And smaller ones: sockets indexed by actor; subscriptions checked only for
+clients that moved; a death's batch writing only the kits its board can
+contradict; `destinationTaken` answered from an index of walks rather than a
+pass over every actor; `listStandingSurfaces` reading each level once;
+`applyStepRequest` returning before it locates an actor that holds nothing; a
+killed body taken off the cell it was just found in rather than by a sweep of
+the board; and `tickStatuses` reading each afflicted body's base battler once.
+
+**Every change to the cut was checked against the cut it replaced.** A copy of
+the previous implementation ran beside the new one over the same ticks — three
+hundred players spread, two hundred clustered, joining, leaving, dying — and
+the two had to produce the same patch for every client, byte for byte or up to
+the order of departures, and leave every client holding the same bodies. The
+per-chunk JSON is held to `JSON.stringify` of the objects it replaced by
+`server/chunkJson.test.ts`, which is the same promise made the cheap way.
+
+**The tick loop lost time on its own.** Bun's `setInterval` runs the callback
+after a late one as soon as it can, and then waits a whole interval again, so a
+tick that overruns is never made up: ticks alternating 10ms and 50ms — 30ms on
+average, inside the budget — came 24 times a second. With four hundred players
+the median tick was 19ms and the world still ran at 25. Ticks are now due on a
+timeline, and a 1ms heartbeat runs one whenever one is due
+(`GameServer.tickIfDue`): a long tick is followed by the next as soon as it
+ends, and a backlog of more than three ticks is dropped rather than run back to
+back. At a thousand players, where the world cannot keep up at all, it measures
+the same as `setInterval`: there is no time to make up.
+
+The first version had each tick set a `setTimeout` for the next, and under load
+that made the tick itself slower: `tickStatuses` took five times as long for
+the same work, and a thousand players ran at 13 to 15 ticks a second against 14
+to 17. The same build switched back to `setInterval` from outside, at runtime,
+recovered — so it is the pattern of timers, not the code. `setImmediate` was in
+between, and nobody here knows why. If the loop is ever changed again, measure
+it under load before trusting it.
+
+**Bun's optimizing compiler kept leaving three loops.**
+`BUN_JSC_printEachOSRExit=1` prints every exit from optimized code, and at a
+thousand players `armorDefence`, `armorResistances` and `requirementShortfall`
+exited about 850,000 times in 45 seconds, every one "InadequateCoverage" at the
+`for...of` over their list. Each loop had been compiled while its body had
+never run — nobody in armour, no weapon with requirements — and each of ten
+recompilations exited at the same place again. Written as indexed loops they
+do not exit at all. Runs taken in turn with and without: 14.1 and 13.1 ticks a
+second against 14.7 and 14.6, and `actorSnapshots`, which reads every actor's
+battler, 3.1–3.6ms a tick against 2.5–2.7ms.
+
+**Where it ended.** Same bench, no `--smol`, 30 seconds each, the branch point
+and the end of this work run back to back:
+
+| players | before: ticks/s | before: median tick | after: ticks/s | after: median tick | after: p95 tick |
+|---|---|---|---|---|---|
+| 400 | 18.78 | 46ms | 29.43 | 20ms | 39ms |
+| 600 | 10.99 | 81ms | 26.15 | 33ms | 53ms |
+| 800 | 6.34 | 150ms | 18.13 | 49ms | 70ms |
+| 1000 | 4.32 | 222ms | 14.46 | 62ms | 95ms |
+
+At a thousand the median tick is about 62ms against a 33ms budget.
+Fewer ticks a second also means more work per tick — each carries more steps —
+so the gap to 30 is narrower than the rate suggests, but it is there, and no
+one part of what is left is most of it:
+
+| phase | ms a tick |
+|---|---|
+| the whole tick | 63.5 |
+| the simulation (`GameSession.tick`) | 28.1 |
+| cutting and sending every client's patch | 22.1 |
+| of which: cutting | 13.7 |
+| movement, including committing steps to the board | 11.4 |
+| creatures deciding | 13.9 |
+| handing over ground as players cross chunks | 4.1 |
+| applying the steps clients sent | 3.7 |
+| snapshots of every actor | 2.4 |
+| statuses | 1.2 |
+| hellos (joins and rebirths) | 0.7 |
+| diffing the board | 0.9 |
+
+**What is left**, for whoever takes this further:
+
+- **Compression is the largest cost production would add, and the bench leaves
+  it out.** Measured with two hundred real sockets: a raw `ws.send` is about
+  3.5µs a frame, and the shared deflate `server/index.ts` asks for is about 18µs
+  at 600 characters and 26µs at 3KB. The dedicated compressors are slower at
+  these sizes, not faster. A thousand clients at 30 a second is 30,000 frames a
+  second, which deflated is over half a second of the tick thread's every
+  second. With `--deflate` on, the bench's rate halves. Raising
+  `COMPRESS_MIN_LENGTH` so that ordinary patches go raw trades that for about
+  60KB/s per player. The patch itself could be smaller: an actor id is a
+  36-character UUID and appears in every cell and event about that actor.
+- **Each client costs about 11µs a tick whatever happens near it**: 5µs to cut,
+  3µs to serialize, 3µs to flatten and send. At a thousand that is 11ms a tick
+  before anything has changed. Moving the cut and serialization to workers is
+  the structural answer; the state it reads (held sets, subscriptions) would
+  have to move with it.
+- **Brains ask for the nearest player by walking every player.**
+  `nearestOnTile` is about seventy calls a tick at a thousand players, each a
+  pass over the thousand — about 3ms a tick. A spatial answer has to keep the
+  tie on insertion order, which is what keeps a seeded world reproducible, and
+  has to know every place a body can move.
+- **A chunk copy is 13–17µs.** A chunk is a 256-key object, which the engine
+  keeps as a dictionary, so copying one rebuilds its table and allocates a new
+  shape. A step copies one twice: on the turn and on the commit. Editing in
+  place is not an option: tile-id sets, location memos and the JSON caches all
+  assume a chunk object never changes.
+- **Smaller exits from optimized code remain.** `reachSinceLastCut`,
+  `scopedPatchFor`, `cellsOfChangedReach`, `reachFromScratch`,
+  `withStatusModifiers` and `setStacks` still leave optimized code about
+  100,000 times in 45 seconds between them, all "InadequateCoverage" and most
+  plausibly at loops that run only when somebody came or went. Run the bench
+  with `BUN_JSC_printEachOSRExit=1` and count the lines by function to find
+  them; the output is millions of lines, so write it to a file.
+- **Garbage collection pauses the tick for about 9ms, sometimes 19ms**, about
+  twice a second at a thousand players.
+- **A `hello` is about 16ms and 2.4MB.** One goes out on every join and
+  rebirth. `spawn` still sweeps the board once, to find a body a checkpoint
+  kept, before it places a new one.
+- **Memory.** A thousand players put the process at about 550MB resident
+  before this work and about 600MB after (the JSON caches are about 40MB).
+  `docker-compose.yml` caps the container at 512MB by default, so a world
+  meant to hold a thousand needs `MEM_LIMIT` raised.
+
 ## A joiner is sent the chunks its view can reach
 
 The per-tick patch stream is bounded by how much the world changes, and since

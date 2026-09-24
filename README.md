@@ -67,7 +67,8 @@ It is the path to open when the question is whether the game still works.
   nobody walk, `--deflate` to pay for compression too, `--sample <file>` to keep one player's frames,
   `--profile <file>` for a CPU profile of the measured window alone. Run it
   with `BUN_OPTIONS=` empty if your shell sets `--smol`, which collects garbage
-  far more often than production does
+  far more often than production does. `docs/notes.md`, "A thousand players,
+  profiled", has what it measured and how to compare runs
 - `bun scripts/anchor-tiles.ts` — a one-shot, already run: rewrote
   `data/tiles.json` into the anchored sprite encoding, where a tile names its
   sheet once and every rect is measured from `TileDef.anchor`. `--check` says
