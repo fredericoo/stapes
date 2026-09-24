@@ -369,6 +369,46 @@ describe("joining and leaving", () => {
     expect(bob.hello.playerCount).toBe(2);
   });
 
+  /**
+   * A join does not yield on its own: the reads it awaits resolve without
+   * going back to the event loop, so joins that arrive together used to be
+   * seated back to back. A hundred of them held the loop for two seconds, and
+   * nobody already in the world had a tick or a message read in that time.
+   */
+  it("lets the event loop run between joins that arrive together", async () => {
+    await connect("alice");
+    const order: string[] = [];
+    const joins = ["bob", "carol", "dave"].map((actorId) => {
+      const pair = new Pair();
+      pair.client().addEventListener("message", () => {
+        if (!order.includes(actorId)) order.push(actorId);
+      });
+      return stub().join(pair.server, actorId, { admin: false });
+    });
+    setTimeout(() => order.push("loop"), 0);
+    await Promise.all(joins);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // Every joiner is seated, in the order they arrived, and the loop had a
+    // turn before the last of them.
+    expect(order.filter((one) => one !== "loop")).toEqual(["bob", "carol", "dave"]);
+    expect(order.indexOf("loop")).toBeLessThan(order.indexOf("dave"));
+  });
+
+  it("does not seat a socket that closed while it waited its turn", async () => {
+    await connect("alice");
+    const pair = new Pair();
+    const joined = stub().join(pair.server, "bob", { admin: false });
+    pair.server.close();
+    await joined;
+
+    const seated = await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as { socketsByActor: Map<string, unknown> };
+      return internals.socketsByActor.has("bob");
+    });
+    expect(seated).toBe(false);
+  });
+
   it("tells the room when somebody arrives", async () => {
     const alice = await connect("alice");
     const arrival = nextMessage(alice.ws);

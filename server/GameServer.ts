@@ -1471,6 +1471,8 @@ export class GameServer {
   private readonly socketsByActor = new Map<string, Set<GameSocket>>();
   /** {@link seated}'s answer, until somebody is seated or unseated. */
   private seatedSockets: ReadonlyArray<readonly [GameSocket, string]> | null = null;
+  /** Settles when the last join to start has finished. @see joinTurn */
+  private joining: Promise<void> = Promise.resolve();
   /**
    * The hit points each client has been told about, so an unchanged bar costs
    * nothing on the wire. Same discipline as {@link broadcastMap}: everyone is at
@@ -2766,8 +2768,52 @@ export class GameServer {
    * loading first would find this actor connectionless, throw away the body the
    * checkpoint was keeping for them, and put them back at spawn. Messages
    * arriving in the gap are safe: {@link webSocketMessage} loads for itself.
+   *
+   * **One join at a time, each after a turn of the event loop.** @see joinTurn
    */
   async join(socket: GameSocket, actorId: string, { admin }: { admin: boolean }): Promise<void> {
+    const done = await this.joinTurn();
+    try {
+      // Closed while it waited: seating it would put a body on the board for
+      // a connection that is already gone. `server/index.ts` asks the same
+      // question before it calls this, for the same reason.
+      if (socket.closed) return;
+      await this.seatJoiner(socket, actorId, { admin });
+    } finally {
+      done();
+    }
+  }
+
+  /**
+   * Wait until the joins ahead of this one have finished, and then for one
+   * turn of the event loop, and hand back the call that lets the next one go.
+   *
+   * A join is about 20ms of work that does not yield — the board sweep in
+   * `spawn`, and the `hello`, which is megabytes of JSON — and the reads it
+   * awaits resolve without going back to the event loop. So a hundred sockets
+   * opening together were seated back to back, for about two seconds, and in
+   * that time no tick ran and no message was read. Everybody already in the
+   * world stood still, and their steps arrived in one batch afterwards.
+   *
+   * The turn is a `setTimeout` rather than a microtask because the tick loop
+   * and the socket reads are both on the event loop, and only a macrotask lets
+   * them run in between. It makes a burst of joins take longer to finish, and
+   * that is the point: the players already walking come first.
+   */
+  private async joinTurn(): Promise<() => void> {
+    const ahead = this.joining;
+    let done!: () => void;
+    this.joining = new Promise<void>((resolve) => (done = resolve));
+    await ahead;
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    return done;
+  }
+
+  private async seatJoiner(
+    socket: GameSocket,
+    actorId: string,
+    { admin }: { admin: boolean },
+  ): Promise<void> {
     this.displaceSockets(actorId);
     this.ctx.acceptWebSocket(socket);
     this.seat(socket, { actorId, admin });
