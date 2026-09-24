@@ -3535,6 +3535,69 @@ describe("dying and coming back", () => {
     expect(await walkWithin(alice.ws, 1000)).not.toBeNull();
   });
 
+  it("makes up the time a long tick took, and gives up on a backlog", async () => {
+    await connect("alice");
+
+    await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as {
+        timer: ReturnType<typeof setInterval> | null;
+        tick(): void;
+        wake(): void;
+      };
+      // The loop is driven by hand below, on a clock this test owns: each tick
+      // takes as long as `durations` says, and the heartbeat comes once a
+      // millisecond whenever no tick is running.
+      if (internals.timer !== null) clearInterval(internals.timer);
+      internals.timer = null;
+      let now = 0;
+      let heartbeat: (() => void) | null = null;
+      const starts: number[] = [];
+      const durations = [10, 50, 10, 10, 10, 500, 10, 10];
+      const realNow = performance.now;
+      const realSetInterval = globalThis.setInterval;
+      performance.now = () => now;
+      globalThis.setInterval = ((beat: () => void) => {
+        heartbeat = beat;
+        return {} as ReturnType<typeof setInterval>;
+      }) as unknown as typeof setInterval;
+      internals.tick = () => {
+        now += durations[starts.push(now) - 1]!;
+      };
+      try {
+        internals.wake();
+        while (starts.length < durations.length) {
+          const before = starts.length;
+          heartbeat!();
+          if (starts.length === before) now += 1;
+        }
+      } finally {
+        performance.now = realNow;
+        globalThis.setInterval = realSetInterval;
+        internals.timer = null;
+      }
+      const T = 1000 / 30;
+      /** Started at `at`, or at most the one heartbeat after it. */
+      const startedAt = (tick: number, at: number) => {
+        expect(starts[tick]!).toBeGreaterThanOrEqual(at);
+        expect(starts[tick]!).toBeLessThanOrEqual(at + 1);
+      };
+      startedAt(0, T);
+      startedAt(1, 2 * T);
+      // The second tick ran 50ms, so the third was due before it ended: it
+      // starts as soon as it can, and the fourth is back on time rather than a
+      // whole tick after the third.
+      expect(starts[2]).toBe(starts[1]! + 50);
+      startedAt(3, 4 * T);
+      startedAt(4, 5 * T);
+      startedAt(5, 6 * T);
+      // Five hundred milliseconds is more than a backlog worth running back to
+      // back: the tick after it starts as soon as it ends, and the timeline
+      // starts again from there.
+      expect(starts[6]).toBe(starts[5]! + 500);
+      startedAt(7, starts[6]! + T);
+    });
+  });
+
   /** Alice, standing over a sword she has just taken off the floor. */
   async function armedAlice() {
     await putCheckpoint(checkpointWithSword());
@@ -3594,6 +3657,74 @@ describe("dying and coming back", () => {
     // what fell on the floor.
     const bag = equipment?.equipment.bag as { contents?: unknown[] } | null;
     expect(bag?.contents ?? []).toEqual([]);
+  });
+
+  /**
+   * The other half of what a death's batch owes: a kit that changed since the
+   * last flush and belongs to somebody still alive.
+   *
+   * The board in that batch is every chunk that moved since the last one, so
+   * it can be the board saying a sword is off the floor because somebody else
+   * picked it up. Their kit has to go in the same write, or a crash between
+   * the two loses the sword to both — which is why the batch wrote every row
+   * of every actor, until it learnt to write only the rows that can disagree
+   * with the board.
+   */
+  it("writes a bystander's changed kit in the batch that drops a body", async () => {
+    await putCheckpoint(checkpointWithSword());
+    const alice = await connect("alice");
+    await connect("bob");
+    // Everybody written as they stand, so the sword below is the one change to
+    // alice that storage has not been told about.
+    await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as {
+        session: { actorIds(): string[] };
+        saveActors(actorIds: Iterable<string>): void;
+      };
+      internals.saveActors(internals.session.actorIds());
+    });
+    alice.ws.send(
+      JSON.stringify({
+        type: "pickUp",
+        ref: { x: AWAY_FROM_SPAWN, y: 0, z: 0, stackIndex: SWORD_STACK_INDEX },
+      }),
+    );
+    await nextMessageOfType(alice.ws, "equipment");
+
+    // The batches the tick that kills bob writes, as they are handed to
+    // storage. Asked of the batch rather than of storage afterwards, because a
+    // world that goes quiet writes everybody down anyway and would answer for
+    // a death that left her out.
+    const batches = await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as {
+        ctx: { storage: { put(entries: unknown, options?: unknown): Promise<void> } };
+        session: {
+          actors: Map<string, unknown>;
+          applyDamage(actor: unknown, amount: number): void;
+        };
+        tick(): void;
+      };
+      const storage = internals.ctx.storage;
+      const put = storage.put.bind(storage);
+      const written: Record<string, unknown>[] = [];
+      storage.put = (entries, options) => {
+        if (typeof entries === "object" && entries !== null) {
+          written.push(entries as Record<string, unknown>);
+        }
+        return put(entries, options);
+      };
+      try {
+        internals.session.applyDamage(internals.session.actors.get("bob"), 10_000);
+        internals.tick();
+      } finally {
+        storage.put = put;
+      }
+      return written;
+    });
+
+    const deathBatch = batches.find((entries) => "equip:bob" in entries);
+    expect(deathBatch).toBeDefined();
+    expect(JSON.stringify(deathBatch!["equip:alice"])).toContain(`"tileId":"${SWORD}"`);
   });
 
   it("sends them back to the spawn point, not to where the last flush caught them", async () => {
@@ -5078,6 +5209,26 @@ describe("an administrator hiding", () => {
     // body in it, not her step, not her words.
     expect(seen.of("chat")).toEqual([]);
     expect(seen.of("patch").filter((patch) => mentions(patch, "alice"))).toEqual([]);
+  });
+
+  /**
+   * A damage event is addressed to a cell rather than to a body, so keeping the
+   * body out of everybody else's reach does not keep this out: a number floating
+   * over a cell says somebody is standing in it.
+   */
+  it("shows the damage done to the body to its owner alone", async () => {
+    const alice = await connect("alice");
+    const bob = await connect("bob", { admin: false });
+    await hide(alice.ws);
+    await Bun.sleep(200);
+
+    const seen = eventsWithin(bob.ws, "damage", 400);
+    const felt = eventsWithin(alice.ws, "damage", 400);
+    send(alice.ws, { type: "command", text: "/health -1" });
+
+    // The control: the harm landed, and whoever it landed on was shown it.
+    expect((await felt).map((hit) => hit.targetId)).toEqual(["alice"]);
+    expect(await seen).toEqual([]);
   });
 
   it("is left out of what somebody arriving afterwards is handed", async () => {

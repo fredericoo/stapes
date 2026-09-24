@@ -16,6 +16,7 @@
     "generate:spinner": "bun scripts/generate-crystal-spinner.ts",
     "carve:caves": "bun scripts/carve-caves.ts",
     "bench:server": "bun scripts/bench-server.ts",
+    "bench:crowd": "bun scripts/bench-crowd.ts",
     "test": "bun run test:unit && bun run test:server && bun run test:perf",
     "test:unit": "vitest run",
     "test:server": "bun test server/",

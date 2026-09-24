@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  changedCellsInChunk,
+  changedCellsOnLevel,
+  chunkifyMap,
   clearStack,
   flattenMap,
   serializeMap,
@@ -20,11 +23,22 @@ import {
   updatePlacedContents,
   updatePlacedDescription,
   updatePlacedInscription,
+  setStacks,
+  stackOnLevel,
   tileIdsInChunk,
+  type StackEdit,
 } from "./mapData";
 import { fixtureTown } from "./fixtureTown";
 import type { MapFile, PlacedTile } from "./types";
-import { MAP_FILE_VERSION, levelKey, physicalHeight } from "./types";
+import {
+  CHUNK_SIZE,
+  MAP_FILE_VERSION,
+  MAX_LEVEL,
+  MIN_LEVEL,
+  coordKey,
+  levelKey,
+  physicalHeight,
+} from "./types";
 import { fitsAtElevation, fitsTile, tilesByIdFromList } from "./validation";
 import { tile } from "./testTile";
 
@@ -648,6 +662,181 @@ describe("tileIdsInChunk", () => {
     const listed = tileIdsInChunk(chunkOf(map, 0, 0, 0));
     for (const stack of Object.values(chunkOf(map, 0, 0, 0))) {
       for (const placed of stack) expect(listed.has(placed.tileId)).toBe(true);
+    }
+  });
+});
+
+/**
+ * What differs between two versions of the board, read off the writes between
+ * them where one descends from the other.
+ *
+ * The lineage is only a shortcut to the answer comparing every key gives, so
+ * that comparison is written out here and every case is held to it.
+ */
+describe("the cells that differ between two versions", () => {
+  /** Every cell key whose stack differs, found by comparing every key both hold. */
+  function everyKeyCompared(prev: MapFile, next: MapFile, z: number): Set<string> {
+    const out = new Set<string>();
+    const before = prev.levels[levelKey(z)] ?? {};
+    const after = next.levels[levelKey(z)] ?? {};
+    for (const chunk of new Set([...Object.keys(before), ...Object.keys(after)])) {
+      const a = before[chunk] ?? {};
+      const b = after[chunk] ?? {};
+      for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) {
+        if (a[key] !== b[key]) out.add(key);
+      }
+    }
+    return out;
+  }
+
+  const grass: PlacedTile = { tileId: "grass" };
+  const stone: PlacedTile = { tileId: "stone" };
+
+  /** A seeded sequence of edits, so a failure is the same failure every run. */
+  function versions(count: number): MapFile[] {
+    let seed = 7;
+    const random = () => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed / 2147483648;
+    };
+    const cell = () => Math.floor(random() * CHUNK_SIZE * 3) - CHUNK_SIZE;
+    let map = emptyMap();
+    const out: MapFile[] = [map];
+    for (let i = 0; i < count; i++) {
+      const edits: StackEdit[] = [];
+      const writes = 1 + Math.floor(random() * 4);
+      for (let w = 0; w < writes; w++) {
+        const roll = random();
+        // Some writes put back the very stack that was there, which a diff by
+        // lineage must still report as no change.
+        const z = random() < 0.8 ? 0 : -1;
+        const x = cell();
+        const y = cell();
+        const stack =
+          roll < 0.25
+            ? []
+            : roll < 0.35
+              ? getStack(map, x, y, z)
+              : roll < 0.7
+                ? [grass]
+                : [grass, stone];
+        edits.push({ x, y, z, stack });
+      }
+      map = setStacks(map, edits);
+      out.push(map);
+    }
+    return out;
+  }
+
+  it("is what comparing every key finds, between any version and any later one", () => {
+    const all = versions(300);
+    for (let i = 0; i < all.length; i += 7) {
+      for (let j = i; j < all.length; j += 11) {
+        for (const z of [0, -1, 1]) {
+          expect(changedCellsOnLevel(all[i]!, all[j]!, z)).toEqual(
+            everyKeyCompared(all[i]!, all[j]!, z),
+          );
+        }
+      }
+    }
+  });
+
+  it("is what comparing every key finds, the other way round and between strangers", () => {
+    const all = versions(120);
+    const stranger = chunkifyMap(flattenMap(all[60]!));
+    for (const [prev, next] of [
+      [all[90]!, all[30]!],
+      [all[45]!, stranger],
+      [stranger, all[119]!],
+    ] as const) {
+      for (const z of [0, -1]) {
+        expect(changedCellsOnLevel(prev, next, z)).toEqual(everyKeyCompared(prev, next, z));
+      }
+    }
+  });
+
+  it("is what comparing every key finds within one chunk", () => {
+    const all = versions(200);
+    for (let i = 0; i < all.length; i += 13) {
+      const j = Math.min(all.length - 1, i + 17);
+      for (const chunk of ["-1,-1", "0,0", "1,0", "0,1"]) {
+        const prev = all[i]!;
+        const next = all[j]!;
+        const expected = new Set(
+          [...everyKeyCompared(prev, next, 0)].filter((key) => {
+            const [x, y] = key.split(",").map(Number) as [number, number];
+            return chunkKeyFor(x, y) === chunk;
+          }),
+        );
+        expect(changedCellsInChunk(prev, next, 0, chunk)).toEqual(expected);
+      }
+    }
+  });
+});
+
+/**
+ * The keys a read of the board is addressed by, which are kept and handed out
+ * again rather than built for every read. What is kept has to be exactly what
+ * was built: a key that differs by a character reads an empty cell.
+ */
+describe("board keys", () => {
+  it("names a chunk as it always did, from the cache and past it", () => {
+    const cells = [
+      [0, 0],
+      [15, 15],
+      [16, -1],
+      [-1, -17],
+      [-16, 16],
+      [3.5, -0.5],
+      [-0, 0],
+      // The corners of the chunks kept, and the first chunks past them.
+      [-0x8000 * CHUNK_SIZE, 0x7fff * CHUNK_SIZE],
+      [0x7fff * CHUNK_SIZE, -0x8000 * CHUNK_SIZE],
+      [0x8000 * CHUNK_SIZE, 0],
+      [0, -0x8001 * CHUNK_SIZE],
+    ] as const;
+    for (const [x, y] of cells) {
+      const built = `${Math.floor(x / CHUNK_SIZE)},${Math.floor(y / CHUNK_SIZE)}`;
+      expect(chunkKeyFor(x, y)).toBe(built);
+      // A second time, which is the one a cache answers.
+      expect(chunkKeyFor(x, y)).toBe(built);
+    }
+  });
+
+  it("names chunks correctly on either side of the cache starting again", () => {
+    // More chunks than the cache holds, so it is emptied partway through; the
+    // first ones are asked again afterwards.
+    const wrong: string[] = [];
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 0; i < 70_000; i++) {
+        const x = (i % 300) * CHUNK_SIZE;
+        const y = -Math.floor(i / 300) * CHUNK_SIZE;
+        const key = chunkKeyFor(x, y);
+        if (key !== `${i % 300},${-Math.floor(i / 300)}`) wrong.push(key);
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  it("names a level as String does, inside the levels a map can have and out of them", () => {
+    for (let z = MIN_LEVEL - 2; z <= MAX_LEVEL + 2; z++) expect(levelKey(z)).toBe(String(z));
+    expect(levelKey(-0)).toBe("0");
+    expect(levelKey(1.5)).toBe("1.5");
+  });
+
+  it("reads a column's cell on each level as getStack does", () => {
+    const map = replaceStack(
+      replaceStack(emptyMap(), -3, 20, 0, [{ tileId: "grass-2" }]),
+      -3,
+      20,
+      2,
+      [{ tileId: "stone" }],
+    );
+    const chunkKey = chunkKeyFor(-3, 20);
+    const cellKey = coordKey(-3, 20);
+    for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+      const stack = getStack(map, -3, 20, z);
+      expect(stackOnLevel(map, z, chunkKey, cellKey)).toBe(stack.length > 0 ? stack : undefined);
     }
   });
 });

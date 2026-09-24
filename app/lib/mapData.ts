@@ -34,6 +34,21 @@ export function getStack(map: MapFile, x: number, y: number, z: number): PlacedT
   return map.levels[levelKey(z)]?.[chunkKeyFor(x, y)]?.[coordKey(x, y)] ?? [];
 }
 
+/**
+ * {@link getStack} for a loop down one column, which reads the same cell on
+ * every level: the caller builds the cell's chunk key and cell key once, rather
+ * than once a level. Undefined for an empty cell, where `getStack` makes an
+ * empty array.
+ */
+export function stackOnLevel(
+  map: MapFile,
+  z: number,
+  chunkKey: string,
+  cellKey: string,
+): PlacedTile[] | undefined {
+  return map.levels[levelKey(z)]?.[chunkKey]?.[cellKey];
+}
+
 const tileIdsByChunk = new WeakMap<ChunkCells, ReadonlySet<string>>();
 
 /**
@@ -67,9 +82,49 @@ export function tileIdsInChunk(chunk: ChunkCells): ReadonlySet<string> {
   return found;
 }
 
-/** Chunk a cell belongs to. Hot enough to inline the arithmetic. */
+/**
+ * Every chunk key built so far, by the chunk's coordinates packed into one
+ * number. @see chunkKeyFor
+ */
+const chunkKeys = new Map<number, string>();
+/** How far from the origin, in chunks either way, a key is kept in {@link chunkKeys}. */
+const CHUNK_KEY_SPAN = 0x8000;
+/**
+ * How many keys {@link chunkKeys} holds before it is emptied and starts again,
+ * so that an editor camera panned across empty space cannot grow it for ever.
+ * A world needs a few hundred.
+ */
+const MAX_CHUNK_KEYS = 0x10000;
+
+/**
+ * Chunk a cell belongs to.
+ *
+ * **The same string each time for the same chunk.** Nearly every read of the
+ * board builds one of these, and a string built afresh has to be formatted and
+ * then hashed before it can index a level. At a thousand players `getStack` was
+ * an eighth of the tick. The keys kept are one per chunk anything has asked
+ * about, up to {@link MAX_CHUNK_KEYS}; a chunk further out than any map reaches
+ * gets a new string each time.
+ */
 export function chunkKeyFor(x: number, y: number): string {
-  return `${Math.floor(x / CHUNK_SIZE)},${Math.floor(y / CHUNK_SIZE)}`;
+  const cx = Math.floor(x / CHUNK_SIZE);
+  const cy = Math.floor(y / CHUNK_SIZE);
+  if (
+    cx >= -CHUNK_KEY_SPAN &&
+    cx < CHUNK_KEY_SPAN &&
+    cy >= -CHUNK_KEY_SPAN &&
+    cy < CHUNK_KEY_SPAN
+  ) {
+    const packed = (cx + CHUNK_KEY_SPAN) * 2 * CHUNK_KEY_SPAN + (cy + CHUNK_KEY_SPAN);
+    let key = chunkKeys.get(packed);
+    if (key === undefined) {
+      if (chunkKeys.size >= MAX_CHUNK_KEYS) chunkKeys.clear();
+      key = `${cx},${cy}`;
+      chunkKeys.set(packed, key);
+    }
+    return key;
+  }
+  return `${cx},${cy}`;
 }
 
 /** Key of the chunk at chunk-space coordinates — for addressing a rect's chunks. */
@@ -83,6 +138,90 @@ export function chunkIndexOf(v: number): number {
 }
 
 /**
+ * Where a copied chunk or level came from, and what was written into the copy.
+ *
+ * {@link setStacks} copies a chunk, and the level holding it, for every edit,
+ * and this is the note it leaves on each copy: the object it was copied from,
+ * and the keys written into it — cell keys for a chunk, chunk keys for a
+ * level. A diff between a version and one it descends from can then read the
+ * writes between the two instead of comparing every key both hold, which on a
+ * floor a thousand people are walking about was a few hundred reads per chunk
+ * that moved, for the two cells in it that did. @see changedCellsOnLevel
+ *
+ * **The source is held weakly.** Nothing here may keep an old version of the
+ * board alive, and a diff against a version nobody holds any more has no
+ * caller to answer. A link that has gone reads as no lineage at all, and so
+ * does an object made any way but by {@link setStacks}: the diff then compares
+ * every key, as it always did.
+ */
+type Lineage = { parent: WeakRef<object>; keys: string[] };
+const lineage = new WeakMap<object, Lineage>();
+
+/**
+ * How many copies up a lineage a diff reads before comparing every key
+ * instead. A floor with a thousand people on it is copied a few hundred times
+ * a tick, and a step up the lineage is a lookup and a push.
+ */
+const MAX_LINEAGE_STEPS = 1024;
+
+/**
+ * The keys written into `record` since `ancestor`, or null when `ancestor` is
+ * not within {@link MAX_LINEAGE_STEPS} copies up its lineage — which a caller
+ * answers by comparing every key, as it would with no lineage at all. The same
+ * key may come back more than once.
+ */
+function keysWrittenSince(ancestor: object, record: object): string[] | null {
+  const keys: string[] = [];
+  let at = record;
+  for (let steps = 0; steps < MAX_LINEAGE_STEPS; steps++) {
+    const link = lineage.get(at);
+    if (!link) return null;
+    for (const key of link.keys) keys.push(key);
+    const parent = link.parent.deref();
+    if (parent === undefined) return null;
+    if (parent === ancestor) return keys;
+    at = parent;
+  }
+  return null;
+}
+
+/**
+ * The chunk this one was copied from by {@link setStacks}, and the cell keys
+ * written into the copy in the order they were written — or null for a chunk
+ * made any other way, or whose source nobody holds any more. @see Lineage
+ *
+ * For a cache kept against chunk objects, which a copy can inherit from its
+ * source for every cell it was not handed. @see `../../server/chunkJson`
+ */
+export function chunkCopiedFrom(
+  chunk: ChunkCells,
+): { from: ChunkCells; keys: readonly string[] } | null {
+  const link = lineage.get(chunk);
+  if (!link) return null;
+  const from = link.parent.deref() as ChunkCells | undefined;
+  return from === undefined ? null : { from, keys: link.keys };
+}
+
+/** Add the cell keys whose stack differs between two versions of one chunk. */
+function addChangedCells(out: Set<string>, a: ChunkCells | undefined, b: ChunkCells | undefined) {
+  if (a === b) return;
+  // Only the cells written between the two can differ: a copy shares every
+  // stack it was not handed. Each is still compared, because a write can put
+  // back what was there.
+  const written = a && b ? keysWrittenSince(a, b) : null;
+  if (written) {
+    for (const key of written) if (a![key] !== b![key]) out.add(key);
+    return;
+  }
+  for (const key in b) {
+    if (a?.[key] !== b[key]) out.add(key);
+  }
+  for (const key in a) {
+    if (b?.[key] === undefined) out.add(key);
+  }
+}
+
+/**
  * Cell keys whose stack differs between two versions of a level.
  *
  * Leans entirely on copy-on-write: an edit rewrites the one chunk it touched
@@ -90,8 +229,12 @@ export function chunkIndexOf(v: number): number {
  * thousands of cells before a single key is read. A walk comes out of this as
  * exactly two cells on a 4565-cell floor.
  *
+ * Where `next` descends from `prev` by way of {@link setStacks}, only the
+ * chunks and cells written between the two are looked at. @see Lineage
+ *
  * Callers use it to answer "is it worth rebuilding everything?" — so it returns
  * the cells rather than a boolean, and stays silent about what changed in them.
+ * The set's order is not part of the answer.
  */
 export function changedCellsOnLevel(prev: MapFile, next: MapFile, z: number): Set<string> {
   const out = new Set<string>();
@@ -99,17 +242,14 @@ export function changedCellsOnLevel(prev: MapFile, next: MapFile, z: number): Se
   const after = next.levels[levelKey(z)];
   if (before === after) return out;
 
-  const chunkKeys = new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})]);
-  for (const chk of chunkKeys) {
-    const a = before?.[chk];
-    const b = after?.[chk];
-    if (a === b) continue;
-    for (const key in b) {
-      if (a?.[key] !== b[key]) out.add(key);
-    }
-    for (const key in a) {
-      if (b?.[key] === undefined) out.add(key);
-    }
+  const chunks = before && after ? keysWrittenSince(before, after) : null;
+  if (chunks) {
+    for (const chk of chunks) addChangedCells(out, before![chk], after![chk]);
+    return out;
+  }
+  for (const chk in after) addChangedCells(out, before?.[chk], after[chk]);
+  for (const chk in before) {
+    if (after?.[chk] === undefined) addChangedCells(out, before[chk], undefined);
   }
   return out;
 }
@@ -133,16 +273,7 @@ export function changedCellsInChunk(
   chunk: string,
 ): Set<string> {
   const out = new Set<string>();
-  const before = prev.levels[levelKey(z)]?.[chunk];
-  const after = next.levels[levelKey(z)]?.[chunk];
-  if (before === after) return out;
-
-  for (const key in after) {
-    if (before?.[key] !== after[key]) out.add(key);
-  }
-  for (const key in before) {
-    if (after?.[key] === undefined) out.add(key);
-  }
+  addChangedCells(out, prev.levels[levelKey(z)]?.[chunk], next.levels[levelKey(z)]?.[chunk]);
   return out;
 }
 
@@ -697,8 +828,13 @@ export function setStacks(map: MapFile, edits: readonly StackEdit[]): MapFile {
   if (!edits.length) return map;
 
   const levels = { ...map.levels };
-  // Chunks copied so far, so several edits landing in one chunk share a copy.
+  // Levels copied so far, so several chunks written in one level share a copy:
+  // until this returns nobody else can see it, so it is written in place.
+  const copiedLevels = new Map<string, LevelChunks>();
+  // Chunks copied so far, so several edits landing in one chunk share a copy,
+  // with the keys written into each. @see Lineage
   const copied = new Map<string, ChunkCells>();
+  const writtenInto = new Map<ChunkCells, string[]>();
   // What each copy's source already knew it held, and the stacks written into
   // it since. @see tileIdsInChunk
   const inherited = new Map<ChunkCells, { ids: ReadonlySet<string>; written: PlacedTile[][] }>();
@@ -711,17 +847,29 @@ export function setStacks(map: MapFile, edits: readonly StackEdit[]): MapFile {
 
     let chunk = copied.get(path);
     if (!chunk) {
-      const level = levels[zk];
-      const source = level?.[chk];
+      let level = copiedLevels.get(zk);
+      if (!level) {
+        const sourceLevel = levels[zk];
+        level = { ...sourceLevel };
+        copiedLevels.set(zk, level);
+        levels[zk] = level;
+        if (sourceLevel) lineage.set(level, { parent: new WeakRef(sourceLevel), keys: [] });
+      }
+      const source = level[chk];
       chunk = { ...source };
       copied.set(path, chunk);
-      levels[zk] = { ...level, [chk]: chunk };
+      level[chk] = chunk;
+      lineage.get(level)?.keys.push(chk);
+      const keys: string[] = [];
+      writtenInto.set(chunk, keys);
+      if (source) lineage.set(chunk, { parent: new WeakRef(source), keys });
       const ids = source && tileIdsByChunk.get(source);
       if (ids) inherited.set(chunk, { ids, written: [] });
     }
     inherited.get(chunk)?.written.push(edit.stack);
 
     const ck = coordKey(edit.x, edit.y);
+    writtenInto.get(chunk)!.push(ck);
     if (edit.stack.length === 0) {
       delete chunk[ck];
       deleted = true;
@@ -747,18 +895,20 @@ export function setStacks(map: MapFile, edits: readonly StackEdit[]): MapFile {
   return { version: MAP_FILE_VERSION, levels };
 }
 
-/** Drop chunks and levels an edit emptied, so identity means "has content". */
+/**
+ * Drop chunks and levels an edit emptied, so identity means "has content".
+ *
+ * Every level named here is the copy {@link setStacks} made for this edit,
+ * which nobody else holds yet, so an emptied chunk is taken out of it in place.
+ * Its key is already in the copy's lineage: it was written.
+ */
 function pruneEmpty(levels: Record<string, LevelChunks>, copied: Map<string, ChunkCells>) {
   const touchedLevels = new Set<string>();
   for (const path of copied.keys()) {
     const [zk, chk] = path.split("/");
     touchedLevels.add(zk!);
     const level = levels[zk!];
-    if (level && isEmptyRecord(level[chk!]!)) {
-      const next = { ...level };
-      delete next[chk!];
-      levels[zk!] = next;
-    }
+    if (level && isEmptyRecord(level[chk!]!)) delete level[chk!];
   }
   for (const zk of touchedLevels) {
     if (isEmptyRecord(levels[zk]!)) delete levels[zk];

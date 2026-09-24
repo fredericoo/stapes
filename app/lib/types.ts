@@ -1166,8 +1166,19 @@ export function parseCoordKey(key: string): { x: number; y: number } {
   return { x: Number(xs), y: Number(ys) };
 }
 
+/**
+ * The key of every level a map can have, built once.
+ *
+ * A level key is the first step of every read of the board, and `String(z)`
+ * made a new string for each one, which the engine had to hash before it could
+ * index the map with it. @see `./mapData`'s `chunkKeyFor`
+ */
+const LEVEL_KEYS: readonly string[] = Array.from({ length: MAX_LEVEL - MIN_LEVEL + 1 }, (_, i) =>
+  String(MIN_LEVEL + i),
+);
+
 export function levelKey(z: number): string {
-  return String(z);
+  return LEVEL_KEYS[z - MIN_LEVEL] ?? String(z);
 }
 
 export function clampLevel(z: number): number {

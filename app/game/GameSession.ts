@@ -61,6 +61,7 @@ import {
   listResidentBodies,
   residentHome,
   residentOwnerId,
+  actorStillAt,
   despawnActor,
   findActorAnywhere,
   listActorOwners,
@@ -1051,6 +1052,11 @@ function facingToward(from: Coord, to: Coord): Direction | null {
   if (dx === 0 && dy === 0) return null;
   if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? "e" : "w";
   return dy > 0 ? "s" : "n";
+}
+
+/** A cell and its level, as a key. @see GameSession.walkingInto */
+function walkKey(cell: Coord): string {
+  return `${cell.x},${cell.y},${cell.z}`;
 }
 
 /**
@@ -2173,6 +2179,17 @@ export class GameSession implements PlaySession {
   /** Insertion-ordered, which is what makes {@link tick} deterministic. */
   private readonly actors = new Map<string, ActorRuntime>();
   /**
+   * The actors walking into each cell, keyed by {@link walkKey}, for
+   * {@link destinationTaken} — which is asked for every step anybody tries,
+   * and used to ask every actor in the world.
+   *
+   * Written where a walk starts ({@link applyStepRequest} is the only place one
+   * does) and wherever one ends or its body leaves the world. Read with each
+   * entry's walk checked against the cell all the same, so an entry that
+   * outlived its walk is passed over rather than trusted.
+   */
+  private readonly walkingInto = new Map<string, ActorRuntime[]>();
+  /**
    * Who is standing on each tile, so {@link nearestOnTile} answers from the
    * handful of bodies that could possibly match rather than from every actor
    * alive.
@@ -3001,7 +3018,8 @@ export class GameSession implements PlaySession {
     const { at } = restored;
     // Only a body that was not on the board arrives. A wake re-seats
     // somebody onto the body the checkpoint kept, which nobody saw leave.
-    if (!findActorAnywhere(this.map, id)) {
+    let where: (Coord & { stackIndex: number }) | null = findActorAnywhere(this.map, id);
+    if (!where) {
       const cell = at ? findEntryCell(this.map, this.tilesById, at, this.spawnAt) : this.spawnAt;
       const stackIndex = getStack(this.map, cell.x, cell.y, cell.z).length;
       this.map = spawnActor(this.map, id, cell, at?.direction);
@@ -3009,8 +3027,15 @@ export class GameSession implements PlaySession {
       if (announce && !restored.hidden) {
         this.noteTransition("appear", PLAYER_TILE_ID, cell, stackIndex);
       }
+      where = { x: cell.x, y: cell.y, z: cell.z, stackIndex };
     }
     this.addActor(id, { ...restored, bodyTileId: PLAYER_TILE_ID });
+    // Where the body is, known here for nothing, so the first question asked
+    // about it — the `hello` that follows every join asks at once — is one
+    // stack read rather than a second sweep of the board. @see tryLocate
+    const actor = this.actors.get(id)!;
+    const placed = actorStillAt(this.map, id, where);
+    if (placed) this.remember(actor, placed);
   }
 
   /**
@@ -3079,6 +3104,7 @@ export class GameSession implements PlaySession {
     // and has spent nothing — but the run is dropped with the body all the same,
     // so a player who reconnects is not mid-spell in a world they have left.
     this.cancelCasting(leaving);
+    this.forgetWalk(leaving);
     this.actors.delete(id);
     // Found before the tile comes off, which is the only record of where it
     // stood — and a player leaving is their body going, which plays its way out.
@@ -3410,18 +3436,21 @@ export class GameSession implements PlaySession {
     }
 
     const loc = locateActor(this.map, actor.id, memo?.loc);
-    if (loc) {
-      const zk = levelKey(loc.z);
-      const ck = chunkKeyFor(loc.x, loc.y);
-      actor.memo = {
-        map: this.map,
-        loc,
-        levelKey: zk,
-        chunkKey: ck,
-        chunk: this.map.levels[zk]?.[ck],
-      };
-    }
+    if (loc) this.remember(actor, loc);
     return loc;
+  }
+
+  /** Record where an actor stands on the current map. @see ActorRuntime.memo */
+  private remember(actor: ActorRuntime, loc: ActorLocation) {
+    const zk = levelKey(loc.z);
+    const ck = chunkKeyFor(loc.x, loc.y);
+    actor.memo = {
+      map: this.map,
+      loc,
+      levelKey: zk,
+      chunkKey: ck,
+      chunk: this.map.levels[zk]?.[ck],
+    };
   }
 
   private locate(actor: ActorRuntime): ActorLocation {
@@ -5892,6 +5921,7 @@ export class GameSession implements PlaySession {
     // going. No notice, on the line above's terms.
     this.cancelCasting(target);
 
+    this.forgetWalk(target);
     this.actors.delete(target.id);
     this.forgetTileIndex();
     // A body that dies goes of its own accord, as a decayed tile does, and
@@ -5899,7 +5929,11 @@ export class GameSession implements PlaySession {
     if (loc && !target.hidden) {
       this.noteTransition("disappear", loc.placed.tileId, loc, loc.stackIndex);
     }
-    this.map = despawnActor(this.map, target.id);
+    // Off the cell just located, as {@link despawn} takes a leaver off: the
+    // sweep `despawnActor` makes is for a body this session cannot find.
+    this.map = loc
+      ? removeTileAt(this.map, loc.x, loc.y, loc.z, loc.stackIndex)
+      : despawnActor(this.map, target.id);
     this.pendingHurt.delete(target.id);
     for (const actor of this.actors.values()) {
       if (actor.targetId === target.id) actor.targetId = null;
@@ -6387,7 +6421,12 @@ export class GameSession implements PlaySession {
         actor.statuses,
         tickMs,
         {
-          hp: this.hpOf(actor) ?? base.maxHp,
+          // `battlerOf`, from the base just read rather than from a second one.
+          hp:
+            this.hpOf(
+              actor,
+              withStatusModifiers(base, actor.statuses, this.statusDefs, actor.hp ?? base.maxHp),
+            ) ?? base.maxHp,
           maxHp: base.maxHp,
           statuses: actor.statuses,
         },
@@ -7430,8 +7469,10 @@ export class GameSession implements PlaySession {
    * moment an actor is created it may have no body at all. Null means the body
    * has none to give.
    */
-  private hpOf(actor: ActorRuntime): number | null {
-    const stats = this.battlerOf(actor);
+  private hpOf(
+    actor: ActorRuntime,
+    stats: FightingStats | null = this.battlerOf(actor),
+  ): number | null {
     if (!stats) return null;
     actor.hp ??= stats.maxHp;
     // Clamped on read rather than on edit, so lowering a tile's maximum in the
@@ -10403,6 +10444,7 @@ export class GameSession implements PlaySession {
    */
   private moveThrough(actor: ActorRuntime, to: Coord) {
     const loc = this.locate(actor);
+    this.forgetWalk(actor);
     actor.walk = null;
     actor.fall = null;
     actor.slide = null;
@@ -10595,6 +10637,11 @@ export class GameSession implements PlaySession {
     const loc = this.locate(actor);
     // Include leftover accumulator so 60fps+ renders interpolate between 30Hz ticks.
     const visualExtra = this.accumulatorMs;
+    // One reading of the battler for both figures below, which is one per actor
+    // per tick fewer. Except on the tick hit points are first filled in: a
+    // status formula reads them, so the maximum is read again once they are.
+    const hpUnset = actor.hp == null;
+    const stats = this.battlerOf(actor);
     return {
       id: actor.id,
       name: actor.name,
@@ -10626,8 +10673,8 @@ export class GameSession implements PlaySession {
       strikeProgress: actor.strike
         ? Math.min(1, (actor.strike.elapsedMs + visualExtra) / STRIKE_DURATION_MS)
         : 0,
-      hp: this.hpOf(actor),
-      maxHp: this.battlerOf(actor)?.maxHp ?? null,
+      hp: this.hpOf(actor, stats),
+      maxHp: (hpUnset ? this.battlerOf(actor) : stats)?.maxHp ?? null,
       rating: this.ratingOf(actor),
       // By reference, like the kit below: `advanceStatuses` replaces the list
       // wholesale, so the same array across two ticks is the same answer.
@@ -10653,6 +10700,24 @@ export class GameSession implements PlaySession {
    */
   actorSnapshots(): ActorSnapshot[] {
     return [...this.actors.values()].map((a) => this.actorSnapshot(a));
+  }
+
+  /**
+   * {@link actorSnapshots}, of the actors standing where `keep` says and of
+   * nobody else — in the same order, without building the rest.
+   *
+   * A `hello` wants the bodies near one joiner, and with a thousand players
+   * building a snapshot of everybody in order to keep a hundred of them was
+   * most of what choosing them cost. An actor that is not on the board is
+   * left out rather than thrown over, which {@link actorSnapshots} does.
+   */
+  actorSnapshotsWhere(keep: (id: string, at: Coord) => boolean): ActorSnapshot[] {
+    const out: ActorSnapshot[] = [];
+    for (const actor of this.actors.values()) {
+      const loc = this.tryLocate(actor);
+      if (loc && keep(actor.id, loc)) out.push(this.actorSnapshot(actor));
+    }
+    return out;
   }
 
   /**
@@ -10895,6 +10960,7 @@ export class GameSession implements PlaySession {
       w.direction,
       this.tilesById,
     );
+    this.forgetWalk(actor);
     actor.walk = null;
   }
 
@@ -10919,15 +10985,30 @@ export class GameSession implements PlaySession {
    * against everybody. @see ../lib/validation's `FitOpts`
    */
   private destinationTaken(cell: Coord, except: ActorRuntime): boolean {
+    const walkers = this.walkingInto.get(walkKey(cell));
+    if (walkers === undefined) return false;
     const throughPlayers = this.defFor(except).id === PLAYER_TILE_ID;
-    for (const other of this.actors.values()) {
+    for (const other of walkers) {
       if (other === except) continue;
       const to = other.walk?.to;
       if (!to || to.x !== cell.x || to.y !== cell.y || to.z !== cell.z) continue;
+      if (this.actors.get(other.id) !== other) continue;
       if (throughPlayers && isPlayerBody(this.locate(other).placed)) continue;
       return true;
     }
     return false;
+  }
+
+  /** Take an actor's walk, if it has one, off the cell it was walking into. @see walkingInto */
+  private forgetWalk(actor: ActorRuntime) {
+    const to = actor.walk?.to;
+    if (!to) return;
+    const key = walkKey(to);
+    const walkers = this.walkingInto.get(key);
+    if (walkers === undefined) return;
+    const at = walkers.indexOf(actor);
+    if (at >= 0) walkers.splice(at, 1);
+    if (walkers.length === 0) this.walkingInto.delete(key);
   }
 
   /**
@@ -10959,6 +11040,9 @@ export class GameSession implements PlaySession {
    * `/play` or a step a networked client has already predicted.
    */
   private applyStepRequest(actor: ActorRuntime, request: StepRequest): boolean {
+    // Nothing held, which is every idle body on every tick: `chooseStep`
+    // answers nothing for it, so nothing below would happen.
+    if (request.directions.length === 0) return false;
     const loc = this.locate(actor);
     const choice = chooseStep(
       this.map,
@@ -11002,6 +11086,7 @@ export class GameSession implements PlaySession {
     // is somebody else's doing.
     if (actor.casting) return false;
 
+    this.forgetWalk(actor);
     actor.walk = {
       from: { x: loc.x, y: loc.y, z: loc.z },
       to: choice.step.to,
@@ -11009,6 +11094,10 @@ export class GameSession implements PlaySession {
       elapsedMs: 0,
       durationMs: this.walkDurationOf(actor, loc),
     };
+    const key = walkKey(choice.step.to);
+    const walkers = this.walkingInto.get(key);
+    if (walkers === undefined) this.walkingInto.set(key, [actor]);
+    else walkers.push(actor);
     return true;
   }
 

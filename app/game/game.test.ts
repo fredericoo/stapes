@@ -1986,3 +1986,26 @@ describe("a step never crosses a sealed floor plane", () => {
     });
   });
 });
+
+describe("the snapshots of the actors a filter keeps", () => {
+  it("are the ones actorSnapshots would have kept, in the same order", () => {
+    let map = mapWithPlayer({ x: 0, y: 0 });
+    for (let x = -6; x <= 6; x++) {
+      for (let y = -6; y <= 6; y++) {
+        if (x !== 0 || y !== 0) map = replaceStack(map, x, y, 0, [{ tileId: "grass" }]);
+      }
+    }
+    const session = new GameSession(map, tiles);
+    ["a", "b", "c", "d", "e"].forEach((id, i) => {
+      session.spawn(id, { at: { x: i - 2, y: 3, z: 0 } });
+    });
+    const keep = (id: string, at: { x: number; y: number }) => id === "c" || at.x > 0;
+
+    // Everybody's first, which is also what fills in hit points the first
+    // time anybody asks: the filtered call must not be the one that does.
+    const everybody = session.actorSnapshots();
+    const kept = session.actorSnapshotsWhere(keep);
+    expect(kept).toEqual(everybody.filter((snapshot) => keep(snapshot.id, snapshot)));
+    expect(kept.map((snapshot) => snapshot.id)).toEqual(["c", "d", "e"]);
+  });
+});
