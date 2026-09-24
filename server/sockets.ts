@@ -11,29 +11,35 @@
  */
 
 /**
- * How the game socket compresses: the server's frames one message at a time,
- * and each client's frames with a decompressor of that connection's own.
+ * Whether the game socket compresses: it does not, because Safari cannot read
+ * what Bun compresses.
  *
- * **Safari compresses against everything it sent before, whatever the
- * handshake says.** With `perMessageDeflate: true`, Bun answers every offer
- * with `client_no_context_takeover` and reads client frames with one
- * decompressor shared by every socket and reset between messages. Safari 27
- * compresses each message against the ones before it anyway, so its second
- * message — the second step of a walk — refers back to bytes the server has
- * already thrown away. Bun fails to inflate it and drops the connection
- * without a close frame, which Safari reports as "The network connection was
- * lost", and the page reconnects into the same thing. Chrome resets as it is
- * asked to, which is why only Safari looped.
+ * **Bun seals most of the frames it compresses.** A message that compresses
+ * small — every ordinary patch, and larger ones that compress well — goes out
+ * as a complete deflate stream, final block and all, followed by a stray zero
+ * byte. Only messages that stay large compressed, like a `hello`, go out as the
+ * open, sync-flushed stream RFC 7692 describes. Chrome reads both. Safari reads
+ * a `hello` and the first sealed patch after it, and loses the connection at
+ * the next one: "The network connection was lost", a moment after joining and
+ * at once when walking, since a walk is what sends patches. The page
+ * reconnects into the same thing, over and over. One decompressor kept for a
+ * whole connection, which is how Safari appears to read, behaves the same way:
+ * nothing after the first sealed message decodes.
  *
- * A dedicated decompressor keeps each connection's window, so Bun stops asking
- * for `client_no_context_takeover` and reads a client that resets and one that
- * does not alike. It costs about 16KB a connection, 16MB at a thousand. Bun
- * 1.3.8's dedicated decompressor dropped the same messages and 1.4.2's reads
- * them; `server/sockets.test.ts` holds it to that. The server's own frames stay
- * on the shared compressor, which keeps no state between messages and says so
- * with `server_no_context_takeover`.
+ * **It broke when compression started, not when it was agreed.** Bun agreed to
+ * `permessage-deflate` from the day it was switched on, but compressed nothing
+ * until `send` was told to (#279), and Safari stopped staying connected that
+ * day. Safari's own compressed messages were read fine throughout.
+ *
+ * A compressor per socket (`compress: "dedicated"`) sends only open streams,
+ * which such a decompressor reads, but holds about 147KB a socket (147MB at a
+ * thousand) and is the slowest of the three on the thread that runs the tick:
+ * a patch-sized frame took about 15µs to send through it, 11µs through the
+ * shared compressor and 2µs raw. Off, then, until a setting is proven against
+ * a real Safari, and `server/sockets.test.ts` says what that setting must
+ * never send.
  */
-export const PER_MESSAGE_DEFLATE = { compress: "shared", decompress: "dedicated" } as const;
+export const PER_MESSAGE_DEFLATE = false;
 
 /** What a socket can be asked to do, once the transport is abstracted away. */
 export interface Transport {

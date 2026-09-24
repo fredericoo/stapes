@@ -2706,16 +2706,17 @@ one part of what is left is most of it:
 
 **What is left**, for whoever takes this further:
 
-- **Compression is the largest cost production would add, and the bench leaves
-  it out.** Measured with two hundred real sockets: a raw `ws.send` is about
-  3.5µs a frame, and the shared deflate `server/index.ts` asks for is about 18µs
-  at 600 characters and 26µs at 3KB. The dedicated compressors are slower at
-  these sizes, not faster. A thousand clients at 30 a second is 30,000 frames a
-  second, which deflated is over half a second of the tick thread's every
-  second. With `--deflate` on, the bench's rate halves. Raising
-  `COMPRESS_MIN_LENGTH` so that ordinary patches go raw trades that for about
-  60KB/s per player. The patch itself could be smaller: an actor id is a
-  36-character UUID and appears in every cell and event about that actor.
+- **Compression would be the largest cost on the tick thread, and it is off.**
+  Measured with two hundred real sockets: a raw `ws.send` is about 3.5µs a
+  frame, and the shared deflate is about 18µs at 600 characters and 26µs at
+  3KB. The dedicated compressors are slower at these sizes, not faster. A
+  thousand clients at 30 a second is 30,000 frames a second, which deflated is
+  over half a second of the tick thread's every second; with `--deflate` on,
+  the bench's rate halves. It is off for a different reason — Safari cannot read
+  what Bun compresses (see "A frame is compressed only when `send` is told
+  to") — and what that costs is bandwidth: about 60KB/s per player. The patch
+  itself could be smaller: an actor id is a 36-character UUID and appears in
+  every cell and event about that actor.
 - **Each client costs about 11µs a tick whatever happens near it**: 5µs to cut,
   3µs to serialize, 3µs to flatten and send. At a thousand that is 11ms a tick
   before anything has changed. Moving the cut and serialization to workers is
@@ -3036,32 +3037,43 @@ flag. Measured against a local world:
   every join and every rebirth, so a player who dies often is also a player who
   downloads the map often.
 
-**What a client sends is decompressed per socket.** `perMessageDeflate: true`
-answers every offer with `client_no_context_takeover` and reads client frames
-with one decompressor shared by every socket, reset between messages. Safari 27
-compresses each message against the ones it sent before whatever the handshake
-says, so it joined, received its `hello`, and was dropped the moment it sent a
-second message — the second step of a walk. Bun cannot inflate a frame that
-refers back to bytes it has already thrown away, and it closes the socket
-without a close frame, which Safari reports as "The network connection was
-lost". The page reconnected into the same thing, over and over, while Chrome,
-which resets as asked, played normally. `PER_MESSAGE_DEFLATE` in
-`server/sockets.ts` gives each socket a dedicated decompressor instead: Bun
-stops asking for `client_no_context_takeover`, and reads a client that resets
-between messages and one that does not. It costs about 16KB a socket, 16MB at
-a thousand.
+**Compression is off again, because Safari cannot read it.** Safari 27 on
+macOS and iOS joined, received its `hello`, and lost the connection a moment
+later — at once if the player walked — while Chrome played normally. The page
+reconnected into the same thing, over and over. It started with the change
+above: Bun had agreed to `permessage-deflate` for as long as it was switched
+on, but compressed nothing until `send` was told to, and Safari's own
+compressed messages had been read fine all along.
 
-- **It needs Bun 1.4.2.** Bun 1.3.8's dedicated decompressor dropped the same
-  frames. `server/sockets.test.ts` speaks the protocol by hand, compressing the
-  way Safari does, because every client library does what the handshake tells
-  it and so would never send the frames in question.
-- **The dedicated decompressor refuses two encodings the shared one took**: a
-  message sent as a whole deflate stream with its final block set, and one that
-  keeps the `00 00 ff ff` tail a sender is meant to strip. RFC 7692 allows the
-  first. Chrome sends neither, and Safari's frames cannot be either, since the
-  shared decompressor would have read them.
-- The server's own frames stay on the shared compressor, which keeps no state
-  between messages and says so with `server_no_context_takeover`.
+- **Bun seals most of what it compresses.** A message that compresses small —
+  every ordinary patch, and larger ones that compress well, 20KB of repeated
+  cells included — goes out as a complete deflate stream, final block and all,
+  followed by a stray zero byte. Only messages that stay large compressed, like
+  a `hello`, go out as the open, sync-flushed stream RFC 7692 describes. Bun
+  1.3.8 and 1.4.2 frame them identically.
+- **Safari reads the first sealed message and nothing after it.** Its inspector
+  showed a `hello`, one sealed patch, then "The network connection was lost".
+  One decompressor kept for the whole connection, which is how Safari appears
+  to read, does the same: nothing after the first sealed message decodes. Chrome
+  reads them all.
+- **A compressor per socket would keep Safari but costs too much.**
+  `compress: "dedicated"` sends only open streams, which such a decompressor
+  reads, but it held about 147KB a socket (147MB at a thousand) and was the
+  slowest of the three to send through: a patch-sized frame took about 15µs,
+  against 11µs through the shared compressor and 2µs raw. The sizes below
+  "dedicated" (`"4KB"` and so on) held the same memory and add a
+  `server_max_window_bits` Safari never offered.
+- **A per-socket decompressor was tried first and changed nothing.** It had
+  been the answer when Safari compressed against its own earlier messages
+  (uNetworking/uWebSockets#1347), but that was not this: the failing direction
+  was the server's.
+
+So `PER_MESSAGE_DEFLATE` in `server/sockets.ts` is `false`, and every frame
+goes out as it is, as it did before the change above. `server/sockets.test.ts`
+checks the frames themselves: whatever the setting, the socket must never send
+a sealed compressed frame, and everything it sends must read back through one
+decompressor kept for the connection. Turning compression back on is that one
+setting, and it needs a real Safari before it ships.
 
 ## The wire is patches plus motion events
 

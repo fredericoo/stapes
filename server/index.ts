@@ -38,7 +38,9 @@ await bundle.restore(config.CLIENT_BUILD_ID);
 const sockets = new WeakMap<object, GameSocket>();
 
 /**
- * The shortest frame worth compressing, in characters.
+ * The shortest frame worth compressing, in characters, for when compression is
+ * agreed. It is not at the moment — see {@link PER_MESSAGE_DEFLATE} — and then
+ * Bun sends every frame as it is, whatever `send` is told.
  *
  * Deflate costs about 10µs a frame before it has read a byte, on the thread
  * that runs the tick, and each socket's copy is compressed separately. Under
@@ -50,17 +52,16 @@ const COMPRESS_MIN_LENGTH = 512;
 
 const app = new Elysia({
   /**
-   * Offer compression when a socket opens. The wire is JSON of tile stacks,
-   * which is the most repetitive text there is: a `hello` goes from about
-   * 2.5MB to under 180KB. The browser side accepts without being asked.
+   * Compression is not offered: Safari cannot read the frames Bun compresses.
+   * See {@link PER_MESSAGE_DEFLATE}, which says what it cost and what turning
+   * it back on needs.
    *
-   * **This only agrees to compress; it does not compress anything.** Bun
-   * deflates a frame only when `send` is passed `true` — see the transport
-   * below. Until that was added, every frame went out raw, and a hundred
-   * players cost 17MB/s.
-   *
-   * Not `true`, because Safari's frames need a decompressor per connection:
-   * see {@link PER_MESSAGE_DEFLATE}.
+   * What it is worth when it works: the wire is JSON of tile stacks, the most
+   * repetitive text there is, and a `hello` goes from about 2.5MB to under
+   * 180KB; a hundred players went from 17MB/s to 4.5MB/s. Agreeing to
+   * compress is not compressing — Bun deflates a frame only when `send` is
+   * passed `true`, which the transport below still does for frames over
+   * {@link COMPRESS_MIN_LENGTH}, so this one setting turns it back on.
    */
   websocket: { perMessageDeflate: PER_MESSAGE_DEFLATE },
 })

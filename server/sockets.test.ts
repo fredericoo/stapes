@@ -1,34 +1,67 @@
 import { describe, expect, it } from "bun:test";
 import { randomBytes } from "node:crypto";
-import { connect, type Socket } from "node:net";
-import { constants, createDeflateRaw, type DeflateRaw } from "node:zlib";
+import { connect } from "node:net";
+import { constants, createInflateRaw, inflateRawSync, type InflateRaw } from "node:zlib";
 import { PER_MESSAGE_DEFLATE } from "./sockets";
 
 /**
- * The game socket's compression, against a client that compresses the way
- * Safari does.
+ * What the game socket may send, given what Safari can read.
  *
- * **The client is written out by hand, and has to be.** Every WebSocket client
- * to hand does as the handshake tells it, and what is being guarded is a
- * browser that does not: Safari compresses each message against the ones it
- * sent before, even when the server has asked it not to. So the test speaks
- * the protocol itself — an upgrade, then masked frames compressed by one
- * deflate stream kept for the whole connection. @see PER_MESSAGE_DEFLATE
+ * Safari cannot read past a compressed frame that is sealed — a whole deflate
+ * stream with its final block, which is how Bun's shared compressor sends
+ * anything that compresses small. So whatever `PER_MESSAGE_DEFLATE` is set to,
+ * no frame the socket sends may be one. With compression off that is true of
+ * every frame; a setting that turns it back on has to keep it true. @see
+ * PER_MESSAGE_DEFLATE
+ *
+ * **The client is written out by hand.** What is being checked is the frames
+ * themselves, which a WebSocket client decodes before anybody can see them.
  */
 
-/** Open a raw connection and upgrade it, answering with the extensions agreed. */
-function upgrade(port: number): Promise<{ socket: Socket; extensions: string }> {
+type Frame = { compressed: boolean; payload: Buffer };
+
+/**
+ * Connect with Safari's offer, word for word, and collect the frames the
+ * server sends until `count` have arrived.
+ */
+function framesFrom(port: number, count: number): Promise<Frame[]> {
   return new Promise((resolve, reject) => {
     const socket = connect(port, "127.0.0.1");
-    let head = "";
+    const frames: Frame[] = [];
+    let upgraded = false;
+    let buffer = Buffer.alloc(0);
     socket.on("error", reject);
-    socket.on("data", function onData(chunk: Buffer) {
-      head += chunk.toString("latin1");
-      const end = head.indexOf("\r\n\r\n");
-      if (end < 0) return;
-      socket.off("data", onData);
-      const extensions = /^sec-websocket-extensions: (.*)$/im.exec(head.slice(0, end))?.[1] ?? "";
-      resolve({ socket, extensions: extensions.trim() });
+    socket.on("data", (chunk: Buffer) => {
+      buffer = Buffer.concat([buffer, chunk]);
+      if (!upgraded) {
+        const end = buffer.indexOf("\r\n\r\n");
+        if (end < 0) return;
+        buffer = buffer.subarray(end + 4);
+        upgraded = true;
+      }
+      while (buffer.length >= 2) {
+        let length = buffer[1]! & 0x7f;
+        let offset = 2;
+        if (length === 126) {
+          if (buffer.length < 4) return;
+          length = buffer.readUInt16BE(2);
+          offset = 4;
+        } else if (length === 127) {
+          if (buffer.length < 10) return;
+          length = Number(buffer.readBigUInt64BE(2));
+          offset = 10;
+        }
+        if (buffer.length < offset + length) return;
+        frames.push({
+          compressed: (buffer[0]! & 0x40) !== 0,
+          payload: buffer.subarray(offset, offset + length),
+        });
+        buffer = buffer.subarray(offset + length);
+      }
+      if (frames.length >= count) {
+        socket.destroy();
+        resolve(frames);
+      }
     });
     socket.write(
       [
@@ -38,7 +71,6 @@ function upgrade(port: number): Promise<{ socket: Socket; extensions: string }> 
         "Connection: Upgrade",
         "Sec-WebSocket-Version: 13",
         `Sec-WebSocket-Key: ${randomBytes(16).toString("base64")}`,
-        // What Safari offers, word for word.
         "Sec-WebSocket-Extensions: permessage-deflate",
         "",
         "",
@@ -48,35 +80,46 @@ function upgrade(port: number): Promise<{ socket: Socket; extensions: string }> 
 }
 
 /**
- * The next message out of a deflate stream that is never reset, as RFC 7692
- * frames it: sync-flushed, with the flush's `00 00 ff ff` taken off the end.
+ * The next message out of one decompressor kept for the whole connection, as
+ * a browser keeps it: fed the payload and the `00 00 ff ff` RFC 7692 takes off
+ * the end, and flushed.
  */
-function deflateMessage(stream: DeflateRaw, text: string): Promise<Buffer> {
-  return new Promise((resolve) => {
+function inflateNext(inflater: InflateRaw, payload: Buffer): Promise<string> {
+  return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     const onData = (chunk: Buffer) => chunks.push(chunk);
-    stream.on("data", onData);
-    stream.write(text);
-    stream.flush(constants.Z_SYNC_FLUSH, () => {
-      stream.off("data", onData);
-      resolve(Buffer.concat(chunks).subarray(0, -4));
+    inflater.on("data", onData);
+    inflater.once("error", reject);
+    inflater.write(Buffer.concat([payload, Buffer.from([0, 0, 0xff, 0xff])]));
+    inflater.flush(constants.Z_SYNC_FLUSH, () => {
+      inflater.off("data", onData);
+      inflater.off("error", reject);
+      resolve(Buffer.concat(chunks).toString());
     });
   });
 }
 
-/** A compressed text frame from a client: FIN, RSV1 and masked, as clients must. */
-function compressedFrame(payload: Buffer): Buffer {
-  if (payload.length >= 126) throw new Error("the messages here are short on purpose");
-  const mask = randomBytes(4);
-  const masked = Buffer.from(payload);
-  for (let i = 0; i < masked.length; i++) masked[i]! ^= mask[i % 4]!;
-  return Buffer.concat([Buffer.from([0xc1, 0x80 | masked.length]), mask, masked]);
+/** Whether a compressed payload is a whole deflate stream, final block included. */
+function sealed(payload: Buffer): boolean {
+  try {
+    inflateRawSync(payload, { finishFlush: constants.Z_FINISH });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-describe("the game socket's compression", () => {
-  it("reads a client that keeps its compression context across messages", async () => {
-    const received: string[] = [];
-    let closed: string | null = null;
+describe("the game socket's frames", () => {
+  it("never sends a compressed frame sealed with a final block", async () => {
+    // What the game sends, by shape: an ordinary patch, a bigger one, a run of
+    // repeated cells that compresses very well, and a hello-sized message.
+    const cell = JSON.stringify({ x: 21, y: -101, z: 0, stack: [{ tileId: "grass-2" }] });
+    const messages = [
+      JSON.stringify({ type: "patch", cells: Array(8).fill(JSON.parse(cell)) }),
+      JSON.stringify({ type: "patch", cells: Array(60).fill(JSON.parse(cell)) }),
+      JSON.stringify({ type: "patch", cells: Array(600).fill(JSON.parse(cell)) }),
+      JSON.stringify({ type: "hello", pad: randomBytes(300_000).toString("base64") }),
+    ];
     const server = Bun.serve({
       port: 0,
       fetch(request, srv) {
@@ -84,37 +127,27 @@ describe("the game socket's compression", () => {
       },
       websocket: {
         perMessageDeflate: PER_MESSAGE_DEFLATE,
-        message(_ws, message) {
-          received.push(String(message));
+        open(ws) {
+          // `true` asks for compression, as the game's transport does for any
+          // frame over its minimum length.
+          for (const message of messages) ws.send(message, true);
         },
-        close(_ws, code, reason) {
-          closed = `${code} ${reason}`;
-        },
+        message() {},
       },
     });
 
     try {
-      const { socket, extensions } = await upgrade(server.port!);
-      // Asked for, Safari ignores it — and the server that asked resets its
-      // decompressor between messages on the strength of it.
-      expect(extensions).toStartWith("permessage-deflate");
-      expect(extensions).not.toContain("client_no_context_takeover");
-
-      // Steps, which repeat each other: every one after the first is mostly
-      // back-references into the ones before.
-      const steps = ["n", "n", "e", "n", "w", "w"].map((direction, seq) =>
-        JSON.stringify({ type: "step", direction, seq }),
-      );
-      const stream = createDeflateRaw();
-      for (const step of steps) socket.write(compressedFrame(await deflateMessage(stream, step)));
-
-      const deadline = Date.now() + 5_000;
-      while (received.length < steps.length && closed === null && Date.now() < deadline) {
-        await Bun.sleep(10);
+      const frames = await framesFrom(server.port!, messages.length);
+      expect(frames.filter((frame) => frame.compressed && sealed(frame.payload))).toEqual([]);
+      // And every message reads back through one decompressor, as it would in
+      // a browser that keeps one for the connection.
+      const inflater = createInflateRaw();
+      const texts: string[] = [];
+      for (const { compressed, payload } of frames) {
+        texts.push(compressed ? await inflateNext(inflater, payload) : payload.toString());
       }
-      expect(closed).toBeNull();
-      expect(received).toEqual(steps);
-      socket.destroy();
+      inflater.close();
+      expect(texts).toEqual(messages);
     } finally {
       await server.stop(true);
     }
