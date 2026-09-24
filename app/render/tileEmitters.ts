@@ -1,4 +1,3 @@
-import { type RoofCut, cutHides } from "../lib/levelVisibility";
 import type { WorldRect } from "../lib/lightingChunks";
 import type { ParticleEmitterSpec } from "./particles";
 
@@ -47,6 +46,20 @@ export const MAX_VISIBLE_TILE_EMITTERS = 128;
  */
 export const PARTICLE_WINDOW_MARGIN = 6;
 
+/**
+ * Whether the viewer cannot see the cell at `(x, y, z)`.
+ *
+ * What a plume is culled by, asked of the cell it hangs from. A function rather
+ * than a roof-cut because the cut is only half of it: a flame one storey down in
+ * a cave is not cut away, it is under the rock the viewer is standing on. The
+ * depth test does not hide all of its sparks either — every spark sorts on the
+ * flame's box, and one that has risen far up-left of that box lands on the box's
+ * far-face fallback plane, which is in front of the ground above. The renderer
+ * answers it with `isCellVisible`, the rule every piece of chrome uses, and a
+ * test answers it with whatever cells it names.
+ */
+export type CellHidden = (x: number, y: number, z: number) => boolean;
+
 /** The id one placement's plume is reconciled by. @see tileInstanceKey */
 export function tileEmitterId(instanceKey: string): string {
   return `tile:${instanceKey}`;
@@ -87,14 +100,15 @@ export function tileEmitterPrefix(z: number, x: number, y: number): string {
  * @param window The visible cell rect **at level 0**, with no apron of its own.
  * {@link PARTICLE_WINDOW_MARGIN} is added here so this module owns the whole
  * rule and a test can assert it.
- * @param cut The roof-cut. A plume on a cut cell is dropped by
+ * @param hidden Whether the viewer cannot see a cell — the roof-cut, and
+ * whatever is drawn over it. A plume on a hidden cell is dropped by
  * `./particleLayer` *after* it has been simulated and written, so dropping the
- * emitter here spends nothing on it at all.
+ * emitter here spends nothing on it at all. Undefined hides nothing.
  */
 export function appendVisibleTileEmitters(
   byLevel: ReadonlyMap<number, readonly ParticleEmitterSpec[]>,
   window: WorldRect,
-  cut: RoofCut | undefined,
+  hidden: CellHidden | undefined,
   into: ParticleEmitterSpec[],
 ): ParticleEmitterSpec[] {
   let taken = 0;
@@ -114,10 +128,10 @@ export function appendVisibleTileEmitters(
       const cy = Math.floor(spec.cy);
       if (cx < x0 || cx > x1) continue;
       if (cy < y0 || cy > y1) continue;
-      // After the rect and not before it: the cut is a set lookup per emitter
-      // and the rect is four compares, so the cheap test culls the many and
-      // this one answers for the few left on screen.
-      if (cutHides(cut, cx, cy, z)) continue;
+      // After the rect and not before it: the visibility test walks the levels
+      // above the cell and the rect is four compares, so the cheap test culls
+      // the many and this one answers for the few left on screen.
+      if (hidden?.(cx, cy, z)) continue;
       // Counted over the board's own, never over the caller's: the cap is about
       // how many chimneys are worth reconciling, and a room full of burning rats
       // is not a reason to stop drawing the chimney.

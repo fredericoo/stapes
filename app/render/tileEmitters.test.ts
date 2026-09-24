@@ -2,24 +2,33 @@ import { describe, expect, it } from "vitest";
 import type { ParticleEmitterSpec } from "./particles";
 import {
   appendVisibleTileEmitters,
+  type CellHidden,
   MAX_VISIBLE_TILE_EMITTERS,
   PARTICLE_WINDOW_MARGIN,
   tileEmitterId,
   tileEmitterPrefix,
 } from "./tileEmitters";
 import { DEFAULT_PARTICLES } from "../lib/particleVfx";
-import type { RoofCut } from "../lib/levelVisibility";
+import { type RoofCut, cutHides } from "../lib/levelVisibility";
+import { emptyMap, replaceStack } from "../lib/mapData";
+import { tile } from "../lib/testTile";
+import type { MapFile } from "../lib/types";
 import { coordKey } from "../lib/types";
+import { isCellVisible } from "./cameraSight";
 
 /** A cut that takes exactly the cells named, on the levels they are on. */
-const cutting = (floor: number, ...cells: Array<{ x: number; y: number; z: number }>): RoofCut => {
+const cutting = (
+  floor: number,
+  ...cells: Array<{ x: number; y: number; z: number }>
+): CellHidden => {
   const byZ = new Map<number, Set<string>>();
   for (const cell of cells) {
     const level = byZ.get(cell.z) ?? new Set<string>();
     level.add(coordKey(cell.x, cell.y));
     byZ.set(cell.z, level);
   }
-  return { floor, cells: byZ };
+  const cut: RoofCut = { floor, cells: byZ };
+  return (x, y, z) => cutHides(cut, x, y, z);
 };
 
 /**
@@ -144,6 +153,52 @@ describe("culling the board's plumes", () => {
     const status = { ...at(5, 5), id: "rat:burning" };
     const out = appendVisibleTileEmitters(byLevel(...crowd), WINDOW, undefined, [status]);
     expect(out).toHaveLength(MAX_VISIBLE_TILE_EMITTERS + 1);
+  });
+});
+
+describe("a plume under the ground the viewer stands on", () => {
+  /**
+   * A cave one storey down with a fire in it, under solid ground on level 0.
+   * The fire is not cut away — nothing is cut outdoors — so the roof-cut alone
+   * kept it, and its sparks rose up through the ground.
+   */
+  const tilesById = { ground: tile({ id: "ground", height: 0 }) };
+  const FIRE = at(5, 5, -1);
+
+  function cave(hole = false): MapFile {
+    let map = emptyMap();
+    for (let x = 0; x <= 12; x++) {
+      for (let y = 0; y <= 12; y++) {
+        map = replaceStack(map, x, y, -1, [{ tileId: "ground" }]);
+        // The cell above the fire and the one the camera looks down through
+        // to it: this projection paints (x, y, -1) under (x + 1, y + 1, 0).
+        if (hole && x === y && (x === 5 || x === 6)) continue;
+        map = replaceStack(map, x, y, 0, [{ tileId: "ground" }]);
+      }
+    }
+    return map;
+  }
+
+  /** What the renderer hands the cull when it knows who is looking. */
+  const seenFrom =
+    (map: MapFile, viewerZ: number, cut?: RoofCut): CellHidden =>
+    (x, y, z) =>
+      !isCellVisible(map, tilesById, { x, y, z }, viewerZ, cut);
+
+  it("drops a fire one storey down from a viewer on the ground above it", () => {
+    expect(appendVisibleTileEmitters(byLevel(FIRE), WINDOW, seenFrom(cave(), 0), [])).toEqual([]);
+  });
+
+  it("keeps it when the ground over it is open", () => {
+    const out = appendVisibleTileEmitters(byLevel(FIRE), WINDOW, seenFrom(cave(true), 0), []);
+    expect(out).toEqual([FIRE]);
+  });
+
+  it("keeps it for a viewer down in the cave, whose cut takes the ground away", () => {
+    // Underground the cut refuses and takes the whole storey above the viewer.
+    const whole: RoofCut = { floor: -1, cells: null };
+    const out = appendVisibleTileEmitters(byLevel(FIRE), WINDOW, seenFrom(cave(), -1, whole), []);
+    expect(out).toEqual([FIRE]);
   });
 });
 

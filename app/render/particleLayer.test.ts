@@ -2,9 +2,10 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { circleSlice, ParticleLayer, particleWorldPx } from "./particleLayer";
 import type { ParticleEmitterSpec } from "./particles";
+import type { CellHidden } from "./tileEmitters";
 import { DEFAULT_PARTICLES, type ParticleEmitterDef } from "../lib/particleVfx";
 import type { LevelLightUniforms } from "./worldQuads";
-import type { RoofCut } from "../lib/levelVisibility";
+import { type RoofCut, cutHides } from "../lib/levelVisibility";
 import { coordKey } from "../lib/types";
 import { CELL_SIZE, HEIGHT_PER_LEVEL } from "../lib/types";
 import { PX_PER_HEIGHT } from "../lib/geometry";
@@ -65,14 +66,18 @@ function emitter(
 }
 
 /** A cut over exactly the cells named — the shape `roofCutFor` hands back. */
-const cutting = (floor: number, ...cells: Array<{ x: number; y: number; z: number }>): RoofCut => {
+const cutting = (
+  floor: number,
+  ...cells: Array<{ x: number; y: number; z: number }>
+): CellHidden => {
   const byZ = new Map<number, Set<string>>();
   for (const cell of cells) {
     const level = byZ.get(cell.z) ?? new Set<string>();
     level.add(coordKey(cell.x, cell.y));
     byZ.set(cell.z, level);
   }
-  return { floor, cells: byZ };
+  const cut: RoofCut = { floor, cells: byZ };
+  return (x, y, z) => cutHides(cut, x, y, z);
 };
 
 const attr = (l: ParticleLayer, name: string) =>
