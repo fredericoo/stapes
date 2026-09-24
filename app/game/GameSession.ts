@@ -10898,6 +10898,9 @@ export class GameSession implements PlaySession {
    * `/play` or a step a networked client has already predicted.
    */
   private applyStepRequest(actor: ActorRuntime, request: StepRequest): boolean {
+    // Nothing held, which is every idle body on every tick: `chooseStep`
+    // answers nothing for it, so nothing below would happen.
+    if (request.directions.length === 0) return false;
     const loc = this.locate(actor);
     const choice = chooseStep(
       this.map,
