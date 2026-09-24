@@ -196,6 +196,56 @@ describe("deleteAll", () => {
   });
 });
 
+/**
+ * How a checkpoint is written: many rows to a statement, and the JSON as text.
+ * A checkpoint at a thousand players is hundreds of rows, so these are the
+ * shapes that one takes rather than the one-key cases above.
+ */
+describe("checkpoint writes", () => {
+  it("writes more rows than one statement holds, and overwrites them all in the next flush", async () => {
+    // Two statements of a hundred and one of fifty, both times.
+    const keys = Array.from({ length: 250 }, (_, i) => `chunk:0:${i},0`);
+    await store.put(Object.fromEntries(keys.map((key, i) => [key, [{ tileId: `a${i}` }]])));
+    await store.flush();
+    await store.put(Object.fromEntries(keys.map((key, i) => [key, [{ tileId: `b${i}` }]])));
+    await store.flush();
+    await db.close?.();
+
+    db = await openDatabase(join(dir, "stapes.db"));
+    store = new WorldStore(db);
+    const listed = await store.list<unknown>({ prefix: "chunk:" });
+    expect(listed.size).toBe(250);
+    expect(await rowCount(db)).toBe(250);
+    for (const [i, key] of keys.entries()) {
+      expect(listed.get(key)).toEqual([{ tileId: `b${i}` }]);
+    }
+  });
+
+  it("reads a row written as bytes, as every row was before the JSON went in as text", async () => {
+    await db.batch(
+      [
+        {
+          sql: "INSERT INTO kv (key, value) VALUES (?, ?)",
+          args: ["pos:old", new TextEncoder().encode(JSON.stringify({ x: 1, y: 2 }))],
+        },
+      ],
+      "IMMEDIATE",
+    );
+    await store.put("pos:new", { x: 3, y: 4 });
+    await store.flush();
+
+    const written = await db.prepare("SELECT typeof(value) AS kind FROM kv WHERE key = ?");
+    expect(((await written.get(["pos:old"])) as { kind: string }).kind).toBe("blob");
+    expect(((await written.get(["pos:new"])) as { kind: string }).kind).toBe("text");
+    expect(await store.get<unknown>("pos:old")).toEqual({ x: 1, y: 2 });
+    expect(await store.get<unknown>("pos:new")).toEqual({ x: 3, y: 4 });
+    expect([...(await store.list<unknown>({ prefix: "pos:" })).values()]).toEqual([
+      { x: 3, y: 4 },
+      { x: 1, y: 2 },
+    ]);
+  });
+});
+
 async function rowCount(database: Database): Promise<number> {
   const statement = await database.prepare("SELECT COUNT(*) AS n FROM kv");
   const row = (await statement.get()) as { n: number } | undefined;

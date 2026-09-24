@@ -2575,6 +2575,7 @@ three hundred changes for each of a thousand clients.
 | the tick on a timeline (below) | 400 players: 25.4 → 29.8 ticks/s |
 | spawn remembers where it put a body; a hello builds only the snapshots it sends | seating a thousand as fast as they come: 20.8s → 15.7s |
 | level and chunk keys built once and reused; a column's keys built once for all its levels | 14.65 → 15.32 ticks/s, the mean of five runs each taken in turn; `getStack` had been an eighth of the tick |
+| the checkpoint's upserts a hundred rows to a statement, the JSON bound as text (below) | a board checkpoint 67–91 → 13–20ms; the longest gap between ticks about 234 → 145ms |
 
 And smaller ones: sockets indexed by actor; subscriptions checked only for
 clients that moved; a death's batch writing only the kits its board can
@@ -2621,6 +2622,20 @@ recompilations exited at the same place again. Written as indexed loops they
 do not exit at all. Runs taken in turn with and without: 14.1 and 13.1 ticks a
 second against 14.7 and 14.6, and `actorSnapshots`, which reads every actor's
 battler, 3.1–3.6ms a tick against 2.5–2.7ms.
+
+**The checkpoint held the event loop.** `WorldStore.flush` commits one
+transaction every two seconds, and the driver's steps do not yield, so nothing
+else runs until it is done — the tick due next waits. At a thousand walking
+players a checkpoint was 260–360 chunk rows, about 2.5MB, and took 67–91ms;
+when every actor was saved as well it was 1,300–2,700 rows and 138–212ms. Two
+things made it slow. The driver prepares every statement in a batch afresh, and
+there was one statement a row; and it binds a `Uint8Array` several times more
+slowly than a string of the same JSON (300 rows of 6KB: 47–64ms against
+13–17ms). Upserts now carry a hundred rows each and the JSON goes in as text,
+which a `BLOB` column keeps as it is given: the same checkpoints spend 13–20ms
+and 22–39ms in the driver. Before the driver runs, every chunk written still
+goes through `JSON.stringify`, which `server/chunkJson.ts` already holds as
+text in another shape.
 
 **Where it ended.** Same bench, no `--smol`, 30 seconds each, the branch point
 and the end of this work run back to back:
