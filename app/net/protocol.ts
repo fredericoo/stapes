@@ -1401,19 +1401,19 @@ export type ClientMessage =
    * thing — where the player is in a conversation — and a conversation is the
    * one piece of per-player state whose whole shape the server answers with
    * (`conversation` below). `index` is a position among the buttons on offer,
-   * on `transmute`'s argument for a recipe index: both ends hold the tile
+   * on `craft`'s argument for a recipe index: both ends hold the tile
    * catalogue, so a position is something the server can check against a list
    * it already has. `amount` is the stepper, clamped server-side.
    */
   | { type: "talk"; action: TalkAction }
   /**
-   * "I am spending that at this."
+   * "Make this, at that."
    *
-   * The fourth message that changes what exists: one carried thing stops being
-   * and one or more others begin. It is the only one that has to name *which*
-   * of several things a placement offers, because a fire may cook three
-   * different foods and every one of them is a row on the same cell — so a
-   * `ref` alone cannot say which row was pressed.
+   * The fourth message that changes what exists: carried things stop being and
+   * whatever the dice give begins. It is the only one that has to name *which*
+   * of several things a placement offers, because a forge lists every recipe
+   * the player can afford in one window — so a `ref` alone cannot say which
+   * one was pressed.
    *
    * `recipe` is a position in the tile's authored list, on exactly the terms
    * {@link SlotRef} is an index rather than an instance id: both ends hold the
@@ -1421,13 +1421,13 @@ export type ClientMessage =
    * against a list it already has, where a name would be one more string to
    * disbelieve.
    *
-   * Nothing about the *input* travels. Which slot it comes out of is a fact
-   * about the kit, which is the server's — see `../game/transmute`. The client
-   * asks the same question to decide whether to offer the row at all, and is
-   * still not trusted with the answer.
+   * Nothing about the *inputs* travels, and nothing about the outcome. Which
+   * squares pay is a fact about the kit and the roll is the server's dice —
+   * see `../game/craft`. The client asks the same question to decide whether
+   * to list the recipe at all, and is still not trusted with the answer.
    */
   | {
-      type: "transmute";
+      type: "craft";
       ref: { x: number; y: number; z: number; stackIndex: number };
       recipe: number;
     }
@@ -1655,7 +1655,7 @@ const clientMessageSchema = v.variant("type", [
     ]),
   }),
   v.object({
-    type: v.literal("transmute"),
+    type: v.literal("craft"),
     ref: inboundRefSchema,
     // Bounded below and left unbounded above, exactly as a slot index is: how
     // many recipes a tile has is decided by the tile, which the server knows
@@ -2093,7 +2093,7 @@ export const GAME_SOCKET_PATH = "/online/ws";
  * This is deliberately not the build id. A client deploy that changes no
  * messages should not disconnect anybody, and most client deploys are that.
  */
-export const PROTOCOL_VERSION = 21;
+export const PROTOCOL_VERSION = 22;
 
 /**
  * How many steps a client may send that the world has not yet walked.

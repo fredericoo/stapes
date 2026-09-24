@@ -16,17 +16,14 @@ import { capacityOf } from "./itemMoves";
  * Spending what a body carries and handing it something back, as one move.
  *
  * A dialog's `trade` effect — fourteen shards for a potion, a bottle for two
- * shards. The near neighbour of `./transmute`, and the differences are the
- * design:
+ * shards — and a craft's kit arithmetic, which is this with a roll in front
+ * (see `./craft`).
  *
- * - **Several things on each side, counted.** A recipe spends exactly one thing
- *   and it is a decision; a price is a number, and a number is what a pile
- *   already is. Fourteen shards may be one pile or three, and this peels
- *   across them.
- * - **Every square a body has, bags in hands included.** A recipe deliberately
- *   does not rummage in a pack you happen to be holding — offering what you
- *   carry is a different act. A merchant you have asked to be paid is exactly
- *   the case where you meant everything on you.
+ * - **Several things on each side, counted.** A price is a number, and a number
+ *   is what a pile already is. Fourteen shards may be one pile or three, and
+ *   this peels across them.
+ * - **Every square a body has, bags in hands included.** Asked to pay, you
+ *   meant everything on you.
  * - **The plan is the kit.** There is no separate run: finding room for every
  *   last thing *is* the check, and having found it there is nothing left to
  *   decide, so what this returns is the kit as it will be. Ids are minted on
@@ -104,8 +101,7 @@ export function hasRoomFor(
 /**
  * Everywhere a thing may be taken from, in the order it is looked for.
  *
- * Hands first, on transmute's grounds — what you are holding out is what you
- * meant — then the worn bag, then bags in either hand. Within a container the
+ * Hands first — what you are holding out is what you meant — then the worn bag, then bags in either hand. Within a container the
  * squares are walked last to first so that emptying one never shifts an index
  * still to be read.
  */

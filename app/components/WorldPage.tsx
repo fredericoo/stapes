@@ -23,6 +23,7 @@ import { useGameAssets } from "../lib/gameAssets";
 import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
 import type { ObjectRef } from "../game/affordances";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
+import type { CraftingWindow } from "../game/craft";
 import { type CastSlot, type SpellButton, spellPress } from "../game/casting";
 import type { Direction, TileDef, TilesetDef } from "../lib/types";
 import {
@@ -198,6 +199,14 @@ export function WorldPage({
     [],
   );
   const talk = useCallback((action: TalkAction) => sessionRef.current?.talk(action), []);
+  const craft = useCallback(
+    (ref: ObjectRef, recipeIndex: number) => sessionRef.current?.craft(ref, recipeIndex),
+    [],
+  );
+  // Straight at the renderer, like opening a box: which forge's window is open
+  // is a frame's business, and it is the render loop that knows when the
+  // player walked away or ran out of anything to spend.
+  const closeCrafting = useCallback(() => rendererRef.current?.setCrafting(null), []);
   // Straight at the renderer rather than through state: an outline is a frame's
   // business, and routing it through React would re-render the page on every
   // row the cursor crosses.
@@ -256,6 +265,7 @@ export function WorldPage({
   /** What this player's body can take, and its ⭐. */
   const [vitals, setVitals] = useState<Vitals>(NO_VITALS);
   const [openedContainer, setOpenedContainer] = useState<OpenedContainer | null>(null);
+  const [crafting, setCrafting] = useState<CraftingWindow | null>(null);
   /**
    * The stones this player could press, as the render loop last worked them out.
    *
@@ -437,6 +447,7 @@ export function WorldPage({
       setMasteryXp({});
       setVitals(NO_VITALS);
       setOpenedContainer(null);
+      setCrafting(null);
       // And the loading screen comes back for the same reason: the next
       // renderer starts with an empty canvas, and a reconnect can take a while.
       setPainted(false);
@@ -537,6 +548,7 @@ export function WorldPage({
         renderer.setOnMasteries(setMasteryXp);
         renderer.setOnVitals(setVitals);
         renderer.setOnOpenedContainer(setOpenedContainer);
+        renderer.setOnCrafting(setCrafting);
         renderer.setOnNextFrame(() => setPainted(true));
         // The keys, the on-screen pad and a click on the world all press the
         // same list, which is what settles between them: taking the keys back
@@ -794,6 +806,9 @@ export function WorldPage({
                 onHoverInteraction={hoverInteraction}
                 conversation={conversation}
                 onTalk={talk}
+                crafting={crafting}
+                onCraft={craft}
+                onCloseCrafting={closeCrafting}
                 equipment={equipment}
                 masteryXp={masteryXp}
                 vitals={vitals}

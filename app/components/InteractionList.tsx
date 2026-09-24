@@ -117,7 +117,7 @@ const ICONS: Record<InteractionAction, typeof IconTarget> = {
   // A flame, because the motivating case is one and because every other shape
   // that says "a condition" says it with an icon a status already owns. The row
   // covers a blessing too, and the authored verb beside it is what tells them
-  // apart — the same trade the transmute row makes below.
+  // apart — the same trade the craft row makes below.
   addStatus: IconFlame,
   // A drop of water against the flame above, for the same reason: the
   // motivating case is water putting a fire out, and the authored verb beside
@@ -135,14 +135,14 @@ const ICONS: Record<InteractionAction, typeof IconTarget> = {
   // chest, because half of these are people.
   reward: IconGift,
   // One shape becoming another, which is the only thing every recipe shares:
-  // the row could be cooking, trading or smelting, and the authored verb beside
-  // it is what says which. Deliberately not a flame — that would name one of
-  // them and mislead about the rest.
-  transmute: IconTransform,
+  // the row could be forging or cooking, and the authored verb beside it is
+  // what says which. Deliberately not a flame or an anvil — either would name
+  // one of them and mislead about the rest.
+  craft: IconTransform,
   // A pick, because a resource is a thing you *work* and every other shape that
   // says "you get something" — the gift, the grabbing hand — says it about
   // being handed one. It names mining and leaves picking a bush to the authored
-  // verb beside it, on exactly the trade the transmute row above makes.
+  // verb beside it, on exactly the trade the craft row above makes.
   extract: IconPick,
 };
 

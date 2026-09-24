@@ -1689,7 +1689,6 @@ describe("groupInteractionOptions", () => {
       label: "Push",
       ref: { x: 1, y: 0, z: 0, stackIndex: 1 },
       actorId: null,
-      recipeIndex: null,
       blocked: null,
       wait: null,
       tileId: "crate",
@@ -1727,28 +1726,25 @@ describe("groupInteractionOptions", () => {
     expect(groups.map((g) => g.options[0]!.name).sort()).toEqual(["Crate", "Sword"]);
   });
 
-  // The transmute row is the one entry whose subject is not its placement: a
-  // fire offering to cook meat and to cook fish wears two sprites and two
-  // names, and a box that merged them would have to pick one of the two to lie
-  // with.
+  // No row today wears a different sprite from its placement, but the key
+  // carries the tile and name so that one which did would get its own box
+  // rather than one that has to pick a sprite to lie with.
   it("keeps two entries on one placement apart when they are about different things", () => {
     const fire = { x: 2, y: 2, z: 0, stackIndex: 1 };
     const groups = groupInteractionOptions([
       option({
-        id: "transmute:2,2,0,1:0",
-        action: "transmute",
+        id: "a:2,2,0,1",
+        action: "craft",
         label: "Cook",
         ref: fire,
-        recipeIndex: 0,
         tileId: "raw_meat",
         name: "Raw Meat",
       }),
       option({
-        id: "transmute:2,2,0,1:1",
-        action: "transmute",
+        id: "b:2,2,0,1",
+        action: "craft",
         label: "Cook",
         ref: fire,
-        recipeIndex: 1,
         tileId: "raw_fish",
         name: "Raw Fish",
       }),

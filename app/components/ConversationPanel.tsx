@@ -53,7 +53,7 @@ import { useTap } from "./useTap";
  * panel, so nothing about it has to be learnt.
  */
 
-const CLOSE_ICON_SIZE_PX = 12;
+export const CLOSE_ICON_SIZE_PX = 12;
 const STEP_ICON_SIZE_PX = 12;
 const ITEM_SPRITE_SIZE_PX = 18;
 
@@ -69,8 +69,10 @@ const NO_STATUS_DEFS: Record<string, StatusDef> = {};
 
 const ROW_CLASS =
   "flex min-h-6 w-full items-center gap-1 border px-1 py-0.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent pointer-coarse:min-h-9";
-const OPTION_CLASS = `${ROW_CLASS} border-paper/30 text-paper hover:border-paper hover:bg-paper/10 aria-disabled:border-dashed aria-disabled:border-paper/25 aria-disabled:text-paper/40 aria-disabled:hover:bg-transparent`;
-const LABEL_CLASS = "truncate text-[11px] leading-snug font-medium tracking-tight";
+export const OPTION_CLASS = `${ROW_CLASS} border-paper/30 text-paper hover:border-paper hover:bg-paper/10 aria-disabled:border-dashed aria-disabled:border-paper/25 aria-disabled:text-paper/40 aria-disabled:hover:bg-transparent`;
+export const CLOSE_BUTTON_CLASS =
+  "ml-auto grid h-5 w-5 shrink-0 place-items-center border-2 border-paper/40 text-paper/70 hover:border-paper hover:text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+export const LABEL_CLASS = "truncate text-[11px] leading-snug font-medium tracking-tight";
 
 type Props = {
   conversation: Conversation;
@@ -182,7 +184,7 @@ export function ConversationPanel({
           type="button"
           onClick={() => onTalk({ kind: "close" })}
           aria-label={`Close ${title}`}
-          className="ml-auto grid h-5 w-5 shrink-0 place-items-center border-2 border-paper/40 text-paper/70 hover:border-paper hover:text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className={CLOSE_BUTTON_CLASS}
         >
           <IconX size={CLOSE_ICON_SIZE_PX} stroke={3} aria-hidden="true" />
         </button>
@@ -565,7 +567,7 @@ function TradeSideItem({
   );
 }
 
-function PanelButton({
+export function PanelButton({
   onPress,
   className = OPTION_CLASS,
   disabled = false,

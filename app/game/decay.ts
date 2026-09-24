@@ -884,7 +884,7 @@ export type ItemDecayResult = DecayResult & {
  *
  * @param mintId a fresh identity for what comes off a pile — a peel is the one
  *   turn that makes a *second* thing, and it needs an id like anything else that
- *   can be picked up. Taken rather than called for the reason `../game/transmute`
+ *   can be picked up. Taken rather than called for the reason `../game/trade`
  *   takes one: this walk runs on both ends of the wire and in tests, and a
  *   module that reached for `crypto` on its own would be a decay whose outcome
  *   depended on where it ran.
