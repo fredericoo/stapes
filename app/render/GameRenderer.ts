@@ -83,6 +83,7 @@ import { SmoothedRemaining, taperKey } from "./statusTaper";
 import { spriteStatesFor } from "./spriteState";
 import { pickBodyAt, pickInteractiveAt, pickTileAt } from "./pick";
 import { DamageNumberLayer, type DamageNumberView } from "./damageNumbers";
+import { ScreenShake, SHAKE_DURATION_MS, shakeAmplitude } from "./screenShake";
 import { NoticeQueue, NotificationLayer } from "./notifications";
 import { healthBarColor, healthFraction } from "./healthBar";
 import { fitViewport, VIEW_PX, type ViewportFit } from "./viewport";
@@ -498,6 +499,25 @@ export class GameRenderer {
   private pointerPickKey = "";
   private pointerPickMap: MapFile | null = null;
   private damageLayer: DamageNumberLayer | null = null;
+  /**
+   * The shake the viewer's own wounds put on the frame. @see ./screenShake
+   *
+   * With the ids of the blows it has already been told about, because a receipt
+   * sits in {@link GameSnapshot.damage} for every frame of its rise and one blow
+   * must shake the view once, not once a frame.
+   */
+  private readonly shake = new ScreenShake();
+  private readonly shakenBy = new Set<string>();
+  /**
+   * Whether the reader has asked for less motion, read once when the renderer
+   * is built. A shake is the one thing on this screen that moves the whole of it
+   * and carries nothing the health bar and the red number do not also say, so it
+   * is the thing to drop.
+   */
+  private readonly shakeEnabled =
+    typeof window === "undefined" ||
+    typeof window.matchMedia !== "function" ||
+    !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   private notificationLayer: NotificationLayer | null = null;
   /**
    * The lines waiting to be read at the foot of the view.
@@ -2508,6 +2528,45 @@ export class GameRenderer {
   }
 
   /**
+   * The camera with this frame's shake added, after telling the shake about
+   * every blow on the viewer's own body it has not heard of yet.
+   *
+   * A blow is taken from the damage receipts rather than from a drop in the
+   * health reading, because the receipt is per blow and says how much: two hits
+   * on one tick are two receipts, and a heal on the same tick as a hit cannot
+   * cancel it out. Every harm the session deals floats one — a blow, a bolt, a
+   * poison tick — so every harm shakes.
+   *
+   * Only a receipt younger than a shake counts, so the numbers already rising
+   * when the renderer is built — a reconnect lands in the middle of a fight —
+   * do not all shake the view on its first frame.
+   */
+  private shakenCamera(
+    snap: GameSnapshot,
+    camera: { x: number; y: number },
+    nowMs: number,
+  ): { x: number; y: number } {
+    if (!this.shakeEnabled) return camera;
+
+    for (const hit of snap.damage) {
+      if (hit.outcome !== "hit" || hit.targetId !== snap.self.id) continue;
+      if (this.shakenBy.has(hit.id)) continue;
+      this.shakenBy.add(hit.id);
+      if (hit.elapsedMs < SHAKE_DURATION_MS) {
+        this.shake.hit(shakeAmplitude(hit.amount, snap.self.maxHp), nowMs);
+      }
+    }
+    if (this.shakenBy.size > 0) {
+      const live = new Set(snap.damage.map((hit) => hit.id));
+      for (const id of this.shakenBy) if (!live.has(id)) this.shakenBy.delete(id);
+    }
+
+    const offset = this.shake.offset(nowMs);
+    if (offset.x === 0 && offset.y === 0) return camera;
+    return { x: camera.x + offset.x, y: camera.y + offset.y };
+  }
+
+  /**
    * Top-left of the square the player can actually see.
    *
    * The camera itself, in every shipped frame — the two are the same square.
@@ -2533,6 +2592,10 @@ export class GameRenderer {
     this.world.setBufferSize(fit.bufferPx);
     const zoom = fit.renderScale;
     const camera = this.cameraFor(snap);
+    // What the frame is drawn from, and nothing else: picking, targeting and
+    // the walk-to all keep asking about `camera`, so a blow never moves what a
+    // click lands on.
+    const drawn = this.shakenCamera(snap, camera, nowMs);
     // Before the overlay and the label read it, so both describe the same
     // frame's answer rather than the previous one's.
     this.repickLook(snap, camera);
@@ -2555,7 +2618,7 @@ export class GameRenderer {
     this.world.setView({
       map: snap.map,
       tilesById: this.tilesById,
-      camera,
+      camera: drawn,
       zoom,
       minutesOfDay: this.minutesOfDay,
       tileMotions: motions.length > 0 ? motions : undefined,
@@ -2592,8 +2655,10 @@ export class GameRenderer {
     // Written from inside the render loop's own rAF, so the style change and the
     // canvas paint land in the same commit — which is what stops DOM text from
     // trailing the sprite it belongs to.
-    this.labelLayer?.set(this.labelsFor(snap, camera, cut), camera, fit.cssScale);
-    this.damageLayer?.set(this.damageFor(snap, cut), camera, fit.cssScale);
+    // Placed against the drawn camera, so a name and a number shake with the
+    // body they hang over rather than holding still above it.
+    this.labelLayer?.set(this.labelsFor(snap, camera, cut), drawn, fit.cssScale);
+    this.damageLayer?.set(this.damageFor(snap, cut), drawn, fit.cssScale);
     // Driven by the frame, not the pointer: walking away from an object
     // revokes the affordance without the pointer having moved at all.
     this.applyCursor();

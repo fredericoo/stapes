@@ -5712,6 +5712,34 @@ answers. Everything refused for the ordinary reasons is still refused in silence
 which is right: "your hand is full" is a thing the player can see, and this is the
 one refusal that is invisible.
 
+## A wound shakes the view, by the share of health it took
+
+`app/render/screenShake.ts` holds the arithmetic; `GameRenderer.shakenCamera`
+decides which blows reach it. A blow on the viewer's own body offsets the camera
+the frame is drawn from for 320ms, by up to 6 world pixels.
+
+- **The size is the share of maximum health, not the figure.** A 6 on a body
+  with 200 health and a 6 on a body with 10 are different amounts of danger,
+  and the damage number already shows the figure. The amplitude is linear in
+  the share and reaches its cap at half your health (`FULL_SHAKE_SHARE`); past
+  that there is no bigger blow worth distinguishing. Offsets are rounded, so a
+  blow for less than about a twelfth of your health does not move the view.
+- **The source is the damage receipts, not the health reading.** Every harm in
+  `GameSession` goes through the path that floats a `hit` receipt — blows,
+  bolts, poison ticks — and a receipt is per blow with its amount on it. A drop
+  in `hp` would merge two blows on one tick and let a heal on the same tick
+  cancel one out. Each receipt shakes once, tracked by id, and only when it is
+  younger than a shake, so reconnecting into a fight does not shake for every
+  number already rising.
+- **Only the drawing moves.** Picking, targeting and walk-to keep reading the
+  unshaken camera. Labels and damage numbers are placed against the shaken one
+  so they stay attached to the bodies they belong to.
+- **Blows stack, up to the cap.** A second blow adds to what is left of the
+  first and restarts the decay.
+- **Off under `prefers-reduced-motion: reduce`**, read once when the renderer
+  is built. The shake carries nothing the health bar and the red number do not
+  also show.
+
 ## Balancing happens in the Arena, not in the world
 
 `/admin/arena` is a fight with the world taken out of it: two bodies, a cell apart, on
