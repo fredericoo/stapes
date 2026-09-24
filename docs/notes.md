@@ -5106,15 +5106,24 @@ authored at three seconds.
 - **A blow breaks it, and `uninterruptible` is the exception an author writes.**
   Cancelled from inside `applyDamage` on the same gate a pull is — `amount > 0`,
   so being bandaged mid-cast is not an interruption — and said out loud, because
-  a bar vanishing is exactly what a *finished* cast looks like. Nothing else
-  breaks one: a caster may walk, turn and be shoved while casting, and making it
-  depend on standing still as well would be a rule nobody could guess at from
-  watching.
+  a bar vanishing is exactly what a *finished* cast looks like. A caster may
+  turn and be shoved while casting, and making it depend on standing still as
+  well would be a rule nobody could guess at from watching.
+- **So does losing the target, every tick.** `advanceCasting` asks
+  `targetInReach` (`app/game/casting.ts`, the same `canReach` the button dims
+  on) of a cast aimed at somebody, and breaks it with "Your target is out of
+  reach" the first tick the target is too far or behind something. This used to
+  be asked only when the bar filled, and the caster — rooted for the whole cast —
+  stood there for seconds after the target had stepped away, for a spell that
+  then did nothing. Switching to a target out of reach breaks it the same way,
+  since the bolt lands on whoever is targeted when the bar fills. Clearing the
+  target does not: there is nobody to measure to, and that case is left to the
+  end.
 - **Everything else is asked once, at the end.** `finishCasting` takes the run
-  off the actor and then asks `castability` again, so a target who walked out of
-  range, a target who died, a stone swapped to the other hand and a cell somebody
-  has since dropped a crate on all come to the same thing: nothing happens, and
-  the stone is still ready. The run is cleared *before* the question because a
+  off the actor and then asks `castability` again, so a target who died, a
+  stone swapped to the other hand and a cell somebody has since dropped a crate
+  on all come to the same thing: nothing happens, and the stone is still
+  ready. The run is cleared *before* the question because a
   body recorded as casting refuses every square, itself included.
 - **One cast at a time, and it refuses the whole row.** `CastContext.casting`
   is a `CastProgress`: the clock, and which square the cast came out of. Every

@@ -396,12 +396,7 @@ function reachability(context: CastContext, stone: ArcaneStoneItem): Castability
   // {@link StoneEffect}.
   if (!target && stone.effect.kind !== "conjure") return refused("noTarget");
 
-  // The stone's own reach, through the same machinery a swing goes through:
-  // close enough, and with nothing in the way. A stone with no reach authored
-  // gets an arm's length, which is what `reachOf` means by an absent block.
-  if (target && !canReach(context.map, context.tilesById, context.caster, target, reachOf(stone))) {
-    return refused("outOfRange");
-  }
+  if (!targetInReach(context, stone)) return refused("outOfRange");
 
   // **A spell that would take health off somebody this caster may not fight is
   // refused before it starts.** Here rather than where the bolt lands, so the
@@ -426,6 +421,26 @@ function reachability(context: CastContext, stone: ArcaneStoneItem): Castability
     return refused("blocked");
   }
   return CASTABLE;
+}
+
+/**
+ * Whether the caster can reach whoever this stone is aimed at: close enough,
+ * and with nothing in the way.
+ *
+ * The stone's own reach, through the same machinery a swing goes through. A
+ * stone with no reach authored gets an arm's length, which is what `reachOf`
+ * means by an absent block. True when there is nobody to reach — a spell at the
+ * caster's own body, or a conjure with nobody targeted — because distance is
+ * not what refuses either of those.
+ *
+ * Exported for the session, which asks it on every tick of a cast that takes
+ * time and breaks the cast when it fails. @see `./GameSession`'s
+ * `advanceCasting`
+ */
+export function targetInReach(context: CastContext, stone: ArcaneStoneItem): boolean {
+  const target = context.target;
+  if (!target || !needsTarget(stone)) return true;
+  return canReach(context.map, context.tilesById, context.caster, target, reachOf(stone));
 }
 
 /** Where a conjured tile goes, and where in the stack. @see conjureLanding */
