@@ -5211,6 +5211,26 @@ describe("an administrator hiding", () => {
     expect(seen.of("patch").filter((patch) => mentions(patch, "alice"))).toEqual([]);
   });
 
+  /**
+   * A damage event is addressed to a cell rather than to a body, so keeping the
+   * body out of everybody else's reach does not keep this out: a number floating
+   * over a cell says somebody is standing in it.
+   */
+  it("shows the damage done to the body to its owner alone", async () => {
+    const alice = await connect("alice");
+    const bob = await connect("bob", { admin: false });
+    await hide(alice.ws);
+    await Bun.sleep(200);
+
+    const seen = eventsWithin(bob.ws, "damage", 400);
+    const felt = eventsWithin(alice.ws, "damage", 400);
+    send(alice.ws, { type: "command", text: "/health -1" });
+
+    // The control: the harm landed, and whoever it landed on was shown it.
+    expect((await felt).map((hit) => hit.targetId)).toEqual(["alice"]);
+    expect(await seen).toEqual([]);
+  });
+
   it("is left out of what somebody arriving afterwards is handed", async () => {
     const alice = await connect("alice");
     await hide(alice.ws);
