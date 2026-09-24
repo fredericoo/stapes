@@ -2,6 +2,13 @@ import { type RouteConfig, index, layout, prefix, route } from "@react-router/de
 
 export default [
   /**
+   * The landing page. Outside the player layout, because that layout's loader
+   * fetches the catalogues and the account, and this page needs neither — it is
+   * prerendered at build time, where there is no server to ask. See
+   * `react-router.config.ts`.
+   */
+  route("home", "routes/home.tsx"),
+  /**
    * Everything a player sees, under one layout.
    *
    * **Several small routes rather than one that does all of it.** Each screen
