@@ -1,9 +1,11 @@
 import { clampChance, type FightingStats } from "../lib/battler";
 import {
+  isRanged,
   MAX_PERCENT_STAT,
   type Reach,
   type WeaponResistances,
   type StatusGrant,
+  type WeaponItem,
   type WeaponStatus,
 } from "../lib/item";
 import { absoluteStandingElevation, getStack } from "../lib/mapData";
@@ -11,6 +13,7 @@ import type { WeaponMastery } from "../lib/mastery";
 import type { MapFile, TileDef } from "../lib/types";
 import { BRAIN_TICK_MS, TICK_MS } from "./constants";
 import { type ReachPoint, withinReach } from "./distance";
+import { type Equipment, HANDS, weaponSwungBy } from "./equipment";
 import { resolveWalkDurationMs } from "./movement";
 import type { Rng } from "./rng";
 import { hasLineOfSight } from "./sight";
@@ -922,6 +925,9 @@ export function canReach(
  * simply read `z`. A rat on a crate is half a level nearer your fist than a
  * rat beside it, and on the board those two are the same cell and the same
  * floor. `z` rides along because line of sight still walks in levels.
+ *
+ * Here rather than on the session so the renderer asks {@link canReach} with the
+ * same points the server swings with. @see `./GameSession`'s `tryAttack`
  */
 export function reachPointAt(
   map: MapFile,
@@ -935,4 +941,29 @@ export function reachPointAt(
     z: at.z,
     elevAbs: absoluteStandingElevation(at.z, stack.slice(0, at.stackIndex), tilesById),
   };
+}
+
+/**
+ * Whether a ranged weapon in either hand could loose at the target from here:
+ * inside its reach, `Reach.min` included, and with a clear line.
+ *
+ * The question `tryAttack` asks of each hand through {@link canReach},
+ * narrowed to the hands holding something that fires a projectile. It says
+ * nothing about pvp or cooldowns; a caller that needs to know the fight is on
+ * asks the session for that.
+ */
+export function rangedWeaponReaches(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  equipment: Equipment | null,
+  from: { x: number; y: number; z: number; stackIndex: number },
+  to: { x: number; y: number; z: number; stackIndex: number },
+): boolean {
+  const ranged = HANDS.map((hand) => weaponSwungBy(equipment, tilesById, hand)).filter(
+    (weapon): weapon is WeaponItem => weapon !== null && isRanged(weapon),
+  );
+  if (ranged.length === 0) return false;
+  const fromPoint = reachPointAt(map, tilesById, from);
+  const toPoint = reachPointAt(map, tilesById, to);
+  return ranged.some((weapon) => canReach(map, tilesById, fromPoint, toPoint, weapon.reach));
 }

@@ -9,4 +9,8 @@ describe("castLineClass", () => {
   it("draws a cast at anybody else in white", () => {
     expect(castLineClass({ atYou: false })).toBe("cast-line");
   });
+
+  it("draws the viewer's attack at half strength", () => {
+    expect(castLineClass({ atYou: false, attack: true })).toBe("cast-line cast-line--attack");
+  });
 });

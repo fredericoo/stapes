@@ -5158,6 +5158,21 @@ far" below
   lands on whoever is targeted when the bar fills. It replaces the progress
   object when the target changes, since the broadcast is diffed on identity;
   a target that holds costs nothing on the wire.
+- **The viewer's own bow draws the same line while the shot would go.**
+  `GameRenderer.attackLineFor` adds one from the viewer to `GameSnapshot.targetId`
+  when they are in attack mode, the session has them engaged
+  (`GameSnapshot.nextBlow`, which `disengage` nulls on a pvp refusal or a target
+  out of reach), and a ranged weapon in either hand reaches the target —
+  `combat.rangedWeaponReaches`, which is `canReach` on the same `reachPointAt`
+  points `tryAttack` measures with. So a bow's `Reach.min` keeps the line off a
+  neighbour, and a wall between the two takes it away, exactly when the shot
+  stops going. It is the viewer's alone because a target is not broadcast;
+  showing somebody else's shots would mean putting their target on the wire the
+  way `CastProgress.targetId` is. Skipped while the viewer is casting at
+  somebody, so one target does not get two lines.
+  It is drawn at half opacity (`.cast-line--attack`) where a cast line is at
+  full strength: the attack line stays up for a whole fight, and at full
+  strength it drew more attention than the fight did.
 - **`advanceCastings` runs late in the tick**, directly after
   `advanceExtractions`, so a cast is resolved against the board the rest of the
   tick left behind: a crate dropped in front of the caster this tick is in the

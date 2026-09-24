@@ -1,4 +1,9 @@
 import { describe, expect, it } from "vitest";
+import tilesRaw from "../../data/tiles.json";
+import { emptyMap, replaceStack } from "../lib/mapData";
+import { HEIGHT_PER_LEVEL, type MapFile, normalizeTiles, type TileDef } from "../lib/types";
+import { tilesByIdFromList } from "../lib/validation";
+import { emptyEquipment, type Equipment } from "./equipment";
 import type { FightingStats } from "../lib/battler";
 import { DEFAULT_BATTLER, fightingStats, fleeFrom, MAX_CHANCE, MIN_CHANCE } from "../lib/battler";
 import {
@@ -23,9 +28,9 @@ import {
   swingIntervalMs,
   swingWindupMs,
   underPressure,
+  rangedWeaponReaches,
 } from "./combat";
 import { TICK_MS } from "./constants";
-import { HEIGHT_PER_LEVEL } from "../lib/types";
 import { MELEE_REACH, type Reach } from "../lib/item";
 import { planDistanceSq } from "./distance";
 import { Rng } from "./rng";
@@ -1025,5 +1030,51 @@ describe("reach", () => {
       expect(inAttackRange(here, at(0, 0, 0), open)).toBe(true);
       expect(inAttackRange(here, at(1, 0, 0), open)).toBe(true);
     });
+  });
+});
+
+describe("rangedWeaponReaches", () => {
+  const catalogue: Record<string, TileDef> = tilesByIdFromList(
+    normalizeTiles(tilesRaw as unknown[]),
+  );
+  const holding = (tileId: string): Equipment => ({
+    ...emptyEquipment(),
+    weapon: { id: `held-${tileId}`, tileId },
+  });
+  const at = (x: number) => ({ x, y: 0, z: 0, stackIndex: 1 });
+
+  /** A row of grass from the origin east, with anything in `blocked` walled. */
+  function row(length: number, blocked: number[] = []): MapFile {
+    let map = emptyMap();
+    for (let x = 0; x < length; x++) {
+      const wall = blocked.includes(x) ? [{ tileId: "stone-wall" }] : [];
+      map = replaceStack(map, x, 0, 0, [{ tileId: "grass" }, ...wall]);
+    }
+    return map;
+  }
+
+  it("reaches a target inside the bow's reach", () => {
+    expect(rangedWeaponReaches(row(8), catalogue, holding("simple-bow"), at(0), at(4))).toBe(true);
+  });
+
+  it("does not reach a target inside the bow's minimum", () => {
+    expect(rangedWeaponReaches(row(8), catalogue, holding("simple-bow"), at(0), at(1))).toBe(false);
+  });
+
+  it("does not reach past the bow's reach", () => {
+    expect(rangedWeaponReaches(row(12), catalogue, holding("simple-bow"), at(0), at(10))).toBe(
+      false,
+    );
+  });
+
+  it("does not reach through a wall", () => {
+    const map = row(8, [2]);
+    expect(rangedWeaponReaches(map, catalogue, holding("simple-bow"), at(0), at(4))).toBe(false);
+  });
+
+  it("does not count a melee weapon", () => {
+    expect(rangedWeaponReaches(row(8), catalogue, holding("rusty-sword"), at(0), at(1))).toBe(
+      false,
+    );
   });
 });

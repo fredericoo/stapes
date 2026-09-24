@@ -648,6 +648,12 @@ body {
   stroke: #ff4d4d;
 }
 
+/* The viewer's own attack, at half strength: it is up for the whole fight, and
+   a spell line at full strength only lasts one cast. */
+.cast-line--attack {
+  stroke-opacity: 0.5;
+}
+
 @keyframes cast-line-march {
   from {
     stroke-dashoffset: 0;

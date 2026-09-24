@@ -82,6 +82,7 @@ import { taperAt, taperedGlow, taperedTint, type StatusTint } from "../lib/statu
 import { SmoothedRemaining, taperKey } from "./statusTaper";
 import { spriteStatesFor } from "./spriteState";
 import { pickBodyAt, pickInteractiveAt, pickTileAt } from "./pick";
+import { rangedWeaponReaches } from "../game/combat";
 import { CastLineLayer, type CastLineView } from "./castLines";
 import { DamageNumberLayer, type DamageNumberView } from "./damageNumbers";
 import { ScreenShake, SHAKE_DURATION_MS, shakeAmplitude } from "./screenShake";
@@ -2910,7 +2911,41 @@ export class GameRenderer {
         atYou: target.id === snap.self.id,
       });
     }
+    const attack = this.attackLineFor(snap, cut);
+    if (attack) out.push(attack);
     return out;
+  }
+
+  /**
+   * The viewer's own ranged attack, drawn as a cast is, while the shot would go:
+   * the session has them engaged (`GameSnapshot.nextBlow`, which it drops on a
+   * pvp refusal or a target out of reach) and a ranged weapon they hold reaches
+   * the target with a clear line — see `../game/combat`'s `rangedWeaponReaches`.
+   * A bow's `Reach.min` is what keeps it off a target standing next to you.
+   *
+   * The viewer's alone, because {@link GameSnapshot.targetId} is: nobody else's
+   * target is on the wire. Skipped while the viewer is casting at somebody, so
+   * a cast and a shot at one target are not two lines drawn over each other.
+   */
+  private attackLineFor(snap: GameSnapshot, cut: RoofCut | undefined): CastLineView | null {
+    const self = snap.self;
+    if (!snap.attacking || !snap.nextBlow || !snap.targetId || snap.targetId === self.id) {
+      return null;
+    }
+    if (self.casting?.targetId) return null;
+    const target = snap.actors.find((a) => a.id === snap.targetId);
+    if (!target) return null;
+    if (!rangedWeaponReaches(snap.map, this.tilesById, snap.equipment, self, target)) return null;
+    if (!this.isVisibleCell(snap, self, cut) || !this.isVisibleCell(snap, target, cut)) {
+      return null;
+    }
+    return {
+      id: `attack:${self.id}`,
+      from: this.bodyMiddle(snap.map, self),
+      to: this.bodyMiddle(snap.map, target),
+      atYou: false,
+      attack: true,
+    };
   }
 
   /**

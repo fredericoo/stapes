@@ -1,7 +1,8 @@
 import { labelScreenPosition } from "./textLabels";
 
 /**
- * A dotted line from somebody casting to whoever the spell will land on.
+ * A dotted line from somebody casting to whoever the spell will land on, and
+ * from the viewer to whoever their bow can hit from where they stand.
  *
  * **What it answers is "at whom"**, which the bar over a caster's head does
  * not: the bar says a spell is coming and how soon, and nothing on screen said
@@ -21,9 +22,12 @@ import { labelScreenPosition } from "./textLabels";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-/** One cast being aimed, as the layer is asked to draw it. */
+/** One cast or attack being aimed, as the layer is asked to draw it. */
 export type CastLineView = {
-  /** The caster's id, since a body casts one spell at a time. */
+  /**
+   * Distinct per line: the caster's id for a cast, since a body casts one spell
+   * at a time, and a prefixed one for the viewer's attack.
+   */
   id: string;
   /** World-pixel ends: the caster's body, and the target's. */
   from: { x: number; y: number };
@@ -33,11 +37,20 @@ export type CastLineView = {
    * `DamageNumberView.own`'s terms: this module has no idea who is looking.
    */
   atYou: boolean;
+  /**
+   * Whether this is the viewer's own attack rather than a cast. An attack line
+   * is drawn at half opacity: it stays up for a whole fight, where a cast line
+   * lasts one spell, and at full strength it drew more attention than the fight.
+   */
+  attack?: boolean;
 };
 
 /** Which class a line wears, and so its colour. */
-export function castLineClass(line: Pick<CastLineView, "atYou">): string {
-  return line.atYou ? "cast-line cast-line--at-you" : "cast-line";
+export function castLineClass(line: Pick<CastLineView, "atYou" | "attack">): string {
+  const classes = ["cast-line"];
+  if (line.atYou) classes.push("cast-line--at-you");
+  if (line.attack) classes.push("cast-line--attack");
+  return classes.join(" ");
 }
 
 type Entry = { element: SVGLineElement; className: string };
