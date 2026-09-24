@@ -7116,6 +7116,24 @@ luck.
   `reachableCraftAt` in `./affordances` is the board's half (reach, cover, the
   def); `craft.ts` joins it to the kit. Both ends read it.
 
+### The stone forge
+
+One `stone-forge` in the centre of town (L0, 1,1) replaced the five
+single-element forges (`stone-forge-cinder`, `-flame`, `-spark`, `-bolt`,
+`-lance`), which turned a blank stone into one fixed stone each. Its recipes:
+
+| spends                  | gives                                                         |
+| ----------------------- | ------------------------------------------------------------- |
+| 1 blank stone           | one of: Spark 3, Cinder 2, Sleet 2, Barbs 2, Flame 1 (weights) |
+| 2 Cinder / Sleet / Barbs / Spark | Ember / Frost / Thorns / Bolt, 100%                  |
+| 2 Ember / Frost / Thorns / Bolt  | Pyre / Rime / Bramble / Lance, 75%                   |
+| 1 Frost + 1 Thorns      | Verdance, 100%                                                |
+
+Blank stones come from the cave troll's kit at 10% (it was 100%), and once per
+player from a quest chest (`troll-stone`) where the troll's own forge used to
+stand. A first-timer who kills the troll with friends still gets a stone; more
+trolls still yield more, just rarely.
+
 ## Food piles, and so does an artifact that is only ever counted
 
 A pile is a `count` on an `ItemInstance` or a `PlacedTile` (`app/lib/piles.ts`).

@@ -28761,7 +28761,7 @@
               },
               {
                 "tileId": "arcane-stone",
-                "chance": 100
+                "chance": 10
               },
               {
                 "tileId": "raw-meat",
@@ -31363,7 +31363,7 @@
   },
   {
     "id": "stone-forge",
-    "name": "Inactive Stone Forge",
+    "name": "Stone Forge",
     "height": 3,
     "type": "simple",
     "kind": "prop",
@@ -31379,7 +31379,7 @@
         {
           "sprite": {
             "rect": {
-              "x": 0,
+              "x": 2,
               "y": 0,
               "w": 2,
               "h": 2
@@ -31389,9 +31389,241 @@
               "y": 1
             }
           },
-          "durationMs": 200
+          "durationMs": 200,
+          "light": {
+            "radius": 8,
+            "intensity": 1,
+            "color": "#04f7fb"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 2,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 8,
+            "intensity": 1,
+            "color": "#04f7fb"
+          }
         }
       ]
+    },
+    "interactions": {
+      "craft": {
+        "actionName": "Forge",
+        "recipes": [
+          {
+            "name": "Forge a Blank Stone",
+            "inputs": [
+              {
+                "tileId": "arcane-stone",
+                "count": 1
+              }
+            ],
+            "output": {
+              "kind": "one",
+              "items": [
+                {
+                  "tileId": "arcane-stone-of-spark",
+                  "weight": 3
+                },
+                {
+                  "tileId": "arcane-stone-of-cinder",
+                  "weight": 2
+                },
+                {
+                  "tileId": "arcane-stone-of-sleet",
+                  "weight": 2
+                },
+                {
+                  "tileId": "arcane-stone-of-barbs",
+                  "weight": 2
+                },
+                {
+                  "tileId": "arcane-stone-of-flame",
+                  "weight": 1
+                }
+              ]
+            }
+          },
+          {
+            "name": "Forge Ember",
+            "inputs": [
+              {
+                "tileId": "arcane-stone-of-cinder",
+                "count": 2
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "arcane-stone-of-ember",
+                  "chance": 100
+                }
+              ]
+            }
+          },
+          {
+            "name": "Forge Frost",
+            "inputs": [
+              {
+                "tileId": "arcane-stone-of-sleet",
+                "count": 2
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "arcane-stone-of-frost",
+                  "chance": 100
+                }
+              ]
+            }
+          },
+          {
+            "name": "Forge Thorns",
+            "inputs": [
+              {
+                "tileId": "arcane-stone-of-barbs",
+                "count": 2
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "arcane-stone-of-thorns",
+                  "chance": 100
+                }
+              ]
+            }
+          },
+          {
+            "name": "Forge Bolt",
+            "inputs": [
+              {
+                "tileId": "arcane-stone-of-spark",
+                "count": 2
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "arcane-stone-of-bolt",
+                  "chance": 100
+                }
+              ]
+            }
+          },
+          {
+            "name": "Forge Pyre",
+            "inputs": [
+              {
+                "tileId": "arcane-stone-of-ember",
+                "count": 2
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "arcane-stone-of-pyre",
+                  "chance": 75
+                }
+              ]
+            }
+          },
+          {
+            "name": "Forge Rime",
+            "inputs": [
+              {
+                "tileId": "arcane-stone-of-frost",
+                "count": 2
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "arcane-stone-of-rime",
+                  "chance": 75
+                }
+              ]
+            }
+          },
+          {
+            "name": "Forge Bramble",
+            "inputs": [
+              {
+                "tileId": "arcane-stone-of-thorns",
+                "count": 2
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "arcane-stone-of-bramble",
+                  "chance": 75
+                }
+              ]
+            }
+          },
+          {
+            "name": "Forge Lance",
+            "inputs": [
+              {
+                "tileId": "arcane-stone-of-bolt",
+                "count": 2
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "arcane-stone-of-lance",
+                  "chance": 75
+                }
+              ]
+            }
+          },
+          {
+            "name": "Forge Verdance",
+            "inputs": [
+              {
+                "tileId": "arcane-stone-of-frost",
+                "count": 1
+              },
+              {
+                "tileId": "arcane-stone-of-thorns",
+                "count": 1
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "arcane-stone-of-verdance",
+                  "chance": 100
+                }
+              ]
+            }
+          }
+        ]
+      }
     }
   },
   {
@@ -32660,421 +32892,6 @@
             }
           },
           "durationMs": 200
-        }
-      ]
-    }
-  },
-  {
-    "id": "stone-forge-cinder",
-    "name": "Stone Forge of Cinder",
-    "height": 3,
-    "type": "simple",
-    "kind": "prop",
-    "attributes": {},
-    "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 14,
-      "y": 2
-    },
-    "walkable": false,
-    "interactions": {
-      "craft": {
-        "actionName": "Forge",
-        "recipes": [
-          {
-            "name": "Forge Cinder",
-            "inputs": [
-              {
-                "tileId": "arcane-stone",
-                "count": 1
-              }
-            ],
-            "output": {
-              "kind": "all",
-              "items": [
-                {
-                  "tileId": "arcane-stone-of-cinder",
-                  "chance": 100
-                }
-              ]
-            }
-          }
-        ]
-      }
-    },
-    "sprite": {
-      "frames": [
-        {
-          "sprite": {
-            "rect": {
-              "x": 2,
-              "y": 0,
-              "w": 2,
-              "h": 2
-            },
-            "base": {
-              "x": 1,
-              "y": 1
-            }
-          },
-          "durationMs": 200,
-          "light": {
-            "radius": 8,
-            "intensity": 1,
-            "color": "#04f7fb"
-          }
-        },
-        {
-          "sprite": {
-            "rect": {
-              "x": 0,
-              "y": 2,
-              "w": 2,
-              "h": 2
-            },
-            "base": {
-              "x": 1,
-              "y": 1
-            }
-          },
-          "durationMs": 200,
-          "light": {
-            "radius": 8,
-            "intensity": 1,
-            "color": "#04f7fb"
-          }
-        }
-      ]
-    }
-  },
-  {
-    "id": "stone-forge-flame",
-    "name": "Stone Forge of Flame",
-    "height": 3,
-    "type": "simple",
-    "kind": "prop",
-    "attributes": {},
-    "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 14,
-      "y": 2
-    },
-    "walkable": false,
-    "interactions": {
-      "craft": {
-        "actionName": "Forge",
-        "recipes": [
-          {
-            "name": "Forge Flame",
-            "inputs": [
-              {
-                "tileId": "arcane-stone",
-                "count": 1
-              }
-            ],
-            "output": {
-              "kind": "all",
-              "items": [
-                {
-                  "tileId": "arcane-stone-of-flame",
-                  "chance": 100
-                }
-              ]
-            }
-          }
-        ]
-      }
-    },
-    "sprite": {
-      "frames": [
-        {
-          "sprite": {
-            "rect": {
-              "x": 2,
-              "y": 0,
-              "w": 2,
-              "h": 2
-            },
-            "base": {
-              "x": 1,
-              "y": 1
-            }
-          },
-          "durationMs": 200,
-          "light": {
-            "radius": 8,
-            "intensity": 1,
-            "color": "#04f7fb"
-          }
-        },
-        {
-          "sprite": {
-            "rect": {
-              "x": 0,
-              "y": 2,
-              "w": 2,
-              "h": 2
-            },
-            "base": {
-              "x": 1,
-              "y": 1
-            }
-          },
-          "durationMs": 200,
-          "light": {
-            "radius": 8,
-            "intensity": 1,
-            "color": "#04f7fb"
-          }
-        }
-      ]
-    }
-  },
-  {
-    "id": "stone-forge-spark",
-    "name": "Stone Forge of Spark",
-    "height": 3,
-    "type": "simple",
-    "kind": "prop",
-    "attributes": {},
-    "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 14,
-      "y": 2
-    },
-    "walkable": false,
-    "interactions": {
-      "craft": {
-        "actionName": "Forge",
-        "recipes": [
-          {
-            "name": "Forge Spark",
-            "inputs": [
-              {
-                "tileId": "arcane-stone",
-                "count": 1
-              }
-            ],
-            "output": {
-              "kind": "all",
-              "items": [
-                {
-                  "tileId": "arcane-stone-of-spark",
-                  "chance": 100
-                }
-              ]
-            }
-          }
-        ]
-      }
-    },
-    "sprite": {
-      "frames": [
-        {
-          "sprite": {
-            "rect": {
-              "x": 2,
-              "y": 0,
-              "w": 2,
-              "h": 2
-            },
-            "base": {
-              "x": 1,
-              "y": 1
-            }
-          },
-          "durationMs": 200,
-          "light": {
-            "radius": 8,
-            "intensity": 1,
-            "color": "#04f7fb"
-          }
-        },
-        {
-          "sprite": {
-            "rect": {
-              "x": 0,
-              "y": 2,
-              "w": 2,
-              "h": 2
-            },
-            "base": {
-              "x": 1,
-              "y": 1
-            }
-          },
-          "durationMs": 200,
-          "light": {
-            "radius": 8,
-            "intensity": 1,
-            "color": "#04f7fb"
-          }
-        }
-      ]
-    }
-  },
-  {
-    "id": "stone-forge-bolt",
-    "name": "Stone Forge of Bolt",
-    "height": 3,
-    "type": "simple",
-    "kind": "prop",
-    "attributes": {},
-    "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 14,
-      "y": 2
-    },
-    "walkable": false,
-    "interactions": {
-      "craft": {
-        "actionName": "Forge",
-        "recipes": [
-          {
-            "name": "Forge Bolt",
-            "inputs": [
-              {
-                "tileId": "arcane-stone",
-                "count": 1
-              }
-            ],
-            "output": {
-              "kind": "all",
-              "items": [
-                {
-                  "tileId": "arcane-stone-of-bolt",
-                  "chance": 100
-                }
-              ]
-            }
-          }
-        ]
-      }
-    },
-    "sprite": {
-      "frames": [
-        {
-          "sprite": {
-            "rect": {
-              "x": 2,
-              "y": 0,
-              "w": 2,
-              "h": 2
-            },
-            "base": {
-              "x": 1,
-              "y": 1
-            }
-          },
-          "durationMs": 200,
-          "light": {
-            "radius": 8,
-            "intensity": 1,
-            "color": "#04f7fb"
-          }
-        },
-        {
-          "sprite": {
-            "rect": {
-              "x": 0,
-              "y": 2,
-              "w": 2,
-              "h": 2
-            },
-            "base": {
-              "x": 1,
-              "y": 1
-            }
-          },
-          "durationMs": 200,
-          "light": {
-            "radius": 8,
-            "intensity": 1,
-            "color": "#04f7fb"
-          }
-        }
-      ]
-    }
-  },
-  {
-    "id": "stone-forge-lance",
-    "name": "Stone Forge of Lance",
-    "height": 3,
-    "type": "simple",
-    "kind": "prop",
-    "attributes": {},
-    "anchor": {
-      "tilesetId": "tiny-ranch-tiles",
-      "x": 14,
-      "y": 2
-    },
-    "walkable": false,
-    "interactions": {
-      "craft": {
-        "actionName": "Forge",
-        "recipes": [
-          {
-            "name": "Forge Lance",
-            "inputs": [
-              {
-                "tileId": "arcane-stone",
-                "count": 1
-              }
-            ],
-            "output": {
-              "kind": "all",
-              "items": [
-                {
-                  "tileId": "arcane-stone-of-lance",
-                  "chance": 100
-                }
-              ]
-            }
-          }
-        ]
-      }
-    },
-    "sprite": {
-      "frames": [
-        {
-          "sprite": {
-            "rect": {
-              "x": 2,
-              "y": 0,
-              "w": 2,
-              "h": 2
-            },
-            "base": {
-              "x": 1,
-              "y": 1
-            }
-          },
-          "durationMs": 200,
-          "light": {
-            "radius": 8,
-            "intensity": 1,
-            "color": "#04f7fb"
-          }
-        },
-        {
-          "sprite": {
-            "rect": {
-              "x": 0,
-              "y": 2,
-              "w": 2,
-              "h": 2
-            },
-            "base": {
-              "x": 1,
-              "y": 1
-            }
-          },
-          "durationMs": 200,
-          "light": {
-            "radius": 8,
-            "intensity": 1,
-            "color": "#04f7fb"
-          }
         }
       ]
     }
