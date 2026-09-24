@@ -2637,6 +2637,20 @@ and 22–39ms in the driver. Before the driver runs, every chunk written still
 goes through `JSON.stringify`, which `server/chunkJson.ts` already holds as
 text in another shape.
 
+**The Bun version mattered more than anything left below, and the build not
+at all.** Production and CI run Bun 1.3.8, and this work was measured on
+1.3.11. At a thousand walking players, three runs of each taken in turn:
+1.3.8 ran at 12.3 ticks a second (median tick 74ms), 1.3.11 at 12.6 (72ms),
+and 1.4.2 at 16.7 (52ms). Resident memory on 1.4.2 was lower too: 556–574MB
+on average against 587–599MB, and a peak of 605–628MB against 789–805MB. The
+same server bundled and minified, which is what `bun build --compile` embeds,
+measured the same as the source on both versions (12.6 against 12.6, 16.6
+against 16.7). `--compile` itself could not embed the database driver's
+native binding, which the driver picks by platform at runtime. All 251 server
+tests and `e2e/session.spec.ts` pass on 1.4.2. The machine was slower during
+these runs than during the sweep below, so compare them with each other and
+not with it.
+
 **Where it ended.** Same bench, no `--smol`, 30 seconds each, the branch point
 and the end of this work run back to back:
 
