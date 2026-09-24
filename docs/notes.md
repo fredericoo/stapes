@@ -2643,13 +2643,19 @@ both run 1.4.2 now. At a thousand walking players, three runs of each taken in
 turn: 1.3.8 ran at 12.3 ticks a second (median tick 74ms), 1.3.11 at 12.6
 (72ms), and 1.4.2 at 16.7 (52ms). Resident memory on 1.4.2 was lower too:
 556–574MB on average against 587–599MB, and a peak of 605–628MB against
-789–805MB. The same server bundled and minified, which is what
-`bun build --compile` embeds, measured the same as the source on both versions
-(12.6 against 12.6, 16.6 against 16.7). `--compile` itself could not embed the
-database driver's native binding, which the driver picks by platform at runtime.
-All 251 server tests and `e2e/session.spec.ts` pass on 1.4.2. The machine was
-slower during these runs than during the sweep below, so compare them with each
-other and not with it.
+789–805MB. The same server bundled and minified measured the same as the source
+on both versions (12.6 against 12.6, 16.6 against 16.7). Compiled with
+`bun build --compile`, it measured the same again on 1.4.2 (16.1–17.3 ticks a
+second against 16.2–16.8, three runs of each, with the same memory) and only
+started faster: 95ms from launch to a healthy `/api/health` with bytecode,
+against 314ms from source. The tick was the point, so the image runs the source.
+For whoever tries it again: the database driver's napi-rs loader picks its
+native binding at runtime, which the bundler cannot follow, so the driver's
+`#index` import has to be replaced with a `require` of the binding; and the
+bundler writes `"development"` in place of `process.env.NODE_ENV` unless it is
+defined. All 251 server tests and `e2e/session.spec.ts` pass on 1.4.2. The
+machine was slower during these runs than during the sweep below, so compare
+them with each other and not with it.
 
 **Production before and after.** The branch point on Bun 1.3.8, as production
 ran it, against the end of this work on 1.4.2, which the image now runs: the
