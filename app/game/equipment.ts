@@ -710,7 +710,10 @@ export function armorResistances(
   tilesById: Record<string, TileDef>,
 ): WeaponResistances {
   let summed: WeaponResistances | null = null;
-  for (const armor of wornArmor(equipment, tilesById)) {
+  // Indexed rather than `for...of`, for the reason in {@link armorDefence}.
+  const worn = wornArmor(equipment, tilesById);
+  for (let i = 0; i < worn.length; i++) {
+    const armor = worn[i]!;
     if (!armor.resist) continue;
     summed ??= {};
     for (const mastery of WEAPON_MASTERIES) {
@@ -860,8 +863,15 @@ export function armorDefence(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
 ): number {
+  // Indexed rather than `for...of`, and so are the loops in `armorResistances`
+  // and `../lib/mastery`'s `requirementShortfall`. Bun compiled each of those
+  // `for...of` loops, when its body had not yet run (nobody wearing armour, no
+  // weapon with requirements), without the body; and every time the body did
+  // run, the code dropped out of the optimized tier at that point — through ten
+  // recompilations, about 850,000 times in 45 seconds with a thousand players.
+  const worn = wornArmor(equipment, tilesById);
   let total = 0;
-  for (const armor of wornArmor(equipment, tilesById)) total += armor.def;
+  for (let i = 0; i < worn.length; i++) total += worn[i]!.def;
   return total;
 }
 

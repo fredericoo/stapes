@@ -274,7 +274,10 @@ export function requirementShortfall(
   if (!requirements) return 0;
 
   let missing = 0;
-  for (const mastery of MASTERIES) {
+  // Indexed rather than `for...of`, for the reason in `../game/equipment`'s
+  // `armorDefence`.
+  for (let i = 0; i < MASTERIES.length; i++) {
+    const mastery = MASTERIES[i]!;
     const required = requirements[mastery] ?? 0;
     if (required <= 0) continue;
     // Per requirement, so a surplus in one cannot cover a shortfall in another —
