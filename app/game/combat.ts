@@ -6,6 +6,7 @@ import {
   type StatusGrant,
   type WeaponStatus,
 } from "../lib/item";
+import { absoluteStandingElevation, getStack } from "../lib/mapData";
 import type { WeaponMastery } from "../lib/mastery";
 import type { MapFile, TileDef } from "../lib/types";
 import { BRAIN_TICK_MS, TICK_MS } from "./constants";
@@ -911,4 +912,27 @@ export function canReach(
 ): boolean {
   if (!inAttackRange(from, to, reach)) return false;
   return hasLineOfSight(map, tilesById, from, to);
+}
+
+/**
+ * Where a body is, in the terms reach is measured in.
+ *
+ * The elevation is the surface it is *standing on* — everything under it in
+ * its own stack, plus its level — which is the whole reason reach does not
+ * simply read `z`. A rat on a crate is half a level nearer your fist than a
+ * rat beside it, and on the board those two are the same cell and the same
+ * floor. `z` rides along because line of sight still walks in levels.
+ */
+export function reachPointAt(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  at: { x: number; y: number; z: number; stackIndex: number },
+): ReachPoint & { z: number } {
+  const stack = getStack(map, at.x, at.y, at.z);
+  return {
+    x: at.x,
+    y: at.y,
+    z: at.z,
+    elevAbs: absoluteStandingElevation(at.z, stack.slice(0, at.stackIndex), tilesById),
+  };
 }

@@ -185,6 +185,7 @@ import {
   swingWindupMs,
   WINDUP_LAPSE_MS,
   canReach,
+  reachPointAt,
   damageAfterDefence,
   damageFraction,
   inflictedBy,
@@ -3474,23 +3475,9 @@ export class GameSession implements PlaySession {
     return loc;
   }
 
-  /**
-   * Where a body is, in the terms reach is measured in.
-   *
-   * The elevation is the surface it is *standing on* — everything under it in
-   * its own stack, plus its level — which is the whole reason reach does not
-   * simply read `z`. A rat on a crate is half a level nearer your fist than a
-   * rat beside it, and on the board those two are the same cell and the same
-   * floor. `z` rides along because line of sight still walks in levels.
-   */
+  /** Where a body is, in the terms reach is measured in. @see `./combat`'s `reachPointAt` */
   private reachPointOf(loc: ActorLocation) {
-    const stack = getStack(this.map, loc.x, loc.y, loc.z);
-    return {
-      x: loc.x,
-      y: loc.y,
-      z: loc.z,
-      elevAbs: absoluteStandingElevation(loc.z, stack.slice(0, loc.stackIndex), this.tilesById),
-    };
+    return reachPointAt(this.map, this.tilesById, loc);
   }
 
   /**
