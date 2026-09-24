@@ -237,13 +237,12 @@ game's menu has no account controls at all**, and the chooser has no way into
 the world except a character.
 
 - `app/components/LeaveWorldButton.tsx` sits in the menu the lighting switch is
-  in — behind the cog, on every device: the game has no header. It
-  forgets the character and navigates to `/characters`, which unmounts the world
-  route and tears the connecting effect down with it: the canvas goes, and with
-  it the renderer, the session and this player's body in the world. **It does
-  not touch the session**: this is how somebody swaps to another of their three,
-  and coming back to the one they left is the same body standing where they left
-  it.
+  in — behind the cog, on every device: the game has no header. The press tears
+  the connecting effect down first — the renderer, the session and the socket,
+  and with the socket this player's body in the world — and then forgets the
+  character and navigates to `/characters`. **It does not touch the session**:
+  this is how somebody swaps to another of their three, and coming back to the
+  one they left is the same body standing where they left it.
 - **Sign out** is on `/characters` and **Change password** is its own route off
   it, because that is where the account lives. Being signed out is a state worth
   having to ask for on an account with no password reset, and a password is not
@@ -251,6 +250,24 @@ the world except a character.
 
 `e2e/session.spec.ts` asserts the split from both sides: the account's controls
 are absent in the game and present on the chooser.
+
+**The world is torn down at the press, not by the unmount the navigation
+causes.** React Router commits a navigation inside `startTransition`, and a
+transition gives way to every ordinary update. A live world keeps making them —
+the clock, the frame readout, the vitals, the list of what is within reach —
+between frames that take most of a slow machine's time. Left to the unmount,
+the chooser took about six seconds to appear on the machine this was measured
+on, and with the page's CPU throttled four times
+(`Emulation.setCPUThrottlingRate`) it had not appeared a minute later, with the
+body still in the world. CI's browser draws about two frames a second, and
+there both tests in `e2e/session.spec.ts` that leave the world failed this way
+once the server's patches arrived at the full thirty a second rather than about
+twenty-seven. `WorldPage`'s `leave` runs the connecting effect's own teardown
+and then calls the route, and the chooser appears within a few hundred
+milliseconds of the socket closing, even throttled six times. `navigate`'s
+`flushSync` option does not fix this: it applies to a navigation's first state
+update, and the commit after the loader goes through `startTransition` either
+way.
 
 **Leaving asks nothing in the ordinary case**, because the button beside it
 undoes it: the chooser is one press from the world again. A confirmation on an

@@ -322,6 +322,27 @@ export function WorldPage({
    */
   const handlersRef = useRef({ onLeave, onRefused });
   handlersRef.current = { onLeave, onRefused };
+  /** The connecting effect's teardown, while it has a world to tear down. @see leave */
+  const stopRef = useRef<(() => void) | null>(null);
+  /**
+   * **Leave world**: out of the world at the press, and only then to wherever
+   * the route sends a character that has left.
+   *
+   * The connection is closed here rather than left to the unmount the route's
+   * navigation causes, because that unmount can be a long time coming. React
+   * Router commits a navigation inside `startTransition`, which gives way to
+   * every ordinary update, and a live world keeps making them — the clock, the
+   * frame readout, the vitals, the list of what is within reach — between
+   * frames that take most of a slow machine's time. There, the press did
+   * nothing for seconds, or never did anything, while the body stood in the
+   * world. With the socket closed and the renderer stopped there is nothing
+   * left for the navigation to give way to. @see `docs/notes.md`, "An account
+   * signs in; a character enters"
+   */
+  const leave = useCallback(() => {
+    stopRef.current?.();
+    handlersRef.current.onLeave?.();
+  }, []);
 
   useEffect(() => {
     rendererRef.current?.setLightingEnabled(lightingEnabled);
@@ -584,9 +605,9 @@ export function WorldPage({
       });
     };
 
-    connect();
-
-    return () => {
+    // What the unmount does, and what **Leave world** does first, so it is safe
+    // to run twice. @see leave
+    const stop = () => {
       disposed = true;
       if (retryTimer) clearTimeout(retryTimer);
       unbindCast();
@@ -596,6 +617,14 @@ export function WorldPage({
       socket?.close();
       setStats(null);
       setPlayers(null);
+    };
+    stopRef.current = stop;
+
+    connect();
+
+    return () => {
+      if (stopRef.current === stop) stopRef.current = null;
+      stop();
     };
     // `assetsReady` is in here for the canvas rather than for itself — the
     // element only exists once it is true. It also holds the connection back
@@ -671,7 +700,7 @@ export function WorldPage({
                 <div className="py-2">
                   <LeaveWorldButton
                     inCombat={vitals.statuses.some((status) => status.defId === COMBAT_STATUS_ID)}
-                    onLeave={onLeave}
+                    onLeave={leave}
                   />
                 </div>
               ) : null}
