@@ -5959,8 +5959,15 @@ the same ambient the shader uses, and counts the eight neighbours as well as the
 cell because the light texture is linearly filtered: a body one cell from a lit
 one is half lit on screen and stays named. The threshold is `PITCH_BLACK_LIGHT`,
 2% on every channel. Open ground at night is dim, not black, so it keeps its
-tags. The interaction list is not gated by this — it still lists a body in the
-dark with its name and health.
+tags.
+
+The interaction list drops the same bodies, and every row whose subject is one:
+`targetableActors` leaves them out, and the list is then filtered by reference,
+because the board offers a shove at an adjacent body's tile with its name and
+health on it whether or not the body was passed in. The target and whoever is
+being followed are kept in the dark, as they are behind a roof, because their
+row is the only way to stop the fight or the walk. Which bodies are dark is in
+the list's cache key: light moves without the board moving.
 
 **A name hangs above the art, not above the height.** A tile's `height` is a
 gameplay figure — what you stand on, what you see over — while its sprite is
