@@ -85,6 +85,18 @@ export function minutesOfDayAt(epochMs: number): MinutesOfDay {
   return wrapMinutes(epochMs / MS_PER_CLOCK_MINUTE);
 }
 
+/**
+ * Does `minutes` fall in the hours from `fromHour` up to, not including,
+ * `toHour`? A window whose start is later than its end wraps midnight, and one
+ * whose ends are equal holds nothing. @see ./brain's `time_of_day`
+ */
+export function withinHours(minutes: MinutesOfDay, fromHour: number, toHour: number): boolean {
+  const t = wrapMinutes(minutes);
+  const from = fromHour * 60;
+  const to = toHour * 60;
+  return from <= to ? t >= from && t < to : t >= from || t < to;
+}
+
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }

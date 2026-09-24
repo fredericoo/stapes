@@ -501,7 +501,31 @@ export type BrainConditionDef =
    * — has no share to be under, so this never holds for one. Its `not` does,
    * which reads correctly: a signpost is not wounded.
    */
-  | { cond: "health"; atMostPercent: number };
+  | { cond: "health"; atMostPercent: number }
+  /**
+   * The world's clock reads between `fromHour` and `toHour`.
+   *
+   * What makes a creature nocturnal: a bat that sleeps by day and hunts by
+   * night is two states and a transition each way on this, and its `not`.
+   *
+   * **From inclusive, to exclusive, and wrapping at midnight.** `19` to `5` is
+   * the night, from seven in the evening up to five in the morning, which is the
+   * window an author means and the one a straight comparison would read as
+   * empty. Half-open so two windows that meet — `6` to `18` and `18` to `6` —
+   * cover the day between them with no hour counted twice and none missed.
+   *
+   * **Equal hours are an empty window, never the whole day.** One of the two
+   * had to be chosen, and the whole day is already authorable as the `not` of an
+   * empty one, where an empty window read the other way would not be
+   * authorable at all.
+   *
+   * Whole hours, because the day is twenty-four real minutes long and an hour of
+   * it is one real minute: a finer threshold is a distinction nobody watching
+   * the sky could make. The clock is the world's — the wall clock moved by
+   * `/time` — so every creature in the world agrees on what time it is, and it
+   * is the same hour the sky is drawn at. @see ./clock
+   */
+  | { cond: "time_of_day"; fromHour: number; toHour: number };
 
 /**
  * What a transition fires on: one question, or several joined together.
@@ -816,6 +840,14 @@ const durationMs = v.pipe(v.number(), v.integer(), v.minValue(0));
  */
 export const MAX_HEALTH_PERCENT = 100;
 
+/**
+ * The last hour a `time_of_day` window may name. Exported for the editor's
+ * number box on {@link MAX_HEALTH_PERCENT}'s grounds.
+ */
+export const MAX_HOUR_OF_DAY = 23;
+
+const hourOfDay = v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_HOUR_OF_DAY));
+
 const speakerFilterSchema = v.object({
   match: v.picklist(["is", "not"]),
   of: selectorSchema,
@@ -872,6 +904,7 @@ const leafSchema = v.variant("cond", [
     // a distinction nobody watching a fight could see.
     atMostPercent: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_HEALTH_PERCENT)),
   }),
+  v.object({ cond: v.literal("time_of_day"), fromHour: hourOfDay, toHour: hourOfDay }),
 ]);
 
 const ifSchema = conditionSchema<BrainConditionDef>(leafSchema);

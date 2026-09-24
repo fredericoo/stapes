@@ -8020,6 +8020,35 @@ wearing off, and a body on more than a full bar is not more than unwounded.
 A brain is not owed a battler block — `health` on a signpost answers no, and its
 `not` answers yes, which is the reading that leaves a signpost standing still.
 
+## A creature can ask the time, and the session is handed a clock to answer
+
+`time_of_day` is the condition that makes a nocturnal creature authorable: a bat
+that sleeps by day is two states, a transition each way on
+`{ cond: "time_of_day", fromHour: 19, toHour: 5 }`, and its `not`.
+
+**Whole hours, from inclusive and to exclusive, wrapping midnight.** `19` to `5`
+is the night, which a plain `from <= t < to` would read as an empty window. Half
+open so that `6`–`18` and `18`–`6` cover the day with no hour in both. Equal ends
+are an empty window rather than the whole day, because the whole day is then
+still authorable as the `not` of an empty window, and an empty window read the
+other way would not be authorable at all. The test is `withinHours` in
+`app/lib/clock.ts`. Hours rather than minutes because a game hour is one real
+minute, and nobody watching the sky can tell 19:00 from 19:20.
+
+**The session has no clock, so it is given one.** The time of day is
+`GameServer.minutesOfDay` — the wall clock plus the offset `/time` sets — and
+`GameSession` has never read the wall clock; `/time` reaches the server as a
+queued `drainClockSet` for that reason. So `GameSession` takes a `clock` option,
+and every place `GameServer` builds a session passes `() => this.minutesOfDay()`.
+A session built without one reads `DEFAULT_PLAY_MINUTES`, which keeps every
+test that is not about the time off the wall clock.
+
+**Read once per brain round, not per turn.** A round is spread over several
+ticks, and reading the clock per creature would let the hour change partway
+through a round. `planBrainRound` stores it on the `BrainRound`, and
+`BrainContext.minutesOfDay` is a field rather than a method for the reason
+`home` is one: nothing about the body changes it.
+
 ## A status can be a gamble, and a body can be immune to one
 
 Two changes to how a condition is handed over, both forced by one item.

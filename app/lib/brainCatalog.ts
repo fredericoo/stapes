@@ -1,5 +1,6 @@
 import {
   MAX_HEALTH_PERCENT,
+  MAX_HOUR_OF_DAY,
   nearest,
   thing,
   type BrainActionDef,
@@ -251,6 +252,17 @@ export const CONDITIONS: Record<BrainConditionDef["cond"], CatalogEntry<BrainCon
     // still worth having, and a default that fired there would make every
     // freshly picked row read as cowardice.
     make: () => ({ cond: "health", atMostPercent: 33 }),
+  },
+  time_of_day: {
+    label: "time of day",
+    hint: "The world's clock is at or past the first hour and before the second. A window whose start is later than its end runs through midnight, so 19 to 5 is the night. Equal hours never hold, and their not always does.",
+    params: [
+      { key: "fromHour", kind: "number", label: "from hour", min: 0, max: MAX_HOUR_OF_DAY },
+      { key: "toHour", kind: "number", label: "to hour", min: 0, max: MAX_HOUR_OF_DAY },
+    ],
+    // The night the sky draws: dark from seven, and still dark until dawn
+    // starts at four. @see ./clock ILLUMINATION_KEYFRAMES
+    make: () => ({ cond: "time_of_day", fromHour: 19, toHour: 4 }),
   },
   carrying: {
     label: "carrying",

@@ -274,6 +274,7 @@ describe("deciding", () => {
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
+      minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -1173,6 +1174,7 @@ describe("giving up", () => {
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
+      minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
     };
 
@@ -1562,6 +1564,7 @@ describe("actions that take time", () => {
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
+      minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -2014,6 +2017,7 @@ describe("a deer that yelps", () => {
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
+      minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
     };
 
@@ -2102,6 +2106,7 @@ describe("a deer that yelps", () => {
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
+      minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
     };
 
@@ -2117,6 +2122,64 @@ describe("a deer that yelps", () => {
     advance(s, BRAIN_TICK_MS * 3);
 
     expect(JSON.stringify(s.getMap())).not.toContain("!");
+  });
+});
+
+/**
+ * The session has no clock of its own, so a brain asking the time is asking the
+ * one it was handed. What is worth pinning is that the hand-off reaches the
+ * brain, and that a clock which moves is read again rather than remembered.
+ */
+describe("a creature that wakes at night", () => {
+  const owls: TileDef[] = [
+    ...tiles,
+    tile({
+      id: "owl",
+      height: 2,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: {
+        brain: {
+          initial: "asleep",
+          states: {
+            asleep: { do: [{ action: "hold" }] },
+            awake: { onEnter: [{ effect: "say", text: "hoo" }], do: [{ action: "hold" }] },
+          },
+          transitions: [
+            {
+              from: "asleep",
+              if: { cond: "time_of_day", fromHour: 19, toHour: 5 },
+              to: "awake",
+            },
+          ],
+        },
+      },
+    }),
+  ];
+
+  function owlAt(clock: () => number): GameSession {
+    return new GameSession(withDeer(field(4), 0, 0, "owl"), owls, { actorIds: ["alice"], clock });
+  }
+
+  /** Everything said over `ms`, drained every tick since speech lasts one. */
+  function saidOver(session: GameSession, ms: number): string[] {
+    const said: string[] = [];
+    for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      said.push(...session.drainSpeech().map((line) => line.text));
+    }
+    return said;
+  }
+
+  it("stays asleep by day and wakes once the clock reaches the night", () => {
+    let minutes = 12 * 60;
+    const session = owlAt(() => minutes);
+
+    expect(saidOver(session, BRAIN_TICK_MS * 2)).toEqual([]);
+
+    minutes = 20 * 60;
+    expect(saidOver(session, BRAIN_TICK_MS * 2)).toEqual(["hoo"]);
   });
 });
 
@@ -2772,6 +2835,7 @@ describe("composing conditions", () => {
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
+      minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -3483,6 +3547,7 @@ describe("knowing where it belongs", () => {
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
+      minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -4736,6 +4801,7 @@ describe("naming a thing", () => {
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
+      minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -4911,6 +4977,7 @@ describe("asking what a body is under", () => {
       carrying: () => false,
       hasStatus: vi.fn(() => false),
       health: vi.fn((): number | null => 1),
+      minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -5054,6 +5121,42 @@ describe("asking what a body is under", () => {
       expect(ran(fresh, ctx({ health: () => 0.1 }))).toBe("idle");
     });
   });
+
+  /**
+   * What a nocturnal creature is authored with. The window wraps midnight, so
+   * the cases worth pinning are both sides of each end and the small hours.
+   */
+  describe("asking the time", () => {
+    const night = watching({ cond: "time_of_day", fromHour: 19, toHour: 5 });
+    const at = (hour: number, minute = 0) => ctx({ minutesOfDay: hour * 60 + minute });
+
+    it("holds through midnight and not by day", () => {
+      expect(ran(night, at(22))).toBe("alert");
+      expect(ran(night, at(2))).toBe("alert");
+      expect(ran(night, at(12))).toBe("idle");
+    });
+
+    it("holds from its first hour and stops at its last", () => {
+      expect(ran(night, at(18, 59))).toBe("idle");
+      expect(ran(night, at(19))).toBe("alert");
+      expect(ran(night, at(4, 59))).toBe("alert");
+      expect(ran(night, at(5))).toBe("idle");
+    });
+
+    it("reads a window that does not wrap", () => {
+      const day = watching({ cond: "time_of_day", fromHour: 6, toHour: 18 });
+      expect(ran(day, at(6))).toBe("alert");
+      expect(ran(day, at(17, 59))).toBe("alert");
+      expect(ran(day, at(18))).toBe("idle");
+      expect(ran(day, at(3))).toBe("idle");
+    });
+
+    it("never holds when both ends are the same hour", () => {
+      const empty = watching({ cond: "time_of_day", fromHour: 7, toHour: 7 });
+      expect(ran(empty, at(7))).toBe("idle");
+      expect(ran(empty, at(20))).toBe("idle");
+    });
+  });
 });
 
 /**
@@ -5096,6 +5199,7 @@ describe("casting a spell of its own", () => {
       carrying: () => false,
       hasStatus: () => false,
       health: () => 1,
+      minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];

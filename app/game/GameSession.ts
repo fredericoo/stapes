@@ -117,7 +117,7 @@ import {
   tileNotice,
   timeNotice,
 } from "./notices";
-import type { MinutesOfDay } from "../lib/clock";
+import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
 import { leaveResidue } from "./residue";
 import { type Blame, causeOfDeath, possessive } from "./blame";
 import { conjuredName, sparesStander } from "./conjured";
@@ -1436,6 +1436,12 @@ type BrainRound = {
   sounds: readonly Sound[];
   heard: readonly Utterance[];
   hurt: ReadonlyMap<string, string[]>;
+  /**
+   * The world's time of day as the round began. Read once rather than per turn,
+   * so a round spread over several ticks does not straddle an hour for some of
+   * its creatures and not for others. @see GameSession.clock
+   */
+  minutesOfDay: MinutesOfDay;
 };
 /**
  * One blow, settled, waiting out the flight of the thing that depicts it.
@@ -2278,6 +2284,16 @@ export class GameSession implements PlaySession {
    * The server drains it and moves its own. @see drainClockSet
    */
   private pendingClockSet: MinutesOfDay | null = null;
+  /**
+   * What the world's clock reads now, for a brain asking the time.
+   *
+   * Handed in rather than read, for the reason {@link pendingClockSet} is held:
+   * the hour is the server's — the wall clock moved by `/time` — and this
+   * object never reads the wall clock. A session built without one sits at
+   * {@link DEFAULT_PLAY_MINUTES}, which is the hour a client shows before it is
+   * told, and keeps every test that is not about the time off the wall clock.
+   */
+  private readonly clock: () => MinutesOfDay;
   private readonly plateCells = new Map<string, Coord>();
   /**
    * Cells holding a placement wired to a signal channel — emitters and
@@ -2656,6 +2672,7 @@ export class GameSession implements PlaySession {
       spawnAt,
       seed,
       statuses: statusDefs = {},
+      clock = () => DEFAULT_PLAY_MINUTES,
     }: {
       /**
        * Actors to start with. The default adopts the authored `player` tile as
@@ -2689,8 +2706,11 @@ export class GameSession implements PlaySession {
        * world where nothing has statuses, which is every test not about them.
        */
       statuses?: Record<string, StatusDef>;
+      /** What the world's clock reads now. @see GameSession.clock */
+      clock?: () => MinutesOfDay;
     } = {},
   ) {
+    this.clock = clock;
     this.map = structuredClone(map);
     this.tilesById = tilesByIdFromList(tiles);
     // The combat flag's def is the engine's, and a session built from a bare
@@ -3858,6 +3878,7 @@ export class GameSession implements PlaySession {
       sounds: this.pendingSound,
       heard: this.pendingHeard,
       hurt: this.pendingHurt,
+      minutesOfDay: this.clock(),
     };
     this.pendingSound = [];
     this.pendingHeard = [];
@@ -4297,6 +4318,7 @@ export class GameSession implements PlaySession {
       carrying: (tileId) => this.carryingInBag(actor, tileId),
       hasStatus: (id, atLeastMs) => this.hasStatus(actor, id, atLeastMs),
       health: () => this.healthShare(actor),
+      minutesOfDay: round.minutesOfDay,
       nameOf: (id) => this.bodyName(id),
     });
   }

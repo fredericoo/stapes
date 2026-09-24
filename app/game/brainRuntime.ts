@@ -9,6 +9,7 @@ import {
   type Selector,
   type SpeakerFilter,
 } from "../lib/brain";
+import { withinHours, type MinutesOfDay } from "../lib/clock";
 import { evaluateCondition } from "../lib/conditions";
 import type { BattlerDef } from "../lib/battler";
 import { DIRECTIONS, type Coord, type Direction } from "../lib/types";
@@ -462,6 +463,15 @@ export type BrainContext = {
    */
   health(): number | null;
   /**
+   * The world's time of day, read once for the round. What `time_of_day` reads.
+   *
+   * A field rather than a question, on `home`'s grounds: nothing about this
+   * body changes the answer, and every creature in a round is owed the same
+   * hour. The session has no clock of its own, so this is the server's —
+   * the wall clock moved by `/time`. @see ../lib/clock
+   */
+  minutesOfDay: MinutesOfDay;
+  /**
    * What to call somebody out loud, or null once they are off the board.
    *
    * The one capability here that exists purely for words. Everything else an
@@ -867,6 +877,8 @@ function leafHolds(condition: BrainConditionDef, memory: BrainMemory, ctx: Brain
       if (share === null) return false;
       return share * MAX_HEALTH_PERCENT <= condition.atMostPercent;
     }
+    case "time_of_day":
+      return withinHours(ctx.minutesOfDay, condition.fromHour, condition.toHour);
   }
 }
 
