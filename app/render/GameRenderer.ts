@@ -2324,6 +2324,13 @@ export class GameRenderer {
     for (const actor of snap.actors) {
       if (actor.hp === null || actor.maxHp === null) continue;
       if (!this.isVisibleBody(snap, actor, camera, cut)) continue;
+      // Nobody else standing in the dark is named or measured: the server still
+      // sends them, and the sprite is drawn black, but a tag over it would say
+      // what is in a cave before any light reaches it. Your own tag stays, so
+      // your health is readable wherever you walk.
+      if (actor.id !== snap.self.id && this.world.isCellPitchBlack(actor.x, actor.y, actor.z)) {
+        continue;
+      }
 
       const visual = this.actorVisualWorld(snap.map, actor);
       const height = this.bodyOwnHeight(snap.map, actor, actor.stackIndex);

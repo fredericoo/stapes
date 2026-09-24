@@ -5951,6 +5951,17 @@ was right while a creature was scenery and wrong the moment it became something
 you can pick a fight with. `bodyNameFor` answers it for both, exactly as it
 already did for speech.
 
+**Nobody standing in pitch black is named, except you.** The server still sends
+every actor; `pushNameLabels` skips the tag and bar of any body but the viewer's
+own whose cell `WorldRenderer.isCellPitchBlack` reports as drawn black. That
+reads the light grid last uploaded to the GPU, carried lights included, tinted by
+the same ambient the shader uses, and counts the eight neighbours as well as the
+cell because the light texture is linearly filtered: a body one cell from a lit
+one is half lit on screen and stays named. The threshold is `PITCH_BLACK_LIGHT`,
+2% on every channel. Open ground at night is dim, not black, so it keeps its
+tags. The interaction list is not gated by this — it still lists a body in the
+dark with its name and health.
+
 **A name hangs above the art, not above the height.** A tile's `height` is a
 gameplay figure — what you stand on, what you see over — while its sprite is
 authored to a cell box and usually fills it: the cat and the player are the same

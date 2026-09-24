@@ -1062,3 +1062,47 @@ export function sampleLevelLight(
   const i = (ly * level.w + lx) * 3;
   return [level.rgb[i]! / 255, level.rgb[i + 1]! / 255, level.rgb[i + 2]! / 255];
 }
+
+/**
+ * Below this, on every channel, a lit sprite is indistinguishable from the
+ * black the canvas is cleared to. @see isPitchBlack
+ */
+export const PITCH_BLACK_LIGHT = 0.02;
+
+/**
+ * Would a sprite standing in this cell be drawn black?
+ *
+ * Asked of the grid the GPU was given, tinted by the same ambient the shader
+ * applies, so it agrees with the picture rather than with a separate estimate of
+ * it. The eight neighbours are read as well as the cell because the light
+ * texture is sampled with linear filtering: a body standing one cell from a lit
+ * one has the half of its sprite nearest the light drawn lit, and is visible.
+ *
+ * A level the grid holds nothing for is uploaded dark (`uploadDarkLevel`), so it
+ * is pitch black here too; a cell outside a level's rectangle reads as unlit for
+ * the same reason.
+ */
+export function isPitchBlack(
+  grid: PackedLightGrid,
+  ambient: readonly [number, number, number],
+  x: number,
+  y: number,
+  z: number,
+): boolean {
+  const level = grid.levels.get(z);
+  if (!level) return true;
+  for (let dy = -1; dy <= 1; dy++) {
+    const ly = y + dy - level.y0;
+    if (ly < 0 || ly >= level.h) continue;
+    for (let dx = -1; dx <= 1; dx++) {
+      const lx = x + dx - level.x0;
+      if (lx < 0 || lx >= level.w) continue;
+      const i = (ly * level.w + lx) * 4;
+      const sky = level.rgba[i + 3]! / 255;
+      for (let c = 0; c < 3; c++) {
+        if (sky * ambient[c]! + level.rgba[i + c]! / 255 >= PITCH_BLACK_LIGHT) return false;
+      }
+    }
+  }
+  return true;
+}
