@@ -2492,7 +2492,9 @@ brains off entirely put the world at full speed with a 9ms median tick.
 | spread, before | 20 | 22ms | 105ms |
 | spread, after | 28 | 20ms | 34ms |
 
-29.4 is the ceiling: `setInterval(…, 33.3)` fires every 34ms in Bun.
+29.4 is the ceiling: `setInterval(…, 33.3)` fires every 34ms in Bun. (It was.
+The tick is now set against a timeline, `GameServer.tickIfDue`, which makes
+up the time a long tick took instead of losing it and puts the ceiling at 30.)
 
 **What is left**, for whoever takes this further:
 
@@ -2910,8 +2912,8 @@ of those is a body the client already holds, and `spawned` is written to ignore
 an id it already has — which it has to be anyway, because a socket that connects
 just after a spawn is told about it twice.
 
-**The world ticks only while there is work** (`isAtRest`). `setInterval` blocks
-hibernation, so an idle world stops ticking and its object can be evicted with
+**The world ticks only while there is work** (`isAtRest`). A pending tick timer
+blocks hibernation, so an idle world stops ticking and its object can be evicted with
 sockets still open. Going idle checkpoints the runtime map, which is what makes
 eviction invisible — without it a wake would reload the authored map and drop
 everyone back at spawn.

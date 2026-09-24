@@ -682,6 +682,18 @@ const ACTOR_FLUSH_INTERVAL_MS = 30_000;
 const TICK_FAILURE_LOG_INTERVAL = 300;
 
 /**
+ * How far behind its timeline the tick loop may fall before it stops trying to
+ * catch up: three ticks. A tick that ran long, or a collection that paused
+ * the process, is made up by running the next ones sooner; a world further
+ * behind than this cannot keep up, and running its backlog back to back would
+ * only hand every client a burst of patches. @see GameServer.tickIfDue
+ */
+const MAX_TICK_BACKLOG_MS = TICK_MS * 3;
+
+/** How often the tick loop looks at the clock. @see GameServer.tickIfDue */
+const TICK_POLL_MS = 1;
+
+/**
  * Where somebody was standing, kept against their return.
  *
  * `savedAt` is here for the ceiling rather than for gameplay — see
@@ -1460,7 +1472,10 @@ export class GameServer {
   private events: MotionEvent[] = [];
   /** Steps, turns and casts clients have sent, oldest first, per actor. */
   private readonly queuedIntents = new Map<string, QueuedIntent[]>();
+  /** The tick loop's timer, while the world is ticking. @see wake */
   private timer: ReturnType<typeof setInterval> | null = null;
+  /** When the next tick is due, on `performance.now()`'s clock. @see tickIfDue */
+  private tickDueAt = 0;
   /** Consecutive throwing ticks, for the rate-limited report. See {@link tickSafely}. */
   private consecutiveTickFailures = 0;
   private loading: Promise<void> | null = null;
@@ -4339,12 +4354,47 @@ export class GameServer {
   /**
    * Start ticking, if it is not already.
    *
-   * `setInterval` blocks hibernation, which is exactly why it only runs while
-   * there is something to simulate — see {@link sleepIfIdle}.
+   * A pending timer blocks hibernation, which is exactly why there is one only
+   * while there is something to simulate — see {@link sleepIfIdle}.
    */
   private wake() {
     if (this.timer !== null) return;
-    this.timer = setInterval(() => this.tickSafely(), TICK_MS);
+    this.tickDueAt = performance.now() + TICK_MS;
+    this.timer = setInterval(() => this.tickIfDue(), TICK_POLL_MS);
+  }
+
+  /**
+   * Run a tick if one has fallen due: one every {@link TICK_MS} since
+   * {@link wake}, on a timeline rather than an interval.
+   *
+   * **Not `setInterval(…, TICK_MS)`, because Bun's never makes up lost time.**
+   * A callback that overruns the interval is followed straight away by the
+   * next, and then the one after waits a whole interval again, so every tick
+   * that runs long slows the world for good: ticks alternating 10ms and 50ms,
+   * inside the budget on average, came 24 times a second rather than 30. On a
+   * timeline, a long tick is followed by the next one as soon as it ends, and
+   * the world keeps time with the clients predicting it for as long as the
+   * average tick fits. A world more than {@link MAX_TICK_BACKLOG_MS} behind
+   * drops the backlog and carries on from now.
+   *
+   * **And a heartbeat that asks, not a timeout set for each tick.** Each tick
+   * setting a `setTimeout` for the next was tried first, and under load it
+   * made the tick itself slower: with a thousand players the phase that opens
+   * the session's tick, `tickStatuses`, took five times as long for the same
+   * work as it did under `setInterval`, and the world ran at 13 to 15 ticks a
+   * second rather than 17. `setImmediate` for a tick already due was in
+   * between. Why is not known. This measured best at every load tried.
+   */
+  private tickIfDue() {
+    if (performance.now() < this.tickDueAt) return;
+    const timer = this.timer;
+    this.tickSafely();
+    // Stopped during the tick — gone to sleep, reset, or saved over — or
+    // started again by something it called: the timeline is not this one's.
+    if (this.timer !== timer) return;
+    this.tickDueAt += TICK_MS;
+    const now = performance.now();
+    if (now - this.tickDueAt > MAX_TICK_BACKLOG_MS) this.tickDueAt = now;
   }
 
   /**
@@ -4352,7 +4402,7 @@ export class GameServer {
    *
    * **A platform used to do this.** An exception inside a Durable Object's
    * timer was caught by the runtime and cost that tick; the same exception
-   * inside `setInterval` here is an uncaught exception, which ends the process
+   * inside a timer here is an uncaught exception, which ends the process
    * — so one bad tick disconnected everybody, lost up to a checkpoint interval,
    * and handed the whole world to the restart policy. A queued step belonging
    * to somebody who had just walked into a fire was enough to do it.
