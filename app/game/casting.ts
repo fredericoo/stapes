@@ -212,7 +212,24 @@ export type CasterPoint = CastPoint & {
  * `./GameSession`'s `ActorSnapshot.casting` and `../net/protocol`'s
  * `CastingPatch` — so there is one shape for a cast in progress everywhere.
  */
-export type CastProgress = Progress & { slot: CastSlot };
+export type CastProgress = Progress & {
+  slot: CastSlot;
+  /**
+   * Who the spell will land on, when it lands on somebody the caster is
+   * pointing at. Absent for a spell at the caster's own body and for one cast
+   * with nobody targeted.
+   *
+   * Broadcast so everybody watching can see who a cast is aimed at — the
+   * dotted line `../render/castLines` draws from caster to target. A target is
+   * otherwise private to its owner; this reveals one only while a spell is
+   * being cast at it, which is when the target has a reason to know.
+   *
+   * It follows the caster's target for the whole cast rather than being fixed
+   * at the start, because a bolt lands on whoever is targeted when the bar
+   * fills. @see `./GameSession`'s `advanceCasting`
+   */
+  targetId?: string;
+};
 
 /** Everything a cast is decided against, beside the stone itself. */
 export type CastContext = {
@@ -522,7 +539,7 @@ function lowestBodyIn(
  * be a caller free to stop passing one, and the next rule that genuinely is
  * about the square would have to thread it back through four call sites.
  */
-function needsTarget(stone: ArcaneStoneItem): boolean {
+export function needsTarget(stone: ArcaneStoneItem): boolean {
   if (stone.effect.kind === "conjure") return true;
   return stone.effect.on === "target";
 }

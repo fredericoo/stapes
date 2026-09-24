@@ -221,6 +221,7 @@ import {
   conjureLanding,
   coolingNotice,
   naturalSlot,
+  needsTarget,
   spellIn,
   type SpellButton,
 } from "./casting";
@@ -1348,7 +1349,21 @@ type CastingRun = {
    * keeps about the tile it was begun against.
    */
   uninterruptible: boolean;
+  /**
+   * Whether the stone lands on the caster's target, read off the stone when it
+   * started, so {@link advanceCasting} knows whether to keep
+   * `progress.targetId` in step with the caster's target.
+   */
+  aimed: boolean;
 };
+
+/**
+ * Who a cast is aimed at, as {@link CastProgress.targetId} carries it: the
+ * caster's target for a stone that lands on one, and nobody otherwise.
+ */
+function castTargetOf(actor: { targetId: string | null }, aimed: boolean): string | undefined {
+  return aimed ? (actor.targetId ?? undefined) : undefined;
+}
 
 /**
  * What a player is told when a cast is broken.
@@ -6672,10 +6687,13 @@ export class GameSession implements PlaySession {
     // Both hands, one job — the mirror of what starting a pull does to a cast.
     // @see extract
     this.cancelExtraction(actor);
+    const aimed = needsTarget(stone);
+    const targetId = castTargetOf(actor, aimed);
     actor.casting = {
       itemId: held?.id ?? null,
       uninterruptible: stone.uninterruptible === true,
-      progress: { remainingMs: durationMs, durationMs, slot },
+      aimed,
+      progress: { remainingMs: durationMs, durationMs, slot, ...(targetId ? { targetId } : {}) },
     };
     return true;
   }
@@ -6726,6 +6744,16 @@ export class GameSession implements PlaySession {
   private advanceCasting(actor: ActorRuntime, tickMs: number) {
     const run = actor.casting;
     if (!run) return;
+
+    // The caster may point at somebody else mid-cast, and the bolt lands on
+    // whoever is targeted when the bar fills, so the broadcast target follows.
+    // A new object rather than a write in place, because the broadcast is
+    // diffed on identity — this is the one change mid-cast that has to be sent.
+    const targetId = castTargetOf(actor, run.aimed);
+    if (run.progress.targetId !== targetId) {
+      const { targetId: _was, ...rest } = run.progress;
+      run.progress = targetId ? { ...rest, targetId } : rest;
+    }
 
     run.progress.remainingMs -= tickMs;
     if (run.progress.remainingMs > 0) return;

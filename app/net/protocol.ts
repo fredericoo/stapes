@@ -193,6 +193,9 @@ const castingPatchSchema = v.object({
       // Which button, so the caster's own row can offer to stop it — the same
       // shape the `cast` message names one with. @see CastingPatch
       slot: castSlotSchema,
+      // Who it will land on, for the line drawn between the two. Absent for a
+      // spell at the caster's own body. @see CastingPatch
+      targetId: v.optional(v.string()),
     }),
   ),
 });
@@ -526,7 +529,12 @@ export type ExtractionPatch = {
  * rides the broadcast rather than an owner's channel because it is one word on
  * a message that was going out anyway. @see `../game/casting`'s `CastProgress`
  *
- * Sent when a cast starts and when it ends, never while it runs.
+ * **Who it is aimed at travels too**, for everybody: the dotted line from caster
+ * to target is drawn on every screen that can see them, and it is sent again
+ * when the caster points at somebody else mid-cast, as well as at the two ends.
+ *
+ * Sent when a cast starts, when its target changes and when it ends — never for
+ * the clock running down.
  */
 export type CastingPatch = {
   actorId: string;
@@ -2085,7 +2093,7 @@ export const GAME_SOCKET_PATH = "/online/ws";
  * This is deliberately not the build id. A client deploy that changes no
  * messages should not disconnect anybody, and most client deploys are that.
  */
-export const PROTOCOL_VERSION = 20;
+export const PROTOCOL_VERSION = 21;
 
 /**
  * How many steps a client may send that the world has not yet walked.

@@ -5145,6 +5145,17 @@ authored at three seconds.
   either: the cooldown has not been spent yet, so there is nothing else on the
   board that would have kept the clock running, and a world that slept here would
   leave the caster in a spell that never lands.
+- **A cast at somebody draws a dotted line to them, for everybody.**
+  `CastProgress.targetId` names the target of a stone that lands on one — a
+  bolt `on: "target"`, or a conjure with somebody targeted — and is absent for
+  a spell at the caster's own body. `app/render/castLines.ts` draws it from caster
+  to target with the dots marching towards the target: red when the viewer is
+  the target, white otherwise, the damage numbers' rule. It is the one place a
+  target leaves its owner, and only while a spell is being cast at it.
+  `advanceCasting` keeps it in step with the caster's target, because a bolt
+  lands on whoever is targeted when the bar fills. It replaces the progress
+  object when the target changes, since the broadcast is diffed on identity;
+  a target that holds costs nothing on the wire.
 - **`advanceCastings` runs late in the tick**, directly after
   `advanceExtractions`, so a cast is resolved against the board the rest of the
   tick left behind: a crate dropped in front of the caster this tick is in the

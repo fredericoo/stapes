@@ -2289,6 +2289,59 @@ describe("a cast that takes time", () => {
     expect(casting()).toBeNull();
   });
 
+  describe("who it is aimed at", () => {
+    const NEAR = { x: 2, y: 0, z: 0 };
+    const FAR = { x: 3, y: 0, z: 0 };
+    const casting = (play: GameSession) =>
+      play.actorSnapshots().find((actor) => actor.id === "local")?.casting;
+
+    it("names the target of a spell that lands on one", () => {
+      const play = session({ charm: "slow-flame-stone" }, spawnRat(world(), NEAR));
+      play.setTarget(ratAt(play, NEAR));
+      play.cast(squareSlot("charm"));
+
+      expect(casting(play)?.targetId).toBe(ratAt(play, NEAR));
+    });
+
+    it("names nobody for a spell at the caster's own body", () => {
+      const play = session({ charm: "slow-mend-stone" }, spawnRat(world(), NEAR));
+      play.setTarget(ratAt(play, NEAR));
+      play.cast(squareSlot("charm"));
+
+      expect(casting(play)).toBeTruthy();
+      expect(casting(play)).not.toHaveProperty("targetId");
+    });
+
+    /** A bolt lands on whoever is targeted when the bar fills, so the line follows. */
+    it("follows the caster's target mid-cast, with a new object the broadcast will send", () => {
+      const play = session({ charm: "slow-flame-stone" }, spawnRat(spawnRat(world(), NEAR), FAR));
+      play.setTarget(ratAt(play, NEAR));
+      play.cast(squareSlot("charm"));
+      run(play, 1);
+      const before = casting(play);
+
+      play.setTarget(ratAt(play, FAR));
+      run(play, 1);
+      expect(casting(play)?.targetId).toBe(ratAt(play, FAR));
+      expect(casting(play)).not.toBe(before);
+
+      play.setTarget(null);
+      run(play, 1);
+      expect(casting(play)).not.toHaveProperty("targetId");
+    });
+
+    it("keeps the same object while the target holds, so nothing is resent", () => {
+      const play = session({ charm: "slow-flame-stone" }, spawnRat(world(), NEAR));
+      play.setTarget(ratAt(play, NEAR));
+      play.cast(squareSlot("charm"));
+      run(play, 1);
+      const before = casting(play);
+
+      run(play, 1);
+      expect(casting(play)).toBe(before);
+    });
+  });
+
   it("is broken by a blow, and costs the caster nothing", () => {
     const play = session({ charm: "slow-mend-stone" });
     play.runCommand(`/health ${PLAYER_MAX_HP}`);

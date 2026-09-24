@@ -515,6 +515,31 @@ describe("nothing is quietly dropped in transit", () => {
     expect(message?.type === "patch" && message.hps[0]).toEqual(hp);
   });
 
+  /** Who a cast is aimed at is what the dotted line from caster to target is drawn from. */
+  it("carries who a cast is aimed at", () => {
+    const cast = {
+      actorId: "wolf",
+      progress: {
+        remainingMs: 1_500,
+        durationMs: 3_000,
+        slot: { from: "natural", name: "Howl" },
+        targetId: "rat",
+      },
+    };
+    const message = parseServerMessage(
+      JSON.stringify({
+        type: "patch",
+        cells: [],
+        events: [],
+        hps: [],
+        carriedLights: [],
+        castings: [cast],
+      }),
+    );
+
+    expect(message?.type === "patch" && message.castings[0]).toEqual(cast);
+  });
+
   it("carries a body's pull, and reads its absence as nobody pulling", () => {
     const pull = { actorId: "deer", progress: { remainingMs: 1_500, durationMs: 2_000 } };
     const patchOf = (extra: Record<string, unknown>) =>

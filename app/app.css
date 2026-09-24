@@ -617,6 +617,54 @@ body {
   color: #7fe08a;
 }
 
+/* The dotted line from a caster to whoever their spell will land on — see
+   `./render/castLines`. Under every label, so a name reads over a line crossing
+   it: the SVG is the layer's first child and every label is later in the tree.
+
+   `--cast-line-px` is one world pixel in CSS pixels, written by the layer when
+   the zoom changes, so a dot is a pixel of the world at every scale. */
+.cast-line-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  z-index: 0;
+  /* A one-pixel black edge underneath, so a white line reads on snow. */
+  filter: drop-shadow(0 var(--cast-line-px, 2px) 0 #000);
+}
+
+/* A dot one world pixel long, then a gap two long, marching from caster to
+   target: a negative offset moves the pattern towards the line's end. */
+.cast-line {
+  stroke: #fff;
+  stroke-width: var(--cast-line-px, 2px);
+  stroke-dasharray: var(--cast-line-px, 2px) calc(var(--cast-line-px, 2px) * 2);
+  animation: cast-line-march 300ms linear infinite;
+}
+
+/* Aimed at the viewer, in the red a blow you took is floated in. */
+.cast-line--at-you {
+  stroke: #ff4d4d;
+}
+
+@keyframes cast-line-march {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: calc(var(--cast-line-px, 2px) * -3);
+  }
+}
+
+/* The ends and the colour say who is casting at whom; the march only repeats
+   it, so it is the part that goes. */
+@media (prefers-reduced-motion: reduce) {
+  .cast-line {
+    animation: none;
+  }
+}
+
 /**
  * What the game has just told you, stacked at the foot of the view.
  *

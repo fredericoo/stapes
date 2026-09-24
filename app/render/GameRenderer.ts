@@ -82,6 +82,7 @@ import { taperAt, taperedGlow, taperedTint, type StatusTint } from "../lib/statu
 import { SmoothedRemaining, taperKey } from "./statusTaper";
 import { spriteStatesFor } from "./spriteState";
 import { pickBodyAt, pickInteractiveAt, pickTileAt } from "./pick";
+import { CastLineLayer, type CastLineView } from "./castLines";
 import { DamageNumberLayer, type DamageNumberView } from "./damageNumbers";
 import { ScreenShake, SHAKE_DURATION_MS, shakeAmplitude } from "./screenShake";
 import { NoticeQueue, NotificationLayer } from "./notifications";
@@ -518,6 +519,8 @@ export class GameRenderer {
     typeof window === "undefined" ||
     typeof window.matchMedia !== "function" ||
     !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  /** Caster-to-target lines. @see ./castLines */
+  private castLineLayer: CastLineLayer | null = null;
   private notificationLayer: NotificationLayer | null = null;
   /**
    * The lines waiting to be read at the foot of the view.
@@ -622,6 +625,7 @@ export class GameRenderer {
     this.world.setAssets(tilesets, this.tilesById);
     if (labelContainer) {
       this.labelLayer = new WorldLabelLayer(labelContainer);
+      this.castLineLayer = new CastLineLayer(labelContainer);
       this.damageLayer = new DamageNumberLayer(labelContainer);
       this.notificationLayer = new NotificationLayer(labelContainer);
     }
@@ -1126,6 +1130,8 @@ export class GameRenderer {
     this.labelLayer = null;
     this.damageLayer?.dispose();
     this.damageLayer = null;
+    this.castLineLayer?.dispose();
+    this.castLineLayer = null;
     this.notificationLayer?.dispose();
     this.notificationLayer = null;
     this.debugPanel?.dispose();
@@ -2659,6 +2665,7 @@ export class GameRenderer {
     // body they hang over rather than holding still above it.
     this.labelLayer?.set(this.labelsFor(snap, camera, cut), drawn, fit.cssScale);
     this.damageLayer?.set(this.damageFor(snap, cut), drawn, fit.cssScale);
+    this.castLineLayer?.set(this.castLinesFor(snap, cut), drawn, fit.cssScale);
     // Driven by the frame, not the pointer: walking away from an object
     // revokes the affordance without the pointer having moved at all.
     this.applyCursor();
@@ -2876,6 +2883,44 @@ export class GameRenderer {
     }
     this.forgetStaleDamageAnchors(snap);
     return out;
+  }
+
+  /**
+   * A line for every cast aimed at somebody, where both ends can be seen.
+   *
+   * Both, on {@link isVisibleCell}'s terms rather than {@link isVisibleBody}'s:
+   * a caster behind a cave ceiling is not drawn, and neither is a line pointing
+   * at them, but a caster standing just off screen is still somebody casting at
+   * you, and the layer's own edge clips the line where the view ends.
+   */
+  private castLinesFor(snap: GameSnapshot, cut: RoofCut | undefined): CastLineView[] {
+    const out: CastLineView[] = [];
+    for (const caster of snap.actors) {
+      const targetId = caster.casting?.targetId;
+      if (!targetId || targetId === caster.id) continue;
+      const target = snap.actors.find((a) => a.id === targetId);
+      if (!target) continue;
+      if (!this.isVisibleCell(snap, caster, cut) || !this.isVisibleCell(snap, target, cut)) {
+        continue;
+      }
+      out.push({
+        id: caster.id,
+        from: this.bodyMiddle(snap.map, caster),
+        to: this.bodyMiddle(snap.map, target),
+        atYou: target.id === snap.self.id,
+      });
+    }
+    return out;
+  }
+
+  /**
+   * Half way up a body as drawn, walk and fall included, so a line between two
+   * bodies runs chest to chest rather than foot to foot.
+   */
+  private bodyMiddle(map: MapFile, actor: ActorSnapshot): { x: number; y: number } {
+    const visual = this.actorVisualWorld(map, actor);
+    const lift = elevationScreenOffset(this.bodyOwnHeight(map, actor, actor.stackIndex) / 2);
+    return { x: visual.x + lift.x, y: visual.y + lift.y };
   }
 
   /**
