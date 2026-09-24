@@ -24826,7 +24826,7 @@
           "fire": 1
         },
         "reach": {
-          "cells": 3.5,
+          "cells": 5.5,
           "height": 2
         }
       }
@@ -24885,12 +24885,13 @@
           ]
         },
         "cooldownMs": 5600,
+        "castTimeMs": 1500,
         "requirements": {
           "arcane": 20,
           "fire": 5
         },
         "reach": {
-          "cells": 4.5,
+          "cells": 6.5,
           "height": 2
         }
       }
@@ -24949,12 +24950,13 @@
           ]
         },
         "cooldownMs": 7000,
+        "castTimeMs": 1500,
         "requirements": {
           "arcane": 20,
           "water": 5
         },
         "reach": {
-          "cells": 4.5,
+          "cells": 6.5,
           "height": 2
         }
       }
@@ -25013,12 +25015,13 @@
           ]
         },
         "cooldownMs": 8400,
+        "castTimeMs": 1500,
         "requirements": {
           "arcane": 20,
           "nature": 5
         },
         "reach": {
-          "cells": 4.5,
+          "cells": 6.5,
           "height": 2
         }
       }
@@ -25075,12 +25078,13 @@
           ]
         },
         "cooldownMs": 8000,
+        "castTimeMs": 2000,
         "requirements": {
           "arcane": 38,
           "fire": 10
         },
         "reach": {
-          "cells": 5.5,
+          "cells": 7.5,
           "height": 2
         }
       }
@@ -25137,12 +25141,13 @@
           ]
         },
         "cooldownMs": 10000,
+        "castTimeMs": 2000,
         "requirements": {
           "arcane": 38,
           "water": 10
         },
         "reach": {
-          "cells": 5.5,
+          "cells": 7.5,
           "height": 2
         }
       }
@@ -25199,12 +25204,13 @@
           ]
         },
         "cooldownMs": 12000,
+        "castTimeMs": 2000,
         "requirements": {
           "arcane": 38,
           "nature": 10
         },
         "reach": {
-          "cells": 5.5,
+          "cells": 7.5,
           "height": 2
         }
       }
@@ -25253,6 +25259,7 @@
           "damage": -20
         },
         "cooldownMs": 30000,
+        "castTimeMs": 1500,
         "requirements": {
           "arcane": 20,
           "water": 8,
@@ -25306,12 +25313,13 @@
           "projectile": "fireball"
         },
         "cooldownMs": 4000,
+        "castTimeMs": 1000,
         "requirements": {
           "arcane": 10,
           "fire": 1
         },
         "reach": {
-          "cells": 3.5,
+          "cells": 5.5,
           "height": 2
         }
       }
@@ -25362,12 +25370,13 @@
           "projectile": "arcane-bolt"
         },
         "cooldownMs": 5000,
+        "castTimeMs": 1000,
         "requirements": {
           "arcane": 10,
           "water": 1
         },
         "reach": {
-          "cells": 3.5,
+          "cells": 5.5,
           "height": 2
         }
       }
@@ -25418,12 +25427,13 @@
           "projectile": "arcane-bolt"
         },
         "cooldownMs": 6000,
+        "castTimeMs": 1000,
         "requirements": {
           "arcane": 10,
           "nature": 1
         },
         "reach": {
-          "cells": 3.5,
+          "cells": 5.5,
           "height": 2
         }
       }
@@ -25474,11 +25484,12 @@
           "projectile": "arcane-bolt"
         },
         "cooldownMs": 5000,
+        "castTimeMs": 1000,
         "requirements": {
           "arcane": 5
         },
         "reach": {
-          "cells": 3.5,
+          "cells": 5.5,
           "height": 2
         }
       }
@@ -25529,11 +25540,12 @@
           "projectile": "arcane-bolt"
         },
         "cooldownMs": 7000,
+        "castTimeMs": 1500,
         "requirements": {
           "arcane": 15
         },
         "reach": {
-          "cells": 4.5,
+          "cells": 6.5,
           "height": 2
         }
       }
@@ -25584,11 +25596,12 @@
           "projectile": "arcane-bolt"
         },
         "cooldownMs": 10000,
+        "castTimeMs": 2000,
         "requirements": {
           "arcane": 33
         },
         "reach": {
-          "cells": 5.5,
+          "cells": 7.5,
           "height": 2
         }
       }
