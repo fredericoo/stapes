@@ -969,9 +969,9 @@ export type ArcaneStoneItem = {
    * caster who meets its requirements exactly.
    *
    * **Absent is instant**, which is what every stone in the world was before
-   * this existed and what most of them still are. A cast time is a cost paid in
-   * a different currency from {@link cooldownMs}: a cooldown is what the stone
-   * owes afterwards, and this is what the caster owes in front of everybody
+   * this existed; every shipped stone now carries one. A cast time is a cost
+   * paid in a different currency from {@link cooldownMs}: a cooldown is what the
+   * stone owes afterwards, and this is what the caster owes in front of everybody
    * before the spell arrives — standing there with a bar over their head that
    * anybody can break.
    *

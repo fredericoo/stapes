@@ -5070,8 +5070,10 @@ plainly see something in a square and plainly cannot empty it.
 
 `ArcaneStoneItem.castTimeMs` is what a stone costs *in front*, where the cooldown
 is what it costs afterwards. Absent is instant, which is what every stone was
-before this and what all but one still is. The shipped Stone of Flame is
-authored at three seconds.
+before this. Every shipped stone now carries one: Flame three seconds, Verdance
+a second and a half, and the attack ladders one, one and a half and two seconds
+by rung, each paid for with two more cells of reach. @see "What is authored, so
+far" below
 
 - **Nothing is spent until the bar fills.** The cooldown, the practice
   experience and the effect all land together in `resolveCast`, so a cast that
@@ -5378,20 +5380,33 @@ what you point magic at rather than how good the magic is, so no element may be
 the cheap one or the strong one. `casting.test.ts` asserts the ladder across the
 elements as well as up each one.
 
-| rung | fire   | water | nature  | damage | leaves       | cooldown | reach | asks               |
-| ---- | ------ | ----- | ------- | ------ | ------------ | -------- | ----- | ------------------ |
-| 1    | Cinder | Sleet | Barbs   | 5      | —            | 5s       | 3.5   | Arcane 10, elem 1  |
-| 2    | Ember  | Frost | Thorns  | 10     | 30%, cut     | 7s       | 4.5   | Arcane 20, elem 5  |
-| 3    | Pyre   | Rime  | Bramble | 15     | 75%, in full | 10s      | 5.5   | Arcane 38, elem 10 |
+| rung | fire   | water | nature  | damage | leaves       | cooldown | cast | reach | asks               |
+| ---- | ------ | ----- | ------- | ------ | ------------ | -------- | ---- | ----- | ------------------ |
+| 1    | Cinder | Sleet | Barbs   | 5      | —            | 5s       | 1s   | 5.5   | Arcane 10, elem 1  |
+| 2    | Ember  | Frost | Thorns  | 10     | 30%, cut     | 7s       | 1.5s | 6.5   | Arcane 20, elem 5  |
+| 3    | Pyre   | Rime  | Bramble | 15     | 75%, in full | 10s      | 2s   | 7.5   | Arcane 38, elem 10 |
 
 **The halves are the point of the reach numbers, not a rounding.** A reach is
 compared squared, so a whole 3 admits the cell three along (9) and refuses the
 one at (3,1) that is barely further (10). Every half-cell step opens a ring of
 cells a whole one skips over, which is why `MELEE_REACH` is 1.5 and why these
-are not 3, 4 and 5.
+are not 5, 6 and 7.
 
 Those are **water's** numbers. Fire and nature are the same rung with a trait
 applied, and the traits are the section below.
+
+**Every stone has a cast time, and every one that reaches somebody else was
+given two cells of reach for it.** The rungs were 3.5, 4.5 and 5.5 and instant,
+and Flame went from 3.5 to 5.5 with the three seconds it already had. Verdance
+lands on its caster, so it has no reach to raise and pays its second and a half
+with nothing back. An instant stone
+with a cast-time twin is strictly the better stone, and a cast a blow breaks is
+only worth starting from further away than a sword can close in the time it
+takes — so the cast time and the extra reach are one change, and neither ships
+without the other. The cast column is the time for a caster who meets the
+requirements exactly; `castDurationMs` takes it down from there, and a caster
+with double what the stone asks casts instantly. The reach stays inside a bow's:
+a simple bow is 6, a war bow 10, and a bow has no bar to break.
 
 **There is a fourth ladder with no element on it, and it is the one everybody
 climbs first.** Spark, Bolt and Lance ask Arcane and nothing else, so they throw
@@ -5399,13 +5414,13 @@ plain damage, leave no status behind and turn on no wheel — a spell's elements
 are read off its requirements and nowhere else, so a block with no element in it
 is all three of those at once. Nothing was written to make them neutral.
 
-| rung | stone | damage | leaves | cooldown | reach | asks      |
-| ---- | ----- | ------ | ------ | -------- | ----- | --------- |
-| 1    | Spark | 4      | —      | 5s       | 3.5   | Arcane 5  |
-| 2    | Bolt  | 8      | —      | 7s       | 4.5   | Arcane 15 |
-| 3    | Lance | 12     | —      | 10s      | 5.5   | Arcane 33 |
+| rung | stone | damage | leaves | cooldown | cast | reach | asks      |
+| ---- | ----- | ------ | ------ | -------- | ---- | ----- | --------- |
+| 1    | Spark | 4      | —      | 5s       | 1s   | 5.5   | Arcane 5  |
+| 2    | Bolt  | 8      | —      | 7s       | 1.5s | 6.5   | Arcane 15 |
+| 3    | Lance | 12     | —      | 10s      | 2s   | 7.5   | Arcane 33 |
 
-They run beside the elemental rungs at the same cooldown and the same reach for
+They run beside the elemental rungs at the same cooldown, cast time and reach for
 four fifths of the damage, and they ask five Arcane less. **That difference is
 what an element buys, stated in the one place it can be read**: more damage and
 a status, for a second mastery and five more Arcane to be let near the stone.

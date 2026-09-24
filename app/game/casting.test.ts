@@ -850,15 +850,16 @@ describe("the stones we ship", () => {
   });
 
   /**
-   * **The one stone on the shelf that takes time, and the ladder untouched.**
-   * Flame is fire's utility stone rather than a rung — it conjures, it costs
-   * three quarters of a minute, and what it asks is the bottom of the ladder —
-   * so it is the one place a cast time can be tried without slowing down the
-   * spells a fight is fought with.
+   * **Every stone on the shelf takes time, and pays for it in reach.** A cast
+   * time is a window in which a blow breaks the spell, so an instant stone is
+   * strictly the better stone at any distance a sword can close. The reach each
+   * stone gained with its cast time is what the window buys: a caster who is
+   * further away is a caster who is harder to interrupt.
    */
-  it("gives Flame a cast time and leaves every other stone instant", () => {
-    const withCastTimes = SHIPPED.filter((id) => (resolveStone(shipped[id]!)!.castTimeMs ?? 0) > 0);
-    expect(withCastTimes).toEqual(["arcane-stone-of-flame"]);
+  it("gives every stone a cast time", () => {
+    for (const id of SHIPPED) {
+      expect(resolveStone(shipped[id]!)!.castTimeMs ?? 0, id).toBeGreaterThan(0);
+    }
   });
 
   /**
@@ -904,7 +905,7 @@ describe("the stones we ship", () => {
    * until you remember there is no mana here — the cooldown is what a cast
    * costs, so a deeper bolt has to cost longer.
    */
-  it("climbs damage, cooldown, reach and requirements at every step", () => {
+  it("climbs damage, cooldown, cast time, reach and requirements at every step", () => {
     for (const element of ELEMENTS) {
       for (let index = 1; index < LADDER[element].length; index++) {
         const below = rung(element, index - 1);
@@ -915,6 +916,7 @@ describe("the stones we ship", () => {
           bolt(element, index - 1).damage!,
         );
         expect(above.cooldownMs, where).toBeGreaterThan(below.cooldownMs);
+        expect(above.castTimeMs!, where).toBeGreaterThan(below.castTimeMs!);
         expect(above.reach!.cells, where).toBeGreaterThan(below.reach!.cells);
         expect(above.requirements!.arcane, where).toBeGreaterThan(below.requirements!.arcane!);
         expect(above.requirements![element], where).toBeGreaterThan(below.requirements![element]!);
@@ -980,8 +982,8 @@ describe("the stones we ship", () => {
   });
 
   /**
-   * **What is deliberately not a trait**: who may hold the stone, and how far it
-   * throws. An element that reached further or asked less would be an element
+   * **What is deliberately not a trait**: who may hold the stone, how far it
+   * throws, and how long it takes to throw. An element that reached further or asked less would be an element
    * that was simply better, which is the thing the wheel exists to prevent.
    */
   it("asks and reaches the same whichever element you climbed", () => {
@@ -992,6 +994,7 @@ describe("the stones we ship", () => {
         const yardstick = rung("water", index);
 
         expect(stone.reach, where).toEqual(yardstick.reach);
+        expect(stone.castTimeMs, where).toBe(yardstick.castTimeMs);
         expect(stone.requirements!.arcane, where).toBe(yardstick.requirements!.arcane);
         expect(stone.requirements![element], where).toBe(yardstick.requirements!.water);
       }
@@ -1012,6 +1015,7 @@ describe("the stones we ship", () => {
 
       expect(neutralBolt(index).damage, where).toBeGreaterThan(neutralBolt(index - 1).damage!);
       expect(above.cooldownMs, where).toBeGreaterThan(below.cooldownMs);
+      expect(above.castTimeMs!, where).toBeGreaterThan(below.castTimeMs!);
       expect(above.reach!.cells, where).toBeGreaterThan(below.reach!.cells);
       expect(above.requirements!.arcane, where).toBeGreaterThan(below.requirements!.arcane!);
     }
@@ -1044,7 +1048,7 @@ describe("the stones we ship", () => {
 
   /**
    * **What an element buys you, stated as a difference.** The two ladders run
-   * side by side on the same cooldown and the same reach, so the only things an
+   * side by side on the same cooldown, cast time and reach, so the only things an
    * element adds are damage and the status — and the only thing it costs is a
    * second mastery and five more Arcane to be let near the stone at all.
    *
@@ -1058,6 +1062,7 @@ describe("the stones we ship", () => {
       const yardstick = rung("water", index);
 
       expect(plain.reach, where).toEqual(yardstick.reach);
+      expect(plain.castTimeMs, where).toBe(yardstick.castTimeMs);
       expect(plain.cooldownMs, where).toBe(yardstick.cooldownMs);
       expect(neutralBolt(index).damage, where).toBeLessThan(bolt("water", index).damage!);
       expect(yardstick.requirements!.arcane, where).toBe(
