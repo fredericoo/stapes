@@ -78,6 +78,20 @@ const schema = v.object({
    */
   PUBLIC_ORIGIN: v.optional(v.string(), "http://localhost:3000"),
 
+  /**
+   * The world the stress-test bots at `/admin/actions` play. Production unless
+   * set, because the bots are meant to run from a preview and load the world
+   * everybody plays. @see `server/stressBots.ts`
+   */
+  STRESS_TARGET_ORIGIN: v.optional(v.pipe(v.string(), v.url())),
+
+  /**
+   * What the bots' passwords are derived from. The default is in the
+   * repository, so set this where knowing a bot's password matters — and keep
+   * it, because changing it locks the bots out of the accounts they made.
+   */
+  STRESS_BOT_SECRET: v.optional(v.string(), "stapes-stress-bots"),
+
   /** Milliseconds between checkpoint flushes. See `WorldStore.flush`. */
   CHECKPOINT_INTERVAL_MS: v.optional(
     v.pipe(v.string(), v.transform(Number), v.number(), v.minValue(100)),

@@ -13,6 +13,7 @@ import { readConfig } from "./config";
 import { createApi } from "./api";
 import { ClientBundle } from "./clientBundle";
 import { GameSocket, PER_MESSAGE_DEFLATE } from "./sockets";
+import { DEFAULT_STRESS_TARGET, StressBots } from "./stressBots";
 import { World } from "./world";
 
 /**
@@ -33,6 +34,16 @@ const bundle = new ClientBundle(config);
 // last one. Builds are on the mounted volume, so a server deploy does not touch
 // them — see `ClientBundle.restore`.
 await bundle.restore(config.CLIENT_BUILD_ID);
+
+/**
+ * Bots that play another world — production, unless `STRESS_TARGET_ORIGIN`
+ * says otherwise. None run until an administrator asks at `/admin/actions`.
+ */
+const stress = new StressBots({
+  target: config.STRESS_TARGET_ORIGIN ?? DEFAULT_STRESS_TARGET,
+  secret: config.STRESS_BOT_SECRET,
+  sessionPath: `${config.DATA_DIR.replace(/\/+$/, "")}/stress-bots.json`,
+});
 
 /** Actor id per connection, for the close handler after the socket is gone. */
 const sockets = new WeakMap<object, GameSocket>();
@@ -65,7 +76,7 @@ const app = new Elysia({
    */
   websocket: { perMessageDeflate: PER_MESSAGE_DEFLATE },
 })
-  .use(createApi(world, bundle, config))
+  .use(createApi(world, bundle, config, stress))
   .ws(GAME_SOCKET_PATH, {
     open(ws) {
       const socket = new GameSocket({
@@ -192,6 +203,9 @@ console.log(`[server] listening on ${port} (protocol v${PROTOCOL_VERSION})`);
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.once(signal, () => {
     console.log(`[server] ${signal} — draining`);
+    // Their sockets are to another world, which should see them leave rather
+    // than time out.
+    stress.stopAll();
     void world
       .drain()
       .catch((error: unknown) => console.error("[server] drain failed", error))

@@ -28,6 +28,11 @@ A deployment needs nothing new: session cookies are signed with `AUTH_SECRET`
 when it is set, and with a secret the server generates on its first boot and
 keeps in its own database when it is not. See [SETUP.md](SETUP.md).
 
+`/admin/actions` acts on the running world rather than its content: closing it
+for maintenance, and a stress test that puts a chosen number of bots into
+production (or `STRESS_TARGET_ORIGIN`) to walk around. See `docs/notes.md`,
+"Stress-test bots play another world from `/admin/actions`".
+
 `/admin/play` is the same game with the world running in the tab — the real
 `GameServer` in a worker, the real protocol, no socket and nothing to log in to.
 It is the path to open when the question is whether the game still works.
