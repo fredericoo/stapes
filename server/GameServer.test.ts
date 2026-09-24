@@ -20,7 +20,7 @@ import { CHUNK_SIZE, levelKey } from "../app/lib/types";
 import type { FlatMapFile, MapFile, TileDef } from "../app/lib/types";
 import { tilesByIdFromList } from "../app/lib/validation";
 import { CHAT_MIN_INTERVAL_MS } from "../app/net/chat";
-import { CLOSE_REPLACED } from "../app/net/protocol";
+import { CLOSE_REPLACED, MAX_STEPS_AHEAD } from "../app/net/protocol";
 import { COMBAT_STATUS_ID } from "../app/lib/status";
 import { fightingStats, resolveBattler } from "../app/lib/battler";
 import { swingWindupMs } from "../app/game/combat";
@@ -237,7 +237,10 @@ async function connect(actorId: string, { admin = true } = {}) {
     void stub().webSocketClose(pair.server);
   };
   const joined = stub().join(pair.server, actorId, { admin });
-  const hello = await nextMessage(ws);
+  // Of its type rather than the next message: the socket is seated while the
+  // world loads, and a headcount sent to administrators in that gap — somebody
+  // else leaving — can arrive ahead of it.
+  const hello = await nextMessageOfType(ws, "hello");
   await joined;
   return { ws, hello, pair };
 }
@@ -357,11 +360,11 @@ describe("joining and leaving", () => {
   });
 
   /**
-   * The headcount the bar shows. Counted from sockets rather than from
+   * The headcount the menu shows. Counted from sockets rather than from
    * `actorIds`, because creatures are actors too and a world with a deer in it
    * would otherwise report a player who is not there.
    */
-  it("tells every joiner how many people are here", async () => {
+  it("tells an administrator joining how many people are here", async () => {
     const alice = await connect("alice");
     expect(alice.hello.playerCount).toBe(1);
 
@@ -369,37 +372,90 @@ describe("joining and leaving", () => {
     expect(bob.hello.playerCount).toBe(2);
   });
 
-  it("tells the room when somebody arrives", async () => {
-    const alice = await connect("alice");
-    const arrival = nextMessage(alice.ws);
-    await connect("bob");
-
-    // Alice's own arrival may still be sitting in the same patch — she joined an
-    // idle world, so the tick that flushes her `joined` starts with bob's.
-    expect(await arrival).toMatchObject({
-      events: expect.arrayContaining([{ kind: "joined", actorId: "bob", playerCount: 2 }]),
+  /**
+   * A join does not yield on its own: the reads it awaits resolve without
+   * going back to the event loop, so joins that arrive together used to be
+   * seated back to back. A hundred of them held the loop for two seconds, and
+   * nobody already in the world had a tick or a message read in that time.
+   */
+  it("lets the event loop run between joins that arrive together", async () => {
+    await connect("alice");
+    const order: string[] = [];
+    const joins = ["bob", "carol", "dave"].map((actorId) => {
+      const pair = new Pair();
+      pair.client().addEventListener("message", () => {
+        if (!order.includes(actorId)) order.push(actorId);
+      });
+      return stub().join(pair.server, actorId, { admin: false });
     });
+    setTimeout(() => order.push("loop"), 0);
+    await Promise.all(joins);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // Every joiner is seated, in the order they arrived, and the loop had a
+    // turn before the last of them.
+    expect(order.filter((one) => one !== "loop")).toEqual(["bob", "carol", "dave"]);
+    expect(order.indexOf("loop")).toBeLessThan(order.indexOf("dave"));
+  });
+
+  it("does not seat a socket that closed while it waited its turn", async () => {
+    await connect("alice");
+    const pair = new Pair();
+    const joined = stub().join(pair.server, "bob", { admin: false });
+    pair.server.close();
+    await joined;
+
+    const seated = await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as { socketsByActor: Map<string, unknown> };
+      return internals.socketsByActor.has("bob");
+    });
+    expect(seated).toBe(false);
+  });
+
+  it("does not tell a player joining how many people are here", async () => {
+    await connect("alice");
+    const bob = await connect("bob", { admin: false });
+
+    expect(bob.hello).not.toHaveProperty("playerCount");
+  });
+
+  it("tells an administrator when somebody arrives", async () => {
+    const alice = await connect("alice");
+    const count = nextMessageOfType(alice.ws, "players");
+    await connect("bob", { admin: false });
+
+    expect(await count).toEqual({ type: "players", playerCount: 2 });
   });
 
   /**
    * A closing socket is still listed by `getWebSockets`, so a naive count would
-   * have the leaver counting themselves on the way out and the bar would sit one
-   * high until the next person arrived.
+   * have the leaver counting themselves on the way out and the menu would sit
+   * one high until the next person arrived.
    */
-  it("tells the room when somebody goes, without counting them", async () => {
+  it("tells an administrator when somebody goes, without counting them", async () => {
     const alice = await connect("alice");
-    const bob = await connect("bob");
-    // The `joined` that bob's arrival broadcast, out of the way.
-    await nextMessage(alice.ws);
+    const bob = await connect("bob", { admin: false });
+    // The count that bob's arrival sent, out of the way.
+    await nextMessageOfType(alice.ws, "players");
 
-    const departure = nextMessage(alice.ws);
+    const count = nextMessageOfType(alice.ws, "players");
     bob.ws.close();
 
-    // Among the rest of the patch rather than alone in it: the player tile has
-    // a disappear transition, so bob's body's way out travels beside his leaving.
-    expect(await departure).toMatchObject({
-      events: expect.arrayContaining([{ kind: "left", actorId: "bob", playerCount: 1 }]),
+    expect(await count).toEqual({ type: "players", playerCount: 1 });
+  });
+
+  it("never sends a player the headcount", async () => {
+    const alice = await connect("alice", { admin: false });
+    const seen: string[] = [];
+    alice.ws.addEventListener("message", (event) => {
+      seen.push((JSON.parse(event.data) as { type: string }).type);
     });
+
+    const bob = await connect("bob");
+    bob.ws.close();
+    await connect("carol");
+
+    expect(seen).not.toContain("players");
   });
 
   it("removes an actor's tile when their socket closes", async () => {
@@ -1740,25 +1796,35 @@ describe("stepping", () => {
 
   it("refuses a step further ahead than it will hold", async () => {
     const { ws } = await connect("alice");
-    // Three in a burst, before any tick can take one: two fit in the queue and
-    // the third is more than any honest client is ahead by.
-    step(ws, 0, "e");
-    step(ws, 1, "e");
-    step(ws, 2, "e");
+    // One more than a client may draw ahead, in a burst before any tick can
+    // take one: the last is more than any honest client is ahead by.
+    for (let seq = 0; seq <= MAX_STEPS_AHEAD; seq++) step(ws, seq, "e");
 
     expect(await messageWithin(ws, "stepRejected", 1000)).toEqual({
       type: "stepRejected",
-      seq: 2,
+      seq: MAX_STEPS_AHEAD,
     });
+  });
+
+  /**
+   * The burst a busy server reads: every step a client drew while this process
+   * was doing something else, arriving at once. A client draws up to
+   * {@link MAX_STEPS_AHEAD} ahead, so that many are all walked — refusing any
+   * of them rolls the player back across cells they have already been shown
+   * walking.
+   */
+  it("holds as many steps as a client may draw ahead", async () => {
+    const { ws } = await connect("alice");
+    for (let seq = 0; seq < MAX_STEPS_AHEAD; seq++) step(ws, seq, "e");
+
+    expect(await messageWithin(ws, "stepRejected", QUIET_MS)).toBeNull();
   });
 
   it("tells only the client whose step it was", async () => {
     const alice = await connect("alice");
     const bob = await connect("bob");
 
-    step(alice.ws, 0, "e");
-    step(alice.ws, 1, "e");
-    step(alice.ws, 2, "e");
+    for (let seq = 0; seq <= MAX_STEPS_AHEAD; seq++) step(alice.ws, seq, "e");
 
     expect(await messageWithin(alice.ws, "stepRejected", 1000)).not.toBeNull();
     // A refusal is about one client's guess, not about the board, so it has no
@@ -5166,12 +5232,10 @@ describe("an administrator hiding", () => {
     const alice = await connect("alice");
     const bob = await connect("bob", { admin: false });
 
-    const left = eventWithin(bob.ws, "left", MESSAGE_TIMEOUT_MS, (e) => e.actorId === "alice");
     const gone = eventWithin(bob.ws, "despawned", MESSAGE_TIMEOUT_MS, (e) => e.actorId === "alice");
     await hide(alice.ws);
 
-    // Counted out of the room, and the body taken back.
-    expect(await left).toMatchObject({ kind: "left", actorId: "alice", playerCount: 1 });
+    // The body taken back, as it is from somebody walking out of reach.
     expect(await gone).not.toBeNull();
   });
 
@@ -5238,8 +5302,19 @@ describe("an administrator hiding", () => {
     const carol = await connect("carol", { admin: false });
 
     expect(carol.hello.actorIds).toEqual(["carol"]);
-    expect(carol.hello.playerCount).toBe(1);
     expect(mentions(carol.hello, "alice")).toBe(false);
+  });
+
+  it("is counted out of the headcount other administrators are sent", async () => {
+    const alice = await connect("alice");
+    const dave = await connect("dave");
+    // The count that dave's arrival sent alice, out of the way.
+    await nextMessageOfType(alice.ws, "players");
+
+    const count = nextMessageOfType(dave.ws, "players");
+    await hide(alice.ws);
+
+    expect(await count).toEqual({ type: "players", playerCount: 1 });
   });
 
   it("is ignored from somebody who is not an administrator", async () => {
@@ -5302,7 +5377,7 @@ describe("an administrator hiding", () => {
     const back = eventWithin(bob.ws, "spawned", MESSAGE_TIMEOUT_MS, (e) => e.actorId === "alice");
     send(alice.ws, { type: "hidden", enabled: false });
 
-    expect(await joined).toMatchObject({ kind: "joined", playerCount: 2 });
+    expect(await joined).toMatchObject({ kind: "joined", actorId: "alice" });
     expect(await back).not.toBeNull();
   });
 });

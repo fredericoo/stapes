@@ -132,15 +132,15 @@ describe("events of a patch", () => {
   });
 
   /**
-   * The headcount is about the world rather than about anywhere in it, and a
-   * client that missed one draws a wrong number for the rest of the session
-   * with nothing to correct it.
+   * A player is not told how many others are online, and hearing every arrival
+   * and departure in the world would let them count.
    */
-  it("reaches everybody with who joined and who left", () => {
-    const joined: MotionEvent = { kind: "joined", actorId: "bob", playerCount: 2 };
-    const left: MotionEvent = { kind: "left", actorId: "bob", playerCount: 1 };
+  it("tells only a client holding the body who joined and who left", () => {
+    const joined: MotionEvent = { kind: "joined", actorId: "bob" };
+    const left: MotionEvent = { kind: "left", actorId: "bob" };
 
-    expect(eventsInScope([joined, left], new Set(), new Set())).toEqual([joined, left]);
+    expect(eventsInScope([joined, left], new Set(), new Set(["bob"]))).toEqual([joined, left]);
+    expect(eventsInScope([joined, left], new Set(), new Set())).toEqual([]);
   });
 
   /**

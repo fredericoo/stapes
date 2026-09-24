@@ -67,6 +67,8 @@ import { MAX_LEVEL, MIN_LEVEL, parseCoordKey } from "../app/lib/types";
 import { CHAT_MIN_INTERVAL_MS, sanitizeChatText } from "../app/net/chat";
 import {
   CLOSE_REPLACED,
+  CLOSE_WORLD_FULL,
+  MAX_STEPS_AHEAD,
   parseClientMessage,
   type CarriedLightsPatch,
   type AfflictedPatch,
@@ -511,25 +513,31 @@ export const CHAT_LOG_MAX_ROWS = 5_000;
  * A predicting client is half a round trip ahead of this object by design, so
  * its next intent routinely arrives while the last one is still being walked —
  * without somewhere to put it, every step would be refused and the world would
- * be unwalkable. Two deep, so a pair of intents bunched by jitter into the same
- * tick both survive.
+ * be unwalkable.
+ *
+ * **As deep as the client is allowed to draw ahead, and no shallower.** Steps
+ * arrive bunched whenever this process has been busy, since the ones a client
+ * sent meanwhile are all read at once. This was two, while the client drew up
+ * to eight: a burst of joins held the loop for over a second, a walking player's
+ * steps landed together, all but two were refused, and the client rolled back
+ * several cells. @see MAX_STEPS_AHEAD
  *
  * It is not a speed control and does not need to be: steps are only ever taken
  * by an idle actor, so a client flooding this queue still walks at one cell per
  * {@link WALK_DURATION_MS}. The cap is here so a client cannot make the queue
  * itself grow.
  */
-const MAX_QUEUED_STEPS = 2;
+const MAX_QUEUED_STEPS = MAX_STEPS_AHEAD;
 
 /**
  * How long one actor's queue may get once turns and casts are counted too.
  *
- * Those only queue while a step is waiting, and {@link MAX_QUEUED_STEPS} keeps
- * that short, so an honest client has one or two of them here at most. The cap
- * is for the same reason that one exists: a client must not be able to make the
- * queue grow.
+ * Those only queue while a step is waiting, so an honest client has one or two
+ * of them among its steps at most — twice the step cap leaves room for a turn
+ * behind every step. The cap is for the same reason that one exists: a client
+ * must not be able to make the queue grow.
  */
-const MAX_QUEUED_INTENTS = 8;
+const MAX_QUEUED_INTENTS = MAX_QUEUED_STEPS * 2;
 
 /** Key prefix under which one actor's last known position is kept. */
 const POSITION_KEY_PREFIX = "pos:";
@@ -674,8 +682,8 @@ export const MAX_REMEMBERED_ACTORS = 1_000;
  *
  * A limit on this server's capacity, not a rule of the game: 250 is the most
  * players the host is trusted to carry, and it is here to be changed when that
- * changes. Administrators are let in past it — see `World.join` — but they are
- * counted in it, because a seated administrator costs the tick the same as
+ * changes. Administrators are let in past it — see {@link GameServer.join} —
+ * but they are counted in it, because a seated administrator costs the tick the same as
  * anybody else.
  *
  * Counted in actors with a connection, which is what {@link GameServer.hasRoomFor}
@@ -1101,12 +1109,13 @@ function holdsBody(
  * Whether an event that reaches this viewer by its audience would give a
  * hidden body away to them. @see ActorSnapshot.hidden
  *
- * Two kinds get past the body scoping, because they are addressed to a place
- * or to everybody rather than to a body:
- * - a damage number on a hidden body, which is a number floating over somebody
- *   the viewer cannot see. Its owner is still sent it;
- * - the viewer's own `left` or `joined`, sent to the room when the viewer hides
- *   or shows. A client told it has left drops its own body.
+ * Two kinds get past the body scoping:
+ * - a damage number on a hidden body, which is addressed to a place rather
+ *   than a body: a number floating over somebody the viewer cannot see. Its
+ *   owner is still sent it;
+ * - the viewer's own `left` or `joined`, sent when the viewer hides or shows,
+ *   which the viewer holds as its own body. A client told it has left drops
+ *   its own body.
  *
  * Only asked while {@link TickFrame.concealing} says some event needs it,
  * which is never in a world with nobody hidden in it: then every client that
@@ -1126,7 +1135,6 @@ const CELL_ONE_BODY = 1;
 const CELL_BODIES = 2;
 
 /** Who an event is for, as {@link TickFrame} files it. @see Audience */
-const FOR_EVERYBODY = 0;
 const FOR_PLACE = 1;
 const FOR_BODY = 2;
 
@@ -1193,7 +1201,7 @@ type TickFrame = {
     bodies: Array<CellBody[] | null>;
   };
   events: {
-    /** {@link FOR_EVERYBODY}, {@link FOR_PLACE} or {@link FOR_BODY}. */
+    /** {@link FOR_PLACE} or {@link FOR_BODY}. */
     kind: Uint8Array;
     /** For an event addressed to a place, its chunk in chunk coordinates. */
     cx: Int32Array;
@@ -1484,8 +1492,17 @@ export class GameServer {
   private readonly subscriptionsToCheck = new Set<string>();
   /** The seated sockets, by the actor each is seated on. @see seat */
   private readonly socketsByActor = new Map<string, Set<GameSocket>>();
+  /**
+   * The seated sockets that belong to an administrator, kept beside
+   * {@link socketsByActor} and for its reason: {@link tellAdminsPlayerCount}
+   * runs on every join and leave, and reading every attachment to find the few
+   * administrators would be a walk of the whole world each time.
+   */
+  private readonly adminSockets = new Set<GameSocket>();
   /** {@link seated}'s answer, until somebody is seated or unseated. */
   private seatedSockets: ReadonlyArray<readonly [GameSocket, string]> | null = null;
+  /** Settles when the last join to start has finished. @see joinTurn */
+  private joining: Promise<void> = Promise.resolve();
   /**
    * The hit points each client has been told about, so an unchanged bar costs
    * nothing on the wire. Same discipline as {@link broadcastMap}: everyone is at
@@ -2275,8 +2292,8 @@ export class GameServer {
    * ActorRuntime.hidden in `../app/game/GameSession`
    *
    * The caller has already checked the role. To everybody else this is a
-   * logout and a login: `left` goes out with a headcount that no longer counts
-   * them, and the next patch takes the body back through the same `despawned`
+   * logout and a login: `left` goes out, administrators are sent a headcount
+   * that no longer counts them, and the next patch takes the body back through the same `despawned`
    * a body walking out of reach gets. Showing again is the reverse, `joined`
    * and then `spawned` with the body's state in full.
    *
@@ -2289,11 +2306,8 @@ export class GameServer {
       this.ctx.storage
         .put(this.hiddenKey(actorId), { on: enabled, savedAt: Date.now() } satisfies SavedHidden)
         .catch(GameServer.reportWriteFailure("hidden write"));
-      this.events.push({
-        kind: enabled ? "left" : "joined",
-        actorId,
-        playerCount: this.playerCount(),
-      });
+      this.events.push({ kind: enabled ? "left" : "joined", actorId });
+      this.tellAdminsPlayerCount({});
       this.wake();
     }
     this.sendToEverySocketOf(actorId, { type: "hidden", on: session.hiddenOf(actorId) });
@@ -2781,8 +2795,59 @@ export class GameServer {
    * loading first would find this actor connectionless, throw away the body the
    * checkpoint was keeping for them, and put them back at spawn. Messages
    * arriving in the gap are safe: {@link webSocketMessage} loads for itself.
+   *
+   * **One join at a time, each after a turn of the event loop.** @see joinTurn
    */
   async join(socket: GameSocket, actorId: string, { admin }: { admin: boolean }): Promise<void> {
+    const done = await this.joinTurn();
+    try {
+      // Closed while it waited: seating it would put a body on the board for
+      // a connection that is already gone. `server/index.ts` asks the same
+      // question before it calls this, for the same reason.
+      if (socket.closed) return;
+      // Asked here, inside the turn, and not before it: two joins waiting
+      // their turns would both find the last seat free and both take it.
+      // Administrators are let in past the limit. @see MAX_ONLINE_PLAYERS
+      if (!admin && !this.hasRoomFor(actorId)) {
+        socket.close(CLOSE_WORLD_FULL, "world full");
+        return;
+      }
+      await this.seatJoiner(socket, actorId, { admin });
+    } finally {
+      done();
+    }
+  }
+
+  /**
+   * Wait until the joins ahead of this one have finished, and then for one
+   * turn of the event loop, and hand back the call that lets the next one go.
+   *
+   * A join is about 20ms of work that does not yield — the board sweep in
+   * `spawn`, and the `hello`, which is megabytes of JSON — and the reads it
+   * awaits resolve without going back to the event loop. So a hundred sockets
+   * opening together were seated back to back, for about two seconds, and in
+   * that time no tick ran and no message was read. Everybody already in the
+   * world stood still, and their steps arrived in one batch afterwards.
+   *
+   * The turn is a `setTimeout` rather than a microtask because the tick loop
+   * and the socket reads are both on the event loop, and only a macrotask lets
+   * them run in between. It makes a burst of joins take longer to finish, and
+   * that is the point: the players already walking come first.
+   */
+  private async joinTurn(): Promise<() => void> {
+    const ahead = this.joining;
+    let done!: () => void;
+    this.joining = new Promise<void>((resolve) => (done = resolve));
+    await ahead;
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    return done;
+  }
+
+  private async seatJoiner(
+    socket: GameSocket,
+    actorId: string,
+    { admin }: { admin: boolean },
+  ): Promise<void> {
     this.displaceSockets(actorId);
     this.ctx.acceptWebSocket(socket);
     this.seat(socket, { actorId, admin });
@@ -2796,15 +2861,10 @@ export class GameServer {
     await this.seatActor(actorId);
     // Nobody is told a hidden administrator arrived, because to them one has
     // not. @see setHidden
-    if (!this.session!.hiddenOf(actorId)) {
-      this.events.push({
-        kind: "joined",
-        actorId,
-        playerCount: this.playerCount(),
-      });
-    }
+    if (!this.session!.hiddenOf(actorId)) this.events.push({ kind: "joined", actorId });
 
     this.sendHello(socket, actorId);
+    this.tellAdminsPlayerCount({ told: socket });
     // A join moves the board, so it has to be broadcast even if nobody is
     // pressing anything.
     this.wake();
@@ -2877,6 +2937,7 @@ export class GameServer {
     let sockets = this.socketsByActor.get(attachment.actorId);
     if (!sockets) this.socketsByActor.set(attachment.actorId, (sockets = new Set()));
     sockets.add(ws);
+    if (attachment.admin) this.adminSockets.add(ws);
     this.seatedSockets = null;
   }
 
@@ -2894,6 +2955,7 @@ export class GameServer {
     const attachment = ws.deserializeAttachment() as Attachment | null;
     if (!attachment) return;
     const sockets = this.socketsByActor.get(attachment.actorId);
+    this.adminSockets.delete(ws);
     if (!sockets?.delete(ws)) return;
     if (sockets.size === 0) this.socketsByActor.delete(attachment.actorId);
     this.seatedSockets = null;
@@ -2906,7 +2968,7 @@ export class GameServer {
    * An actor already seated always may: its join is a reload, and it displaces
    * its own connection rather than adding one.
    */
-  hasRoomFor(actorId: string): boolean {
+  private hasRoomFor(actorId: string): boolean {
     return this.socketsByActor.has(actorId) || this.socketsByActor.size < MAX_ONLINE_PLAYERS;
   }
 
@@ -2942,8 +3004,37 @@ export class GameServer {
     return count;
   }
 
+  /**
+   * Send the headcount to every administrator's socket.
+   *
+   * Only to administrators, because a player is not told how many others are
+   * online. Sent at once rather than riding the tick's patch, because the patch
+   * is shared by every socket and this is not.
+   *
+   * @param closing the socket on its way out, on {@link playerCount}'s terms.
+   * @param told a socket whose `hello` already carried this count.
+   */
+  private tellAdminsPlayerCount({ closing, told }: { closing?: GameSocket; told?: GameSocket }) {
+    const payload = JSON.stringify({
+      type: "players",
+      playerCount: this.playerCount(closing),
+    } satisfies ServerMessage);
+    for (const ws of this.adminSockets) {
+      if (ws === closing || ws === told) continue;
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (!attachment || this.silenced.has(attachment.actorId)) continue;
+      try {
+        ws.send(payload);
+      } catch {
+        // A socket that died since it was listed is dropped by the runtime;
+        // webSocketClose will clean the actor up.
+      }
+    }
+  }
+
   private sendHello(ws: GameSocket, actorId: string) {
     const session = this.session!;
+    const attachment = ws.deserializeAttachment() as Attachment | null;
     // Recorded as this socket is told, so the stream below hands over what
     // comes into reach *after* this rather than replaying what is in it.
     const chunks = this.subscriptionFor(actorId);
@@ -3018,7 +3109,8 @@ export class GameServer {
       // are: there is nothing to patch against, and the lane that draws them is
       // on screen before the first berry.
       statuses: session.statusPatchesOf(actorId) ?? [],
-      playerCount: this.playerCount(),
+      // Administrators only. @see tellAdminsPlayerCount
+      ...(attachment?.admin ? { playerCount: this.playerCount() } : {}),
       // Read here rather than tracked: time of day is a function of the
       // server's clock, so it costs nothing to keep and cannot fall behind
       // while the object is hibernating.
@@ -4105,13 +4197,8 @@ export class GameServer {
     // everything it knows about an actor on `left`, and a lingering body that
     // lost its name and health bar a minute early would be a body nobody could
     // tell was still there to be hit.
-    if (!wasHidden) {
-      this.events.push({
-        kind: "left",
-        actorId,
-        playerCount: this.playerCount(closing),
-      });
-    }
+    if (!wasHidden) this.events.push({ kind: "left", actorId });
+    this.tellAdminsPlayerCount({ closing });
     // Their tile just left the board, so the removal has to reach everyone else.
     this.wake();
   }
@@ -5725,9 +5812,7 @@ export class GameServer {
     let concealing = false;
     for (let j = 0; j < eventCount; j++) {
       const audience = audienceOf(patch.events[j]!);
-      if (audience.kind === "everybody") {
-        events.kind[j] = FOR_EVERYBODY;
-      } else if (audience.kind === "cell") {
+      if (audience.kind === "cell") {
         events.kind[j] = FOR_PLACE;
         events.chunk[j] = chunkKeyFor(audience.x, audience.y);
         events.cx[j] = chunkIndexOf(audience.x);
@@ -5992,10 +6077,9 @@ export class GameServer {
     for (let j = 0; j < patch.events.length; j++) {
       const audience = events.kind[j]!;
       const reaches =
-        (audience === FOR_EVERYBODY ||
-          (audience === FOR_PLACE
-            ? chunks.has(events.chunk[j]!)
-            : holdsBody(frame, events.actorId[j]!, events.actor[j]!, actorId, at, held))) &&
+        (audience === FOR_PLACE
+          ? chunks.has(events.chunk[j]!)
+          : holdsBody(frame, events.actorId[j]!, events.actor[j]!, actorId, at, held)) &&
         !(frame.concealing && concealedFrom(frame, j, actorId));
       if (reaches) cut.events.push(j);
       else whole = false;
@@ -6204,10 +6288,9 @@ export class GameServer {
       if (eventStamp[j] !== mark) continue;
       const audience = events.kind[j]!;
       const reaches =
-        (audience === FOR_EVERYBODY ||
-          (audience === FOR_PLACE
-            ? inSquare(events.cx[j]!, events.cy[j]!)
-            : holds(events.actorId[j]!, events.actor[j]!))) &&
+        (audience === FOR_PLACE
+          ? inSquare(events.cx[j]!, events.cy[j]!)
+          : holds(events.actorId[j]!, events.actor[j]!)) &&
         !(frame.concealing && concealedFrom(frame, j, actorId));
       if (reaches) cut.events.push(j);
       else whole = false;

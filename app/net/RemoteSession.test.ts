@@ -1266,44 +1266,65 @@ describe("RemoteSession prediction at the lip of a hole", () => {
 });
 
 describe("RemoteSession headcount", () => {
-  const OTHER = "them";
+  /** A `hello` as a player who is not an administrator gets it: no count. */
+  function connectedAsPlayer(): { socket: FakeSocket; session: RemoteSession } {
+    const socket = new FakeSocket();
+    const session = new RemoteSession(socket as unknown as WebSocket, tiles);
+    socket.deliver({
+      type: "hello",
+      selfId: SELF,
+      map: flatMap(),
+      actorIds: [SELF],
+      minutesOfDay: SERVER_MINUTES,
+      hps: [],
+      carriedLights: [],
+      equipment: emptyEquipment(),
+      tags: [],
+      statuses: [],
+    });
+    return { socket, session };
+  }
 
   it("takes the count from the hello", () => {
     const { session } = connected();
     expect(session.playerCount()).toBe(1);
   });
 
+  it("has no count when the hello carried none", () => {
+    const { session } = connectedAsPlayer();
+    const seen: (number | null)[] = [];
+    session.setOnPlayers((count) => seen.push(count));
+
+    expect(session.playerCount()).toBeNull();
+    expect(seen).toEqual([null]);
+  });
+
   it("tells a listener registered after the hello", () => {
     const { session } = connected();
-    const seen: number[] = [];
+    const seen: (number | null)[] = [];
     session.setOnPlayers((count) => seen.push(count));
 
     expect(seen).toEqual([1]);
   });
 
-  it("follows arrivals and departures", () => {
+  it("follows the players message", () => {
     const { socket, session } = connected();
-    const seen: number[] = [];
+    const seen: (number | null)[] = [];
     session.setOnPlayers((count) => seen.push(count));
 
-    socket.deliver(patch([], [{ kind: "joined", actorId: OTHER, playerCount: 2 }]));
-    socket.deliver(patch([], [{ kind: "left", actorId: OTHER, playerCount: 1 }]));
+    socket.deliver({ type: "players", playerCount: 2 });
+    socket.deliver({ type: "players", playerCount: 1 });
 
     expect(seen).toEqual([1, 2, 1]);
     expect(session.playerCount()).toBe(1);
   });
 
-  /**
-   * The count travels whole rather than as a delta, so the `joined` announcing
-   * an arrival the `hello` had already counted is a no-op — the case that would
-   * have every tab open one player too many.
-   */
   it("says nothing when a repeat lands on the same number", () => {
     const { socket, session } = connected();
-    const seen: number[] = [];
+    const seen: (number | null)[] = [];
     session.setOnPlayers((count) => seen.push(count));
 
-    socket.deliver(patch([], [{ kind: "joined", actorId: SELF, playerCount: 1 }]));
+    socket.deliver({ type: "players", playerCount: 1 });
 
     expect(seen).toEqual([1]);
   });

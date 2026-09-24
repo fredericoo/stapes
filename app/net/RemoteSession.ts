@@ -113,6 +113,7 @@ import {
   type HpPatch,
   type NamePatch,
   type MotionEvent,
+  MAX_STEPS_AHEAD,
 } from "./protocol";
 
 /** A bubble on screen, with the clock that will take it away. */
@@ -173,10 +174,10 @@ type PredictedStep = {
  * A step is confirmed a round trip *plus* a walk after it was sent, so several
  * are legitimately outstanding at once on exactly the slow link this prediction
  * exists for — a tight cap here would reinstate the stall it is meant to
- * remove. Eight covers a round trip well past a second. Past that something is
- * wrong rather than slow, and {@link STEP_CONFIRM_GRACE_MS} is what notices.
+ * remove. The server holds the same number, so it never refuses a step for
+ * being one this client was allowed to draw. @see MAX_STEPS_AHEAD
  */
-const MAX_PREDICTED_STEPS = 8;
+const MAX_PREDICTED_STEPS = MAX_STEPS_AHEAD;
 
 /**
  * How long the oldest unconfirmed step waits **past its own walk** before this
@@ -489,8 +490,9 @@ export class RemoteSession implements PlaySession {
   /** Told which protocol the server speaks. See {@link setOnOutdated}. */
   private onOutdated: ((serverVersion: number) => void) | null = null;
   /** How many people the server last said were here. */
-  private players = 0;
-  private onPlayers: ((count: number) => void) | null = null;
+  /** Null for everybody but an administrator, who is the only one told. */
+  private players: number | null = null;
+  private onPlayers: ((count: number | null) => void) | null = null;
   /** Whether the server says this body is hidden from other players. @see setHidden */
   private hidden = false;
   private onHidden: ((hidden: boolean) => void) | null = null;
@@ -595,12 +597,13 @@ export class RemoteSession implements PlaySession {
    * the same number sixty times a second. Fires on registration too, for a
    * listener that arrives after the `hello` it would have learnt from.
    */
-  setOnPlayers(cb: ((count: number) => void) | null) {
+  setOnPlayers(cb: ((count: number | null) => void) | null) {
     this.onPlayers = cb;
     if (this.ready) cb?.(this.players);
   }
 
-  playerCount(): number {
+  /** Null unless this connection is an administrator's. */
+  playerCount(): number | null {
     return this.players;
   }
 
@@ -642,7 +645,7 @@ export class RemoteSession implements PlaySession {
   }
 
   /** Take a headcount from the wire, telling anyone watching if it moved. */
-  private setPlayers(count: number) {
+  private setPlayers(count: number | null) {
     if (count === this.players) return;
     this.players = count;
     this.onPlayers?.(count);
@@ -708,6 +711,11 @@ export class RemoteSession implements PlaySession {
 
     if (message.type === "clock") {
       this.setClock(message.minutesOfDay);
+      return;
+    }
+
+    if (message.type === "players") {
+      this.setPlayers(message.playerCount);
       return;
     }
 
@@ -811,7 +819,7 @@ export class RemoteSession implements PlaySession {
       this.applyExtractions(message.extractions);
       this.applyCastings(message.castings);
       this.resetAfflicted(message.afflicted);
-      this.setPlayers(message.playerCount);
+      this.setPlayers(message.playerCount ?? null);
       // A `hello` is a body, whichever of the two sent it: the answer to
       // `rebirth`, or a world replaced under a socket that happened to be dead
       // in the old one. Either way there is somebody on the board again, and
@@ -1367,14 +1375,15 @@ export class RemoteSession implements PlaySession {
   }
 
   private applyEvent(event: MotionEvent) {
-    if (event.kind === "joined") {
-      this.motions.set(event.actorId, emptyMotion());
-      this.setPlayers(event.playerCount);
-      return;
-    }
+    // Nothing to do. It used to carry the headcount, which only administrators
+    // are told now, by `players`. It is not a claim that this client holds the
+    // body either: the body arrives as a `spawned` if and when it is in reach.
+    // Adding an entry here for a body on none of this client's cells is a sweep
+    // of the whole board every frame, and replacing the entry of a body already
+    // held drops whatever walk it was half way through. @see `./scope`
+    if (event.kind === "joined") return;
     if (event.kind === "left") {
       this.forgetActor(event.actorId);
-      this.setPlayers(event.playerCount);
       return;
     }
 

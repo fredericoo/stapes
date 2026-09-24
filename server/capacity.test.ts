@@ -13,8 +13,8 @@ import { World } from "./world";
 /**
  * The limit on how many people may be in the world at once.
  *
- * Against a real `World`, on the terms `./maintenance.test.ts` gives, because
- * the refusal is decided in `World.join` and not in `GameServer`.
+ * Against a real `World`, on the terms `./maintenance.test.ts` gives: whether
+ * somebody is an administrator reaches `GameServer.join` through it.
  */
 
 let directory: string;
@@ -104,5 +104,22 @@ describe("a full world", () => {
     const late = socket();
     await world.join(late.socket, "late-player", { admin: false });
     expect(late.closedWith()).toBeNull();
+  });
+
+  /**
+   * Joins wait their turn, so a check made before the wait would let both of
+   * these through on the same free seat.
+   */
+  it("gives the last seat to only one of two joins at once", async () => {
+    for (let i = 0; i < MAX_ONLINE_PLAYERS - 1; i++) {
+      await world.join(socket().socket, `player-${i}`, { admin: false });
+    }
+    const a = socket();
+    const b = socket();
+    await Promise.all([
+      world.join(a.socket, "late-a", { admin: false }),
+      world.join(b.socket, "late-b", { admin: false }),
+    ]);
+    expect([a.closedWith(), b.closedWith()].sort()).toEqual([CLOSE_WORLD_FULL, null].sort());
   });
 });

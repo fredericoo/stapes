@@ -401,3 +401,36 @@ describe("walking about with a creature in the world", () => {
     expect(walked).toBeGreaterThan(CHUNK_SIZE);
   });
 });
+
+/**
+ * Somebody arriving out of reach. `joined` used to go to every client, and the
+ * client took it as a body to track, one this client held no cell for, so
+ * every frame searched the whole board for it. A hundred players arriving at
+ * once made each frame take hundreds of milliseconds, until a reload.
+ */
+describe("somebody joining out of reach", () => {
+  it(
+    "costs this client nothing to track, and is there once it walks back",
+    async () => {
+      const session = await play("alice");
+      await session.advance(300);
+      await walk(session, "e", BODY_REACH_ON_LEVEL + CHUNK_SIZE);
+      await session.advance(500);
+
+      const bob = new Pair();
+      bob.client().addEventListener("message", () => {});
+      await harness.server.join(bob.server, "bob", { admin: false });
+      await session.advance(500);
+
+      const internals = session.remote as unknown as { motions: Map<string, unknown> };
+      expect(session.remote.playerCount()).toBe(2);
+      expect(internals.motions.has("bob")).toBe(false);
+
+      // Walking back into reach is what announces him, with a `spawned`.
+      await walk(session, "w", BODY_REACH_ON_LEVEL + CHUNK_SIZE);
+      await session.advance(1000);
+      expect(session.remote.getSnapshot().actors.map((a) => a.id)).toContain("bob");
+    },
+    WALKING_TEST_MS,
+  );
+});
