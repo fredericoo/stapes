@@ -2651,6 +2651,20 @@ All 251 server tests and `e2e/session.spec.ts` pass on 1.4.2. The machine was
 slower during these runs than during the sweep below, so compare them with each
 other and not with it.
 
+**Production before and after.** The branch point on Bun 1.3.8, as production
+ran it, against the end of this work on 1.4.2, which the image now runs: the
+same bench, each count's pair taken in turn. The machine was slower here than
+during the sweep below too, so read the two sides against each other:
+
+| players | before: ticks/s | before: median tick | after: ticks/s | after: median tick | after: p95 tick |
+|---|---|---|---|---|---|
+| 400 | 16.00 | 54ms | 30.00 | 18ms | 31ms |
+| 600 | 9.63 | 95ms | 28.75 | 25ms | 52ms |
+| 800 | 5.21 | 180ms | 21.97 | 38ms | 69ms |
+| 1000 | 3.46 | 277ms | 16.00 | 52ms | 98ms |
+
+The longest gap between two ticks went from 224–429ms to 112–242ms.
+
 **Where it ended.** Same bench, no `--smol`, 30 seconds each, the branch point
 and the end of this work run back to back:
 
