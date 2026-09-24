@@ -43,6 +43,10 @@ const MIGRATIONS: readonly string[] = [
   // The value is a BLOB holding JSON. Not TEXT, because tileset PNGs go through
   // the same store and a TEXT column would mean base64 and a third of the space
   // again for no gain.
+  //
+  // (The PNGs have since moved to `blob`, and `WorldStore` now writes the JSON
+  // as text, which the driver binds several times faster. A BLOB column keeps
+  // text as text, and `WorldStore` reads either.)
   `CREATE TABLE IF NOT EXISTS kv (
      key   TEXT PRIMARY KEY,
      value BLOB NOT NULL

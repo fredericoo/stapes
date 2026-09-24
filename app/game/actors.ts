@@ -1,6 +1,6 @@
 import { appendTile, getStack, listCoords, removeTileAt, replaceStack } from "../lib/mapData";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
-import { MAX_LEVEL, MIN_LEVEL, resolveActor } from "../lib/types";
+import { MAX_LEVEL, MIN_LEVEL, levelKey, parseCoordKey, resolveActor } from "../lib/types";
 import { PLAYER_TILE_ID } from "./constants";
 import { requireSinglePlayer } from "./player";
 
@@ -71,10 +71,24 @@ export function findActorNear(map: MapFile, ownerId: string, near: Coord): Actor
  * relocated across the map.
  */
 export function findActorAnywhere(map: MapFile, ownerId: string): ActorLocation | null {
+  // Walked over the chunk records directly rather than through `listCoords`,
+  // which builds an object and parses a key for every cell on a level. This is
+  // asked on every spawn and every departure — including every new arrival,
+  // which is on the board nowhere and so costs the whole sweep — and the
+  // allocating version took about 40ms on the shipped map: a stalled tick for
+  // everybody each time somebody joined, left or came back from the dead.
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
-    for (const { x, y, stack } of listCoords(map, z)) {
-      const i = stack.findIndex((p) => isActor(p, ownerId));
-      if (i >= 0) return { x, y, z, stackIndex: i, placed: stack[i]! };
+    const level = map.levels[levelKey(z)];
+    if (!level) continue;
+    for (const chunk of Object.values(level)) {
+      for (const key in chunk) {
+        const stack = chunk[key]!;
+        for (let i = 0; i < stack.length; i++) {
+          if (stack[i]!.owner !== ownerId) continue;
+          const { x, y } = parseCoordKey(key);
+          return { x, y, z, stackIndex: i, placed: stack[i]! };
+        }
+      }
     }
   }
   return null;

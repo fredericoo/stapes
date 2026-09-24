@@ -3,7 +3,7 @@
 # The client is *not* built into this image. It is pushed to a bucket by CI and
 # loaded at boot, which is the whole point of the split — a UI change ships
 # without restarting the process or disconnecting anybody.
-FROM oven/bun:1.3.8-slim AS base
+FROM oven/bun:1.4.2-slim AS base
 WORKDIR /app
 
 FROM base AS deps

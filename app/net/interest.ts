@@ -127,11 +127,96 @@ export function withinBodyReach(
   y: number,
   z: number,
 ): boolean {
+  return withinBodyReachOf(at.x, at.y, at.z, x, y, z);
+}
+
+/**
+ * {@link withinBodyReach}, with the viewer spelled out as three numbers.
+ *
+ * For the loops that ask it of every changed body and cell for every client on
+ * every tick, which read positions out of typed columns and have no object to
+ * hand it.
+ */
+export function withinBodyReachOf(
+  atX: number,
+  atY: number,
+  atZ: number,
+  x: number,
+  y: number,
+  z: number,
+): boolean {
   // The projection's own arithmetic: a level is drawn shifted by its own
   // number, so what stands between these two is the storeys between them and
   // not the whole span the world has. @see `../render/meshWindow`
-  const reach = BODY_REACH_ON_LEVEL + Math.abs(z - at.z);
-  return Math.abs(x - at.x) <= reach && Math.abs(y - at.y) <= reach;
+  const reach = BODY_REACH_ON_LEVEL + Math.abs(z - atZ);
+  return Math.abs(x - atX) <= reach && Math.abs(y - atY) <= reach;
+}
+
+/** The side of one {@link BodyGrid} bucket, in cells. A chunk, so a bucket is one column. */
+const BODY_GRID_CELLS = CHUNK_SIZE;
+
+/** One number per bucket, for any bucket a board of this size could have. */
+function bodyGridKey(bx: number, by: number): number {
+  return (bx + 0x8000) * 0x10000 + (by + 0x8000);
+}
+
+/**
+ * Bodies filed by the column they stand in, so that "who is within body reach
+ * of this viewer" is asked of the few buckets that could hold an answer rather
+ * than of every body in the world.
+ *
+ * **This is what a crowd costs without it.** Every client asks that question on
+ * every tick, and asking it of every body makes the tick the product of the
+ * two populations: a thousand players and two hundred creatures is 1.2 million
+ * reach tests a tick, which on its own took 116ms of a 33ms tick. The reach is
+ * a square of at most {@link BODY_REACH_CELLS} each way, so seven buckets by
+ * seven cover it wherever the viewer stands, and a body outside them cannot be
+ * in reach.
+ *
+ * Built once per tick from that tick's bodies, and read-only after that.
+ * Levels are not filed apart: the reach reaches every level, and
+ * {@link withinBodyReach} charges the storeys between two bodies itself.
+ */
+export class BodyGrid {
+  private readonly buckets = new Map<number, number[]>();
+
+  constructor(private readonly bodies: ReadonlyArray<{ x: number; y: number; z: number }>) {
+    for (let i = 0; i < bodies.length; i++) {
+      const body = bodies[i]!;
+      const key = bodyGridKey(
+        Math.floor(body.x / BODY_GRID_CELLS),
+        Math.floor(body.y / BODY_GRID_CELLS),
+      );
+      const bucket = this.buckets.get(key);
+      if (bucket) bucket.push(i);
+      else this.buckets.set(key, [i]);
+    }
+  }
+
+  /**
+   * The index of every body within body reach of `at`, in no particular order.
+   *
+   * Exactly the bodies {@link withinBodyReach} says yes to — the buckets only
+   * decide which bodies are asked.
+   */
+  near(at: { x: number; y: number; z: number }): number[] {
+    const out: number[] = [];
+    const minX = Math.floor((at.x - BODY_REACH_CELLS) / BODY_GRID_CELLS);
+    const maxX = Math.floor((at.x + BODY_REACH_CELLS) / BODY_GRID_CELLS);
+    const minY = Math.floor((at.y - BODY_REACH_CELLS) / BODY_GRID_CELLS);
+    const maxY = Math.floor((at.y + BODY_REACH_CELLS) / BODY_GRID_CELLS);
+    for (let bx = minX; bx <= maxX; bx++) {
+      for (let by = minY; by <= maxY; by++) {
+        const bucket = this.buckets.get(bodyGridKey(bx, by));
+        if (!bucket) continue;
+        for (const i of bucket) {
+          const body = this.bodies[i]!;
+          if (withinBodyReach(at, body.x, body.y, body.z)) out.push(i);
+        }
+      }
+    }
+    return out;
+  }
 }
 
 /**

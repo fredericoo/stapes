@@ -12,7 +12,7 @@ import { viewerOf } from "./auth";
 import { readConfig } from "./config";
 import { createApi } from "./api";
 import { ClientBundle } from "./clientBundle";
-import { GameSocket } from "./sockets";
+import { GameSocket, PER_MESSAGE_DEFLATE } from "./sockets";
 import { DEFAULT_STRESS_TARGET, StressBots } from "./stressBots";
 import { World } from "./world";
 
@@ -48,21 +48,39 @@ const stress = new StressBots({
 /** Actor id per connection, for the close handler after the socket is gone. */
 const sockets = new WeakMap<object, GameSocket>();
 
+/**
+ * The shortest frame worth compressing, in characters, for when compression is
+ * agreed. It is not at the moment — see {@link PER_MESSAGE_DEFLATE} — and then
+ * Bun sends every frame as it is, whatever `send` is told.
+ *
+ * Deflate costs about 10µs a frame before it has read a byte, on the thread
+ * that runs the tick, and each socket's copy is compressed separately. Under
+ * this length that buys a few hundred bytes at most — a keepalive, a refused
+ * step, a patch with nothing in it — so those go as they are. Patches of a
+ * few kilobytes and up are the bulk of the traffic, and shrink about tenfold.
+ */
+const COMPRESS_MIN_LENGTH = 512;
+
 const app = new Elysia({
   /**
-   * Compress every frame the world sends. The wire is JSON of tile stacks,
-   * which is the most repetitive text there is: measured on the den map, the
-   * `hello` a joiner is sent goes 1.97MB to 135KB and a tick's patch shrinks
-   * by about the same factor. Bun leaves this off by default; the browser
-   * side negotiates it without being asked.
+   * Compression is not offered: Safari cannot read the frames Bun compresses.
+   * See {@link PER_MESSAGE_DEFLATE}, which says what it cost and what turning
+   * it back on needs.
+   *
+   * What it is worth when it works: the wire is JSON of tile stacks, the most
+   * repetitive text there is, and a `hello` goes from about 2.5MB to under
+   * 180KB; a hundred players went from 17MB/s to 4.5MB/s. Agreeing to
+   * compress is not compressing — Bun deflates a frame only when `send` is
+   * passed `true`, which the transport below still does for frames over
+   * {@link COMPRESS_MIN_LENGTH}, so this one setting turns it back on.
    */
-  websocket: { perMessageDeflate: true },
+  websocket: { perMessageDeflate: PER_MESSAGE_DEFLATE },
 })
   .use(createApi(world, bundle, config, stress))
   .ws(GAME_SOCKET_PATH, {
     open(ws) {
       const socket = new GameSocket({
-        send: (data) => void ws.send(data),
+        send: (data) => void ws.send(data, data.length >= COMPRESS_MIN_LENGTH),
         close: (code, reason) => void ws.close(code, reason),
         get closed() {
           return ws.readyState !== 1;

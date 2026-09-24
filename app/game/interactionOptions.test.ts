@@ -240,6 +240,7 @@ function actor(
     extracting: null,
     casting: null,
     pvp,
+    hidden: false,
   };
 }
 

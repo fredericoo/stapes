@@ -255,11 +255,18 @@ export class WorldStore {
   ): Promise<void> {
     const batch: { sql: string; args: unknown[] }[] = [];
 
-    for (const [key, value] of entries) {
-      batch.push({
-        sql: "INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-        args: [key, encode(value)],
-      });
+    // Many rows to a statement rather than one. The driver prepares every
+    // statement in a batch afresh, and a checkpoint of a thousand players is a
+    // few hundred chunks every couple of seconds and every actor now and then.
+    // @see UPSERT_ROWS
+    for (let at = 0; at < entries.length; at += UPSERT_ROWS) {
+      const rows = Math.min(UPSERT_ROWS, entries.length - at);
+      const args: unknown[] = [];
+      for (let i = at; i < at + rows; i++) {
+        const [key, value] = entries[i]!;
+        args.push(key, encode(value));
+      }
+      batch.push({ sql: upsertSql(rows), args });
     }
     for (const key of deletions) {
       batch.push({ sql: "DELETE FROM kv WHERE key = ?", args: [key] });
@@ -303,8 +310,42 @@ function prefixEnd(prefix: string): string {
   return prefix.slice(0, -1) + String.fromCharCode(prefix.charCodeAt(prefix.length - 1) + 1);
 }
 
-function encode(value: unknown): Uint8Array {
-  return new TextEncoder().encode(JSON.stringify(value ?? null));
+/**
+ * How many rows one upsert in a checkpoint writes.
+ *
+ * The checkpoint holds the event loop for as long as its batch runs — the
+ * driver's steps do not yield — so its length is a hitch in the tick that
+ * happens to follow it. At a thousand walking players a checkpoint was a few
+ * hundred chunk rows every two seconds and took 70–90ms, and every actor's rows
+ * as well now and then, 140–210ms. A hundred rows a statement is 200 bound
+ * values, far inside any limit on them, and almost all of what grouping saves.
+ */
+const UPSERT_ROWS = 100;
+
+const upsertSqlByRows = new Map<number, string>();
+
+/** An upsert of `rows` key/value rows, built once for each count. */
+function upsertSql(rows: number): string {
+  let sql = upsertSqlByRows.get(rows);
+  if (sql === undefined) {
+    const values = Array.from({ length: rows }, () => "(?, ?)").join(", ");
+    sql = `INSERT INTO kv (key, value) VALUES ${values} ON CONFLICT(key) DO UPDATE SET value = excluded.value`;
+    upsertSqlByRows.set(rows, sql);
+  }
+  return sql;
+}
+
+/**
+ * A value as the text of its JSON.
+ *
+ * **Text, although the column is declared `BLOB`.** The driver binds a string
+ * several times faster than the same JSON as bytes — 300 chunk-sized rows took
+ * 13–17ms as text and 47–64ms as a `Uint8Array` — and SQLite keeps whichever it
+ * is given, since a `BLOB` column converts nothing. Rows written as bytes
+ * before this are still read: {@link decode} takes either. @see `./db`
+ */
+function encode(value: unknown): string {
+  return JSON.stringify(value ?? null);
 }
 
 function decode(value: Uint8Array | string): unknown {

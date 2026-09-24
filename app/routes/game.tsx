@@ -30,11 +30,13 @@ export async function clientLoader() {
   if (!me.user) throw redirect("/sign-in");
   const character = resolveRemembered(me.characters);
   if (!character) throw redirect("/characters");
-  return { character };
+  // Only what the menu draws. The server reads the role off the session cookie
+  // for itself, and ignores the switch from anybody else.
+  return { character, admin: me.user.role === "ADMIN" };
 }
 
 export default function GamePage() {
-  const { character } = useLoaderData<typeof clientLoader>();
+  const { character, admin } = useLoaderData<typeof clientLoader>();
   const { tiles, tilesets, statuses } = usePlayerShell();
   const navigate = useNavigate();
 
@@ -64,6 +66,7 @@ export default function GamePage() {
       // place.
       key={character.id}
       link={onlineLink}
+      admin={admin}
       tiles={tiles}
       tilesets={tilesets}
       statuses={statuses}

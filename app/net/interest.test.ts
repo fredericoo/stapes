@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MAP_FILE_VERSION } from "../lib/types";
 import {
   BODY_REACH_CELLS,
+  BodyGrid,
   INTEREST_REACH_CELLS,
   INTEREST_REACH_CHUNKS,
   cellsOfChunks,
@@ -200,6 +201,68 @@ describe("the body reach", () => {
     expect(withinBodyReach(at, 100 + onLevel + 4, 100, 3)).toBe(false);
     // Never past the worst case, which is what the subscription is pinned to.
     expect(withinBodyReach(at, 100 + BODY_REACH_CELLS + 1, 100, MAX_LEVEL)).toBe(false);
+  });
+});
+
+/**
+ * Which bodies a viewer could be told about, found without asking every body.
+ *
+ * The grid only decides which bodies are asked; `withinBodyReach` still
+ * decides. So the whole of what it owes is to ask every body that could be in
+ * reach — one missed is a body a client is never told about.
+ */
+describe("the bodies near a viewer", () => {
+  /** Every body `withinBodyReach` says yes to, asked the slow way. */
+  function nearBySweep(bodies: Array<{ x: number; y: number; z: number }>, at: (typeof bodies)[0]) {
+    return bodies.flatMap((body, i) => (withinBodyReach(at, body.x, body.y, body.z) ? [i] : []));
+  }
+
+  it("finds exactly the bodies within reach, wherever the viewer stands", () => {
+    // A scatter across negative and positive coordinates and every level, with
+    // a fixed step so the case is the same on every run.
+    const bodies: Array<{ x: number; y: number; z: number }> = [];
+    for (let i = 0; i < 2000; i++) {
+      bodies.push({
+        x: ((i * 37) % 301) - 150,
+        y: ((i * 91) % 263) - 131,
+        z: MIN_LEVEL + ((i * 7) % (MAX_LEVEL - MIN_LEVEL + 1)),
+      });
+    }
+    const grid = new BodyGrid(bodies);
+    for (const at of [
+      { x: 0, y: 0, z: 0 },
+      { x: -1, y: -1, z: 0 },
+      { x: CHUNK_SIZE - 1, y: -CHUNK_SIZE, z: 3 },
+      { x: -140, y: 120, z: MIN_LEVEL },
+      { x: 400, y: 400, z: 0 },
+    ]) {
+      expect(grid.near(at).sort((a, b) => a - b)).toEqual(nearBySweep(bodies, at));
+    }
+  });
+
+  /**
+   * The furthest a body can be and still count is the whole level span out,
+   * which is further than one bucket past the viewer's own — so the edge the
+   * grid has to reach is the worst case, not the common one.
+   */
+  it("reaches the body at the very edge of the worst case, in every direction", () => {
+    // Viewers at each offset into a bucket, so no edge lands on a boundary by luck.
+    for (let offset = 0; offset < CHUNK_SIZE; offset += 5) {
+      const at = { x: offset, y: -offset, z: MIN_LEVEL };
+      const corners = [
+        { x: at.x + BODY_REACH_CELLS, y: at.y + BODY_REACH_CELLS, z: MAX_LEVEL },
+        { x: at.x - BODY_REACH_CELLS, y: at.y + BODY_REACH_CELLS, z: MAX_LEVEL },
+        { x: at.x + BODY_REACH_CELLS, y: at.y - BODY_REACH_CELLS, z: MAX_LEVEL },
+        { x: at.x - BODY_REACH_CELLS, y: at.y - BODY_REACH_CELLS, z: MAX_LEVEL },
+      ];
+      for (const corner of corners)
+        expect(withinBodyReach(at, corner.x, corner.y, corner.z)).toBe(true);
+      expect(new BodyGrid(corners).near(at).sort((a, b) => a - b)).toEqual([0, 1, 2, 3]);
+    }
+  });
+
+  it("finds nobody where nobody is", () => {
+    expect(new BodyGrid([]).near({ x: 0, y: 0, z: 0 })).toEqual([]);
   });
 });
 

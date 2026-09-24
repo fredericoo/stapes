@@ -237,13 +237,12 @@ game's menu has no account controls at all**, and the chooser has no way into
 the world except a character.
 
 - `app/components/LeaveWorldButton.tsx` sits in the menu the lighting switch is
-  in — behind the cog, on every device: the game has no header. It
-  forgets the character and navigates to `/characters`, which unmounts the world
-  route and tears the connecting effect down with it: the canvas goes, and with
-  it the renderer, the session and this player's body in the world. **It does
-  not touch the session**: this is how somebody swaps to another of their three,
-  and coming back to the one they left is the same body standing where they left
-  it.
+  in — behind the cog, on every device: the game has no header. The press tears
+  the connecting effect down first — the renderer, the session and the socket,
+  and with the socket this player's body in the world — and then forgets the
+  character and navigates to `/characters`. **It does not touch the session**:
+  this is how somebody swaps to another of their three, and coming back to the
+  one they left is the same body standing where they left it.
 - **Sign out** is on `/characters` and **Change password** is its own route off
   it, because that is where the account lives. Being signed out is a state worth
   having to ask for on an account with no password reset, and a password is not
@@ -251,6 +250,24 @@ the world except a character.
 
 `e2e/session.spec.ts` asserts the split from both sides: the account's controls
 are absent in the game and present on the chooser.
+
+**The world is torn down at the press, not by the unmount the navigation
+causes.** React Router commits a navigation inside `startTransition`, and a
+transition gives way to every ordinary update. A live world keeps making them —
+the clock, the frame readout, the vitals, the list of what is within reach —
+between frames that take most of a slow machine's time. Left to the unmount,
+the chooser took about six seconds to appear on the machine this was measured
+on, and with the page's CPU throttled four times
+(`Emulation.setCPUThrottlingRate`) it had not appeared a minute later, with the
+body still in the world. CI's browser draws about two frames a second, and
+there both tests in `e2e/session.spec.ts` that leave the world failed this way
+once the server's patches arrived at the full thirty a second rather than about
+twenty-seven. `WorldPage`'s `leave` runs the connecting effect's own teardown
+and then calls the route, and the chooser appears within a few hundred
+milliseconds of the socket closing, even throttled six times. `navigate`'s
+`flushSync` option does not fix this: it applies to a navigation's first state
+update, and the commit after the loader goes through `startTransition` either
+way.
 
 **Leaving asks nothing in the ordinary case**, because the button beside it
 undoes it: the chooser is one press from the world again. A confirmation on an
@@ -2473,8 +2490,332 @@ The seams worth knowing:
   those tests was checked red by breaking the rule it pins — dropping the
   banked time, making everybody attentive, ignoring the reach.
 - A round used to be one loop and one clock. It is still one clock: nothing
-  here changes `BRAIN_TICK_MS` or the accumulator, and a test that advances
-  one `BRAIN_TICK_MS` still sees every attentive creature decide.
+  here changes `BRAIN_TICK_MS` or the accumulator. What changed later is that
+  a round with more than `BRAIN_TURNS_PER_TICK_MIN` turns is spread over the
+  ticks it covers — see "A hundred players, profiled" below — so a test with
+  a crowd has to count turns on every tick of a round, and from the tick the
+  round falls due. `alignToRounds` and `roundOfTurns` in `brain.test.ts` do
+  that. A test with a handful of creatures still sees every one of them decide
+  on the tick the round falls due.
+
+## A hundred players, profiled
+
+The stress-test bots (`/admin/actions` on the branch that carries them) put a
+hundred players into a local world, and `bun --cpu-prof` on the server said
+where a tick went. The target was the 30Hz tick staying inside its 33ms with
+a hundred players in the world, both all at the spawn — which is launch day —
+and spread over the surface, which is every day after.
+
+**Where it started.** Pinned to one core, a hundred players held the world to
+22 ticks a second clustered and 20 spread: the world ran a quarter to a third
+slow, and one tick in twenty took 65ms clustered and 105ms spread.
+
+**Spreading the players out made it worse, not better.** Clustered, a patch is
+scoped per client and nearly every body is in nearly every client's reach, so
+the broadcast was the largest single cost. Spread out, the broadcast shrank to
+half and the creatures took its place: players all over the map wake
+creatures all over the map, and those brains were the bottleneck. Turning
+brains off entirely put the world at full speed with a 9ms median tick.
+
+**What each change bought**, in the order they were made:
+
+- **A step or a turn no longer runs the per-message flushes.** Walking is most
+  of what clients send, and each message ran thirteen flushes that each walk
+  every socket — a cost that grew with the square of the player count. A step
+  is only queued there and the tick runs every flush anyway.
+- **Seating and removing a body stopped sweeping the board.**
+  `findActorAnywhere` built an object per cell of every level; walking the
+  chunk records took it from 27ms to 6.5ms on the shipped map, and `despawn`
+  now removes the body from the cell it has just located rather than sweeping
+  again. Every join, rebirth and departure used to stall the tick for 40ms.
+- **A player's interest is recomputed when they cross a chunk boundary**,
+  not every tick. `subscriptionCentre` remembers the chunk a subscription was
+  found complete around, keyed by the set, which is only ever replaced.
+- **A creature's search for a thing skips chunks that cannot hold it.**
+  `tileIdsInChunk` is cached per chunk object — safe because chunks are
+  copy-on-write — and a copy inherits its source's set plus whatever was
+  written into it, so it may list a tile that has since left and never misses
+  one that has not. The search's answer and order are unchanged.
+- **A location memo survives edits elsewhere.** A body whose chunk is the
+  same object on the new map is where it was; that answers `tryLocate`
+  without a stack lookup.
+- **A round of decisions is spread over the ticks it covers.** It used to be
+  taken whole on the tick it fell due, one tick in six three times over
+  budget and the five after it idle. It is planned on that tick — who is
+  awake, whose dozing turn it is, and the speech, blows and sounds it will
+  deliver — and taken a share per tick after that, at least
+  `BRAIN_TURNS_PER_TICK_MIN` a tick so a small world is exactly what it was.
+  Speech, blows and sounds that arrive while a round is being worked through
+  belong to the next round, which is the rule sounds already followed.
+- **Scoping reuses a client's set of known bodies when nobody came or went**,
+  and works each body's chunk out once a tick rather than once per client.
+
+**Where it ended**, same machine, same bots. The "after" rows have
+`server/index.ts`'s compression turned on and the "before" rows do not, so the
+"before" rows are, if anything, better than a like-for-like comparison would show:
+
+| | ticks/s | median tick | p95 tick |
+|---|---|---|---|
+| clustered, before | 22 | 21ms | 65ms |
+| clustered, after | 27 | 19ms | 32ms |
+| spread, before | 20 | 22ms | 105ms |
+| spread, after | 28 | 20ms | 34ms |
+
+29.4 is the ceiling: `setInterval(…, 33.3)` fires every 34ms in Bun. (It was.
+The tick is now set against a timeline, `GameServer.tickIfDue`, which makes
+up the time a long tick took instead of losing it and puts the ceiling at 30.)
+
+**What is left**, for whoever takes this further:
+
+- **The ticks still missing are stalls outside the tick.** The gap between
+  ticks has a p99 around 100ms. The largest thing that happens between ticks is
+  a `hello`: about 2.5MB of JSON, serialized on every join and every rebirth,
+  and the bots die about once every two minutes each. Smaller hellos, or a
+  rebirth that does not resend the whole map, is the next step.
+- **`getStack` is a fifth of what remains.** Three string keys and three
+  lookups on objects with hundreds of keys, per call, and pathfinding, movement
+  and gravity call it constantly. Interning the key strings bought 5–15% in a
+  microbenchmark; a numeric index would buy far more and means changing the
+  map's in-memory shape.
+- **Pathfinding runs once per step of every chasing creature.** Reusing a route
+  while its goal stands still is the obvious saving, and it is a behaviour
+  change that needs the chase notes above read first.
+- **This was one core to itself.** Production shares two vCPUs with its
+  previews and Traefik, so the margin measured here is the most it has.
+
+## A thousand players, profiled
+
+`bun run bench:crowd` seats players on a real `GameServer` — a `WorldStore` on a
+copy of `data/`, the checkpoint loop running, sockets that record rather than
+send — and walks them the way the stress bots do: runs of one to eight steps, a
+pause now and then, a turn when a step is refused, a rebirth three seconds after
+dying. It is one process with no network, so what it measures is the tick. It
+reports ticks a second, tick and gap percentiles, and the time each phase of the
+tick took; `--profile` writes a CPU profile of the measured window alone, and
+`--idle`, `--clustered` and `--deflate` change what the players do and what a
+send costs.
+
+**Compare runs made with the same `BUN_OPTIONS`, alternated.** Some shells
+export `BUN_OPTIONS=--smol`, which makes Bun collect garbage far more often: the
+same build measured about a tick a second slower with it. Production runs
+`bun run server/index.ts` without it. And one run moves by a tick or two from
+the next — which bots died, which creatures woke, and a shared machine that is
+slower at two in the morning than at midnight — so a change is judged by the
+phase it touched, or by runs of the two builds taken in turn.
+
+**Where it started.** A thousand players spread over the surface, all walking:
+4.7 ticks a second, a median tick of 199ms. More than half of every tick was
+cutting the shared patch per client: each client asked every changed cell,
+event and entry of the tick whether it was theirs, through set lookups — about
+three hundred changes for each of a thousand clients.
+
+**What each change bought**, a thousand walking, in the order they were made:
+
+| change | effect |
+|---|---|
+| each client cut against what changed since its own last cut | 4.7 → about 10 ticks/s |
+| `hello`s and handovers written from per-chunk JSON (`server/chunkJson.ts`) | 11.0 ticks/s; seating a thousand at 50 a second went from 31s to 22s |
+| two versions of the board diffed by the writes between them | `diffCells` 7.3 → 0.8ms a tick |
+| a client standing still inside a whole subscription cut by distance alone | 11.0 → 13.8 ticks/s |
+| a cell's handover text kept against its stack array | `streamEnteredChunks` 6.2 → 4.8ms |
+| one battler reading per snapshot | `actorSnapshots` 3.7 → 2.6ms |
+| the tick's changes filed by position (`server/nearIndex.ts`) | 13.7 → 16.1 ticks/s; `cutByDistance` 9.8 → 5.2ms |
+| a moved client's held set edited in place | `reachFromScratch` 4.3 → 2.9ms |
+| changes marked by exact reach, level included | `cutByDistance` 6.7 → 5.6ms |
+| a chunk copy's text carried down its lineage | `streamEnteredChunks` 4.6 → 3.6ms |
+| three loops the JIT kept exiting, indexed (below) | 14.1 and 13.1 → 14.7 and 14.6 ticks/s, alternated |
+| the tick on a timeline (below) | 400 players: 25.4 → 29.8 ticks/s |
+| spawn remembers where it put a body; a hello builds only the snapshots it sends | seating a thousand as fast as they come: 20.8s → 15.7s |
+| level and chunk keys built once and reused; a column's keys built once for all its levels | 14.65 → 15.32 ticks/s, the mean of five runs each taken in turn; `getStack` had been an eighth of the tick |
+| the checkpoint's upserts a hundred rows to a statement, the JSON bound as text (below) | a board checkpoint 67–91 → 13–20ms; the longest gap between ticks about 234 → 145ms |
+
+And smaller ones: sockets indexed by actor; subscriptions checked only for
+clients that moved; a death's batch writing only the kits its board can
+contradict; `destinationTaken` answered from an index of walks rather than a
+pass over every actor; `listStandingSurfaces` reading each level once;
+`applyStepRequest` returning before it locates an actor that holds nothing; a
+killed body taken off the cell it was just found in rather than by a sweep of
+the board; and `tickStatuses` reading each afflicted body's base battler once.
+
+**Every change to the cut was checked against the cut it replaced.** A copy of
+the previous implementation ran beside the new one over the same ticks — three
+hundred players spread, two hundred clustered, joining, leaving, dying — and
+the two had to produce the same patch for every client, byte for byte or up to
+the order of departures, and leave every client holding the same bodies. The
+per-chunk JSON is held to `JSON.stringify` of the objects it replaced by
+`server/chunkJson.test.ts`, which is the same promise made the cheap way.
+
+**The tick loop lost time on its own.** Bun's `setInterval` runs the callback
+after a late one as soon as it can, and then waits a whole interval again, so a
+tick that overruns is never made up: ticks alternating 10ms and 50ms — 30ms on
+average, inside the budget — came 24 times a second. With four hundred players
+the median tick was 19ms and the world still ran at 25. Ticks are now due on a
+timeline, and a 1ms heartbeat runs one whenever one is due
+(`GameServer.tickIfDue`): a long tick is followed by the next as soon as it
+ends, and a backlog of more than three ticks is dropped rather than run back to
+back. At a thousand players, where the world cannot keep up at all, it measures
+the same as `setInterval`: there is no time to make up.
+
+The first version had each tick set a `setTimeout` for the next, and under load
+that made the tick itself slower: `tickStatuses` took five times as long for
+the same work, and a thousand players ran at 13 to 15 ticks a second against 14
+to 17. The same build switched back to `setInterval` from outside, at runtime,
+recovered — so it is the pattern of timers, not the code. `setImmediate` was in
+between, and nobody here knows why. If the loop is ever changed again, measure
+it under load before trusting it.
+
+**Bun's optimizing compiler kept leaving three loops.**
+`BUN_JSC_printEachOSRExit=1` prints every exit from optimized code, and at a
+thousand players `armorDefence`, `armorResistances` and `requirementShortfall`
+exited about 850,000 times in 45 seconds, every one "InadequateCoverage" at the
+`for...of` over their list. Each loop had been compiled while its body had
+never run — nobody in armour, no weapon with requirements — and each of ten
+recompilations exited at the same place again. Written as indexed loops they
+do not exit at all. Runs taken in turn with and without: 14.1 and 13.1 ticks a
+second against 14.7 and 14.6, and `actorSnapshots`, which reads every actor's
+battler, 3.1–3.6ms a tick against 2.5–2.7ms.
+
+**The checkpoint held the event loop.** `WorldStore.flush` commits one
+transaction every two seconds, and the driver's steps do not yield, so nothing
+else runs until it is done — the tick due next waits. At a thousand walking
+players a checkpoint was 260–360 chunk rows, about 2.5MB, and took 67–91ms;
+when every actor was saved as well it was 1,300–2,700 rows and 138–212ms. Two
+things made it slow. The driver prepares every statement in a batch afresh, and
+there was one statement a row; and it binds a `Uint8Array` several times more
+slowly than a string of the same JSON (300 rows of 6KB: 47–64ms against
+13–17ms). Upserts now carry a hundred rows each and the JSON goes in as text,
+which a `BLOB` column keeps as it is given: the same checkpoints spend 13–20ms
+and 22–39ms in the driver. Before the driver runs, every chunk written still
+goes through `JSON.stringify`, which `server/chunkJson.ts` already holds as
+text in another shape.
+
+**The Bun version mattered more than anything left below, and the build not at
+all.** Production and CI ran Bun 1.3.8, and this work was measured on 1.3.11;
+both run 1.4.2 now. At a thousand walking players, three runs of each taken in
+turn: 1.3.8 ran at 12.3 ticks a second (median tick 74ms), 1.3.11 at 12.6
+(72ms), and 1.4.2 at 16.7 (52ms). Resident memory on 1.4.2 was lower too:
+556–574MB on average against 587–599MB, and a peak of 605–628MB against
+789–805MB. The same server bundled and minified measured the same as the source
+on both versions (12.6 against 12.6, 16.6 against 16.7). Compiled with
+`bun build --compile`, it measured the same again on 1.4.2 (16.1–17.3 ticks a
+second against 16.2–16.8, three runs of each, with the same memory) and only
+started faster: 95ms from launch to a healthy `/api/health` with bytecode,
+against 314ms from source. The tick was the point, so the image runs the source.
+For whoever tries it again: the database driver's napi-rs loader picks its
+native binding at runtime, which the bundler cannot follow, so the driver's
+`#index` import has to be replaced with a `require` of the binding; and the
+bundler writes `"development"` in place of `process.env.NODE_ENV` unless it is
+defined. All 251 server tests and `e2e/session.spec.ts` pass on 1.4.2. The
+machine was slower during these runs than during the sweep below, so compare
+them with each other and not with it.
+
+**Production before and after.** The branch point on Bun 1.3.8, as production
+ran it, against the end of this work on 1.4.2, which the image now runs: the
+same bench, each count's pair taken in turn. The machine was slower here than
+during the sweep below too, so read the two sides against each other:
+
+| players | before: ticks/s | before: median tick | after: ticks/s | after: median tick | after: p95 tick |
+|---|---|---|---|---|---|
+| 400 | 16.00 | 54ms | 30.00 | 18ms | 31ms |
+| 600 | 9.63 | 95ms | 28.75 | 25ms | 52ms |
+| 800 | 5.21 | 180ms | 21.97 | 38ms | 69ms |
+| 1000 | 3.46 | 277ms | 16.00 | 52ms | 98ms |
+
+The longest gap between two ticks went from 224–429ms to 112–242ms.
+
+**Where it ended.** Same bench, no `--smol`, 30 seconds each, the branch point
+and the end of this work run back to back:
+
+| players | before: ticks/s | before: median tick | after: ticks/s | after: median tick | after: p95 tick |
+|---|---|---|---|---|---|
+| 400 | 19.66 | 44ms | 29.99 | 20ms | 38ms |
+| 600 | 11.09 | 82ms | 28.92 | 29ms | 52ms |
+| 800 | 6.36 | 146ms | 22.13 | 42ms | 64ms |
+| 1000 | 4.32 | 222ms | 15.81 | 58ms | 88ms |
+
+The longest gap between two ticks in those runs went from 210–468ms to
+112–167ms, most of it the shorter checkpoint (above).
+
+At a thousand the median tick is about 58ms against a 33ms budget.
+Fewer ticks a second also means more work per tick — each carries more steps —
+so the gap to 30 is narrower than the rate suggests, but it is there, and no
+one part of what is left is most of it:
+
+| phase | ms a tick |
+|---|---|
+| the whole tick | 59.8 |
+| the simulation (`GameSession.tick`) | 26.0 |
+| cutting and sending every client's patch | 21.4 |
+| of which: cutting | 13.1 |
+| movement, including committing steps to the board | 10.4 |
+| creatures deciding | 12.8 |
+| handing over ground as players cross chunks | 3.7 |
+| applying the steps clients sent | 3.5 |
+| snapshots of every actor | 2.2 |
+| statuses | 1.6 |
+| hellos (joins and rebirths) | 0.8 |
+| diffing the board | 0.7 |
+
+**What is left**, for whoever takes this further:
+
+- **Compression would be the largest cost on the tick thread, and it is off.**
+  Measured with two hundred real sockets: a raw `ws.send` is about 3.5µs a
+  frame, and the shared deflate is about 18µs at 600 characters and 26µs at
+  3KB. The dedicated compressors are slower at these sizes, not faster. A
+  thousand clients at 30 a second is 30,000 frames a second, which deflated is
+  over half a second of the tick thread's every second; with `--deflate` on,
+  the bench's rate halves. It is off for a different reason — Safari cannot read
+  what Bun compresses (see "A frame is compressed only when `send` is told
+  to") — and what that costs is bandwidth: about 60KB/s per player. The patch
+  itself could be smaller: an actor id is a 36-character UUID and appears in
+  every cell and event about that actor.
+- **Each client costs about 11µs a tick whatever happens near it**: 5µs to cut,
+  3µs to serialize, 3µs to flatten and send. At a thousand that is 11ms a tick
+  before anything has changed. Moving the cut and serialization to workers is
+  the structural answer; the state it reads (held sets, subscriptions) would
+  have to move with it.
+- **Brains ask for the nearest player by walking every player.**
+  `nearestOnTile` is about seventy calls a tick at a thousand players, each a
+  pass over the thousand — about 3ms a tick. A spatial answer has to keep the
+  tie on insertion order, which is what keeps a seeded world reproducible, and
+  has to know every place a body can move.
+- **A chunk copy is 13–17µs, and the level around it is copied too.** A chunk
+  is a 256-key object, which the engine keeps as a dictionary, so copying one
+  rebuilds its table and allocates a new shape; the surface level is another
+  200 keys. A step copies both twice: on the turn and on the commit. In a
+  profile at a thousand players these copies (`cloneObject`, called from
+  `setStacks`) were 12.5% of all samples, a third of it the level. Editing in
+  place is not an option: tile-id sets, location memos and the JSON caches all
+  assume a chunk object never changes. Editing only the copies made during the
+  current tick in place would keep that true for everything outside the tick,
+  but not inside it: `GameSession.tryLocate` takes an unchanged chunk object to
+  mean an unmoved body, so a chunk edited in place would need its own record of
+  having changed.
+- **Smaller exits from optimized code remain.** `reachSinceLastCut`,
+  `scopedPatchFor`, `cellsOfChangedReach`, `reachFromScratch`,
+  `withStatusModifiers` and `setStacks` still leave optimized code about
+  100,000 times in 45 seconds between them, all "InadequateCoverage" and most
+  plausibly at loops that run only when somebody came or went. Run the bench
+  with `BUN_JSC_printEachOSRExit=1` and count the lines by function to find
+  them; the output is millions of lines, so write it to a file.
+- **Garbage collection pauses the tick for about 9ms, sometimes 19ms**, about
+  twice a second at a thousand players.
+- **A `hello` is about 16ms and 2.4MB.** One goes out on every join and
+  rebirth. `spawn` still sweeps the board once, to find a body a checkpoint
+  kept, before it places a new one.
+- **Memory.** At a thousand walking players, the branch point and the end of
+  this work taken in turn: resident memory averaged 520–600MB before and
+  550–625MB after, about 30MB more. The live heap after a full collection
+  went from 95–160MB to 162–178MB. The difference is mostly the chunk JSON
+  text caches, which hold about 23MB for one version of the shipped map, and
+  it held flat over 150 seconds with a full collection every 15, so it grows
+  with the board and not with time. The peak while a thousand join is lower
+  after (about 800MB against 740–1,000MB), because a `hello` is written from
+  kept text rather than built as objects first. `docker-compose.yml` caps the
+  container at 512MB by default, which a thousand players exceed before this
+  work and after, so a world meant to hold a thousand needs `MEM_LIMIT`
+  raised.
+
 ## A joiner is sent the chunks its view can reach
 
 The per-tick patch stream is bounded by how much the world changes, and since
@@ -2689,6 +3030,64 @@ in flight and a floating damage number both deliberately carry no actor id —
 whoever they were measured against may be off the board by the time they are
 drawn — so the place is what decides who hears them.
 
+### A hidden administrator is a body left out of everybody else's `held`
+
+An administrator can switch on **Invisible** in the game menu, for recording
+footage or watching the world without being part of it. To every other client
+this is a logout: they are sent `left` with a headcount that no longer counts
+the body, then `despawned`, then nothing about it until it is switched off.
+Switching it off is a login, sent as `joined` and `spawned` with full state.
+
+**Most of it is keeping the body out of `held`.** `held` already decides the
+cells (a placement whose owner is not held is stripped), the actor-scoped
+events and every per-body diff, so a hidden body other than the viewer's own is
+never put in it. `actorsInReach` does the same for `hello`. The toggle then
+reuses the transitions that already existed for a body walking out of reach.
+
+`held` is no longer worked out from every body each tick (see *A thousand
+players, profiled*), so the rule is in each place that decides it. `frameFor`
+files which bodies are hidden. `reachFromScratch` and `reachSinceLastCut` leave
+them out, and `cutByDistance` asks the same column before it answers "held"
+from distance alone. Hiding and showing count as a change in `frameFor`, as a
+step does, so a client that stood still is told on the next tick. A cell that
+names a body hidden now or at the last cut is cut the slow way, through
+`cellInScope`, which strips the body. The per-cell shortcut would send it with
+the body in it, or send the empty cell a hidden body just left, which gives
+away where it walks.
+
+Five things are not scoped by body, and each has its own check:
+
+- `joined` and `left` go to everybody. They are not sent for a hidden body's
+  own join and leave. The switch itself sends them instead. `playerCount`
+  skips hidden bodies.
+- A `damage` event is scoped by cell, so a number over a hidden body is dropped
+  per viewer (`concealedFrom`).
+- Chat from a hidden body goes back to its author and to the log, and to
+  nobody else.
+- A noise is never recorded, which also means creatures do not hear it.
+- The appear and disappear effects are scoped by cell. Spawning, leaving and
+  dying play none while hidden. Hiding plays the disappear effect a logout
+  plays, and showing plays the appear effect, so the cell looks the same as it
+  would for a real logout and login.
+
+**Creatures stop noticing the body too.** Without this, a wolf chasing a hidden
+admin shows everyone where they are. `nearestOnTile` skips it, `positionOf`
+and `walkGoalCell` answer null for it (so a chase already bound to the body
+ends after the step in flight lands), `hear` ignores what it says, and
+`hurtBy` leaves it out. What the body does to the world still happens: a blow
+still wounds, a pushed crate still moves. Only the body itself is hidden.
+
+**The role is checked on the socket, not stored on the body.** The switch is
+persisted in a `hidden:` row, so a reload does not announce the admin to the
+room. But `lastHiddenOf` honours that row only while an administrator's socket
+is seating the body, so an account demoted while hidden comes back visible.
+The server sends the state to its owner (`ServerMessage` `hidden`) and to
+nobody else.
+
+**Known gap:** `destinationTaken` still counts a hidden admin's walk, so a
+creature cannot end a step in a cell the admin is walking into. It is a
+one-step window, and seeing it means watching the creature closely.
+
 ## A test that reads the wire is not a test that plays the game
 
 `server/roundTrip.test.ts` drives a real `RemoteSession` over the same socket
@@ -2723,6 +3122,68 @@ And a scenario is not a test until the control is green. The first run of this
 file failed on both trees — a rat had been killing the player, who came back
 at the spawn point, which reads exactly like the step being thrown back that
 the file was written to look for.
+
+## A frame is compressed only when `send` is told to
+
+`perMessageDeflate: true` on the Elysia app makes Bun *agree* to
+permessage-deflate when a socket opens, and nothing more. A frame is deflated
+only when it is sent with `ws.send(data, true)`. The server called
+`ws.send(data)` from the day compression was switched on, so every frame went
+out raw while the browser and the comments both said it was compressed. The
+stress-test bots found it: at 100 players the bytes on the wire matched the
+JSON byte for byte, 17MB/s. The transport in `server/index.ts` now passes the
+flag. Measured against a local world:
+
+- **A frame costs about 10µs to deflate plus about 4µs per kilobyte**, on the
+  thread that runs the tick, and a patch is compressed once for each socket that
+  receives it. A 5.6KB patch goes to about 570 bytes for 33µs; a 100-byte frame
+  saves 30 bytes for 12µs. So frames under 512 characters go raw
+  (`COMPRESS_MIN_LENGTH`).
+- **At 100 players clustered at spawn**, traffic went from 17MB/s to 4.5MB/s,
+  and the median tick from 22ms to 26ms. That is load the tick did not carry
+  before, and it matters near the budget: at 150 players the world managed 10
+  ticks a second with compression on, against 19 without (30 is the target).
+- **A `hello` is about 2.5MB of JSON** and goes to under 180KB. One is sent on
+  every join and every rebirth, so a player who dies often is also a player who
+  downloads the map often.
+
+**Compression is off again, because Safari cannot read it.** Safari 27 on
+macOS and iOS joined, received its `hello`, and lost the connection a moment
+later — at once if the player walked — while Chrome played normally. The page
+reconnected into the same thing, over and over. It started with the change
+above: Bun had agreed to `permessage-deflate` for as long as it was switched
+on, but compressed nothing until `send` was told to, and Safari's own
+compressed messages had been read fine all along.
+
+- **Bun seals most of what it compresses.** A message that compresses small —
+  every ordinary patch, and larger ones that compress well, 20KB of repeated
+  cells included — goes out as a complete deflate stream, final block and all,
+  followed by a stray zero byte. Only messages that stay large compressed, like
+  a `hello`, go out as the open, sync-flushed stream RFC 7692 describes. Bun
+  1.3.8 and 1.4.2 frame them identically.
+- **Safari reads the first sealed message and nothing after it.** Its inspector
+  showed a `hello`, one sealed patch, then "The network connection was lost".
+  One decompressor kept for the whole connection, which is how Safari appears
+  to read, does the same: nothing after the first sealed message decodes. Chrome
+  reads them all.
+- **A compressor per socket would keep Safari but costs too much.**
+  `compress: "dedicated"` sends only open streams, which such a decompressor
+  reads, but it held about 147KB a socket (147MB at a thousand) and was the
+  slowest of the three to send through: a patch-sized frame took about 15µs,
+  against 11µs through the shared compressor and 2µs raw. The sizes below
+  "dedicated" (`"4KB"` and so on) held the same memory and add a
+  `server_max_window_bits` Safari never offered.
+- **A per-socket decompressor was tried first and changed nothing.** It had
+  been the answer when Safari compressed against its own earlier messages
+  (uNetworking/uWebSockets#1347), but that was not this: the failing direction
+  was the server's.
+
+So `PER_MESSAGE_DEFLATE` in `server/sockets.ts` is `false`, and every frame
+goes out as it is, as it did before the change above. `server/sockets.test.ts`
+checks the frames themselves: whatever the setting, the socket must never send
+a sealed compressed frame, and everything it sends must read back through one
+decompressor kept for the connection. Turning compression back on is that one
+setting, and it needs a real Safari before it ships.
 
 ## The wire is patches plus motion events
 
@@ -2849,8 +3310,8 @@ of those is a body the client already holds, and `spawned` is written to ignore
 an id it already has — which it has to be anyway, because a socket that connects
 just after a spawn is told about it twice.
 
-**The world ticks only while there is work** (`isAtRest`). `setInterval` blocks
-hibernation, so an idle world stops ticking and its object can be evicted with
+**The world ticks only while there is work** (`isAtRest`). A pending tick timer
+blocks hibernation, so an idle world stops ticking and its object can be evicted with
 sockets still open. Going idle checkpoints the runtime map, which is what makes
 eviction invisible — without it a wake would reload the authored map and drop
 everyone back at spawn.

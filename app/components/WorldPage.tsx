@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { AppShell, type Destination, MenuRow } from "./AppShell";
+import { InvisibleToggle } from "./InvisibleToggle";
 import { DeathScreen } from "./DeathScreen";
 import { FrameStatsReadout } from "./FrameStatsReadout";
 import { GameViewport } from "./GameViewport";
@@ -98,6 +99,7 @@ export function WorldPage({
   statuses,
   destinations,
   menuExtras,
+  admin = false,
   onLeave,
   onRefused,
 }: {
@@ -114,6 +116,12 @@ export function WorldPage({
   destinations?: Destination[];
   /** Controls this page has and the other does not, in the same menu. */
   menuExtras?: React.ReactNode;
+  /**
+   * Whether the account is an administrator's, which is what draws the
+   * **Invisible** switch. Only the game passes it: `/admin/play` is a world of
+   * one, with nobody in it to hide from.
+   */
+  admin?: boolean;
   /**
    * Take this character out of the world, if there is anywhere to take it.
    *
@@ -224,6 +232,8 @@ export function WorldPage({
   // same as an empty world — an unknown headcount reads as a dash rather than
   // claiming nobody is here.
   const [players, setPlayers] = useState<number | null>(null);
+  /** Whether the server says this body is hidden. @see InvisibleToggle */
+  const [hidden, setHidden] = useState(false);
   const [interactions, setInteractions] = useState<InteractionOption[]>([]);
   const [equipment, setEquipment] = useState<Equipment>(emptyEquipment);
   const [conversation, setConversation] = useState<Conversation | null>(null);
@@ -322,6 +332,27 @@ export function WorldPage({
    */
   const handlersRef = useRef({ onLeave, onRefused });
   handlersRef.current = { onLeave, onRefused };
+  /** The connecting effect's teardown, while it has a world to tear down. @see leave */
+  const stopRef = useRef<(() => void) | null>(null);
+  /**
+   * **Leave world**: out of the world at the press, and only then to wherever
+   * the route sends a character that has left.
+   *
+   * The connection is closed here rather than left to the unmount the route's
+   * navigation causes, because that unmount can be a long time coming. React
+   * Router commits a navigation inside `startTransition`, which gives way to
+   * every ordinary update, and a live world keeps making them — the clock, the
+   * frame readout, the vitals, the list of what is within reach — between
+   * frames that take most of a slow machine's time. There, the press did
+   * nothing for seconds, or never did anything, while the body stood in the
+   * world. With the socket closed and the renderer stopped there is nothing
+   * left for the navigation to give way to. @see `docs/notes.md`, "An account
+   * signs in; a character enters"
+   */
+  const leave = useCallback(() => {
+    stopRef.current?.();
+    handlersRef.current.onLeave?.();
+  }, []);
 
   useEffect(() => {
     rendererRef.current?.setLightingEnabled(lightingEnabled);
@@ -432,6 +463,7 @@ export function WorldPage({
       // is not missed — it lands well ahead of the renderer this page otherwise
       // waits for.
       remote.setOnPlayers(setPlayers);
+      remote.setOnHidden(setHidden);
       // Registered here rather than in `setOnReady` for a sharper version of
       // the same reason: a death can only reach a session that is live, but a
       // *reconnect* builds a fresh one, and a listener attached on the renderer
@@ -584,9 +616,9 @@ export function WorldPage({
       });
     };
 
-    connect();
-
-    return () => {
+    // What the unmount does, and what **Leave world** does first, so it is safe
+    // to run twice. @see leave
+    const stop = () => {
       disposed = true;
       if (retryTimer) clearTimeout(retryTimer);
       unbindCast();
@@ -596,6 +628,14 @@ export function WorldPage({
       socket?.close();
       setStats(null);
       setPlayers(null);
+    };
+    stopRef.current = stop;
+
+    connect();
+
+    return () => {
+      if (stopRef.current === stop) stopRef.current = null;
+      stop();
     };
     // `assetsReady` is in here for the canvas rather than for itself — the
     // element only exists once it is true. It also holds the connection back
@@ -664,6 +704,14 @@ export function WorldPage({
               <MenuRow label="Lighting">
                 <LightingToggle enabled={lightingEnabled} onChange={setLightingEnabled} />
               </MenuRow>
+              {admin ? (
+                <MenuRow label="Invisible">
+                  <InvisibleToggle
+                    hidden={hidden}
+                    onChange={(next) => sessionRef.current?.setHidden(next)}
+                  />
+                </MenuRow>
+              ) : null}
               {menuExtras}
               {/* Last in the menu: it is the only thing here that ends the
                   session rather than changing what is on screen. */}
@@ -671,7 +719,7 @@ export function WorldPage({
                 <div className="py-2">
                   <LeaveWorldButton
                     inCombat={vitals.statuses.some((status) => status.defId === COMBAT_STATUS_ID)}
-                    onLeave={onLeave}
+                    onLeave={leave}
                   />
                 </div>
               ) : null}

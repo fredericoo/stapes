@@ -58,7 +58,8 @@
  * no cell for pays `findActorAnywhere` — a sweep of its whole board — on every
  * frame, for ever.
  */
-import { covers, visibleStack } from "./interest";
+import { chunkKeyFor } from "../lib/mapData";
+import { visibleStack } from "./interest";
 import type { CellPatch, MotionEvent } from "./protocol";
 
 /**
@@ -81,7 +82,19 @@ import type { CellPatch, MotionEvent } from "./protocol";
 export type Audience =
   | { kind: "everybody" }
   | { kind: "actor"; actorId: string }
-  | { kind: "cell"; x: number; y: number };
+  | {
+      kind: "cell";
+      x: number;
+      y: number;
+      /**
+       * The chunk the cell is in, when it has been worked out already.
+       *
+       * The server asks every client about every event, so it names the chunk
+       * once per event per tick rather than building the same key once per
+       * client. @see ScopedCell.chunk
+       */
+      chunk?: string;
+    };
 
 const EVERYBODY: Audience = { kind: "everybody" };
 
@@ -126,7 +139,7 @@ export function reaches(
     case "actor":
       return known.has(audience.actorId);
     case "cell":
-      return covers(chunks, audience.x, audience.y);
+      return chunks.has(audience.chunk ?? chunkKeyFor(audience.x, audience.y));
   }
 }
 
@@ -150,6 +163,15 @@ export type ScopedCell = {
   terrain: boolean;
   /** Whose bodies were in this cell before or after; empty for almost all. */
   bodies: readonly string[];
+  /**
+   * The chunk the cell is in, when it has been worked out already.
+   *
+   * Optional because it is the same fact as the cell's `x` and `y`, and only a
+   * saving: a tick's cells are asked about once per client, and building the
+   * chunk's key string for each of those questions was a measurable share of
+   * cutting a patch for a thousand players.
+   */
+  chunk?: string;
 };
 
 /**
@@ -185,7 +207,7 @@ export function cellsInScope(
 }
 
 /** One cell as this client should have it, or null when it is not news. */
-function cellInScope(
+export function cellInScope(
   scoped: ScopedCell,
   chunks: ReadonlySet<string>,
   held: ReadonlySet<string>,
@@ -194,7 +216,7 @@ function cellInScope(
   const { cell, terrain, bodies } = scoped;
   // Ground this client has not been handed. What it holds instead is the
   // subscription, and the chunk is handed over whole when it comes into reach.
-  if (!covers(chunks, cell.x, cell.y)) return null;
+  if (!chunks.has(scoped.chunk ?? chunkKeyFor(cell.x, cell.y))) return null;
   // Only bodies moved, and this client is holding none of them — so with them
   // taken out, this is the cell it already has.
   //

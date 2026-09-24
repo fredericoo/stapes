@@ -27,6 +27,7 @@ import { attackIntervalMs } from "./combat";
 import {
   BRAIN_ATTENTION_FLOOR_CELLS,
   BRAIN_DOZE_BUDGET,
+  BRAIN_TURNS_PER_TICK_MIN,
   BRAIN_TICK_MS,
   TICK_MS,
   WALK_DURATION_MS,
@@ -940,6 +941,15 @@ describe("picking out a tile to follow", () => {
       walkable: false,
       interactions: { brain: flockBrain("rat") },
     }),
+    // Follows people, which is how a creature hunts one.
+    tile({
+      id: "stalker",
+      height: 2,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: { brain: flockBrain("player") },
+    }),
   ];
 
   /** An open field with a creature at each of the given cells. */
@@ -999,6 +1009,48 @@ describe("picking out a tile to follow", () => {
 
     const chaser = cellOf(session, "ratcatcher");
     expect(Math.abs(chaser.x - rat.x) + Math.abs(chaser.y - rat.y)).toBeLessThan(NOTICE_CELLS);
+  });
+
+  /**
+   * A person the creature could see, and would go to. The control for the two
+   * below: without it, a stalker that never moved would pass them for the wrong
+   * reason.
+   */
+  it("goes to a person in sight", () => {
+    const session = warren(["stalker", 0, 0]);
+    session.spawn("bob", { at: { x: NOTICE_CELLS, y: 0, z: 0 } });
+
+    advance(session, BRAIN_TICK_MS * 4);
+
+    expect(cellOf(session, "stalker").x).toBeGreaterThan(0);
+  });
+
+  /** A hidden body is not there to be found. @see ActorRuntime.hidden */
+  it("does not notice a hidden person", () => {
+    const session = warren(["stalker", 0, 0]);
+    session.spawn("bob", { at: { x: NOTICE_CELLS, y: 0, z: 0 }, hidden: true });
+
+    advance(session, BRAIN_TICK_MS * 6);
+
+    expect(cellOf(session, "stalker").x).toBe(0);
+  });
+
+  /**
+   * Already bound to somebody who then hides. A creature that carried on
+   * towards the cell would point at them for everybody watching.
+   */
+  it("gives up on a person who hides partway through the chase", () => {
+    const session = warren(["stalker", 0, 0]);
+    session.spawn("bob", { at: { x: NOTICE_CELLS, y: 0, z: 0 } });
+    advance(session, BRAIN_TICK_MS);
+
+    session.setHidden(true, "bob");
+    // A step already under way lands, as it does whenever a chase ends.
+    advance(session, BRAIN_TICK_MS);
+    const whereItStopped = cellOf(session, "stalker").x;
+    advance(session, BRAIN_TICK_MS * 6);
+
+    expect(cellOf(session, "stalker").x).toBe(whereItStopped);
   });
 
   /** The one that would make a lone creature chase itself around the board. */
@@ -4184,13 +4236,37 @@ function turnsByCell(session: GameSession, into: Map<string, number>) {
   }
 }
 
+/**
+ * Tick up to the one before a round falls due, so every `advance` of a round's
+ * length after this holds exactly one round, all of it.
+ *
+ * A round with more turns than {@link BRAIN_TURNS_PER_TICK_MIN} is taken a
+ * share per tick from the tick it falls due, and it falls due on the last tick
+ * of a round's length counted from the start. Counted from the start, a round
+ * would be split across two counts. @see GameSession's `brainRound`
+ */
+function alignToRounds(session: GameSession) {
+  advance(session, BRAIN_TICK_MS - TICK_MS);
+}
+
+/**
+ * Advance a round's length, counting the turns taken on every tick of it.
+ *
+ * Every tick rather than the last, because noise is drained per tick and a
+ * round's turns can land on any of its ticks. @see alignToRounds
+ */
+function roundOfTurns(session: GameSession, into: Map<string, number>) {
+  for (let elapsed = 0; elapsed < BRAIN_TICK_MS; elapsed += TICK_MS) {
+    session.tick(TICK_MS);
+    turnsByCell(session, into);
+  }
+}
+
 /** Run `rounds` brain rounds, counting turns per creature. */
 function turnsOver(session: GameSession, rounds: number): Map<string, number> {
+  alignToRounds(session);
   const turns = new Map<string, number>();
-  for (let round = 0; round < rounds; round++) {
-    advance(session, BRAIN_TICK_MS);
-    turnsByCell(session, turns);
-  }
+  for (let round = 0; round < rounds; round++) roundOfTurns(session, turns);
   return turns;
 }
 
@@ -4214,6 +4290,43 @@ describe("who gets a turn", () => {
     for (const [, taken] of turns) expect(taken).toBe(ROUNDS / 3);
   });
 
+  /**
+   * A crowded round is spread over the ticks it covers, and a small one is not.
+   *
+   * The server's reason for spreading: with a hundred players about, taking
+   * every awake creature's turn on the tick the round fell due made that tick
+   * several times its budget while the five after it idled. @see
+   * BRAIN_TURNS_PER_TICK_MIN
+   */
+  it("spreads a crowded round over its ticks and takes a small one whole", () => {
+    const perTick = (count: number) => {
+      const session = new GameSession(
+        withRow(field(ATTENTION_FIELD), "ticker", FAR_ROW_Y, FAR_ROW_X0, count),
+        attention,
+        { actorIds: ["alice"] },
+      );
+      alignToRounds(session);
+      const counts: number[] = [];
+      for (let elapsed = 0; elapsed < BRAIN_TICK_MS; elapsed += TICK_MS) {
+        const turns = new Map<string, number>();
+        session.tick(TICK_MS);
+        turnsByCell(session, turns);
+        counts.push([...turns.values()].reduce((sum, n) => sum + n, 0));
+      }
+      return counts;
+    };
+
+    // Dozing, so a round is the budget: more than one tick's share.
+    const crowded = perTick(BRAIN_DOZE_BUDGET * 3);
+    expect(crowded.reduce((sum, n) => sum + n, 0)).toBe(BRAIN_DOZE_BUDGET);
+    expect(crowded[0]).toBe(BRAIN_TURNS_PER_TICK_MIN);
+    expect(Math.max(...crowded)).toBeLessThanOrEqual(BRAIN_TURNS_PER_TICK_MIN);
+
+    const small = perTick(3);
+    expect(small[0]).toBe(3);
+    expect(small.slice(1).every((n) => n === 0)).toBe(true);
+  });
+
   it("spends exactly the budget on them each round", () => {
     const session = new GameSession(
       withRow(field(ATTENTION_FIELD), "ticker", FAR_ROW_Y, FAR_ROW_X0, BRAIN_DOZE_BUDGET * 3),
@@ -4221,10 +4334,10 @@ describe("who gets a turn", () => {
       { actorIds: ["alice"] },
     );
 
+    alignToRounds(session);
     for (let round = 0; round < ROUNDS; round++) {
       const turns = new Map<string, number>();
-      advance(session, BRAIN_TICK_MS);
-      turnsByCell(session, turns);
+      roundOfTurns(session, turns);
       expect([...turns.values()].reduce((sum, n) => sum + n, 0)).toBe(BRAIN_DOZE_BUDGET);
     }
   });
