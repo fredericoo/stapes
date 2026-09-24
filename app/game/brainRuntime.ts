@@ -566,7 +566,8 @@ function runOnEnter(brain: BrainDef, memory: BrainMemory, ctx: BrainContext) {
 }
 
 /**
- * Directions worth trying at all: never one that lands the body in something.
+ * Whether a direction is worth trying at all: never one that lands the body in
+ * something.
  *
  * Two refusals with different standing. A ledge is the author's to decide —
  * `allowDrops` is on the action because a bat is meant to fly off one — while a
@@ -580,15 +581,9 @@ function runOnEnter(brain: BrainDef, memory: BrainMemory, ctx: BrainContext) {
  * The ledge check goes first, and the order is the saving: it is one column
  * scan, while a hazard costs a step check and a stack scan on top of it.
  */
-function footing(
-  directions: Direction[],
-  allowDrops: boolean | undefined,
-  ctx: BrainContext,
-): Direction[] {
-  return directions.filter((direction) => {
-    if (!allowDrops && ctx.wouldDrop(direction)) return false;
-    return !ctx.wouldStepIntoHazard(direction);
-  });
+function footing(direction: Direction, allowDrops: boolean | undefined, ctx: BrainContext) {
+  if (!allowDrops && ctx.wouldDrop(direction)) return false;
+  return !ctx.wouldStepIntoHazard(direction);
 }
 
 /**
@@ -952,8 +947,13 @@ function fleeAlongRoute(
  * three times out of four.
  */
 function stepAnywhere(allowDrops: boolean | undefined, ctx: BrainContext): boolean {
-  const options = footing(ctx.rng.shuffle([...DIRECTIONS]), allowDrops, ctx);
-  for (const direction of options) {
+  // Each direction's footing is asked when its turn comes rather than all four
+  // first: the first one tried usually walks, and the four were a board read
+  // each that nothing then used. The same directions are tried in the same
+  // order — the checks read the board and change nothing, and a refused step
+  // can only have turned the body, which neither check looks at.
+  for (const direction of ctx.rng.shuffle([...DIRECTIONS])) {
+    if (!footing(direction, allowDrops, ctx)) continue;
     if (ctx.step(direction)) return true;
   }
   return false;
