@@ -46,7 +46,7 @@ import { debugViewRequested } from "../render/debugView";
  * The game, whatever it is connected to.
  *
  * Both routes that draw a world draw this one: `/` against the shared world
- * over a socket, and `/admin/play` against a world running in a worker in the
+ * over a socket, and `/play` against a world running in a worker in the
  * same tab. **They are the same page rather than two pages kept in step**,
  * because the second exists to be a faithful stand-in for the first — a copy
  * would start diverging on the first change to either, and the divergence
@@ -62,7 +62,7 @@ import { debugViewRequested } from "../render/debugView";
  * "which account" and "which character" are questions with their own screens,
  * their own URLs and their own redirects. By the time this mounts, the answer
  * is settled: `/`'s loader has redirected anybody without one, and
- * `/admin/play` needs none. So this connects on mount and the loading screen
+ * `/play` needs none. So this connects on mount and the loading screen
  * covers the wait.
  *
  * @see ../net/link
@@ -118,7 +118,7 @@ export function WorldPage({
   onLeave,
   onRefused,
 }: {
-  /** How this page gets to a world, and the only thing `/` and `/admin/play` disagree about. */
+  /** How this page gets to a world, and the only thing `/` and `/play` disagree about. */
   link: WorldLink;
   tiles: TileDef[];
   tilesets: TilesetDef[];
@@ -133,7 +133,7 @@ export function WorldPage({
   menuExtras?: React.ReactNode;
   /**
    * Whether the account is an administrator's, which is what draws the
-   * **Invisible** switch. Only the game passes it: `/admin/play` is a world of
+   * **Invisible** switch. Only the game passes it: `/play` is a world of
    * one, with nobody in it to hide from.
    */
   admin?: boolean;
@@ -141,7 +141,7 @@ export function WorldPage({
    * Take this character out of the world, if there is anywhere to take it.
    *
    * Given by the game, where leaving means going back to the character chooser
-   * — see `../routes/game`. Absent under `/admin/play`, where there is nothing
+   * — see `../routes/game`. Absent under `/play`, where there is nothing
    * to leave *to*: that world is this tab's and closing the tab is the way out
    * of it. The menu draws **Leave world** only when this is here.
    */

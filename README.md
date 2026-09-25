@@ -28,9 +28,12 @@ A deployment needs nothing new: session cookies are signed with `AUTH_SECRET`
 when it is set, and with a secret the server generates on its first boot and
 keeps in its own database when it is not. See [SETUP.md](SETUP.md).
 
-`/admin/play` is the same game with the world running in the tab — the real
+`/play` is the same game with the world running in the tab — the real
 `GameServer` in a worker, the real protocol, no socket and nothing to log in to.
-It is the path to open when the question is whether the game still works.
+The sign-in screen offers it to visitors who want to try the game before making
+an account, and it is the path to open when the question is whether the game
+still works. The player is an administrator there, so `/goto` and the other
+commands work.
 
 ## Scripts
 
@@ -136,12 +139,12 @@ three at once. Two tabs on the *same* character are the same player, and the
 newest connection wins. To test two accounts locally, open one on `localhost`
 and one on `127.0.0.1` — different hosts, different cookie jars.
 
-**`/admin/play` is the same page against a world in the tab.** One world per
+**`/play` is the same page against a world in the tab.** One world per
 tab, kept in IndexedDB between visits, with a Reset world button where the
 shared world has `POST /api/reset`. It reads the map and the catalogues over
 `/api` like every other page, so it still wants `bun dev` — what it does not
 want is a socket, an account or anything to sign in to. See `docs/notes.md`,
-"`/admin/play` runs the server in the tab".
+"`/play` runs the server in the tab".
 
 ## Data
 

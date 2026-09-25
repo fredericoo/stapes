@@ -6,7 +6,7 @@ import { GameServer } from "../../server/GameServer";
  * Creatures are still named after their tiles — `nameOf` is only asked about
  * actors — so this is the player and nothing else.
  */
-const LOCAL_PLAYER_NAME = "Tester";
+const LOCAL_PLAYER_NAME = "Guest";
 import { GameSocket, SocketHub, type WorldContext } from "../../server/sockets";
 import { DataStore } from "../lib/dataStore";
 import { KEEPALIVE_INTERVAL_MS } from "../net/protocol";
@@ -21,7 +21,7 @@ import { LocalStore } from "./LocalStore";
  * — the checkpoint loop, the alarm timer, the keepalive and the lifecycle —
  * and this is the same two hundred lines for a runtime that has no filesystem,
  * no signals and no second process. **`GameServer` itself is imported, not
- * reimplemented**, which is the whole point: `/admin/play` runs the world, so a
+ * reimplemented**, which is the whole point: `/play` runs the world, so a
  * change to the simulation cannot be true there and false here.
  *
  * What is missing from the server's version is missing because it is about
@@ -150,16 +150,13 @@ export class LocalWorld {
   /**
    * Seat the one body in this world, as an administrator.
    *
-   * Not a hole in the gate the online world grew: there is nothing on this side
-   * to keep anybody out of. The world is this tab's IndexedDB, the only body in
-   * it is the person looking at the screen, and `/admin/play` exists to try
-   * `/tile`, `/goto` and `/health` against the real simulation — a local world
-   * that refused them would refuse the reason it was built.
-   *
-   * The route is behind `ADMIN` in the client either way, which here is the
-   * courtesy it has always been rather than a check: static files, no server
-   * rendering, nothing to enforce. @see `server/api.ts`, where the same
-   * sentence is about a check that *is* load-bearing.
+   * Not a hole in the gate the online world has: there is nothing on this side
+   * to keep anybody out of. The world is this tab's IndexedDB, and the only
+   * body in it is the person looking at the screen. `/play` needs no account,
+   * so anybody can be this administrator, and it can only change their own
+   * tab's world. It is how `/tile`, `/goto` and `/health` get tried against the
+   * real simulation without signing in. @see `server/api.ts`, where the
+   * administrator check is the one that protects the shared world.
    */
   async join(socket: GameSocket, actorId: string): Promise<void> {
     await this.server.join(socket, actorId, { admin: true });

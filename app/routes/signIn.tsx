@@ -37,6 +37,16 @@ export default function SignInPage() {
           Create an account
         </Link>
       </DoorNote>
+      {/* The alternative, and drawn as one: quieter than the account link, below
+          it, and saying what it costs. Online is the game; this is a look at it.
+          @see ./play */}
+      <DoorNote>
+        Just looking?{" "}
+        <Link to="/play" className="underline underline-offset-4 hover:text-paper">
+          Play offline
+        </Link>
+        . Nobody else is there, and it only saves in this browser.
+      </DoorNote>
     </Door>
   );
 }

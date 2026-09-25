@@ -170,18 +170,18 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
       .get("/statuses", async () => ({ statuses: await store.readStatuses() }))
       .get("/tilesets", async () => ({ tilesets: await store.readTilesets() }))
       /**
-       * The map as text, for the editor and nothing else.
+       * The authored map as text, for the editor and for `/play`.
        *
-       * Behind the administrator check while its neighbours are not, and the
-       * difference is who wants them: the tile, tileset and status catalogues
-       * are what every client needs before it can draw a frame, and the map is
-       * what the *editor* opens. Everybody playing gets their map over the
-       * socket, in the chunks their view reaches. @see `../app/net/interest`
+       * Public, because `/play` runs the world in the visitor's tab and a world
+       * cannot run on part of a map. Anybody who opens `/play` downloads the
+       * whole map, cave den included. Somebody playing online still gets only
+       * the chunks their view reaches over the socket
+       * (@see `../app/net/interest`), and never calls this.
+       *
+       * Only the read is public. Writing the map is `POST /map` below, which
+       * still needs an administrator.
        */
-      .get("/map", async ({ request, status }) => {
-        if (!(await admin(request))) return status(404, "Not found");
-        return { map: serializeMap(await store.readMap()) };
-      })
+      .get("/map", async () => ({ map: serializeMap(await store.readMap()) }))
       .get("/bootstrap", async () => ({
         // The three things every page needs before it can draw anything, in one
         // round trip. Three separate `clientLoader` fetches would be three

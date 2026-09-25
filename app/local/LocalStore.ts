@@ -5,7 +5,7 @@ import { type CheckpointBatch, type Checkpoints, memoryCheckpoints } from "./che
  *
  * `server/WorldStore.ts` is the same interface over Turso, and the two are
  * deliberately the same shape: `GameServer` reads and writes through
- * `ctx.storage`, and the whole point of `/admin/play` is that the world running
+ * `ctx.storage`, and the whole point of `/play` is that the world running
  * in the browser is the world, not a re-implementation of it. Every difference
  * below is one the runtime forced.
  *

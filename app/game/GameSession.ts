@@ -2682,7 +2682,7 @@ export class GameSession implements PlaySession {
       actorIds?: readonly string[];
       /**
        * What to call the actors above, by id. Anybody left out is nameless,
-       * which is what `/admin/play`'s single local body is — there is no
+       * which is what `/play`'s single local body is — there is no
        * character table behind an offline session to ask. @see `./displayName`
        */
       names?: Readonly<Record<string, string>>;

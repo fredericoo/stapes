@@ -283,7 +283,7 @@ jobs:
       #
       # The URL itself is built in `app/net/link.ts`'s `onlineLink`, which is a
       # shared module — and still lands in this chunk, because the game route is
-      # the only thing that imports it. `/admin/play` connects to a world in the
+      # the only thing that imports it. `/play` connects to a world in the
       # tab and sets no `?v=` at all, so it cannot be the chunk found here.
       #
       # The one thing this is brittle to is the client no longer building its

@@ -73,8 +73,9 @@ const ASSET_TIMEOUT_MS = 10_000;
  *
  * **Because two things ask, and the second must not put the loading screen
  * back.** The player layout decodes while somebody is at a door, so the world
- * behind it has nothing left to wait for; `WorldPage` asks again because
- * `/admin/play` is not under that layout and has to ask for itself. Without
+ * behind it has nothing left to wait for; `WorldPage` asks again so that it
+ * does not depend on being drawn under that layout. Both pages that draw it
+ * are, today. Without
  * this the second caller would start at `false` and flash a loading screen over
  * a world whose assets are already decoded.
  *

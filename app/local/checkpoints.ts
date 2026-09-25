@@ -9,7 +9,7 @@
  * **Every failure here is survivable and none of them stop the world.** A
  * private window, a blocked origin or a full quota all end in the same place —
  * the world runs in memory and is gone when the tab is — and that is a
- * perfectly good `/admin/play`. A page that refused to start because it could
+ * perfectly good `/play`. A page that refused to start because it could
  * not save would be strictly worse than one that forgets.
  */
 

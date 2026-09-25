@@ -294,8 +294,10 @@ test.describe("the editors", () => {
     await expect(page.getByRole("link", { name: "Create an account" })).toHaveCount(0);
 
     // And the part that is not a courtesy: the page is only a page, so what
-    // actually holds is that the server will not hand the map over.
-    const refused = await page.request.get("/api/map");
+    // actually holds is that the server will not take a map from this browser.
+    // Reading the map is public, because `/play` needs all of it; writing it
+    // is not.
+    const refused = await page.request.post("/api/map", { data: { map: "{}" } });
     expect(refused.status()).toBe(404);
   });
 });

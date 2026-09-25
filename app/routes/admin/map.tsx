@@ -212,7 +212,7 @@ export default function MapPage() {
           {/* Every switch in one place, with the lighting one at the end of the
               run because the clock beside it is the other half of that control.
               It rides here rather than in the header's menu — where the game
-              and /admin/play keep theirs — so it can sit next to the hour it
+              and /play keep theirs — so it can sit next to the hour it
               works with; the cost is that on a narrow window it wraps with the rest
               of the map's controls instead of folding away with the nav. */}
           <div className="flex items-center gap-1">

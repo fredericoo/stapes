@@ -11,7 +11,7 @@ import { LocalWorld } from "./LocalWorld";
 /**
  * The world, running where the page runs.
  *
- * This is the claim `/admin/play` rests on: that `server/GameServer.ts` — the
+ * This is the claim `/play` rests on: that `server/GameServer.ts` — the
  * same file the Bun process runs — comes up in a browser runtime, seats a
  * joiner, simulates a step and writes down where everybody was standing. If it
  * does, the page has nothing left to differ about, because everything above
