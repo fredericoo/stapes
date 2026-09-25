@@ -193,11 +193,6 @@ export function resolveStatusVfx(raw: StatusVfxSource | undefined): StatusVfx {
   };
 }
 
-/** Whether anything here would put a pixel on screen. */
-export function hasVfx(vfx: StatusVfx): boolean {
-  return vfx.tint !== null || vfx.particles !== null || vfx.light !== null;
-}
-
 /**
  * One sprite colour under one tint — the reference the shader mirrors.
  *

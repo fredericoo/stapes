@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { MAX_LIGHT_LEVEL } from "./lightingFlood";
 import {
   applyTint,
-  hasVfx,
   NO_VFX,
   resolveStatusVfx,
   statusVfxSchema,
@@ -186,18 +185,6 @@ describe("what validates", () => {
         light: { radius: MAX_LIGHT_LEVEL + 1, intensity: 1, color: "#ffffff" },
       }).success,
     ).toBe(false);
-  });
-
-  it("counts a status that only casts light as having an effect", () => {
-    expect(
-      hasVfx({
-        tint: null,
-        particles: null,
-        light: { radius: 3, intensity: 1, color: "#ffffff" },
-        taperMs: 0,
-      }),
-    ).toBe(true);
-    expect(hasVfx(NO_VFX)).toBe(false);
   });
 
   it("defaults a tint to keeping the sprite's own lightness", () => {
