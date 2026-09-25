@@ -534,12 +534,12 @@ describe("swinging at a target", () => {
     });
 
     /**
-     * The half of the rule that closes the withdrawal, and the reason the
-     * windup is re-armed rather than paid once: the cooldown runs wherever you
-     * go, so a wait that only applied to the opening blow would leave "touch,
-     * swing, leave, come back" exactly as strictly better as it was.
+     * The approach is time owed in reach, and time spent out of it neither pays
+     * it nor throws it away. Resetting it on every exit is what let a faster
+     * body kite a slower one to death: the slow one started from zero on each
+     * arrival and never finished a single windup.
      */
-    it("starts the approach again for a body that walked out of reach", () => {
+    it("keeps the approach it had wound up through a walk out of reach", () => {
       const session = approaching();
       advance(session, APPROACH_MS - WALK_DURATION_MS * 3);
 
@@ -551,10 +551,36 @@ describe("swinging at a target", () => {
       advanceUntil(session, () => self(session).x === 0);
       session.setInput({ directions: [] });
 
-      // Where the first approach would have landed its blow, and nothing has.
-      expect(swingsOver(session, WALK_DURATION_MS * 3)).toBe(0);
-      // The whole approach again, from the step that brought it back.
-      expect(swingsOver(session, APPROACH_MS)).toBe(1);
+      // Nothing yet, because the walk did not count towards the approach...
+      expect(swingsOver(session, TICK_MS)).toBe(0);
+      // ...and the rest of it, not the whole of it again.
+      expect(swingsOver(session, WALK_DURATION_MS * 4)).toBe(1);
+    });
+
+    /**
+     * The reason a kept approach does not reopen the older withdrawal. The
+     * cooldown runs wherever you go, so if the approach were paid once per
+     * fight, "touch, swing, leave for an interval, come back" would find the
+     * next blow already waiting.
+     */
+    it("owes a whole approach again after every blow", () => {
+      const session = approaching();
+      expect(swingsOver(session, APPROACH_MS + TICK_MS)).toBe(1);
+
+      // Away for longer than the cooldown, so only the approach can hold it.
+      session.setInput({ directions: ["w"] });
+      advanceUntil(session, () => self(session).x === -1);
+      session.setInput({ directions: [] });
+      advance(session, INTERVAL_MS);
+      session.setInput({ directions: ["e"] });
+      advanceUntil(session, () => self(session).x === 0);
+      session.setInput({ directions: [] });
+
+      // Less the steps the blow planted it for and the step out, which it spent
+      // in reach and which count. @see `./combat`'s {@link STRIKE_RECOVERY_STEPS}
+      const IN_REACH_MS = WALK_DURATION_MS * (STRIKE_RECOVERY_STEPS + 1);
+      expect(swingsOver(session, APPROACH_MS - IN_REACH_MS - WALK_DURATION_MS)).toBe(0);
+      expect(swingsOver(session, WALK_DURATION_MS * 3)).toBe(1);
     });
 
     /**

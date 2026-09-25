@@ -1873,11 +1873,27 @@ type ActorRuntime = {
   /**
    * Who this body is getting into a blow against, and what is left of the wait.
    *
-   * **The cost of arriving, where {@link attackCooldownMs} is the cost of having
-   * swung.** A blow may not go out until this has run down, and it is armed
-   * afresh — to `./combat`'s {@link swingWindupMs} — every time a body comes
-   * into reach of something it was not already in reach of. Null is nobody: not
+   * **Time owed in reach, where {@link attackCooldownMs} is time owed anywhere.**
+   * A blow may not go out until this has run down. It is armed to `./combat`'s
+   * {@link swingWindupMs} when a body picks a target and again by every blow it
+   * throws, and it only winds while {@link inReach} holds. Null is nobody: not
    * engaged, and the next reach that holds starts a new wait.
+   *
+   * **Paused out of reach, not reset.** It used to be dropped the moment the
+   * body left reach, and that made a slow creature harmless to anybody faster:
+   * hit it, step back while it winds up, let it follow, step back again. The
+   * creature started from zero on every arrival and never finished one, while
+   * the player's own short windup fit inside each visit. Kept, every visit adds
+   * to it, and a creature that has been beside you for half its interval in
+   * total swings the moment it is beside you again. Both sides now pay for the
+   * blow in the same currency, time spent in reach, so stepping in and out gives
+   * back no more than standing still does.
+   *
+   * **Re-armed by every blow**, which is what stops the pause reopening the
+   * older withdrawal: without it the windup would be spent once per fight, and
+   * "touch, swing, leave for an interval, come back" would find the next blow
+   * waiting. In a fight nobody leaves, the re-armed half interval runs out
+   * inside the whole interval of cooldown beside it, so the rate is unchanged.
    *
    * It exists because reach alone decided the opening blow, which made an
    * approach free and made it equally free whatever was being swung. See
@@ -1898,13 +1914,24 @@ type ActorRuntime = {
    * nobody had to walk anywhere for it.
    *
    * **Dropped when nobody is still asking**, which is what {@link
-   * WINDUP_LAPSE_MS} is for: leaving reach mid-swing is noticed by the next
-   * reach check, and dropping the target entirely is noticed by nothing at all.
+   * WINDUP_LAPSE_MS} is for. `sinceSeenMs` counts from the last time anybody
+   * asked to swing at this target, in reach or not: a creature chasing you asks
+   * every round and keeps what it has wound, and one that has given up stops
+   * asking and forgets it two rounds later.
    *
    * **Not durable**, like {@link attackCooldownMs} and {@link attackRecoveryMs}:
    * it records something that is happening rather than something that happened.
    */
-  windup: { targetId: string; msLeft: number; sinceSeenMs: number } | null;
+  windup: {
+    targetId: string;
+    msLeft: number;
+    sinceSeenMs: number;
+    /**
+     * Whether the last reach check against this target held. The windup winds
+     * only while it is true. @see {@link ActorRuntime.windup}
+     */
+    inReach: boolean;
+  } | null;
   /**
    * The wait before this body's next blow, as one clock something can be drawn
    * from — or null for a body that is not engaged and has no next blow to
@@ -1923,8 +1950,10 @@ type ActorRuntime = {
    * the contract {@link ActorSnapshot.extracting} has and for the same reason:
    * identity is what the broadcast diffs on, so a fresh object per tick would
    * be a message per tick for something that changes twice a swing. It is
-   * replaced on exactly two events — a windup armed against somebody new, and a
-   * cooldown spent — and nulled with the windup beside it. @see disengage
+   * replaced on exactly three events — a windup armed against somebody new, a
+   * paused windup coming back into reach, and a cooldown spent — and nulled
+   * when the body leaves reach, since a paused wait is not counting down to
+   * anything. @see disengage
    */
   nextBlow: Progress | null;
   /**
@@ -4698,7 +4727,10 @@ export class GameSession implements PlaySession {
         this.disengage(actor);
         continue;
       }
-      if (windup.msLeft > 0) {
+      // Out of reach it keeps what it has and winds no further, so the time a
+      // body owes is time spent beside its target. @see {@link
+      // ActorRuntime.windup}
+      if (windup.inReach && windup.msLeft > 0) {
         windup.msLeft = Math.max(0, windup.msLeft - tickMs);
       }
     }
@@ -5047,7 +5079,7 @@ export class GameSession implements PlaySession {
   /**
    * Forget that this body was getting into a blow against anybody.
    *
-   * One call rather than two assignments at each of the three places that do it,
+   * One call rather than two assignments at each place that does it,
    * because {@link ActorRuntime.windup} and {@link ActorRuntime.nextBlow} are
    * two readings of one fact — *this body is engaged* — and a site that dropped
    * one of them would leave a ring counting down to a blow nobody is winding up
@@ -5058,6 +5090,27 @@ export class GameSession implements PlaySession {
    */
   private disengage(actor: ActorRuntime) {
     actor.windup = null;
+    actor.nextBlow = null;
+  }
+
+  /**
+   * Note that this body asked to swing at `targetId` and could not reach it.
+   *
+   * Not {@link disengage}: a windup against this target keeps what it has
+   * wound and waits for the next reach that holds, and asking at all is what
+   * keeps {@link WINDUP_LAPSE_MS} from forgetting it. The reading is dropped,
+   * because a paused wait is not counting down to anything. A windup against
+   * somebody else is dropped whole, as it always was. @see
+   * {@link ActorRuntime.windup}
+   */
+  private outOfReach(actor: ActorRuntime, targetId: string) {
+    const windup = actor.windup;
+    if (windup?.targetId !== targetId) {
+      this.disengage(actor);
+      return;
+    }
+    windup.inReach = false;
+    windup.sinceSeenMs = 0;
     actor.nextBlow = null;
   }
 
@@ -5130,7 +5183,7 @@ export class GameSession implements PlaySession {
     // with" — and that fallback is for a body with nothing in either fist, not
     // for an archer who has let something get too close.
     if (hand === null && fightsWithAHand(attacker.equipment, this.tilesById)) {
-      this.disengage(attacker);
+      this.outOfReach(attacker, targetId);
       return false;
     }
 
@@ -5154,7 +5207,7 @@ export class GameSession implements PlaySession {
       hand === null &&
       !canReach(this.map, this.tilesById, fromPoint, toPoint, attackerStats.reach)
     ) {
-      this.disengage(attacker);
+      this.outOfReach(attacker, targetId);
       return false;
     }
 
@@ -5170,34 +5223,46 @@ export class GameSession implements PlaySession {
     // still has to be *seen* in reach, or a fighter who withdrew for the length
     // of one and strolled back would find the wait already served. @see
     // {@link ActorRuntime.windup}
-    if (attacker.windup?.targetId !== targetId) {
+    const armed = attacker.windup?.targetId === targetId;
+    const returning = armed && !attacker.windup!.inReach;
+    if (!armed) {
       attacker.windup = {
         targetId,
         msLeft: swingWindupMs(attackerStats),
         sinceSeenMs: 0,
+        inReach: true,
       };
+    }
+    const windup = attacker.windup!;
+    windup.inReach = true;
+    windup.sinceSeenMs = 0;
+    if (!armed || returning) {
       // The longer of the two waits, not the windup alone: a body that turns on
       // the rat beside the one it just killed is in reach immediately and still
       // owes the rest of its cooldown, and a reading that forgot it would
-      // promise a blow that is not coming. @see {@link ActorRuntime.nextBlow}
+      // promise a blow that is not coming. A body coming back picks the bar up
+      // where its paused windup left it. @see {@link ActorRuntime.nextBlow}
       attacker.nextBlow = {
-        remainingMs: Math.max(attacker.windup.msLeft, attacker.attackCooldownMs),
+        remainingMs: Math.max(windup.msLeft, attacker.attackCooldownMs),
         durationMs: interval,
       };
-    } else {
-      attacker.windup.sinceSeenMs = 0;
     }
-    if (attacker.windup.msLeft > 0) return false;
+    if (windup.msLeft > 0) return false;
 
     if (attacker.attackCooldownMs > 0) return false;
 
     // Spent whether or not the blow connects: the swing happened, and a dodge
     // that cost the attacker nothing would let a fast creature flail for free.
     attacker.attackCooldownMs = interval;
-    // The cooldown is now the whole of the wait: the windup beside it is spent,
-    // and stays spent for as long as this body is still in reach of this target.
-    // Replaced rather than wound down to the new figure, because identity is
-    // what says the wait changed. @see {@link ActorRuntime.nextBlow}
+    // And the next blow owes its own time in reach, or a body that swung once
+    // could leave for the cooldown and come back to a blow already waiting.
+    // Half of the cooldown just set, so in a fight nobody leaves it runs out
+    // first and changes nothing. @see {@link ActorRuntime.windup}
+    windup.msLeft = swingWindupMs(attackerStats);
+    // The cooldown is now the whole of the wait, because the windup re-armed
+    // beside it is the shorter of the two. Replaced rather than wound down to
+    // the new figure, because identity is what says the wait changed. @see
+    // {@link ActorRuntime.nextBlow}
     attacker.nextBlow = { remainingMs: interval, durationMs: interval };
 
     // The hand chosen above, carried down rather than asked again where the
