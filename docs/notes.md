@@ -8182,6 +8182,109 @@ nobody in one way: it never touches `actor.targetId`.
   row (`dropSelfAims` in `BrainEditor.tsx`), so the file never carries a
   selector no control displays.
 
+## The bog imp and the cyclops
+
+Two creatures on the green goblin and the cyclops in `animals.png`, authored
+entirely in `data/tiles.json` with the vocabulary the wolf and the troll
+already use. Nothing in the simulation changed for them.
+
+### The bog imp
+
+**Its weapon is a weighted table on one hand.** The four rung-15 weapons —
+knight's sword, broad axe, iron mace, hunting bow — each come up a quarter of
+the time. `equipmentFromKit` gives the hand to the first entry that rolls, so
+the chances are 25, 33.34, 50 and 100: each is a share of what the rows above
+left. Four flat 25s would parse and arm three imps in four, with the bow on
+forty percent of them. `battlerKit.test.ts` holds the split. Rung 15 rather
+than rung 10 because rung 10 has no bow, and a bow was asked for.
+
+**Its masteries sit below the weapons it holds, on purpose.** Sharp, Blunt and
+Ranged are 12, three points short of every weapon in the table, so it pays the
+handling charge on accuracy and swing rate and keeps the full damage. At 22,
+the first figure tried, an earned player (Sharp 15, a knight's sword and a
+cloth tunic) won 1–10% of duels against the melee imps. At 12, measured with
+`runDuel` against the same player:
+
+```
+                      player wins     wolf wins
+  wolf                   0.76
+  imp, bare            0.71–0.81      0.39–0.72     (sword, axe, mace)
+  imp, all armour      0.47–0.52      0.02–0.04
+  imp, bow             0.93           0.85          (in contact: no range)
+```
+
+Each armour piece is 25%, so most imps are near the first row: about a wolf in
+contact, plus the stone and, on a quarter of them, a bow that opens the fight
+from eight cells. That is "a little stronger than a wolf". The bow row is low
+because a duel starts both bodies in contact, where a bow inside its
+`reach.min` does not fire. In the world the imp shoots from range, and when
+the prey closes in it only has the stone, whose reach has no minimum.
+
+**Throw stone is its second spell and the hunt names it by position.** A bolt
+at the target for 12, variance 30, 500ms to cast, eight seconds to cool, nine
+cells of reach. It asks for nothing, so it is castable with no Arcane and does
+its authored damage — about half a rung-15 weapon's blow. It flies as
+`thrown-stone`, a new one-cell projectile on the unused grey pebble at
+`tiny-ranch-tiles` (11, 14). Curl up is spell 1 because the sleep rows were
+written against the wolf's layout; the hunt's `cast` names spell 2, and a test
+fails if that ever puts the imp to sleep in front of its prey.
+
+**Bedtime is two rows per roaming state, flame first.** At night, from each
+state it roams in, the imp goes to `to_fire` if a `flame` is within 14 cells
+(binding it as `$fire`), and to `to_bed` otherwise. `to_fire` walks to the
+flame and sleeps once within two cells; `to_bed` walks home and sleeps there.
+Being stuck on the way counts as arriving, so a flame behind a wall does not
+keep the imp awake all night. The 14 is what keeps "goes to the nearest flame"
+from overriding "does not wander from its spawn": a campfire across the map is
+not the nearest flame to anywhere the imp lives. `hunting` has no night row,
+on the wolf's grounds — a hunt that ends at night goes to `roaming`, and the
+night rows take it from there.
+
+It hunts the player on sight by day whether it is hungry or not, and wolves,
+rabbits, deer and rats only when it is hungry (`fed` under a minute left). It
+eats raw meat and berries off the ground, picks bushes into its bag and eats
+from there as the deer does, and is immune to food poisoning. The bag holds a
+torch and, half the time, a second one. Torches in a bag light nothing —
+`carriedLightTileIds` reads worn squares — so they are loot, not a lamp.
+
+### The cyclops
+
+**No home rows at all.** It wanders, hunts, eats and sleeps where night finds
+it: every roaming state goes to `sleeping` on `time_of_day 19→6` and back to
+`wandering` by day. There is no `below_level` term, unlike the wolf's, so it
+sleeps at night underground too.
+
+**"The strongest mace" is read as the war maul**, the top of the blunt family,
+at 75%. Its Blunt is 25, eight short of what the maul asks, and that shortfall
+is what keeps the fight winnable: at Blunt 70 a player at 33 in everything
+with rung-33 weapons and armour won none of three hundred duels against the
+maul. Its fists are authored at 22, spd 26, so the quarter of cyclopes that
+roll no maul still hit heavily. The same veteran, measured:
+
+```
+                          maul hand   sword + shield
+  cave troll                 0.63          0.92
+  cyclops, war maul          0.46          0.49
+  cyclops, fists             0.67          —
+```
+
+`baseHp` 280 and Toughness 60 put it at 376 hit points against the troll's
+210. Everything else it wears is the bottom rung — cloth tunic, leather cap,
+worn boots, 50% each — and its bag holds a blank arcane stone one time in ten.
+
+It hunts the player on sight inside five cells and rats, rabbits, snakes, bats
+and deer inside six, all by day, and eats raw meat when it is hungry.
+
+### The facings are a guess
+
+The goblin and the cyclops blocks are laid out in the troll's order, so the
+tiles read them that way: north, east, south, west, two frames each,
+left to right and then (for the cyclops) top to bottom. Nothing can check
+that — see *A walk cycle in the wrong row is a bug only a person can see* —
+and the cyclops's 4×4 frames stand on base cell (2, 3), which puts its middle
+over its own cell the way (1, 1) does for a 2×2. Both want looking at in the
+game.
+
 ## A status can stop its bearer acting, and damage can end one
 
 Two flags on `StatusDef`, both off unless authored: `incapacitates` and

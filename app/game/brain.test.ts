@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import statusesJson from "../../data/statuses.json";
 import tilesJson from "../../data/tiles.json";
 import {
   ANY_STATE,
@@ -17,7 +18,7 @@ import {
 } from "../lib/brain";
 import { group } from "../lib/conditions";
 import { constantFormula } from "../lib/formula";
-import { DEFAULT_STATUS_SOURCE, type StatusDef } from "../lib/status";
+import { DEFAULT_STATUS_SOURCE, type StatusDef, statusesById } from "../lib/status";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { normalizeTiles } from "../lib/types";
@@ -3561,6 +3562,122 @@ describe("the wolf we ship", () => {
 
       expect(noisesOver(session, BRAIN_TICK_MS * 20)).toContain("*howl*");
     });
+  });
+});
+
+/**
+ * The bog imp and the cyclops we ship, and the two things about them that live
+ * in the order of their rows: where each goes to sleep, and which of its spells
+ * a hunt throws.
+ *
+ * The status catalogue is passed, unlike the wolf's cases above, because "fell
+ * asleep" is read off the `sleep` status rather than off a body that stopped
+ * moving.
+ */
+describe("the bog imp and the cyclops we ship", () => {
+  const authored = normalizeTiles(tilesJson as unknown[]);
+  const statuses = statusesById(statusesJson as unknown[]);
+  const NOON = 12 * 60;
+  const MIDNIGHT = 0;
+
+  /**
+   * Open dirt with `creature` at the origin and whatever `extras` puts on it.
+   * Alice spawns in the far corner unless `aliceX` stands her on the row.
+   */
+  function field(
+    creature: string,
+    minutes: number,
+    extras: { flameX?: number; aliceX?: number } = {},
+  ): GameSession {
+    let map = emptyMap();
+    for (let x = -20; x <= 20; x++) {
+      for (let y = -20; y <= 20; y++) {
+        map = replaceStack(map, x, y, 0, [{ tileId: "dirt" }]);
+      }
+    }
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "dirt" }, { tileId: creature }]);
+    if (extras.flameX !== undefined) {
+      map = replaceStack(map, extras.flameX, 0, 0, [{ tileId: "dirt" }, { tileId: "flame" }]);
+    }
+    if (extras.aliceX !== undefined) {
+      map = replaceStack(map, extras.aliceX, 0, 0, [
+        { tileId: "dirt" },
+        { tileId: "player", direction: "w", owner: "alice" },
+      ]);
+    }
+    return new GameSession(map, authored, {
+      actorIds: ["alice"],
+      spawnAt: { x: 20, y: 20, z: 0, stackIndex: 1 },
+      seed: 20260925,
+      clock: () => minutes,
+      statuses,
+    });
+  }
+
+  function body(session: GameSession, tileId: string) {
+    return session.actorSnapshots().find((a) => a.tileId === tileId)!;
+  }
+
+  function asleep(session: GameSession, tileId: string): boolean {
+    const statusList = session.statusesOf(body(session, tileId).id) ?? [];
+    return statusList.some((status) => status.defId === "sleep");
+  }
+
+  function noisesOver(session: GameSession, ms: number): string[] {
+    const heard: string[] = [];
+    for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      for (const noise of session.drainNoise()) heard.push(noise.text);
+    }
+    return heard;
+  }
+
+  it("walks the imp to the nearest flame at night and puts it to sleep beside it", () => {
+    const session = field("bog-imp", MIDNIGHT, { flameX: 8 });
+    noisesOver(session, 6000);
+
+    const imp = body(session, "bog-imp");
+    expect(Math.abs(imp.x - 8) + Math.abs(imp.y)).toBeLessThanOrEqual(2);
+    expect(asleep(session, "bog-imp")).toBe(true);
+  });
+
+  /** Somewhere to sleep when there is no flame near home is home itself. */
+  it("puts the imp to sleep at home when no flame is near", () => {
+    const session = field("bog-imp", MIDNIGHT);
+    noisesOver(session, 3000);
+
+    const imp = body(session, "bog-imp");
+    expect(Math.abs(imp.x) + Math.abs(imp.y)).toBeLessThanOrEqual(2);
+    expect(asleep(session, "bog-imp")).toBe(true);
+  });
+
+  /**
+   * The hunt casts its spells by position, and the sleep is first: a row that
+   * named the wrong one would put the imp to sleep in front of its prey.
+   */
+  it("opens a hunt by day by throwing a stone at somebody it can see", () => {
+    const session = field("bog-imp", NOON, { aliceX: 6 });
+    let thrown = false;
+    for (let elapsed = 0; elapsed < 3000 && !thrown; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      thrown = session.getSnapshot("alice").projectiles.some((f) => f.tileId === "thrown-stone");
+    }
+
+    expect(thrown).toBe(true);
+    expect(asleep(session, "bog-imp")).toBe(false);
+  });
+
+  it("puts the cyclops to sleep at night with somebody standing in front of it", () => {
+    const session = field("cyclops", MIDNIGHT, { aliceX: 3 });
+
+    expect(noisesOver(session, BRAIN_TICK_MS * 10)).toEqual([]);
+    expect(asleep(session, "cyclops")).toBe(true);
+  });
+
+  it("sends the cyclops after somebody it can see by day", () => {
+    expect(noisesOver(field("cyclops", NOON, { aliceX: 3 }), BRAIN_TICK_MS * 2)).toContain(
+      "*BELLOW*",
+    );
   });
 });
 
