@@ -8172,6 +8172,11 @@ nobody in one way: it never touches `actor.targetId`.
 - **A spell that needs a target is refused for a line with no `of`**, even when
   the creature already points at somebody. "No target" means the same thing
   whatever the brain did before it, so the line falls through.
+- **Except a conjure, which lands in front of the caster.** A player's press
+  with nobody picked already lays a conjure in the cell they face, so a line
+  with no `of` does the same: `castForBrain` clears the creature's aim and
+  casts. Clearing is what makes it "in front" rather than "under whoever it was
+  pointing at". The bog imp's Make fire is the line this exists for.
 - **There is no `self` selector.** Attacking, walking to, extracting from or
   eating yourself mean nothing, so every other action taking a selector would
   have to refuse it. The one action where "me" means something is `cast`, and

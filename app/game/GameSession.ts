@@ -8428,9 +8428,14 @@ export class GameSession implements PlaySession {
     // one it is fighting. A line naming nobody at all is refused a spell that
     // needs somebody, rather than borrowing whoever the body already points at:
     // "no target" in the editor has to mean the same thing whatever came before.
+    //
+    // A conjure is the one exception, because a press with nobody picked is
+    // already a conjure's other way of landing: in front of the caster. So a
+    // line with no `of` clears the aim rather than being refused, which is what
+    // lets a creature lay a fire where it stands.
     if (needsTarget(stone)) {
-      if (targetId === undefined) return "no";
-      actor.targetId = targetId;
+      if (targetId === undefined && stone.effect.kind !== "conjure") return "no";
+      actor.targetId = targetId ?? null;
     }
     // Refusals are not said out loud on a creature's behalf, and nothing here
     // has to arrange that: `say` drops a notice addressed to a resident, which

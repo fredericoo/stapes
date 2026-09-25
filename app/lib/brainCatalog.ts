@@ -351,7 +351,7 @@ export const ACTIONS: Record<BrainActionDef["action"], CatalogEntry<BrainActionD
   },
   cast: {
     label: "cast",
-    hint: "Cast one of this body's own spells, by its position on the Spells tab. Holds the line for as long as the bar takes. Fails on a position it has no spell at, one still cooling, a caster short of what it asks, or a target out of reach. A spell that lands on its caster takes no target. With no target, a spell that needs one fails.",
+    hint: "Cast one of this body's own spells, by its position on the Spells tab. Holds the line for as long as the bar takes. Fails on a position it has no spell at, one still cooling, a caster short of what it asks, or a target out of reach. A spell that lands on its caster takes no target. With no target, a spell that needs one fails, except a conjure, which lands in front of the caster.",
     params: [
       { key: "spell", kind: "spell", label: "spell" },
       { key: "of", kind: "aim", label: "at", spell: "spell" },
