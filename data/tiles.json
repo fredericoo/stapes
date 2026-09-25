@@ -34506,6 +34506,42 @@
               }
             ]
           },
+          "lingering": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "ambling": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 3
+              }
+            ]
+          },
+          "hawking": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ],
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Cheap torches!"
+              }
+            ]
+          },
+          "wandering": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 3
+              }
+            ]
+          },
           "following": {
             "do": [
               {
@@ -34539,6 +34575,12 @@
             ]
           },
           "serving": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Can I interest you in a torch to light your way?"
+              }
+            ],
             "do": [
               {
                 "action": "hold"
@@ -34548,28 +34590,7 @@
         },
         "transitions": [
           {
-            "from": "pausing",
-            "if": {
-              "cond": "talking"
-            },
-            "to": "serving"
-          },
-          {
-            "from": "strolling",
-            "if": {
-              "cond": "talking"
-            },
-            "to": "serving"
-          },
-          {
-            "from": "following",
-            "if": {
-              "cond": "talking"
-            },
-            "to": "serving"
-          },
-          {
-            "from": "homing",
+            "from": "any",
             "if": {
               "cond": "talking"
             },
@@ -34589,29 +34610,7 @@
             "to": "pausing"
           },
           {
-            "from": "pausing",
-            "if": {
-              "cond": "out_of_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": 20
-            },
-            "to": "homing"
-          },
-          {
-            "from": "strolling",
-            "if": {
-              "cond": "out_of_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": 20
-            },
-            "to": "homing"
-          },
-          {
-            "from": "following",
+            "from": "any",
             "if": {
               "cond": "out_of_range",
               "of": {
@@ -34633,58 +34632,6 @@
             "to": "pausing"
           },
           {
-            "from": "pausing",
-            "if": {
-              "cond": "in_los",
-              "of": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "player"
-                  ]
-                }
-              },
-              "cells": 8
-            },
-            "bind": {
-              "customer": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "player"
-                  ]
-                }
-              }
-            },
-            "to": "following"
-          },
-          {
-            "from": "strolling",
-            "if": {
-              "cond": "in_los",
-              "of": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "player"
-                  ]
-                }
-              },
-              "cells": 8
-            },
-            "bind": {
-              "customer": {
-                "type": "nearest",
-                "data": {
-                  "tileIds": [
-                    "player"
-                  ]
-                }
-              }
-            },
-            "to": "following"
-          },
-          {
             "from": "following",
             "if": {
               "cond": "out_of_los",
@@ -34701,6 +34648,162 @@
           {
             "from": "pausing",
             "if": {
+              "cond": "in_los",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player"
+                  ]
+                }
+              },
+              "cells": 8
+            },
+            "bind": {
+              "customer": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player"
+                  ]
+                }
+              }
+            },
+            "to": "following"
+          },
+          {
+            "from": "strolling",
+            "if": {
+              "cond": "in_los",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player"
+                  ]
+                }
+              },
+              "cells": 8
+            },
+            "bind": {
+              "customer": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player"
+                  ]
+                }
+              }
+            },
+            "to": "following"
+          },
+          {
+            "from": "lingering",
+            "if": {
+              "cond": "in_los",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player"
+                  ]
+                }
+              },
+              "cells": 8
+            },
+            "bind": {
+              "customer": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player"
+                  ]
+                }
+              }
+            },
+            "to": "following"
+          },
+          {
+            "from": "ambling",
+            "if": {
+              "cond": "in_los",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player"
+                  ]
+                }
+              },
+              "cells": 8
+            },
+            "bind": {
+              "customer": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player"
+                  ]
+                }
+              }
+            },
+            "to": "following"
+          },
+          {
+            "from": "hawking",
+            "if": {
+              "cond": "in_los",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player"
+                  ]
+                }
+              },
+              "cells": 8
+            },
+            "bind": {
+              "customer": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player"
+                  ]
+                }
+              }
+            },
+            "to": "following"
+          },
+          {
+            "from": "wandering",
+            "if": {
+              "cond": "in_los",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player"
+                  ]
+                }
+              },
+              "cells": 8
+            },
+            "bind": {
+              "customer": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player"
+                  ]
+                }
+              }
+            },
+            "to": "following"
+          },
+          {
+            "from": "pausing",
+            "if": {
               "cond": "after",
               "ms": 3000
             },
@@ -34708,6 +34811,36 @@
           },
           {
             "from": "strolling",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "lingering"
+          },
+          {
+            "from": "lingering",
+            "if": {
+              "cond": "after",
+              "ms": 3000
+            },
+            "to": "ambling"
+          },
+          {
+            "from": "ambling",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "hawking"
+          },
+          {
+            "from": "hawking",
+            "if": {
+              "cond": "after",
+              "ms": 3000
+            },
+            "to": "wandering"
+          },
+          {
+            "from": "wandering",
             "if": {
               "cond": "stuck"
             },
