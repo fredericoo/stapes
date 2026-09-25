@@ -380,6 +380,11 @@ function field(): MapFile {
   return replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "deer" }]);
 }
 
+/** An actor's ⭐ as the snapshot carries it — the number shown beside its name. */
+function ratingOf(session: GameSession, id: string): number | null {
+  return session.actorSnapshots().find((a) => a.id === id)?.rating ?? null;
+}
+
 function world(actorIds: string[] = ["me"]) {
   return new GameSession(field(), tiles, {
     actorIds,
@@ -437,13 +442,13 @@ describe("what a command does to a body", () => {
 
   it("counts for something in the body that fights", () => {
     const session = world();
-    const before = session.ratingIn("me");
+    const before = ratingOf(session, "me");
     session.runCommand("/mastery sharp 60", "me");
 
     // Rating is read off the derived body, so this is the memo being dropped as
     // much as it is the number moving: a stale `earnedBody` would answer with
     // the old figure for ever.
-    expect(session.ratingIn("me")).toBeGreaterThan(before ?? 0);
+    expect(ratingOf(session, "me")).toBeGreaterThan(before ?? 0);
   });
 
   it("queues the change for whoever has to be told", () => {

@@ -401,6 +401,11 @@ function withBody(map: MapFile, x: number, tileId: string): MapFile {
   return replaceStack(map, x, 0, 0, [{ tileId: "grass" }, { tileId }]);
 }
 
+/** An actor's ⭐ as the snapshot carries it — the number shown beside its name. */
+function ratingOf(session: GameSession, id: string): number | null {
+  return session.actorSnapshots().find((a) => a.id === id)?.rating ?? null;
+}
+
 function advance(session: GameSession, ms: number) {
   for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) {
     session.tick(TICK_MS);
@@ -449,7 +454,7 @@ describe("a player earns from the fights they have", () => {
     // first time somebody needs a body to fight with, and asking for a ⭐ is
     // asking for one.
     expect(session.masteryXpOf("me")).toBeNull();
-    session.ratingIn("me");
+    ratingOf(session, "me");
 
     for (const mastery of MASTERIES) {
       const authored = (EVENLY_MATCHED as Partial<Record<Mastery, number>>)[mastery] ?? 0;
@@ -493,7 +498,6 @@ describe("a player earns from the fights they have", () => {
     advance(session, 6000);
 
     expect(session.masteryXpOf(foe)).toBeNull();
-    expect(session.ratingIn(foe)).toBe(session.ratingIn(foe));
   });
 
   /**
@@ -502,7 +506,7 @@ describe("a player earns from the fights they have", () => {
    */
   it("shows up in the body the next blow is fought with", () => {
     const { session } = sparring();
-    const before = session.ratingIn("me")!;
+    const before = ratingOf(session, "me")!;
 
     // Enough to buy several points outright, handed over rather than ground out
     // — the grind is the previous test's business.
@@ -510,7 +514,7 @@ describe("a player earns from the fights they have", () => {
       at: { x: -1, y: 0, z: 0 },
       earned: { fist: xpForLevel(60), toughness: xpForLevel(60) },
     });
-    expect(session.ratingIn("veteran")!).toBeGreaterThan(before);
+    expect(ratingOf(session, "veteran")!).toBeGreaterThan(before);
   });
 });
 
@@ -633,6 +637,6 @@ describe("what the viewer is shown", () => {
       // Null exactly when hp is, so anything drawing one can key off the other.
       expect(actor.rating === null).toBe(actor.hp === null);
     }
-    expect(session.ratingIn(foe)).toBeGreaterThan(0);
+    expect(ratingOf(session, foe)).toBeGreaterThan(0);
   });
 });

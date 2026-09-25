@@ -3332,20 +3332,6 @@ export class GameSession implements PlaySession {
   }
 
   /**
-   * How good at fighting one actor is — their ⭐ — or null for a body with no
-   * stats at all.
-   *
-   * Public because the server persists nothing derived and shows plenty: this is
-   * the number beside a name on inspect, and it must be the same number the
-   * reward curve divides by or the player is being shown a different game from
-   * the one they are playing.
-   */
-  ratingIn(id: string): number | null {
-    const actor = this.actors.get(id);
-    return actor ? this.ratingOf(actor) : null;
-  }
-
-  /**
    * Where actors enter. Must be carried alongside any map this session is
    * checkpointed into — see the constructor.
    */
