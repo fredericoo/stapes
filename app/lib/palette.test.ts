@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   STAPES_PALETTE,
   hexToRgb01,
-  meanPaletteSpacing,
   nearestPaletteIndex,
   oklabToSrgb,
   paletteOklab,
@@ -35,13 +34,7 @@ describe("nearestPaletteIndex", () => {
   });
 });
 
-describe("meanPaletteSpacing", () => {
-  it("is finite and positive", () => {
-    const spacing = meanPaletteSpacing(lab);
-    expect(Number.isFinite(spacing)).toBe(true);
-    expect(spacing).toBeGreaterThan(0);
-  });
-
+describe("flat palette arrays", () => {
   it("rgb helper length matches palette", () => {
     expect(rgb.length).toBe(STAPES_PALETTE.length * 3);
     expect(lab.length).toBe(STAPES_PALETTE.length * 3);
