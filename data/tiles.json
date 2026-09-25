@@ -27218,10 +27218,7 @@
             "do": [
               {
                 "action": "cast",
-                "spell": 1,
-                "of": {
-                  "type": "home"
-                }
+                "spell": 1
               },
               {
                 "action": "hold"

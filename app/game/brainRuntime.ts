@@ -397,10 +397,13 @@ export type BrainContext = {
    * and `"no"` for every refusal there is, a position this body has no spell at
    * included.
    *
-   * A null target is a spell aimed at nobody, which a mend at its own caster
-   * wants and a bolt at somebody else is refused for.
+   * A null target is a selector that answered nobody, and an absent one is a
+   * line that named no target at all. A mend at its own caster wants neither
+   * and casts either way; a bolt at somebody else is refused for both. Only a
+   * spell that needs somebody points the body at `targetId`, so an absent one
+   * never touches whoever it was already pointing at.
    */
-  cast(spell: number, targetId: string | null): "cast" | "casting" | "no";
+  cast(spell: number, targetId?: string | null): "cast" | "casting" | "no";
   /**
    * Work a thing for what it is made of, and keep working it.
    *
@@ -1020,7 +1023,9 @@ function runAction(
       // Nobody is not a refusal here, unlike `attack`'s: a spell that lands on
       // its own caster has nobody to aim at, and the session refuses the ones
       // that do need somebody. A thing answers nobody, on `attack`'s terms.
-      const id = boundBody(identify(action.of, memory, ctx));
+      // No `of` at all is passed on as absent rather than as nobody, because
+      // the session leaves the body's aim alone for that and only that.
+      const id = action.of ? boundBody(identify(action.of, memory, ctx)) : undefined;
       const verdict = ctx.cast(action.spell, id);
       // Running rather than success while a bar is up, on `extract`'s terms: a
       // cast is something this creature is part-way through, and a lower line

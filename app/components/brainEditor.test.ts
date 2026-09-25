@@ -5,11 +5,12 @@ import { normalizeTileDef, normalizeTiles, type TileDef } from "../lib/types";
 import {
   arrayMove,
   bodyTileIds,
+  dropSelfAims,
   paramPatch,
   renamedState,
   selectorVocabulary,
 } from "./BrainEditor";
-import { CONDITIONS } from "../lib/brainCatalog";
+import { ACTIONS, CONDITIONS } from "../lib/brainCatalog";
 import { FRAME } from "../lib/testTile";
 
 function tile(partial: Record<string, unknown> & { id: string }): TileDef {
@@ -253,6 +254,33 @@ describe("editing a parameter", () => {
       text: "ps",
       cells: 5,
     });
+  });
+});
+
+/**
+ * A `cast` row switched onto a spell that lands on its caster.
+ *
+ * The target field stops being shown for one, so a selector left behind would
+ * sit in the file with no control to take it out.
+ */
+describe("picking a spell for a cast row", () => {
+  const CAST = ACTIONS.cast.params;
+  const SPELL = CAST.find((spec) => spec.key === "spell")!;
+  const brain: BrainDef = { initial: "i", states: { i: { do: [] } }, transitions: [] };
+  const vocab = selectorVocabulary(brain, LIBRARY, {}, [
+    { name: "Curl up", effect: { kind: "bolt", on: "caster", statuses: [] } },
+    { name: "Ember", effect: { kind: "bolt", on: "target", damage: 4 } },
+  ]);
+  const aimed = { action: "cast", spell: 2, of: nearest("player") };
+
+  it("drops the target when the spell lands on its caster", () => {
+    const next = dropSelfAims(paramPatch(aimed, SPELL, 1), CAST, vocab);
+
+    expect(next).toEqual({ action: "cast", spell: 1 });
+  });
+
+  it("keeps it for a spell that needs somebody", () => {
+    expect(dropSelfAims(aimed, CAST, vocab)).toEqual(aimed);
   });
 });
 

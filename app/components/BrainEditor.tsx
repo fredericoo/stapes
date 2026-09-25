@@ -35,7 +35,8 @@ import {
 } from "../lib/brainCatalog";
 import { PLAYER_TILE_ID } from "../game/constants";
 import { resolveActor, type TileDef } from "../lib/types";
-import { resolveBattler } from "../lib/battler";
+import { resolveBattler, type NaturalSpell } from "../lib/battler";
+import { needsTarget } from "../game/casting";
 import type { StatusDef } from "../lib/status";
 import { resolveConsumable, resolveItem } from "../lib/item";
 import { resolveExtract } from "../lib/interactions";
@@ -75,9 +76,15 @@ type Props = {
    * picker. Handed down rather than read off the brain, because a brain does
    * not know what body it is on — the dialog holding both tabs does.
    */
-  spells?: readonly { name: string }[];
+  spells?: readonly BrainSpell[];
   onChange: (next: BrainDef | undefined) => void;
 };
+
+/**
+ * What this tab needs of a spell: its name to list it by, and its effect to
+ * know whether a `cast` of it can take a target.
+ */
+type BrainSpell = Pick<NaturalSpell, "name" | "effect">;
 
 const EMPTY_BRAIN: BrainDef = {
   initial: "idle",
@@ -227,8 +234,11 @@ export type Vocabulary = {
    * see `../lib/brain`'s `cast` — and what an author picks from is a list of
    * names, because nobody knows a spell by its index. The label carries both,
    * so the row says the same thing the Spells tab does.
+   *
+   * `self` marks a spell that lands on its caster, which a `cast` row shows as
+   * taking no target. @see ../lib/brainCatalog's `aim`
    */
-  spells: Array<{ value: string; label: string }>;
+  spells: Array<{ value: string; label: string; self: boolean }>;
   describe(selector: Selector): SelectorNames | null;
 };
 
@@ -274,7 +284,7 @@ export function selectorVocabulary(
   brain: BrainDef,
   tiles: TileDef[],
   statusDefs: Record<string, StatusDef> = {},
-  spells: readonly { name: string }[] = [],
+  spells: readonly BrainSpell[] = [],
 ): Vocabulary {
   const named = new Map(tiles.map((tile) => [tile.id, tile.name || tile.id]));
   const nameOf = (tileId: string) => named.get(tileId) ?? tileId;
@@ -349,6 +359,7 @@ export function selectorVocabulary(
     spells: spells.map((spell, index) => ({
       value: String(index + 1),
       label: `${index + 1} — ${spell.name.trim() || "unnamed"}`,
+      self: !needsTarget(spell),
     })),
     describe,
   };
@@ -938,44 +949,62 @@ function SelectorPicker({
   value,
   vocab,
   onChange,
+  onClear,
   className,
 }: {
-  value: Selector;
+  /** Null only beside `onClear`: the row names no target. */
+  value: Selector | null;
   vocab: Vocabulary;
   onChange: (next: Selector) => void;
+  /**
+   * Offer {@link NO_TARGET_LABEL} as the first row, called when it is picked.
+   * A `cast`'s way of naming nobody. @see ../lib/brainCatalog's `aim`
+   */
+  onClear?: () => void;
   className?: string;
 }) {
-  const key = selectorKindKey(value);
+  const key = value ? selectorKindKey(value) : NO_TARGET_KEY;
   const kind = vocab.kinds.find((one) => one.key === key);
   // A kind the brain carries but the library no longer offers — a slot whose
   // last bind was deleted — still shows, marked, rather than silently reading as
   // whatever happens to sit first in the list.
-  const rows = kind
-    ? vocab.kinds
-    : [{ key, label: `${key} (missing)`, make: () => value, tiles: [] }, ...vocab.kinds];
+  const missing = value && !kind ? [{ key, label: `${key} (missing)` }] : [];
+  const none = onClear ? [{ key: NO_TARGET_KEY, label: NO_TARGET_LABEL }] : [];
+  const rows = [...none, ...missing, ...vocab.kinds];
 
   return (
     <>
       <Select
         value={key}
         onValueChange={(next) => {
-          const picked = rows.find((one) => one.key === next);
+          if (next === NO_TARGET_KEY) return onClear?.();
+          const picked = vocab.kinds.find((one) => one.key === next);
           if (picked) onChange(picked.make());
         }}
         options={rows.map((one) => ({ value: one.key, label: one.label }))}
         className={className}
       />
-      {kind && kind.tiles.length > 0 ? (
+      {value && kind && kind.tiles.length > 0 ? (
         <TileChips
           picked={tilesNamedBy(value)}
           options={kind.tiles}
           onChange={(tileIds) => onChange({ ...value, data: { tileIds } } as Selector)}
         />
       ) : null}
-      <Affordances names={vocab.describe(value)} />
+      {value ? <Affordances names={vocab.describe(value)} /> : null}
     </>
   );
 }
+
+/**
+ * What a `cast` naming nobody says, in the picker and in place of it.
+ *
+ * "(self)" because that is the only kind of spell such a line can cast: one
+ * that needs somebody is refused for it. @see ../lib/brain's `cast`
+ */
+const NO_TARGET_LABEL = "No target (self)";
+/** Its row's key — empty, so no selector kind or `$slot` can ever share it. */
+const NO_TARGET_KEY = "";
 
 /**
  * The tiles a selector names, as removable chips plus a dropdown that adds one.
@@ -1082,12 +1111,40 @@ function ParamFields({
           key={spec.key}
           spec={spec}
           value={item[spec.key]}
+          selfCast={spec.kind === "aim" && castsOnSelf(item[spec.spell], vocab)}
           vocab={vocab}
-          onChange={(value) => onChange(paramPatch(item, spec, value))}
+          onChange={(value) => onChange(dropSelfAims(paramPatch(item, spec, value), params, vocab))}
         />
       ))}
     </>
   );
+}
+
+/** Whether the spell at this position lands on the body casting it. */
+function castsOnSelf(position: unknown, vocab: Vocabulary): boolean {
+  return vocab.spells.some((spell) => spell.self && spell.value === String(position));
+}
+
+/**
+ * Drop the target off a row once it casts a spell that lands on its caster.
+ *
+ * The field stops being shown then, and a selector left in the file that no
+ * control displays is one nobody can see to take out. So picking a self spell
+ * on a row that was aimed at the player writes the line with no `of`, the same
+ * line an author would have written by hand.
+ */
+export function dropSelfAims(
+  item: Record<string, unknown>,
+  params: ParamSpec[],
+  vocab: Vocabulary,
+): Record<string, unknown> {
+  const stale = params.filter(
+    (spec) => spec.kind === "aim" && spec.key in item && castsOnSelf(item[spec.spell], vocab),
+  );
+  if (stale.length === 0) return item;
+  const next = { ...item };
+  for (const spec of stale) delete next[spec.key];
+  return next;
 }
 
 /**
@@ -1124,11 +1181,14 @@ export function paramPatch(
 function ParamField({
   spec,
   value,
+  selfCast,
   vocab,
   onChange,
 }: {
   spec: ParamSpec;
   value: unknown;
+  /** For an `aim` field: the row's spell lands on its caster. */
+  selfCast: boolean;
   vocab: Vocabulary;
   onChange: (value: unknown) => void;
 }) {
@@ -1205,6 +1265,24 @@ function ParamField({
         vocab={vocab}
         onChange={onChange}
       />
+    );
+  }
+  if (spec.kind === "aim") {
+    return (
+      <label className="flex items-center gap-1 text-[10px] uppercase text-muted">
+        {spec.label}
+        {selfCast ? (
+          <span>{NO_TARGET_LABEL}</span>
+        ) : (
+          <SelectorPicker
+            value={isSelector(value) ? value : null}
+            vocab={vocab}
+            onChange={onChange}
+            onClear={() => onChange(undefined)}
+            className="min-w-[7rem]"
+          />
+        )}
+      </label>
     );
   }
   if (spec.kind === "tile") {

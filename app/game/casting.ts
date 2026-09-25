@@ -554,7 +554,7 @@ function lowestBodyIn(
  * be a caller free to stop passing one, and the next rule that genuinely is
  * about the square would have to thread it back through four call sites.
  */
-export function needsTarget(stone: ArcaneStoneItem): boolean {
+export function needsTarget(stone: Pick<ArcaneStoneItem, "effect">): boolean {
   if (stone.effect.kind === "conjure") return true;
   return stone.effect.on === "target";
 }

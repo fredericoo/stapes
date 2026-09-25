@@ -71,6 +71,17 @@ export type ParamSpec =
    */
   | { key: string; kind: "ground"; label: string }
   /**
+   * Who a spell is cast at: a {@link Selector}, or no target at all.
+   *
+   * A `ground` field's shape — the absent case is a meaning, not a gap — with
+   * one difference that needs a kind of its own: whether a target means
+   * anything depends on *which* spell the row casts. `spell` names the field
+   * on the same row holding it, and a spell that lands on its caster shows
+   * "No target (self)" in place of a picker, because any selector there would
+   * be ignored.
+   */
+  | { key: string; kind: "aim"; label: string; spell: string }
+  /**
    * One of the spells on this body's own battler block, picked rather than
    * typed — and written down as its **position**, counting from one.
    *
@@ -340,16 +351,18 @@ export const ACTIONS: Record<BrainActionDef["action"], CatalogEntry<BrainActionD
   },
   cast: {
     label: "cast",
-    hint: "Cast one of this body's own spells, by its position on the Spells tab. Holds the line for as long as the bar takes. Fails on a position it has no spell at, one still cooling, a caster short of what it asks, or a target out of reach. A spell that lands on its caster ignores the target.",
+    hint: "Cast one of this body's own spells, by its position on the Spells tab. Holds the line for as long as the bar takes. Fails on a position it has no spell at, one still cooling, a caster short of what it asks, or a target out of reach. A spell that lands on its caster takes no target. With no target, a spell that needs one fails.",
     params: [
       { key: "spell", kind: "spell", label: "spell" },
-      { key: "of", kind: "selector", label: "at" },
+      { key: "of", kind: "aim", label: "at", spell: "spell" },
     ],
     // The first spell, which is a position every body with any spells at all
     // has — and one the schema accepts whatever the body turns out to carry,
-    // since the catalog cannot see the tile this is being authored onto. The
-    // selector starts on the player, on `DEFAULT_SELECTOR`'s grounds.
-    make: () => ({ action: "cast", spell: 1, of: DEFAULT_SELECTOR }),
+    // since the catalog cannot see the tile this is being authored onto. No
+    // target, for the same blindness: the first spell may land on its caster,
+    // and a selector written for it would sit in the file under a row that
+    // shows none. A bolt left on it reads "No target", which says why it never fires.
+    make: () => ({ action: "cast", spell: 1 }),
   },
   extract: {
     label: "extract",

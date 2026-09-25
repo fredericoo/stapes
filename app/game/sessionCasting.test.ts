@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defFrom, maxHpFrom } from "../lib/battler";
+import type { BrainActionDef } from "../lib/brain";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import { masteriesFromXp, masteryLevel, xpForLevel } from "../lib/mastery";
 import { COMBAT_STATUS_ID, statusesById } from "../lib/status";
@@ -2902,5 +2903,97 @@ describe("a creature casting a spell of its own", () => {
     // that the clock is on the body at all.
     expect(play.spellCooldownsOf(burner.id)?.Ember).toBeGreaterThan(0);
     expect(play.equipmentOf(burner.id)?.charm ?? null).toBeNull();
+  });
+});
+
+/**
+ * A `cast` line that names no target, which is how a creature casts on itself.
+ *
+ * What this pins is the creature's aim, because that is what the old way of
+ * writing it got wrong: the wolf's sleep named `of: home`, which answered
+ * nobody and cleared the target it was fighting on every cast.
+ */
+describe("a creature casting with no target", () => {
+  /** Its spells, by the position a brain names them at. */
+  const MEND = 1;
+  const EMBER = 2;
+
+  function casterTile(lines: BrainActionDef[]): TileDef {
+    const tile = body("mender", RAT_TOUGHNESS, { actor: true });
+    const battler = tile.interactions!.battler as Record<string, unknown>;
+    battler.spells = [
+      {
+        type: "stone",
+        name: "Mend",
+        effect: { kind: "bolt", on: "caster", damage: -MEND_HP },
+        cooldownMs: MEND_COOLDOWN_MS,
+      },
+      {
+        type: "stone",
+        name: "Ember",
+        effect: { kind: "bolt", on: "target", damage: BOLT_DAMAGE, reach: { cells: 4, height: 2 } },
+        cooldownMs: 30_000,
+        reach: { cells: 4, height: 2 },
+      },
+    ];
+    tile.interactions!.brain = {
+      initial: "casting",
+      states: { casting: { do: [...lines, { action: "hold" }] } },
+      transitions: [],
+    };
+    return tile;
+  }
+
+  /** The player at the origin, a mender two cells east, pointed at the player. */
+  function pointedAtPlayer(lines: BrainActionDef[]) {
+    const map = replaceStack(world(), 2, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "mender", direction: "w" },
+    ]);
+    const play = new GameSession(map, [...props, playerTile([]), casterTile(lines)], {
+      statuses: catalogue,
+    });
+    const mender = play.actorSnapshots().find((actor) => actor.tileId === "mender")!.id;
+    play.setTarget("local", mender);
+    return { play, mender };
+  }
+
+  it("casts a spell on its caster and keeps the target it had", () => {
+    const { play, mender } = pointedAtPlayer([{ action: "cast", spell: MEND }]);
+
+    run(play, TICKS_PER_SECOND);
+
+    expect(play.spellCooldownsOf(mender)?.Mend).toBeGreaterThan(0);
+    expect(play.getSnapshot(mender).targetId).toBe("local");
+  });
+
+  /**
+   * Refused even though the creature is pointed at somebody: "no target" does
+   * not borrow whoever the brain happened to aim at earlier.
+   */
+  it("refuses a spell that needs a target, so the line falls through", () => {
+    const { play, mender } = pointedAtPlayer([
+      { action: "cast", spell: EMBER },
+      { action: "cast", spell: MEND },
+    ]);
+    const before = hpOf(play)!;
+
+    run(play, TICKS_PER_SECOND);
+
+    expect(play.spellCooldownsOf(mender)?.Ember).toBeUndefined();
+    expect(play.spellCooldownsOf(mender)?.Mend).toBeGreaterThan(0);
+    expect(hpOf(play)).toBe(before);
+  });
+
+  /** A brain written before `of` was optional still loads and runs. */
+  it("ignores an `of` on a spell that lands on its caster", () => {
+    const { play, mender } = pointedAtPlayer([
+      { action: "cast", spell: MEND, of: { type: "home" } },
+    ]);
+
+    run(play, TICKS_PER_SECOND);
+
+    expect(play.spellCooldownsOf(mender)?.Mend).toBeGreaterThan(0);
+    expect(play.getSnapshot(mender).targetId).toBe("local");
   });
 });
