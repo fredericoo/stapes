@@ -8130,8 +8130,8 @@ through dawn, and a wolf that went to bed at four would be asleep in the dark.
   bolt `on: "caster"` that applies the `sleep` status, so the wolf heals, cannot
   act, and its brain stops until the status runs out or it takes damage. Then
   the brain runs again: by day it is still `denned` and casts again; at night
-  the row out of `denned` fires first. Its `of` is `home` only because the
-  action needs a selector; a spell on the caster ignores it. The spell has no
+  the row out of `denned` fires first. The line names no `of`, which is how a
+  `cast` says "no target" — see the next section. The spell has no
   `castTimeMs`, because the minimum is 200ms and an instant cast is the absent
   field — and one invalid spell drops the wolf's whole battler block.
 - **The sight rows are gated on awake**: hunting a player or a deer it can see,
