@@ -34470,5 +34470,728 @@
         }
       ]
     }
+  },
+  {
+    "id": "torch-salesman",
+    "name": "Torch Salesman",
+    "height": 4,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "townsfolk",
+      "x": 0,
+      "y": 0
+    },
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "walkDurationMs": 600,
+    "interactions": {
+      "brain": {
+        "initial": "pausing",
+        "states": {
+          "pausing": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "strolling": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 3
+              }
+            ]
+          },
+          "following": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "customer"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "homing": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "step_random"
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "serving": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "pausing",
+            "if": {
+              "cond": "talking"
+            },
+            "to": "serving"
+          },
+          {
+            "from": "strolling",
+            "if": {
+              "cond": "talking"
+            },
+            "to": "serving"
+          },
+          {
+            "from": "following",
+            "if": {
+              "cond": "talking"
+            },
+            "to": "serving"
+          },
+          {
+            "from": "homing",
+            "if": {
+              "cond": "talking"
+            },
+            "to": "serving"
+          },
+          {
+            "from": "serving",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "talking"
+                }
+              ]
+            },
+            "to": "pausing"
+          },
+          {
+            "from": "pausing",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 20
+            },
+            "to": "homing"
+          },
+          {
+            "from": "strolling",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 20
+            },
+            "to": "homing"
+          },
+          {
+            "from": "following",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 20
+            },
+            "to": "homing"
+          },
+          {
+            "from": "homing",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 2
+            },
+            "to": "pausing"
+          },
+          {
+            "from": "pausing",
+            "if": {
+              "cond": "in_los",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player"
+                  ]
+                }
+              },
+              "cells": 8
+            },
+            "bind": {
+              "customer": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player"
+                  ]
+                }
+              }
+            },
+            "to": "following"
+          },
+          {
+            "from": "strolling",
+            "if": {
+              "cond": "in_los",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player"
+                  ]
+                }
+              },
+              "cells": 8
+            },
+            "bind": {
+              "customer": {
+                "type": "nearest",
+                "data": {
+                  "tileIds": [
+                    "player"
+                  ]
+                }
+              }
+            },
+            "to": "following"
+          },
+          {
+            "from": "following",
+            "if": {
+              "cond": "out_of_los",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "customer"
+                }
+              },
+              "cells": 10
+            },
+            "to": "pausing"
+          },
+          {
+            "from": "pausing",
+            "if": {
+              "cond": "after",
+              "ms": 3000
+            },
+            "to": "strolling"
+          },
+          {
+            "from": "strolling",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "pausing"
+          }
+        ]
+      },
+      "dialog": {
+        "script": [
+          {
+            "kind": "say",
+            "text": "You can't go around in the dark without a torch!"
+          },
+          {
+            "kind": "request_trade",
+            "take": [
+              {
+                "tileId": "arcane-shard",
+                "count": 1
+              }
+            ],
+            "give": [
+              {
+                "tileId": "hand-lantern",
+                "count": 1
+              }
+            ],
+            "min": 1,
+            "max": 1,
+            "traded": [
+              {
+                "kind": "say",
+                "text": "Thank you!"
+              }
+            ],
+            "cancel": [
+              {
+                "kind": "say",
+                "text": "Okay, stay in the dark…"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              }
+            ]
+          },
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 4,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 0,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              },
+              {
+                "sprite": {
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200,
+                "light": {
+                  "radius": 6,
+                  "intensity": 1,
+                  "color": "#ffcc88"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 6,
+              "intensity": 1,
+              "color": "#ffcc88"
+            }
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 6,
+              "intensity": 1,
+              "color": "#ffcc88"
+            }
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 6,
+              "intensity": 1,
+              "color": "#ffcc88"
+            }
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "rect": {
+                "x": 2,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200,
+            "light": {
+              "radius": 6,
+              "intensity": 1,
+              "color": "#ffcc88"
+            }
+          }
+        ]
+      }
+    }
   }
 ]
