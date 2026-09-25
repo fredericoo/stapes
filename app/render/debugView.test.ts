@@ -5,7 +5,6 @@ import {
   chunkColumnRectPx,
   clampZoomOut,
   columnTouches,
-  debugCameraOrigin,
   debugSpanPx,
   debugViewRequested,
   DEBUG_MAX_ZOOM_OUT,
@@ -43,17 +42,16 @@ describe("the debug camera", () => {
   });
 
   it("keeps the play square in the middle of the frame", () => {
-    const play = { x: 400, y: 320 };
-    const camera = debugCameraOrigin(play, DEBUG_ZOOM_OUT);
-    expect(playSquareOrigin(camera, DEBUG_ZOOM_OUT)).toEqual(play);
-    // Concentric: the same slack on both sides.
-    const span = debugSpanPx(DEBUG_ZOOM_OUT);
-    expect(play.x - camera.x).toBe(camera.x + span - (play.x + VIEW_PX));
-  });
-
-  it("draws exactly the play square at ×1", () => {
-    const play = { x: 96, y: -48 };
-    expect(debugCameraOrigin(play, 1)).toEqual(play);
+    // Centred on the player the way `GameRenderer.cameraFor` centres it.
+    const player = { x: 400, y: 320 };
+    for (const zoom of [1, DEBUG_ZOOM_OUT, DEBUG_MAX_ZOOM_OUT]) {
+      const half = debugSpanPx(zoom) / 2;
+      const camera = { x: player.x - half, y: player.y - half };
+      expect(playSquareOrigin(camera, zoom)).toEqual({
+        x: player.x - VIEW_PX / 2,
+        y: player.y - VIEW_PX / 2,
+      });
+    }
   });
 
   it("refuses a zoom that would draw nothing or everything", () => {
