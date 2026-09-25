@@ -8089,10 +8089,20 @@ Awake is `or[below_level 0, time_of_day 19→6]`: night on the surface, or any
 hour underground. Six rather than the sky's four because the sky is still dark
 through dawn, and a wolf that went to bed at four would be asleep in the dark.
 
-- **A `denned` state that only holds.** By day on the surface, each state the
-  wolf roams in — `prowling`, `following`, `casting`, `homing`, `investigating`,
-  `feeding` — goes to it, and it goes back to `prowling` once the wolf is awake.
-  These rows sit after the `from: any` rows and before the per-state ones.
+- **A `denned` state where it puts itself to sleep.** By day on the surface,
+  each state the wolf roams in — `prowling`, `following`, `casting`, `homing`,
+  `investigating`, `feeding` — goes to it, and it goes back to `prowling` once
+  the wolf is awake. These rows sit after the `from: any` rows and before the
+  per-state ones. (`casting` is the wolf's name for the step it takes when
+  stuck, not a spell.)
+- **`denned` casts the wolf's own spell, Curl up, then holds.** Curl up is a
+  bolt `on: "caster"` that applies the `sleep` status, so the wolf heals, cannot
+  act, and its brain stops until the status runs out or it takes damage. Then
+  the brain runs again: by day it is still `denned` and casts again; at night
+  the row out of `denned` fires first. Its `of` is `home` only because the
+  action needs a selector; a spell on the caster ignores it. The spell has no
+  `castTimeMs`, because the minimum is 200ms and an instant cast is the absent
+  field — and one invalid spell drops the wolf's whole battler block.
 - **The sight rows are gated on awake**: hunting a player or a deer it can see,
   and going for meat it can see. A sleeping wolf with somebody standing in front
   of it does nothing.

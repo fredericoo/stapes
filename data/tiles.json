@@ -27217,6 +27217,13 @@
           "denned": {
             "do": [
               {
+                "action": "cast",
+                "spell": 1,
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
                 "action": "hold"
               }
             ]
@@ -27850,6 +27857,23 @@
         ],
         "immuneTo": [
           "food-poisoning"
+        ],
+        "spells": [
+          {
+            "type": "stone",
+            "name": "Curl up",
+            "effect": {
+              "kind": "bolt",
+              "on": "caster",
+              "statuses": [
+                {
+                  "id": "sleep",
+                  "chance": 100
+                }
+              ]
+            },
+            "cooldownMs": 1000
+          }
         ]
       },
       "respawn": {
