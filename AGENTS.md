@@ -32,6 +32,13 @@ an oblique cabinet projection with Three.js.
   copy (buttons, errors, empty states). They were installed with `npx skills add`
   and are recorded in `skills-lock.json`. Update them with `npx skills update`.
   The house rules in this file win where the two disagree.
+- **`.claude/skills/test-audit/`** — a third-party skill from `openclaw/openclaw`,
+  installed the same way: a gate for writing a new test and a procedure for
+  auditing existing ones. Its value bar and junk patterns apply here. Its
+  validation and landing steps name OpenClaw's own scripts (`run-vitest.mjs`,
+  `check-changed.mjs`, `$crabbox`, `scripts/pr`); here, use `bun run test`,
+  `bun run format` and `bun run lint` from `README.md`, and open a draft PR as
+  below.
 - **`README.md`** — every script, and what it is for.
 - **`.oxlintrc.json` and `.oxfmtrc.json`** — the lint and format rules, and a
   paragraph per exception saying why the rule is wrong here. A rule turned off

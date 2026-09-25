@@ -7,6 +7,12 @@
       "skillPath": "skills/better-ui/SKILL.md",
       "computedHash": "d05cf568f197e47b15e71e21b19be1897eba2bf187ef7b0a341bc5ffaf3ffd4d"
     },
+    "test-audit": {
+      "source": "openclaw/openclaw",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/test-audit/SKILL.md",
+      "computedHash": "1c493e8f99f4c5ac2b1d9e2928a88312cf72d823f1486106d9edfebf08d20c27"
+    },
     "ux-writing": {
       "source": "content-designer/ux-writing-skill",
       "sourceType": "github",
