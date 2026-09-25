@@ -10722,6 +10722,16 @@ chunks around it every time it takes a step — and to items, which are never
 omitted from the bake but make every drop, pickup and decay an occlusion-class
 edit that invalidates the full `LIGHT_APRON` instead of nothing at all.
 
+#### An omitted actor is painted back from its own tile
+
+Leaving an actor out of the bake is only sound because
+`GameRenderer.emitterOverridesFor` paints an override for it every frame. That
+pass used to ask the *player* tile whether a body emits, for every actor, so
+the first NPC authored with a light on its frames — the torch salesman — was
+omitted from the bake and never painted back. It asks `actor.tileId` now, and
+places the emitter at that tile's height. Anything that decides what the bake
+omits has to be answered per body by whatever paints it back.
+
 ### Size an invalidation by what actually changed
 
 Not every edit is the same size. `ChunkedLighting.editReach` classifies a cell's
