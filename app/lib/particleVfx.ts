@@ -122,7 +122,19 @@ export type ParticleEmitterDef = {
    * group — see `../render/particleLayer`.
    */
   lit: boolean;
-  /** Circle radius in world pixels, at birth and at death. */
+  /**
+   * What one particle looks like: a pixel mask, or null for a circle.
+   *
+   * A circle is sized by {@link radiusFromPx} and {@link radiusToPx}. A shape is
+   * {@link PARTICLE_SHAPE_PX} rows of {@link PARTICLE_SHAPE_PX} characters, `#`
+   * for a pixel and `.` for none, top row first, and is always drawn at one
+   * world pixel per character — so the radius fields are not read. Colour and
+   * opacity come from the ramp and the alpha range either way.
+   *
+   * Null for every emitter authored before this existed.
+   */
+  shape: ParticleShape | null;
+  /** Circle radius in world pixels, at birth and at death. Not read for a {@link shape}. */
   radiusFromPx: number;
   radiusToPx: number;
   /**
@@ -173,8 +185,39 @@ export const MAX_LIVE_PARTICLES = 2_048;
 /** Most particles one emitter may ask for per second. */
 export const MAX_PARTICLE_RATE = 200;
 
-/** Widest a particle may be drawn, in world pixels. @see circleAtlas */
+/** Widest a particle may be drawn, in world pixels. @see `../render/particleLayer` */
 export const MAX_PARTICLE_RADIUS_PX = 8;
+
+/** Width and height of a {@link ParticleEmitterDef.shape}, in pixels. */
+export const PARTICLE_SHAPE_PX = 5;
+
+/** The character that is a pixel in a {@link ParticleShape}; anything else is not. */
+export const SHAPE_PIXEL = "#";
+
+/** The character that is no pixel, which is what the editor writes. */
+export const SHAPE_EMPTY = ".";
+
+/** {@link PARTICLE_SHAPE_PX} rows of {@link PARTICLE_SHAPE_PX} characters, top row first. */
+export type ParticleShape = string[];
+
+/** A shape with nothing drawn, which is what the editor starts from. */
+export const EMPTY_SHAPE: ParticleShape = Array.from({ length: PARTICLE_SHAPE_PX }, () =>
+  SHAPE_EMPTY.repeat(PARTICLE_SHAPE_PX),
+);
+
+/** Whether the pixel at column `x`, row `y` (from the top) is drawn. */
+export function shapeHas(shape: ParticleShape, x: number, y: number): boolean {
+  return shape[y]?.[x] === SHAPE_PIXEL;
+}
+
+/** The shape with one pixel flipped. */
+export function toggleShapePixel(shape: ParticleShape, x: number, y: number): ParticleShape {
+  return shape.map((row, rowY) =>
+    rowY === y
+      ? row.slice(0, x) + (row[x] === SHAPE_PIXEL ? SHAPE_EMPTY : SHAPE_PIXEL) + row.slice(x + 1)
+      : row,
+  );
+}
 
 /** Most stops one ramp may carry. Beyond this it is a gradient, not pixel art. */
 export const MAX_RAMP_STOPS = 8;
@@ -215,6 +258,7 @@ export const DEFAULT_PARTICLES: ParticleEmitterDef = {
   // resting state: a new plume is far more often smoke or gas than fire, and an
   // author who wants embers turns it off having seen what the difference is.
   lit: true,
+  shape: null,
   radiusFromPx: 1,
   radiusToPx: 2,
   alphaFrom: 1,
@@ -255,6 +299,7 @@ export const DEFAULT_IMPACT: ParticleEmitterDef = {
   windX: 0,
   windY: 0,
   lit: false,
+  shape: null,
   radiusFromPx: 1,
   radiusToPx: 1,
   alphaFrom: 1,
@@ -282,6 +327,15 @@ const particleTtlMs = v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_PARTICLE_
 
 const wind = v.pipe(v.number(), v.minValue(-32), v.maxValue(32));
 
+const shapeSchema = v.pipe(
+  v.array(
+    v.pipe(
+      v.string(),
+      v.regex(new RegExp(`^[${SHAPE_PIXEL}${SHAPE_EMPTY}]{${PARTICLE_SHAPE_PX}}$`)),
+    ),
+  ),
+  v.length(PARTICLE_SHAPE_PX),
+);
 const radiusPx = v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_PARTICLE_RADIUS_PX));
 
 export const particleEmitterSchema = v.pipe(
@@ -304,6 +358,9 @@ export const particleEmitterSchema = v.pipe(
     // every plume authored before there was a wind was authored in still air.
     windX: v.optional(wind, 0),
     windY: v.optional(wind, 0),
+    // Optional and null by default, so every emitter authored before shapes
+    // existed still loads as the circle it was.
+    shape: v.optional(v.nullable(shapeSchema), null),
     radiusFromPx: radiusPx,
     radiusToPx: radiusPx,
     alphaFrom: unitIntervalSchema,

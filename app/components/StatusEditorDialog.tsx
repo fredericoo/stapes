@@ -385,6 +385,33 @@ export function StatusEditorDialog({
           />
         </div>
 
+        <div className="flex flex-wrap gap-3 border-t-2 border-border pt-3">
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[11px] font-bold uppercase text-muted">Incapacitates</span>
+            <Switch
+              checked={status.incapacitates ?? false}
+              onCheckedChange={(incapacitates) => patch({ incapacitates })}
+              ariaLabel="The bearer cannot act while this runs"
+            />
+            <span className="text-[11px] text-muted">
+              {status.incapacitates
+                ? "No walking, turning, attacking, casting, using or talking. Creatures stop thinking."
+                : "The bearer acts as usual."}
+            </span>
+          </label>
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[11px] font-bold uppercase text-muted">Ends on damage</span>
+            <Switch
+              checked={status.endsOnDamage ?? false}
+              onCheckedChange={(endsOnDamage) => patch({ endsOnDamage })}
+              ariaLabel="Taking damage ends this"
+            />
+            <span className="text-[11px] text-muted">
+              {status.endsOnDamage ? "Any damage taken ends it." : "Runs until its time is up."}
+            </span>
+          </label>
+        </div>
+
         <div className="border-t-2 border-border pt-3">
           <FieldLabel info="Client-side only, never on the wire: the tint is applied where the body is drawn and the particles are simulated by whoever is watching. Walking off screen and back starts a fresh plume.">
             Visuals

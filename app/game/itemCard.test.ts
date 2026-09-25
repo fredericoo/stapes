@@ -592,6 +592,8 @@ describe("itemCard", () => {
         effects: {},
         modifiers: {},
         walkSpeedPercent: 0,
+        incapacitates: false,
+        endsOnDamage: false,
         vfx: { tint: null, particles: null, light: null, taperMs: 0 },
       };
       const card = itemCard(
@@ -700,6 +702,8 @@ describe("itemCard", () => {
         effects: {},
         modifiers: {},
         walkSpeedPercent: 0,
+        incapacitates: false,
+        endsOnDamage: false,
         vfx: { tint: null, particles: null, light: null, taperMs: 0 },
       };
       const card = itemCard(
@@ -770,6 +774,8 @@ describe("itemCard", () => {
       effects: {},
       modifiers: {},
       walkSpeedPercent: 0,
+      incapacitates: false,
+      endsOnDamage: false,
       vfx: { tint: null, particles: null, light: null, taperMs: 0 },
     };
 

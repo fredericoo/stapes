@@ -4,7 +4,10 @@ import {
   DEFAULT_PARTICLES,
   MAX_LIVE_PARTICLES,
   MAX_PARTICLE_RADIUS_PX,
+  PARTICLE_SHAPE_PX,
+  type ParticleShape,
   rampIndexAt,
+  shapeHas,
 } from "../lib/particleVfx";
 import { CELL_SIZE } from "../lib/types";
 import {
@@ -29,7 +32,7 @@ import {
  * ## Circles, drawn rather than loaded
  *
  * A particle is a filled pixel circle, and every circle it can ever be is
- * rasterised once into {@link createCircleAtlas} at startup — one cell per
+ * rasterised once into {@link createParticleAtlas} at startup — one cell per
  * integer radius. No PNG, nothing to author, nothing to keep in step with the
  * art. A quad indexes the cell for its current radius, so growth over a
  * particle's life is a UV change and never a resample: a radius-3 circle is
@@ -39,6 +42,17 @@ import {
  * Radii are integers because a circle between two pixel sizes does not exist.
  * {@link ParticleEmitterDef.radiusFromPx} is interpolated and then rounded, so a
  * particle growing from 1 to 3 visibly steps through 2 rather than smearing.
+ *
+ * ## Shapes, drawn when first seen
+ *
+ * An authored {@link ParticleEmitterDef.shape} is a 5×5 mask, and shapes are
+ * data, so they cannot be rasterised at startup. The atlas keeps
+ * {@link SHAPE_SLOTS} 5×5 cells under the circles, and a shape is written into
+ * the next free one the first frame a particle needs it, keyed by its rows. When
+ * every slot is taken, the slots are emptied at the start of the next frame and
+ * filled again by whatever is on screen then — so the editor, which makes a new
+ * shape on every click, never runs out. A frame that needs more distinct shapes
+ * than there are slots draws the extras as circles.
  *
  * ## Why one mesh and not one per plume
  *
@@ -68,7 +82,18 @@ const CIRCLE_CELL_PX = MAX_PARTICLE_RADIUS_PX * 2 + 1;
 const CIRCLE_STEPS = MAX_PARTICLE_RADIUS_PX + 1;
 
 const ATLAS_W = CIRCLE_CELL_PX * CIRCLE_STEPS;
-const ATLAS_H = CIRCLE_CELL_PX;
+
+/** 5×5 shape cells across one row of the atlas. */
+const SHAPES_PER_ROW = Math.floor(ATLAS_W / PARTICLE_SHAPE_PX);
+
+/** Rows of shape cells under the circles. */
+const SHAPE_ROWS = 4;
+
+/** How many distinct shapes one frame can draw. @see ParticleLayer.shapeSlotFor */
+export const SHAPE_SLOTS = SHAPES_PER_ROW * SHAPE_ROWS;
+
+/** The circles take the first `CIRCLE_CELL_PX` data rows, and the shapes the rest. */
+const ATLAS_H = CIRCLE_CELL_PX + SHAPE_ROWS * PARTICLE_SHAPE_PX;
 
 const VERTS_PER_QUAD = 4;
 const INDICES_PER_QUAD = 6;
@@ -94,8 +119,11 @@ const PARTICLE_ALPHA_CUTOFF = 0.02;
  */
 const PARTICLE_RENDER_ORDER = 1;
 
-/** A `PARTICLE_ALPHA_CUTOFF`-masked disc per integer radius, laid out in a row. */
-export function createCircleAtlas(): THREE.DataTexture {
+/**
+ * A `PARTICLE_ALPHA_CUTOFF`-masked disc per integer radius, laid out in a row,
+ * with the shape cells under them left empty.
+ */
+export function createParticleAtlas(): THREE.DataTexture {
   const data = new Uint8Array(ATLAS_W * ATLAS_H * 4);
   for (let r = 0; r < CIRCLE_STEPS; r++) {
     const cellX = r * CIRCLE_CELL_PX;
@@ -145,11 +173,59 @@ export function circleSlice(radius: number): {
   return {
     u0: x0 / ATLAS_W,
     u1: (x0 + sizePx) / ATLAS_W,
-    // Same flip the tileset quads use, so one convention covers every sheet.
-    v0: 1 - (y0 + sizePx) / ATLAS_H,
-    v1: 1 - y0 / ATLAS_H,
+    // In data rows, which a `DataTexture` lays out from v = 0 up. A circle is
+    // the same either way up, so which end is the top does not matter here; it
+    // does for a shape — see `shapeSlice`.
+    v0: y0 / ATLAS_H,
+    v1: (y0 + sizePx) / ATLAS_H,
     sizePx,
   };
+}
+
+/** The first data row of a shape slot's cell, and its first column. */
+function shapeCellOrigin(slot: number): { x: number; row: number } {
+  return {
+    x: (slot % SHAPES_PER_ROW) * PARTICLE_SHAPE_PX,
+    row: CIRCLE_CELL_PX + Math.floor(slot / SHAPES_PER_ROW) * PARTICLE_SHAPE_PX,
+  };
+}
+
+/** The atlas slice for one shape slot, in the shape {@link circleSlice} answers in. */
+export function shapeSlice(slot: number): {
+  u0: number;
+  v0: number;
+  u1: number;
+  v1: number;
+  sizePx: number;
+} {
+  const { x, row } = shapeCellOrigin(slot);
+  return {
+    u0: x / ATLAS_W,
+    u1: (x + PARTICLE_SHAPE_PX) / ATLAS_W,
+    v0: row / ATLAS_H,
+    v1: (row + PARTICLE_SHAPE_PX) / ATLAS_H,
+    sizePx: PARTICLE_SHAPE_PX,
+  };
+}
+
+/**
+ * Write a shape's mask into one slot of the atlas's pixel data.
+ *
+ * The quad puts `v1` on its top edge, so the shape's top row goes in the slot's
+ * highest data row: row `y` of the shape is data row `row + 4 - y`.
+ */
+export function writeShapeCell(data: Uint8Array, slot: number, shape: ParticleShape) {
+  const { x, row } = shapeCellOrigin(slot);
+  for (let y = 0; y < PARTICLE_SHAPE_PX; y++) {
+    const dataRow = row + PARTICLE_SHAPE_PX - 1 - y;
+    for (let px = 0; px < PARTICLE_SHAPE_PX; px++) {
+      const o = (dataRow * ATLAS_W + x + px) * 4;
+      data[o] = 255;
+      data[o + 1] = 255;
+      data[o + 2] = 255;
+      data[o + 3] = shapeHas(shape, px, y) ? 255 : 0;
+    }
+  }
 }
 
 /**
@@ -222,6 +298,12 @@ export class ParticleLayer {
    */
   private readonly hiddenSpecs = new Map<ParticleEmitterSpec, boolean>();
 
+  /** Which atlas slot each shape is drawn from, keyed by its rows joined. */
+  private readonly shapeSlots = new Map<string, number>();
+
+  /** Each shape's key, worked out once per rows array rather than per particle. */
+  private readonly shapeKeys = new WeakMap<ParticleShape, string>();
+
   /** Reused across every particle of every frame. @see ParticleSystem.read */
   private readonly reading: ParticleReading = {
     x: 0,
@@ -246,7 +328,7 @@ export class ParticleLayer {
   constructor(lightUniformsFor: (z: number) => LevelLightUniforms, random?: Random) {
     this.system = new ParticleSystem(random);
     this.lightUniformsFor = lightUniformsFor;
-    this.atlas = createCircleAtlas();
+    this.atlas = createParticleAtlas();
     this.geometry = this.buildGeometry();
 
     this.mesh = new THREE.Mesh(this.geometry, []);
@@ -340,6 +422,9 @@ export class ParticleLayer {
    */
   private writeQuads(hidden: CellHidden | undefined): number {
     for (const bucket of this.buckets.values()) bucket.length = 0;
+    // Emptied between frames and never during one, so no quad written this
+    // frame points at a slot that is rewritten under it. @see shapeSlotFor
+    if (this.shapeSlots.size >= SHAPE_SLOTS) this.shapeSlots.clear();
     this.hiddenSpecs.clear();
 
     for (let i = 0; i < this.system.count; i++) {
@@ -396,7 +481,10 @@ export class ParticleLayer {
     // -down plume steps through real circle sizes rather than smearing.
     const radius =
       (p.config.radiusFromPx + (p.config.radiusToPx - p.config.radiusFromPx) * life) * p.taper;
-    const slice = circleSlice(radius);
+    // A shape is drawn at its own size whatever the taper, because a mask has no
+    // smaller version of itself; the fade still winds it down.
+    const shapeSlot = p.config.shape ? this.shapeSlotFor(p.config.shape) : null;
+    const slice = shapeSlot === null ? circleSlice(radius) : shapeSlice(shapeSlot);
     const alpha = p.config.alphaFrom + (p.config.alphaTo - p.config.alphaFrom) * life;
     if (alpha <= PARTICLE_ALPHA_CUTOFF) return false;
 
@@ -468,6 +556,27 @@ export class ParticleLayer {
     }
 
     return true;
+  }
+
+  /**
+   * The atlas slot this shape is drawn from, writing it in on first sight. Null
+   * when every slot is already taken this frame, which draws a circle instead.
+   */
+  private shapeSlotFor(shape: ParticleShape): number | null {
+    let key = this.shapeKeys.get(shape);
+    if (key === undefined) {
+      key = shape.join("");
+      this.shapeKeys.set(shape, key);
+    }
+    const known = this.shapeSlots.get(key);
+    if (known !== undefined) return known;
+    if (this.shapeSlots.size >= SHAPE_SLOTS) return null;
+
+    const slot = this.shapeSlots.size;
+    writeShapeCell(this.atlas.image.data as Uint8Array, slot, shape);
+    this.atlas.needsUpdate = true;
+    this.shapeSlots.set(key, slot);
+    return slot;
   }
 
   /** Upload only the prefix that changed. @see THREE.BufferAttribute.addUpdateRange */

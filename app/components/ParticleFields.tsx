@@ -1,10 +1,15 @@
 import {
+  EMPTY_SHAPE,
   MAX_PARTICLE_RADIUS_PX,
   MAX_PARTICLE_RATE,
   MAX_PARTICLE_TTL_MS,
   MAX_RAMP_STOPS,
+  PARTICLE_SHAPE_PX,
   type ParticleEmitterDef,
+  type ParticleShape,
   type RampStop,
+  shapeHas,
+  toggleShapePixel,
 } from "../lib/particleVfx";
 import { Button, FieldLabel, Input, NumberInput, Switch } from "../ui";
 
@@ -215,6 +220,46 @@ function RampEditor({
   );
 }
 
+/**
+ * A 5×5 grid of pixels to click on and off, drawn in the ramp's first colour on
+ * the dark the game is mostly played against, so the author sees roughly what
+ * will be on screen.
+ */
+function ShapeEditor({
+  shape,
+  color,
+  onChange,
+}: {
+  shape: ParticleShape;
+  color: string;
+  onChange: (next: ParticleShape) => void;
+}) {
+  const cells = Array.from({ length: PARTICLE_SHAPE_PX }, (_, y) =>
+    Array.from({ length: PARTICLE_SHAPE_PX }, (_, x) => ({ x, y })),
+  ).flat();
+  return (
+    <div
+      className="grid w-fit gap-px border-2 border-border bg-muted"
+      style={{ gridTemplateColumns: `repeat(${PARTICLE_SHAPE_PX}, 1.25rem)` }}
+    >
+      {cells.map(({ x, y }) => {
+        const on = shapeHas(shape, x, y);
+        return (
+          <button
+            key={`${x},${y}`}
+            type="button"
+            className="size-5 cursor-pointer bg-ink"
+            style={on ? { backgroundColor: color } : undefined}
+            aria-label={`Pixel ${x + 1}, ${y + 1}`}
+            aria-pressed={on}
+            onClick={() => onChange(toggleShapePixel(shape, x, y))}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 export function ParticleFields({
   particles,
   onChange,
@@ -363,24 +408,52 @@ export function ParticleFields({
       </Row>
 
       <Row>
-        <NumberField
-          label="Radius from (px)"
-          hint="Rounded to whole pixels — a circle between two sizes does not exist."
-          value={particles.radiusFromPx}
-          min={0}
-          max={MAX_PARTICLE_RADIUS_PX}
-          step={1}
-          onChange={(radiusFromPx) => patch({ radiusFromPx })}
-        />
-        <NumberField
-          label="To (px)"
-          hint="Larger than the first makes them grow as they fade."
-          value={particles.radiusToPx}
-          min={0}
-          max={MAX_PARTICLE_RADIUS_PX}
-          step={1}
-          onChange={(radiusToPx) => patch({ radiusToPx })}
-        />
+        <Field
+          label="Shape"
+          hint={
+            particles.shape
+              ? "Drawn pixel for pixel, coloured by the ramp."
+              : "A circle, sized by the radius."
+          }
+        >
+          <Switch
+            checked={particles.shape !== null}
+            onCheckedChange={(on) => patch({ shape: on ? [...EMPTY_SHAPE] : null })}
+            ariaLabel="Draw a shape instead of a circle"
+          />
+        </Field>
+        {particles.shape ? (
+          <ShapeEditor
+            shape={particles.shape}
+            color={particles.ramp[0]?.color ?? "#ffffff"}
+            onChange={(shape) => patch({ shape })}
+          />
+        ) : null}
+      </Row>
+
+      <Row>
+        {particles.shape ? null : (
+          <>
+            <NumberField
+              label="Radius from (px)"
+              hint="Rounded to whole pixels — a circle between two sizes does not exist."
+              value={particles.radiusFromPx}
+              min={0}
+              max={MAX_PARTICLE_RADIUS_PX}
+              step={1}
+              onChange={(radiusFromPx) => patch({ radiusFromPx })}
+            />
+            <NumberField
+              label="To (px)"
+              hint="Larger than the first makes them grow as they fade."
+              value={particles.radiusToPx}
+              min={0}
+              max={MAX_PARTICLE_RADIUS_PX}
+              step={1}
+              onChange={(radiusToPx) => patch({ radiusToPx })}
+            />
+          </>
+        )}
         <UnitSlider
           label="Opacity from"
           value={particles.alphaFrom}

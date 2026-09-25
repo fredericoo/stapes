@@ -409,6 +409,8 @@ const BURN: StatusDef = {
   effects: {},
   modifiers: {},
   walkSpeedPercent: 0,
+  incapacitates: false,
+  endsOnDamage: false,
   vfx: NO_VFX,
 };
 
@@ -729,7 +731,7 @@ describe("putting a status on by hand", () => {
     // The sentence a flame produces, because it is the same application: what
     // the player has to be told is what they are now under, whatever put it
     // there. @see ./notices' `statusAcquiredNotice`
-    expect(session.drainNotices("me")).toEqual(["You are Burned"]);
+    expect(session.drainNotices("me")).toEqual(["You are burned"]);
   });
 
   it("says it again on a second helping, having nothing else to report", () => {
@@ -741,7 +743,7 @@ describe("putting a status on by hand", () => {
     // debugging door that reads as silence is indistinguishable from one whose
     // line was dropped, which is the whole reason this command says anything.
     session.runCommand("/status burned", "me");
-    expect(session.drainNotices("me")).toEqual(["You are Burned"]);
+    expect(session.drainNotices("me")).toEqual(["You are burned"]);
   });
 
   it("names the body when the condition landed on somebody else", () => {
@@ -756,7 +758,7 @@ describe("putting a status on by hand", () => {
     // Said to whoever typed it and not to the deer: a creature announcing that
     // it is on fire because somebody set it on fire from a console is a bubble
     // the room should not see.
-    expect(session.drainNotices("me")).toEqual(["Deer is Burned"]);
+    expect(session.drainNotices("me")).toEqual(["Deer is burned"]);
     expect(session.drainNotices(deer)).toEqual([]);
   });
 

@@ -373,5 +373,66 @@
       "light": null,
       "taperMs": 1500
     }
+  },
+  {
+    "id": "sleep",
+    "name": "Asleep",
+    "description": "Recovering health fast. You cannot act, and any damage wakes you.",
+    "tone": "good",
+    "icon": {
+      "tilesetId": "ultima-vi",
+      "rect": {
+        "x": 48,
+        "y": 24,
+        "w": 2,
+        "h": 2
+      },
+      "base": {
+        "x": 1,
+        "y": 1
+      }
+    },
+    "fromMs": 20000,
+    "toMs": 30000,
+    "stacks": false,
+    "maxMs": 30000,
+    "everyMs": "ceil(MAX_HP / 100) * 20000 / MAX_HP",
+    "effects": {
+      "hp": "ceil(MAX_HP / 100)"
+    },
+    "modifiers": {},
+    "incapacitates": true,
+    "endsOnDamage": true,
+    "vfx": {
+      "tint": null,
+      "particles": {
+        "ratePerSecond": 1,
+        "ttlFromMs": 1800,
+        "ttlToMs": 2400,
+        "spawnRadiusCells": 0,
+        "spawnElevFrom": 1.5,
+        "spawnElevTo": 2,
+        "riseFrom": 1.5,
+        "riseTo": 2,
+        "driftCellsPerSecond": 0.1,
+        "gravity": 0,
+        "windX": 0,
+        "windY": 0,
+        "lit": false,
+        "shape": ["#####", "...#.", "..#..", ".#...", "#####"],
+        "radiusFromPx": 1,
+        "radiusToPx": 1,
+        "alphaFrom": 1,
+        "alphaTo": 0.2,
+        "ramp": [
+          {
+            "at": 0,
+            "color": "#ffffff"
+          }
+        ]
+      },
+      "light": null,
+      "taperMs": 1500
+    }
   }
 ]

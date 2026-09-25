@@ -147,6 +147,34 @@ export type StatusDef = {
    */
   walkSpeedPercent: number;
   /**
+   * Whether its bearer can do anything at all while it runs.
+   *
+   * An incapacitated body takes no step and no turn, swings at nothing, casts
+   * nothing, and uses, moves, picks up, drops or talks to nothing; a creature's
+   * brain is not given a turn. What is already happening to it carries on — a
+   * fall still lands, a shove still slides, its statuses still tick — because
+   * this is about what the body *does*, and none of those are.
+   *
+   * A flag on the def rather than a list of status ids somewhere in the
+   * simulation, so the gates read one question — `../game/statuses`'s
+   * `incapacitated` — and never learn which statuses answer it. Sleep is the
+   * one authored today.
+   *
+   * False for every status authored before this existed.
+   */
+  incapacitates: boolean;
+  /**
+   * Whether taking damage ends it on the spot.
+   *
+   * Read where damage is applied, after the amount has landed: the blow that
+   * wakes a sleeper still hurts. Any damage counts, whatever caused it — a
+   * blade, a bolt, a burn ticking over, a fall — and a miss, a heal and a blow
+   * armour soaks to nothing do not.
+   *
+   * False for every status authored before this existed.
+   */
+  endsOnDamage: boolean;
+  /**
    * What it looks like: a colour on the body, a plume over the tile.
    *
    * Never {@link NO_VFX} by accident — a status with nothing authored gets it on
@@ -192,6 +220,8 @@ export const DEFAULT_STATUS_SOURCE = {
   effects: {},
   modifiers: {},
   walkSpeedPercent: 0,
+  incapacitates: false,
+  endsOnDamage: false,
   // Neither half authored, so a new status looks like every existing one until
   // somebody turns an effect on. The editor's defaults for each half live in
   // `./statusVfx`, and are only reached when an author asks for one.
@@ -285,6 +315,8 @@ const statusSourceSchema = v.pipe(
       ),
       0,
     ),
+    incapacitates: v.optional(v.boolean(), false),
+    endsOnDamage: v.optional(v.boolean(), false),
     // Optional and defaulted, which is the whole compatibility story: every
     // status in `data/statuses.json` predates this field, and an absent block
     // has to keep loading rather than dropping the status from the catalogue.
@@ -345,6 +377,8 @@ function compileStatus(raw: StatusSource): StatusDef | null {
     effects,
     modifiers,
     walkSpeedPercent: raw.walkSpeedPercent,
+    incapacitates: raw.incapacitates,
+    endsOnDamage: raw.endsOnDamage,
     vfx: resolveStatusVfx(raw.vfx),
   };
 }
@@ -400,6 +434,8 @@ export const COMBAT_STATUS: StatusDef = {
   modifiers: {},
   // Being in a fight says nothing about your legs: you can run from one.
   walkSpeedPercent: 0,
+  incapacitates: false,
+  endsOnDamage: false,
   vfx: NO_VFX,
 };
 

@@ -8089,10 +8089,20 @@ Awake is `or[below_level 0, time_of_day 19→6]`: night on the surface, or any
 hour underground. Six rather than the sky's four because the sky is still dark
 through dawn, and a wolf that went to bed at four would be asleep in the dark.
 
-- **A `denned` state that only holds.** By day on the surface, each state the
-  wolf roams in — `prowling`, `following`, `casting`, `homing`, `investigating`,
-  `feeding` — goes to it, and it goes back to `prowling` once the wolf is awake.
-  These rows sit after the `from: any` rows and before the per-state ones.
+- **A `denned` state where it puts itself to sleep.** By day on the surface,
+  each state the wolf roams in — `prowling`, `following`, `casting`, `homing`,
+  `investigating`, `feeding` — goes to it, and it goes back to `prowling` once
+  the wolf is awake. These rows sit after the `from: any` rows and before the
+  per-state ones. (`casting` is the wolf's name for the step it takes when
+  stuck, not a spell.)
+- **`denned` casts the wolf's own spell, Curl up, then holds.** Curl up is a
+  bolt `on: "caster"` that applies the `sleep` status, so the wolf heals, cannot
+  act, and its brain stops until the status runs out or it takes damage. Then
+  the brain runs again: by day it is still `denned` and casts again; at night
+  the row out of `denned` fires first. Its `of` is `home` only because the
+  action needs a selector; a spell on the caster ignores it. The spell has no
+  `castTimeMs`, because the minimum is 200ms and an instant cast is the absent
+  field — and one invalid spell drops the wolf's whole battler block.
 - **The sight rows are gated on awake**: hunting a player or a deer it can see,
   and going for meat it can see. A sleeping wolf with somebody standing in front
   of it does nothing.
@@ -8101,6 +8111,48 @@ through dawn, and a wolf that went to bed at four would be asleep in the dark.
   the list above: a `from: hunting` row to the den would pull it out of the
   fight on the next turn. A hunt that ends by day goes to `prowling`, and from
   there to the den, where it stays — it does not walk home first.
+
+## A status can stop its bearer acting, and damage can end one
+
+Two flags on `StatusDef`, both off unless authored: `incapacitates` and
+`endsOnDamage`. Sleep (`data/statuses.json`, id `sleep`) sets both and heals a
+whole bar in twenty seconds, on Fed's formula with a shorter period.
+
+**Nothing in the simulation names sleep.** Every gate asks
+`statuses.ts`'s `incapacitated(list, catalogue)`, which is true when any
+status on the list has `incapacitates`. The gates:
+
+- `GameSession.applyStepRequest` and `faceActor` refuse steps and turns, which
+  covers held input, a client's `requestStep`, and a creature's walk order.
+- `tickOneBrain` returns before the brain is stepped and drops the standing walk
+  order. The brain's clocks stop, so it picks up where it left off.
+- `tryAttack` refuses and disengages, so auto-attack and a brain's `attack` both
+  stop. The target stays picked.
+- `castability` refuses with `incapacitated` (`CastContext.incapacitated`), so
+  the spell buttons dim on the client from the same function.
+- `readyToAct` is `idle` plus not incapacitated, and every board act and kit act
+  that used to ask `idle` asks it instead: interact and each of its arms,
+  pickUp, equip, craft, extract, push, eating off the floor. `consume`,
+  `moveItem` and `dropCandidate` ask directly, because they never asked `idle`.
+- A cast in progress is cancelled in `advanceCasting`, even from an
+  `uninterruptible` stone; a pull is let go in `holdsExtraction`.
+- A conversation ends when either side cannot act, and a body that cannot act
+  cannot open one or press a button in one. Closing it is still allowed.
+
+`RemoteSession` asks the same function of the viewer's own status list before
+predicting a step and before sending any press, so a sleeping player's keys do
+nothing rather than drawing a step the server drags back.
+
+**What still happens to a body that cannot act:** its statuses tick, it falls,
+it slides when shoved, and a worn charm still fires. Those are things done to
+the body or by an item on its own clock, not things the body does.
+
+**`endsOnDamage` is read in `applyDamage`**, after combat is flagged and before
+the number floats, gated on `amount > 0`: a miss, a heal and a blow armour soaks
+to nothing do not wake anybody. Any source counts — a blow, a bolt, a status
+tick, something harmful eaten, `/hp` — because they all come through there. The damage itself still
+lands. In `tickStatuses` the advanced list is written back before the hp changes
+are applied, so a poison tick that wakes a sleeper is not undone by the write.
 
 ## A status can be a gamble, and a body can be immune to one
 
@@ -9326,6 +9378,33 @@ the lights in it, so a light that changed per frame would miss the overlay cache
 every frame and rebake the window. A status light is therefore steady by
 construction — there is no phase on it, and there should not be one without
 reading the flicker note above first.
+
+### A particle is a circle or an authored 5×5 shape
+
+`ParticleEmitterDef.shape` is null (a circle sized by the radius fields) or five
+rows of five characters, `#` for a pixel and `.` for none, top row first. A
+shape is drawn one world pixel per character, so the radius fields are not read
+for it, and the taper does not shrink it; the ramp and the alpha range colour
+and fade it exactly as they do a circle. Sleep's rising Z is the first one.
+
+**Shapes live in the same atlas as the circles**, so every particle is still one
+material and one draw. `particleLayer.ts` keeps `SHAPE_SLOTS` 5×5 cells under the
+circle row and writes a shape into the next free one the first frame a particle
+needs it, keyed by its rows joined. When every slot is taken, the slots are
+emptied at the start of the next frame, never during one, so no quad already
+written this frame points at a cell being rewritten. The editor makes a new shape
+on every click, which is the case this exists for. A frame that needs more
+distinct shapes than there are slots draws the extras as circles.
+
+**Which end is up.** A `DataTexture` lays data row 0 at v = 0, and the quad puts
+`v1` on its top edge (the smaller world y, which is up on screen). So row `y` of
+a shape is written to data row `base + 4 - y`. `particleLayer.test.ts` checks
+this against the quad's corners, because a shape drawn upside down would pass
+every other test.
+
+**Sleep's Z is white and unlit.** Unlit because a lit white Z came out grey in
+daylight; the cost is that a sleeper in a pitch-black room shows its Z's. Where
+it crosses the player sprite, which is also mostly white, the two run together.
 
 ### A plume sorts as a two-high tile on top of the affected stack
 

@@ -9,7 +9,7 @@ import { TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
 import { tilesByIdFromList } from "../lib/validation";
 import type { ObjectRef } from "./affordances";
-import { masteryNotice, rewardNotice } from "./notices";
+import { masteryNotice, otherStatusNotice, rewardNotice, statusAcquiredNotice } from "./notices";
 import { FRAME, tile as baseTile } from "../lib/testTile";
 
 /**
@@ -312,5 +312,12 @@ describe("a chest opened for real", () => {
     expect(session.interact(CHEST, "me")).toBe(true);
     expect(session.drainNotices("you")).toEqual([]);
     expect(session.drainNotices("me")).toHaveLength(1);
+  });
+});
+
+describe("a status named in a sentence", () => {
+  it("is lowercased, whatever the author capitalised for the strip", () => {
+    expect(statusAcquiredNotice("Asleep")).toBe("You are asleep");
+    expect(otherStatusNotice("Deer", "Burning")).toBe("Deer is burning");
   });
 });

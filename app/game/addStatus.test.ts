@@ -543,19 +543,19 @@ describe("what a condition coming on says", () => {
   it("tells whoever walked into the fire", () => {
     const play = session(world("fire"));
     step(play, "e");
-    expect(play.drainNotices()).toEqual(["You are Burned"]);
+    expect(play.drainNotices()).toEqual(["You are burned"]);
   });
 
   it("says it for a brazier that was pressed, too — one door, one sentence", () => {
     const play = session(world("brazier"));
     expect(play.activateAddStatus({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(true);
-    expect(play.drainNotices()).toEqual(["You are Burned"]);
+    expect(play.drainNotices()).toEqual(["You are burned"]);
   });
 
   it("has nothing to add while the same body goes on standing in it", () => {
     const play = session(world("fire"));
     step(play, "e");
-    expect(play.drainNotices()).toEqual(["You are Burned"]);
+    expect(play.drainNotices()).toEqual(["You are burned"]);
 
     // Four standing periods, every one of them a real re-grant — the countdown
     // climbing is what `keeps burning whoever stands in it` asserts. None of
@@ -567,7 +567,7 @@ describe("what a condition coming on says", () => {
   it("says it again when the condition comes back after running out", () => {
     const play = session(world("fire"));
     step(play, "e");
-    expect(play.drainNotices()).toEqual(["You are Burned"]);
+    expect(play.drainNotices()).toEqual(["You are burned"]);
 
     step(play, "w");
     // Past the four seconds one helping lasts, so the burn is off before the
@@ -576,7 +576,7 @@ describe("what a condition coming on says", () => {
     expect(held(play)).not.toContain("burned");
 
     step(play, "e");
-    expect(play.drainNotices()).toEqual(["You are Burned"]);
+    expect(play.drainNotices()).toEqual(["You are burned"]);
   });
 
   it("says nothing about a fire that named a condition nobody authored", () => {
@@ -609,7 +609,7 @@ describe("a body authored immune", () => {
     const play = session(world("grass", "salamander"), { actorIds: ["local"] });
     play.runCommand("/status burned npc:0,0,0,1");
     expect(held(play, "npc:0,0,0,1")).toEqual([]);
-    expect(play.drainNotices()).toEqual(["salamander cannot be Burned"]);
+    expect(play.drainNotices()).toEqual(["salamander cannot be burned"]);
   });
 
   it("takes nothing from a fire it stands in either", () => {

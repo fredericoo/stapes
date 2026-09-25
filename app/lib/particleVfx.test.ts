@@ -3,9 +3,12 @@ import * as v from "valibot";
 import {
   compileRamp,
   DEFAULT_PARTICLES,
+  EMPTY_SHAPE,
   particleEmitterSchema,
   RAMP_LUT_SIZE,
   rampIndexAt,
+  shapeHas,
+  toggleShapePixel,
 } from "./particleVfx";
 import { hexToRgb01 } from "./palette";
 
@@ -152,5 +155,37 @@ describe("what validates", () => {
       lit: undefined,
     });
     expect(parsed.lit).toBe(false);
+  });
+});
+
+describe("a drawn shape", () => {
+  const Z = ["#####", "...#.", "..#..", ".#...", "#####"];
+
+  it("defaults a plume authored before shapes to a circle", () => {
+    const { shape: _shape, ...circle } = DEFAULT_PARTICLES;
+    expect(v.parse(particleEmitterSchema, circle).shape).toBeNull();
+  });
+
+  it("reads five rows of five", () => {
+    expect(v.parse(particleEmitterSchema, { ...DEFAULT_PARTICLES, shape: Z }).shape).toEqual(Z);
+  });
+
+  it("refuses a shape of the wrong size or with other characters", () => {
+    for (const shape of [Z.slice(1), [...Z.slice(1), "####"], [...Z.slice(1), "##x##"]]) {
+      expect(v.safeParse(particleEmitterSchema, { ...DEFAULT_PARTICLES, shape }).success).toBe(
+        false,
+      );
+    }
+  });
+
+  it("reads a pixel by column and row from the top", () => {
+    expect(shapeHas(Z, 3, 1)).toBe(true);
+    expect(shapeHas(Z, 1, 1)).toBe(false);
+  });
+
+  it("flips one pixel and leaves the rest", () => {
+    const one = toggleShapePixel(EMPTY_SHAPE, 2, 0);
+    expect(one).toEqual(["..#..", ".....", ".....", ".....", "....."]);
+    expect(toggleShapePixel(one, 2, 0)).toEqual(EMPTY_SHAPE);
   });
 });

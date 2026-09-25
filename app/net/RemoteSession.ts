@@ -8,6 +8,7 @@ import {
   WALK_DURATION_MS,
 } from "../game/constants";
 import {
+  incapacitated,
   inCombat,
   UNKNOWN_REMAINING_MS,
   type StatusInstance,
@@ -1255,6 +1256,15 @@ export class RemoteSession implements PlaySession {
   }
 
   /**
+   * Whether the viewer is under anything that stops it acting, off its own list
+   * — the one this side has countdowns for, and the one the server asks the
+   * same question of. @see `../game/statuses`' `incapacitated`
+   */
+  private incapacitated(): boolean {
+    return incapacitated(this.statuses, this.statusDefs);
+  }
+
+  /**
    * How much quicker or slower everything on one body makes it walk.
    *
    * The viewer's own list where there is one and the broadcast ids otherwise,
@@ -1887,6 +1897,12 @@ export class RemoteSession implements PlaySession {
     if (gravityPullOn(this.map, loc, def, this.tilesById).kind === "fall") {
       return;
     }
+
+    // Neither a step nor a turn while the viewer cannot act, which is where the
+    // simulation refuses both. The keys stay held, so a sleeper holding one
+    // walks off the moment they wake. @see `../game/GameSession`'s
+    // `applyStepRequest`
+    if (this.incapacitated()) return;
 
     const choice = chooseStep(this.map, loc, this.held, def, this.tilesById, (to) =>
       this.destinationTaken(to),
@@ -2526,6 +2542,7 @@ export class RemoteSession implements PlaySession {
         to && this.targetId
           ? mayHarm(this.combatant(this.selfId, from), this.combatant(this.targetId, to))
           : true,
+      incapacitated: this.incapacitated(),
     };
   }
 
@@ -2594,6 +2611,7 @@ export class RemoteSession implements PlaySession {
    * the round trip of staleness that any shared world has.
    */
   canInteract(ref: ObjectRef): boolean {
+    if (this.incapacitated()) return false;
     const motion = this.motions.get(this.selfId);
     if (!motion) return false;
     // Mid-motion the answer is no, matching the session's own gate.
@@ -2678,6 +2696,7 @@ export class RemoteSession implements PlaySession {
    * will ask, so a refusal costs no round trip at all.
    */
   pickUp(ref: ObjectRef): boolean {
+    if (this.incapacitated()) return false;
     const motion = this.motions.get(this.selfId);
     if (!motion) return false;
     if (motion.walk || motion.fall || motion.slide) return false;
@@ -2700,6 +2719,7 @@ export class RemoteSession implements PlaySession {
    * refusal costs no round trip.
    */
   equip(ref: ObjectRef): boolean {
+    if (this.incapacitated()) return false;
     const motion = this.motions.get(this.selfId);
     if (!motion) return false;
     if (motion.walk || motion.fall || motion.slide) return false;
@@ -2722,6 +2742,7 @@ export class RemoteSession implements PlaySession {
    * for the slot arm — so a refusal costs no round trip at all.
    */
   consume(from: ConsumeSource): boolean {
+    if (this.incapacitated()) return false;
     const motion = this.motions.get(this.selfId);
     if (!motion) return false;
     const loc = this.locate(this.selfId, motion);
@@ -2763,6 +2784,8 @@ export class RemoteSession implements PlaySession {
    * button the server no longer offers is a race it will simply not answer.
    */
   talk(action: TalkAction): boolean {
+    // Closing asks nothing of the body, so it is the one press left to it.
+    if (action.kind !== "close" && this.incapacitated()) return false;
     if (action.kind === "open") {
       const motion = this.motions.get(this.selfId);
       const loc = motion && this.locate(this.selfId, motion);
@@ -2776,6 +2799,7 @@ export class RemoteSession implements PlaySession {
   }
 
   craft(ref: ObjectRef, recipe: number): boolean {
+    if (this.incapacitated()) return false;
     const motion = this.motions.get(this.selfId);
     if (!motion) return false;
     if (motion.walk || motion.fall || motion.slide) return false;
@@ -2804,6 +2828,7 @@ export class RemoteSession implements PlaySession {
    * have.
    */
   canMoveItem(from: SlotRef, to: SlotRef): boolean {
+    if (this.incapacitated()) return false;
     const motion = this.motions.get(this.selfId);
     const loc = motion && this.locate(this.selfId, motion);
     if (!loc) return false;
@@ -2833,6 +2858,7 @@ export class RemoteSession implements PlaySession {
    * round trip after the cursor would be drawing where the pointer *was*.
    */
   canDrop(from: SlotRef, to: Coord): boolean {
+    if (this.incapacitated()) return false;
     const motion = this.motions.get(this.selfId);
     const loc = motion && this.locate(this.selfId, motion);
     if (!loc) return false;

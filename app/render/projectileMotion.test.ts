@@ -453,6 +453,7 @@ const SPARK: Transition = {
     gravity: -10,
     windX: 0,
     windY: 0,
+    shape: null,
     radiusFromPx: 1,
     radiusToPx: 1,
     alphaFrom: 1,

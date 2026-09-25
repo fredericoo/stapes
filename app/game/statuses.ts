@@ -595,3 +595,36 @@ export function walkSpeedPercentFrom(
   }
   return percent;
 }
+
+/**
+ * Whether anything on this body stops it acting. @see `../lib/status`'s
+ * `StatusDef.incapacitates`
+ *
+ * Asked by every gate on what a body does — a step, a turn, a swing, a cast, a
+ * use, a brain's turn — and on both sides of the wire: the browser asks it of
+ * the viewer's own list before it predicts a step or sends a press, so a
+ * sleeper's keys do nothing rather than drawing a step the server refuses.
+ */
+export function incapacitated(
+  statuses: readonly StatusInstance[],
+  catalogue: Record<string, StatusDef>,
+): boolean {
+  return statuses.some((instance) => catalogue[instance.defId]?.incapacitates === true);
+}
+
+/**
+ * The list with everything that ends on damage taken off it, or the same list
+ * when nothing does. @see `../lib/status`'s `StatusDef.endsOnDamage`
+ *
+ * The same list back when nothing goes, so a hurt body that was under nothing
+ * of the kind — every body in every fight — allocates nothing.
+ */
+export function endOnDamage(
+  statuses: readonly StatusInstance[],
+  catalogue: Record<string, StatusDef>,
+): readonly StatusInstance[] {
+  if (!statuses.some((instance) => catalogue[instance.defId]?.endsOnDamage === true)) {
+    return statuses;
+  }
+  return statuses.filter((instance) => catalogue[instance.defId]?.endsOnDamage !== true);
+}
