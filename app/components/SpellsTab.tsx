@@ -5,6 +5,7 @@ import { hasAnyInteraction, type TileInteractions } from "../lib/interactions";
 import type { StatusDef } from "../lib/status";
 import { type AnchoredSprite, defaultBase, type TileDef, type TilesetDef } from "../lib/types";
 import { Button, FieldLabel, Input, SectionTitle, Select } from "../ui";
+import { BattlerIssues } from "./BattlerIssues";
 import { SpriteSelector } from "./SpriteSelector";
 import { StoneFields } from "./StoneFields";
 import { SpritePreview } from "./TilePreview";
@@ -37,6 +38,11 @@ type Props = {
   tilesets: TilesetDef[];
   /** The status catalogue, for what a spell leaves behind. */
   statusDefs?: Record<string, StatusDef>;
+  /**
+   * Why the block, as Save would write it, would not load — worked out once in
+   * the dialog, since Save is gated on the same answer. See `./BattlerIssues`.
+   */
+  battlerIssues: readonly string[];
 };
 
 /** What a freshly added spell is: the editor's default stone, named. */
@@ -111,7 +117,14 @@ function IconField({
   );
 }
 
-export function SpellsTab({ draft, onChange, tiles, tilesets, statusDefs = {} }: Props) {
+export function SpellsTab({
+  draft,
+  onChange,
+  tiles,
+  tilesets,
+  statusDefs = {},
+  battlerIssues,
+}: Props) {
   const battler = draft.interactions?.battler ?? DEFAULT_BATTLER;
   const spells = battler.spells ?? [];
 
@@ -133,6 +146,7 @@ export function SpellsTab({ draft, onChange, tiles, tilesets, statusDefs = {} }:
 
   return (
     <div className="flex flex-col gap-4">
+      <BattlerIssues issues={battlerIssues} />
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
         <SectionTitle info="Spells this body has of its own, with nothing in its hands — the natural weapon's opposite number. They are arcane stones in every sense; what they are not is carried, so each one names itself. A brain casts one by that name, and on the player they sit in the spell row after the three squares.">
           Spells

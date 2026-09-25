@@ -7885,6 +7885,35 @@ a round trip through the real client and the real world shows a chilled player
 walking at a chilled player's pace. What was broken was only the thing watching
 for an answer that had not come yet.
 
+### A battler block that does not parse is dropped whole, and now says why
+
+`resolveBattler` drops the entire `interactions.battler` block when any part
+of it fails `battlerSchema`: no hit points, no natural weapon, no spells. That
+stays. What changed is that it is no longer silent. A wolf given a natural
+spell with `"castTimeMs": 0` (the floor is `MIN_CAST_TIME_MS`, and instant is
+written as absent) lost its whole block, and the Battle tab still looked fine
+because it draws from the raw draft.
+
+`battlerIssues(def)` asks the same schema the same question and keeps the
+answer as lines like `spells[0].castTimeMs: Invalid value: Expected >=200 but
+received 0`. Three places read it:
+
+- **The tile editor** lists them at the top of Battle and Spells and turns Save
+  off. It checks `interactionsForSave(draft.interactions)` rather than the
+  draft, because that is what reaches the file, and it already cleans up some
+  things the schema would refuse, such as a zero cast time. Duplicate goes
+  through the same check.
+- **The server** logs each failing tile once in `GameServer.load()`. It logs
+  and keeps going, because a world that fails to start over one creature is
+  worse than one creature with no hit points.
+- **The editor's cast-time box** could not write the `0` in the first place:
+  `StoneFields` maps zero to absent and `stoneForSave` drops a falsy cast
+  time. The wolf's `0` was written by hand.
+
+A status override with only one of `fromMs`/`toMs` currently reports two
+lines, "give both ends" and "duration range is inverted", because both
+`v.check`s in `statusGrantSchema` run. The first is the real one.
+
 ## A pace is a percentage, and it never travels
 
 `walkDurationMs` on a tile is how fast a body walks when nothing is touching it.
