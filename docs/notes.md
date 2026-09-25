@@ -9118,7 +9118,7 @@ to tell:
 
 - `GameServer.diffCells` adds every cell whose fire differs from what was last
   sent (`sentAfflicted`, one map for the whole world, the pattern
-  `sentStatusIds` uses) to the tick's diff as terrain. `cellsInScope` then
+  `sentStatusIds` uses) to the tick's diff as terrain. `cellInScope` then
   sends it to the clients subscribed to its chunk and nobody else, exactly as
   a tile swap.
 - A chunk handed over as it comes into reach is its cells, so it carries its

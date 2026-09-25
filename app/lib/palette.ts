@@ -139,31 +139,6 @@ export function paletteOklab(hex: readonly string[]): Float32Array {
 }
 
 /**
- * Mean nearest-neighbour distance in the given flat OKLab array.
- */
-export function meanPaletteSpacing(lab: Float32Array): number {
-  const n = lab.length / 3;
-  if (n < 2) return 0;
-  let sum = 0;
-  for (let i = 0; i < n; i++) {
-    const Li = lab[i * 3]!;
-    const ai = lab[i * 3 + 1]!;
-    const bi = lab[i * 3 + 2]!;
-    let best = Infinity;
-    for (let j = 0; j < n; j++) {
-      if (i === j) continue;
-      const dL = Li - lab[j * 3]!;
-      const da = ai - lab[j * 3 + 1]!;
-      const db = bi - lab[j * 3 + 2]!;
-      const d = Math.sqrt(dL * dL + da * da + db * db);
-      if (d < best) best = d;
-    }
-    sum += best;
-  }
-  return sum / n;
-}
-
-/**
  * CPU mirror of the GLSL nearest-match. `lab` is a single OKLab triple;
  * `palette` is the flat OKLab array. Distance weights a/b by `chromaWeight`.
  */

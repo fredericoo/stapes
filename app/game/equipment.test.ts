@@ -35,7 +35,6 @@ import {
   armorResistances,
   bodyElements,
   fightsWithAHand,
-  fightsWithBothHands,
   HANDS,
   handClaimedByTwoHander,
   handToSwing,
@@ -911,7 +910,6 @@ describe("taking turns between two hands", () => {
     expect(handToSwing(both, tiles, "offhand")).toBe("offhand");
     expect(otherHand("weapon")).toBe("offhand");
     expect(otherHand("offhand")).toBe("weapon");
-    expect(fightsWithBothHands(both, tiles)).toBe(true);
   });
 
   /**
@@ -980,7 +978,6 @@ describe("taking turns between two hands", () => {
       const kit = held("rusty-sword", inert);
       expect(weaponSwungBy(kit, tiles, "offhand")).toBeNull();
       expect(handToSwing(kit, tiles, "offhand")).toBe("weapon");
-      expect(fightsWithBothHands(kit, tiles)).toBe(false);
     }
   });
 
@@ -1175,7 +1172,6 @@ describe("a weapon that needs both hands", () => {
     for (const preferred of HANDS) {
       expect(handToSwing(kit, tiles, preferred)).toBe("weapon");
     }
-    expect(fightsWithBothHands(kit, tiles)).toBe(false);
     expect(effectiveBattler(base, kit, tiles, "weapon").mastery).toBe("sharp");
   });
 

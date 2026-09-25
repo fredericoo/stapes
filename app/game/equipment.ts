@@ -642,14 +642,6 @@ export function handClaimedByTwoHander(
   return holding ? otherHand(holding) : null;
 }
 
-/** Whether this body has a weapon in each hand, and so a rotation at all. */
-export function fightsWithBothHands(
-  equipment: Equipment | null,
-  tilesById: Record<string, TileDef>,
-): boolean {
-  return HANDS.every((hand) => weaponSwungBy(equipment, tilesById, hand));
-}
-
 /**
  * The numbers a body fights with, given what it is wearing and which hand is
  * taking this turn.

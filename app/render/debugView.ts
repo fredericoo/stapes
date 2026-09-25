@@ -62,21 +62,13 @@ export function clampZoomOut(zoomOut: number): number {
 }
 
 /**
- * Where the pulled-back camera starts, given where the play square does.
+ * Where the play square starts inside a frame the camera has been pulled back
+ * from.
  *
  * Concentric, so the player stays in the middle of the frame and the play
  * square stays in the middle of the extra world rather than drifting to a
  * corner of it as the zoom changes.
  */
-export function debugCameraOrigin(
-  playCamera: { x: number; y: number },
-  zoomOut: number,
-): { x: number; y: number } {
-  const inset = (debugSpanPx(zoomOut) - VIEW_PX) / 2;
-  return { x: playCamera.x - inset, y: playCamera.y - inset };
-}
-
-/** The inverse: the play square inside a frame the camera has been pulled off. */
 export function playSquareOrigin(
   drawnCamera: { x: number; y: number },
   zoomOut: number,

@@ -77,21 +77,7 @@ import type { CellPatch, MotionEvent } from "./protocol";
  *   measured against, so they are placed rather than owned, and the place is
  *   what decides who hears them.
  */
-export type Audience =
-  | { kind: "actor"; actorId: string }
-  | {
-      kind: "cell";
-      x: number;
-      y: number;
-      /**
-       * The chunk the cell is in, when it has been worked out already.
-       *
-       * The server asks every client about every event, so it names the chunk
-       * once per event per tick rather than building the same key once per
-       * client. @see ScopedCell.chunk
-       */
-      chunk?: string;
-    };
+export type Audience = { kind: "actor"; actorId: string } | { kind: "cell"; x: number; y: number };
 
 /** Who this event is for. @see Audience */
 export function audienceOf(event: MotionEvent): Audience {
@@ -109,27 +95,6 @@ export function audienceOf(event: MotionEvent): Audience {
       return { kind: "cell", x: event.x, y: event.y };
     default:
       return { kind: "actor", actorId: event.actorId };
-  }
-}
-
-/**
- * Does this reach a client subscribed to `chunks` and holding `known` bodies?
- *
- * `known` rather than a position test, so the answer agrees with what the
- * client was actually told: a body that has entered the subscription but whose
- * announcement has not gone out yet is not somebody this client can hang an
- * event on.
- */
-export function reaches(
-  audience: Audience,
-  chunks: ReadonlySet<string>,
-  known: ReadonlySet<string>,
-): boolean {
-  switch (audience.kind) {
-    case "actor":
-      return known.has(audience.actorId);
-    case "cell":
-      return chunks.has(audience.chunk ?? chunkKeyFor(audience.x, audience.y));
   }
 }
 
@@ -165,38 +130,12 @@ export type ScopedCell = {
 };
 
 /**
- * The cells of this patch that a client is owed, each carrying only the bodies
- * that client holds.
+ * One cell as this client should have it, or null when it is not news.
  *
- * Returns null when every cell survives untouched, which is how the caller
- * tells that this client takes the patch whole — and what lets all of them
- * share one serialization. A same-length answer would not do: a cell can come
- * back with a body taken out of it and the count unchanged.
+ * The same object when nothing in it had to change for this client, which is
+ * how the server tells a patch it can send whole — and what lets every client
+ * that takes it whole share one serialization. An equal copy would not do.
  */
-export function cellsInScope(
-  cells: readonly ScopedCell[],
-  chunks: ReadonlySet<string>,
-  held: ReadonlySet<string>,
-  known: ReadonlySet<string>,
-): CellPatch[] | null {
-  let out: CellPatch[] | null = null;
-  for (let i = 0; i < cells.length; i++) {
-    const scoped = cells[i]!;
-    const mine = cellInScope(scoped, chunks, held, known);
-    if (mine === scoped.cell) {
-      out?.push(mine);
-      continue;
-    }
-    // The first one dropped or rewritten is where the copy starts: everything
-    // before it was this client's as it stood, and everything after is decided
-    // one at a time.
-    out ??= cells.slice(0, i).map((each) => each.cell);
-    if (mine) out.push(mine);
-  }
-  return out;
-}
-
-/** One cell as this client should have it, or null when it is not news. */
 export function cellInScope(
   scoped: ScopedCell,
   chunks: ReadonlySet<string>,
@@ -220,39 +159,4 @@ export function cellInScope(
   if (!terrain && !bodies.some((o) => held.has(o) || known.has(o))) return null;
   const stack = visibleStack(cell.stack, held);
   return stack === cell.stack ? cell : { ...cell, stack };
-}
-
-/** The events of this patch that such a client is owed. @see cellsInScope */
-export function eventsInScope(
-  events: MotionEvent[],
-  chunks: ReadonlySet<string>,
-  known: ReadonlySet<string>,
-): MotionEvent[] {
-  let out: MotionEvent[] | null = null;
-  for (let i = 0; i < events.length; i++) {
-    const event = events[i]!;
-    if (reaches(audienceOf(event), chunks, known)) {
-      out?.push(event);
-      continue;
-    }
-    out ??= events.slice(0, i);
-  }
-  return out ?? events;
-}
-
-/** Entries of an actor-keyed diff that such a client is owed. @see cellsInScope */
-export function patchesInScope<T extends { actorId: string }>(
-  patches: T[],
-  known: ReadonlySet<string>,
-): T[] {
-  let out: T[] | null = null;
-  for (let i = 0; i < patches.length; i++) {
-    const patch = patches[i]!;
-    if (known.has(patch.actorId)) {
-      out?.push(patch);
-      continue;
-    }
-    out ??= patches.slice(0, i);
-  }
-  return out ?? patches;
 }

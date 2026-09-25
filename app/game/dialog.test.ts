@@ -133,6 +133,8 @@ const tiles: TileDef[] = [
     interactions: { item: { type: "consumable", label: "Drink", hp: 0, pile: 4 } },
   }),
   tile({ id: "seller", height: 4, walkable: false, interactions: { dialog } }),
+  // A body with nothing to say: driven, so it is an actor, and no dialog.
+  tile({ id: "mute", height: 4, walkable: false, actor: true }),
   tile({
     id: "server",
     height: 4,
@@ -221,11 +223,9 @@ describe("opening a conversation", () => {
   });
 
   it("refuses a body with no dialog, and one out of reach", () => {
-    const far = new GameSession(fieldWith("seller", 4, 0), tiles);
-    expect(talkTo(far, "seller")).toBe(false);
-    expect(far.canTalk(bodyRef(far, "seller"))).toBe(false);
-    const near = new GameSession(fieldWith("seller", 3, 1), tiles);
-    expect(near.canTalk(bodyRef(near, "seller"))).toBe(true);
+    expect(talkTo(new GameSession(fieldWith("mute"), tiles), "mute")).toBe(false);
+    expect(talkTo(new GameSession(fieldWith("seller", 4, 0), tiles), "seller")).toBe(false);
+    expect(talkTo(new GameSession(fieldWith("seller", 3, 1), tiles), "seller")).toBe(true);
   });
 
   it("refuses through a wall", () => {
@@ -241,13 +241,13 @@ describe("opening a conversation", () => {
       { tileId: "step" },
       { tileId: "seller" },
     ]);
-    expect(new GameSession(map, tiles).canTalk({ x: 2, y: 0, z: 0, stackIndex: 2 })).toBe(true);
+    expect(talkTo(new GameSession(map, tiles), "seller")).toBe(true);
     map = replaceStack(map, 2, 0, 0, [
       { tileId: "grass" },
       { tileId: "block" },
       { tileId: "seller" },
     ]);
-    expect(new GameSession(map, tiles).canTalk({ x: 2, y: 0, z: 0, stackIndex: 2 })).toBe(false);
+    expect(talkTo(new GameSession(map, tiles), "seller")).toBe(false);
   });
 
   it("closes when the player walks out of reach, silently", () => {

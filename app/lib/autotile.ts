@@ -88,13 +88,6 @@ export function blobMaskToSlice(rawMask: number): AutotileSlice {
   return MASK_TO_SLICE[rawMask & 0xff] ?? 0;
 }
 
-/** Number of unique blob configurations (should be 47). */
-export function blobSliceCount(): number {
-  const uniq = new Set<number>();
-  for (let i = 0; i < 256; i++) uniq.add(MASK_TO_SLICE[i]);
-  return uniq.size;
-}
-
 const NEIGHBOR_OFFSETS: { bit: number; dx: number; dy: number }[] = [
   { bit: N, dx: 0, dy: -1 },
   { bit: NE, dx: 1, dy: -1 },

@@ -1,4 +1,4 @@
-import type { LevelChunks, LightDef, MapFile, PlacedTile, TileDef } from "./types";
+import type { LightDef, MapFile, PlacedTile, TileDef } from "./types";
 import {
   HEIGHT_PER_LEVEL,
   MAX_LEVEL,
@@ -1003,50 +1003,6 @@ export function overlayEmitterOverrides(
   }
 
   return out;
-}
-
-/** Every (cellKey, stack) on a level, across its chunks. */
-function* allCells(level: LevelChunks): Generator<[string, PlacedTile[]]> {
-  for (const chunk of Object.values(level)) {
-    yield* Object.entries(chunk);
-  }
-}
-
-/**
- * Stable key for static lighting: map content excluding tiles whose lights are
- * painted dynamically (player). Moving those tiles alone must not invalidate
- * the sky/torch bake.
- */
-export function staticLightingMapKey(map: MapFile, omitLightTileIds: ReadonlySet<string>): string {
-  let h = 2166136261;
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
-    const level = map.levels[levelKey(z)];
-    if (!level) continue;
-    for (const [ck, stack] of allCells(level)) {
-      if (!stack.length) continue;
-      let any = false;
-      for (const placed of stack) {
-        if (omitLightTileIds.has(placed.tileId)) continue;
-        any = true;
-        for (let i = 0; i < placed.tileId.length; i++) {
-          h ^= placed.tileId.charCodeAt(i);
-          h = Math.imul(h, 16777619);
-        }
-        if (placed.direction) {
-          h ^= placed.direction.charCodeAt(0);
-          h = Math.imul(h, 16777619);
-        }
-      }
-      if (!any) continue;
-      h ^= z + 1;
-      h = Math.imul(h, 16777619);
-      for (let i = 0; i < ck.length; i++) {
-        h ^= ck.charCodeAt(i);
-        h = Math.imul(h, 16777619);
-      }
-    }
-  }
-  return (h >>> 0).toString(36);
 }
 
 export function sampleLevelLight(

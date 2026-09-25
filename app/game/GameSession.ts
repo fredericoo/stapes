@@ -3332,20 +3332,6 @@ export class GameSession implements PlaySession {
   }
 
   /**
-   * How good at fighting one actor is — their ⭐ — or null for a body with no
-   * stats at all.
-   *
-   * Public because the server persists nothing derived and shows plenty: this is
-   * the number beside a name on inspect, and it must be the same number the
-   * reward curve divides by or the player is being shown a different game from
-   * the one they are playing.
-   */
-  ratingIn(id: string): number | null {
-    const actor = this.actors.get(id);
-    return actor ? this.ratingOf(actor) : null;
-  }
-
-  /**
    * Where actors enter. Must be carried alongside any map this session is
    * checkpointed into — see the constructor.
    */
@@ -3979,14 +3965,6 @@ export class GameSession implements PlaySession {
           : chooseOption(dialog, current, action.index, view);
     if (!next) return false;
     return this.setConversation(actor, next);
-  }
-
-  /** Could this actor open a conversation with the body at this slot? */
-  canTalk(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
-    const actor = this.actors.get(id);
-    const loc = actor && this.tryLocate(actor);
-    if (!loc) return false;
-    return canTalkFrom(this.map, this.tilesById, loc, ref) && this.npcAt(ref) != null;
   }
 
   private openTalk(actor: ActorRuntime, ref: ObjectRef): boolean {

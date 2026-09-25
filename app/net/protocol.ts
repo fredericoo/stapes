@@ -363,7 +363,7 @@ export type CellPatch = {
  * **Carried on the cell rather than in a list of its own**, so it goes wherever
  * the cell goes and nowhere else: a status change marks its cell changed, and
  * the cell is scoped to the clients subscribed to its chunk exactly as a tile
- * swap is (`./scope`'s `cellsInScope`). A chunk handed over as it comes into
+ * swap is (`./scope`'s `cellInScope`). A chunk handed over as it comes into
  * reach carries its fires with it. Nothing about a fire outside a client's
  * ground goes on the wire, and the server keeps no per-client record to decide
  * that.
