@@ -2985,6 +2985,38 @@ describe("a creature casting with no target", () => {
     expect(hpOf(play)).toBe(before);
   });
 
+  /**
+   * A conjure is the exception: with no target it lands in front of the
+   * caster, as a press with nobody picked does.
+   */
+  it("lays a conjure with no target in front of itself", () => {
+    const layer = casterTile([]);
+    const battler = layer.interactions!.battler as Record<string, unknown>;
+    battler.spells = [
+      {
+        type: "stone",
+        name: "Kindle",
+        effect: { kind: "conjure", tileId: "conjured-flame" },
+        cooldownMs: 30_000,
+      },
+    ];
+    layer.interactions!.brain = {
+      initial: "casting",
+      states: { casting: { do: [{ action: "cast", spell: 1 }, { action: "hold" }] } },
+      transitions: [],
+    };
+    // Facing east, away from the player at the origin, so "in front" is (3, 0).
+    const map = replaceStack(world(), 2, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "mender", direction: "e" },
+    ]);
+    const play = new GameSession(map, [...props, playerTile([]), layer], { statuses: catalogue });
+
+    run(play, TICKS_PER_SECOND);
+
+    expect(getStack(play.getMap(), 3, 0, 0).map((p) => p.tileId)).toContain("conjured-flame");
+  });
+
   /** A brain written before `of` was optional still loads and runs. */
   it("ignores an `of` on a spell that lands on its caster", () => {
     const { play, mender } = pointedAtPlayer([

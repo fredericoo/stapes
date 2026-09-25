@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import statusesJson from "../../data/statuses.json";
 import tilesJson from "../../data/tiles.json";
 import {
   ANY_STATE,
@@ -17,7 +18,7 @@ import {
 } from "../lib/brain";
 import { group } from "../lib/conditions";
 import { constantFormula } from "../lib/formula";
-import { DEFAULT_STATUS_SOURCE, type StatusDef } from "../lib/status";
+import { DEFAULT_STATUS_SOURCE, type StatusDef, statusesById } from "../lib/status";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { normalizeTiles } from "../lib/types";
@@ -271,6 +272,7 @@ describe("deciding", () => {
       consumeOn: vi.fn(() => false),
       carrying: () => false,
       hasStatus: () => false,
+      standOff: () => null,
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
@@ -1171,6 +1173,7 @@ describe("giving up", () => {
       consumeOn: () => false,
       carrying: () => false,
       hasStatus: () => false,
+      standOff: () => null,
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
@@ -1561,6 +1564,7 @@ describe("actions that take time", () => {
       consumeOn: vi.fn(() => false),
       carrying: () => false,
       hasStatus: () => false,
+      standOff: () => null,
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
@@ -2014,6 +2018,7 @@ describe("a deer that yelps", () => {
       consumeOn: () => false,
       carrying: () => false,
       hasStatus: () => false,
+      standOff: () => null,
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
@@ -2103,6 +2108,7 @@ describe("a deer that yelps", () => {
       consumeOn: () => false,
       carrying: () => false,
       hasStatus: () => false,
+      standOff: () => null,
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
@@ -2832,6 +2838,7 @@ describe("composing conditions", () => {
       consumeOn: vi.fn(() => false),
       carrying: () => false,
       hasStatus: () => false,
+      standOff: () => null,
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
@@ -3565,6 +3572,217 @@ describe("the wolf we ship", () => {
 });
 
 /**
+ * `attack_range`, on a board: a body walks to where its own weapon strikes
+ * from, and the distance comes from the weapon rather than from the brain.
+ *
+ * Built on the shipped bow and mace, because the whole claim is about their
+ * `reach` — the bow's `min` is what puts a hole in the middle of its range.
+ */
+describe("keeping to its weapon's range", () => {
+  const authored = normalizeTiles(tilesJson as unknown[]);
+  const imp = authored.find((def) => def.id === "bog-imp")!;
+
+  /** A body holding `weapon` whose one line is to keep its range from alice. */
+  function keeper(weapon: string): TileDef {
+    const battler = imp.interactions!.battler!;
+    return {
+      ...imp,
+      id: "keeper",
+      interactions: {
+        battler: { ...battler, kit: [{ slot: "weapon" as const, tileId: weapon, chance: 100 }] },
+        brain: {
+          initial: "keeping",
+          states: {
+            keeping: {
+              do: [
+                { action: "attack_range", of: { type: "nearest", data: { tileIds: ["player"] } } },
+                { action: "hold" },
+              ],
+            },
+          },
+          transitions: [],
+        },
+      },
+    };
+  }
+
+  /** Open dirt, the keeper at the origin and alice `aliceX` cells east. */
+  function yard(weapon: string, aliceX: number): GameSession {
+    let map = emptyMap();
+    for (let x = -12; x <= 12; x++) {
+      for (let y = -12; y <= 12; y++) {
+        map = replaceStack(map, x, y, 0, [{ tileId: "dirt" }]);
+      }
+    }
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "dirt" }, { tileId: "keeper" }]);
+    map = replaceStack(map, aliceX, 0, 0, [
+      { tileId: "dirt" },
+      { tileId: "player", direction: "w", owner: "alice" },
+    ]);
+    return new GameSession(map, [...authored, keeper(weapon)], {
+      actorIds: ["alice"],
+      spawnAt: { x: 12, y: 12, z: 0, stackIndex: 1 },
+      seed: 20260925,
+    });
+  }
+
+  /** Plan distance squared between the keeper and alice after `ms`. */
+  function apartSqAfter(session: GameSession, ms: number): number {
+    for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) session.tick(TICK_MS);
+    const actors = session.actorSnapshots();
+    const a = actors.find((actor) => actor.tileId === "keeper")!;
+    const b = actors.find((actor) => actor.tileId === "player")!;
+    return (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
+  }
+
+  /** The hunting bow shoots from two cells to eight. */
+  const BOW_MIN = 2;
+  const BOW_REACH = 8;
+
+  it("walks a bow up until the target is in reach, and no closer", () => {
+    const apartSq = apartSqAfter(yard("hunting-bow", 12), 4000);
+    expect(apartSq).toBeLessThanOrEqual(BOW_REACH ** 2);
+    // One step of overshoot is allowed: a standing walk order can take a step
+    // before the brain looks again.
+    expect(apartSq).toBeGreaterThanOrEqual((BOW_REACH - 1) ** 2);
+  });
+
+  it("backs a bow off somebody standing inside its minimum range", () => {
+    const apartSq = apartSqAfter(yard("hunting-bow", 1), 4000);
+    expect(apartSq).toBeGreaterThanOrEqual(BOW_MIN ** 2);
+    expect(apartSq).toBeLessThanOrEqual(BOW_REACH ** 2);
+  });
+
+  it("walks a melee weapon up beside the target", () => {
+    expect(apartSqAfter(yard("iron-mace", 6), 4000)).toBeLessThanOrEqual(2);
+  });
+});
+
+/**
+ * The bog imp and the cyclops we ship, and the two things about them that live
+ * in the order of their rows: where each goes to sleep, and which of its spells
+ * a hunt throws.
+ *
+ * The status catalogue is passed, unlike the wolf's cases above, because "fell
+ * asleep" is read off the `sleep` status rather than off a body that stopped
+ * moving.
+ */
+describe("the bog imp and the cyclops we ship", () => {
+  const authored = normalizeTiles(tilesJson as unknown[]);
+  const statuses = statusesById(statusesJson as unknown[]);
+  const NOON = 12 * 60;
+  const MIDNIGHT = 0;
+
+  /**
+   * Open dirt with `creature` at the origin and whatever `extras` puts on it.
+   * Alice spawns in the far corner unless `aliceX` stands her on the row.
+   */
+  function field(
+    creature: string,
+    minutes: number,
+    extras: { flameX?: number; aliceX?: number } = {},
+  ): GameSession {
+    let map = emptyMap();
+    for (let x = -20; x <= 20; x++) {
+      for (let y = -20; y <= 20; y++) {
+        map = replaceStack(map, x, y, 0, [{ tileId: "dirt" }]);
+      }
+    }
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "dirt" }, { tileId: creature }]);
+    if (extras.flameX !== undefined) {
+      map = replaceStack(map, extras.flameX, 0, 0, [{ tileId: "dirt" }, { tileId: "flame" }]);
+    }
+    if (extras.aliceX !== undefined) {
+      map = replaceStack(map, extras.aliceX, 0, 0, [
+        { tileId: "dirt" },
+        { tileId: "player", direction: "w", owner: "alice" },
+      ]);
+    }
+    return new GameSession(map, authored, {
+      actorIds: ["alice"],
+      spawnAt: { x: 20, y: 20, z: 0, stackIndex: 1 },
+      seed: 20260925,
+      clock: () => minutes,
+      statuses,
+    });
+  }
+
+  function body(session: GameSession, tileId: string) {
+    return session.actorSnapshots().find((a) => a.tileId === tileId)!;
+  }
+
+  function asleep(session: GameSession, tileId: string): boolean {
+    const statusList = session.statusesOf(body(session, tileId).id) ?? [];
+    return statusList.some((status) => status.defId === "sleep");
+  }
+
+  function noisesOver(session: GameSession, ms: number): string[] {
+    const heard: string[] = [];
+    for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      for (const noise of session.drainNoise()) heard.push(noise.text);
+    }
+    return heard;
+  }
+
+  it("walks the imp to the nearest flame at night and puts it to sleep beside it", () => {
+    const session = field("bog-imp", MIDNIGHT, { flameX: 8 });
+    noisesOver(session, 6000);
+
+    const imp = body(session, "bog-imp");
+    expect(Math.abs(imp.x - 8) + Math.abs(imp.y)).toBeLessThanOrEqual(2);
+    expect(asleep(session, "bog-imp")).toBe(true);
+  });
+
+  /** With no flame near, it makes one: Make fire lays a campfire in front of it. */
+  it("lights a campfire when no flame is near and puts the imp to sleep beside it", () => {
+    const session = field("bog-imp", MIDNIGHT);
+    noisesOver(session, 6000);
+
+    const imp = body(session, "bog-imp");
+    let campfire: { x: number; y: number } | null = null;
+    for (let x = imp.x - 2; x <= imp.x + 2; x++) {
+      for (let y = imp.y - 2; y <= imp.y + 2; y++) {
+        if (getStack(session.getMap(), x, y, 0).some((p) => p.tileId === "campfire")) {
+          campfire = { x, y };
+        }
+      }
+    }
+    expect(campfire).not.toBeNull();
+    expect(asleep(session, "bog-imp")).toBe(true);
+  });
+
+  /**
+   * The hunt casts its spells by position, and the sleep is first: a row that
+   * named the wrong one would put the imp to sleep in front of its prey.
+   */
+  it("opens a hunt by day by throwing a stone at somebody it can see", () => {
+    const session = field("bog-imp", NOON, { aliceX: 6 });
+    let thrown = false;
+    for (let elapsed = 0; elapsed < 3000 && !thrown; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      thrown = session.getSnapshot("alice").projectiles.some((f) => f.tileId === "thrown-stone");
+    }
+
+    expect(thrown).toBe(true);
+    expect(asleep(session, "bog-imp")).toBe(false);
+  });
+
+  it("puts the cyclops to sleep at night with somebody standing in front of it", () => {
+    const session = field("cyclops", MIDNIGHT, { aliceX: 3 });
+
+    expect(noisesOver(session, BRAIN_TICK_MS * 10)).toEqual([]);
+    expect(asleep(session, "cyclops")).toBe(true);
+  });
+
+  it("sends the cyclops after somebody it can see by day", () => {
+    expect(noisesOver(field("cyclops", NOON, { aliceX: 3 }), BRAIN_TICK_MS * 2)).toContain(
+      "*BELLOW*",
+    );
+  });
+});
+
+/**
  * The two things in the world that want to hurt you, as authored.
  *
  * Here for the same reason the cat is: the machinery being right and the content
@@ -3619,6 +3837,7 @@ describe("knowing where it belongs", () => {
       consumeOn: vi.fn(() => false),
       carrying: () => false,
       hasStatus: () => false,
+      standOff: () => null,
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
@@ -4873,6 +5092,7 @@ describe("naming a thing", () => {
       consumeOn: vi.fn(() => false),
       carrying: () => false,
       hasStatus: () => false,
+      standOff: () => null,
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
@@ -5051,6 +5271,7 @@ describe("asking what a body is under", () => {
       consumeOn: vi.fn(() => true),
       carrying: () => false,
       hasStatus: vi.fn(() => false),
+      standOff: () => null,
       health: vi.fn((): number | null => 1),
       minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
@@ -5285,6 +5506,7 @@ describe("casting a spell of its own", () => {
       consumeOn: vi.fn(() => false),
       carrying: () => false,
       hasStatus: () => false,
+      standOff: () => null,
       health: () => 1,
       minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,

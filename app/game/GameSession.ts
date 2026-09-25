@@ -38,6 +38,7 @@ import {
   type StoneEffect,
   UNNAMED_SPELL,
   UNNAMED_WEAPON,
+  type Reach,
   type WeaponStatus,
   resolveConsumable,
   resolveCharm,
@@ -208,6 +209,7 @@ import {
   spilled,
   stoneLocked,
   weaponInHand,
+  weaponSwungBy,
 } from "./equipment";
 import {
   CAST_SQUARES,
@@ -240,7 +242,7 @@ import {
 } from "./experience";
 import { mintItemIds } from "./itemIds";
 import { dodgeAway, outranksSwing, swingToward, type StrikeState } from "./strike";
-import type { ReachPoint } from "./distance";
+import { planDistanceSq, type ReachPoint } from "./distance";
 import {
   ageEffects,
   ageFlights,
@@ -312,6 +314,7 @@ import {
   type BrainMemory,
   type FoundThing,
   type SightLevels,
+  type StandOff,
   type Sound,
   type Utterance,
   type WalkGoal,
@@ -4327,6 +4330,7 @@ export class GameSession implements PlaySession {
       consumeOn: (at, tileId) => this.consumeOnGround(actor, at, tileId),
       carrying: (tileId) => this.carryingInBag(actor, tileId),
       hasStatus: (id, atLeastMs) => this.hasStatus(actor, id, atLeastMs),
+      standOff: (id) => this.standOff(actor, id),
       health: () => this.healthShare(actor),
       minutesOfDay: round.minutesOfDay,
       nameOf: (id) => this.bodyName(id),
@@ -8428,9 +8432,14 @@ export class GameSession implements PlaySession {
     // one it is fighting. A line naming nobody at all is refused a spell that
     // needs somebody, rather than borrowing whoever the body already points at:
     // "no target" in the editor has to mean the same thing whatever came before.
+    //
+    // A conjure is the one exception, because a press with nobody picked is
+    // already a conjure's other way of landing: in front of the caster. So a
+    // line with no `of` clears the aim rather than being refused, which is what
+    // lets a creature lay a fire where it stands.
     if (needsTarget(stone)) {
-      if (targetId === undefined) return "no";
-      actor.targetId = targetId;
+      if (targetId === undefined && stone.effect.kind !== "conjure") return "no";
+      actor.targetId = targetId ?? null;
     }
     // Refusals are not said out loud on a creature's behalf, and nothing here
     // has to arrange that: `say` drops a notice addressed to a resident, which
@@ -8440,6 +8449,53 @@ export class GameSession implements PlaySession {
     // A bar rather than a spell that has landed: `cast` starts one when the
     // stone has a time on it, and resolves on the spot when it does not.
     return actor.casting ? "casting" : "cast";
+  }
+
+  /**
+   * Where this body stands against somebody, by the reach it would strike them
+   * with. What the brain's `attack_range` reads.
+   *
+   * **The reach is the first hand holding a weapon, else the body's own**, in
+   * `HANDS` order, which is the order `tryAttack` offers the hands in. A body
+   * with a bow and a knife is placed for the bow when the bow is in the main
+   * hand; the knife still takes the turns the bow cannot when somebody closes.
+   *
+   * **In position is anywhere the weapon reaches, and no closer.** It stops
+   * the moment the target is in reach, so a bow shoots from as far out as it
+   * can. An earlier version aimed for a ring at the bow's `min`, one cell
+   * wide, and a standing walk order carries a body one step past wherever
+   * the brain last looked: the imp crossed the ring, backed off, crossed it
+   * again, and the walking kept resetting the windup so it never loosed an
+   * arrow. The whole reach is many cells deep, so one step of overshoot
+   * stays inside it. Inside `min` is too close; out of reach, or in reach
+   * with a wall in the way, is too far, and the walk up routes round the
+   * wall.
+   */
+  private standOff(actor: ActorRuntime, targetId: string): StandOff | null {
+    const target = this.actors.get(targetId);
+    if (!target) return null;
+    const from = this.tryLocate(actor);
+    const to = this.tryLocate(target);
+    if (!from || !to) return null;
+    const reach = this.strikingReach(actor);
+    if (!reach) return null;
+
+    const fromPoint = this.reachPointOf(from);
+    const toPoint = this.reachPointOf(to);
+    const min = reach.min ?? 0;
+    if (planDistanceSq(fromPoint, toPoint) < min * min) return "too_close";
+    return canReach(this.map, this.tilesById, fromPoint, toPoint, reach)
+      ? "in_position"
+      : "too_far";
+  }
+
+  /** The reach of the first hand holding a weapon, else of the body's own. */
+  private strikingReach(actor: ActorRuntime): Reach | null {
+    for (const hand of HANDS) {
+      const weapon = weaponSwungBy(actor.equipment, this.tilesById, hand);
+      if (weapon) return weapon.reach;
+    }
+    return this.battlerOf(actor)?.reach ?? null;
   }
 
   /**

@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
+import tilesJson from "../../data/tiles.json";
 import { DEFAULT_BATTLER, resolveBattler } from "../lib/battler";
 import { DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
 import type { Kit } from "../lib/kit";
 import type { TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
+import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { equipmentForBody, equipmentFromKit } from "./battlerKit";
 import type { Equipment, Hand } from "./equipment";
 import { effectiveBattler, emptyEquipment, HANDS, handToSwing, wornInstances } from "./equipment";
+import { Rng } from "./rng";
 
 /**
  * The hand a body starts a fight on, which is what nearly every case here means.
@@ -478,5 +480,35 @@ describe("what a body of a given kind carries", () => {
 
   it("carries nothing when the catalogue has lost the tile", () => {
     expect(equipmentForBody("no-such-body", bodies, dice([]).random)).toEqual(emptyEquipment());
+  });
+});
+
+/**
+ * The bog imp's weapon is one weighted table on one hand, and the promise it
+ * was authored to keep is an even split across the four rung-15 weapons.
+ *
+ * The first entry that rolls takes the hand, so each row's chance is a share of
+ * what the rows above it left — 25, then a third, then a half, then the rest.
+ * Reordering the rows or retyping one chance as a flat 25 still parses and still
+ * arms every imp, and only the split shows it.
+ */
+describe("the bog imp we ship", () => {
+  const catalogue = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]));
+  const WEAPONS = ["knights-sword", "broad-axe", "iron-mace", "hunting-bow"];
+  const BODIES = 4000;
+
+  it("holds each of its four weapons about a quarter of the time", () => {
+    const rng = new Rng(20260925);
+    const counts: Record<string, number> = {};
+    for (let i = 0; i < BODIES; i++) {
+      const held = equipmentForBody("bog-imp", catalogue, () => rng.next()).weapon?.tileId;
+      counts[held ?? "nothing"] = (counts[held ?? "nothing"] ?? 0) + 1;
+    }
+
+    expect(Object.keys(counts).sort()).toEqual([...WEAPONS].sort());
+    for (const weapon of WEAPONS) {
+      expect(counts[weapon]! / BODIES).toBeGreaterThan(0.22);
+      expect(counts[weapon]! / BODIES).toBeLessThan(0.28);
+    }
   });
 });

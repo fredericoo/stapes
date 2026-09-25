@@ -5007,6 +5007,18 @@ creature directly in front, landed on top of that creature. It is read off the
 cell now (`lowestBodyIn`), under the lowest body there, so both ways of aiming
 put the tile in the same slot.
 
+#### An appear on a projectile has to be shorter than its flight
+
+A flight wears its `appear` transition from the moment it is loosed, and a
+dissolve-in is drawn as a share of the sprite: at 30% through, 30% of the
+arrow's pixels are there. The arrow carried a 700ms noise dissolve at 20 cells
+a second, so a shot across eight cells was in the air for 400ms and was never
+more than 57% drawn, and one across two cells for 100ms, at 14%. On a one-cell
+sprite in 3px clumps that is nothing anybody sees: the bog imp's arrows hit
+and were never seen to fly. The arrow has no appear now. The fireball still
+has a 300ms one at the same speed, so a fireball thrown less than six cells is
+still only partly drawn when it lands.
+
 #### A conjure lands where the caster could step, or is not cast
 
 With nobody targeted the cell is the one `canWalk` would step the caster's own
@@ -8172,6 +8184,11 @@ nobody in one way: it never touches `actor.targetId`.
 - **A spell that needs a target is refused for a line with no `of`**, even when
   the creature already points at somebody. "No target" means the same thing
   whatever the brain did before it, so the line falls through.
+- **Except a conjure, which lands in front of the caster.** A player's press
+  with nobody picked already lays a conjure in the cell they face, so a line
+  with no `of` does the same: `castForBrain` clears the creature's aim and
+  casts. Clearing is what makes it "in front" rather than "under whoever it was
+  pointing at". The bog imp's Make fire is the line this exists for.
 - **There is no `self` selector.** Attacking, walking to, extracting from or
   eating yourself mean nothing, so every other action taking a selector would
   have to refuse it. The one action where "me" means something is `cast`, and
@@ -8181,6 +8198,174 @@ nobody in one way: it never touches `actor.targetId`.
   spell lands on its caster. Picking such a spell drops a stale `of` from the
   row (`dropSelfAims` in `BrainEditor.tsx`), so the file never carries a
   selector no control displays.
+
+## `attack_range` stands where the weapon strikes from
+
+`step_toward` walks until it is beside somebody, which is right for a sword and
+wrong for a bow: a bow has a `reach.min`, so beside is the one place it cannot
+shoot. `attack_range` asks the weapon instead. The session answers
+`BrainContext.standOff` with one of three words, and the action backs off, walks
+up, or fails so the line below it — the `attack` — gets its turn.
+
+- **The reach is the first hand holding a weapon, else the body's own**, in
+  `HANDS` order, which is the order `tryAttack` offers them. It is the weapon's
+  number and nothing in the brain, so one line serves an imp that rolled a mace
+  and one that rolled a bow.
+- **In position is anywhere the weapon reaches, and no closer.** It stops the
+  moment the target is in reach, so a bow shoots from as far out as it can
+  and anything melee ends beside the target. Only inside a `min` is it too
+  close.
+- **It was a ring once, and the ring oscillated.** The first version aimed a
+  bow at a band from `min` to one cell past it. A standing walk order takes a
+  step whenever the body is idle, and the brain only clears it on its next
+  round, so a body carries one step past wherever the brain last looked. In
+  play the archer imp crossed the band, backed off, crossed it again, and
+  every step reset its windup, so it never loosed an arrow. The whole reach
+  is many cells deep, and one step of overshoot stays inside it.
+- **A wall makes it too far**, because `canReach` is asked with the line of
+  sight, and the walk up routes round the wall. Too close is a flee from where
+  the target stands, on `step_away_from`'s machinery.
+- **It judges only between steps.** While a step is in flight it reports
+  `running` and does nothing else: the cell a body is leaving is not where it
+  will be when the answer is acted on. The brain's round is one walk long (`BRAIN_TICK_MS` is
+  `WALK_DURATION_MS`), so waiting costs no pace: the imp walks up at a cell per
+  200ms. `walk_n_steps` waits on `busy` for the same kind of reason.
+
+## The bog imp and the cyclops
+
+Two creatures on the green goblin and the cyclops in `animals.png`, authored in
+`data/tiles.json`. Two brain changes came with them: `attack_range`, and a
+`cast` with no target that lays a conjure in front of the caster.
+
+### The bog imp
+
+**Its weapon is a weighted table on one hand.** The four rung-15 weapons —
+knight's sword, broad axe, iron mace, hunting bow — each come up a quarter of
+the time. `equipmentFromKit` gives the hand to the first entry that rolls, so
+the chances are 25, 33.34, 50 and 100: each is a share of what the rows above
+left. Four flat 25s would parse and arm three imps in four, with the bow on
+forty percent of them. `battlerKit.test.ts` holds the split. Rung 15 rather
+than rung 10 because rung 10 has no bow, and a bow was asked for.
+
+**Its masteries sit below the weapons it holds, on purpose.** Sharp, Blunt and
+Ranged are 12, three points short of every weapon in the table, so it pays the
+handling charge on accuracy and swing rate and keeps the full damage. At 22,
+the first figure tried, an earned player (Sharp 15, a knight's sword and a
+cloth tunic) won 1–10% of duels against the melee imps. At 12, measured with
+`runDuel` against the same player:
+
+```
+                      player wins     wolf wins
+  wolf                   0.76
+  imp, bare            0.71–0.81      0.39–0.72     (sword, axe, mace)
+  imp, all armour      0.47–0.52      0.02–0.04
+  imp, bow             0.93           0.85          (in contact: no range)
+```
+
+Each armour piece is 25%, so most imps are near the first row: about a wolf in
+contact, plus the stone and, on a quarter of them, a bow that opens the fight
+from eight cells. That is "a little stronger than a wolf". The bow row is low
+because a duel starts both bodies in contact, where a bow inside its
+`reach.min` does not fire. In the world the imp shoots from range and backs off
+to keep it.
+
+**Throw stone is its second spell and the hunt names it by position.** A bolt
+at the target for 12, variance 30, 500ms to cast, eight seconds to cool, nine
+cells of reach. It asks for nothing, so it is castable with no Arcane and does
+its authored damage — about half a rung-15 weapon's blow. It flies as
+`thrown-stone`, a new one-cell projectile on the unused grey pebble at
+`tiny-ranch-tiles` (11, 14). Curl up is spell 1 because the sleep rows were
+written against the wolf's layout; the hunt's `cast` names spell 2, and a test
+fails if that ever puts the imp to sleep in front of its prey.
+
+**Bedtime is two rows per roaming state, a fire first.** At night, from each
+state it roams in, the imp goes to `to_fire` if a `flame` or a `campfire` is
+within 16 cells (binding it as `$fire`), and to `making_fire` otherwise.
+`to_fire` walks to the fire and sleeps once within two cells. `making_fire`
+casts its third spell, **Make fire** — a conjure of `campfire` with no target,
+which lands in the cell it faces (see *A brain `cast` can name no target*) —
+and the next round finds the fire within three cells and goes to `to_fire`. A
+wall in front refuses the conjure, so the line below it takes one step, which
+turns the imp, and it tries again; after eight seconds with no fire it sleeps
+anyway. Being stuck on the way to a fire counts as arriving.
+
+`campfire` is `flame` with a `decay` of ten to thirteen minutes: a night is
+eleven game hours, which is eleven real minutes, and a fire every imp lit and
+nobody put out would pile up across the map. The cooldown is a minute, so an
+imp woken in the night and driven off lights at most one more.
+
+**It roams 32 cells from its spawn and lets a chase or a meal take it to 36.**
+That makes `brainReach` 36, and `brainReach` is also how far a `thing` search
+looks. A hungry imp with no food or bush in sight rings out to 36 cells every
+round looking for one, where the wolf stops at 20. The rows put the day and
+hunger gates before the `in_los` on a thing, so a fed imp, or any imp at
+night, never asks.
+
+**The hunt keeps its distance with `attack_range`.** The line order is the
+stone, then `attack_range`, then `attack`: an imp holding a bow stops as soon
+as its prey is within the bow's eight cells and backs off only inside two, and
+one holding a sword, an axe or a mace walks up beside it. See *`attack_range` stands where
+the weapon strikes from*.
+
+Both creatures have `swims: true`, so a river is a way through rather than a wall for either of them.
+
+It hunts the player on sight by day whether it is hungry or not, and wolves,
+rabbits, deer and rats only when it is hungry (`fed` under a minute left). It
+eats raw meat and berries off the ground, picks bushes into its bag and eats
+from there as the deer does, and is immune to food poisoning. The bag holds a
+torch and, half the time, a second one. Torches in a bag light nothing —
+`carriedLightTileIds` reads worn squares — so they are loot, not a lamp.
+
+### The cyclops
+
+**It is a boss, and it is meant to take a group.** No home rows: it wanders,
+hunts, eats and sleeps where night finds it — every roaming state goes to
+`sleeping` on `time_of_day 19→6` and back to `wandering` by day, with no
+`below_level` term, so it sleeps at night underground too. Sleep heals a whole
+bar in twenty seconds, so a group that leaves it to sleep starts again.
+
+- **Toughness 100**, the top of the mastery scale, is 20 defence on its own;
+  the maul and the basic armour bring it to 24. A player at Sharp 15 with a
+  knight's sword takes off 0.4% of it before dying.
+- **`baseHp` 1800**, 2000 hit points in all against the troll's 210.
+- **Blunt 30**, three short of the war maul it holds three times in four —
+  "the strongest mace" read as the top of the blunt family. At
+  25 it swung the maul at half the rate and a lone veteran lasted 55 seconds
+  instead of 24, which makes it a long solo fight rather than a group one.
+- **Immune to `burned`, `chilled`, `poison` and `paralysed`** — every status a
+  stone or a creature's spell leaves today, plus the snake's hold — and to
+  `food-poisoning`, since it eats raw meat. Not `sleep`, which is its own
+  spell. `battle.test.ts` fails when a stone gains a status the list lacks.
+
+What a veteran does to it alone — 33 in everything, rung-33 weapon, chain
+mail, iron helm, hobnailed boots — measured with `runDuel`:
+
+```
+                          takes off   dies in
+  maul                      7.7%        24s
+  longsword + iron shield   6.2%        24s
+```
+
+Nobody wins alone. With N players fighting at once and the cyclops killing one
+at a time, the damage it takes is about `N(N+1)/2` solo attempts' worth, so
+at 6–8% a solo it needs five veterans. The duel has no statuses, no range and
+no healing, so that is a floor on how many, not a promise.
+
+It respawns after thirty to forty-five minutes. Its bag holds a blank arcane
+stone one time in ten, and the rest of its gear is the bottom rung — cloth
+tunic, leather cap, worn boots, 50% each.
+
+It hunts the player on sight inside five cells and rats, rabbits, snakes, bats
+and deer inside six, all by day, and eats raw meat when it is hungry.
+
+### The facings are a guess
+
+The goblin and the cyclops blocks are laid out in the troll's order, so the
+tiles read them that way: north, east, south, west, two frames each,
+left to right and then (for the cyclops) top to bottom. Nothing can check
+that — see *A walk cycle in the wrong row is a bug only a person can see* —
+and the facings want looking at in the game. The cyclops's 4×4 frames stand
+on base cell (3, 3), the bottom-right.
 
 ## A status can stop its bearer acting, and damage can end one
 
