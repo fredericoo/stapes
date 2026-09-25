@@ -345,29 +345,48 @@ export function GameViewport({
   const heldContainer = openHand ? (equipment[openHand] ?? null) : null;
 
   /**
+   * On a phone a conversation or a forge takes the column the panels open in,
+   * and wins it — a panel opened under one is never seen. So there a press on
+   * any panel button while one is up shuts it and *opens* the panel, whatever
+   * the button's own state: a bag left open before the talk shows as pressed,
+   * and toggling it shut would be the opposite of what the press was for.
+   */
+  const panelsHidden = coarse && (conversation != null || crafting != null);
+  const shutWhatHidesPanels = () => {
+    if (conversation) onTalk?.({ kind: "close" });
+    if (crafting) onCloseCrafting?.();
+  };
+
+  /**
    * On a phone the two panels want the same space, so opening one closes the
    * other. With a mouse they stack in the column beside the game and are
    * genuinely independent.
    */
-  const openEquipment = (open: boolean) => {
+  const openEquipment = (pressed: boolean) => {
+    const open = pressed || panelsHidden;
     setEquipmentOpen(open);
     if (open && coarse) {
       setBagOpen(false);
       setStatsOpen(false);
+      shutWhatHidesPanels();
     }
   };
-  const openBag = (open: boolean) => {
+  const openBag = (pressed: boolean) => {
+    const open = pressed || panelsHidden;
     setBagOpen(open);
     if (open && coarse) {
       setEquipmentOpen(false);
       setStatsOpen(false);
+      shutWhatHidesPanels();
     }
   };
-  const openStats = (open: boolean) => {
+  const openStats = (pressed: boolean) => {
+    const open = pressed || panelsHidden;
     setStatsOpen(open);
     if (open && coarse) {
       setEquipmentOpen(false);
       setBagOpen(false);
+      shutWhatHidesPanels();
     }
   };
 
