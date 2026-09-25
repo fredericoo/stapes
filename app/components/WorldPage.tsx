@@ -190,14 +190,19 @@ export function WorldPage({
   const setPvp = useCallback((on: boolean) => {
     sessionRef.current?.setPvp(on);
   }, []);
-  const act = useCallback(
-    (option: InteractionOption) =>
-      // The renderer beside the session, because one row is not the board's
-      // business: following is walking, and the walking is the renderer's.
-      // @see ../game/interactionOptions' Follower
-      applyInteraction(sessionRef.current, option, rendererRef.current),
-    [],
-  );
+  const act = useCallback((option: InteractionOption) => {
+    const renderer = rendererRef.current;
+    // The row as the renderer holds it this frame, not as React was last handed
+    // it: a body that walked keeps its row and changes cell, and the ref in
+    // the copy held here is where it stood when the row appeared. A row that is
+    // no longer listed does nothing. @see GameRenderer's listOption
+    const current = renderer ? renderer.listOption(option.id) : option;
+    if (!current) return;
+    // The renderer beside the session, because one row is not the board's
+    // business: following is walking, and the walking is the renderer's.
+    // @see ../game/interactionOptions' Follower
+    applyInteraction(sessionRef.current, current, renderer);
+  }, []);
   const talk = useCallback((action: TalkAction) => sessionRef.current?.talk(action), []);
   const craft = useCallback(
     (ref: ObjectRef, recipeIndex: number) => sessionRef.current?.craft(ref, recipeIndex),

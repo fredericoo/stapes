@@ -1147,7 +1147,20 @@ export class GameRenderer {
   /** The hovered row's option as it stands this frame, or null. */
   private listHoverOption(): InteractionOption | null {
     if (this.listHoverId === null) return null;
-    return this.interactionsSent.find((o) => o.id === this.listHoverId) ?? null;
+    return this.listOption(this.listHoverId);
+  }
+
+  /**
+   * A row's option as it stands this frame, or null if the row has gone.
+   *
+   * What a pressed row acts on, for the reason the hover resolves by id: the
+   * page is only handed a new list when a row's id, label, state or health
+   * changes, so the option it holds keeps the `ref` from when it was handed
+   * over. A Talk row is keyed by who it is about, so an NPC who walks up to you
+   * keeps one row while its ref points at the cell where it entered reach.
+   */
+  listOption(optionId: string): InteractionOption | null {
+    return this.interactionsSent.find((o) => o.id === optionId) ?? null;
   }
 
   start() {
