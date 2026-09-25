@@ -40,6 +40,7 @@ import { DEFAULT_FACING } from "../app/game/actors";
 import type { CastProgress, CastSlot } from "../app/game/casting";
 import type { Progress } from "../app/game/progress";
 import { resolveRespawn } from "../app/lib/interactions";
+import { battlerIssues } from "../app/lib/battler";
 import { minutesOfDayAt, wrapMinutes, type MinutesOfDay } from "../app/lib/clock";
 import { masteryXpBlockSchema, type MasteryXp } from "../app/lib/mastery";
 import {
@@ -1761,6 +1762,7 @@ export class GameServer {
   private async load() {
     const store = this.store();
     this.tiles = await store.readTiles();
+    GameServer.warnUnloadableBattlers(this.tiles);
     // Beside the tiles because it is the same kind of thing: authored content
     // the world reads and never writes. Resolved once per load — `statusesById`
     // compiles every formula in it, which is exactly the work that must not
@@ -1902,6 +1904,27 @@ export class GameServer {
       const list = this.respawnPointsByCell.get(key) ?? [];
       list.push(point);
       this.respawnPointsByCell.set(key, list);
+    }
+  }
+
+  /**
+   * Name every battler tile whose block the world is about to ignore.
+   *
+   * `resolveBattler` drops a block that fails its schema and reads the tile as
+   * having no hit points and no spells, which is the right call for a world that
+   * has to start — see `../app/lib/battler`. The editor refuses to save one, so
+   * this is for content that reached `tiles.json` some other way: by hand, or
+   * from before a schema tightened. A log rather than a refusal to start, on
+   * exactly those terms. On load only, not on every editor save, because a
+   * save cannot write one.
+   */
+  private static warnUnloadableBattlers(tiles: readonly TileDef[]) {
+    for (const def of tiles) {
+      const issues = battlerIssues(def);
+      if (issues.length === 0) continue;
+      console.warn(
+        `stapes: tile "${def.id}" is kind battler but its block does not parse, so it has no hit points or spells:\n  ${issues.join("\n  ")}`,
+      );
     }
   }
 
