@@ -1903,6 +1903,19 @@ export class GameRenderer {
     return this.isWithinView(snap.map, actor, camera);
   }
 
+  /**
+   * Is this body standing where the light draws it black?
+   *
+   * Asked by the name tags and the interaction list, which say nothing about a
+   * body in the dark: the server still sends it and its sprite is still drawn,
+   * but a name or a row would say what is in a cave before any light reaches
+   * it. Never the viewer, whose own health is readable wherever they walk.
+   * @see WorldRenderer.isCellPitchBlack
+   */
+  private isInDarkness(snap: GameSnapshot, actor: ActorSnapshot): boolean {
+    return actor.id !== snap.self.id && this.world.isCellPitchBlack(actor.x, actor.y, actor.z);
+  }
+
   /** Where the targeted actor is standing right now, if they still are. */
   private targetOutline(snap: GameSnapshot): ObjectRef | null {
     if (snap.targetId === null) return null;
@@ -2324,6 +2337,7 @@ export class GameRenderer {
     for (const actor of snap.actors) {
       if (actor.hp === null || actor.maxHp === null) continue;
       if (!this.isVisibleBody(snap, actor, camera, cut)) continue;
+      if (this.isInDarkness(snap, actor)) continue;
 
       const visual = this.actorVisualWorld(snap.map, actor);
       const height = this.bodyOwnHeight(snap.map, actor, actor.stackIndex);
@@ -2816,7 +2830,12 @@ export class GameRenderer {
     const crafting = craftingAt
       ? `${craftingAt.x},${craftingAt.y},${craftingAt.z},${craftingAt.stackIndex}`
       : "";
-    const at = `${snap.self.x},${snap.self.y},${snap.self.z},${snap.targetId},${opened},${snap.attacking},${talking},${following},${crafting}`;
+    // Who is in the dark is in the key because light moves without the board
+    // moving: a lamp carried off, or the hour turning, puts a body in or out of
+    // the list with nothing else in here changing. @see unlistedInDarkness
+    const unlisted = this.unlistedInDarkness(snap);
+    const dark = unlisted.map((a) => a.id).join(" ");
+    const at = `${snap.self.x},${snap.self.y},${snap.self.z},${snap.targetId},${opened},${snap.attacking},${talking},${following},${crafting},${dark}`;
     const health = healthSignature(snap.actors);
     if (
       snap.map === this.interactionsMap &&
@@ -2866,6 +2885,11 @@ export class GameRenderer {
       // fight row is drawn from the object the session winds in place.
       snap.nextBlow,
       this.craftingRef,
+    ).filter(
+      // The rows the board offers for a body's tile as well — a shove at an
+      // adjacent rat is named and measured like the fight row is — so a body in
+      // the dark loses every row, not only the ones `targetableActors` feeds.
+      (option) => !unlisted.some((a) => sameRef(option.ref, a)),
     );
     // Held whether or not it is handed on, because the *references* inside it go
     // stale even when the list reads the same: a walking deer keeps its row and
@@ -2932,7 +2956,22 @@ export class GameRenderer {
         // stepped under a roof the cut hides would take its own off switch with
         // it. @see setFollow
         actor.id === following ||
-        this.isVisibleBody(snap, actor, camera, cut),
+        (this.isVisibleBody(snap, actor, camera, cut) && !this.isInDarkness(snap, actor)),
+    );
+  }
+
+  /**
+   * Bodies in the dark that the interaction list leaves out entirely.
+   *
+   * Everybody {@link isInDarkness} names, except the ones
+   * {@link targetableActors} keeps whatever it sees: the target and whoever is
+   * being followed, whose row is the only way out of the fight or the walk.
+   */
+  private unlistedInDarkness(snap: GameSnapshot): ActorSnapshot[] {
+    const following = this.walkTo?.followingId;
+    return snap.actors.filter(
+      (actor) =>
+        actor.id !== snap.targetId && actor.id !== following && this.isInDarkness(snap, actor),
     );
   }
 

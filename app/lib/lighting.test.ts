@@ -6,12 +6,14 @@ import {
   AMBIENT_PRESETS,
   computeLighting,
   emitterCenter,
+  isPitchBlack,
   isSkyExposed,
   overlayEmitterOverrides,
   rayTransmission,
   sampleLevelLight,
   stackOcclusion,
 } from "./lighting";
+import type { PackedLightGrid } from "./lighting";
 import { MAX_LIGHT_LEVEL } from "./lightingFlood";
 import type { MapFile, TileDef } from "./types";
 import { coordKey, levelKey, normalizeTileDef } from "./types";
@@ -715,5 +717,42 @@ describe("void", () => {
     const level = lit.levels.get(0)!;
     expect(sampleLevelLight(level, 1, 0)[0]).toBe(0);
     expect(sampleLevelLight(level, 2, 0)[0]).toBeGreaterThan(0.1);
+  });
+});
+
+describe("isPitchBlack", () => {
+  /** A 5×5 level at the origin, unlit except for the texels given. */
+  function gridWith(texels: { x: number; y: number; rgba: [number, number, number, number] }[]) {
+    const rgba = new Uint8Array(5 * 5 * 4);
+    for (const t of texels) rgba.set(t.rgba, (t.y * 5 + t.x) * 4);
+    const grid: PackedLightGrid = { levels: new Map([[0, { x0: 0, y0: 0, w: 5, h: 5, rgba }]]) };
+    return grid;
+  }
+  const day = AMBIENT_PRESETS.day;
+  const night = AMBIENT_PRESETS.night;
+
+  it("is black where neither block light nor sky reaches", () => {
+    expect(isPitchBlack(gridWith([]), day, 2, 2, 0)).toBe(true);
+  });
+
+  it("is not black in a cell a torch reaches", () => {
+    const grid = gridWith([{ x: 2, y: 2, rgba: [200, 120, 40, 0] }]);
+    expect(isPitchBlack(grid, night, 2, 2, 0)).toBe(false);
+  });
+
+  it("is not black beside a lit cell, which filtering spills onto the sprite", () => {
+    const grid = gridWith([{ x: 3, y: 3, rgba: [200, 120, 40, 0] }]);
+    expect(isPitchBlack(grid, night, 2, 2, 0)).toBe(false);
+    expect(isPitchBlack(grid, night, 1, 1, 0)).toBe(true);
+  });
+
+  it("tints the sky by the ambient, so open ground at night is dim rather than black", () => {
+    const grid = gridWith([{ x: 2, y: 2, rgba: [0, 0, 0, 255] }]);
+    expect(isPitchBlack(grid, night, 2, 2, 0)).toBe(false);
+    expect(isPitchBlack(grid, [0, 0, 0], 2, 2, 0)).toBe(true);
+  });
+
+  it("is black on a level the grid holds nothing for, which is uploaded dark", () => {
+    expect(isPitchBlack(gridWith([]), day, 2, 2, -1)).toBe(true);
   });
 });

@@ -14,6 +14,7 @@ import {
 } from "../lib/geometry";
 import {
   emitterCenter,
+  isPitchBlack,
   overlayEmitterOverridesPacked,
   VOID_BACKGROUND,
   type EmitterOverride,
@@ -1100,6 +1101,11 @@ export class WorldRenderer {
   private lightUniformsByZ = new Map<number, LevelLightUniforms>();
   private lightingKey = "";
   private staticLightGrid: PackedLightGrid | null = null;
+  /**
+   * The grid last handed to the GPU — the bake with every carried light painted
+   * over it — so {@link isCellPitchBlack} reads the light that was drawn.
+   */
+  private shownLightGrid: PackedLightGrid | null = null;
   /** Latest tint, so a level whose uniforms appear later still gets it. */
   private pendingAmbient: [number, number, number] | null = null;
   private gpuLighting = new GpuLighting();
@@ -1372,6 +1378,7 @@ export class WorldRenderer {
   setLightingEnabled(enabled: boolean) {
     if (enabled === this.lightingEnabled) return;
     this.lightingEnabled = enabled;
+    this.shownLightGrid = null;
     for (const u of this.lightUniformsByZ.values()) {
       u.uLightingEnabled.value = enabled ? 1 : 0;
     }
@@ -1384,6 +1391,18 @@ export class WorldRenderer {
       this.lightingKey = "";
     }
     this.needsRender = true;
+  }
+
+  /**
+   * Is this cell drawn black by the light the GPU was last given?
+   *
+   * False while lighting is off, and before the first grid is uploaded: with no
+   * light to read, nothing is known to be dark, and the world is drawn unlit.
+   * @see isPitchBlack
+   */
+  isCellPitchBlack(x: number, y: number, z: number): boolean {
+    if (!this.lightingEnabled || !this.shownLightGrid || !this.pendingAmbient) return false;
+    return isPitchBlack(this.shownLightGrid, this.pendingAmbient, x, y, z);
   }
 
   /** Asset handles the shared sprite-quad builder needs. */
@@ -2683,6 +2702,7 @@ export class WorldRenderer {
   }
 
   private uploadPackedGrid(grid: PackedLightGrid) {
+    this.shownLightGrid = grid;
     const seen = new Set<number>();
     for (const [z, level] of grid.levels) {
       seen.add(z);
