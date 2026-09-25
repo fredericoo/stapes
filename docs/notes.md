@@ -8350,9 +8350,8 @@ The goblin and the cyclops blocks are laid out in the troll's order, so the
 tiles read them that way: north, east, south, west, two frames each,
 left to right and then (for the cyclops) top to bottom. Nothing can check
 that — see *A walk cycle in the wrong row is a bug only a person can see* —
-and the cyclops's 4×4 frames stand on base cell (2, 3), which puts its middle
-over its own cell the way (1, 1) does for a 2×2. Both want looking at in the
-game.
+and the facings want looking at in the game. The cyclops's 4×4 frames stand
+on base cell (3, 3), the bottom-right.
 
 ## A status can stop its bearer acting, and damage can end one
 
