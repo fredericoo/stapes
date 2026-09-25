@@ -325,7 +325,7 @@ export function commandRefusalNotice(refusal: CommandRefusal): string {
       // `immuneTo` list is a fact about the engine, and somebody who typed a
       // status at a wolf asked a question about the wolf. Both names, because
       // the refusal is about the pairing and neither alone identifies it.
-      return `${refusal.name} cannot be ${refusal.status}`;
+      return `${refusal.name} cannot be ${statusInSentence(refusal.status)}`;
     case "unknownStatus":
       // The known ids rather than a count, on the terms the mastery refusal is
       // written under: a player re-reading their own line to work out which word
@@ -467,13 +467,26 @@ export function timeNotice(minutes: MinutesOfDay): string {
  * bottom of the view for as long as the player stood there, holding one of the
  * two slots against everything else the game has to say.
  *
- * "You are Burning" rather than "Burning": the status's own name is an adjective
+ * "You are burning" rather than "Burning": the status's own name is an adjective
  * an author wrote for an icon's tooltip, and a bare one reads as a label rather
  * than as something that has happened. The name is the def's, so what the strip
- * calls the condition and what the sentence calls it are one string.
+ * calls the condition and what the sentence calls it are one string, cased by
+ * {@link statusInSentence}.
  */
 export function statusAcquiredNotice(name: string): string {
-  return `You are ${name}`;
+  return `You are ${statusInSentence(name)}`;
+}
+
+/**
+ * A status's name as it reads in the middle of a sentence: lowercase.
+ *
+ * A name is authored capitalised, because it is a label on its own in the strip
+ * and the stats panel. Every notice that names a status puts it after a verb,
+ * where "You are Asleep" reads as a mistake. No authored name needs its capitals
+ * kept yet; one that does would need a field saying so.
+ */
+export function statusInSentence(name: string): string {
+  return name.toLowerCase();
 }
 
 /**
@@ -489,7 +502,7 @@ export function statusAcquiredNotice(name: string): string {
  * caused it and "Burning" alone leaves the author matching lines to targets.
  */
 export function otherStatusNotice(name: string, status: string): string {
-  return `${name} is ${status}`;
+  return `${name} is ${statusInSentence(status)}`;
 }
 
 /**
