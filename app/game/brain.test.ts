@@ -274,6 +274,7 @@ describe("deciding", () => {
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
+      minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -1173,6 +1174,7 @@ describe("giving up", () => {
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
+      minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
     };
 
@@ -1562,6 +1564,7 @@ describe("actions that take time", () => {
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
+      minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -2014,6 +2017,7 @@ describe("a deer that yelps", () => {
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
+      minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
     };
 
@@ -2102,6 +2106,7 @@ describe("a deer that yelps", () => {
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
+      minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
     };
 
@@ -2117,6 +2122,64 @@ describe("a deer that yelps", () => {
     advance(s, BRAIN_TICK_MS * 3);
 
     expect(JSON.stringify(s.getMap())).not.toContain("!");
+  });
+});
+
+/**
+ * The session has no clock of its own, so a brain asking the time is asking the
+ * one it was handed. What is worth pinning is that the hand-off reaches the
+ * brain, and that a clock which moves is read again rather than remembered.
+ */
+describe("a creature that wakes at night", () => {
+  const owls: TileDef[] = [
+    ...tiles,
+    tile({
+      id: "owl",
+      height: 2,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: {
+        brain: {
+          initial: "asleep",
+          states: {
+            asleep: { do: [{ action: "hold" }] },
+            awake: { onEnter: [{ effect: "say", text: "hoo" }], do: [{ action: "hold" }] },
+          },
+          transitions: [
+            {
+              from: "asleep",
+              if: { cond: "time_of_day", fromHour: 19, toHour: 5 },
+              to: "awake",
+            },
+          ],
+        },
+      },
+    }),
+  ];
+
+  function owlAt(clock: () => number): GameSession {
+    return new GameSession(withDeer(field(4), 0, 0, "owl"), owls, { actorIds: ["alice"], clock });
+  }
+
+  /** Everything said over `ms`, drained every tick since speech lasts one. */
+  function saidOver(session: GameSession, ms: number): string[] {
+    const said: string[] = [];
+    for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      said.push(...session.drainSpeech().map((line) => line.text));
+    }
+    return said;
+  }
+
+  it("stays asleep by day and wakes once the clock reaches the night", () => {
+    let minutes = 12 * 60;
+    const session = owlAt(() => minutes);
+
+    expect(saidOver(session, BRAIN_TICK_MS * 2)).toEqual([]);
+
+    minutes = 20 * 60;
+    expect(saidOver(session, BRAIN_TICK_MS * 2)).toEqual(["hoo"]);
   });
 });
 
@@ -2772,6 +2835,7 @@ describe("composing conditions", () => {
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
+      minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -3423,6 +3487,81 @@ describe("the wolf we ship", () => {
     expect(wolf.x).toBeGreaterThan(6);
     expect(gapToCat(session)).toBeLessThan(12);
   });
+
+  /**
+   * The wolf sleeps through the day under the sky and hunts at night, and a
+   * cave has no day, so underground it hunts at any hour.
+   *
+   * Alice stands four cells off in the open, well inside the nine at which a
+   * wolf that is awake hunts on sight — so a wolf that does nothing is one that
+   * is asleep, not one that failed to notice her.
+   */
+  describe("by the clock", () => {
+    const NOON = 12 * 60;
+    const MIDNIGHT = 0;
+
+    function den(z: number, minutes: number, aliceX = 4): GameSession {
+      let map = emptyMap();
+      for (let x = -6; x <= 6; x++) {
+        for (let y = -6; y <= 6; y++) {
+          map = replaceStack(map, x, y, z, [{ tileId: "dirt" }]);
+        }
+      }
+      map = replaceStack(map, 0, 0, z, [{ tileId: "dirt" }, { tileId: "wolf" }]);
+      map = replaceStack(map, aliceX, 0, z, [
+        { tileId: "dirt" },
+        { tileId: "player", direction: "w", owner: "alice" },
+      ]);
+      return new GameSession(map, authored, {
+        actorIds: ["alice"],
+        spawnAt: { x: 6, y: 6, z, stackIndex: 1 },
+        seed: 20260822,
+        clock: () => minutes,
+      });
+    }
+
+    function noisesOver(session: GameSession, ms: number): string[] {
+      const heard: string[] = [];
+      for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) {
+        session.tick(TICK_MS);
+        for (const noise of session.drainNoise()) heard.push(noise.text);
+      }
+      return heard;
+    }
+
+    function wolfCell(session: GameSession): string {
+      const wolf = session.actorSnapshots().find((a) => a.tileId === "wolf")!;
+      return `${wolf.x},${wolf.y}`;
+    }
+
+    it("stays where it lies by day on the surface, and does not even wander", () => {
+      const session = den(0, NOON);
+
+      expect(noisesOver(session, BRAIN_TICK_MS * 20)).toEqual([]);
+      expect(wolfCell(session)).toBe("0,0");
+    });
+
+    it("hunts somebody it can see at night on the surface", () => {
+      expect(noisesOver(den(0, MIDNIGHT), BRAIN_TICK_MS * 2)).toContain("*howl*");
+    });
+
+    it("hunts underground at any hour", () => {
+      expect(noisesOver(den(-1, NOON), BRAIN_TICK_MS * 2)).toContain("*howl*");
+    });
+
+    /** Asleep is not defenceless: the `attacked` row is not gated on the hour. */
+    it("turns on somebody who hits it by day", () => {
+      // Beside it, so the blow can land.
+      const session = den(0, NOON, 1);
+      expect(noisesOver(session, BRAIN_TICK_MS * 2)).toEqual([]);
+
+      const wolf = session.actorSnapshots().find((a) => a.tileId === "wolf")!;
+      session.setTarget(wolf.id, "alice");
+      session.setAttackMode(true, "alice");
+
+      expect(noisesOver(session, BRAIN_TICK_MS * 20)).toContain("*howl*");
+    });
+  });
 });
 
 /**
@@ -3483,6 +3622,7 @@ describe("knowing where it belongs", () => {
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
+      minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -4736,6 +4876,7 @@ describe("naming a thing", () => {
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
+      minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -4911,6 +5052,7 @@ describe("asking what a body is under", () => {
       carrying: () => false,
       hasStatus: vi.fn(() => false),
       health: vi.fn((): number | null => 1),
+      minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -5054,6 +5196,54 @@ describe("asking what a body is under", () => {
       expect(ran(fresh, ctx({ health: () => 0.1 }))).toBe("idle");
     });
   });
+
+  /**
+   * What a nocturnal creature is authored with. The window wraps midnight, so
+   * the cases worth pinning are both sides of each end and the small hours.
+   */
+  describe("asking the time", () => {
+    const night = watching({ cond: "time_of_day", fromHour: 19, toHour: 5 });
+    const at = (hour: number, minute = 0) => ctx({ minutesOfDay: hour * 60 + minute });
+
+    it("holds through midnight and not by day", () => {
+      expect(ran(night, at(22))).toBe("alert");
+      expect(ran(night, at(2))).toBe("alert");
+      expect(ran(night, at(12))).toBe("idle");
+    });
+
+    it("holds from its first hour and stops at its last", () => {
+      expect(ran(night, at(18, 59))).toBe("idle");
+      expect(ran(night, at(19))).toBe("alert");
+      expect(ran(night, at(4, 59))).toBe("alert");
+      expect(ran(night, at(5))).toBe("idle");
+    });
+
+    it("reads a window that does not wrap", () => {
+      const day = watching({ cond: "time_of_day", fromHour: 6, toHour: 18 });
+      expect(ran(day, at(6))).toBe("alert");
+      expect(ran(day, at(17, 59))).toBe("alert");
+      expect(ran(day, at(18))).toBe("idle");
+      expect(ran(day, at(3))).toBe("idle");
+    });
+
+    it("never holds when both ends are the same hour", () => {
+      const empty = watching({ cond: "time_of_day", fromHour: 7, toHour: 7 });
+      expect(ran(empty, at(7))).toBe("idle");
+      expect(ran(empty, at(20))).toBe("idle");
+    });
+  });
+
+  /** What tells a creature it is underground: level 0 is the surface. */
+  describe("asking how deep it is", () => {
+    const underground = watching({ cond: "below_level", level: 0 });
+    const onLevel = (z: number) => ctx({ self: { x: 0, y: 0, z } });
+
+    it("holds below the level and not on or above it", () => {
+      expect(ran(underground, onLevel(-1))).toBe("alert");
+      expect(ran(underground, onLevel(0))).toBe("idle");
+      expect(ran(underground, onLevel(2))).toBe("idle");
+    });
+  });
 });
 
 /**
@@ -5096,6 +5286,7 @@ describe("casting a spell of its own", () => {
       carrying: () => false,
       hasStatus: () => false,
       health: () => 1,
+      minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];

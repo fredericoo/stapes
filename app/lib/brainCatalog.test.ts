@@ -159,6 +159,18 @@ describe("the shapes a condition can grow", () => {
     expect(resolveBrain(tileWithBrain(brain as unknown as BrainDef))).toBeNull();
   });
 
+  // 24 is midnight written the other way, and an author who typed it meant 0.
+  it("refuses a time of day past the last hour", () => {
+    const brain: BrainDef = {
+      initial: "idle",
+      states: { idle: { do: [] } },
+      transitions: [
+        { from: "idle", if: { cond: "time_of_day", fromHour: 19, toHour: 24 }, to: "idle" },
+      ],
+    };
+    expect(resolveBrain(tileWithBrain(brain))).toBeNull();
+  });
+
   it("round-trips a nested group of conditions", () => {
     const brain: BrainDef = {
       initial: "idle",

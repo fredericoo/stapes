@@ -1778,10 +1778,12 @@ export class GameServer {
           spawnAt: checkpoint!.spawn,
           seed: checkpoint!.seed,
           statuses: this.statusDefs,
+          clock: () => this.minutesOfDay(),
         })
       : new GameSession(await store.readMap(), this.tiles, {
           actorIds: [],
           statuses: this.statusDefs,
+          clock: () => this.minutesOfDay(),
         });
     // Only from a checkpoint we could actually resume. A world falling back to
     // the authored map is a world nobody has died in yet, and carrying a grudge
@@ -4286,6 +4288,7 @@ export class GameServer {
     const session = new GameSession(map, tiles, {
       actorIds: [],
       statuses: statusDefs,
+      clock: () => this.minutesOfDay(),
     });
 
     await store.writeMap(map);

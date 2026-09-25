@@ -8049,6 +8049,59 @@ wearing off, and a body on more than a full bar is not more than unwounded.
 A brain is not owed a battler block — `health` on a signpost answers no, and its
 `not` answers yes, which is the reading that leaves a signpost standing still.
 
+## A creature can ask the time, and the session is handed a clock to answer
+
+`time_of_day` is the condition that makes a nocturnal creature authorable: a bat
+that sleeps by day is two states, a transition each way on
+`{ cond: "time_of_day", fromHour: 19, toHour: 5 }`, and its `not`.
+
+**Whole hours, from inclusive and to exclusive, wrapping midnight.** `19` to `5`
+is the night, which a plain `from <= t < to` would read as an empty window. Half
+open so that `6`–`18` and `18`–`6` cover the day with no hour in both. Equal ends
+are an empty window rather than the whole day, because the whole day is then
+still authorable as the `not` of an empty window, and an empty window read the
+other way would not be authorable at all. The test is `withinHours` in
+`app/lib/clock.ts`. Hours rather than minutes because a game hour is one real
+minute, and nobody watching the sky can tell 19:00 from 19:20.
+
+**The session has no clock, so it is given one.** The time of day is
+`GameServer.minutesOfDay` — the wall clock plus the offset `/time` sets — and
+`GameSession` has never read the wall clock; `/time` reaches the server as a
+queued `drainClockSet` for that reason. So `GameSession` takes a `clock` option,
+and every place `GameServer` builds a session passes `() => this.minutesOfDay()`.
+A session built without one reads `DEFAULT_PLAY_MINUTES`, which keeps every
+test that is not about the time off the wall clock.
+
+**Read once per brain round, not per turn.** A round is spread over several
+ticks, and reading the clock per creature would let the hour change partway
+through a round. `planBrainRound` stores it on the `BrainRound`, and
+`BrainContext.minutesOfDay` is a field rather than a method for the reason
+`home` is one: nothing about the body changes it.
+
+**`below_level` is the other half, because a cave has no day.** It holds when
+the body's own `z` is strictly below `level`, so `below_level 0` is underground.
+It has no bounds beyond being a whole number, since how deep a map goes is the
+map's business.
+
+### The wolf we ship sleeps through the day on the surface
+
+Awake is `or[below_level 0, time_of_day 19→6]`: night on the surface, or any
+hour underground. Six rather than the sky's four because the sky is still dark
+through dawn, and a wolf that went to bed at four would be asleep in the dark.
+
+- **A `denned` state that only holds.** By day on the surface, each state the
+  wolf roams in — `prowling`, `following`, `casting`, `homing`, `investigating`,
+  `feeding` — goes to it, and it goes back to `prowling` once the wolf is awake.
+  These rows sit after the `from: any` rows and before the per-state ones.
+- **The sight rows are gated on awake**: hunting a player or a deer it can see,
+  and going for meat it can see. A sleeping wolf with somebody standing in front
+  of it does nothing.
+- **Being attacked is not gated.** `attacked → hunting` fires at any hour, so a
+  wolf hit by day fights back. That is why `hunting` and `slinking` are left off
+  the list above: a `from: hunting` row to the den would pull it out of the
+  fight on the next turn. A hunt that ends by day goes to `prowling`, and from
+  there to the den, where it stays — it does not walk home first.
+
 ## A status can be a gamble, and a body can be immune to one
 
 Two changes to how a condition is handed over, both forced by one item.
