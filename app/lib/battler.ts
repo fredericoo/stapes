@@ -1152,6 +1152,40 @@ export function resolveBattler(def: TileDef): BattlerDef | null {
   return battler;
 }
 
+/**
+ * Why a battler tile's block does not parse, one readable line per problem, or
+ * nothing when it does.
+ *
+ * {@link resolveBattler} drops a bad block whole and says nothing, which is the
+ * right thing for the simulation and the wrong thing for the person who wrote
+ * it: the creature just loses its hit points and its spells. This is the other
+ * half of that bargain — the same schema asked the same question, with the
+ * answer kept. The editor shows it and gates Save on it, and the server logs it
+ * for shipped content once at load.
+ *
+ * Gated on the kind exactly as the resolver is, so the two cannot disagree
+ * about which tiles have a block worth checking. A battler with no block at all
+ * is reported rather than passed, because the resolver reads it as no battler.
+ *
+ * Not memoised: nothing asks it per frame.
+ */
+export function battlerIssues(def: TileDef): string[] {
+  if (def.kind !== "battler") return [];
+  const raw = def.interactions?.battler;
+  if (raw == null) return ["battler: missing — this tile's kind is battler but it has no block"];
+  const parsed = v.safeParse(battlerSchema, raw);
+  if (parsed.success) return [];
+  return parsed.issues.map((issue) => `${issuePath(issue.path) || "battler"}: ${issue.message}`);
+}
+
+/** `spells[0].castTimeMs` rather than valibot's `spells.0.castTimeMs`. */
+function issuePath(path: ReadonlyArray<{ key: unknown }> | undefined): string {
+  return (path ?? []).reduce<string>((joined, { key }) => {
+    if (typeof key === "number") return `${joined}[${key}]`;
+    return joined ? `${joined}.${String(key)}` : String(key);
+  }, "");
+}
+
 /** Whether this tile has hit points at all. */
 export function isBattler(def: TileDef): boolean {
   return resolveBattler(def) !== null;

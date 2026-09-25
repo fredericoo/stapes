@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ACCURACY_AT_MAX_MASTERY,
+  battlerIssues,
   castingSkill,
   DAMAGE_AT_MAX_MASTERY,
   DEFAULT_BASE_HP,
@@ -16,8 +17,10 @@ import {
   MIN_HANDLING,
   weaponHandling,
   spellPower,
+  resolveBattler,
 } from "./battler";
-import { MELEE_REACH, type WeaponItem } from "./item";
+import { MELEE_REACH, MIN_STONE_COOLDOWN_MS, type WeaponItem } from "./item";
+import { tile } from "./testTile";
 
 /**
  * A body plus what it is swinging, resolved into numbers.
@@ -408,5 +411,72 @@ describe("what a spell is worth in the hand", () => {
     const master = spellPower(-20, undefined, { arcane: 100 });
     expect(master).toBeLessThan(novice);
     expect(master).toBeCloseTo(-(20 * (1 + MASTERY_DAMAGE_BONUS) + DAMAGE_AT_MAX_MASTERY), 6);
+  });
+});
+
+describe("battlerIssues", () => {
+  /** A spell that parses, for each case below to break one field of. */
+  const SPELL = {
+    type: "stone",
+    name: "Snap",
+    effect: { kind: "bolt", on: "caster", damage: -1 },
+    cooldownMs: MIN_STONE_COOLDOWN_MS,
+  };
+
+  function beast(spell: Record<string, unknown>) {
+    return tile({
+      id: "beast",
+      kind: "battler",
+      interactions: { battler: { ...DEFAULT_BATTLER, spells: [spell] } },
+    });
+  }
+
+  it("says nothing about a block that resolves", () => {
+    const def = beast(SPELL);
+    expect(resolveBattler(def)).not.toBeNull();
+    expect(battlerIssues(def)).toEqual([]);
+  });
+
+  it.each([
+    ["a cast time of zero", { castTimeMs: 0 }, "spells[0].castTimeMs"],
+    [
+      "a cooldown under the floor",
+      { cooldownMs: MIN_STONE_COOLDOWN_MS - 1 },
+      "spells[0].cooldownMs",
+    ],
+    ["a bolt that does nothing", { effect: { kind: "bolt", on: "caster" } }, "spells[0].effect"],
+    [
+      "a status override with one end",
+      {
+        effect: {
+          kind: "bolt",
+          on: "caster",
+          statuses: [{ id: "burn", chance: 100, fromMs: 1000 }],
+        },
+      },
+      "spells[0].effect.statuses[0]",
+    ],
+  ])("names the field when %s drops the whole block", (_, broken, path) => {
+    const def = beast({ ...SPELL, ...broken });
+    expect(resolveBattler(def)).toBeNull();
+    // Every line, not one: a status override missing an end fails two checks
+    // on the same object, and both belong to it.
+    const issues = battlerIssues(def);
+    expect(issues).not.toHaveLength(0);
+    for (const line of issues) expect(line.startsWith(`${path}: `)).toBe(true);
+  });
+
+  it("reports a battler with no block, since that resolves to nothing too", () => {
+    const def = tile({ id: "beast", kind: "battler" });
+    expect(resolveBattler(def)).toBeNull();
+    expect(battlerIssues(def)).toHaveLength(1);
+  });
+
+  it("ignores a block on a tile whose kind is not battler, as the resolver does", () => {
+    const def = tile({
+      id: "rock",
+      interactions: { battler: { ...DEFAULT_BATTLER, spells: [{ ...SPELL, castTimeMs: 0 }] } },
+    });
+    expect(battlerIssues(def)).toEqual([]);
   });
 });
