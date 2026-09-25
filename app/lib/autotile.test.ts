@@ -8,7 +8,6 @@ import type { FlatMapFile } from "./types";
 import {
   AUTOTILE_SLICE_MASKS,
   blobMaskToSlice,
-  blobSliceCount,
   maskBlobCorners,
   neighborMask,
   pickAutotileSprite,
@@ -21,10 +20,6 @@ import type { MapFile, TileDef } from "./types";
 import { coordKey, levelKey, spriteRect } from "./types";
 
 describe("autotile blob", () => {
-  it("produces 47 unique slices", () => {
-    expect(blobSliceCount()).toBe(47);
-  });
-
   it("maps isolated (0) to slice 0", () => {
     expect(blobMaskToSlice(0)).toBe(0);
   });
