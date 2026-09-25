@@ -48,6 +48,7 @@ import {
   pixelSnappedQuad,
   rejoinsBatch,
   resolveTransitionSlot,
+  struckRemainsSlot,
   transitionAddress,
   transitionPose,
   noTransitionUniforms,
@@ -3473,7 +3474,9 @@ export class WorldRenderer {
         burst: null,
       };
       const played =
-        live.note.side === "appear" ? this.markForming(state, view.map) : this.playOutCopy(state);
+        live.note.side === "appear"
+          ? this.markForming(state, view.map) || this.throwStruckBurst(state)
+          : this.playOutCopy(state);
       if (played) this.liveTransitions.set(live.note.id, state);
     }
   }
@@ -3534,6 +3537,30 @@ export class WorldRenderer {
       this.attachTransition(state, mesh, item, note.z, true);
     }
     return items.length > 0;
+  }
+
+  /**
+   * A hit's burst where the body it struck stood, for a body the blow took off
+   * the board. False when the note is not a hit, or when the old board cannot
+   * place the body either. @see struckRemainsSlot
+   *
+   * Built by `cellItems` over the whole previous stack, as {@link playOutCopy}
+   * builds a copy, so the sparks stand at the body's height — and then no mesh
+   * is made: the transition carries the burst alone, and retires when it ends.
+   */
+  private throwStruckBurst(state: TransitionState): boolean {
+    const prev = this.prevMap;
+    const { note } = state.live;
+    if (!prev) return false;
+    const stack = getStack(prev, note.x, note.y, note.z);
+    const slot = struckRemainsSlot(note, stack);
+    if (slot === undefined) return false;
+    const item = this.cellItems(prev, note.z, note.x, note.y, stack).find(
+      (candidate) => candidate.stackIndex === slot,
+    );
+    if (!item) return false;
+    state.burst = this.burstFor(state.live, item);
+    return state.burst !== null;
   }
 
   /** The appear playing on this placement, if one is. */

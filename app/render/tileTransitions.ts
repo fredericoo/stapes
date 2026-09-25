@@ -134,6 +134,33 @@ export function resolveTransitionSlot(
   return only;
 }
 
+/**
+ * Where a hit plays when the body it struck is no longer on the board: its slot
+ * in the board as it was, or undefined when the note is not a hit or the old
+ * board cannot say either.
+ *
+ * **Asked only once the new board has failed to find the body**, which for a
+ * hit almost always means the blow killed it. `GameSession.strikeBody` raises
+ * the hit before the damage, so a killing blow still sends one, but `kill`
+ * takes the body off the map on the same tick. The hit is an `appear` and an
+ * appear is looked for in the new map, so it used to be dropped whole — the
+ * sparks included, although they need nothing but a place to stand.
+ *
+ * The old board still holds the body on this frame, on the terms a disappear's
+ * copy relies on: a tick's notes ride in the same message as its cell patches.
+ * Only the burst is played there. The sweep and the scale are done *to* a
+ * sprite, and the body has none any more — a copy wearing them would climb back
+ * to whole and then vanish, which draws a dead body getting up. If the body has
+ * a `disappear` of its own, that plays beside the sparks as it always did.
+ */
+export function struckRemainsSlot(
+  note: TileTransitionNote,
+  previousStack: readonly { tileId: string }[],
+): number | undefined {
+  if (!note.struckBy) return undefined;
+  return resolveTransitionSlot(previousStack, note);
+}
+
 /** How much of the tile is showing now. @see shownFraction */
 export function liveShown(live: LiveTransition, clockMs: number): number {
   return shownFraction(live.note.side, clockMs - live.startMs, live.transition.durationMs);

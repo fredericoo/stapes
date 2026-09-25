@@ -4525,6 +4525,10 @@ export class GameSession implements PlaySession {
    * loosed, and a transition on a named placement goes on following them after
    * that — see `../render/tileTransitions`'s `placementIdentity`.
    *
+   * A blow that kills takes the body off the map on this same tick, so the
+   * renderer cannot dress it. It plays the burst alone where the body stood —
+   * see `../render/tileTransitions`'s `struckRemainsSlot`.
+   *
    * Silently nothing for a body that has left the board, which is the honest
    * answer and the same one the blow itself gets: a shot at somebody who died
    * mid-flight arrives at nobody, and there is nothing left to dress.
@@ -5301,8 +5305,9 @@ export class GameSession implements PlaySession {
 
     // On the body rather than at the point the arrow stopped, and only on a
     // blow that connected: a miss and a dodge land nothing, so neither leaves
-    // anything behind. Before the damage, so a killing blow still dresses the
-    // body it killed — the placement is still there on this tick.
+    // anything behind. Before the damage, so a killing blow still sends its hit
+    // — the placement is still there to name. The renderer finds the body gone
+    // and plays only the sparks where it stood; see `strikeBody`.
     if (!blow.rolled.missed && !blow.rolled.dodged) {
       this.strikeBody(blow.targetId, blow.projectile);
     }
@@ -7091,7 +7096,7 @@ export class GameSession implements PlaySession {
 
     // Unconditionally, unlike a swing's: a bolt has no accuracy and nothing
     // dodges one — it lands whatever it carries the moment it is cast. Before
-    // the health, so a killing bolt still dresses the body it killed.
+    // the health, so a killing bolt still sends its hit. @see strikeBody
     this.strikeBody(bolt.subjectId, bolt.projectile);
 
     // **Asked again on arrival, not only when the stone was pressed.** A cast

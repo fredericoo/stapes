@@ -21,6 +21,7 @@ import {
   pixelSnappedQuad,
   rejoinsBatch,
   resolveTransitionSlot,
+  struckRemainsSlot,
   transitionAddress,
   transitionPose,
   transitionUniforms,
@@ -223,6 +224,34 @@ describe("resolveTransitionSlot", () => {
     expect(
       resolveTransitionSlot(placed("grass"), { tileId: "flame", stackIndex: 1 }),
     ).toBeUndefined();
+  });
+});
+
+describe("struckRemainsSlot", () => {
+  const placed = (...ids: string[]) => ids.map((tileId) => ({ tileId }));
+  const hit = (struckBy?: string): TileTransitionNote => ({
+    id: "t1",
+    side: "appear",
+    tileId: "rat",
+    x: 1,
+    y: 2,
+    z: 0,
+    stackIndex: 1,
+    ...(struckBy ? { struckBy } : {}),
+  });
+
+  it("finds a killed body where the old board still holds it", () => {
+    expect(struckRemainsSlot(hit("arrow"), placed("grass", "rat"))).toBe(1);
+  });
+
+  it("leaves an appear that is not a hit to be dropped as before", () => {
+    // A flame that could not be found forming has no business sparking in the
+    // cell it used to be in.
+    expect(struckRemainsSlot(hit(), placed("grass", "rat"))).toBeUndefined();
+  });
+
+  it("has nowhere to play when the old board has no such body either", () => {
+    expect(struckRemainsSlot(hit("arrow"), placed("grass"))).toBeUndefined();
   });
 });
 
