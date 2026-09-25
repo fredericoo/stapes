@@ -4130,12 +4130,12 @@ and the recovery.
   round, so a stand-up fight is exactly the fight it always was — the rate is
   untouched and only the start moved. At a whole interval the windup would still
   be running when the cooldown cleared, which would halve every rate in the game.
-- **Re-armed on every approach, not paid once per fight.** That is the half that
+- **Re-armed by every blow, not paid once per fight.** That is the half that
   closes the withdrawal: a wait that only applied to the opening blow would leave
   "touch, swing, leave, come back" as strictly better as it was. What it adds up
-  to is that you have to be beside your target for half of every interval. You
-  may still step in and out — a body that returns within the other half loses
-  nothing at all — and what you can no longer do is be absent.
+  to is that you have to be beside your target for half of every interval.
+  (It was first re-armed on every *approach* instead; see the next section for
+  why that changed.)
 - **Keyed by target.** Without the id, killing one of a pair and turning on the
   one beside it would swing on the tick the target changed: the free opening
   blow, taken at the only moment nobody had to walk anywhere for it.
@@ -4161,7 +4161,7 @@ Two seams are worth knowing:
   tick is what makes the approach the same length for both. The lapse is the
   other side of it — a windup nobody has confirmed for two rounds is forgotten,
   so dropping your target and picking it up again is not a way to skip the wait.
-  Leaving reach *while still asking* drops it outright on the tick it happens.
+  Leaving reach *while still asking* pauses it; see below.
 
 `duel.ts` seats both fighters on a first cooldown of `swingWindupMs` rather than
 ready. It has no reach to lose — the whole premise of that module is two bodies
@@ -4169,6 +4169,42 @@ in reach of each other — so the windup there can only ever be the opening one,
 and spending it as the cooldown is the honest way to say that. Every fight in
 `duel.test.ts` is now half an interval longer than it was, which is why the
 "lose fast enough to be a signal" bound moved from eight seconds to nine.
+
+### The windup pauses out of reach, and a blow re-arms it
+
+The windup was first re-armed on every approach: leaving reach dropped it, and
+coming back started it from zero. That made any slow creature killable by
+anybody faster without taking a blow. Hit it, step back as it follows, step back
+again as it arrives. Each arrival started the creature's half interval from
+zero, the player left before it ran out, and the player's own windup was short
+enough to fit inside each visit. The rule meant to stop kiting was the reason it
+worked.
+
+Now `ActorRuntime.windup` is **time owed in reach**:
+
+- **Leaving reach pauses it.** `outOfReach` sets `windup.inReach = false` and
+  `advanceCooldowns` stops winding it. Coming back resumes from what was left,
+  so every visit adds up, and a creature that has spent half its interval
+  beside you in total swings the moment it is beside you again.
+- **Every blow re-arms it** to `swingWindupMs`. Without this the pause would
+  bring back the withdrawal from the section above: the windup would be spent
+  once per fight, and walking out for the cooldown would come back to a blow
+  already waiting. The re-armed windup is half the cooldown just set, so in a
+  fight where nobody leaves it runs out first and the rate is unchanged.
+- **Asking keeps it; reach does not have to.** `sinceSeenMs` is reset by any
+  `tryAttack` against the same target, in reach or not. A creature chasing you
+  asks every round (its `attack` line runs before its `chase` line) and keeps
+  what it has; one that gives up stops asking, and `WINDUP_LAPSE_MS` forgets it
+  two rounds later.
+- **The fight row is hidden while paused.** `nextBlow` is nulled by
+  `outOfReach` and re-issued on the way back in, starting from what the paused
+  windup had left, so the bar comes back part full.
+
+The result is that both sides pay for a blow in the same thing, time spent in
+reach. Over a kite both bodies are in reach for the same stretches, so blows
+come at the ratio of the two intervals, which is the same as standing still.
+Incapacitation, a PvP refusal and a change of target still drop the windup
+completely.
 
 ### The fight row fills towards the next blow
 
