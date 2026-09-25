@@ -7843,8 +7843,10 @@ thing to author that being glared at for it is fair.
 ### A brain aims by pointing
 
 The `cast` action resolves its selector to a body, sets the creature's
-`targetId`, and presses. Pointing rather than threading a target through the cast
-path is what keeps there being *one* cast path: `castBolt` reads the target off
+`targetId`, and presses — for a spell that needs a target. One that lands on its
+caster leaves `targetId` alone; see "A brain `cast` can name no target".
+Pointing rather than threading a target through the cast path is what keeps
+there being *one* cast path: `castBolt` reads the target off
 the body as it always has, for the press and for the bar that finishes a beat
 later alike. It is not an attack — `runAutoAttacks` swings only for a body in
 attack mode, and a brain never sets that.
@@ -8140,6 +8142,26 @@ through dawn, and a wolf that went to bed at four would be asleep in the dark.
   the list above: a `from: hunting` row to the den would pull it out of the
   fight on the next turn. A hunt that ends by day goes to `prowling`, and from
   there to the den, where it stays — it does not walk home first.
+
+### A brain `cast` can name no target
+
+`of` is optional on the `cast` action. Absent, the line casts at nobody, and
+`GameSession.castForBrain` treats it differently from a selector that answered
+nobody in one way: it never touches `actor.targetId`.
+
+- **Only a spell that needs a target moves the creature's aim** (`needsTarget`
+  in `app/game/casting.ts`: a bolt `on: "target"`, or any conjure). A spell on
+  the caster leaves `targetId` alone whatever `of` says, so a wolf curling up
+  mid-fight still has the player picked when it wakes. A brain still written
+  with an `of` on such a spell loads, and the `of` is ignored; the wolf's used
+  to be `of: home`, which answered nobody and cleared its target on every cast.
+- **A spell that needs a target is refused for a line with no `of`**, even when
+  the creature already points at somebody. "No target" means the same thing
+  whatever the brain did before it, so the line falls through.
+- **There is no `self` selector.** Attacking, walking to, extracting from or
+  eating yourself mean nothing, so every other action taking a selector would
+  have to refuse it. The one action where "me" means something is `cast`, and
+  there it is the absence of a target.
 
 ## A status can stop its bearer acting, and damage can end one
 

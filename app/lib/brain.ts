@@ -669,8 +669,19 @@ export type BrainActionDef =
    * ignores it — a mend is at arm's length in every square. Aiming also points
    * the creature at them, exactly as a player pointing at somebody does; it is
    * not an attack, and nothing swings because of it.
+   *
+   * **Absent `of` is "no target"**, and is how a spell on the caster is
+   * authored: a wolf curling up to sleep names nobody. It leaves the
+   * creature's aim where it was, and a spell that needs somebody is refused
+   * for it — not cast at whoever the body happened to be pointing at — so the
+   * line falls through.
+   *
+   * No `self` selector stands in for it. Every other action taking a selector
+   * would have to refuse one — attacking, walking to, picking or eating
+   * yourself mean nothing — and the one action where "me" means something is
+   * this one, where it already means the absence of a target.
    */
-  | { action: "cast"; spell: number; of: Selector }
+  | { action: "cast"; spell: number; of?: Selector }
   /**
    * Work a thing for what it is made of — pick a bush, chip a crystal.
    *
@@ -984,7 +995,7 @@ const actionSchema = v.variant("action", [
     // line that never fires, on the terms a `nearest` naming a tile nothing
     // stands on is.
     spell: v.pipe(v.number(), v.integer(), v.minValue(1)),
-    of: selectorSchema,
+    of: v.optional(selectorSchema),
   }),
   v.object({ action: v.literal("extract"), of: selectorSchema }),
   v.object({

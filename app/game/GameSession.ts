@@ -8411,17 +8411,27 @@ export class GameSession implements PlaySession {
   private castForBrain(
     actor: ActorRuntime,
     position: number,
-    targetId: string | null,
+    targetId?: string | null,
   ): "cast" | "casting" | "no" {
     // Counting from one, because that is the number the editor shows an author
     // beside the spell. @see ../lib/brain's `cast`
-    const spell = this.spellsOf(actor)[position - 1]?.name;
-    if (spell === undefined) return "no";
+    const stone = this.spellsOf(actor)[position - 1];
+    if (stone === undefined) return "no";
+    const spell = stone.name;
 
     const running = actor.casting?.progress.slot;
     if (running?.from === "natural" && running.name === spell) return "casting";
 
-    actor.targetId = targetId;
+    // Only a spell that lands on somebody moves the creature's aim. One that
+    // lands on its caster has no use for a target, and pointing the body at
+    // whatever `of` answered — nobody, for a wolf curling up — would drop the
+    // one it is fighting. A line naming nobody at all is refused a spell that
+    // needs somebody, rather than borrowing whoever the body already points at:
+    // "no target" in the editor has to mean the same thing whatever came before.
+    if (needsTarget(stone)) {
+      if (targetId === undefined) return "no";
+      actor.targetId = targetId;
+    }
     // Refusals are not said out loud on a creature's behalf, and nothing here
     // has to arrange that: `say` drops a notice addressed to a resident, which
     // every brain-driven body is. "Select a target first" is nonsense told to a
