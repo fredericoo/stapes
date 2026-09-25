@@ -3728,13 +3728,21 @@ describe("the bog imp and the cyclops we ship", () => {
     expect(asleep(session, "bog-imp")).toBe(true);
   });
 
-  /** Somewhere to sleep when there is no flame near home is home itself. */
-  it("puts the imp to sleep at home when no flame is near", () => {
+  /** With no flame near, it makes one: Make fire lays a campfire in front of it. */
+  it("lights a campfire when no flame is near and puts the imp to sleep beside it", () => {
     const session = field("bog-imp", MIDNIGHT);
-    noisesOver(session, 3000);
+    noisesOver(session, 6000);
 
     const imp = body(session, "bog-imp");
-    expect(Math.abs(imp.x) + Math.abs(imp.y)).toBeLessThanOrEqual(2);
+    let campfire: { x: number; y: number } | null = null;
+    for (let x = imp.x - 2; x <= imp.x + 2; x++) {
+      for (let y = imp.y - 2; y <= imp.y + 2; y++) {
+        if (getStack(session.getMap(), x, y, 0).some((p) => p.tileId === "campfire")) {
+          campfire = { x, y };
+        }
+      }
+    }
+    expect(campfire).not.toBeNull();
     expect(asleep(session, "bog-imp")).toBe(true);
   });
 

@@ -8216,9 +8216,9 @@ up, or fails so the line below it — the `attack` — gets its turn.
 
 ## The bog imp and the cyclops
 
-Two creatures on the green goblin and the cyclops in `animals.png`, authored
-entirely in `data/tiles.json` with the vocabulary the wolf and the troll
-already use. Nothing in the simulation changed for them.
+Two creatures on the green goblin and the cyclops in `animals.png`, authored in
+`data/tiles.json`. Two brain changes came with them: `attack_range`, and a
+`cast` with no target that lays a conjure in front of the caster.
 
 ### The bog imp
 
@@ -8249,8 +8249,8 @@ Each armour piece is 25%, so most imps are near the first row: about a wolf in
 contact, plus the stone and, on a quarter of them, a bow that opens the fight
 from eight cells. That is "a little stronger than a wolf". The bow row is low
 because a duel starts both bodies in contact, where a bow inside its
-`reach.min` does not fire. In the world the imp shoots from range, and when
-the prey closes in it only has the stone, whose reach has no minimum.
+`reach.min` does not fire. In the world the imp shoots from range and backs off
+to keep it.
 
 **Throw stone is its second spell and the hunt names it by position.** A bolt
 at the target for 12, variance 30, 500ms to cast, eight seconds to cool, nine
@@ -8261,16 +8261,34 @@ its authored damage — about half a rung-15 weapon's blow. It flies as
 written against the wolf's layout; the hunt's `cast` names spell 2, and a test
 fails if that ever puts the imp to sleep in front of its prey.
 
-**Bedtime is two rows per roaming state, flame first.** At night, from each
-state it roams in, the imp goes to `to_fire` if a `flame` is within 14 cells
-(binding it as `$fire`), and to `to_bed` otherwise. `to_fire` walks to the
-flame and sleeps once within two cells; `to_bed` walks home and sleeps there.
-Being stuck on the way counts as arriving, so a flame behind a wall does not
-keep the imp awake all night. The 14 is what keeps "goes to the nearest flame"
-from overriding "does not wander from its spawn": a campfire across the map is
-not the nearest flame to anywhere the imp lives. `hunting` has no night row,
-on the wolf's grounds — a hunt that ends at night goes to `roaming`, and the
-night rows take it from there.
+**Bedtime is two rows per roaming state, a fire first.** At night, from each
+state it roams in, the imp goes to `to_fire` if a `flame` or a `campfire` is
+within 16 cells (binding it as `$fire`), and to `making_fire` otherwise.
+`to_fire` walks to the fire and sleeps once within two cells. `making_fire`
+casts its third spell, **Make fire** — a conjure of `campfire` with no target,
+which lands in the cell it faces (see *A brain `cast` can name no target*) —
+and the next round finds the fire within three cells and goes to `to_fire`. A
+wall in front refuses the conjure, so the line below it takes one step, which
+turns the imp, and it tries again; after eight seconds with no fire it sleeps
+anyway. Being stuck on the way to a fire counts as arriving.
+
+`campfire` is `flame` with a `decay` of ten to thirteen minutes: a night is
+eleven game hours, which is eleven real minutes, and a fire every imp lit and
+nobody put out would pile up across the map. The cooldown is a minute, so an
+imp woken in the night and driven off lights at most one more.
+
+**It roams 32 cells from its spawn and lets a chase or a meal take it to 36.**
+That makes `brainReach` 36, and `brainReach` is also how far a `thing` search
+looks. A hungry imp with no food or bush in sight rings out to 36 cells every
+round looking for one, where the wolf stops at 20. The rows put the day and
+hunger gates before the `in_los` on a thing, so a fed imp, or any imp at
+night, never asks.
+
+**The hunt keeps its distance with `attack_range`.** The line order is the
+stone, then `attack_range`, then `attack`: an imp holding a bow stands at the
+bow's minimum of two cells and backs off when its prey closes, and one holding
+a sword, an axe or a mace walks up beside it. See *`attack_range` stands where
+the weapon strikes from*.
 
 It hunts the player on sight by day whether it is hungry or not, and wolves,
 rabbits, deer and rats only when it is hungry (`fed` under a minute left). It

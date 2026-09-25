@@ -35412,6 +35412,138 @@
     }
   },
   {
+    "id": "campfire",
+    "name": "Campfire",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "anchor": {
+      "tilesetId": "tiny-ranch-tiles",
+      "x": 0,
+      "y": 12
+    },
+    "lightPassing": true,
+    "intangible": true,
+    "particles": {
+      "ratePerSecond": 14,
+      "ttlFromMs": 900,
+      "ttlToMs": 1800,
+      "spawnRadiusCells": 0.75,
+      "spawnElevFrom": 3,
+      "spawnElevTo": 3,
+      "riseFrom": 3,
+      "riseTo": 6,
+      "driftCellsPerSecond": 0.18,
+      "lit": false,
+      "gravity": -0.4,
+      "windX": 0.35,
+      "windY": -0.2,
+      "shape": null,
+      "radiusFromPx": 1,
+      "radiusToPx": 2,
+      "alphaFrom": 1,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0,
+          "color": "#ffe0a0"
+        },
+        {
+          "at": 0.18,
+          "color": "#fb6b1d"
+        },
+        {
+          "at": 0.45,
+          "color": "#7b3b2a"
+        },
+        {
+          "at": 1,
+          "color": "#4b4158"
+        }
+      ]
+    },
+    "interactions": {
+      "craft": {
+        "actionName": "Cook",
+        "recipes": [
+          {
+            "name": "Cook Raw Meat",
+            "inputs": [
+              {
+                "tileId": "raw-meat",
+                "count": 1
+              }
+            ],
+            "output": {
+              "kind": "all",
+              "items": [
+                {
+                  "tileId": "cooked-meat",
+                  "chance": 100
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "addStatus": {
+        "trigger": "step",
+        "statusId": "burned",
+        "ground": true
+      },
+      "decay": {
+        "tileId": "",
+        "fromMs": 600000,
+        "toMs": 780000
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 8,
+            "intensity": 0.85,
+            "color": "#ff8e52"
+          }
+        },
+        {
+          "sprite": {
+            "rect": {
+              "x": 0,
+              "y": 2,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 7,
+            "intensity": 0.93,
+            "color": "#e18e52"
+          }
+        }
+      ]
+    }
+  },
+  {
     "id": "bog-imp",
     "name": "Bog Imp",
     "height": 3,
@@ -35435,7 +35567,7 @@
             "do": [
               {
                 "action": "walk_n_steps",
-                "steps": 3
+                "steps": 4
               }
             ]
           },
@@ -35458,7 +35590,7 @@
                 }
               },
               {
-                "action": "attack",
+                "action": "attack_range",
                 "of": {
                   "type": "slot",
                   "data": {
@@ -35467,7 +35599,7 @@
                 }
               },
               {
-                "action": "step_toward",
+                "action": "attack",
                 "of": {
                   "type": "slot",
                   "data": {
@@ -35587,13 +35719,21 @@
               }
             ]
           },
-          "to_bed": {
+          "making_fire": {
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "*scrape scrape*"
+              }
+            ],
             "do": [
               {
-                "action": "step_toward",
-                "of": {
-                  "type": "home"
-                }
+                "action": "cast",
+                "spell": 3
+              },
+              {
+                "action": "walk_n_steps",
+                "steps": 1
               },
               {
                 "action": "hold"
@@ -35631,18 +35771,6 @@
               "combinator": "and",
               "rules": [
                 {
-                  "cond": "in_los",
-                  "of": {
-                    "type": "nearest",
-                    "data": {
-                      "tileIds": [
-                        "player"
-                      ]
-                    }
-                  },
-                  "cells": 7
-                },
-                {
                   "combinator": "and",
                   "not": true,
                   "rules": [
@@ -35652,6 +35780,18 @@
                       "toHour": 6
                     }
                   ]
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "nearest",
+                    "data": {
+                      "tileIds": [
+                        "player"
+                      ]
+                    }
+                  },
+                  "cells": 8
                 }
               ]
             },
@@ -35673,17 +35813,15 @@
               "combinator": "and",
               "rules": [
                 {
-                  "cond": "in_los",
-                  "of": {
-                    "type": "thing",
-                    "data": {
-                      "tileIds": [
-                        "raw-meat",
-                        "berry"
-                      ]
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "time_of_day",
+                      "fromHour": 19,
+                      "toHour": 6
                     }
-                  },
-                  "cells": 8
+                  ]
                 },
                 {
                   "combinator": "and",
@@ -35697,15 +35835,17 @@
                   ]
                 },
                 {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "time_of_day",
-                      "fromHour": 19,
-                      "toHour": 6
+                  "cond": "in_los",
+                  "of": {
+                    "type": "thing",
+                    "data": {
+                      "tileIds": [
+                        "raw-meat",
+                        "berry"
+                      ]
                     }
-                  ]
+                  },
+                  "cells": 10
                 }
               ]
             },
@@ -35728,19 +35868,15 @@
               "combinator": "and",
               "rules": [
                 {
-                  "cond": "in_los",
-                  "of": {
-                    "type": "nearest",
-                    "data": {
-                      "tileIds": [
-                        "wolf",
-                        "rabbit",
-                        "deer",
-                        "rat"
-                      ]
+                  "combinator": "and",
+                  "not": true,
+                  "rules": [
+                    {
+                      "cond": "time_of_day",
+                      "fromHour": 19,
+                      "toHour": 6
                     }
-                  },
-                  "cells": 8
+                  ]
                 },
                 {
                   "combinator": "and",
@@ -35754,15 +35890,19 @@
                   ]
                 },
                 {
-                  "combinator": "and",
-                  "not": true,
-                  "rules": [
-                    {
-                      "cond": "time_of_day",
-                      "fromHour": 19,
-                      "toHour": 6
+                  "cond": "in_los",
+                  "of": {
+                    "type": "nearest",
+                    "data": {
+                      "tileIds": [
+                        "wolf",
+                        "rabbit",
+                        "deer",
+                        "rat"
+                      ]
                     }
-                  ]
+                  },
+                  "cells": 10
                 }
               ]
             },
@@ -35797,11 +35937,12 @@
                     "type": "thing",
                     "data": {
                       "tileIds": [
-                        "flame"
+                        "flame",
+                        "campfire"
                       ]
                     }
                   },
-                  "cells": 14
+                  "cells": 16
                 }
               ]
             },
@@ -35810,7 +35951,8 @@
                 "type": "thing",
                 "data": {
                   "tileIds": [
-                    "flame"
+                    "flame",
+                    "campfire"
                   ]
                 }
               }
@@ -35824,7 +35966,7 @@
               "fromHour": 19,
               "toHour": 6
             },
-            "to": "to_bed"
+            "to": "making_fire"
           },
           {
             "from": "feeding",
@@ -35842,11 +35984,12 @@
                     "type": "thing",
                     "data": {
                       "tileIds": [
-                        "flame"
+                        "flame",
+                        "campfire"
                       ]
                     }
                   },
-                  "cells": 14
+                  "cells": 16
                 }
               ]
             },
@@ -35855,7 +35998,8 @@
                 "type": "thing",
                 "data": {
                   "tileIds": [
-                    "flame"
+                    "flame",
+                    "campfire"
                   ]
                 }
               }
@@ -35869,7 +36013,7 @@
               "fromHour": 19,
               "toHour": 6
             },
-            "to": "to_bed"
+            "to": "making_fire"
           },
           {
             "from": "browsing",
@@ -35887,11 +36031,12 @@
                     "type": "thing",
                     "data": {
                       "tileIds": [
-                        "flame"
+                        "flame",
+                        "campfire"
                       ]
                     }
                   },
-                  "cells": 14
+                  "cells": 16
                 }
               ]
             },
@@ -35900,7 +36045,8 @@
                 "type": "thing",
                 "data": {
                   "tileIds": [
-                    "flame"
+                    "flame",
+                    "campfire"
                   ]
                 }
               }
@@ -35914,7 +36060,7 @@
               "fromHour": 19,
               "toHour": 6
             },
-            "to": "to_bed"
+            "to": "making_fire"
           },
           {
             "from": "chewing",
@@ -35932,11 +36078,12 @@
                     "type": "thing",
                     "data": {
                       "tileIds": [
-                        "flame"
+                        "flame",
+                        "campfire"
                       ]
                     }
                   },
-                  "cells": 14
+                  "cells": 16
                 }
               ]
             },
@@ -35945,7 +36092,8 @@
                 "type": "thing",
                 "data": {
                   "tileIds": [
-                    "flame"
+                    "flame",
+                    "campfire"
                   ]
                 }
               }
@@ -35959,7 +36107,7 @@
               "fromHour": 19,
               "toHour": 6
             },
-            "to": "to_bed"
+            "to": "making_fire"
           },
           {
             "from": "homing",
@@ -35977,11 +36125,12 @@
                     "type": "thing",
                     "data": {
                       "tileIds": [
-                        "flame"
+                        "flame",
+                        "campfire"
                       ]
                     }
                   },
-                  "cells": 14
+                  "cells": 16
                 }
               ]
             },
@@ -35990,7 +36139,8 @@
                 "type": "thing",
                 "data": {
                   "tileIds": [
-                    "flame"
+                    "flame",
+                    "campfire"
                   ]
                 }
               }
@@ -36004,7 +36154,7 @@
               "fromHour": 19,
               "toHour": 6
             },
-            "to": "to_bed"
+            "to": "making_fire"
           },
           {
             "from": "casting",
@@ -36022,11 +36172,12 @@
                     "type": "thing",
                     "data": {
                       "tileIds": [
-                        "flame"
+                        "flame",
+                        "campfire"
                       ]
                     }
                   },
-                  "cells": 14
+                  "cells": 16
                 }
               ]
             },
@@ -36035,7 +36186,8 @@
                 "type": "thing",
                 "data": {
                   "tileIds": [
-                    "flame"
+                    "flame",
+                    "campfire"
                   ]
                 }
               }
@@ -36049,7 +36201,43 @@
               "fromHour": 19,
               "toHour": 6
             },
-            "to": "to_bed"
+            "to": "making_fire"
+          },
+          {
+            "from": "making_fire",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "thing",
+                "data": {
+                  "tileIds": [
+                    "flame",
+                    "campfire"
+                  ]
+                }
+              },
+              "cells": 3
+            },
+            "bind": {
+              "fire": {
+                "type": "thing",
+                "data": {
+                  "tileIds": [
+                    "flame",
+                    "campfire"
+                  ]
+                }
+              }
+            },
+            "to": "to_fire"
+          },
+          {
+            "from": "making_fire",
+            "if": {
+              "cond": "after",
+              "ms": 8000
+            },
+            "to": "sleeping"
           },
           {
             "from": "to_fire",
@@ -36075,30 +36263,12 @@
                   "name": "fire"
                 }
               },
-              "cells": 16
+              "cells": 18
             },
-            "to": "to_bed"
+            "to": "making_fire"
           },
           {
             "from": "to_fire",
-            "if": {
-              "cond": "stuck"
-            },
-            "to": "sleeping"
-          },
-          {
-            "from": "to_bed",
-            "if": {
-              "cond": "in_range",
-              "of": {
-                "type": "home"
-              },
-              "cells": 2
-            },
-            "to": "sleeping"
-          },
-          {
-            "from": "to_bed",
             "if": {
               "cond": "stuck"
             },
@@ -36120,7 +36290,7 @@
             "to": "roaming"
           },
           {
-            "from": "to_bed",
+            "from": "making_fire",
             "if": {
               "combinator": "and",
               "not": true,
@@ -36159,7 +36329,7 @@
                   "name": "prey"
                 }
               },
-              "cells": 12
+              "cells": 14
             },
             "to": "roaming"
           },
@@ -36170,7 +36340,7 @@
               "of": {
                 "type": "home"
               },
-              "cells": 18
+              "cells": 36
             },
             "to": "homing"
           },
@@ -36184,7 +36354,7 @@
                   "name": "food"
                 }
               },
-              "cells": 9
+              "cells": 11
             },
             "to": "roaming"
           },
@@ -36223,7 +36393,7 @@
               "of": {
                 "type": "home"
               },
-              "cells": 14
+              "cells": 36
             },
             "to": "homing"
           },
@@ -36263,18 +36433,6 @@
               "combinator": "and",
               "rules": [
                 {
-                  "cond": "in_los",
-                  "of": {
-                    "type": "thing",
-                    "data": {
-                      "tileIds": [
-                        "bush"
-                      ]
-                    }
-                  },
-                  "cells": 8
-                },
-                {
                   "combinator": "and",
                   "not": true,
                   "rules": [
@@ -36294,6 +36452,18 @@
                       "id": "combat"
                     }
                   ]
+                },
+                {
+                  "cond": "in_los",
+                  "of": {
+                    "type": "thing",
+                    "data": {
+                      "tileIds": [
+                        "bush"
+                      ]
+                    }
+                  },
+                  "cells": 10
                 }
               ]
             },
@@ -36327,7 +36497,7 @@
                   "name": "bush"
                 }
               },
-              "cells": 10
+              "cells": 11
             },
             "to": "roaming"
           },
@@ -36338,7 +36508,7 @@
               "of": {
                 "type": "home"
               },
-              "cells": 14
+              "cells": 36
             },
             "to": "homing"
           },
@@ -36356,7 +36526,7 @@
               "of": {
                 "type": "home"
               },
-              "cells": 8
+              "cells": 32
             },
             "to": "homing"
           },
@@ -36367,7 +36537,7 @@
               "of": {
                 "type": "home"
               },
-              "cells": 8
+              "cells": 32
             },
             "to": "homing"
           },
@@ -36378,7 +36548,7 @@
               "of": {
                 "type": "home"
               },
-              "cells": 2
+              "cells": 24
             },
             "to": "roaming"
           },
@@ -36513,6 +36683,16 @@
               "cells": 9,
               "height": 4
             }
+          },
+          {
+            "type": "stone",
+            "name": "Make fire",
+            "effect": {
+              "kind": "conjure",
+              "tileId": "campfire"
+            },
+            "cooldownMs": 60000,
+            "castTimeMs": 2000
           }
         ]
       },
