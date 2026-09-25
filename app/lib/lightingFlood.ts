@@ -6,6 +6,7 @@
  *
  * Sky flood stays cheap; circular casts only run for the few map emitters.
  */
+import { isSpanPart } from "./footprint";
 import type { ChunkCells, MapFile, PlacedTile, TileDef } from "./types";
 import {
   HEIGHT_PER_LEVEL,
@@ -521,6 +522,8 @@ export function computeLightingFlood(
     for (let si = 0; si < c.stack.length; si++) {
       const placed = c.stack[si]!;
       if (omitLightTileIds?.has(placed.tileId)) continue;
+      // A wide tile shines from its anchor only, or a two-cell brazier is two.
+      if (isSpanPart(placed)) continue;
       const def = tilesById[placed.tileId];
       if (!def) continue;
       // Asked of the tile before the placement, because almost nothing emits:

@@ -48,6 +48,7 @@ const tiles = [
   // Full height and light-blocking, so it stops a line of sight — see `./sight`,
   // where sight is light and you see over anything shorter than a level.
   tile({ id: "wall", height: 4 }),
+  tile({ id: "bed", height: 1, footprint: { w: 2, d: 1 } }),
   tile({ id: "sword", kind: "item", interactions: { item: DEFAULT_WEAPON } }),
   // An off-hand *weapon* — a shield. What a torch used to be authored as, and
   // the reason `WeaponItem.offhand` exists: only the author knows which hand a
@@ -166,6 +167,22 @@ describe("withinReach", () => {
   it("is a circle, not a square of side 1.5", () => {
     expect(REACH_CELLS).toBeGreaterThan(Math.SQRT2);
     expect(REACH_CELLS).toBeLessThan(2);
+  });
+
+  it("reaches a wide tile from beside any cell it covers", () => {
+    // Anchored two cells east, so its western cell is the one beside you.
+    const bed = replaceStack(
+      replaceStack(emptyMap(), 2, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "bed", span: { id: "b", dx: 0, dy: 0 } },
+      ]),
+      1,
+      0,
+      0,
+      [{ tileId: "grass" }, { tileId: "bed", span: { id: "b", dx: 1, dy: 0 } }],
+    );
+    expect(withinReach(bed, tilesById, ME, ref(2, 0))).toBe(true);
+    expect(withinReach(bed, tilesById, { x: -1, y: 0, z: 0 }, ref(2, 0))).toBe(false);
   });
 
   it("reaches one floor up and down, and no further", () => {

@@ -236,23 +236,42 @@ function addChangedCells(out: Set<string>, a: ChunkCells | undefined, b: ChunkCe
  * the cells rather than a boolean, and stays silent about what changed in them.
  * The set's order is not part of the answer.
  */
-export function changedCellsOnLevel(prev: MapFile, next: MapFile, z: number): Set<string> {
+export function changedCellsOnLevel(
+  prev: MapFile,
+  next: MapFile,
+  z: number,
+  chunkFilter?: ChunkFilter,
+): Set<string> {
   const out = new Set<string>();
   const before = prev.levels[levelKey(z)];
   const after = next.levels[levelKey(z)];
   if (before === after) return out;
 
+  const add = (a: ChunkCells | undefined, b: ChunkCells | undefined) => {
+    if (a === b || (chunkFilter && !chunkFilter(a, b))) return;
+    addChangedCells(out, a, b);
+  };
   const chunks = before && after ? keysWrittenSince(before, after) : null;
   if (chunks) {
-    for (const chk of chunks) addChangedCells(out, before![chk], after![chk]);
+    for (const chk of chunks) add(before![chk], after![chk]);
     return out;
   }
-  for (const chk in after) addChangedCells(out, before?.[chk], after[chk]);
+  for (const chk in after) add(before?.[chk], after[chk]);
   for (const chk in before) {
-    if (after?.[chk] === undefined) addChangedCells(out, before[chk], undefined);
+    if (after?.[chk] === undefined) add(before[chk], undefined);
   }
   return out;
 }
+
+/**
+ * Whether a chunk that changed is worth reading cell by cell, given both
+ * versions of it. For a caller that only cares about some tiles and can rule a
+ * chunk out by {@link tileIdsInChunk} before any of its cells are compared.
+ */
+export type ChunkFilter = (
+  before: ChunkCells | undefined,
+  after: ChunkCells | undefined,
+) => boolean;
 
 /**
  * The cells that differ inside **one chunk** of a level.

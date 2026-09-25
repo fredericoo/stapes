@@ -24,7 +24,7 @@ import { armorSlotOf, resolveConsumable, resolveContainer, resolveItem } from ".
 import type { EquipSlot } from "../lib/kit";
 import { stowFits } from "../lib/piles";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
-import { physicalHeight } from "../lib/types";
+import { footprintOf, physicalHeight } from "../lib/types";
 import { canReplaceStack, fitsTile } from "../lib/validation";
 import { PLAYER_TILE_ID } from "./constants";
 import { handAccepts, handHasRoomFor, wornAccepts, type Equipment } from "./equipment";
@@ -253,8 +253,35 @@ export function withinReach(
 ): boolean {
   const dx = ref.x - actor.x;
   const dy = ref.y - actor.y;
-  if (dx * dx + dy * dy > REACH_CELLS_SQUARED) return false;
+  if (dx * dx + dy * dy > REACH_CELLS_SQUARED && !reachesFootprint(map, tilesById, actor, ref)) {
+    return false;
+  }
   return reachesAcrossFloors(map, tilesById, actor, ref);
+}
+
+/**
+ * Whether the placement at `ref` covers a cell within reach, for a tile that
+ * covers several. A bed is used from beside its foot as much as its head.
+ *
+ * Only asked once the anchor itself is out of reach, and answered from the
+ * anchor's footprint: `ref` is an anchor by the time it gets here, because the
+ * pick hands one over for any cell of it. See `../lib/footprint`'s `spanAnchor`.
+ */
+function reachesFootprint(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+): boolean {
+  const placed = getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex];
+  if (!placed?.span) return false;
+  const { w, d } = footprintOf(tilesById[placed.tileId], placed.direction);
+  // The footprint cell nearest the actor: the anchor is its south-east corner.
+  const nx = Math.min(ref.x, Math.max(ref.x - w + 1, actor.x));
+  const ny = Math.min(ref.y, Math.max(ref.y - d + 1, actor.y));
+  const dx = nx - actor.x;
+  const dy = ny - actor.y;
+  return dx * dx + dy * dy <= REACH_CELLS_SQUARED;
 }
 
 /**

@@ -5,6 +5,7 @@ import { isBattler } from "../lib/battler";
 import { resolveDialog } from "../lib/dialog";
 import { isInteractive } from "../lib/interactions";
 import { type RoofCut, cutHides } from "../lib/levelVisibility";
+import { spanAnchor } from "../lib/footprint";
 import { elevationAt, getStack } from "../lib/mapData";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { CELL_SIZE, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
@@ -181,7 +182,11 @@ function pickTopAt(
     if (!candidate) continue;
 
     const { stackIndex, actionable } = candidate;
-    const ref: ObjectRef = { x, y, z, stackIndex };
+    // A cell of a wide tile answers for the whole of it: pointing at the foot
+    // of a bed is pointing at the bed. The anchor is the placement that holds
+    // everything a part does not — see `../lib/footprint`.
+    const ref: ObjectRef | null = spanAnchor(ctx.map, { x, y, z, stackIndex });
+    if (!ref) continue;
     // Elevation of the slot that answered: everything under it, stacked. Only
     // the sort key reads it — where a tile is *hit* is the ground square its
     // column stands on, not its own height.

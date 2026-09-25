@@ -142,16 +142,38 @@ export type DepthBox = {
   southPx: number;
   foot: number;
   top: number;
+  /**
+   * How many cells the box reaches west and north of its base cell, for a tile
+   * that covers several — see `./types`' `TileDef.footprint`. Absent is one.
+   * The base cell is the footprint's south-east corner, so the near faces stay
+   * where they are and only the far ones move back.
+   */
+  w?: number;
+  d?: number;
 };
 
-/** Box for a tile whose base cell is (x, y), standing from `foot` to `top`. */
-export function depthBox(x: number, y: number, foot: number, top: number): DepthBox {
-  return {
+/**
+ * Box for a tile whose base cell is (x, y), standing from `foot` to `top`, and
+ * covering `footprint` cells west and north of it.
+ */
+export function depthBox(
+  x: number,
+  y: number,
+  foot: number,
+  top: number,
+  footprint?: { w: number; d: number },
+): DepthBox {
+  const box: DepthBox = {
     eastPx: (x + 1) * CELL_SIZE,
     southPx: (y + 1) * CELL_SIZE,
     foot,
     top,
   };
+  if (footprint && (footprint.w > 1 || footprint.d > 1)) {
+    box.w = footprint.w;
+    box.d = footprint.d;
+  }
+  return box;
 }
 
 /**
@@ -188,12 +210,13 @@ function boxExitElevation(box: DepthBox, screenX: number, screenY: number): numb
  * faces, where a ray travelling away from the camera goes in.
  *
  * One cell of screen travel is {@link HEIGHT_PER_LEVEL} height units of ray
- * climb, so the far faces are the near ones a cell back.
+ * climb, so the far faces are the near ones as many cells back as the box is
+ * wide and deep.
  */
 function boxFarFaceElevation(box: DepthBox, screenX: number, screenY: number): number {
-  return (
-    Math.max((box.eastPx - screenX) / PX_PER_HEIGHT, (box.southPx - screenY) / PX_PER_HEIGHT) -
-    HEIGHT_PER_LEVEL
+  return Math.max(
+    (box.eastPx - screenX) / PX_PER_HEIGHT - (box.w ?? 1) * HEIGHT_PER_LEVEL,
+    (box.southPx - screenY) / PX_PER_HEIGHT - (box.d ?? 1) * HEIGHT_PER_LEVEL,
   );
 }
 

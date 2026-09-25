@@ -114,6 +114,14 @@ const tiles: TileDef[] = [
     height: 0,
     interactions: { decay: { tileId: "", fromMs: STAIN_MS, toMs: STAIN_MS } },
   }),
+  // Two cells wide, and it rots into something one cell wide.
+  tile({
+    id: "cot",
+    kind: "prop",
+    height: 1,
+    footprint: { w: 2, d: 1 },
+    interactions: { decay: { tileId: "stain", fromMs: BLOOD_MS, toMs: BLOOD_MS } },
+  }),
   // Opted in on both sides, unlike everything else here: an ember plays out and
   // the ash it leaves plays in. Blood and stain above opt into nothing.
   tile({
@@ -477,6 +485,27 @@ describe("GameSession decay", () => {
 
     run(session, BLOOD_MS);
     expect(stackIds(session.getMap(), 0, 0)).toEqual(["grass", "stain"]);
+  });
+
+  it("turns a footprint as one thing, at the anchor's size afterwards", () => {
+    const map = withIdlePlayer(
+      replaceStack(
+        replaceStack(emptyMap(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "cot" }]),
+        0,
+        0,
+        0,
+        [{ tileId: "grass" }],
+      ),
+    );
+    const session = new GameSession(map, tiles);
+    expect(stackIds(session.getMap(), 0, 0)).toEqual(["grass", "cot"]);
+
+    // Both cells come due together and both turn into a stain. The stain is
+    // one cell wide, so the cot's second cell goes rather than leaving a stain
+    // behind in it.
+    run(session, BLOOD_MS);
+    expect(stackIds(session.getMap(), 1, 0)).toEqual(["grass", "stain"]);
+    expect(stackIds(session.getMap(), 0, 0)).toEqual(["grass"]);
   });
 
   it("chains through a tile that decays in turn", () => {

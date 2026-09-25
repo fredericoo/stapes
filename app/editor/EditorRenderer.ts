@@ -40,7 +40,8 @@ import {
 } from "../lib/types";
 import { clumpExtents } from "../render/depthClump";
 import { resolveTileSprite, tileLightSignature } from "../lib/tileResolve";
-import { cellPhaseMs, spriteRect } from "../lib/types";
+import { cellPhaseMs, footprintOf, spriteRect } from "../lib/types";
+import { isSpanPart } from "../lib/footprint";
 import { AnimationTable, NO_ANIMATION } from "../render/animTable";
 import { canPlace, canReplaceStack } from "../lib/validation";
 import { useEditorStore, type ToolId, type ZoomLevel } from "./store";
@@ -1082,7 +1083,7 @@ export class EditorRenderer {
       if (appendMode) {
         const def = s.tilesById[brush[0]!.tileId];
         if (!def) continue;
-        if (!canPlace(s.map, c.x, c.y, z, def, s.tilesById).ok) {
+        if (!canPlace(s.map, c.x, c.y, z, def, s.tilesById, brush[0]!.direction).ok) {
           const origin = baseCellWorldOrigin(c.x, c.y, z, 0);
           addRectOutline(origin.x, origin.y, CELL_SIZE, CELL_SIZE, 0xff4d4d, true);
           continue;
@@ -1333,6 +1334,12 @@ export class EditorRenderer {
         const def = this.tilesById[placed.tileId];
         const foot = absoluteElevation(z, elev);
 
+        // Drawn once, from the anchor — see `../lib/footprint`.
+        if (def && isSpanPart(placed)) {
+          elev += terrainHeight(placed, this.tilesById);
+          return;
+        }
+
         if (!def) {
           const origin = baseCellWorldOrigin(cell.x, cell.y, z, elev);
           items.push({
@@ -1416,6 +1423,7 @@ export class EditorRenderer {
             cell.y,
             absoluteElevation(z, extents[stackIndex]?.foot ?? elev),
             absoluteElevation(z, extents[stackIndex]?.top ?? elev),
+            footprintOf(def, placed.direction),
           ),
           stackBias: depthStackBias(z, stackIndex),
           texture,
