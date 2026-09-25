@@ -614,6 +614,22 @@ export type BrainActionDef =
    * direction rather than a place, so there is no destination to route to.
    */
   | ({ action: "step_away_from" } & Steering)
+  /**
+   * Stand where this body's weapon strikes from, and go there if it is not.
+   *
+   * The distance is the weapon's own: the reach of the first hand holding one,
+   * or of what the body was born with. A melee weapon wants to be beside the
+   * target; a weapon with a `reach.min`, a bow, wants to be exactly that far
+   * out — near enough that the target stays in range when it moves, far enough
+   * that the shot still goes. Too close, it backs off; too far or behind a
+   * wall, it walks up.
+   *
+   * **Fails once it is standing there**, on the terms `walk_n_steps` fails
+   * when its count is done: in position is having nothing left to offer, so the
+   * `attack` on the next line gets its turn. Fails too with nobody in the slot,
+   * or with nowhere to go.
+   */
+  | ({ action: "attack_range" } & Steering)
   /** Stand still for a stretch, then get out of the way of the next line. */
   | { action: "wait"; ms: number }
   /** Wander a bounded distance, then get out of the way of the next line. */
@@ -974,6 +990,11 @@ const actionSchema = v.variant("action", [
   }),
   v.object({
     action: v.literal("step_away_from"),
+    of: selectorSchema,
+    allowDrops,
+  }),
+  v.object({
+    action: v.literal("attack_range"),
     of: selectorSchema,
     allowDrops,
   }),

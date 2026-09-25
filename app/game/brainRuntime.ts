@@ -181,6 +181,13 @@ export type WalkOrderState = "walking" | "arrived" | "blocked";
  */
 export type FoundThing = { readonly at: Coord; readonly tileId: string };
 
+/**
+ * Where a body stands against somebody, measured by the reach it would strike
+ * them with. What the `attack_range` action steers by. @see
+ * BrainContext.standOff
+ */
+export type StandOff = "too_close" | "in_position" | "too_far";
+
 export type BrainContext = {
   /** Still finishing a walk, a fall, or a shove. */
   busy: boolean;
@@ -452,6 +459,16 @@ export type BrainContext = {
    * @see ../lib/brain's `status`
    */
   hasStatus(id: string, atLeastMs: number | undefined): boolean;
+  /**
+   * Where this body stands against somebody, by the reach it would strike them
+   * with, or null when either of them is off the board or this body cannot
+   * strike at all. What the `attack_range` action reads.
+   *
+   * The session's question rather than the runtime's, because the answer needs
+   * the weapon in the hand and the walls between the two bodies, and both are
+   * the board's. @see ../lib/brain's `attack_range`
+   */
+  standOff(actorId: string): StandOff | null;
   /**
    * What share of its hit points this body has left, from 0 to 1, or null for
    * one that has no hit points at all. What the `health` condition reads.
@@ -1057,6 +1074,23 @@ function runAction(
       // next line gets its turn.
       if (!goal) return "failure";
       return walkAlongRoute(goal, action.allowDrops, ctx);
+    }
+    case "attack_range": {
+      // A thing has no pulse, on `attack`'s terms: there is nobody to strike.
+      const id = boundBody(identify(action.of, memory, ctx));
+      if (id === null) return "failure";
+      // Judged from where the body stands, never from half a step: measured
+      // mid-step, the ring is crossed on the way to it and the body turns back
+      // for it, one cell either side, for ever.
+      if (ctx.busy) return "running";
+      const standing = ctx.standOff(id);
+      // In position is done, which is a failure so the `attack` below it runs.
+      if (standing === null || standing === "in_position") return "failure";
+      if (standing === "too_close") {
+        const at = ctx.positionOf(id);
+        return at ? fleeAlongRoute(at, action.allowDrops, ctx) : "failure";
+      }
+      return walkAlongRoute({ of: "body", id }, action.allowDrops, ctx);
     }
     case "step_away_from": {
       // Where the threat *is*, not who it is: a flee measures against a

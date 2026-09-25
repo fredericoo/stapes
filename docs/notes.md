@@ -8187,6 +8187,33 @@ nobody in one way: it never touches `actor.targetId`.
   row (`dropSelfAims` in `BrainEditor.tsx`), so the file never carries a
   selector no control displays.
 
+## `attack_range` stands where the weapon strikes from
+
+`step_toward` walks until it is beside somebody, which is right for a sword and
+wrong for a bow: a bow has a `reach.min`, so beside is the one place it cannot
+shoot. `attack_range` asks the weapon instead. The session answers
+`BrainContext.standOff` with one of three words, and the action backs off, walks
+up, or fails so the line below it — the `attack` — gets its turn.
+
+- **The reach is the first hand holding a weapon, else the body's own**, in
+  `HANDS` order, which is the order `tryAttack` offers them. It is the weapon's
+  number and nothing in the brain, so one line serves an imp that rolled a mace
+  and one that rolled a bow.
+- **In position is a ring from `min` to one cell past it**, not the whole
+  reach. A bow at eight cells is in range and one step from out of it; at its
+  minimum it keeps the target in range while the target moves, which is what
+  the line is for. A weapon with no `min` is in position wherever it can
+  strike, which for anything melee is beside the target.
+- **A wall makes it too far**, because `canReach` is asked with the line of
+  sight, and the walk up routes round the wall. Too close is a flee from where
+  the target stands, on `step_away_from`'s machinery.
+- **It judges only between steps.** While a step is in flight it reports
+  `running` and does nothing else. Judged mid-step, the body crossed the ring on
+  the way into it, turned back for it, and crossed it again, one cell either
+  side, for ever. The brain's round is one walk long (`BRAIN_TICK_MS` is
+  `WALK_DURATION_MS`), so waiting costs no pace: the imp walks up at a cell per
+  200ms. `walk_n_steps` waits on `busy` for the same kind of reason.
+
 ## The bog imp and the cyclops
 
 Two creatures on the green goblin and the cyclops in `animals.png`, authored

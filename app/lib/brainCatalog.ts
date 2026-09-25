@@ -328,6 +328,15 @@ export const ACTIONS: Record<BrainActionDef["action"], CatalogEntry<BrainActionD
     ],
     make: () => ({ action: "step_away_from", of: DEFAULT_SELECTOR }),
   },
+  attack_range: {
+    label: "attack range",
+    hint: "Stand where the body's weapon strikes from: beside the target for a melee weapon, at the weapon's minimum range for a bow. Backs off when too close, walks up when too far or behind a wall. Fails once in position, so put the attack on the next line.",
+    params: [
+      { key: "of", kind: "selector", label: "of" },
+      { key: "allowDrops", kind: "boolean", label: "allow drops" },
+    ],
+    make: () => ({ action: "attack_range", of: DEFAULT_SELECTOR }),
+  },
   wait: {
     label: "wait",
     hint: "Stand still for a stretch, then hand its turn to the next line.",

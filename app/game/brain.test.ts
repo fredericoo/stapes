@@ -272,6 +272,7 @@ describe("deciding", () => {
       consumeOn: vi.fn(() => false),
       carrying: () => false,
       hasStatus: () => false,
+      standOff: () => null,
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
@@ -1172,6 +1173,7 @@ describe("giving up", () => {
       consumeOn: () => false,
       carrying: () => false,
       hasStatus: () => false,
+      standOff: () => null,
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
@@ -1562,6 +1564,7 @@ describe("actions that take time", () => {
       consumeOn: vi.fn(() => false),
       carrying: () => false,
       hasStatus: () => false,
+      standOff: () => null,
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
@@ -2015,6 +2018,7 @@ describe("a deer that yelps", () => {
       consumeOn: () => false,
       carrying: () => false,
       hasStatus: () => false,
+      standOff: () => null,
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
@@ -2104,6 +2108,7 @@ describe("a deer that yelps", () => {
       consumeOn: () => false,
       carrying: () => false,
       hasStatus: () => false,
+      standOff: () => null,
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
@@ -2833,6 +2838,7 @@ describe("composing conditions", () => {
       consumeOn: vi.fn(() => false),
       carrying: () => false,
       hasStatus: () => false,
+      standOff: () => null,
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
@@ -3566,6 +3572,87 @@ describe("the wolf we ship", () => {
 });
 
 /**
+ * `attack_range`, on a board: a body walks to where its own weapon strikes
+ * from, and the distance comes from the weapon rather than from the brain.
+ *
+ * Built on the shipped bow and mace, because the whole claim is about their
+ * `reach` — the bow's `min` is what puts a hole in the middle of its range.
+ */
+describe("keeping to its weapon's range", () => {
+  const authored = normalizeTiles(tilesJson as unknown[]);
+  const imp = authored.find((def) => def.id === "bog-imp")!;
+
+  /** A body holding `weapon` whose one line is to keep its range from alice. */
+  function keeper(weapon: string): TileDef {
+    const battler = imp.interactions!.battler!;
+    return {
+      ...imp,
+      id: "keeper",
+      interactions: {
+        battler: { ...battler, kit: [{ slot: "weapon" as const, tileId: weapon, chance: 100 }] },
+        brain: {
+          initial: "keeping",
+          states: {
+            keeping: {
+              do: [
+                { action: "attack_range", of: { type: "nearest", data: { tileIds: ["player"] } } },
+                { action: "hold" },
+              ],
+            },
+          },
+          transitions: [],
+        },
+      },
+    };
+  }
+
+  /** Open dirt, the keeper at the origin and alice `aliceX` cells east. */
+  function yard(weapon: string, aliceX: number): GameSession {
+    let map = emptyMap();
+    for (let x = -12; x <= 12; x++) {
+      for (let y = -12; y <= 12; y++) {
+        map = replaceStack(map, x, y, 0, [{ tileId: "dirt" }]);
+      }
+    }
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "dirt" }, { tileId: "keeper" }]);
+    map = replaceStack(map, aliceX, 0, 0, [
+      { tileId: "dirt" },
+      { tileId: "player", direction: "w", owner: "alice" },
+    ]);
+    return new GameSession(map, [...authored, keeper(weapon)], {
+      actorIds: ["alice"],
+      spawnAt: { x: 12, y: 12, z: 0, stackIndex: 1 },
+      seed: 20260925,
+    });
+  }
+
+  /** Plan distance squared between the keeper and alice after `ms`. */
+  function apartSqAfter(session: GameSession, ms: number): number {
+    for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) session.tick(TICK_MS);
+    const actors = session.actorSnapshots();
+    const a = actors.find((actor) => actor.tileId === "keeper")!;
+    const b = actors.find((actor) => actor.tileId === "player")!;
+    return (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
+  }
+
+  it("walks a bow up to its minimum range and stops there", () => {
+    const apartSq = apartSqAfter(yard("hunting-bow", 8), 4000);
+    expect(apartSq).toBeGreaterThanOrEqual(4);
+    expect(apartSq).toBeLessThan(9);
+  });
+
+  it("backs a bow off somebody standing beside it", () => {
+    const apartSq = apartSqAfter(yard("hunting-bow", 1), 4000);
+    expect(apartSq).toBeGreaterThanOrEqual(4);
+    expect(apartSq).toBeLessThan(9);
+  });
+
+  it("walks a melee weapon up beside the target", () => {
+    expect(apartSqAfter(yard("iron-mace", 6), 4000)).toBeLessThanOrEqual(2);
+  });
+});
+
+/**
  * The bog imp and the cyclops we ship, and the two things about them that live
  * in the order of their rows: where each goes to sleep, and which of its spells
  * a hunt throws.
@@ -3736,6 +3823,7 @@ describe("knowing where it belongs", () => {
       consumeOn: vi.fn(() => false),
       carrying: () => false,
       hasStatus: () => false,
+      standOff: () => null,
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
@@ -4990,6 +5078,7 @@ describe("naming a thing", () => {
       consumeOn: vi.fn(() => false),
       carrying: () => false,
       hasStatus: () => false,
+      standOff: () => null,
       // Untouched, unless a test says otherwise: a creature deciding anything
       // about its own health is deciding it from a full bar.
       health: () => 1,
@@ -5168,6 +5257,7 @@ describe("asking what a body is under", () => {
       consumeOn: vi.fn(() => true),
       carrying: () => false,
       hasStatus: vi.fn(() => false),
+      standOff: () => null,
       health: vi.fn((): number | null => 1),
       minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,
@@ -5402,6 +5492,7 @@ describe("casting a spell of its own", () => {
       consumeOn: vi.fn(() => false),
       carrying: () => false,
       hasStatus: () => false,
+      standOff: () => null,
       health: () => 1,
       minutesOfDay: 12 * 60,
       nameOf: (id: string) => id,

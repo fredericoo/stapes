@@ -38,6 +38,7 @@ import {
   type StoneEffect,
   UNNAMED_SPELL,
   UNNAMED_WEAPON,
+  type Reach,
   type WeaponStatus,
   resolveConsumable,
   resolveCharm,
@@ -208,6 +209,7 @@ import {
   spilled,
   stoneLocked,
   weaponInHand,
+  weaponSwungBy,
 } from "./equipment";
 import {
   CAST_SQUARES,
@@ -240,7 +242,7 @@ import {
 } from "./experience";
 import { mintItemIds } from "./itemIds";
 import { dodgeAway, outranksSwing, swingToward, type StrikeState } from "./strike";
-import type { ReachPoint } from "./distance";
+import { planDistanceSq, type ReachPoint } from "./distance";
 import {
   ageEffects,
   ageFlights,
@@ -312,6 +314,7 @@ import {
   type BrainMemory,
   type FoundThing,
   type SightLevels,
+  type StandOff,
   type Sound,
   type Utterance,
   type WalkGoal,
@@ -4327,6 +4330,7 @@ export class GameSession implements PlaySession {
       consumeOn: (at, tileId) => this.consumeOnGround(actor, at, tileId),
       carrying: (tileId) => this.carryingInBag(actor, tileId),
       hasStatus: (id, atLeastMs) => this.hasStatus(actor, id, atLeastMs),
+      standOff: (id) => this.standOff(actor, id),
       health: () => this.healthShare(actor),
       minutesOfDay: round.minutesOfDay,
       nameOf: (id) => this.bodyName(id),
@@ -8445,6 +8449,51 @@ export class GameSession implements PlaySession {
     // A bar rather than a spell that has landed: `cast` starts one when the
     // stone has a time on it, and resolves on the spot when it does not.
     return actor.casting ? "casting" : "cast";
+  }
+
+  /**
+   * Where this body stands against somebody, by the reach it would strike them
+   * with. What the brain's `attack_range` reads.
+   *
+   * **The reach is the first hand holding a weapon, else the body's own**, in
+   * `HANDS` order, which is the order `tryAttack` offers the hands in. A body
+   * with a bow and a knife is placed for the bow when the bow is in the main
+   * hand; the knife still takes the turns the bow cannot when somebody closes.
+   *
+   * **In position is a ring, not a disc.** Inside the reach is not enough for a
+   * bow: a body eight cells out is in range and one step from out of it. So a
+   * weapon with a `min` is in position from `min` to one cell past it, and one
+   * with none is in position wherever it can strike — beside the target, for
+   * anything melee. Out of reach, or in reach with a wall in the way, is too
+   * far, and the walk up routes round the wall.
+   */
+  private standOff(actor: ActorRuntime, targetId: string): StandOff | null {
+    const target = this.actors.get(targetId);
+    if (!target) return null;
+    const from = this.tryLocate(actor);
+    const to = this.tryLocate(target);
+    if (!from || !to) return null;
+    const reach = this.strikingReach(actor);
+    if (!reach) return null;
+
+    const fromPoint = this.reachPointOf(from);
+    const toPoint = this.reachPointOf(to);
+    const min = reach.min ?? 0;
+    const apartSq = planDistanceSq(fromPoint, toPoint);
+    if (apartSq < min * min) return "too_close";
+    const ring = min === 0 || apartSq < (min + 1) * (min + 1);
+    return ring && canReach(this.map, this.tilesById, fromPoint, toPoint, reach)
+      ? "in_position"
+      : "too_far";
+  }
+
+  /** The reach of the first hand holding a weapon, else of the body's own. */
+  private strikingReach(actor: ActorRuntime): Reach | null {
+    for (const hand of HANDS) {
+      const weapon = weaponSwungBy(actor.equipment, this.tilesById, hand);
+      if (weapon) return weapon.reach;
+    }
+    return this.battlerOf(actor)?.reach ?? null;
   }
 
   /**
