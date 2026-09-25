@@ -5007,6 +5007,18 @@ creature directly in front, landed on top of that creature. It is read off the
 cell now (`lowestBodyIn`), under the lowest body there, so both ways of aiming
 put the tile in the same slot.
 
+#### An appear on a projectile has to be shorter than its flight
+
+A flight wears its `appear` transition from the moment it is loosed, and a
+dissolve-in is drawn as a share of the sprite: at 30% through, 30% of the
+arrow's pixels are there. The arrow carried a 700ms noise dissolve at 20 cells
+a second, so a shot across eight cells was in the air for 400ms and was never
+more than 57% drawn, and one across two cells for 100ms, at 14%. On a one-cell
+sprite in 3px clumps that is nothing anybody sees: the bog imp's arrows hit
+and were never seen to fly. The arrow has no appear now. The fireball still
+has a 300ms one at the same speed, so a fireball thrown less than six cells is
+still only partly drawn when it lands.
+
 #### A conjure lands where the caster could step, or is not cast
 
 With nobody targeted the cell is the one `canWalk` would step the caster's own

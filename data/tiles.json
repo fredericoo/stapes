@@ -30387,17 +30387,6 @@
           }
         ]
       }
-    },
-    "transitions": {
-      "appear": {
-        "durationMs": 700,
-        "dissolve": {
-          "pattern": "noise",
-          "clumpPx": 3,
-          "edgeColor": "#8ce6ff",
-          "edgeWidth": 0.15
-        }
-      }
     }
   },
   {
