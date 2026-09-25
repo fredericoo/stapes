@@ -158,6 +158,12 @@ export function pushDestination(
   push: PushInteraction,
   tilesById: Record<string, TileDef>,
 ): PushCheck {
+  // A tile that covers several cells does not slide yet: it would have to
+  // move every cell of itself at once, and nothing that moves does that yet.
+  if (pushedColumn(map, from).some((placed) => placed.span)) {
+    return { ok: false, reason: "Too big to push" };
+  }
+
   const { dx, dy } = DIR_DELTA[direction];
   const destX = from.x + dx;
   const destY = from.y + dy;

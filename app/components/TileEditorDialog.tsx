@@ -37,6 +37,8 @@ import {
   nearestCardinal,
   resolveClimbFrom,
   lightPassingForced,
+  MAX_FOOTPRINT_SIDE,
+  mayCoverCells,
   resolveIntangible,
   resolveLightPassing,
   resolveWalkable,
@@ -103,6 +105,12 @@ const DEFAULT_LIGHT: LightDef = {
   intensity: 1,
   color: "#ffcc88",
 };
+
+/** The sizes a footprint side may take. @see MAX_FOOTPRINT_SIDE */
+const FOOTPRINT_SIDES = Array.from({ length: MAX_FOOTPRINT_SIDE }, (_, i) => ({
+  value: i + 1,
+  label: String(i + 1),
+}));
 
 function blankTile(tilesets: TilesetDef[]): TileDef {
   return {
@@ -976,6 +984,12 @@ export function TileEditorDialog({
       // absent, which is what ordinary ground says.
       walkSpeedPercent: draft.walkSpeedPercent || undefined,
       wade: draft.wade ? true : undefined,
+      // One cell is written as absent, and so is a footprint on a tile that
+      // may not have one — a kind or type changed after it was set.
+      footprint:
+        mayCoverCells(draft) && draft.footprint && (draft.footprint.w > 1 || draft.footprint.d > 1)
+          ? draft.footprint
+          : undefined,
       connectsTo:
         draft.type === "autotile" && draft.connectsTo?.length ? draft.connectsTo : undefined,
       scatterSeed: draft.type === "scatter" && draft.scatterSeed ? draft.scatterSeed : undefined,
@@ -1986,6 +2000,32 @@ export function TileEditorDialog({
                   className="w-fit"
                 />
               </div>
+              {mayCoverCells(draft) ? (
+                <div className="flex flex-col gap-1 text-xs">
+                  <FieldLabel info="Cells covered facing south — width along x, depth along y. Placed from the south-east cell, reaching west and north; facing east or west swaps the two. Every cell it covers is stood on, blocked and lit as this tile, and anything that happens to one cell happens to all of them.">
+                    Footprint
+                  </FieldLabel>
+                  <div className="flex items-center gap-2">
+                    <Segmented<number>
+                      value={draft.footprint?.w ?? 1}
+                      onChange={(w) =>
+                        setDraft({ ...draft, footprint: { w, d: draft.footprint?.d ?? 1 } })
+                      }
+                      options={FOOTPRINT_SIDES}
+                      size="sm"
+                    />
+                    <span className="text-muted">×</span>
+                    <Segmented<number>
+                      value={draft.footprint?.d ?? 1}
+                      onChange={(d) =>
+                        setDraft({ ...draft, footprint: { w: draft.footprint?.w ?? 1, d } })
+                      }
+                      options={FOOTPRINT_SIDES}
+                      size="sm"
+                    />
+                  </div>
+                </div>
+              ) : null}
               {lightPassingForced(draft) ? (
                 <p className="text-sm opacity-60">
                   Passes light — items, battlers and anything with a brain always do. One that

@@ -350,6 +350,7 @@ import {
   type Consumed,
 } from "./endure";
 import { COMBAT_STATUS, COMBAT_STATUS_ID, type StatusDef } from "../lib/status";
+import { settleAllSpans, settleSpans, spanAnchor } from "../lib/footprint";
 import { projectileEffect, resolveProjectile } from "../lib/projectile";
 import {
   advanceStatuses,
@@ -2200,8 +2201,28 @@ export type Death = {
  * game server spawns one per connection.
  */
 export class GameSession implements PlaySession {
-  private map: MapFile;
+  private board!: MapFile;
   private readonly tilesById: Record<string, TileDef>;
+  /**
+   * The board, and the one place it is written.
+   *
+   * **Every write settles the footprints it touched**, so a tile that covers
+   * several cells stays one thing whatever changed it: a decay, a fire, a
+   * switch, a pickup, a command, and anything added after them. Settling at
+   * each call site would be forty call sites, and the one somebody forgets
+   * leaves half a bed on the board. See `../lib/footprint`'s `settleSpans`,
+   * which costs nothing for a chunk with no wide tile in it.
+   *
+   * What is written can come back different from what was assigned. Nothing
+   * here holds on to the value it assigned and edits it again; derive the next
+   * edit from `this.map`, as every site already does.
+   */
+  private get map(): MapFile {
+    return this.board;
+  }
+  private set map(next: MapFile) {
+    this.board = settleSpans(this.board, next, this.tilesById);
+  }
   /** Insertion-ordered, which is what makes {@link tick} deterministic. */
   private readonly actors = new Map<string, ActorRuntime>();
   /**
@@ -2713,8 +2734,11 @@ export class GameSession implements PlaySession {
     } = {},
   ) {
     this.clock = clock;
-    this.map = structuredClone(map);
     this.tilesById = tilesByIdFromList(tiles);
+    // Settled whole on the way in: a file or a checkpoint has had nothing
+    // keeping its footprints consistent, and a catalogue edit can have resized
+    // one since it was written.
+    this.board = settleAllSpans(structuredClone(map), this.tilesById);
     // The combat flag's def is the engine's, and a session built from a bare
     // catalogue — a test fixture, a tool — must still know it: an unknown def
     // is dropped on the next tick, and the flag with it.
@@ -3182,7 +3206,7 @@ export class GameSession implements PlaySession {
     const def = this.tilesById[point.placed.tileId];
     if (!def) return { kind: "done" };
     const { x, y, z } = point.cell;
-    if (!canPlace(this.map, x, y, z, def, this.tilesById).ok) {
+    if (!canPlace(this.map, x, y, z, def, this.tilesById, point.placed.direction).ok) {
       return { kind: "blocked" };
     }
 
@@ -10599,7 +10623,12 @@ export class GameSession implements PlaySession {
    * ended up through a locked door, or standing on top of it. Closed → tap →
    * open → channel disagrees → closed now happens with nothing in between.
    */
-  interact(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+  interact(target: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+    // A cell of a wide tile is the tile: its anchor holds every field a part
+    // does not carry. The client's pick already sends the anchor; this is for
+    // the message that was built from something else. See `../lib/footprint`.
+    const ref = spanAnchor(this.map, target);
+    if (!ref) return false;
     const acted =
       this.takeReward(ref, id) ||
       // Above the switch, and below the reward, on the reward's own argument:
@@ -10632,7 +10661,9 @@ export class GameSession implements PlaySession {
   }
 
   /** Is there anything a tap on this object would do right now? */
-  canInteract(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+  canInteract(target: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+    const ref = spanAnchor(this.map, target);
+    if (!ref) return false;
     return (
       this.canTakeReward(ref, id) ||
       this.canTeleport(ref, id) ||

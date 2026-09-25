@@ -62,6 +62,23 @@ export function nearestCardinal(octant: Octant): Direction {
   return NEAREST_CARDINAL[octant];
 }
 
+/** A tile's size on the plan, in cells. @see TileDef.footprint */
+export type Footprint = {
+  /** Cells along x, facing south. */
+  w: number;
+  /** Cells along y, facing south. */
+  d: number;
+};
+
+/** @see PlacedTile.span */
+export type Span = {
+  id: string;
+  /** Cells east from this placement to its anchor. */
+  dx: number;
+  /** Cells south from this placement to its anchor. */
+  dy: number;
+};
+
 export type CellRect = {
   x: number;
   y: number;
@@ -392,6 +409,26 @@ export type TileDef = StateSprites & {
   anchor: SpriteAnchor;
   /** What this tile is — see {@link TileKind}. Required; absent reads as prop. */
   kind: TileKind;
+  /**
+   * How many cells this tile covers on the plan, facing south: `w` along x and
+   * `d` along y. Absent, or 1×1, is one cell, which is every tile but a few.
+   *
+   * The cell a placement is put in is the **south-east** corner of the
+   * footprint, and the rest of it reaches west and north from there. That is
+   * the corner a sprite's default `base` already names, and the corner whose
+   * east and south edges the depth box is measured from, so art drawn for one
+   * cell and art drawn for several are anchored the same way.
+   *
+   * A placement facing east or west covers `d`×`w` instead: the footprint turns
+   * with the facing, so a bed is one tile rather than one per orientation.
+   *
+   * Every other cell of the footprint holds a *part*: a placement of the same
+   * tile carrying {@link PlacedTile.span}. Parts are real placements, so every
+   * height, walkability and light question about a cell already sees the bed in
+   * it. `../lib/footprint` keeps them in step with the anchor — see
+   * `docs/notes.md`, "A tile can cover more than one cell".
+   */
+  footprint?: Footprint;
   /** Reserved for flammable/wet/frozen/pushable later. */
   attributes: Record<string, never>;
   /**
@@ -978,6 +1015,22 @@ export type PlacedTile = {
    * exactly what every flame in the world did before this existed.
    */
   castElements?: Element[];
+  /**
+   * Which multi-cell placement this is one cell of, and where its anchor is.
+   * Only on placements of a tile with a {@link TileDef.footprint}.
+   *
+   * `id` is shared by the anchor and every one of its parts, and tells two
+   * footprints apart when their anchors are in one cell — a bed on a rug. `dx`
+   * and `dy` are how far east and south the anchor is from this cell, so the
+   * anchor carries `0, 0` and a part finds it with one stack read rather than a
+   * search.
+   *
+   * A part carries the tile, the facing and the variant and nothing else: an
+   * inscription, a channel or a chest's contents live on the anchor only, and
+   * anything that reads them through a part is redirected there. See
+   * `../lib/footprint`.
+   */
+  span?: Span;
   /**
    * Which particular item this placement is, for the placements that are one.
    *
@@ -1808,3 +1861,73 @@ export function cellPhaseMs(sprite: TileSprite, x: number, y: number): number {
 
 // resolveTileSprite / getFrames / resolveLight live in ./tileResolve
 // (needs autotile without a circular import).
+
+/*
+ * Footprints — how many cells a placement covers. Here rather than in
+ * `./footprint` because `./validation` asks it, and `./footprint` asks
+ * `./validation`. See {@link TileDef.footprint}.
+ */
+
+/** The most cells a footprint may cover along either side. */
+export const MAX_FOOTPRINT_SIDE = 4;
+
+const ONE_CELL: Footprint = { w: 1, d: 1 };
+
+/**
+ * Whether this tile may cover more than one cell at all.
+ *
+ * Props only, and only the sprite types that draw one picture per placement.
+ * A body that moves across several cells is the next step and is not this one;
+ * an item would have to be picked up whole; and an autotile or a scatter tile
+ * picks its face per cell, which is a question with no answer for a placement
+ * that is in four cells at once.
+ */
+export function mayCoverCells(def: TileDef): boolean {
+  return (
+    def.kind === "prop" &&
+    !def.actor &&
+    (def.type === "simple" ||
+      def.type === "directional" ||
+      def.type === "directional8" ||
+      def.type === "variant")
+  );
+}
+
+function side(n: unknown): number {
+  if (typeof n !== "number" || !Number.isFinite(n)) return 1;
+  return Math.min(MAX_FOOTPRINT_SIDE, Math.max(1, Math.round(n)));
+}
+
+/**
+ * The cells a placement of this tile covers, turned to face the way it faces.
+ *
+ * A tile authored `w`×`d` covers `d`×`w` facing east or west. Anything the tile
+ * may not span with, or a malformed size, reads as one cell.
+ */
+export function footprintOf(def: TileDef | undefined, direction?: Direction): Footprint {
+  if (!def?.footprint || !mayCoverCells(def)) return ONE_CELL;
+  const w = side(def.footprint.w);
+  const d = side(def.footprint.d);
+  if (w === 1 && d === 1) return ONE_CELL;
+  return direction === "e" || direction === "w" ? { w: d, d: w } : { w, d };
+}
+
+export function coversCells(footprint: Footprint): boolean {
+  return footprint.w > 1 || footprint.d > 1;
+}
+
+/**
+ * Every cell of a footprint anchored at `(x, y)`, the anchor first, each with
+ * the offset back to the anchor that its part carries.
+ */
+export function footprintCells(
+  x: number,
+  y: number,
+  footprint: Footprint,
+): Array<{ x: number; y: number; dx: number; dy: number }> {
+  const out: Array<{ x: number; y: number; dx: number; dy: number }> = [];
+  for (let dy = 0; dy < footprint.d; dy++) {
+    for (let dx = 0; dx < footprint.w; dx++) out.push({ x: x - dx, y: y - dy, dx, dy });
+  }
+  return out;
+}

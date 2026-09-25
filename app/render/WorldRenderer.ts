@@ -73,6 +73,7 @@ import type {
   TileDef,
   TilesetDef,
 } from "../lib/types";
+import { isSpanPart } from "../lib/footprint";
 import {
   CELL_SIZE,
   HEIGHT_PER_LEVEL,
@@ -80,6 +81,7 @@ import {
   MIN_LEVEL,
   coordKey,
   cellPhaseMs,
+  footprintOf,
   frameIndexAtTime,
   levelKey,
   parseCoordKey,
@@ -3226,6 +3228,14 @@ export class WorldRenderer {
 
       const def = this.tilesById[placed.tileId];
       if (!def) return;
+      // A wide tile is drawn once, from its anchor, and the anchor's box covers
+      // the whole footprint. Its other cells are there to be stood on, lit and
+      // walked around; drawing them would draw the bed twice. See
+      // `../lib/footprint`.
+      if (isSpanPart(placed)) {
+        elev += terrainHeight(placed, this.tilesById);
+        return;
+      }
 
       const instanceKey = this.tileKey({ x, y, z, stackIndex });
       // The state is read at build time so a cell rebuilt while a creature is
@@ -3340,6 +3350,7 @@ export class WorldRenderer {
         y,
         boxFoot,
         offsets.length > 1 ? Math.max(boxTop, boxFoot + DEPTH_LEAST_BODY) : boxTop,
+        footprintOf(def, placed.direction),
       );
 
       // Anchored to the cell and sorted with the placement, which is the rule

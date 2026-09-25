@@ -1977,6 +1977,122 @@ A non-swimmer with water between it and its target reads the river as a wall:
 it walks to a crossing inside `PATH_DETOUR_SLACK`, or the search fails and the
 brain's `stuck` fires.
 
+## A tile can cover more than one cell
+
+`TileDef.footprint` is `{ w, d }`: cells along x and along y, for the tile
+facing south. A bed is 1×2 facing south and 2×1 facing east — the footprint
+turns with the facing, so one tile covers every orientation. Props only, and
+only the sprite types that draw one picture per placement (`simple`,
+`directional`, `directional8`, `variant`). A body that covers several cells is
+the next step and is not this one. The limit is `MAX_FOOTPRINT_SIDE`, four.
+
+**Every cell holds a real placement.** The cell the tile is put in is the
+*anchor*, the south-east corner of the footprint; each other cell holds a
+*part* — a placement of the same tile, carrying `span: { id, dx, dy }`, where
+`dx`/`dy` is how far east and south the anchor is. The anchor carries
+`span` too, with `0, 0`, so that it has the `id`.
+
+That is the whole reason for storing parts rather than working them out.
+Every question the world asks is asked of one cell — `stackHeight`, `fitsTile`,
+`canWalk`, the light bake's occlusion, `canReplaceStack` — and every one of
+them already sees a bed in a cell that holds a bed placement. The other way —
+the footprint on the def and a search of the neighbourhood whenever a cell is
+read — would have had to be taught to all of those, and "A body is not terrain"
+is the record of what happens to a rule written out in five places.
+
+**The south-east corner, because the art and the depth box already use it.** A
+sprite's default `base` is its bottom-right cell, and a depth box is measured
+from its cell's east and south edges. With the anchor there, a wide tile's box
+keeps its near faces where a one-cell box has them and only its far faces move
+back (`DepthBox.w`/`d`, the `aSpan` attribute in `render/worldQuads`).
+
+**The id is only unique inside one anchor cell.** A part finds its anchor by
+offset; the id picks the right placement when two footprints are anchored in
+one cell — a bed on a rug. Eight hex digits, minted when a placement of a wide
+tile first turns up without a `span`, and kept in `data/map.json` like any other
+authored field.
+
+### `settleSpans` is the only thing that writes a part
+
+`app/lib/footprint.ts`. It takes the map before an edit and the map after it,
+and makes every footprint the edit touched whole again:
+
+- The anchor, or any part, was removed → every cell of it goes. Erasing the
+  foot of a bed in the editor erases the bed.
+- The anchor changed tile, facing or variant → the parts follow, and the
+  footprint is re-cut to the new tile's size. A bed that decays into a one-cell
+  heap leaves one heap.
+- A part changed → the anchor takes the change, and the rest follow. A fire
+  that burns through the foot of a bed burns the bed.
+- A placement of a wide tile with no `span` → a new anchor; its parts are put on
+  top of the cells it covers. So `/tile`, a decay, a conjure and a respawn
+  place wide tiles without knowing they are wide.
+- A part whose anchor is not there → removed.
+
+A part carries the tile, the facing and the variant, and nothing else. An
+inscription, a channel, contents, a reward or a teleport live on the anchor
+only. So "a change" means a change to one of those three fields — nothing else
+on a part is read.
+
+**A change the whole footprint cannot take is taken back from all of it.**
+Each part is checked with `canReplaceStack` in its own cell; if one does not
+fit, every cell goes back to what it was before the edit, and a footprint that
+did not exist before is not placed at all. That is the "refuse rather than
+force" every swap already follows, applied one step later. The mechanism that
+made the change is not told. A decay whose swap was reverted is re-armed the
+next time its cell is reindexed, the same as any other refused swap.
+
+**It runs on every write, from two places.** `GameSession.map` is a setter that
+settles against the previous board, and `app/editor/store.ts`'s `commitMap`
+does the same for the editor. Forty-odd sites write the session's map. A rule
+kept at each of them would be missing from one of them, and that one would
+leave half a bed on the board. The consequence for code in the session: what is
+assigned to `this.map` can come back different, so the next edit has to be
+derived from `this.map` and not from the value just assigned.
+
+**It costs nothing where there is no wide tile.** A catalogue with none returns
+at the first line. Otherwise changed chunks are ruled out by `tileIdsInChunk`
+before a cell is compared, so a step on a floor with no bed on it pays a set
+lookup per chunk it touched.
+
+`settleAllSpans` settles the whole map as if every footprint in it were new. It
+is a sweep, so it runs only where the world already sweeps: when a session
+starts and when the editor hydrates. That is also how a footprint edited in the
+tile editor reaches placements already on the board: the next load re-cuts
+them.
+
+### What reads a part, and what skips it
+
+- **Drawn once, from the anchor.** `WorldRenderer.cellItems` and the editor's
+  build skip parts (still adding their height to the running elevation), and
+  the anchor's depth box covers the footprint.
+- **Lit once, from the anchor.** `lightingFlood` and the chunk cache's emission
+  signature skip parts, or a two-cell brazier would be two lights. Parts still
+  occlude, as any placement of the tile does.
+- **Picked as the anchor.** `render/pick`'s `pickTopAt` hands back the anchor
+  for any cell of a footprint (`spanAnchor`). `GameSession.interact` and
+  `canInteract` do the same for a ref built some other way.
+- **Reached from any side.** `affordances.withinReach` measures to the nearest
+  cell of the footprint once the anchor itself is out of reach, so a bed is used
+  from beside its foot as well as its head.
+- **Placed only on level ground.** `canPlace` takes the facing, asks every cell
+  of the footprint, and refuses cells whose stacks are not the same height: a
+  part is put on top of whatever its cell holds, so a bed across a step would be
+  drawn flat and stood on at two heights.
+- **Not pushed.** `pushDestination` refuses a column with a span in it. Moving
+  a footprint means moving every cell at once, and nothing moves that way yet.
+  Settling an anchor moved on its own would remove the old footprint and place
+  a new one, in an order that decides whether the two overlap.
+
+### What is left for bodies
+
+A creature that covers 2×2 needs what a prop does not: a step that enters and
+leaves several cells at once (`canWalk` over the leading edge, `moveColumn`
+over the whole footprint in one `setStacks`), gravity that asks every cell
+under it, reach and `guardShare` measured to the nearest cell, a route search
+with clearance, and wire scoping with a margin. Ladders and ramps are out of
+scope for the first version.
+
 ## A roof over a cave is not what keeps the daylight out of it
 
 Anything underground that is meant to be dark has to be *checked* dark, against

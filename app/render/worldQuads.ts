@@ -152,6 +152,15 @@ export function noAnimUniforms(placeholder: THREE.Texture): LevelAnimUniforms {
 
 const VERTS_PER_QUAD = 4;
 const BOX_COMPONENTS = 4;
+/**
+ * The box's footprint in cells, west and north of its base cell — see
+ * `../lib/geometry`'s `DepthBox.w`. Its own attribute rather than two more
+ * components of `aBox`, so that geometry built before it existed, and the
+ * particle layer, which never covers more than a cell, can leave it out: an
+ * absent attribute reads as zero, and the shader reads anything under one as
+ * one.
+ */
+const SPAN_COMPONENTS = 2;
 const WADE_COMPONENTS = 2;
 
 /**
@@ -166,7 +175,7 @@ const WADE_COMPONENTS = 2;
 const WADE_ALPHA = 0.5;
 
 /** Both renderers must agree, or the same tile sorts differently in each. */
-export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v12";
+export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v13";
 
 function glsl(n: number): string {
   return Number.isInteger(n) ? `${n}.0` : `${n}`;
@@ -189,11 +198,13 @@ function lightCellsPerPixel(
 function writeQuadBox(
   boxes: Float32Array,
   stacks: Float32Array,
+  spans: Float32Array,
   quadIndex: number,
   box: DepthBox,
   stackBias: number,
 ) {
   const bb = quadIndex * VERTS_PER_QUAD * BOX_COMPONENTS;
+  const sb = quadIndex * VERTS_PER_QUAD * SPAN_COMPONENTS;
   for (let v = 0; v < VERTS_PER_QUAD; v++) {
     const o = bb + v * BOX_COMPONENTS;
     boxes[o] = box.eastPx;
@@ -201,6 +212,8 @@ function writeQuadBox(
     boxes[o + 2] = box.foot;
     boxes[o + 3] = box.top;
     stacks[quadIndex * VERTS_PER_QUAD + v] = stackBias;
+    spans[sb + v * SPAN_COMPONENTS] = box.w ?? 1;
+    spans[sb + v * SPAN_COMPONENTS + 1] = box.d ?? 1;
   }
 }
 
@@ -216,6 +229,7 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   const unlit = new Float32Array(n * VERTS_PER_QUAD);
   const boxes = new Float32Array(n * VERTS_PER_QUAD * BOX_COMPONENTS);
   const stacks = new Float32Array(n * VERTS_PER_QUAD);
+  const spans = new Float32Array(n * VERTS_PER_QUAD * SPAN_COMPONENTS);
   const lightScales = new Float32Array(n * VERTS_PER_QUAD * 2);
   const anims = new Float32Array(n * VERTS_PER_QUAD * 2);
   const indices = n * VERTS_PER_QUAD > 65535 ? new Uint32Array(n * 6) : new Uint16Array(n * 6);
@@ -268,7 +282,7 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
     unlit[vb + 2] = u;
     unlit[vb + 3] = u;
 
-    writeQuadBox(boxes, stacks, i, q.box, q.stackBias);
+    writeQuadBox(boxes, stacks, spans, i, q.box, q.stackBias);
 
     const [lsx, lsy] = lightCellsPerPixel(q);
     const row = q.animRow ?? NO_ANIMATION;
@@ -298,6 +312,7 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   geo.setAttribute("aUnlit", new THREE.BufferAttribute(unlit, 1));
   geo.setAttribute("aBox", new THREE.BufferAttribute(boxes, BOX_COMPONENTS));
   geo.setAttribute("aStack", new THREE.BufferAttribute(stacks, 1));
+  geo.setAttribute("aSpan", new THREE.BufferAttribute(spans, SPAN_COMPONENTS));
   geo.setAttribute("aLightScale", new THREE.BufferAttribute(lightScales, 2));
   geo.setAttribute("aAnim", new THREE.BufferAttribute(anims, 2));
   geo.setIndex(new THREE.BufferAttribute(indices, 1));
@@ -328,7 +343,8 @@ export function buildSingleQuadGeometry(q: Omit<Quad, "x" | "y">): THREE.BufferG
   const unlit = new Float32Array(VERTS_PER_QUAD).fill(q.unlit ? 1 : 0);
   const boxes = new Float32Array(VERTS_PER_QUAD * BOX_COMPONENTS);
   const stacks = new Float32Array(VERTS_PER_QUAD);
-  writeQuadBox(boxes, stacks, 0, q.box, q.stackBias);
+  const spans = new Float32Array(VERTS_PER_QUAD * SPAN_COMPONENTS);
+  writeQuadBox(boxes, stacks, spans, 0, q.box, q.stackBias);
   const [lsx, lsy] = lightCellsPerPixel(q);
   const lightScales = new Float32Array([lsx, lsy, lsx, lsy, lsx, lsy, lsx, lsy]);
   // Never the table's: a quad with its own mesh rewrites its own UVs. The
@@ -343,6 +359,7 @@ export function buildSingleQuadGeometry(q: Omit<Quad, "x" | "y">): THREE.BufferG
   geo.setAttribute("aUnlit", new THREE.BufferAttribute(unlit, 1));
   geo.setAttribute("aBox", new THREE.BufferAttribute(boxes, BOX_COMPONENTS));
   geo.setAttribute("aStack", new THREE.BufferAttribute(stacks, 1));
+  geo.setAttribute("aSpan", new THREE.BufferAttribute(spans, SPAN_COMPONENTS));
   geo.setAttribute("aLightScale", new THREE.BufferAttribute(lightScales, 2));
   geo.setAttribute("aAnim", new THREE.BufferAttribute(anims, 2));
   // Dry until `writeWadeAttr` says otherwise. Only a quad with a mesh of its own
@@ -420,9 +437,18 @@ export function writeWadeAttr(geo: THREE.BufferGeometry, sinkPx: number, edgePx:
 export function writeBoxAttr(geo: THREE.BufferGeometry, box: DepthBox, stackBias: number) {
   const boxAttr = geo.getAttribute("aBox") as THREE.BufferAttribute;
   const stackAttr = geo.getAttribute("aStack") as THREE.BufferAttribute;
-  writeQuadBox(boxAttr.array as Float32Array, stackAttr.array as Float32Array, 0, box, stackBias);
+  const spanAttr = geo.getAttribute("aSpan") as THREE.BufferAttribute;
+  writeQuadBox(
+    boxAttr.array as Float32Array,
+    stackAttr.array as Float32Array,
+    spanAttr.array as Float32Array,
+    0,
+    box,
+    stackBias,
+  );
   boxAttr.needsUpdate = true;
   stackAttr.needsUpdate = true;
+  spanAttr.needsUpdate = true;
 }
 
 /**
@@ -463,6 +489,7 @@ attribute vec2 aLightUv;
 attribute float aUnlit;
 attribute vec4 aBox;
 attribute float aStack;
+attribute vec2 aSpan;
 attribute vec2 aLightScale;
 attribute vec2 aAnim;
 attribute vec2 aWade;
@@ -474,6 +501,7 @@ varying vec2 vLightUv;
 varying float vUnlit;
 varying vec4 vBox;
 varying float vStack;
+varying vec2 vSpan;
 varying vec2 vWorldPx;
 varying vec2 vLightScale;
 varying vec2 vWade;
@@ -507,6 +535,7 @@ vLightUv = aLightUv;
 vUnlit = aUnlit;
 vBox = aBox;
 vStack = aStack;
+vSpan = max(aSpan, vec2(1.0));
 vLightScale = aLightScale;
 vWade = aWade;
 vWorldPx = (modelMatrix * vec4(position, 1.0)).xy;
@@ -538,6 +567,7 @@ varying vec2 vLightUv;
 varying float vUnlit;
 varying vec4 vBox;
 varying float vStack;
+varying vec2 vSpan;
 varying vec2 vWorldPx;
 varying vec2 vLightScale;
 varying vec2 vWade;
@@ -587,9 +617,12 @@ ${TRANSITION_GLSL_EDGE}
 float eastFace = (vBox.x - depthPx.x) / ${glsl(PX_PER_HEIGHT)};
 float southFace = (vBox.y - depthPx.y) / ${glsl(PX_PER_HEIGHT)};
 float exitElev = min(min(eastFace, southFace), vBox.w);
-// The far (north/west) faces, one cell of ray climb behind the near ones.
-float farFaceElev =
-  max(eastFace, southFace) - ${glsl(HEIGHT_PER_LEVEL)};
+// The far (north/west) faces, as many cells of ray climb behind the near ones
+// as the box is wide and deep — one, for everything but a wide tile.
+float farFaceElev = max(
+  eastFace - vSpan.x * ${glsl(HEIGHT_PER_LEVEL)},
+  southFace - vSpan.y * ${glsl(HEIGHT_PER_LEVEL)}
+);
 // A surface above the exit means no face was crossed: art drawn outside its own
 // silhouette, landing on a fallback plane — the far face when it hangs up-left
 // over the cells behind it, the foot when it hangs down-right over the cells in
