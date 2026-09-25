@@ -3981,14 +3981,6 @@ export class GameSession implements PlaySession {
     return this.setConversation(actor, next);
   }
 
-  /** Could this actor open a conversation with the body at this slot? */
-  canTalk(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
-    const actor = this.actors.get(id);
-    const loc = actor && this.tryLocate(actor);
-    if (!loc) return false;
-    return canTalkFrom(this.map, this.tilesById, loc, ref) && this.npcAt(ref) != null;
-  }
-
   private openTalk(actor: ActorRuntime, ref: ObjectRef): boolean {
     const loc = this.tryLocate(actor);
     if (!loc || !canTalkFrom(this.map, this.tilesById, loc, ref)) return false;
