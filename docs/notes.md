@@ -8102,6 +8102,48 @@ through dawn, and a wolf that went to bed at four would be asleep in the dark.
   fight on the next turn. A hunt that ends by day goes to `prowling`, and from
   there to the den, where it stays — it does not walk home first.
 
+## A status can stop its bearer acting, and damage can end one
+
+Two flags on `StatusDef`, both off unless authored: `incapacitates` and
+`endsOnDamage`. Sleep (`data/statuses.json`, id `sleep`) sets both and heals a
+whole bar in twenty seconds, on Fed's formula with a shorter period.
+
+**Nothing in the simulation names sleep.** Every gate asks
+`statuses.ts`'s `incapacitated(list, catalogue)`, which is true when any
+status on the list has `incapacitates`. The gates:
+
+- `GameSession.applyStepRequest` and `faceActor` refuse steps and turns, which
+  covers held input, a client's `requestStep`, and a creature's walk order.
+- `tickOneBrain` returns before the brain is stepped and drops the standing walk
+  order. The brain's clocks stop, so it picks up where it left off.
+- `tryAttack` refuses and disengages, so auto-attack and a brain's `attack` both
+  stop. The target stays picked.
+- `castability` refuses with `incapacitated` (`CastContext.incapacitated`), so
+  the spell buttons dim on the client from the same function.
+- `readyToAct` is `idle` plus not incapacitated, and every board act and kit act
+  that used to ask `idle` asks it instead: interact and each of its arms,
+  pickUp, equip, craft, extract, push, eating off the floor. `consume`,
+  `moveItem` and `dropCandidate` ask directly, because they never asked `idle`.
+- A cast in progress is cancelled in `advanceCasting`, even from an
+  `uninterruptible` stone; a pull is let go in `holdsExtraction`.
+- A conversation ends when either side cannot act, and a body that cannot act
+  cannot open one or press a button in one. Closing it is still allowed.
+
+`RemoteSession` asks the same function of the viewer's own status list before
+predicting a step and before sending any press, so a sleeping player's keys do
+nothing rather than drawing a step the server drags back.
+
+**What still happens to a body that cannot act:** its statuses tick, it falls,
+it slides when shoved, and a worn charm still fires. Those are things done to
+the body or by an item on its own clock, not things the body does.
+
+**`endsOnDamage` is read in `applyDamage`**, after combat is flagged and before
+the number floats, gated on `amount > 0`: a miss, a heal and a blow armour soaks
+to nothing do not wake anybody. Any source counts — a blow, a bolt, a status
+tick, something harmful eaten, `/hp` — because they all come through there. The damage itself still
+lands. In `tickStatuses` the advanced list is written back before the hp changes
+are applied, so a poison tick that wakes a sleeper is not undone by the write.
+
 ## A status can be a gamble, and a body can be immune to one
 
 Two changes to how a condition is handed over, both forced by one item.

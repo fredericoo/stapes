@@ -354,7 +354,9 @@ import { projectileEffect, resolveProjectile } from "../lib/projectile";
 import {
   advanceStatuses,
   applyStatus,
+  endOnDamage,
   enterCombat,
+  incapacitated,
   inCombat,
   NO_STATUSES,
   type StatusInstance,
@@ -3946,6 +3948,9 @@ export class GameSession implements PlaySession {
   talk(action: TalkAction, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actors.get(id);
     if (!actor) return false;
+    // Closing is the one press left to a body that cannot act, because it is
+    // the one that asks nothing of it.
+    if (action.kind !== "close" && this.incapacitated(actor)) return false;
     if (action.kind === "open") return this.openTalk(actor, action.ref);
     if (action.kind === "close") return this.setConversation(actor, null);
 
@@ -3972,7 +3977,7 @@ export class GameSession implements PlaySession {
     if (!loc || !canTalkFrom(this.map, this.tilesById, loc, ref)) return false;
     const npc = this.npcAt(ref);
     const dialog = npc && resolveDialog(this.defFor(npc));
-    if (!npc || !dialog) return false;
+    if (!npc || !dialog || this.incapacitated(npc)) return false;
     const view = this.partnerViewFor(actor);
     const body = { id: npc.id, tileId: this.defFor(npc).id };
     return this.setConversation(actor, openConversation(dialog, body, view));
@@ -4021,7 +4026,11 @@ export class GameSession implements PlaySession {
     for (const actor of this.actors.values()) {
       const current = actor.conversation;
       if (!current) continue;
-      if (this.withinTalkReach(actor, current.npcId)) continue;
+      // Either side becoming unable to act ends it, on walking away's terms:
+      // nobody is left to answer, or nobody is left to ask.
+      const npc = this.actors.get(current.npcId);
+      const bothAct = !this.incapacitated(actor) && !(npc && this.incapacitated(npc));
+      if (bothAct && this.withinTalkReach(actor, current.npcId)) continue;
       this.setConversation(actor, null);
     }
   }
@@ -4135,6 +4144,22 @@ export class GameSession implements PlaySession {
     this.noteStatusReading(actor);
   }
 
+  /** Take off everything authored to end on damage. Noted like any removal. */
+  private endStatusesOnDamage(actor: ActorRuntime) {
+    const statuses = endOnDamage(actor.statuses, this.statusDefs);
+    if (statuses === actor.statuses) return;
+    actor.statuses = statuses;
+    this.noteStatusReading(actor);
+  }
+
+  /**
+   * Whether anything on this body stops it acting. Every gate on what a body
+   * does asks this. @see `./statuses`' `incapacitated`
+   */
+  private incapacitated(actor: ActorRuntime): boolean {
+    return incapacitated(actor.statuses, this.statusDefs);
+  }
+
   /**
    * Can this body see that cell? Its own height decides what it sees over, so
    * a person clears the crates a rat has to walk around. Shared by the brain
@@ -4233,6 +4258,13 @@ export class GameSession implements PlaySession {
     // of which have always skipped a body that is not on the board.
     const loc = this.tryLocate(actor);
     if (!loc) return;
+    // A body that cannot act does not think either: the brain is not stepped,
+    // so its clocks stop with it and it picks up where it left off. Its
+    // standing order is dropped, so it does not walk the moment it can.
+    if (this.incapacitated(actor)) {
+      actor.walkOrder = null;
+      return;
+    }
 
     // A body with no brain, or one whose authored brain did not hold together,
     // simply stands there. Resolving is memoised on def identity, so asking
@@ -4738,9 +4770,12 @@ export class GameSession implements PlaySession {
    * turned into a picked bush are all the thing you were working ceasing to be
    * the thing you were working, and {@link extractKey} carries the tile id
    * precisely so that shows up here.
+   *
+   * A body that stops being able to act lets go as well, which is what
+   * {@link readyToAct} adds to standing still.
    */
   private holdsExtraction(actor: ActorRuntime, run: ExtractionRun): boolean {
-    if (!this.idle(actor)) return false;
+    if (!this.readyToAct(actor)) return false;
     const at = this.actorCell(actor.id);
     if (!at || at.x !== run.from.x || at.y !== run.from.y || at.z !== run.from.z) {
       return false;
@@ -5032,6 +5067,12 @@ export class GameSession implements PlaySession {
    */
   private tryAttack(attacker: ActorRuntime, targetId: string): boolean {
     if (targetId === attacker.id) return false;
+    // A body that cannot act swings at nothing, and winds up for nothing: the
+    // target stays picked, and the fight resumes at full price when it can.
+    if (this.incapacitated(attacker)) {
+      this.disengage(attacker);
+      return false;
+    }
 
     const target = this.actors.get(targetId);
     if (!target) return false;
@@ -5854,6 +5895,10 @@ export class GameSession implements PlaySession {
     // Every harm comes through here — a blow, a bolt, a poison tick, a burn
     // nobody lit — so this one line is "taking damage puts you in combat".
     if (amount > 0) this.flagCombat(target);
+    // And it ends whatever is authored to end on damage — a sleeper wakes. The
+    // blow that wakes them still lands below. @see `../lib/status`'s
+    // `StatusDef.endsOnDamage`
+    if (amount > 0) this.endStatusesOnDamage(target);
 
     this.floatSwing(target, "hit", amount);
 
@@ -6563,6 +6608,7 @@ export class GameSession implements PlaySession {
       // Whether a spell that takes health may be aimed at them at all. Asked of
       // the two bodies here, because this is the side that has both. @see ./pvp
       mayHarmTarget: targetActor ? this.mayHarm(actor, targetActor) : true,
+      incapacitated: this.incapacitated(actor),
     };
   }
 
@@ -6738,6 +6784,13 @@ export class GameSession implements PlaySession {
   private advanceCasting(actor: ActorRuntime, tickMs: number) {
     const run = actor.casting;
     if (!run) return;
+    // A caster who stops being able to act loses the cast, on a blow's terms —
+    // including an `uninterruptible` stone, which is about blows and not about
+    // hands that have gone still.
+    if (this.incapacitated(actor)) {
+      this.cancelCasting(actor, CAST_INTERRUPTED_NOTICE);
+      return;
+    }
 
     // The caster may point at somebody else mid-cast, and the bolt lands on
     // whoever is targeted when the bar fills, so the broadcast target follows.
@@ -8472,9 +8525,18 @@ export class GameSession implements PlaySession {
     return !actor.slide && !actor.walk && !actor.fall;
   }
 
+  /**
+   * Whether this body may reach out and do something to the world or its kit:
+   * {@link idle}, and under nothing that stops it acting. Every board-side act
+   * and every kit act is gated on this. @see incapacitated
+   */
+  private readyToAct(actor: ActorRuntime): boolean {
+    return this.idle(actor) && !this.incapacitated(actor);
+  }
+
   canPush(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
-    if (!this.idle(actor)) return false;
+    if (!this.readyToAct(actor)) return false;
     return canPushFrom(this.map, this.tilesById, this.locate(actor), ref);
   }
 
@@ -8484,7 +8546,7 @@ export class GameSession implements PlaySession {
    */
   push(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
-    if (!this.idle(actor)) return false;
+    if (!this.readyToAct(actor)) return false;
 
     const loc = this.locate(actor);
     const to = pushTargetFrom(this.map, this.tilesById, loc, ref);
@@ -8529,7 +8591,7 @@ export class GameSession implements PlaySession {
 
   canPickUp(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
-    if (!this.idle(actor)) return false;
+    if (!this.readyToAct(actor)) return false;
     return canPickUpFrom(this.map, this.tilesById, this.locate(actor), ref, actor.equipment);
   }
 
@@ -8545,7 +8607,7 @@ export class GameSession implements PlaySession {
    */
   pickUp(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
-    if (!this.idle(actor)) return false;
+    if (!this.readyToAct(actor)) return false;
 
     const destination = pickUpDestination(
       this.map,
@@ -8592,7 +8654,7 @@ export class GameSession implements PlaySession {
 
   canEquip(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
-    if (!this.idle(actor)) return false;
+    if (!this.readyToAct(actor)) return false;
     return canEquipFrom(this.map, this.tilesById, this.locate(actor), ref, actor.equipment);
   }
 
@@ -8609,7 +8671,7 @@ export class GameSession implements PlaySession {
    */
   equip(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
-    if (!this.idle(actor)) return false;
+    if (!this.readyToAct(actor)) return false;
 
     const slot = equipSlotFrom(this.map, this.tilesById, this.locate(actor), ref, actor.equipment);
     if (!slot) return false;
@@ -8665,7 +8727,7 @@ export class GameSession implements PlaySession {
    */
   consume(from: ConsumeSource, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actors.get(id);
-    if (!actor) return false;
+    if (!actor || this.incapacitated(actor)) return false;
     if (this.hpOf(actor) === null) return false;
 
     const eaten =
@@ -8740,7 +8802,7 @@ export class GameSession implements PlaySession {
 
   /** Take a consumable placement off the board. Null when refused. */
   private consumeFromFloor(actor: ActorRuntime, ref: ObjectRef): Eaten | null {
-    if (!this.idle(actor)) return null;
+    if (!this.readyToAct(actor)) return null;
     const loc = this.tryLocate(actor);
     if (!loc) return null;
     if (!canConsumeFrom(this.map, this.tilesById, loc, ref)) return null;
@@ -8866,7 +8928,7 @@ export class GameSession implements PlaySession {
 
   canMoveItem(from: SlotRef, to: SlotRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actors.get(id);
-    if (!actor) return false;
+    if (!actor || this.incapacitated(actor)) return false;
     const loc = this.tryLocate(actor);
     if (!loc) return false;
     return canMoveItem(this.map, this.tilesById, loc, actor.equipment, from, to);
@@ -8894,7 +8956,7 @@ export class GameSession implements PlaySession {
    */
   moveItem(from: SlotRef, to: SlotRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actors.get(id);
-    if (!actor) return false;
+    if (!actor || this.incapacitated(actor)) return false;
     const loc = this.tryLocate(actor);
     if (!loc) return false;
 
@@ -8965,7 +9027,7 @@ export class GameSession implements PlaySession {
     destination: DropDestination;
   } | null {
     const actor = this.actors.get(id);
-    if (!actor) return null;
+    if (!actor || this.incapacitated(actor)) return null;
     const loc = this.tryLocate(actor);
     if (!loc) return null;
 
@@ -9161,7 +9223,7 @@ export class GameSession implements PlaySession {
 
   canTakeReward(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
-    if (!this.idle(actor)) return false;
+    if (!this.readyToAct(actor)) return false;
     return canRewardFrom(
       this.map,
       this.tilesById,
@@ -9191,7 +9253,7 @@ export class GameSession implements PlaySession {
    */
   takeReward(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
-    if (!this.idle(actor)) return false;
+    if (!this.readyToAct(actor)) return false;
 
     const loc = this.locate(actor);
     const reward = reachableRewardAt(this.map, this.tilesById, loc, ref);
@@ -9225,7 +9287,7 @@ export class GameSession implements PlaySession {
 
   canCraft(ref: ObjectRef, recipe: number, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
-    if (!this.idle(actor)) return false;
+    if (!this.readyToAct(actor)) return false;
     return canCraftFrom(this.map, this.tilesById, this.locate(actor), actor.equipment, ref, recipe);
   }
 
@@ -9252,7 +9314,7 @@ export class GameSession implements PlaySession {
    */
   craft(ref: ObjectRef, recipe: number, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
-    if (!this.idle(actor)) return false;
+    if (!this.readyToAct(actor)) return false;
 
     const at = this.locate(actor);
     const chosen = craftableRecipe(this.map, this.tilesById, at, actor.equipment, ref, recipe);
@@ -9273,7 +9335,7 @@ export class GameSession implements PlaySession {
 
   canExtract(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
-    if (!this.idle(actor)) return false;
+    if (!this.readyToAct(actor)) return false;
     return canBeginExtract(
       this.map,
       this.tilesById,
@@ -10056,7 +10118,7 @@ export class GameSession implements PlaySession {
 
   canSwitch(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
-    if (!this.idle(actor)) return false;
+    if (!this.readyToAct(actor)) return false;
     return canSwitchFrom(this.map, this.tilesById, this.locate(actor), ref);
   }
 
@@ -10082,7 +10144,7 @@ export class GameSession implements PlaySession {
 
   canTeleport(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
-    if (!this.idle(actor)) return false;
+    if (!this.readyToAct(actor)) return false;
     return canTeleportFrom(this.map, this.tilesById, this.locate(actor), ref, this.defFor(actor));
   }
 
@@ -10096,7 +10158,7 @@ export class GameSession implements PlaySession {
    */
   activateTeleport(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
-    if (!this.idle(actor)) return false;
+    if (!this.readyToAct(actor)) return false;
 
     const loc = this.locate(actor);
     const teleport = reachableTeleportAt(this.map, this.tilesById, loc, ref);
@@ -10110,7 +10172,7 @@ export class GameSession implements PlaySession {
 
   canAddStatus(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
-    if (!this.idle(actor)) return false;
+    if (!this.readyToAct(actor)) return false;
     if (this.hpOf(actor) === null) return false;
     return canAddStatusFrom(this.map, this.tilesById, this.locate(actor), ref);
   }
@@ -10131,7 +10193,7 @@ export class GameSession implements PlaySession {
    */
   activateAddStatus(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
-    if (!this.idle(actor)) return false;
+    if (!this.readyToAct(actor)) return false;
     if (this.hpOf(actor) === null) return false;
 
     const loc = this.locate(actor);
@@ -10144,7 +10206,7 @@ export class GameSession implements PlaySession {
 
   canRemoveStatus(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
-    if (!this.idle(actor)) return false;
+    if (!this.readyToAct(actor)) return false;
     if (this.hpOf(actor) === null) return false;
     return canRemoveStatusFrom(this.map, this.tilesById, this.locate(actor), ref);
   }
@@ -10159,7 +10221,7 @@ export class GameSession implements PlaySession {
    */
   activateRemoveStatus(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
-    if (!this.idle(actor)) return false;
+    if (!this.readyToAct(actor)) return false;
     if (this.hpOf(actor) === null) return false;
 
     const loc = this.locate(actor);
@@ -10172,7 +10234,7 @@ export class GameSession implements PlaySession {
 
   canSetSpawn(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
-    if (!this.idle(actor)) return false;
+    if (!this.readyToAct(actor)) return false;
     if (actor.resident) return false;
     return canSetSpawnFrom(this.map, this.tilesById, this.locate(actor), ref);
   }
@@ -10193,7 +10255,7 @@ export class GameSession implements PlaySession {
    */
   activateSetSpawn(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
-    if (!this.idle(actor)) return false;
+    if (!this.readyToAct(actor)) return false;
     if (actor.resident) return false;
 
     const loc = this.locate(actor);
@@ -11065,6 +11127,8 @@ export class GameSession implements PlaySession {
     // Nothing held, which is every idle body on every tick: `chooseStep`
     // answers nothing for it, so nothing below would happen.
     if (request.directions.length === 0) return false;
+    // Neither a step nor a turn: a body that cannot act lies as it fell.
+    if (this.incapacitated(actor)) return false;
     const loc = this.locate(actor);
     const choice = chooseStep(
       this.map,
@@ -11181,6 +11245,8 @@ export class GameSession implements PlaySession {
     // whole of the recovery. Honouring it here would hand a browser the turn its
     // own prediction has already refused itself. @see turnToward
     if (actor.attackRecoveryMs > 0) return;
+    // Refused in `applyStepRequest` too, on the same argument.
+    if (this.incapacitated(actor)) return;
     this.turnActor(actor, this.locate(actor), direction);
   }
 

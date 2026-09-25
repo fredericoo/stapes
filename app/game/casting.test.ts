@@ -337,6 +337,17 @@ describe("why a stone cannot be cast", () => {
     });
   });
 
+  it("refuses every stone to a caster who cannot act", () => {
+    const state = context(
+      { weapon: instance("bolt-stone") },
+      { target: point(1), incapacitated: true },
+    );
+    expect(castability(state, squareSlot("weapon"))).toEqual({
+      ok: false,
+      reason: "incapacitated",
+    });
+  });
+
   it("allows the same bolt at anybody else", () => {
     const state = context({ weapon: instance("bolt-stone") }, { target: point(1) });
     expect(castability(state, squareSlot("weapon"))).toEqual({ ok: true });

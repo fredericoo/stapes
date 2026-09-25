@@ -117,6 +117,11 @@ export type CastRefusal =
   /** Nothing in the square, or something that is not a stone. */
   | "empty"
   /**
+   * The caster is under a status that stops it acting.
+   * @see CastContext.incapacitated
+   */
+  | "incapacitated"
+  /**
    * This square's stone is the one being cast right now. Pressing it again
    * stops the cast. @see CastContext.casting
    */
@@ -306,6 +311,12 @@ export type CastContext = {
    * fight" is the same kind of answered question `masteries` is.
    */
   mayHarmTarget?: boolean;
+  /**
+   * Whether the caster is under a status that stops it acting — see
+   * `./statuses`' `incapacitated`, which both ends run over the caster's own
+   * list. Absent means it is not.
+   */
+  incapacitated?: boolean;
 };
 
 /**
@@ -323,6 +334,10 @@ export function castability(context: CastContext, slot: CastSlot): Castability {
   // action naming a spell somebody renamed is the second case, and it falls
   // through to the brain's next line rather than stalling the creature.
   if (!stone) return refused("empty");
+
+  // Before everything else about the stone, because none of it matters to a
+  // body that cannot act: the whole row dims together and lights together.
+  if (context.incapacitated) return refused("incapacitated");
 
   // Before the cooldown, because it is the fact that will still be true when
   // the cooldown has run out: a body mid-cast cannot start another whatever
@@ -753,6 +768,7 @@ export function spellReading(buttons: readonly SpellButton[]): string {
  */
 export const CAST_REFUSAL_NOTES: Record<CastRefusal, string> = {
   empty: "nothing there",
+  incapacitated: "you cannot act right now",
   underway: "casting, press again to stop",
   casting: "already casting",
   cooling: "still cooling",

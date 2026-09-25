@@ -13,7 +13,9 @@ import { Rng } from "./rng";
 import {
   advanceStatuses,
   applyStatus,
+  endOnDamage,
   enterCombat,
+  incapacitated,
   inCombat,
   rollDurationMs,
   snapToTick,
@@ -520,5 +522,43 @@ describe("the combat flag", () => {
       toMs: 1000,
     };
     expect(statusesById([impostor])[COMBAT_STATUS_ID]).toBe(COMBAT_STATUS);
+  });
+});
+
+describe("incapacitating, and ending on damage", () => {
+  const sleep = status({
+    id: "sleep",
+    stacks: false,
+    maxMs: 30_000,
+    incapacitates: true,
+    endsOnDamage: true,
+  });
+  const fed = status();
+  const defs = catalogue(sleep, fed);
+  const rng = new Rng(1);
+
+  it("defaults both off, so every status authored before them means what it did", () => {
+    expect(fed.incapacitates).toBe(false);
+    expect(fed.endsOnDamage).toBe(false);
+  });
+
+  it("holds a body still only while something on it says so", () => {
+    const fedOnly = applyStatus([], fed, rng);
+    expect(incapacitated(fedOnly, defs)).toBe(false);
+    expect(incapacitated(applyStatus(fedOnly, sleep, rng), defs)).toBe(true);
+  });
+
+  it("ignores an id the catalogue has lost", () => {
+    expect(incapacitated([{ defId: "sleep" } as StatusInstance], catalogue(fed))).toBe(false);
+  });
+
+  it("takes off only what ends on damage", () => {
+    const both = applyStatus(applyStatus([], fed, rng), sleep, rng);
+    expect(endOnDamage(both, defs).map((instance) => instance.defId)).toEqual(["fed"]);
+  });
+
+  it("hands back the same list when nothing on it ends on damage", () => {
+    const fedOnly = applyStatus([], fed, rng);
+    expect(endOnDamage(fedOnly, defs)).toBe(fedOnly);
   });
 });
