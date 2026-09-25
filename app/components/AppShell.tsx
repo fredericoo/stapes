@@ -46,7 +46,7 @@ export const ADMIN_DESTINATIONS: Destination[] = [
   { to: "/admin/tiles", label: "Tiles" },
   { to: "/admin/statuses", label: "Statuses" },
   { to: "/admin/map", label: "Map" },
-  { to: "/admin/play", label: "Play" },
+  { to: "/play", label: "Play" },
   { to: "/admin/arena", label: "Arena" },
   { to: "/admin/voxel", label: "Voxel" },
   { to: "/admin/actions", label: "Actions" },

@@ -26,7 +26,7 @@ import type { TileDef } from "../lib/types";
 /**
  * What a body with no name to give is called.
  *
- * Reached in one case that is not a bug: the offline session in `/admin/play`,
+ * Reached in one case that is not a bug: the offline session in `/play`,
  * whose single player has no account and therefore no character row. It is
  * also what a player body would read as if the character table lost its row
  * mid-session, which is a state nothing should produce and everything should

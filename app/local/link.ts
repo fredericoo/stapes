@@ -9,9 +9,9 @@ import type { FromWorld, ToWorld } from "./workerProtocol";
  * The other half of `../net/link`: same page, same protocol, same frames — the
  * only difference is that the far end is a thread rather than a machine. See
  * `./world.worker.ts`, which is the server, and `docs/notes.md`'s
- * "`/admin/play` runs the server in the tab".
+ * "`/play` runs the server in the tab".
  *
- * **No network and no account.** That is what it is for: `/admin/play` is the
+ * **No network and no account.** That is what it is for: `/play` is the
  * path that goes on working now that `/` has a sign-in and a character chooser
  * in front of it, so hand-testing a change to the world does not mean
  * hand-testing the way in to it first. There is nothing to enter here — opening

@@ -502,7 +502,7 @@ export class RemoteSession implements PlaySession {
   constructor(
     /**
      * Where frames come from and go to — a `WebSocket` online, and a port on
-     * the world running in this tab under `/admin/play`. Nothing below can
+     * the world running in this tab under `/play`. Nothing below can
      * tell, which is the point: one client, one wire, two ways of being
      * connected. @see ./socket
      */

@@ -25,12 +25,13 @@ import type { TileDef, TilesetDef } from "../lib/types";
  * and pushes a fresh `hello` rather than expecting the page to re-fetch.
  *
  * **The decode is started here and waited for in `WorldPage`.** This one does
- * not pass `assetsReady` down, because `/admin/play` is not under this layout
- * and has to ask for itself: `useGameAssets` remembers the lists it has settled
- * so the second ask is free. @see ../lib/gameAssets
+ * not pass `assetsReady` down: `WorldPage` asks for itself, so it does not depend
+ * on which layout it is drawn under, and `useGameAssets` remembers the lists it
+ * has settled so the second ask is free. @see ../lib/gameAssets
  *
  * **Nothing here connects.** The socket belongs to one child — the world — and
- * it is opened as a character, so a tab parked at any of the other screens
+ * it is opened as a character. `/play` is the other child that draws a world,
+ * and it connects to a worker in the tab rather than to the server, so a tab parked at any of the other screens
  * costs the world nothing: no body on the board, no chunks sent.
  */
 export async function clientLoader() {
@@ -45,7 +46,7 @@ export function shouldRevalidate() {
 export type PlayerShell = {
   tiles: TileDef[];
   tilesets: TilesetDef[];
-  /** Raw, because `WorldPage` compiles them and `/admin/play` hands it the same. */
+  /** Raw, because `WorldPage` compiles them. */
   statuses: unknown[];
 };
 

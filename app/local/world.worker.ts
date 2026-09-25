@@ -12,7 +12,7 @@ import type { FromWorld, ToWorld } from "./workerProtocol";
  * them. It is a worker rather than a corner of the page because the alternative
  * is a simulation sharing a thread with a renderer that wants every millisecond
  * of it — a tick that arrives late because a frame was being drawn is a
- * different world from the one the server runs, and the point of `/admin/play`
+ * different world from the one the server runs, and the point of `/play`
  * is that it is not a different world.
  *
  * One world per worker and one worker per tab, so two tabs are two worlds

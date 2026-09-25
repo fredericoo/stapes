@@ -10,11 +10,11 @@ import type { ClientSocket } from "./socket";
 /**
  * How a page gets to a world.
  *
- * The one thing `/` and `/admin/play` do differently. Everything else about
+ * The one thing `/` and `/play` do differently. Everything else about
  * them — the reconnect, the frames, the prediction, the renderer, the death
  * screen — is one page against one protocol, because a second implementation of
  * any of it would be a second thing to keep true, and the whole reason
- * `/admin/play` exists is to be the same thing.
+ * `/play` exists is to be the same thing.
  *
  * Two of these exist: {@link onlineLink} here, and `../local/link`'s
  * `localLink`, which opens a world in a worker in this tab.

@@ -28,6 +28,9 @@ export default [
     route("characters", "routes/characters.tsx"),
     route("characters/new", "routes/newCharacter.tsx"),
     route("account/password", "routes/password.tsx"),
+    // No account needed. The sign-in screen offers it as the alternative to
+    // making one, and it is where hand-testing starts.
+    route("play", "routes/play.tsx"),
   ]),
   /**
    * The authoring tools, all of them, behind one path segment — and now behind
@@ -53,6 +56,7 @@ export default [
     route("map", "routes/admin/map.tsx"),
     route("tiles", "routes/admin/tiles.tsx"),
     route("statuses", "routes/admin/statuses.tsx"),
+    // Moved to `/play`, which needs no account. A redirect, not a page.
     route("play", "routes/admin/play.tsx"),
     route("arena", "routes/admin/arena.tsx"),
     route("voxel", "routes/admin/voxel.tsx"),

@@ -124,7 +124,7 @@ describe("naming a speaker", () => {
 
   /**
    * A body with no name is a body from a session that has no character table —
-   * `/admin/play`'s single local player — or one whose name never reached this
+   * `/play`'s single local player — or one whose name never reached this
    * client. Either way the words still have to be attributed to something, and
    * a blank label is worse than an obviously placeholder one.
    */
