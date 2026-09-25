@@ -1079,9 +1079,8 @@ function runAction(
       // A thing has no pulse, on `attack`'s terms: there is nobody to strike.
       const id = boundBody(identify(action.of, memory, ctx));
       if (id === null) return "failure";
-      // Judged from where the body stands, never from half a step: measured
-      // mid-step, the ring is crossed on the way to it and the body turns back
-      // for it, one cell either side, for ever.
+      // Judged from where the body stands, never from half a step: the cell a
+      // body is leaving is not where it will be when the answer is acted on.
       if (ctx.busy) return "running";
       const standing = ctx.standOff(id);
       // In position is done, which is a failure so the `attack` below it runs.

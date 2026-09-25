@@ -3635,16 +3635,22 @@ describe("keeping to its weapon's range", () => {
     return (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
   }
 
-  it("walks a bow up to its minimum range and stops there", () => {
-    const apartSq = apartSqAfter(yard("hunting-bow", 8), 4000);
-    expect(apartSq).toBeGreaterThanOrEqual(4);
-    expect(apartSq).toBeLessThan(9);
+  /** The hunting bow shoots from two cells to eight. */
+  const BOW_MIN = 2;
+  const BOW_REACH = 8;
+
+  it("walks a bow up until the target is in reach, and no closer", () => {
+    const apartSq = apartSqAfter(yard("hunting-bow", 12), 4000);
+    expect(apartSq).toBeLessThanOrEqual(BOW_REACH ** 2);
+    // One step of overshoot is allowed: a standing walk order can take a step
+    // before the brain looks again.
+    expect(apartSq).toBeGreaterThanOrEqual((BOW_REACH - 1) ** 2);
   });
 
-  it("backs a bow off somebody standing beside it", () => {
+  it("backs a bow off somebody standing inside its minimum range", () => {
     const apartSq = apartSqAfter(yard("hunting-bow", 1), 4000);
-    expect(apartSq).toBeGreaterThanOrEqual(4);
-    expect(apartSq).toBeLessThan(9);
+    expect(apartSq).toBeGreaterThanOrEqual(BOW_MIN ** 2);
+    expect(apartSq).toBeLessThanOrEqual(BOW_REACH ** 2);
   });
 
   it("walks a melee weapon up beside the target", () => {

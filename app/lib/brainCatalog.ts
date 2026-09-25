@@ -330,7 +330,7 @@ export const ACTIONS: Record<BrainActionDef["action"], CatalogEntry<BrainActionD
   },
   attack_range: {
     label: "attack range",
-    hint: "Stand where the body's weapon strikes from: beside the target for a melee weapon, at the weapon's minimum range for a bow. Backs off when too close, walks up when too far or behind a wall. Fails once in position, so put the attack on the next line.",
+    hint: "Walk up until the body's weapon can reach the target, and no closer: beside it for a melee weapon, as far out as it shoots for a bow. Backs off inside a bow's minimum range, walks up when out of reach or behind a wall. Fails once in reach, so put the attack on the next line.",
     params: [
       { key: "of", kind: "selector", label: "of" },
       { key: "allowDrops", kind: "boolean", label: "allow drops" },

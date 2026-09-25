@@ -618,11 +618,10 @@ export type BrainActionDef =
    * Stand where this body's weapon strikes from, and go there if it is not.
    *
    * The distance is the weapon's own: the reach of the first hand holding one,
-   * or of what the body was born with. A melee weapon wants to be beside the
-   * target; a weapon with a `reach.min`, a bow, wants to be exactly that far
-   * out — near enough that the target stays in range when it moves, far enough
-   * that the shot still goes. Too close, it backs off; too far or behind a
-   * wall, it walks up.
+   * or of what the body was born with. It walks up until the target is in
+   * reach and stops there, so a melee weapon ends beside the target and a bow
+   * as far out as it shoots. Inside a weapon's `reach.min` it backs off; out of
+   * reach or behind a wall, it walks up.
    *
    * **Fails once it is standing there**, on the terms `walk_n_steps` fails
    * when its count is done: in position is having nothing left to offer, so the

@@ -8199,18 +8199,23 @@ up, or fails so the line below it — the `attack` — gets its turn.
   `HANDS` order, which is the order `tryAttack` offers them. It is the weapon's
   number and nothing in the brain, so one line serves an imp that rolled a mace
   and one that rolled a bow.
-- **In position is a ring from `min` to one cell past it**, not the whole
-  reach. A bow at eight cells is in range and one step from out of it; at its
-  minimum it keeps the target in range while the target moves, which is what
-  the line is for. A weapon with no `min` is in position wherever it can
-  strike, which for anything melee is beside the target.
+- **In position is anywhere the weapon reaches, and no closer.** It stops the
+  moment the target is in reach, so a bow shoots from as far out as it can
+  and anything melee ends beside the target. Only inside a `min` is it too
+  close.
+- **It was a ring once, and the ring oscillated.** The first version aimed a
+  bow at a band from `min` to one cell past it. A standing walk order takes a
+  step whenever the body is idle, and the brain only clears it on its next
+  round, so a body carries one step past wherever the brain last looked. In
+  play the archer imp crossed the band, backed off, crossed it again, and
+  every step reset its windup, so it never loosed an arrow. The whole reach
+  is many cells deep, and one step of overshoot stays inside it.
 - **A wall makes it too far**, because `canReach` is asked with the line of
   sight, and the walk up routes round the wall. Too close is a flee from where
   the target stands, on `step_away_from`'s machinery.
 - **It judges only between steps.** While a step is in flight it reports
-  `running` and does nothing else. Judged mid-step, the body crossed the ring on
-  the way into it, turned back for it, and crossed it again, one cell either
-  side, for ever. The brain's round is one walk long (`BRAIN_TICK_MS` is
+  `running` and does nothing else: the cell a body is leaving is not where it
+  will be when the answer is acted on. The brain's round is one walk long (`BRAIN_TICK_MS` is
   `WALK_DURATION_MS`), so waiting costs no pace: the imp walks up at a cell per
   200ms. `walk_n_steps` waits on `busy` for the same kind of reason.
 
@@ -8285,9 +8290,9 @@ hunger gates before the `in_los` on a thing, so a fed imp, or any imp at
 night, never asks.
 
 **The hunt keeps its distance with `attack_range`.** The line order is the
-stone, then `attack_range`, then `attack`: an imp holding a bow stands at the
-bow's minimum of two cells and backs off when its prey closes, and one holding
-a sword, an axe or a mace walks up beside it. See *`attack_range` stands where
+stone, then `attack_range`, then `attack`: an imp holding a bow stops as soon
+as its prey is within the bow's eight cells and backs off only inside two, and
+one holding a sword, an axe or a mace walks up beside it. See *`attack_range` stands where
 the weapon strikes from*.
 
 It hunts the player on sight by day whether it is hungry or not, and wolves,

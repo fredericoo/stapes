@@ -8460,12 +8460,16 @@ export class GameSession implements PlaySession {
    * with a bow and a knife is placed for the bow when the bow is in the main
    * hand; the knife still takes the turns the bow cannot when somebody closes.
    *
-   * **In position is a ring, not a disc.** Inside the reach is not enough for a
-   * bow: a body eight cells out is in range and one step from out of it. So a
-   * weapon with a `min` is in position from `min` to one cell past it, and one
-   * with none is in position wherever it can strike — beside the target, for
-   * anything melee. Out of reach, or in reach with a wall in the way, is too
-   * far, and the walk up routes round the wall.
+   * **In position is anywhere the weapon reaches, and no closer.** It stops
+   * the moment the target is in reach, so a bow shoots from as far out as it
+   * can. An earlier version aimed for a ring at the bow's `min`, one cell
+   * wide, and a standing walk order carries a body one step past wherever
+   * the brain last looked: the imp crossed the ring, backed off, crossed it
+   * again, and the walking kept resetting the windup so it never loosed an
+   * arrow. The whole reach is many cells deep, so one step of overshoot
+   * stays inside it. Inside `min` is too close; out of reach, or in reach
+   * with a wall in the way, is too far, and the walk up routes round the
+   * wall.
    */
   private standOff(actor: ActorRuntime, targetId: string): StandOff | null {
     const target = this.actors.get(targetId);
@@ -8479,10 +8483,8 @@ export class GameSession implements PlaySession {
     const fromPoint = this.reachPointOf(from);
     const toPoint = this.reachPointOf(to);
     const min = reach.min ?? 0;
-    const apartSq = planDistanceSq(fromPoint, toPoint);
-    if (apartSq < min * min) return "too_close";
-    const ring = min === 0 || apartSq < (min + 1) * (min + 1);
-    return ring && canReach(this.map, this.tilesById, fromPoint, toPoint, reach)
+    if (planDistanceSq(fromPoint, toPoint) < min * min) return "too_close";
+    return canReach(this.map, this.tilesById, fromPoint, toPoint, reach)
       ? "in_position"
       : "too_far";
   }
