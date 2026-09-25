@@ -525,7 +525,22 @@ export type BrainConditionDef =
    * `/time` — so every creature in the world agrees on what time it is, and it
    * is the same hour the sky is drawn at. @see ./clock
    */
-  | { cond: "time_of_day"; fromHour: number; toHour: number };
+  | { cond: "time_of_day"; fromHour: number; toHour: number }
+  /**
+   * This body is standing on a level lower than `level`.
+   *
+   * What tells a creature it is underground: level 0 is the surface, so
+   * `below_level 0` holds in a cave and its `not` holds under the sky. Paired
+   * with {@link time_of_day} it is how a wolf that sleeps through the day
+   * outside still prowls a cave at any hour — a cave has no day to sleep
+   * through.
+   *
+   * Strictly below, so `0` reads as "under the surface" rather than "on or
+   * under it", which is the question an author is asking. The level is the
+   * body's own `z`, the same one every distance condition counts in, so a body
+   * halfway down a ramp is on whichever level it is standing on.
+   */
+  | { cond: "below_level"; level: number };
 
 /**
  * What a transition fires on: one question, or several joined together.
@@ -905,6 +920,9 @@ const leafSchema = v.variant("cond", [
     atMostPercent: v.pipe(v.number(), v.integer(), v.minValue(0), v.maxValue(MAX_HEALTH_PERCENT)),
   }),
   v.object({ cond: v.literal("time_of_day"), fromHour: hourOfDay, toHour: hourOfDay }),
+  // Any whole level, negative included: underground is the case this exists
+  // for, and a ceiling would be a guess at how deep a map goes.
+  v.object({ cond: v.literal("below_level"), level: v.pipe(v.number(), v.integer()) }),
 ]);
 
 const ifSchema = conditionSchema<BrainConditionDef>(leafSchema);

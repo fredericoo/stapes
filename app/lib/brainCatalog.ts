@@ -264,6 +264,12 @@ export const CONDITIONS: Record<BrainConditionDef["cond"], CatalogEntry<BrainCon
     // starts at four. @see ./clock ILLUMINATION_KEYFRAMES
     make: () => ({ cond: "time_of_day", fromHour: 19, toHour: 4 }),
   },
+  below_level: {
+    label: "below level",
+    hint: "This body is standing on a level lower than this one. Level 0 is the surface, so below 0 is underground and its not is under the sky.",
+    params: [{ key: "level", kind: "number", label: "level" }],
+    make: () => ({ cond: "below_level", level: 0 }),
+  },
   carrying: {
     label: "carrying",
     hint: "There is something in this body's bag. Leave the tile empty for anything at all. A body with no bag carries nothing.",

@@ -879,6 +879,8 @@ function leafHolds(condition: BrainConditionDef, memory: BrainMemory, ctx: Brain
     }
     case "time_of_day":
       return withinHours(ctx.minutesOfDay, condition.fromHour, condition.toHour);
+    case "below_level":
+      return ctx.self.z < condition.level;
   }
 }
 

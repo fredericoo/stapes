@@ -5157,6 +5157,18 @@ describe("asking what a body is under", () => {
       expect(ran(empty, at(20))).toBe("idle");
     });
   });
+
+  /** What tells a creature it is underground: level 0 is the surface. */
+  describe("asking how deep it is", () => {
+    const underground = watching({ cond: "below_level", level: 0 });
+    const onLevel = (z: number) => ctx({ self: { x: 0, y: 0, z } });
+
+    it("holds below the level and not on or above it", () => {
+      expect(ran(underground, onLevel(-1))).toBe("alert");
+      expect(ran(underground, onLevel(0))).toBe("idle");
+      expect(ran(underground, onLevel(2))).toBe("idle");
+    });
+  });
 });
 
 /**

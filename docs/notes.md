@@ -8049,6 +8049,11 @@ through a round. `planBrainRound` stores it on the `BrainRound`, and
 `BrainContext.minutesOfDay` is a field rather than a method for the reason
 `home` is one: nothing about the body changes it.
 
+**`below_level` is the other half, because a cave has no day.** It holds when
+the body's own `z` is strictly below `level`, so `below_level 0` is underground.
+It has no bounds beyond being a whole number, since how deep a map goes is the
+map's business.
+
 ## A status can be a gamble, and a body can be immune to one
 
 Two changes to how a condition is handed over, both forced by one item.
