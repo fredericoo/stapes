@@ -9369,6 +9369,33 @@ every frame and rebake the window. A status light is therefore steady by
 construction — there is no phase on it, and there should not be one without
 reading the flicker note above first.
 
+### A particle is a circle or an authored 5×5 shape
+
+`ParticleEmitterDef.shape` is null (a circle sized by the radius fields) or five
+rows of five characters, `#` for a pixel and `.` for none, top row first. A
+shape is drawn one world pixel per character, so the radius fields are not read
+for it, and the taper does not shrink it; the ramp and the alpha range colour
+and fade it exactly as they do a circle. Sleep's rising Z is the first one.
+
+**Shapes live in the same atlas as the circles**, so every particle is still one
+material and one draw. `particleLayer.ts` keeps `SHAPE_SLOTS` 5×5 cells under the
+circle row and writes a shape into the next free one the first frame a particle
+needs it, keyed by its rows joined. When every slot is taken, the slots are
+emptied at the start of the next frame, never during one, so no quad already
+written this frame points at a cell being rewritten. The editor makes a new shape
+on every click, which is the case this exists for. A frame that needs more
+distinct shapes than there are slots draws the extras as circles.
+
+**Which end is up.** A `DataTexture` lays data row 0 at v = 0, and the quad puts
+`v1` on its top edge (the smaller world y, which is up on screen). So row `y` of
+a shape is written to data row `base + 4 - y`. `particleLayer.test.ts` checks
+this against the quad's corners, because a shape drawn upside down would pass
+every other test.
+
+**Sleep's Z is white and unlit.** Unlit because a lit white Z came out grey in
+daylight; the cost is that a sleeper in a pitch-black room shows its Z's. Where
+it crosses the player sprite, which is also mostly white, the two run together.
+
 ### A plume sorts as a two-high tile on top of the affected stack
 
 Not per particle. Every spark of one emitter carries the same depth box, so a

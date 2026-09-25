@@ -1,9 +1,9 @@
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { circleSlice, ParticleLayer, particleWorldPx } from "./particleLayer";
+import { circleSlice, ParticleLayer, particleWorldPx, SHAPE_SLOTS } from "./particleLayer";
 import type { ParticleEmitterSpec } from "./particles";
 import type { CellHidden } from "./tileEmitters";
-import { DEFAULT_PARTICLES, type ParticleEmitterDef } from "../lib/particleVfx";
+import { DEFAULT_PARTICLES, type ParticleEmitterDef, PARTICLE_SHAPE_PX } from "../lib/particleVfx";
 import type { LevelLightUniforms } from "./worldQuads";
 import { type RoofCut, cutHides } from "../lib/levelVisibility";
 import { coordKey } from "../lib/types";
@@ -207,5 +207,81 @@ describe("the circles", () => {
     expect(far.u1).toBeLessThanOrEqual(1);
     expect(far.v1).toBeLessThanOrEqual(1);
     expect(circleSlice(-5).sizePx).toBe(1);
+  });
+});
+
+describe("the shapes", () => {
+  /** A shape with only its top row drawn, so which way up it lands is visible. */
+  const TOP_ROW = ["#####", ".....", ".....", ".....", "....."];
+
+  /** The width of each quad written, from its corner positions. */
+  function quadWidths(l: ParticleLayer, count: number): number[] {
+    const pos = attr(l, "position").array as Float32Array;
+    return Array.from({ length: count }, (_, q) => pos[q * 12 + 3]! - pos[q * 12]!);
+  }
+
+  function atlasOf(l: ParticleLayer): THREE.DataTexture {
+    const material = (l.mesh.material as THREE.MeshBasicMaterial[])[0]!;
+    return material.map as THREE.DataTexture;
+  }
+
+  it("draws a shaped particle at five pixels whatever the radius says", () => {
+    const l = layer();
+    l.setEmitters([emitter({}, { shape: TOP_ROW, radiusFromPx: 8, radiusToPx: 8 })]);
+    l.update(1_000, undefined);
+    expect(quadWidths(l, 1)).toEqual([PARTICLE_SHAPE_PX]);
+  });
+
+  it("puts the shape's top row at the top of the quad", () => {
+    const l = layer();
+    l.setEmitters([emitter({}, { shape: TOP_ROW })]);
+    l.update(1_000, undefined);
+
+    const pos = attr(l, "position").array as Float32Array;
+    const uv = attr(l, "uv").array as Float32Array;
+    // Of the four corners, the ones with the smaller y are the top of the
+    // screen: a particle rising loses y. Their v is the one to read the top
+    // row from.
+    const corners = [0, 1, 2, 3].map((c) => ({ y: pos[c * 3 + 1]!, v: uv[c * 2 + 1]! }));
+    const topV = corners.reduce((a, b) => (b.y < a.y ? b : a)).v;
+    const bottomV = corners.reduce((a, b) => (b.y > a.y ? b : a)).v;
+
+    const atlas = atlasOf(l);
+    const { data, width, height } = atlas.image as {
+      data: Uint8Array;
+      width: number;
+      height: number;
+    };
+    const u0 = uv[0]!;
+    const column = Math.floor(u0 * width);
+    const alphaAt = (v: number, inward: number) => {
+      const row = Math.floor(v * height) + inward;
+      return data[(row * width + column) * 4 + 3];
+    };
+    // One row in from each edge, towards the middle of the cell.
+    const topInward = topV > bottomV ? -1 : 0;
+    const bottomInward = topV > bottomV ? 0 : -1;
+    expect(alphaAt(topV, topInward)).toBe(255);
+    expect(alphaAt(bottomV, bottomInward)).toBe(0);
+  });
+
+  it("draws shapes past the last slot as circles until the next frame", () => {
+    const l = layer();
+    // One more distinct shape than there are slots, each a different pattern of
+    // the first 25 bits of its index.
+    const shapes = Array.from({ length: SHAPE_SLOTS + 1 }, (_, i) =>
+      Array.from({ length: 5 }, (_, y) =>
+        Array.from({ length: 5 }, (_, x) => (((i + 1) >> (y * 5 + x)) & 1 ? "#" : ".")).join(""),
+      ),
+    );
+    l.setEmitters(
+      shapes.map((shape, i) =>
+        emitter({ id: `shape-${i}` }, { shape, ratePerSecond: 1, radiusFromPx: 0, radiusToPx: 0 }),
+      ),
+    );
+    const drawn = l.update(1_000, undefined) ? l.system.count : 0;
+    const widths = quadWidths(l, drawn);
+    expect(widths.filter((w) => w === PARTICLE_SHAPE_PX)).toHaveLength(SHAPE_SLOTS);
+    expect(widths.filter((w) => w === 1)).toHaveLength(1);
   });
 });
