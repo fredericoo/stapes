@@ -4540,6 +4540,17 @@ air.
   the blow scatters it and it resolves; a `disappear` would dissolve it away and
   pop it back. Raising it in `ageFlights` as well would play the same effect
   twice, once in the air and once on the body.
+- **A killing hit plays its burst where the body stood, and nothing else.**
+  `strikeBody` runs before the damage, so a killing blow still sends a hit, but
+  `kill` takes the body off the map on the same tick. The renderer looks for an
+  `appear` in the new map, found no body, and dropped the whole note — the
+  sparks as well, although they need only a place to stand. Only a creature
+  with a `disappear` of its own showed anything on a kill. Now, when
+  `markForming` cannot find a struck body, `throwStruckBurst` finds it in
+  `prevMap` (see `struckRemainsSlot`) and plays the hit's particles there, with
+  no mesh. The sweep and the scale are not played: they are done to a sprite,
+  and a copy wearing an `appear` would climb back to whole and then vanish. A
+  body's own `disappear` still plays beside the sparks.
 - **`projectileEffect` gates every side on the kind**, not only `hit`. `hit` was
   gated by construction, being read through `resolveProjectile`; the other two
   were read straight off the tile, so a tile re-kinded mid-flight went on

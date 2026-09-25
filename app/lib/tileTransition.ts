@@ -168,7 +168,9 @@ export type TileTransitionNote = {
    * Its {@link side} is always `appear`. A struck body is not going anywhere —
    * it has to end whole — and `appear` is the side that climbs to whole, so the
    * blow scatters it and it resolves. A `disappear` would dissolve it away and
-   * pop it back.
+   * pop it back. A blow that kills leaves no body to resolve, and the renderer
+   * plays only the burst, where the body stood — see `../render/tileTransitions`'s
+   * `struckRemainsSlot`.
    */
   struckBy?: string;
 };
