@@ -8307,6 +8307,8 @@ as its prey is within the bow's eight cells and backs off only inside two, and
 one holding a sword, an axe or a mace walks up beside it. See *`attack_range` stands where
 the weapon strikes from*.
 
+Both creatures have `swims: true`, so a river is a way through rather than a wall for either of them.
+
 It hunts the player on sight by day whether it is hungry or not, and wolves,
 rabbits, deer and rats only when it is hungry (`fed` under a minute left). It
 eats raw meat and berries off the ground, picks bushes into its bag and eats

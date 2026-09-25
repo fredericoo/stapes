@@ -35547,6 +35547,7 @@
     "lightPassing": true,
     "affectedByGravity": true,
     "walkable": false,
+    "swims": true,
     "walkDurationMs": 200,
     "interactions": {
       "brain": {
@@ -36926,6 +36927,7 @@
     "lightPassing": true,
     "affectedByGravity": true,
     "walkable": false,
+    "swims": true,
     "walkDurationMs": 240,
     "interactions": {
       "brain": {
