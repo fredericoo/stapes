@@ -2340,6 +2340,20 @@ the pack gets *worse*, because releasing earlier only means re-acquiring sooner
 that shuffles on the spot, halved instead. See `brain.test.ts`, "gathers without
 piling up".
 
+**It also broke how fast the browser drew the legs.** The server does not send
+a step's duration. The client computes it from the tile at the step's `from`
+cell (`RemoteSession.walkDurationAt`). A leg that starts on the same tick the
+previous one landed arrives in the same patch as the cells that put the body on
+`from`. The client applies events after cells but before `rebuildPredicted`,
+and `walkDurationAt` used to read `map`, which at that moment is still the
+previous frame's board, and to take the top tile of the stack as the body. On
+that board `from` held only grass, so every chase leg was timed at the default
+200ms: a troll, snake or cat crossed each cell in 200ms instead of 300–400ms and
+then stood at the far side until the server committed the step. A wander never
+showed it, because its next step waits for the next brain round and so arrives
+in a later patch. The fix reads `serverMap` and finds the body in the stack by
+its owner, which is the same question the server's `walkDurationOf` asks.
+
 ## A creature that has left the board must not be given a turn
 
 `tickOneBrain` asked `defFor` before anything else, and `defFor` goes through

@@ -53,6 +53,18 @@ const tiles: TileDef[] = [
   // A body that is not a person, which is the whole of what these fixtures need
   // from it: people share cells and nothing else does, so a creature has to be
   // a creature for a blocking test to be testing anything.
+  // A creature slower than the default pace, so a step timed at the default is
+  // one that can be told apart from a step timed at its own.
+  tile({
+    id: "tortoise",
+    height: 4,
+    directional: true,
+    affectedByGravity: true,
+    walkable: false,
+    actor: true,
+    walkDurationMs: WALK_DURATION_MS * 2,
+    variants: { n: [FRAME], e: [FRAME], s: [FRAME], w: [FRAME] },
+  }),
   tile({
     id: "rat",
     height: 4,
@@ -1966,6 +1978,69 @@ describe("RemoteSession bodies taken off the board", () => {
     socket.deliver(patch([{ x: 2, y: 0, z: 0, stack: [grass] }]));
 
     expect(session.getSnapshot().actors).toHaveLength(1);
+  });
+});
+
+describe("RemoteSession another body's pace", () => {
+  const TORTOISE = "tortoise";
+  const tortoiseBody: PlacedTile = {
+    tileId: "tortoise",
+    direction: "w",
+    owner: TORTOISE,
+  } as PlacedTile;
+
+  function connectedWithTortoise(): { socket: FakeSocket; session: RemoteSession } {
+    const flat = flatMap();
+    const cells = flat.levels["0"] as unknown as Record<string, PlacedTile[]>;
+    cells["3,0"] = [grass, tortoiseBody];
+    const socket = new FakeSocket();
+    const session = new RemoteSession(socket as unknown as WebSocket, tiles);
+    socket.deliver({
+      type: "hello",
+      selfId: SELF,
+      map: flat,
+      actorIds: [SELF, TORTOISE],
+      playerCount: 1,
+      minutesOfDay: SERVER_MINUTES,
+      hps: [],
+      carriedLights: [],
+      equipment: emptyEquipment(),
+      tags: [],
+      statuses: [],
+    });
+    return { socket, session };
+  }
+
+  /**
+   * A creature walking out a standing order — a chase — lands and starts its
+   * next leg on the same tick, so one patch both puts it on the cell and walks
+   * it off again. The pace has to come from the board that patch describes;
+   * the one from the frame before has only grass on that cell.
+   */
+  it("walks a leg that starts in the patch landing the last one at the body's own pace", () => {
+    const { socket, session } = connectedWithTortoise();
+
+    socket.deliver(
+      patch(
+        [
+          { x: 3, y: 0, z: 0, stack: [grass] },
+          { x: 2, y: 0, z: 0, stack: [grass, tortoiseBody] },
+        ],
+        [
+          {
+            kind: "walkStarted",
+            actorId: TORTOISE,
+            from: { x: 2, y: 0, z: 0 },
+            to: { x: 1, y: 0, z: 0 },
+            direction: "w",
+          },
+        ],
+      ),
+    );
+    session.update(WALK_DURATION_MS);
+
+    const tortoise = session.getSnapshot().actors.find((a) => a.id === TORTOISE);
+    expect(tortoise?.walkProgress).toBe(0.5);
   });
 });
 
