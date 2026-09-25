@@ -8054,6 +8054,25 @@ the body's own `z` is strictly below `level`, so `below_level 0` is underground.
 It has no bounds beyond being a whole number, since how deep a map goes is the
 map's business.
 
+### The wolf we ship sleeps through the day on the surface
+
+Awake is `or[below_level 0, time_of_day 19→6]`: night on the surface, or any
+hour underground. Six rather than the sky's four because the sky is still dark
+through dawn, and a wolf that went to bed at four would be asleep in the dark.
+
+- **A `denned` state that only holds.** By day on the surface, each state the
+  wolf roams in — `prowling`, `following`, `casting`, `homing`, `investigating`,
+  `feeding` — goes to it, and it goes back to `prowling` once the wolf is awake.
+  These rows sit after the `from: any` rows and before the per-state ones.
+- **The sight rows are gated on awake**: hunting a player or a deer it can see,
+  and going for meat it can see. A sleeping wolf with somebody standing in front
+  of it does nothing.
+- **Being attacked is not gated.** `attacked → hunting` fires at any hour, so a
+  wolf hit by day fights back. That is why `hunting` and `slinking` are left off
+  the list above: a `from: hunting` row to the den would pull it out of the
+  fight on the next turn. A hunt that ends by day goes to `prowling`, and from
+  there to the den, where it stays — it does not walk home first.
+
 ## A status can be a gamble, and a body can be immune to one
 
 Two changes to how a condition is handed over, both forced by one item.

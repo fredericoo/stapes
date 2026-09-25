@@ -3487,6 +3487,81 @@ describe("the wolf we ship", () => {
     expect(wolf.x).toBeGreaterThan(6);
     expect(gapToCat(session)).toBeLessThan(12);
   });
+
+  /**
+   * The wolf sleeps through the day under the sky and hunts at night, and a
+   * cave has no day, so underground it hunts at any hour.
+   *
+   * Alice stands four cells off in the open, well inside the nine at which a
+   * wolf that is awake hunts on sight — so a wolf that does nothing is one that
+   * is asleep, not one that failed to notice her.
+   */
+  describe("by the clock", () => {
+    const NOON = 12 * 60;
+    const MIDNIGHT = 0;
+
+    function den(z: number, minutes: number, aliceX = 4): GameSession {
+      let map = emptyMap();
+      for (let x = -6; x <= 6; x++) {
+        for (let y = -6; y <= 6; y++) {
+          map = replaceStack(map, x, y, z, [{ tileId: "dirt" }]);
+        }
+      }
+      map = replaceStack(map, 0, 0, z, [{ tileId: "dirt" }, { tileId: "wolf" }]);
+      map = replaceStack(map, aliceX, 0, z, [
+        { tileId: "dirt" },
+        { tileId: "player", direction: "w", owner: "alice" },
+      ]);
+      return new GameSession(map, authored, {
+        actorIds: ["alice"],
+        spawnAt: { x: 6, y: 6, z, stackIndex: 1 },
+        seed: 20260822,
+        clock: () => minutes,
+      });
+    }
+
+    function noisesOver(session: GameSession, ms: number): string[] {
+      const heard: string[] = [];
+      for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) {
+        session.tick(TICK_MS);
+        for (const noise of session.drainNoise()) heard.push(noise.text);
+      }
+      return heard;
+    }
+
+    function wolfCell(session: GameSession): string {
+      const wolf = session.actorSnapshots().find((a) => a.tileId === "wolf")!;
+      return `${wolf.x},${wolf.y}`;
+    }
+
+    it("stays where it lies by day on the surface, and does not even wander", () => {
+      const session = den(0, NOON);
+
+      expect(noisesOver(session, BRAIN_TICK_MS * 20)).toEqual([]);
+      expect(wolfCell(session)).toBe("0,0");
+    });
+
+    it("hunts somebody it can see at night on the surface", () => {
+      expect(noisesOver(den(0, MIDNIGHT), BRAIN_TICK_MS * 2)).toContain("*howl*");
+    });
+
+    it("hunts underground at any hour", () => {
+      expect(noisesOver(den(-1, NOON), BRAIN_TICK_MS * 2)).toContain("*howl*");
+    });
+
+    /** Asleep is not defenceless: the `attacked` row is not gated on the hour. */
+    it("turns on somebody who hits it by day", () => {
+      // Beside it, so the blow can land.
+      const session = den(0, NOON, 1);
+      expect(noisesOver(session, BRAIN_TICK_MS * 2)).toEqual([]);
+
+      const wolf = session.actorSnapshots().find((a) => a.tileId === "wolf")!;
+      session.setTarget(wolf.id, "alice");
+      session.setAttackMode(true, "alice");
+
+      expect(noisesOver(session, BRAIN_TICK_MS * 20)).toContain("*howl*");
+    });
+  });
 });
 
 /**

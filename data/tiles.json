@@ -27213,6 +27213,13 @@
                 "action": "hold"
               }
             ]
+          },
+          "denned": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -27279,6 +27286,20 @@
                       "atLeastMs": 120000
                     }
                   ]
+                },
+                {
+                  "combinator": "or",
+                  "rules": [
+                    {
+                      "cond": "below_level",
+                      "level": 0
+                    },
+                    {
+                      "cond": "time_of_day",
+                      "fromHour": 19,
+                      "toHour": 6
+                    }
+                  ]
                 }
               ]
             },
@@ -27330,6 +27351,20 @@
                     {
                       "cond": "health",
                       "atMostPercent": 35
+                    }
+                  ]
+                },
+                {
+                  "combinator": "or",
+                  "rules": [
+                    {
+                      "cond": "below_level",
+                      "level": 0
+                    },
+                    {
+                      "cond": "time_of_day",
+                      "fromHour": 19,
+                      "toHour": 6
                     }
                   ]
                 }
@@ -27385,6 +27420,20 @@
                       "atMostPercent": 35
                     }
                   ]
+                },
+                {
+                  "combinator": "or",
+                  "rules": [
+                    {
+                      "cond": "below_level",
+                      "level": 0
+                    },
+                    {
+                      "cond": "time_of_day",
+                      "fromHour": 19,
+                      "toHour": 6
+                    }
+                  ]
                 }
               ]
             },
@@ -27400,6 +27449,138 @@
               }
             },
             "to": "hunting"
+          },
+          {
+            "from": "prowling",
+            "if": {
+              "combinator": "or",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "below_level",
+                  "level": 0
+                },
+                {
+                  "cond": "time_of_day",
+                  "fromHour": 19,
+                  "toHour": 6
+                }
+              ]
+            },
+            "to": "denned"
+          },
+          {
+            "from": "following",
+            "if": {
+              "combinator": "or",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "below_level",
+                  "level": 0
+                },
+                {
+                  "cond": "time_of_day",
+                  "fromHour": 19,
+                  "toHour": 6
+                }
+              ]
+            },
+            "to": "denned"
+          },
+          {
+            "from": "casting",
+            "if": {
+              "combinator": "or",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "below_level",
+                  "level": 0
+                },
+                {
+                  "cond": "time_of_day",
+                  "fromHour": 19,
+                  "toHour": 6
+                }
+              ]
+            },
+            "to": "denned"
+          },
+          {
+            "from": "homing",
+            "if": {
+              "combinator": "or",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "below_level",
+                  "level": 0
+                },
+                {
+                  "cond": "time_of_day",
+                  "fromHour": 19,
+                  "toHour": 6
+                }
+              ]
+            },
+            "to": "denned"
+          },
+          {
+            "from": "investigating",
+            "if": {
+              "combinator": "or",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "below_level",
+                  "level": 0
+                },
+                {
+                  "cond": "time_of_day",
+                  "fromHour": 19,
+                  "toHour": 6
+                }
+              ]
+            },
+            "to": "denned"
+          },
+          {
+            "from": "feeding",
+            "if": {
+              "combinator": "or",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "below_level",
+                  "level": 0
+                },
+                {
+                  "cond": "time_of_day",
+                  "fromHour": 19,
+                  "toHour": 6
+                }
+              ]
+            },
+            "to": "denned"
+          },
+          {
+            "from": "denned",
+            "if": {
+              "combinator": "or",
+              "rules": [
+                {
+                  "cond": "below_level",
+                  "level": 0
+                },
+                {
+                  "cond": "time_of_day",
+                  "fromHour": 19,
+                  "toHour": 6
+                }
+              ]
+            },
+            "to": "prowling"
           },
           {
             "from": "feeding",
