@@ -61,7 +61,6 @@
  */
 
 import type { Reach } from "../lib/item";
-import { HEIGHT_PER_LEVEL } from "../lib/types";
 
 /**
  * A point reach is measured between: a cell on the plan, and a height.
@@ -72,11 +71,6 @@ import { HEIGHT_PER_LEVEL } from "../lib/types";
  * you, and a rule written on `z` cannot see the crate at all.
  */
 export type ReachPoint = { x: number; y: number; elevAbs: number };
-
-/** Absolute elevation of a bare level, for callers measuring floor to floor. */
-export function levelElevation(z: number): number {
-  return z * HEIGHT_PER_LEVEL;
-}
 
 /**
  * Squared distance on the plan, in cells. Height is not in it at all.

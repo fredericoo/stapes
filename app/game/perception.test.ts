@@ -6,7 +6,6 @@ import { HEIGHT_PER_LEVEL } from "../lib/types";
 import type { RoofCut } from "../lib/levelVisibility";
 import { isHiddenFromCamera } from "../render/cameraSight";
 import { canReach } from "./combat";
-import { levelElevation } from "./distance";
 import { hasLineOfSight } from "./sight";
 import { tile } from "../lib/testTile";
 
@@ -74,7 +73,7 @@ function put(map: MapFile, x: number, y: number, z: number, ...tileIds: string[]
 type Body = { x: number; y: number; z: number; elevAbs: number };
 
 function on(x: number, y: number, z: number, standingOn = 0): Body {
-  return { x, y, z, elevAbs: levelElevation(z) + standingOn };
+  return { x, y, z, elevAbs: z * HEIGHT_PER_LEVEL + standingOn };
 }
 
 /** A — is its name and health readable? @see isHiddenFromCamera */
