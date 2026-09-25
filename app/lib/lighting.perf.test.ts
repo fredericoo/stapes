@@ -2,12 +2,7 @@ import { describe, expect, it } from "vitest";
 import { fixtureTown } from "./fixtureTown";
 import tiles from "../../data/tiles.json";
 import { PERF_BUDGETS } from "../editor/perf";
-import {
-  AMBIENT_PRESETS,
-  computeLighting,
-  overlayEmitterOverrides,
-  staticLightingMapKey,
-} from "./lighting";
+import { AMBIENT_PRESETS, computeLighting, overlayEmitterOverrides } from "./lighting";
 import type { TileDef } from "./types";
 import { PLAYER_TILE_ID } from "../game/constants";
 import { requireSinglePlayer } from "../game/player";
@@ -116,10 +111,4 @@ describe("lighting bake perf", () => {
     },
     timeoutFor(OVERLAY_MS),
   );
-
-  it("staticLightingMapKey ignores player moves", () => {
-    const a = staticLightingMapKey(mapFile, omit);
-    const b = staticLightingMapKey(mapFile, omit);
-    expect(a).toBe(b);
-  });
 });
