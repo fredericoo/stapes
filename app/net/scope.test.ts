@@ -3,14 +3,7 @@ import { chunkKeyFor } from "../lib/mapData";
 import { CHUNK_SIZE } from "../lib/types";
 import type { MotionEvent } from "./protocol";
 import type { PlacedTile } from "../lib/types";
-import {
-  audienceOf,
-  cellsInScope,
-  eventsInScope,
-  patchesInScope,
-  reaches,
-  type ScopedCell,
-} from "./scope";
+import { audienceOf, cellInScope, type ScopedCell } from "./scope";
 
 /**
  * What one client is told about.
@@ -47,27 +40,13 @@ function stepped(x: number, y: number, stack: PlacedTile[]): ScopedCell {
   };
 }
 
-describe("cells of a patch", () => {
-  it("keeps the ones in chunks this client holds", () => {
-    const cells = [terrain(1, 0), terrain(AWAY[0], 0), terrain(2, 0)];
+describe("a cell of a patch", () => {
+  it("reaches a client that holds the chunk it is in", () => {
+    const here = terrain(1, 0);
 
-    expect(cellsInScope(cells, holding(HERE), NOBODY, NOBODY)).toEqual([
-      cells[0]!.cell,
-      cells[2]!.cell,
-    ]);
-  });
-
-  /**
-   * Null, and it is not a detail: the caller sends one serialization to every
-   * client that takes the patch whole, and this is how it tells. A same-length
-   * answer would not do — a cell can come back with a body taken out of it.
-   */
-  it("says so when none is dropped or rewritten", () => {
-    expect(cellsInScope([terrain(1, 0), terrain(2, 0)], holding(HERE), NOBODY, NOBODY)).toBeNull();
-  });
-
-  it("drops every one when the client holds no ground", () => {
-    expect(cellsInScope([terrain(1, 0)], new Set(), NOBODY, NOBODY)).toEqual([]);
+    expect(cellInScope(here, holding(HERE), NOBODY, NOBODY)).toBe(here.cell);
+    expect(cellInScope(terrain(AWAY[0], 0), holding(HERE), NOBODY, NOBODY)).toBeNull();
+    expect(cellInScope(here, new Set(), NOBODY, NOBODY)).toBeNull();
   });
 
   /**
@@ -75,16 +54,15 @@ describe("cells of a patch", () => {
    * no other reason, and the world walks two dozen creatures a round — none of
    * which a client 60 cells away can see.
    */
-  it("drops a step by a body this client is not being told about", () => {
-    const cells = [stepped(1, 0, [grass]), stepped(2, 0, [grass, deer])];
-
-    expect(cellsInScope(cells, holding(HERE), NOBODY, NOBODY)).toEqual([]);
+  it("is not news when only a body this client is not being told about moved", () => {
+    expect(cellInScope(stepped(1, 0, [grass]), holding(HERE), NOBODY, NOBODY)).toBeNull();
+    expect(cellInScope(stepped(2, 0, [grass, deer]), holding(HERE), NOBODY, NOBODY)).toBeNull();
   });
 
-  it("sends that same step to a client that holds the body", () => {
-    const cells = [stepped(1, 0, [grass]), stepped(2, 0, [grass, deer])];
+  it("goes whole to a client that holds the body that moved", () => {
+    const step = stepped(2, 0, [grass, deer]);
 
-    expect(cellsInScope(cells, holding(HERE), new Set([deer.owner!]), NOBODY)).toBeNull();
+    expect(cellInScope(step, holding(HERE), new Set([deer.owner!]), NOBODY)).toBe(step.cell);
   });
 
   /**
@@ -94,13 +72,13 @@ describe("cells of a patch", () => {
    * board. Asking only about `held` dropped it, and nothing rewrites that cell
    * again: the corpse stayed where it fell.
    */
-  it("sends the step that takes a body this client had off the board", () => {
-    const gone = [stepped(2, 0, [grass])];
+  it("goes to a client that had the body the step takes off the board", () => {
+    const gone = stepped(2, 0, [grass]);
 
     // Dropped for a client that never had it...
-    expect(cellsInScope(gone, holding(HERE), NOBODY, NOBODY)).toEqual([]);
-    // ...and taken whole by one that did, which is null for "nothing was cut".
-    expect(cellsInScope(gone, holding(HERE), NOBODY, new Set([deer.owner!]))).toBeNull();
+    expect(cellInScope(gone, holding(HERE), NOBODY, NOBODY)).toBeNull();
+    // ...and sent as it stands to one that did.
+    expect(cellInScope(gone, holding(HERE), NOBODY, new Set([deer.owner!]))).toBe(gone.cell);
   });
 
   /**
@@ -109,45 +87,23 @@ describe("cells of a patch", () => {
    * not been told about.
    */
   it("strips a body out of a cell that changed under it", () => {
-    const cells = [terrain(1, 0, [grass, deer])];
+    const changed = terrain(1, 0, [grass, deer]);
 
-    expect(cellsInScope(cells, holding(HERE), NOBODY, NOBODY)).toEqual([
-      { x: 1, y: 0, z: 0, stack: [grass] },
-    ]);
+    expect(cellInScope(changed, holding(HERE), NOBODY, NOBODY)).toEqual({
+      x: 1,
+      y: 0,
+      z: 0,
+      stack: [grass],
+    });
   });
 });
 
-describe("events of a patch", () => {
-  const walk: MotionEvent = {
-    kind: "walkStarted",
-    actorId: "rat",
-    from: { x: 1, y: 0, z: 0 },
-    to: { x: 2, y: 0, z: 0 },
-    direction: "e",
-  };
-
-  it("reaches a client that knows the body it is about", () => {
-    expect(eventsInScope([walk], holding(HERE), new Set(["rat"]))).toEqual([walk]);
-    expect(eventsInScope([walk], holding(HERE), new Set())).toEqual([]);
-  });
-
-  /**
-   * A player is not told how many others are online, and hearing every arrival
-   * and departure in the world would let them count.
-   */
-  it("tells only a client holding the body who joined and who left", () => {
-    const joined: MotionEvent = { kind: "joined", actorId: "bob" };
-    const left: MotionEvent = { kind: "left", actorId: "bob" };
-
-    expect(eventsInScope([joined, left], new Set(), new Set(["bob"]))).toEqual([joined, left]);
-    expect(eventsInScope([joined, left], new Set(), new Set())).toEqual([]);
-  });
-
-  /**
-   * An arrow and a damage number carry no actor id on purpose — whoever they
-   * were measured against may be off the board by the time they are drawn — so
-   * the cell is what decides who hears them.
-   */
+/**
+ * An arrow and a damage number carry no actor id on purpose — whoever they
+ * were measured against may be off the board by the time they are drawn — so
+ * the cell is what decides who hears them. Everything else is about a body.
+ */
+describe("who an event is for", () => {
   it("places the events that name no body", () => {
     const shot: MotionEvent = {
       kind: "projectileFired",
@@ -170,40 +126,27 @@ describe("events of a patch", () => {
     };
 
     expect(audienceOf(shot)).toEqual({ kind: "cell", x: 1, y: 0 });
-    expect(eventsInScope([shot, hit], holding(HERE), new Set())).toEqual([shot]);
-    expect(eventsInScope([shot, hit], holding(AWAY), new Set())).toEqual([hit]);
+    expect(audienceOf(hit)).toEqual({ kind: "cell", x: AWAY[0], y: 0 });
   });
 
-  it("hands back the same array when none is dropped", () => {
-    const events = [walk];
+  /**
+   * A player is not told how many others are online, and hearing every arrival
+   * and departure in the world would let them count.
+   */
+  it("gives the rest, joining and leaving included, to the body they are about", () => {
+    const walk: MotionEvent = {
+      kind: "walkStarted",
+      actorId: "rat",
+      from: { x: 1, y: 0, z: 0 },
+      to: { x: 2, y: 0, z: 0 },
+      direction: "e",
+    };
 
-    expect(eventsInScope(events, holding(HERE), new Set(["rat"]))).toBe(events);
+    expect(audienceOf(walk)).toEqual({ kind: "actor", actorId: "rat" });
+    expect(audienceOf({ kind: "joined", actorId: "bob" })).toEqual({
+      kind: "actor",
+      actorId: "bob",
+    });
+    expect(audienceOf({ kind: "left", actorId: "bob" })).toEqual({ kind: "actor", actorId: "bob" });
   });
-});
-
-describe("actor-keyed diffs", () => {
-  it("keep only what this client has been told there is a body for", () => {
-    const hps = [
-      { actorId: "rat", hp: 2, maxHp: 4, rating: 1 },
-      { actorId: "wolf", hp: 9, maxHp: 9, rating: 3 },
-    ];
-
-    expect(patchesInScope(hps, new Set(["wolf"]))).toEqual([hps[1]!]);
-    expect(patchesInScope(hps, new Set(["rat", "wolf"]))).toBe(hps);
-  });
-});
-
-describe("what reaches a client", () => {
-  it("asks the subscription about a place and the set about a body", () => {
-    const chunks = holding(HERE);
-
-    expect(reaches({ kind: "cell", x: 1, y: 0 }, chunks, new Set())).toBe(true);
-    expect(reaches({ kind: "cell", ...cellAway() }, chunks, new Set())).toBe(false);
-    expect(reaches({ kind: "actor", actorId: "rat" }, chunks, new Set())).toBe(false);
-    expect(reaches({ kind: "actor", actorId: "rat" }, new Set(), new Set(["rat"]))).toBe(true);
-  });
-
-  function cellAway() {
-    return { x: AWAY[0], y: AWAY[1] };
-  }
 });

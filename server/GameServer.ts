@@ -6528,7 +6528,7 @@ export class GameServer {
    *
    * A body that has gone off the board entirely — killed — has no cell to send
    * here, and needs none: its death *is* a change to the cell it was standing
-   * in, so it is in the diff, and `cellsInScope` keeps it for every client that
+   * in, so it is in the diff, and `cellInScope` keeps it for every client that
    * was holding it. @see `../app/net/scope`
    */
   private cellsOfChangedReach(
