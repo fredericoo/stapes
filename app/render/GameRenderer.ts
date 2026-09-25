@@ -319,6 +319,7 @@ export class GameRenderer {
   private session: PlaySession;
   private canvas: HTMLCanvasElement;
   private tilesById: Record<string, TileDef>;
+  private bodyEmitsCache = new WeakMap<TileDef, boolean>();
   /**
    * The status catalogue, for what statuses *look* like and nothing else.
    *
@@ -3320,8 +3321,6 @@ export class GameRenderer {
 
   private emitterOverridesFor(snap: GameSnapshot): EmitterOverride[] | undefined {
     if (!this.lightingEnabled) return undefined;
-    const playerDef = this.tilesById[PLAYER_TILE_ID];
-    if (!playerDef) return undefined;
 
     // One override per actor, in the snapshot's stable id order — the override
     // list is joined into a cache key downstream, so a wobbling order would
@@ -3333,15 +3332,22 @@ export class GameRenderer {
     // this instant: that override is a position, and the light itself is
     // resolved from the stack against the animation clock when it is painted.
     // Asking for the live frame's light would drop the override on the dark
-    // half of a flicker and stop the light coming back. It is also no longer a
-    // per-actor question, since facing does not change whether a tile emits.
-    const bodyEmits = tileCanEmitLight(playerDef);
+    // half of a flicker and stop the light coming back.
+    //
+    // **Asked of each actor's own body, not the player's.** It used to read the
+    // player tile for everybody, which was right only while the player was the
+    // one body that could emit. A creature is omitted from the bake on the same
+    // terms (`dynamicLightTileIds`), so an NPC with a lit sprite was left out of
+    // the bake and never painted back — dark in the dark.
     const overrides: EmitterOverride[] = [];
     for (const actor of snap.actors) {
+      const body = this.tilesById[actor.tileId];
+      if (!body) continue;
+      const bodyEmits = this.bodyEmitsLight(body);
       const carried = this.carriedLightsFor(actor);
       const fromStatuses = this.statusLightsFor(actor);
       if (!bodyEmits && !carried && !fromStatuses) continue;
-      const at = this.actorEmitter(snap.map, actor, playerDef.height ?? 0);
+      const at = this.actorEmitter(snap.map, actor, body.height ?? 0);
       // The body's own light is found by reading the stack it is standing in,
       // which is what an override has always meant. What is in the bag is not in
       // any stack, so it travels on a second override at the same position — the
@@ -3436,6 +3442,22 @@ export class GameRenderer {
    * there is no cell to read them from later — so if this took frame 0 a torch
    * would flicker on the floor and burn flat the moment it went in a bag.
    */
+  /**
+   * Whether a body tile can ever emit, memoised on the def.
+   *
+   * `tileCanEmitLight` gathers every sprite on the tile into a fresh array, and
+   * this is asked per actor per frame — a den of creatures is a hundred of them.
+   * Keyed on def identity, so a new catalogue answers afresh without a reset.
+   */
+  private bodyEmitsLight(body: TileDef): boolean {
+    let emits = this.bodyEmitsCache.get(body);
+    if (emits === undefined) {
+      emits = tileCanEmitLight(body);
+      this.bodyEmitsCache.set(body, emits);
+    }
+    return emits;
+  }
+
   private carriedLightsFor(actor: ActorSnapshot): LightDef[] | undefined {
     if (actor.carriedLights.length === 0) return undefined;
     const lights: LightDef[] = [];
