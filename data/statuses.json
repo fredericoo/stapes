@@ -405,7 +405,32 @@
     "endsOnDamage": true,
     "vfx": {
       "tint": null,
-      "particles": null,
+      "particles": {
+        "ratePerSecond": 1,
+        "ttlFromMs": 1800,
+        "ttlToMs": 2400,
+        "spawnRadiusCells": 0,
+        "spawnElevFrom": 1.5,
+        "spawnElevTo": 2,
+        "riseFrom": 1.5,
+        "riseTo": 2,
+        "driftCellsPerSecond": 0.1,
+        "gravity": 0,
+        "windX": 0,
+        "windY": 0,
+        "lit": false,
+        "shape": ["#####", "...#.", "..#..", ".#...", "#####"],
+        "radiusFromPx": 1,
+        "radiusToPx": 1,
+        "alphaFrom": 1,
+        "alphaTo": 0.2,
+        "ramp": [
+          {
+            "at": 0,
+            "color": "#ffffff"
+          }
+        ]
+      },
       "light": null,
       "taperMs": 1500
     }
