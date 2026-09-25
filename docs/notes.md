@@ -8162,6 +8162,11 @@ nobody in one way: it never touches `actor.targetId`.
   eating yourself mean nothing, so every other action taking a selector would
   have to refuse it. The one action where "me" means something is `cast`, and
   there it is the absence of a target.
+- The editor's `aim` field (`app/lib/brainCatalog.ts`) offers "No target
+  (self)" above the selector kinds, and shows only that label when the row's
+  spell lands on its caster. Picking such a spell drops a stale `of` from the
+  row (`dropSelfAims` in `BrainEditor.tsx`), so the file never carries a
+  selector no control displays.
 
 ## A status can stop its bearer acting, and damage can end one
 
