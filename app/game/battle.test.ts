@@ -993,6 +993,28 @@ describe("the authored creatures", () => {
     });
   });
 
+  /**
+   * The cyclops is a boss, and a boss that can be burned, chilled, poisoned or
+   * held down is one a stack of cheap stones takes apart. A new stone that
+   * leaves a new status fails here until somebody decides whether the cyclops
+   * shrugs it off too.
+   */
+  it("leaves the cyclops immune to every status a stone can leave", () => {
+    const left = new Set<string>();
+    for (const def of authored) {
+      const stone = def.interactions?.item as
+        | { type?: string; effect?: { statuses?: { id: string }[] } }
+        | undefined;
+      if (stone?.type !== "stone") continue;
+      for (const status of stone.effect?.statuses ?? []) left.add(status.id);
+    }
+    const immune = resolveBattler(byId.cyclops!)!.immuneTo ?? [];
+
+    expect(left.size).toBeGreaterThan(0);
+    expect([...left].filter((id) => !immune.includes(id))).toEqual([]);
+    expect(immune).toContain("paralysed");
+  });
+
   it("spooks the deer at whoever hit it", () => {
     const brain = resolveBrain(byId.deer!)!;
     const spook = brain.transitions.find((t) =>

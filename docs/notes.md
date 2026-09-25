@@ -8299,28 +8299,42 @@ torch and, half the time, a second one. Torches in a bag light nothing —
 
 ### The cyclops
 
-**No home rows at all.** It wanders, hunts, eats and sleeps where night finds
-it: every roaming state goes to `sleeping` on `time_of_day 19→6` and back to
-`wandering` by day. There is no `below_level` term, unlike the wolf's, so it
-sleeps at night underground too.
+**It is a boss, and it is meant to take a group.** No home rows: it wanders,
+hunts, eats and sleeps where night finds it — every roaming state goes to
+`sleeping` on `time_of_day 19→6` and back to `wandering` by day, with no
+`below_level` term, so it sleeps at night underground too. Sleep heals a whole
+bar in twenty seconds, so a group that leaves it to sleep starts again.
 
-**"The strongest mace" is read as the war maul**, the top of the blunt family,
-at 75%. Its Blunt is 25, eight short of what the maul asks, and that shortfall
-is what keeps the fight winnable: at Blunt 70 a player at 33 in everything
-with rung-33 weapons and armour won none of three hundred duels against the
-maul. Its fists are authored at 22, spd 26, so the quarter of cyclopes that
-roll no maul still hit heavily. The same veteran, measured:
+- **Toughness 100**, the top of the mastery scale, is 20 defence on its own;
+  the maul and the basic armour bring it to 24. A player at Sharp 15 with a
+  knight's sword takes off 0.4% of it before dying.
+- **`baseHp` 1800**, 2000 hit points in all against the troll's 210.
+- **Blunt 30**, three short of the war maul it holds three times in four —
+  "the strongest mace" read as the top of the blunt family. At
+  25 it swung the maul at half the rate and a lone veteran lasted 55 seconds
+  instead of 24, which makes it a long solo fight rather than a group one.
+- **Immune to `burned`, `chilled`, `poison` and `paralysed`** — every status a
+  stone or a creature's spell leaves today, plus the snake's hold — and to
+  `food-poisoning`, since it eats raw meat. Not `sleep`, which is its own
+  spell. `battle.test.ts` fails when a stone gains a status the list lacks.
+
+What a veteran does to it alone — 33 in everything, rung-33 weapon, chain
+mail, iron helm, hobnailed boots — measured with `runDuel`:
 
 ```
-                          maul hand   sword + shield
-  cave troll                 0.63          0.92
-  cyclops, war maul          0.46          0.49
-  cyclops, fists             0.67          —
+                          takes off   dies in
+  maul                      7.7%        24s
+  longsword + iron shield   6.2%        24s
 ```
 
-`baseHp` 280 and Toughness 60 put it at 376 hit points against the troll's
-210. Everything else it wears is the bottom rung — cloth tunic, leather cap,
-worn boots, 50% each — and its bag holds a blank arcane stone one time in ten.
+Nobody wins alone. With N players fighting at once and the cyclops killing one
+at a time, the damage it takes is about `N(N+1)/2` solo attempts' worth, so
+at 6–8% a solo it needs five veterans. The duel has no statuses, no range and
+no healing, so that is a floor on how many, not a promise.
+
+It respawns after thirty to forty-five minutes. Its bag holds a blank arcane
+stone one time in ten, and the rest of its gear is the bottom rung — cloth
+tunic, leather cap, worn boots, 50% each.
 
 It hunts the player on sight inside five cells and rats, rabbits, snakes, bats
 and deer inside six, all by day, and eats raw meat when it is hungry.

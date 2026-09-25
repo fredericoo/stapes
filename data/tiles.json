@@ -37380,10 +37380,10 @@
         ]
       },
       "battler": {
-        "baseHp": 280,
+        "baseHp": 1800,
         "masteries": {
-          "blunt": 25,
-          "toughness": 60,
+          "blunt": 30,
+          "toughness": 100,
           "agility": 4
         },
         "naturalWeapon": {
@@ -37438,6 +37438,10 @@
           }
         ],
         "immuneTo": [
+          "burned",
+          "chilled",
+          "poison",
+          "paralysed",
           "food-poisoning"
         ],
         "spells": [
@@ -37459,8 +37463,8 @@
         ]
       },
       "respawn": {
-        "fromMs": 300000,
-        "toMs": 600000
+        "fromMs": 1800000,
+        "toMs": 2700000
       }
     },
     "states": {
