@@ -20472,8 +20472,8 @@
     },
     "interactions": {
       "setSpawn": {
-        "trigger": "interactOver",
-        "actionName": "Set respawn point"
+        "actionName": "Set respawn point",
+        "trigger": "interactOver"
       }
     },
     "sprite": {
@@ -20491,7 +20491,12 @@
               "y": 0
             }
           },
-          "durationMs": 700
+          "durationMs": 700,
+          "light": {
+            "radius": 3,
+            "intensity": 0.5,
+            "color": "#8ae2ff"
+          }
         },
         {
           "sprite": {
@@ -20506,7 +20511,12 @@
               "y": 0
             }
           },
-          "durationMs": 700
+          "durationMs": 700,
+          "light": {
+            "radius": 3,
+            "intensity": 0.5,
+            "color": "#8ae2ff"
+          }
         }
       ]
     }
@@ -29921,6 +29931,7 @@
       "gravity": -0.4,
       "windX": 0.35,
       "windY": -0.2,
+      "shape": null,
       "radiusFromPx": 1,
       "radiusToPx": 2,
       "alphaFrom": 1,
@@ -30047,6 +30058,7 @@
       "gravity": -0.4,
       "windX": 0.35,
       "windY": -0.2,
+      "shape": null,
       "radiusFromPx": 1,
       "radiusToPx": 2,
       "alphaFrom": 1,
@@ -30188,17 +30200,6 @@
     },
     "lightPassing": true,
     "intangible": true,
-    "transitions": {
-      "appear": {
-        "durationMs": 700,
-        "dissolve": {
-          "pattern": "noise",
-          "clumpPx": 3,
-          "edgeColor": "#8ce6ff",
-          "edgeWidth": 0.15
-        }
-      }
-    },
     "interactions": {
       "projectile": {
         "cellsPerSecond": 20,
@@ -30388,6 +30389,17 @@
             "durationMs": 200
           }
         ]
+      }
+    },
+    "transitions": {
+      "appear": {
+        "durationMs": 700,
+        "dissolve": {
+          "pattern": "noise",
+          "clumpPx": 3,
+          "edgeColor": "#8ce6ff",
+          "edgeWidth": 0.15
+        }
       }
     }
   },
@@ -31951,6 +31963,10 @@
           }
         ],
         "pile": 6
+      },
+      "respawn": {
+        "fromMs": 300000,
+        "toMs": 600000
       }
     },
     "sprite": {
@@ -34080,6 +34096,7 @@
           "gravity": -1.6,
           "windX": 0,
           "windY": 0,
+          "shape": null,
           "radiusFromPx": 3,
           "radiusToPx": 4,
           "alphaFrom": 0.2,
