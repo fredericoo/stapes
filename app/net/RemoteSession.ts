@@ -1184,10 +1184,20 @@ export class RemoteSession implements PlaySession {
   /**
    * How fast the body at `at` walks, with whatever is slowing or hurrying it.
    *
-   * Taken from the top of the stack, which is where a body sits. A cell that
-   * has already been patched out from under the event falls back to the
-   * player's pace — the wrong answer for one step of one creature, and better
-   * than refusing to animate it.
+   * **Read off {@link serverMap}, not {@link map}.** Events are applied after
+   * the frame's cells and before {@link rebuildPredicted}, so at this point
+   * `map` is still the previous frame's board. A creature walking out a
+   * standing order lands and starts its next leg on the same tick, so the patch
+   * that puts it on `at` and the event that walks it off arrive together — and
+   * on the old board `at` holds only the ground. The ground's pace is the
+   * default 200ms, so a 400ms creature was drawn crossing each cell in half the
+   * time and then held at the far side until the server caught up.
+   *
+   * The body is found in the stack by its owner rather than assumed to be the
+   * top tile, which is how the server times the same step: by the walker's own
+   * def and the ground under its actual `stackIndex`. A body that is not in the
+   * cell at all falls back to the player's pace — the wrong answer for one step
+   * of one creature, and better than refusing to animate it.
    *
    * **Derived here rather than sent, which is what constrains what may move a
    * pace.** The statuses are the ids the broadcast carries, and the percentage
@@ -1196,19 +1206,14 @@ export class RemoteSession implements PlaySession {
    * anybody but its viewer. @see `../lib/status`'s `StatusDef.walkSpeedPercent`
    */
   private walkDurationAt(actorId: string, at: { x: number; y: number; z: number }): number {
-    const stack = getStack(this.map, at.x, at.y, at.z);
-    const def = this.tilesById[stack[stack.length - 1]?.tileId ?? ""];
+    const stack = getStack(this.serverMap, at.x, at.y, at.z);
+    const stackIndex = stack.findIndex((placed) => placed.owner === actorId);
+    const def = stackIndex < 0 ? undefined : this.tilesById[stack[stackIndex]!.tileId];
     if (!def) return WALK_DURATION_MS;
     return walkDurationMsFor(
       def,
       this.walkSpeedPercentOf(actorId) +
-        groundWalkSpeedPercent(
-          this.map,
-          // The body is the top of the stack, which is what the def above was
-          // read off — so the ground it is standing on is everything under it.
-          { ...at, stackIndex: stack.length - 1 },
-          this.tilesById,
-        ),
+        groundWalkSpeedPercent(this.serverMap, { ...at, stackIndex }, this.tilesById),
     );
   }
 
