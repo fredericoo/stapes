@@ -11,6 +11,7 @@ import type { Kit } from "../lib/kit";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
 import { FieldLabel, Input, SectionTitle, Select, Switch } from "../ui";
+import { BattlerIssues } from "./BattlerIssues";
 import { ElementFields } from "./ElementFields";
 import { KitEditor } from "./KitEditor";
 import { StatField } from "./StatField";
@@ -26,6 +27,11 @@ type Props = {
    * weapon is a weapon in every sense, venom included — see `./WeaponFields`.
    */
   statusDefs?: Record<string, StatusDef>;
+  /**
+   * Why the block, as Save would write it, would not load — worked out once in
+   * the dialog, since Save is gated on the same answer. See `./BattlerIssues`.
+   */
+  battlerIssues: readonly string[];
 };
 
 const MASTERY_FIELDS: Array<{ mastery: Mastery; label: string; hint?: string }> = [
@@ -113,7 +119,7 @@ const QUICK_REFLEX = 65;
  */
 const NOTHING_LEFT = "";
 
-export function BattleTab({ draft, onChange, tiles, statusDefs = {} }: Props) {
+export function BattleTab({ draft, onChange, tiles, statusDefs = {}, battlerIssues }: Props) {
   const battler = draft.interactions?.battler ?? DEFAULT_BATTLER;
   // A draft loaded from a file authored before `baseHp` existed carries none,
   // and this tab is shown on the Kind select's answer rather than on a
@@ -179,6 +185,7 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {} }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
+      <BattlerIssues issues={battlerIssues} />
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
         <SectionTitle info="Every placement starts at full health, can be targeted and attacked, and is deleted from the map at zero. Independent of Actor and of the brain.">
           Battler

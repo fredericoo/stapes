@@ -62,6 +62,7 @@ import { BrainEditor } from "./BrainEditor";
 import { SpellsTab } from "./SpellsTab";
 import { DialogEditor } from "./DialogEditor";
 import { availableStates, hasAnyInteraction, interactionsForSave } from "../lib/interactions";
+import { battlerIssues } from "../lib/battler";
 import { validateBrain, type BrainDef } from "../lib/brain";
 import { validateDialog, type DialogDef } from "../lib/dialog";
 import { tilesByIdFromList } from "../lib/validation";
@@ -791,6 +792,21 @@ export function TileEditorDialog({
    * a different id, and a copy that skipped these checks would put a tile in the
    * library that the editor itself refuses to save.
    */
+  /**
+   * Why the battler block would not load, read off the block as Save would write
+   * it rather than off the draft.
+   *
+   * `resolveBattler` drops a block that fails its schema whole, and the Battle
+   * and Spells tabs draw from the draft, so nothing else on screen would say so.
+   * Asked of the saved form because `interactionsForSave` is what reaches the
+   * file: it already drops a zero cast time and fills a missing base, and a
+   * draft carrying one of those is not a block that fails to load.
+   */
+  const battlerProblems = useMemo(
+    () => battlerIssues({ ...draft, interactions: interactionsForSave(draft.interactions) }),
+    [draft],
+  );
+
   const buildSaved = (): TileDef | null => {
     if (!draft.id.trim()) {
       setError("Id is required");
@@ -814,6 +830,13 @@ export function TileEditorDialog({
         setError(`Brain: ${fatal.message}`);
         return null;
       }
+    }
+
+    // Save is already off while this is non-empty; Duplicate runs these checks
+    // too, and must not write a copy the world would read as no battler.
+    if (battlerProblems.length > 0) {
+      setError(`Battle: ${battlerProblems[0]}`);
+      return null;
     }
 
     // On the brain's terms, and with the catalogues in hand: a dialog naming a
@@ -1771,7 +1794,7 @@ export function TileEditorDialog({
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button variant="primary" onClick={handleSave}>
+          <Button variant="primary" disabled={battlerProblems.length > 0} onClick={handleSave}>
             Save
           </Button>
         </>
@@ -1873,7 +1896,13 @@ export function TileEditorDialog({
           </TabPanel>
 
           <TabPanel value={TAB_BATTLE}>
-            <BattleTab draft={draft} onChange={setDraft} tiles={tiles} statusDefs={statusDefs} />
+            <BattleTab
+              draft={draft}
+              onChange={setDraft}
+              tiles={tiles}
+              statusDefs={statusDefs}
+              battlerIssues={battlerProblems}
+            />
           </TabPanel>
 
           <TabPanel value={TAB_SPELLS}>
@@ -1883,6 +1912,7 @@ export function TileEditorDialog({
               tiles={tiles}
               tilesets={tilesets}
               statusDefs={statusDefs}
+              battlerIssues={battlerProblems}
             />
           </TabPanel>
 
