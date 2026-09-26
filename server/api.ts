@@ -1,5 +1,5 @@
 import { Elysia, t } from "elysia";
-import { parseMap, serializeMap } from "../app/lib/mapData";
+import { flattenMap, parseMap, serializeMap } from "../app/lib/mapData";
 import { readPngSize } from "../app/lib/png";
 import { untar } from "./untar";
 import { PROTOCOL_VERSION } from "../app/net/protocol";
@@ -131,11 +131,7 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
       "/map",
       async ({ body, request, status }) => {
         if (!(await admin(request))) return status(404, "Not found");
-        const map = parseMap(body.map);
-        await store.writeMap(map);
-        await world.server.replaceWorld(
-          JSON.parse(body.map) as Parameters<typeof world.server.replaceWorld>[0],
-        );
+        await world.server.replaceWorld(flattenMap(parseMap(body.map)));
         return { ok: true as const };
       },
       { body: t.Object({ map: t.String() }) },

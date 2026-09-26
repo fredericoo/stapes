@@ -9541,6 +9541,12 @@ been erased in the editor persisted the unstartable map and destroyed the only
 startable copy left. The session is now built first, from the incoming map, and
 storage is untouched until it exists.
 
+The move from Durable Objects to Bun reintroduced the bug in the HTTP handler:
+`POST /api/map` wrote the map itself and then called `replaceWorld`, so a save
+of a map with no marker still replaced the stored map before the session
+refused it. The handler now only parses the body and hands it to
+`replaceWorld`, which is the one place the map is written.
+
 **Never read the world you are replacing.** `replaceWorld` used to open with
 `ensureLoaded()`. Once the stored map could not start, that threw — so the
 editor could no longer save the very fix that would have repaired it. Putting
