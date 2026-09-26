@@ -5856,21 +5856,23 @@ the frame is drawn from for 320ms, by up to 6 world pixels.
 ## A clock counted in ticks runs out on its last tick
 
 `TICK_MS` is `1000 / 30`, which a double cannot hold: it is
-33.333333333333336. Counting a duration down by subtracting it once a tick
-drifts, by up to 2e-9ms for anything under a minute, and when the remainder
-after the last tick is a hair above zero, a `> 0` check waits one more tick.
-Swing intervals are whole ticks by construction, because `attackIntervalMs`
-rounds to them, and 791 of the 1195 intervals it can return ran one tick long
-this way; the windup ran long at 420 of those paces. A rat authored at 20 ticks
-(667ms) bit every 21 (700ms) in the Arena and for any body swinging every tick
-in the world, while `combatMetrics` showed 667ms.
+33.333333333333336. Counting a duration off one tick at a time, down to zero or
+up to the duration, drifts by up to 2e-9ms for anything under a minute, and when
+the drift lands on the wrong side of the boundary the clock runs one more tick:
+a countdown left 1e-14ms above zero still reads `> 0`. Swing
+intervals are whole ticks by construction, because `attackIntervalMs` rounds to
+them, and 791 of the 1195 intervals it can return ran one tick long this way;
+the windup ran long at 420 of those paces. A rat authored at 20 ticks (667ms)
+bit every 21 (700ms) in the Arena and for any body swinging every tick in the
+world, while `combatMetrics` showed 667ms.
 
 **`app/game/ticks.ts` holds the rule once.** `countDown(remainingMs, elapsedMs)`
 returns exactly 0 once the remainder is within `TICK_SLACK_MS` of zero, so a
-`> 0` check and an `=== 0` check both read it as run out. The slack is 1e-6ms:
-hundreds of times the drift, and far below the third of a millisecond that
-separates a whole-millisecond duration from a tick boundary it does not fall
-on. The only timers it moves are the ones that were a tick late.
+`> 0` check and an `=== 0` check both read it as run out, and
+`reached(elapsedMs, targetMs)` is the same rule for a clock that counts up. The
+slack is 1e-6ms: hundreds of times the drift, and far below the third of a
+millisecond that separates a whole-millisecond duration from a tick boundary it
+does not fall on. The only timers it moves are the ones that were a tick late.
 
 - `GameSession.advanceCooldowns` counts the swing cooldown, the windup and the
   strike recovery through it, and `Duel.advanceCooldown` counts the Arena's
@@ -5884,6 +5886,12 @@ on. The only timers it moves are the ones that were a tick late.
   progress through it. Every shipped pull and cast time is a whole number of
   ticks, and the 500ms, 1500ms and 2000ms casts and the 2000ms and 6000ms pulls
   each finished a tick after their authored time.
+- `advanceMotion` ends a walk once `reached(walk.elapsedMs, walk.durationMs)`.
+  Twelve ticks add up to 399.99999999999994ms, so a 400ms step, the cat's and a
+  player's wading in water, took 13 ticks and left the server a tick behind the
+  client's prediction of every step. Paralysis makes a step ten times as long,
+  and most of those ran long the same way: the player's 2000ms, the rat's
+  1500ms and the wolf's 1400ms.
 
 **It is a balance change.** At their authored pace every shipped weapon and
 creature gets a tick back somewhere. The rusty sword, iron sword, simple hammer,

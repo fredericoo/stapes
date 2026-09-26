@@ -230,7 +230,7 @@ import {
   type SpellButton,
 } from "./casting";
 import { type Progress, windProgress } from "./progress";
-import { countDown } from "./ticks";
+import { countDown, reached } from "./ticks";
 import { type Attributes, attributesOf } from "./attributes";
 import { equipmentForBody } from "./battlerKit";
 import {
@@ -4867,7 +4867,7 @@ export class GameSession implements PlaySession {
 
     if (actor.walk) {
       actor.walk.elapsedMs += tickMs;
-      if (actor.walk.elapsedMs >= actor.walk.durationMs) {
+      if (reached(actor.walk.elapsedMs, actor.walk.durationMs)) {
         this.commitWalk(actor);
       } else {
         return;
