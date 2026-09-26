@@ -3,17 +3,16 @@
 Everything you need to do by hand, in order. Nothing here is automated because
 all of it involves an account, a card or a password.
 
-**One machine.** Production and every pull-request preview run on the same box,
-which is the right shape for a hobby project with no players yet: an idle world
-is about 90 MB resident, so a 4 GB server holds the live one and several
-previews without noticing. The one thing that has to be right is a memory limit
-per container — see step 4 — because that is what stops a runaway preview taking
-production with it.
+**Two machines.** Production runs on one box and pull-request previews on a
+second, both managed by the Coolify on the first. They used to share one 4 GB
+box, and a per-container memory limit did not protect production: on 26
+September four previews deployed within an hour, their builds and containers
+together outgrew 4 GB, and the box spent the next two hours swapping program
+pages off disk at 1–2 GB/s with both CPUs at 100%. The limit caps each container,
+not their sum, and a box that is thrashing never gets to the OOM killer. Previews
+now fill only their own box, and no more than five run at once (step 6).
 
-Splitting onto a second box later is a Coolify setting and a DNS record, not a
-rewrite.
-
-Total: **€6.59/month**, on one bill, with no external services.
+Total: **€13.18/month**, on one bill, with no external services.
 
 ---
 
@@ -57,13 +56,11 @@ until you do, anybody who finds the port can.
 
 ## 2. DNS and Cloudflare
 
-All pointing at the one IP:
-
 | Record | Type | Value |
 | --- | --- | --- |
-| `stapes.example.com` | A | the IP |
-| `coolify.example.com` | A | the IP |
-| `*.preview.example.com` | A | the IP |
+| `stapes.example.com` | A | the production box |
+| `coolify.example.com` | A | the production box |
+| `*.preview.example.com` | A | the preview box (step 6) |
 
 The wildcard is what gives each pull request `pr-42.preview.example.com` without
 touching DNS again.
@@ -143,7 +140,7 @@ anything you have half-written down.
 Continuous integration posts the built client straight to the server, which
 stores it on the volume under `clients/<sha>/` and flips a pointer. That is why
 there is no object storage to buy, no S3 credentials, and no MinIO container
-eating memory on a box you are already sharing with previews.
+eating memory on the production box.
 
 **A server deploy does not erase the client.** Builds are on the mounted volume,
 not in the image, and the server writes down which one it is serving so a new
@@ -182,7 +179,7 @@ silently starts a brand new world**. Nothing warns you.
 
 **Resource Limits → Memory: `1g`.**
 
-Do not skip this on a shared box. An idle world is about 90 MB, so a gigabyte is
+Do not skip this. An idle world is about 90 MB, so a gigabyte is
 enormous headroom — the number matters less than the limit existing. Without one,
 a container that leaks hands the problem to the kernel's OOM killer, which
 chooses its victim by resident size; on a box full of small preview worlds, the
@@ -257,7 +254,7 @@ COOLIFY_URL=https://coolify.example.com
 COOLIFY_APP_UUID=<from the app's URL in Coolify>
 COOLIFY_PREVIEW_APP_UUID=<step 6>
 PREVIEW_DOMAIN=preview.example.com
-MAX_PREVIEWS=4
+MAX_PREVIEWS=5
 ORIGIN_IP=<the box's address>
 ```
 
@@ -285,7 +282,39 @@ mobile app or with `gh workflow run deploy.yml` without an empty commit.
 
 ---
 
-## 6. Previews, on the same box
+## 6. Previews, on their own box
+
+### The preview box
+
+A second **CX23** in the same location, Ubuntu 24.04, with your SSH key — step 1
+again, without installing Coolify on it. Coolify on the production box drives it
+over SSH:
+
+1. Coolify → **Keys & Tokens → Private Keys** holds the key Coolify generated at
+   install. Append its public half to `/root/.ssh/authorized_keys` on the preview
+   box.
+2. Coolify → **Servers → Add**: the preview box's IP, user `root`, port 22, that
+   key. **Validate & configure** installs Docker and starts a Traefik proxy on it.
+3. On the new server's page, **Advanced → Concurrent builds: 1.** A Docker build
+   of this repository is the largest thing that runs on the box, and two at once
+   next to five running previews is what does not fit in 4 GB.
+4. Point `*.preview.example.com` at the preview box. Traefik on that box issues
+   each `pr-N` certificate, so the record stays grey.
+
+The preview box sits behind a Hetzner Cloud Firewall, `stapes-previews`, that
+lets in only TCP 22, 80 and 443 and ICMP. Coolify's Traefik publishes 8080 for
+its dashboard, and the firewall drops that before it reaches the box. Docker's
+own iptables rules cannot open a port through it, so the `DOCKER-USER` rule from
+step 2 is not needed here.
+
+The box is created with cloud-init user data that appends Coolify's public key
+to `/root/.ssh/authorized_keys` and writes both scripts and both cron files
+below. The cron files name the preview application's uuid, so create the
+application in Coolify first: adding the server to Coolify without validating it
+already gives it a destination to create the application on. Then create the box
+and validate the server with "install" on, which installs `jq` and Docker.
+
+### The preview application
 
 **Previews need Coolify connected to GitHub as a source** — a GitHub App under
 Coolify → Sources, installed on this repository — and this is not optional the
@@ -317,7 +346,12 @@ after the call returns, so a recreate that races it fails on a domain conflict.
 `git_repository` changes shape with the source, too: `owner/repo` for a GitHub
 App, the `git@github.com:owner/repo.git` URL for a deploy key.
 
-A second Coolify application, same repository, same server:
+A second Coolify application, same repository, **on the preview box's
+destination**. One created on the production box stays there (`PATCH` with a
+`destination_uuid` answers `This field is not allowed`), so moving
+previews means deleting it and creating it again on the preview box, which gives
+it a new uuid: update `COOLIFY_PREVIEW_APP_UUID` and the `PREVIEW_APP` in both
+cron files below.
 
 - **Domain**: `https://pr-{{pr_id}}.preview.example.com`
 - **Preview deployments**: enabled
@@ -338,6 +372,10 @@ A second Coolify application, same repository, same server:
 - **Never deploy the base application.** Only its `pr-N` children are wanted;
   the parent exists to hold the settings and to give `{{domain}}` a value.
 
+An application created through the API has preview deployments off, and the
+create call does not accept the setting. Turn it on afterwards with `PATCH
+/applications/{uuid}` and `{"is_preview_deployments_enabled": true}`.
+
 Copy the app UUID into `COOLIFY_PREVIEW_APP_UUID`.
 
 **A preview builds its own client.** The client is not in the image, so a
@@ -356,14 +394,27 @@ The workflow polls `GET /api/v1/deployments/applications/{uuid}` for the
 deployment whose `pull_request_id` and `commit` are this push's, and only seeds
 and uploads once it reads `finished`.
 
-`MAX_PREVIEWS` is a **warning, not a gate**. It used to be a gate, back when the
-workflow was the thing that started previews; now the webhook does, and the
-container is already coming up by the time any job could object. What actually
-bounds the box is the memory limit above — that is the number to trust, and the
-one that keeps a crowded box from taking production with it. Raise the warning
-threshold when the machine is bigger; at 90 MB a world there is far more room
-than 4, and the low number is only there because nothing has measured this under
-real load yet.
+### At most five previews run at once
+
+The webhook starts a preview, so by the time any job could object the container
+is already coming up, and `preview.yml` cannot refuse one. The preview box
+enforces the number instead: `scripts/cap-previews.sh` runs every minute, keeps
+the five preview containers most recently created, and stops the rest. Coolify
+recreates a preview's container on every push, so the five kept are the five
+most recently pushed pull requests. A stopped preview keeps its volume and comes
+back on its pull request's next push.
+
+```bash
+scp scripts/cap-previews.sh root@<preview ip>:/usr/local/bin/stapes-cap-previews.sh
+ssh root@<preview ip> 'chmod 755 /usr/local/bin/stapes-cap-previews.sh &&
+  echo "* * * * * root PREVIEW_APP=<preview app uuid> MAX_PREVIEWS=5 /usr/local/bin/stapes-cap-previews.sh >/dev/null" \
+  > /etc/cron.d/stapes-cap-previews'
+```
+
+The repository variable `MAX_PREVIEWS` is the same number, and `preview.yml`
+only uses it to warn a pull request that it may not keep a running preview.
+Change both together. Five is what fits a 4 GB box with the 512 MB limit above
+and one build at a time.
 
 ### Closing a pull request does not delete its volume
 
@@ -377,17 +428,17 @@ cancels deployments, removes the containers and force-deletes the record, and
 never reaches the `deleteVolumes` branch — whose `true` default only ever
 applied to the resource types it returned before. Measured here at roughly 6 MB
 per closed pull request, which is slow enough that the first symptom would be a
-full disk months later, on a box where a full disk takes production with it.
+full disk months later.
 
-So the box prunes them. The script is `scripts/prune-preview-volumes.sh` in this
+So the preview box prunes them. The script is `scripts/prune-preview-volumes.sh` in this
 repository — it lives here rather than only on the server so the reasoning is
 reviewable and the guards are not something a future reader has to reconstruct
 from a file they found in `/usr/local/bin`:
 
 ```bash
-scp scripts/prune-preview-volumes.sh root@<ip>:/usr/local/bin/stapes-prune-preview-volumes.sh
-ssh root@<ip> 'chmod 755 /usr/local/bin/stapes-prune-preview-volumes.sh &&
-  echo "23 4 * * * root /usr/local/bin/stapes-prune-preview-volumes.sh >/dev/null" \
+scp scripts/prune-preview-volumes.sh root@<preview ip>:/usr/local/bin/stapes-prune-preview-volumes.sh
+ssh root@<preview ip> 'chmod 755 /usr/local/bin/stapes-prune-preview-volumes.sh &&
+  echo "23 4 * * * root PREVIEW_APP=<preview app uuid> /usr/local/bin/stapes-prune-preview-volumes.sh >/dev/null" \
   > /etc/cron.d/stapes-preview-volumes'
 ```
 
@@ -395,16 +446,17 @@ Three guards, each ruling out a different way it could eat something live: the
 preview application's uuid prefix, a `-pr-N` suffix, and
 dangling-and-over-a-day-old. Together they cannot match production, cannot match
 the preview application's own base volume, and cannot catch the seconds-long
-window in which a redeploying preview has let go of its volume. **The uuid in it
-is the preview application's**, so it has to be changed if that application is
-ever recreated — which is exactly what happened once already, when the app had
-to be rebuilt against the GitHub App source.
+window in which a redeploying preview has let go of its volume. **`PREVIEW_APP`
+is the preview application's uuid**, so both cron files have to be changed if
+that application is ever recreated — which has happened twice already: once
+when the app was rebuilt against the GitHub App source, and once when previews
+moved to their own box.
 
 **Do not reach for Coolify's `delete_unused_volumes` instead.** It prunes every
-unused volume on the server, and production's data *and* its backups are both
-detached for about fifteen seconds while a deploy replaces the container. A
-deploy landing on the nightly cleanup would take the world and every backup of
-it in the same sweep.
+unused volume on the server, and a preview's world is detached for about fifteen
+seconds while a redeploy replaces its container, and for as long as the cap has
+it stopped. On the production box it would take the world and every backup of
+it in the same sweep during a deploy.
 
 Worth re-checking after a Coolify upgrade — if upstream starts deleting preview
 volumes, this becomes a no-op rather than a conflict, but the note should go.
@@ -434,7 +486,7 @@ replacing the container, which is the copy you would actually want.
 
 Then get them off the box — `rclone`, `scp` to somewhere else, anything. **A
 backup on the machine it is protecting is not a backup**, and that is more true
-now that one machine holds everything. Prune what you keep:
+and the production box holds the only copy of the world. Prune what you keep:
 
 ```bash
 find /var/lib/docker/volumes/*stapes-backups*/_data -name 'stapes-*.db' -mtime +30 -delete
@@ -530,17 +582,16 @@ from; the API returns both.
 
 | | net | gross |
 | --- | --- | --- |
-| CX23, Falkenstein | €5.49 | **€6.59** |
-| Hetzner backups (+20%, off here) | €1.10 | €1.32 |
-| **Total as deployed** | €5.49 | **€6.59** |
+| CX23, Falkenstein (production) | €5.49 | **€6.59** |
+| CX23, Falkenstein (previews) | €5.49 | **€6.59** |
+| Hetzner backups (+20%, production only, off here) | €1.10 | €1.32 |
+| **Total as deployed** | €10.98 | **€13.18** |
 
-Billed hourly at €0.0106 gross, so destroying the server stops the cost the same
-hour.
+Each is billed hourly at €0.0106 gross, so destroying a server stops its cost
+the same hour.
 
-One line item. Nothing else is bought, and nothing outside Hetzner is depended
+Two line items. Nothing else is bought, and nothing outside Hetzner is depended
 on.
 
 Hetzner adjusted prices twice in 2026, so check the console rather than trusting
-this table. When one box stops being enough, the first thing to move off is
-previews: a second server, the same Coolify application pointed at it, and one
-DNS record.
+this table.

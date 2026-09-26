@@ -64,8 +64,8 @@ import {
   residentOwnerId,
   actorStillAt,
   despawnActor,
+  despawnActors,
   findActorAnywhere,
-  listActorOwners,
   locateActor,
   removeAuthoredPlayer,
   spawnActor,
@@ -160,6 +160,7 @@ import {
   type BattlerDef,
   type NaturalSpell,
   DEFAULT_BATTLER,
+  isImmune,
   resolveBattler,
   type FightingStats,
   spellPower,
@@ -634,6 +635,7 @@ type ActorRuntime = {
     allowDrops: boolean | undefined;
     arrive: "beside" | "on";
   } | null;
+  attackOrder: string | null;
   refuge: Coord | null;
   brainAttentive: boolean;
   conversation: Conversation | null;
@@ -834,9 +836,19 @@ export class GameSession implements PlaySession {
         this.map = adoptBodyAt(this.map, body, owner);
       }
       if (!this.actors.has(owner)) {
-        this.addActor(owner, { resident: true, bodyTileId: body.placed.tileId });
+        this.addResident(owner, body.placed.tileId, body);
       }
     }
+  }
+
+  /**
+   * An actor with no remembered cell is found by sweeping the whole board, so
+   * a world that adopts thousands of creatures would sweep it once for each.
+   */
+  private addResident(id: string, bodyTileId: string, body: Coord & { stackIndex: number }) {
+    const actor = this.addActor(id, { resident: true, bodyTileId });
+    const at = actorStillAt(this.map, id, body);
+    if (at) this.remember(actor, at);
   }
 
   private addActor(
@@ -874,6 +886,7 @@ export class GameSession implements PlaySession {
       brain: null,
       brainDeferredMs: 0,
       walkOrder: null,
+      attackOrder: null,
       refuge: null,
       brainAttentive: false,
       conversation: null,
@@ -972,10 +985,7 @@ export class GameSession implements PlaySession {
         .map((body) => body.placed.owner)
         .filter((owner): owner is string => owner != null),
     );
-    for (const owner of listActorOwners(this.map)) {
-      if (live.has(owner) || residents.has(owner)) continue;
-      this.map = despawnActor(this.map, owner);
-    }
+    this.map = despawnActors(this.map, (owner) => !live.has(owner) && !residents.has(owner));
   }
 
   despawn(id: string) {
@@ -1016,10 +1026,7 @@ export class GameSession implements PlaySession {
     this.map = mintItemIds(this.map, this.tilesById);
     this.noteTransition("appear", def.id, point.cell, stackIndex);
     if (point.ownerId && !this.actors.has(point.ownerId)) {
-      this.addActor(point.ownerId, {
-        resident: true,
-        bodyTileId: point.placed.tileId,
-      });
+      this.addResident(point.ownerId, point.placed.tileId, { x, y, z, stackIndex });
     }
     this.reindexCells([point.cell]);
     return { kind: "done", ...(itemId ? { itemId } : {}) };
@@ -1366,6 +1373,23 @@ export class GameSession implements PlaySession {
       this.brainRound = this.planBrainRound();
     }
     if (this.brainRound) this.takeBrainTurns(this.brainRound, this.brainRound.perTick);
+    /**
+     * Here rather than beside the players' swings in `runAutoAttacks`: with
+     * nobody connected no brain runs to drop an order, so none may be pressed.
+     */
+    this.pressAttackOrders();
+  }
+
+  private pressAttackOrders() {
+    for (const actor of this.actors.values()) {
+      const targetId = actor.attackOrder;
+      if (targetId === null || !actor.brainAttentive) continue;
+      if (!this.actors.has(targetId)) {
+        actor.attackOrder = null;
+        continue;
+      }
+      this.tryAttack(actor, targetId);
+    }
   }
 
   private planBrainRound(): BrainRound {
@@ -1625,6 +1649,7 @@ export class GameSession implements PlaySession {
   }
 
   private tickOneBrain(actor: ActorRuntime, round: BrainRound, tickMs: number) {
+    actor.attackOrder = null;
     const loc = this.tryLocate(actor);
     if (!loc) return;
     if (this.incapacitated(actor)) {
@@ -1669,7 +1694,7 @@ export class GameSession implements PlaySession {
       heard: () => round.heard,
       heardNoise: () => soundsHeardBy(round.sounds, actor.id),
       hurtBy: () => this.visibleAttackers(round.hurt.get(actor.id)),
-      attack: (id) => this.tryAttack(actor, id),
+      attack: (id) => this.orderAttack(actor, id),
       cast: (spell, targetId) => this.castForBrain(actor, spell, targetId),
       extract: (at, tileId) => this.extractForBrain(actor, at, tileId),
       consume: (tileId) => this.consumeForBrain(actor, tileId),
@@ -2021,6 +2046,11 @@ export class GameSession implements PlaySession {
     windup.inReach = false;
     windup.sinceSeenMs = 0;
     actor.nextBlow = null;
+  }
+
+  private orderAttack(attacker: ActorRuntime, targetId: string): boolean {
+    attacker.attackOrder = targetId;
+    return this.tryAttack(attacker, targetId);
   }
 
   private tryAttack(attacker: ActorRuntime, targetId: string): boolean {
@@ -2640,9 +2670,7 @@ export class GameSession implements PlaySession {
   ): StatusGrantOutcome {
     const def = this.statusDefs[grant.id];
     if (!def) return "refused";
-    if (resolveBattler(this.defFor(actor))?.immuneTo?.includes(grant.id)) {
-      return "refused";
-    }
+    if (isImmune(resolveBattler(this.defFor(actor)), grant.id)) return "refused";
     if (def.tone === "bad" && causedBy !== undefined) {
       const causer = this.actors.get(causedBy);
       if (causer && !this.mayHarm(causer, actor)) return "refused";
@@ -4453,8 +4481,10 @@ export class GameSession implements PlaySession {
     }
 
     this.map = candidate;
+    const summoned = getStack(this.map, at.x, at.y, at.z);
     for (const owner of owners) {
-      this.addActor(owner, { resident: true, bodyTileId: def.id });
+      const stackIndex = summoned.findIndex((placed) => placed.owner === owner);
+      this.addResident(owner, def.id, { ...at, stackIndex });
     }
     for (const stackIndex of formed) {
       this.noteTransition("appear", def.id, at, stackIndex);

@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-PREVIEW_APP=99d1ohboqype9py2obc64wnt
+PREVIEW_APP=${PREVIEW_APP:?set PREVIEW_APP to the preview application uuid}
 CUTOFF=$(date -d "1 day ago" +%s)
 
 docker volume ls -qf dangling=true \
