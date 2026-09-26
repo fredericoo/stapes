@@ -2013,6 +2013,13 @@ The check that catches all three is the last thing `scripts/carve-caves.ts`
 does: bake the map it just wrote and assert no carved cell has any sky in it
 away from the mouth. Everything above was found by that assertion failing.
 
+The mouth is not the only way daylight is meant to get in any more. Two holes
+were drawn in the surface by hand with the `hole` tile: a shaft at (-2, 31)
+with a ladder beside it, and a hole in the floor of a roofless house at
+(55, -12) over its cellar. Both are listed in `AUTHORED_HOLES`, and the check
+treats them as it treats the mouth. A new hole is a line there; anything else
+that lets the sky in is still reported.
+
 ## A chase is a route, and it stops being one
 
 `step_toward` used to judge one step on its own: of the four directions, take

@@ -47,6 +47,16 @@ const SYSTEM = {
   cellsPerCrystal: 190,
 } as const;
 
+/**
+ * Holes in the surface drawn with the `hole` tile: a shaft beside a ladder, and
+ * a hole in a house floor over its cellar. Daylight through them is meant, as it
+ * is through the mouth, so the sky checks treat them as openings too.
+ */
+const AUTHORED_HOLES = [
+  { x: -2, y: 31 },
+  { x: 55, y: -12 },
+] as const;
+
 const ROCK: Placed[] = [{ tileId: "half-stone" }, { tileId: "half-stone" }];
 const CAVE_FLOOR: Placed[] = [{ tileId: "dirt" }];
 
@@ -862,10 +872,11 @@ function checkWritten(carved?: Carved): string[] {
       occlusion.set(`${z}:${coordKey(x, y)}`, stackOcclusion(stack, tilesById));
     }
   }
+  const openings: readonly Cell[] = [SYSTEM.mouth, ...AUTHORED_HOLES];
   for (const cell of denCells) {
     const [x, y, z] = cell.split(",").map(Number) as [number, number, number];
     if (!isSkyExposed(x, y, z, occlusion)) continue;
-    if (x === SYSTEM.mouth.x && y === SYSTEM.mouth.y) continue;
+    if (openings.some((o) => o.x === x && o.y === y)) continue;
     problems.push(`open sky over ${x},${y} on L${z}`);
   }
 
@@ -874,8 +885,7 @@ function checkWritten(carved?: Carved): string[] {
   let worst = { sky: 0, at: "" };
   for (const cell of denCells) {
     const [x, y, z] = cell.split(",").map(Number) as [number, number, number];
-    const fromMouth = Math.max(Math.abs(x - SYSTEM.mouth.x), Math.abs(y - SYSTEM.mouth.y));
-    if (fromMouth <= MAX_LIGHT_LEVEL) continue;
+    if (openings.some((o) => chebyshev(o, { x, y }) <= MAX_LIGHT_LEVEL)) continue;
     const lv = flood.levels.get(z);
     if (!lv) continue;
     const lx = x - lv.x0;
@@ -888,7 +898,7 @@ function checkWritten(carved?: Carved): string[] {
   }
   if (daylit > 0) {
     console.log(
-      `${daylit} carved cells catch some daylight away from the mouth,` +
+      `${daylit} carved cells catch some daylight away from the openings,` +
         ` the brightest ${worst.sky}/255 at ${worst.at}`,
     );
   }
