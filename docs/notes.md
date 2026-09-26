@@ -2383,20 +2383,20 @@ kill, with its spells taken away so that every gap was between two blows:
 
 | creature | authored | swung every, before | swung every, now |
 | --- | --- | --- | --- |
-| rat | 667ms | 800ms | 700ms |
+| rat | 667ms | 800ms | 667ms |
 | bat | 700ms | 800ms | 700ms |
 | cat | 933ms | 1000ms | 933ms |
-| wolf | 1367ms | 1400ms | 1400ms |
-| bog imp, claws | 1467ms | 1600ms | 1500ms |
-| snake | 1800ms | 2000ms | 1833ms |
+| wolf | 1367ms | 1400ms | 1367ms |
+| bog imp, claws | 1467ms | 1600ms | 1467ms |
+| snake | 1800ms | 2000ms | 1800ms |
 | cave troll, fists | 4733ms | 4800ms | 4733ms |
-| cyclops, fists | 5800ms | 6000ms | 5833ms |
+| cyclops, fists | 5800ms | 6000ms | 5800ms |
 
 The weapons the troll, the cyclops and the imp can be born carrying behave the
-same way: each moved from the next whole round down to the authored figure or a
-tick over it, except the imp's iron mace, whose 3000ms is a whole number of
-rounds already. Where "now" is still a tick over the authored figure, the cause
-is the cooldown countdown, described at the end of this section.
+same way: each moved from the next whole round down to the authored figure,
+except the imp's iron mace, whose 3000ms is a whole number of rounds already.
+"Now" also needs the cooldown to be counted down through `countDown`, described
+at the end of this section.
 
 **A creature now holds an attack order.** The brain's `attack` goes through
 `orderAttack`, which writes the target into `ActorRuntime.attackOrder` and
@@ -2437,19 +2437,14 @@ land between turns, so a turn usually finds the cooldown running and goes on to
 the next line, as every turn between two blows always did. No shipped attack
 state can become `stuck` this way, because each one ends in `hold`.
 
-**The world now swings exactly as often as the Arena's duel loop, and for some
-intervals both are a tick slower than `combatMetrics`.** `attackIntervalMs`
-returns a whole number of ticks, but counting it down by subtracting `TICK_MS`
-and clamping at zero leaves a positive residue of 1e-14 to 1e-12 for 791 of the
-1195 tick counts between `MIN_ATTACK_TICKS` and `SLOWEST_ATTACK_TICKS`, the
-rat's 20 among them, and the swing waits one more tick for it to clear.
-`GameSession.advanceCooldowns` and `Duel.advanceCooldown` count down the same
-way, so the world and the duel loop agree with each other and are both a tick
-behind the closed form, which reads the interval directly. It affects players
-as much as creatures and is not changed here. "bites at the pace the Arena
+**The world swings exactly as often as the Arena's duel loop, and both land on
+`attackIntervalMs`.** `GameSession.advanceCooldowns` and `Duel.advanceCooldown`
+count the cooldown down through the same `countDown` (`app/game/ticks.ts`), which
+absorbs the float residue a plain subtraction of `TICK_MS` leaves; see "A clock
+counted in ticks runs out on its last tick". "bites at the pace the Arena
 measures, not the brain's" in `brain.test.ts` compares the world with the duel
-loop rather than with the interval, so it holds with the residue or without it,
-as long as both loops count down the same way.
+loop rather than with the interval, so it catches the two loops counting
+differently.
 
 **It costs one `tryAttack` per held order per tick**, the same price a player in
 attack mode already pays. Timed on the scenarios `bun run bench:server` runs,
@@ -6083,9 +6078,9 @@ creature gets a tick back somewhere. The rusty sword, iron sword, simple hammer,
 battleaxe and war maul, and the rat, snake, wolf, bog imp, deer, rabbit and
 cyclops swing a tick sooner every time; the rest open a fight a tick sooner,
 because their windup was the one running long. The largest share is the rat's,
-which does both and bites 5% more often. A creature's swing in the world waits
-for its brain's round (every six ticks), so there the tick shows only where it
-crossed a round: the snake's 55 ticks became 54, nine rounds instead of ten.
+which does both and bites 5% more often. A creature in the world presses its
+attack order every tick ("A blow used to wait for a decision as well"), so it
+gets the same tick back and swings at the pace the Arena measures.
 
 **Checked and left as they are.** The brain round, a fall's height steps, the
 charm and the defensive recovery carry their remainder into the next period
