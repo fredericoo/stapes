@@ -13,3 +13,6 @@
 /.dev/
 
 /plans/
+
+/.worktrees/
+/.claude/worktrees/

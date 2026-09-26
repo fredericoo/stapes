@@ -7,17 +7,23 @@ import { type Floater, ArenaStage, type StageSide } from "../../components/Arena
 import {
   type ArenaFighter,
   battlerTiles,
+  duelSetupOf,
   fighterForTile,
   swingNamesOf,
-  swingsOf,
 } from "../../game/arena";
 import { rotationOdds } from "../../game/combatMetrics";
 import { DAMAGE_NUMBER_LIFETIME_MS, TICK_MS } from "../../game/constants";
-import { type DuelEvent, Duel, opponentOf, type Side, SIDES } from "../../game/duel";
+import {
+  type DuelEvent,
+  type DuelSetup,
+  Duel,
+  opponentOf,
+  type Side,
+  SIDES,
+} from "../../game/duel";
 import { Rng } from "../../game/rng";
 import { fetchBootstrap } from "../../lib/api";
 import { requireAdmin } from "../../lib/auth";
-import type { FightingStats } from "../../lib/battler";
 import { isRanged } from "../../lib/item";
 import { type StatusDef, statusesById } from "../../lib/status";
 import type { TileDef } from "../../lib/types";
@@ -89,10 +95,10 @@ export default function ArenaPage() {
   const [playing, setPlaying] = useState(false);
   const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot);
 
-  const swingsA = useMemo(() => swingsOf(a, tilesById), [a, tilesById]);
-  const swingsB = useMemo(() => swingsOf(b, tilesById), [b, tilesById]);
-  const statsA = swingsA[0] ?? null;
-  const statsB = swingsB[0] ?? null;
+  const setupA = useMemo(() => duelSetupOf(a, tilesById), [a, tilesById]);
+  const setupB = useMemo(() => duelSetupOf(b, tilesById), [b, tilesById]);
+  const statsA = setupA.swings[0] ?? null;
+  const statsB = setupB.swings[0] ?? null;
   const names = useMemo(
     () => ({
       a: tilesById[a.tileId]?.name ?? a.tileId,
@@ -110,9 +116,9 @@ export default function ArenaPage() {
   useEffect(() => {
     setPlaying(false);
     runtime.current =
-      statsA && statsB ? new Runtime(swingsA, swingsB, seed, statusDefs, names) : null;
+      statsA && statsB ? new Runtime(setupA, setupB, seed, statusDefs, names) : null;
     setSnapshot(runtime.current?.snapshot(statusDefs) ?? emptySnapshot());
-  }, [statsA, statsB, swingsA, swingsB, seed, statusDefs, names]);
+  }, [statsA, statsB, setupA, setupB, seed, statusDefs, names]);
 
   useEffect(() => {
     if (!playing) return;
@@ -145,7 +151,7 @@ export default function ArenaPage() {
   const restart = () => {
     setPlaying(false);
     if (statsA && statsB) {
-      runtime.current = new Runtime(swingsA, swingsB, seed, statusDefs, names);
+      runtime.current = new Runtime(setupA, setupB, seed, statusDefs, names);
     }
     publish();
   };
@@ -198,6 +204,7 @@ export default function ArenaPage() {
           floaters={snapshot.floaters}
           elapsedMs={snapshot.elapsedMs}
           winner={snapshot.winner}
+          finished={snapshot.finished}
         />
 
         <div className="grid gap-3 lg:grid-cols-[1fr_1fr]">
@@ -206,8 +213,8 @@ export default function ArenaPage() {
             bName={names.b}
             aSwingNames={swingNamesOf(a, tilesById)}
             bSwingNames={swingNamesOf(b, tilesById)}
-            aToB={statsA && statsB ? rotationOdds(swingsA, statsB) : null}
-            bToA={statsA && statsB ? rotationOdds(swingsB, statsA) : null}
+            aToB={statsA && statsB ? rotationOdds(setupA.swings, statsB) : null}
+            bToA={statsA && statsB ? rotationOdds(setupB.swings, statsA) : null}
           />
           <CombatLog entries={snapshot.log} />
         </div>
@@ -296,13 +303,13 @@ class Runtime {
   private nextId = 0;
 
   constructor(
-    swingsA: readonly FightingStats[],
-    swingsB: readonly FightingStats[],
+    setupA: DuelSetup,
+    setupB: DuelSetup,
     seed: number,
     statusDefs: Record<string, StatusDef>,
     private readonly names: Record<Side, string>,
   ) {
-    this.duel = new Duel({ swings: swingsA }, { swings: swingsB }, new Rng(seed), { statusDefs });
+    this.duel = new Duel(setupA, setupB, new Rng(seed), { statusDefs });
   }
 
   get finished(): boolean {

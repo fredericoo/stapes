@@ -17,6 +17,7 @@ export default defineConfig({
     ...devices["Desktop Chrome"],
     baseURL: BASE,
     trace: "on-first-retry",
+    launchOptions: { executablePath: process.env.CHROMIUM_PATH },
   },
   webServer: {
     command: "bun run scripts/dev.ts",

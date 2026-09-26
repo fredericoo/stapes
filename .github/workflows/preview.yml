@@ -25,14 +25,14 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Say if the box is crowded
+      - name: Say if this preview may be stopped
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           OPEN=$(gh pr list --state open --json number --jq 'length')
-          MAX=${{ vars.MAX_PREVIEWS || 4 }}
+          MAX=${{ vars.MAX_PREVIEWS || 5 }}
           if [ "$OPEN" -gt "$MAX" ]; then
-            echo "::warning::$OPEN pull requests are open and about $MAX previews fit on this box. Close one, or raise MAX_PREVIEWS once the machine is bigger."
+            echo "::warning::$OPEN pull requests are open and only the $MAX most recently pushed keep a running preview. A stopped one comes back on its next push."
           fi
 
       - uses: oven-sh/setup-bun@v2

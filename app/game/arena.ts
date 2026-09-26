@@ -2,6 +2,7 @@ import { type BattlerDef, type FightingStats, resolveBattler } from "../lib/batt
 import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
 import { type Masteries, MASTERIES } from "../lib/mastery";
 import type { TileDef } from "../lib/types";
+import type { DuelSetup } from "./duel";
 import {
   effectiveBattler,
   emptyEquipment,
@@ -88,6 +89,13 @@ export function swingNamesOf(fighter: ArenaFighter, tilesById: Record<string, Ti
     const held = hand ? equipment[hand] : null;
     return held ? (tilesById[held.tileId]?.name ?? held.tileId) : "Natural weapon";
   });
+}
+
+export function duelSetupOf(fighter: ArenaFighter, tilesById: Record<string, TileDef>): DuelSetup {
+  return {
+    swings: swingsOf(fighter, tilesById),
+    immuneTo: bodyOf(fighter, tilesById)?.immuneTo ?? [],
+  };
 }
 
 export function battlerTiles(tiles: TileDef[]): TileDef[] {

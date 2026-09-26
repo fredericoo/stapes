@@ -27,3 +27,7 @@ Two inline disables:
 ## `vite.config.ts`
 
 - `dependencyRoot` walks up from the working directory to find `node_modules`, and `server.fs.allow` lists both that directory and the project root. A git worktree has no `node_modules` of its own; without this, the dev server refuses to serve React Router's default `entry.client.tsx` from the main checkout and a worktree loads a blank page behind a 403.
+
+## `.gitignore`
+
+- `/.worktrees/` and `/.claude/worktrees/` hold git worktrees nested inside the checkout. oxlint and oxfmt skip gitignored paths; without these entries, `bun run lint` in the main checkout loads each worktree's `.oxlintrc.json` and stops with "Plugin name 'stapes' is already registered", and `bun run format` rewrites files on other branches.

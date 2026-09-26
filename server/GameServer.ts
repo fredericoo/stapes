@@ -36,7 +36,7 @@ import {
   restoredEquipment,
   wornInstances,
 } from "../app/game/equipment";
-import { DEFAULT_FACING } from "../app/game/actors";
+import { DEFAULT_FACING, listActorOwners } from "../app/game/actors";
 import type { CastProgress, CastSlot } from "../app/game/casting";
 import type { Progress } from "../app/game/progress";
 import { resolveRespawn } from "../app/lib/interactions";
@@ -671,6 +671,7 @@ export class GameServer {
     protected readonly env: {
       dataStore: DataStore;
       nameOf?: (actorId: string) => Promise<string | null>;
+      maxOnlinePlayers?: number;
     },
   ) {}
 
@@ -816,9 +817,11 @@ export class GameServer {
     );
 
     const nowMs = Date.now();
+    const map = session.getMap();
+    const owners = listActorOwners(map);
     for (const point of this.respawnPoints.values()) {
       if (this.respawnPending.has(point.key)) continue;
-      if (isSpawnFilled(session.getMap(), point)) continue;
+      if (isSpawnFilled(map, point, owners)) continue;
       this.respawnPending.set(point.key, nowMs + rollRespawnDelayMs(point.respawn));
     }
     this.persistRespawnPending();
@@ -1366,7 +1369,8 @@ export class GameServer {
   }
 
   private hasRoomFor(actorId: string): boolean {
-    return this.socketsByActor.has(actorId) || this.socketsByActor.size < MAX_ONLINE_PLAYERS;
+    const limit = this.env.maxOnlinePlayers ?? MAX_ONLINE_PLAYERS;
+    return this.socketsByActor.has(actorId) || this.socketsByActor.size < limit;
   }
 
   private displaceSockets(actorId: string) {

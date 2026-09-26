@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import statusesJson from "../../data/statuses.json";
 import tilesJson from "../../data/tiles.json";
 import { defFrom, maxHpFrom, resolveBattler } from "../lib/battler";
-import { ATTACKER_SELECTOR, resolveBrain, slot } from "../lib/brain";
+import { ATTACKER_SELECTOR, nearest, resolveBrain, slot } from "../lib/brain";
 import { conditionLeaves } from "../lib/conditions";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import { COMBAT_DURATION_MS, COMBAT_STATUS_ID, statusesById } from "../lib/status";
@@ -15,8 +15,14 @@ import {
   STRIKE_RECOVERY_STEPS,
   SWING_WINDUP_SHARE,
 } from "./combat";
-import { STRIKE_DURATION_MS, TICK_MS, WALK_DURATION_MS } from "./constants";
-import { GameSession } from "./GameSession";
+import {
+  BRAIN_ATTENTION_FLOOR_CELLS,
+  BRAIN_ROUND_TICKS,
+  STRIKE_DURATION_MS,
+  TICK_MS,
+  WALK_DURATION_MS,
+} from "./constants";
+import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
 import type { TileTransitionNote, Transition } from "../lib/tileTransition";
 import { FRAME, tile as baseTile } from "../lib/testTile";
 
@@ -46,7 +52,40 @@ const brawlerBrain = {
   ],
 };
 
+const RESTING_NOISE = "yawn";
+
+const REST_AFTER_MS = 1000;
+
+function pickingOn(foe: string, restAfterMs?: number) {
+  return {
+    initial: "idle",
+    states: {
+      idle: { do: [{ action: "hold" as const }] },
+      fighting: {
+        do: [{ action: "attack" as const, of: slot("foe") }, { action: "hold" as const }],
+      },
+      resting: {
+        onEnter: [{ effect: "noise" as const, text: RESTING_NOISE }],
+        do: [{ action: "hold" as const }],
+      },
+    },
+    transitions: [
+      {
+        from: "idle",
+        if: { cond: "in_range" as const, of: nearest(foe), cells: 1 },
+        bind: { foe: nearest(foe) },
+        to: "fighting",
+      },
+      ...(restAfterMs === undefined
+        ? []
+        : [{ from: "fighting", if: { cond: "after" as const, ms: restAfterMs }, to: "resting" }]),
+    ],
+  };
+}
+
 const CERTAIN = { accuracy: 100, spd: 100 };
+
+const BETWEEN_ROUNDS = { accuracy: 100, spd: 97 };
 
 const FIXTURE_BASE_HP = 8;
 
@@ -123,6 +162,34 @@ const tiles: TileDef[] = [
         naturalWeapon: claws({ damage: feltBy(PLAYER_TOUGHNESS), ...CERTAIN }),
       },
       brain: brawlerBrain,
+    },
+  }),
+  tile({
+    id: "quitter",
+    height: 2,
+    actor: true,
+    walkable: false,
+    interactions: {
+      battler: {
+        baseHp: FIXTURE_BASE_HP,
+        masteries: { toughness: BRAWLER_TOUGHNESS },
+        naturalWeapon: claws(CERTAIN),
+      },
+      brain: pickingOn("player", REST_AFTER_MS),
+    },
+  }),
+  tile({
+    id: "bully",
+    height: 2,
+    actor: true,
+    walkable: false,
+    interactions: {
+      battler: {
+        baseHp: FIXTURE_BASE_HP,
+        masteries: { toughness: BRAWLER_TOUGHNESS },
+        naturalWeapon: claws(BETWEEN_ROUNDS),
+      },
+      brain: pickingOn("dummy"),
     },
   }),
   tile({ id: "statue", height: 2, actor: true, walkable: false }),
@@ -682,6 +749,62 @@ describe("a creature that fights back", () => {
     advance(session, 2000);
 
     expect(self(session).hp).toBe(PLAYER_MAX_HP);
+  });
+
+  function ticksOfBlowsBy(session: GameSession, actorId: string, ms: number): number[] {
+    const landed: number[] = [];
+    for (let tick = 0; tick * TICK_MS < ms; tick++) {
+      session.tick(TICK_MS);
+      if (session.drainSwings().includes(actorId)) landed.push(tick);
+    }
+    return landed;
+  }
+
+  it("stops swinging on the round it decides to do something else", () => {
+    const session = new GameSession(withBody(field(), 1, 0, "quitter"), tiles);
+    const quitter = bodyOf(session, "quitter")!.id;
+
+    let blows = 0;
+    let rested = false;
+    for (let elapsed = 0; !rested && elapsed < LONG_ENOUGH_TO_KILL_MS; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      if (session.drainSwings().includes(quitter)) blows++;
+      rested = session.drainNoise().some((noise) => noise.text === RESTING_NOISE);
+    }
+
+    expect(rested).toBe(true);
+    expect(blows).toBeGreaterThan(0);
+    expect(ticksOfBlowsBy(session, quitter, ENOUGH_SWINGS_MS)).toEqual([]);
+  });
+
+  it("stops swinging along with its brain once nobody is connected", () => {
+    const session = new GameSession(
+      withBody(withBody(field(), 2, 0, "bully"), 3, 0, "dummy"),
+      tiles,
+    );
+    const bully = bodyOf(session, "bully")!.id;
+    expect(ticksOfBlowsBy(session, bully, ENOUGH_SWINGS_MS)).not.toEqual([]);
+
+    session.despawn(LOCAL_ACTOR_ID);
+
+    expect(ticksOfBlowsBy(session, bully, ENOUGH_SWINGS_MS)).toEqual([]);
+  });
+
+  it("swings only on its own turns while nobody is near enough to notice", () => {
+    const far = BRAIN_ATTENTION_FLOOR_CELLS + 2;
+    const session = new GameSession(
+      withBody(withBody(field(far + 1), far, 0, "bully"), far + 1, 0, "dummy"),
+      tiles,
+    );
+    const bully = bodyOf(session, "bully")!.id;
+    const intervalTicks = Math.round(attackIntervalMs(BETWEEN_ROUNDS.spd) / TICK_MS);
+    expect(intervalTicks % BRAIN_ROUND_TICKS).not.toBe(0);
+
+    const landed = ticksOfBlowsBy(session, bully, ENOUGH_SWINGS_MS * 2);
+    const gaps = landed.slice(1).map((tick, i) => tick - landed[i]!);
+
+    expect(gaps).not.toEqual([]);
+    expect(gaps.filter((gap) => gap % BRAIN_ROUND_TICKS !== 0)).toEqual([]);
   });
 });
 
