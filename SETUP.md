@@ -301,8 +301,18 @@ over SSH:
 4. Point `*.preview.example.com` at the preview box. Traefik on that box issues
    each `pr-N` certificate, so the record stays grey.
 
-Close port 8000 there too, with the same `DOCKER-USER` rule as step 2, in case
-anything is ever published on it.
+The preview box sits behind a Hetzner Cloud Firewall, `stapes-previews`, that
+lets in only TCP 22, 80 and 443 and ICMP. Coolify's Traefik publishes 8080 for
+its dashboard, and the firewall drops that before it reaches the box. Docker's
+own iptables rules cannot open a port through it, so the `DOCKER-USER` rule from
+step 2 is not needed here.
+
+The box is created with cloud-init user data that appends Coolify's public key
+to `/root/.ssh/authorized_keys` and writes both scripts and both cron files
+below. The cron files name the preview application's uuid, so create the
+application in Coolify first: adding the server to Coolify without validating it
+already gives it a destination to create the application on. Then create the box
+and validate the server with "install" on, which installs `jq` and Docker.
 
 ### The preview application
 
@@ -337,7 +347,8 @@ after the call returns, so a recreate that races it fails on a domain conflict.
 App, the `git@github.com:owner/repo.git` URL for a deploy key.
 
 A second Coolify application, same repository, **on the preview box's
-destination**. One created on the production box stays there, so moving
+destination**. One created on the production box stays there (`PATCH` with a
+`destination_uuid` answers `This field is not allowed`), so moving
 previews means deleting it and creating it again on the preview box, which gives
 it a new uuid: update `COOLIFY_PREVIEW_APP_UUID` and the `PREVIEW_APP` in both
 cron files below.
@@ -360,6 +371,10 @@ cron files below.
   database, and generating a secret per preview is exactly right.
 - **Never deploy the base application.** Only its `pr-N` children are wanted;
   the parent exists to hold the settings and to give `{{domain}}` a value.
+
+An application created through the API has preview deployments off, and the
+create call does not accept the setting. Turn it on afterwards with `PATCH
+/applications/{uuid}` and `{"is_preview_deployments_enabled": true}`.
 
 Copy the app UUID into `COOLIFY_PREVIEW_APP_UUID`.
 
