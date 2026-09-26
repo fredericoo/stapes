@@ -89,7 +89,9 @@ It is the path to open when the question is whether the game still works.
 - `bun run test:server` — the world and its accounts, on Bun, against a real
   database file
 - `bun run test:perf` — the app in a real browser, in Playwright: renderer
-  budgets, the way in, and the world in a tab
+  budgets, the way in, and the world in a tab. `CHROMIUM_PATH` overrides the
+  browser it launches, for a machine whose installed Chromium is not the build
+  this version of Playwright downloads
 - `bun run build` — the client bundle, which CI pushes to the bucket
 
 Deploying is in [SETUP.md](SETUP.md).
