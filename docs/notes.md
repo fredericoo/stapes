@@ -5932,6 +5932,16 @@ catalogue moves the dice for everything after it — which is why `duel.test.ts`
 passes none and gets the stream it always had, and why a caller comparing two
 damage curves can take the venom out of the comparison.
 
+**With a catalogue, a status follows the world's rules.** `Duel` calls the same
+functions `GameSession` calls, so each rule is written once:
+
+- **Immunity.** `DuelSetup.immuneTo` carries the body's `immuneTo` list, which
+  `duelSetupOf` in `arena.ts` fills from the battler, and a status a blow
+  inflicts is skipped when `isImmune` says so, which is the check
+  `GameSession.grantStatus` makes. A refused status takes no draw, as in the
+  world. Before this, the Arena poisoned the cyclops, which is immune to
+  poison, in 56 of 200 fights against the snake.
+
 **Masteries and equipment are overridable; a natural weapon is not.** The first
 two are things the world can produce — a mastery is earned, a weapon is picked
 up — so a fight tuned around either is a fight that can happen. A natural weapon

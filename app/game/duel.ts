@@ -1,4 +1,4 @@
-import type { FightingStats } from "../lib/battler";
+import { type FightingStats, isImmune } from "../lib/battler";
 import { COMBAT_STATUS_ID, type StatusDef } from "../lib/status";
 import {
   type AttackOutcome,
@@ -28,10 +28,12 @@ export function opponentOf(side: Side): Side {
 
 export type DuelSetup = {
   swings: readonly FightingStats[];
+  immuneTo?: readonly string[];
 };
 
 export type DuelFighter = {
   readonly swings: readonly FightingStats[];
+  readonly immuneTo: readonly string[];
   nextSwing: number;
   hp: number;
   cooldownMs: number;
@@ -57,6 +59,8 @@ export type DuelEvent =
 const QUIET: readonly DuelEvent[] = [];
 
 const NO_STATUS_DEFS: Record<string, StatusDef> = {};
+
+const NO_IMMUNITIES: readonly string[] = [];
 
 export type DuelOptions = {
   statusDefs?: Record<string, StatusDef>;
@@ -208,7 +212,7 @@ export class Duel {
     if (defender.hp === 0) return;
     for (const grant of outcome.inflicted) {
       const def = this.statusDefs[grant.id];
-      if (!def) continue;
+      if (!def || isImmune(defender, grant.id)) continue;
       const range =
         grant.fromMs === undefined || grant.toMs === undefined
           ? def
@@ -223,6 +227,7 @@ function freshFighter(setup: DuelSetup): DuelFighter {
   if (!first) throw new Error("a duel fighter must have something to swing");
   return {
     swings: setup.swings,
+    immuneTo: setup.immuneTo ?? NO_IMMUNITIES,
     nextSwing: 0,
     hp: first.maxHp,
     cooldownMs: swingWindupMs(first),

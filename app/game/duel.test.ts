@@ -477,6 +477,24 @@ describe("the duel loop", () => {
     }
   });
 
+  it("never gives a fighter a status it is immune to", () => {
+    const venomous = dummy({ hitChance: 1, statuses: [{ id: "poison", chance: 100 }] });
+    const target = dummy({ hitChance: 0, flee: 0, maxHp: 500 });
+    const everPoisoned = (immuneTo: readonly string[]) => {
+      const duel = new Duel({ swings: [venomous] }, { swings: [target], immuneTo }, new Rng(1), {
+        statusDefs,
+      });
+      for (let tick = 0; tick < 300; tick++) {
+        duel.tick();
+        if (duel.b.statuses.some((status) => status.defId === "poison")) return true;
+      }
+      return false;
+    };
+
+    expect(everPoisoned([])).toBe(true);
+    expect(everPoisoned(["poison"])).toBe(false);
+  });
+
   it("survives a weapon whose status the catalogue has never heard of", () => {
     const attacker = dummy({
       hitChance: 1,
