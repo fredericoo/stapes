@@ -1723,6 +1723,13 @@ an ordinary walk, not a drop — and carry on down. The animal den's mouth is th
 same three cells with the surface as its upper level, which is why walking off
 the road into it feels like walking into a cave rather than like using a door.
 
+It is also easy to tidy up by accident, because nothing in the editor marks
+it: a floor painted across the den covers it like any other gap. Five of the
+den's ramps lost their holes that way in two commits of hand edits made on the
+same day. Two were turned into plain floor afterwards, and three stayed as
+ramps nobody could stand on until the holes were emptied again. `bun run
+carve:caves --verify` reports such a ramp as one that "climbs nowhere".
+
 **The facing is the opposite of the way you climb.** `climbFrom` on both tiles
 reads "from a ramp facing *n*, you may climb north-**wards**… no": variant `n`
 permits travel `s`. So a ramp you ascend heading north is placed facing south.
