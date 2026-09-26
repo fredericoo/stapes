@@ -1,3 +1,4 @@
+import { PLAYER_TILE_ID } from "../game/constants";
 import type { MapFile, PlacedTile, TileDef } from "./types";
 import {
   HEIGHT_PER_LEVEL,
@@ -10,10 +11,14 @@ import {
 import {
   elevationAfter,
   elevationAt,
+  footElevation,
   getStack,
   isPlayerBody,
   landedPlacement,
+  listCoords,
+  setStacks,
   stackHeight,
+  type StackEdit,
 } from "./mapData";
 
 export type PlaceResult = { ok: true } | { ok: false; reason: string };
@@ -151,6 +156,57 @@ function fitsInColumn(
 
 function levelHoldsScenery(map: MapFile, x: number, y: number, z: number): boolean {
   return getStack(map, x, y, z).some((placed) => !isPlayerBody(placed));
+}
+
+export type RemovedPlacement = {
+  x: number;
+  y: number;
+  z: number;
+  tileId: string;
+  reason: string;
+};
+
+/**
+ * Skips the check `fitsTile` makes against the level below. A cell that the
+ * stack underneath overflows into is the same conflict as that overflow, and
+ * removing the overflowing placements settles it, so the cell above keeps what
+ * it holds.
+ */
+export function removeUnfitPlacements(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+): { map: MapFile; removed: RemovedPlacement[] } {
+  const edits: StackEdit[] = [];
+  const removed: RemovedPlacement[] = [];
+
+  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+    for (const { x, y, stack } of listCoords(map, z)) {
+      const kept: PlacedTile[] = [];
+      let beneath = 0;
+      for (const placed of stack) {
+        const def = tilesById[placed.tileId];
+        const height = def && !isPlayerBody(placed) ? physicalHeight(def) : 0;
+        const verdict: PlaceResult =
+          height === 0
+            ? { ok: true }
+            : fitsInColumn(map, x, y, z, footElevation(beneath, placed), height);
+        if (verdict.ok) {
+          kept.push(placed);
+          beneath = elevationAfter(beneath, placed, tilesById);
+          continue;
+        }
+        if (placed.tileId === PLAYER_TILE_ID) {
+          throw new Error(
+            `The ${PLAYER_TILE_ID} tile at ${x},${y} on level ${z} does not fit where it stands (${verdict.reason}). Move it, then save again.`,
+          );
+        }
+        removed.push({ x, y, z, tileId: placed.tileId, reason: verdict.reason });
+      }
+      if (kept.length < stack.length) edits.push({ x, y, z, stack: kept });
+    }
+  }
+
+  return edits.length === 0 ? { map, removed } : { map: setStacks(map, edits), removed };
 }
 
 export function canPlace(

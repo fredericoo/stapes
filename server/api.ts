@@ -131,8 +131,8 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
       "/map",
       async ({ body, request, status }) => {
         if (!(await admin(request))) return status(404, "Not found");
-        await world.server.replaceWorld(flattenMap(parseMap(body.map)));
-        return { ok: true as const };
+        const { removed } = await world.server.replaceWorld(flattenMap(parseMap(body.map)));
+        return { ok: true as const, removed };
       },
       { body: t.Object({ map: t.String() }) },
     )

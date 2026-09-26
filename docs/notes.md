@@ -9561,6 +9561,31 @@ once goes on failing long after the cause is fixed.
 The editor gives no warning before you erase the marker — it is an ordinary
 tile in the stack. The server refusing the save is the whole of the safety net.
 
+### A save removes what does not fit, and never the marker
+
+`removeUnfitPlacements` (`app/lib/validation.ts`) runs over every map that is
+saved, in `replaceWorld` before the session is built, so a placement that does
+not fit is never written. A placement does not fit when `fitsTile` would refuse
+to put it where it stands, on the placements under it in its own stack: on a
+stack that already reaches the next level, overflowing into a level that holds
+anything, or making the stack taller than two levels. The refusal `fitsTile`
+gives the cell *above* an overflowing stack is left out. It is the same
+conflict seen from the other side, and taking the overflowing placements off
+the stack below settles it without touching the cell above.
+
+It exists because a height can change under placements that were legal when
+they were made. When `barrel` went from 2 to 3 units, four cells of
+`data/map.json` holding two barrels — exactly a level until then — overflowed
+into the rock, wall or floor above them. Nothing reported it: the editor checks
+a placement when it is made, and nothing checked the map again.
+
+Two things are left alone on purpose. A placement whose tile is missing from
+the catalogue has no height to judge, and removing it would let a renamed tile
+delete every placement of itself on the next save. The `player` marker is
+never removed: a marker that does not fit refuses the save with a message
+naming its cell, the way a map with no marker is refused, because a map
+without it cannot start.
+
 ## Map mutations must be undoable
 
 Every change to map data (`MapFile` / placed tiles) **must** go through `useEditorStore.getState().commitMap(...)` (or a store method that calls it: `eraseAt`, `stampAt`, `stampMany`, `appendArmed`, `removeFromStack`, `reorderSelectedStack`, `setStackDirection`).

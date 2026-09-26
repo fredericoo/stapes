@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { emptyMap, replaceStack, serializeMap } from "../app/lib/mapData";
+import { emptyMap, getStack, replaceStack, serializeMap } from "../app/lib/mapData";
 import type { MapFile } from "../app/lib/types";
 import { PLAYER_TILE_ID } from "../app/game/constants";
 import { createApi } from "./api";
@@ -72,5 +72,25 @@ describe("saving the map", () => {
 
     expect(response.ok).toBe(false);
     expect(await storedMap()).toBe(before);
+  });
+
+  it("removes a placement that does not fit before writing, and names it in the response", async () => {
+    let map = replaceStack(startableMap(), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "barrel" },
+      { tileId: "barrel" },
+    ]);
+    map = replaceStack(map, 1, 0, 1, [{ tileId: "grass" }]);
+
+    const response = await saveMap(map);
+
+    expect(await response.json()).toMatchObject({
+      ok: true,
+      removed: [{ x: 1, y: 0, z: 0, tileId: "barrel" }],
+    });
+    expect(getStack(await world.blobs.readMap(), 1, 0, 0)).toEqual([
+      { tileId: "grass" },
+      { tileId: "barrel" },
+    ]);
   });
 });
