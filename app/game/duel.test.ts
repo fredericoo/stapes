@@ -6,7 +6,7 @@ import { isRanged, resolveWeapon, type WeaponItem } from "../lib/item";
 import { experienceMultiplier, type Mastery, rating } from "../lib/mastery";
 import { COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import { normalizeTiles } from "../lib/types";
-import { MIN_ATTACK_TICKS, rollAttack, swingIntervalMs } from "./combat";
+import { MIN_ATTACK_TICKS, rollAttack, swingIntervalMs, swingWindupMs } from "./combat";
 import { TICK_MS } from "./constants";
 import { Duel, type DuelEvent, type DuelResult, MAX_DUEL_TICKS, runDuel, type Side } from "./duel";
 import { Rng } from "./rng";
@@ -493,6 +493,30 @@ describe("the duel loop", () => {
 
     expect(everPoisoned([])).toBe(true);
     expect(everPoisoned(["poison"])).toBe(false);
+  });
+
+  it("does not swing while incapacitated, and winds up afresh once it can act", () => {
+    const lullaby = dummy({
+      spd: 0,
+      hitChance: 1,
+      damage: 0,
+      statuses: [{ id: "sleep", chance: 100, fromMs: 1_000, toMs: 1_000 }],
+    });
+    const quick = dummy({ spd: 100, damage: 0, flee: 0 });
+    const duel = new Duel({ swings: [lullaby] }, { swings: [quick] }, new Rng(1), { statusDefs });
+    const ticks = Array.from({ length: 1_500 }, () => ({
+      swung: duel.tick().some((event) => event.kind === "swing" && event.by === "b"),
+      asleep: duel.b.statuses.some((status) => status.defId === "sleep"),
+    }));
+
+    const fellAsleep = ticks.findIndex((tick) => tick.asleep);
+    const woke = ticks.findIndex((tick, index) => index > fellAsleep && !tick.asleep);
+    const swungAgain = ticks.findIndex((tick, index) => index >= woke && tick.swung);
+    expect(fellAsleep).toBeGreaterThanOrEqual(0);
+    expect((woke - fellAsleep) * TICK_MS).toBeGreaterThan(swingIntervalMs(quick));
+
+    expect(ticks.slice(fellAsleep + 1, woke).some((tick) => tick.swung)).toBe(false);
+    expect((swungAgain - woke) * TICK_MS).toBeGreaterThanOrEqual(swingWindupMs(quick));
   });
 
   it("survives a weapon whose status the catalogue has never heard of", () => {

@@ -5933,7 +5933,8 @@ passes none and gets the stream it always had, and why a caller comparing two
 damage curves can take the venom out of the comparison.
 
 **With a catalogue, a status follows the world's rules.** `Duel` calls the same
-functions `GameSession` calls, so each rule is written once:
+functions `GameSession` calls, so each rule is written once. The exception is
+the windup after incapacitation, which the duel copies by hand:
 
 - **Immunity.** `DuelSetup.immuneTo` carries the body's `immuneTo` list, which
   `duelSetupOf` in `arena.ts` fills from the battler, and a status a blow
@@ -5941,6 +5942,13 @@ functions `GameSession` calls, so each rule is written once:
   `GameSession.grantStatus` makes. A refused status takes no draw, as in the
   world. Before this, the Arena poisoned the cyclops, which is immune to
   poison, in 56 of 200 fights against the snake.
+- **Incapacitation.** A fighter holding a status that `incapacitates` does not
+  swing (`incapacitated`). Its cooldown keeps running, and when it can act
+  again the cooldown is raised to at least `swingWindupMs` of its current
+  stats. That is the duel's form of `GameSession.tryAttack`, which calls
+  `disengage` to drop the windup of a body that cannot act, arms a full one
+  when it can, and swings only once both the windup and `attackCooldownMs` are
+  spent.
 
 **Masteries and equipment are overridable; a natural weapon is not.** The first
 two are things the world can produce — a mastery is earned, a weapon is picked

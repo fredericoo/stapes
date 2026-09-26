@@ -13,6 +13,7 @@ import {
   advanceStatuses,
   applyStatus,
   enterCombat,
+  incapacitated,
   NO_STATUSES,
   type StatusInstance,
   withStatusModifiers,
@@ -37,6 +38,7 @@ export type DuelFighter = {
   nextSwing: number;
   hp: number;
   cooldownMs: number;
+  disengaged: boolean;
   statuses: readonly StatusInstance[];
 };
 
@@ -184,9 +186,24 @@ export class Duel {
     }
   }
 
+  /**
+   * `GameSession.tryAttack` drops the windup of a body that cannot act, arms a
+   * fresh one when it can, and swings only once both the windup and the
+   * cooldown have run out. The duel has only the cooldown, so it takes the
+   * longer of the two.
+   */
   private dueToSwing(side: Side): boolean {
     if (!this.alive(side) || !this.alive(opponentOf(side))) return false;
-    return this.fighter(side).cooldownMs === 0;
+    const fighter = this.fighter(side);
+    if (incapacitated(fighter.statuses, this.statusDefs)) {
+      fighter.disengaged = true;
+      return false;
+    }
+    if (fighter.disengaged) {
+      fighter.disengaged = false;
+      fighter.cooldownMs = Math.max(fighter.cooldownMs, swingWindupMs(this.statsOf(side)));
+    }
+    return fighter.cooldownMs === 0;
   }
 
   private swing(
@@ -231,6 +248,7 @@ function freshFighter(setup: DuelSetup): DuelFighter {
     nextSwing: 0,
     hp: first.maxHp,
     cooldownMs: swingWindupMs(first),
+    disengaged: false,
     statuses: NO_STATUSES,
   };
 }
