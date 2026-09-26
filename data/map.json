@@ -63198,7 +63198,7 @@
       "7,-3": [{"tileId":"half-stone"},{"tileId":"half-stone"}],
       "7,-2": [{"tileId":"dirt"},{"tileId":"half-stone"},{"tileId":"half-stone"}],
       "7,-1": [{"tileId":"dirt"},{"tileId":"half-stone"},{"tileId":"half-stone"}],
-      "7,0": [{"tileId":"dirt"}],
+      "7,0": [{"tileId":"dirt"},{"tileId":"half-stone"},{"tileId":"half-stone"}],
       "7,1": [{"tileId":"dirt"},{"tileId":"half-stone"},{"tileId":"half-stone"}],
       "7,2": [{"tileId":"dirt"},{"tileId":"sw2"}],
       "7,3": [{"tileId":"dirt"}],
