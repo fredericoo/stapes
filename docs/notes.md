@@ -2613,6 +2613,12 @@ percentiles, and the time each phase of the tick took; `--profile` writes a CPU
 profile of the measured window alone, and `--idle`, `--clustered` and
 `--deflate` change what the players do and what a send costs.
 
+**A run that could not seat its whole crowd exits 1.** The report gives the
+players seated and the players the server refused, and divides the per-player
+figures by the players seated. A refusal means every figure is for a smaller
+crowd than was asked for, so the bench prints it after seating and again after
+the report, and exits 1.
+
 **Compare runs made with the same `BUN_OPTIONS`, alternated.** Some shells
 export `BUN_OPTIONS=--smol`, which makes Bun collect garbage far more often: the
 same build measured about a tick a second slower with it. Production runs

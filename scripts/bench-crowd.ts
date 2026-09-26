@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { DataStore } from "../app/lib/dataStore";
 import { listCoords, parseMap } from "../app/lib/mapData";
 import { WALK_DURATION_MS } from "../app/game/constants";
+import type { GameSession } from "../app/game/GameSession";
 import { DiskBlobs } from "../server/blobs";
 import { openDatabase } from "../server/db";
 import { GameServer } from "../server/GameServer";
@@ -132,6 +133,7 @@ class Bot {
   state: "joining" | "walking" | "dead" = "joining";
   nextAt = Number.POSITIVE_INFINITY;
   readonly socket: GameSocket;
+  closeCode: number | undefined;
   private closed = false;
   private seq = 0;
   private direction: Direction = "s";
@@ -155,8 +157,9 @@ class Bot {
             : data.length;
         bot.hear(data);
       },
-      close() {
+      close(code?: number) {
         bot.closed = true;
+        bot.closeCode = code;
         counters.closes++;
       },
       get closed() {
@@ -264,7 +267,7 @@ async function run(options: Options) {
 
   const tickStarts: number[] = [];
   const tickMs: number[] = [];
-  const internals = server as unknown as { tick: () => void; session: object | null };
+  const internals = server as unknown as { tick: () => void; session: GameSession | null };
   const timedTick = internals.tick;
   internals.tick = function (this: unknown) {
     const t0 = performance.now();
@@ -328,11 +331,13 @@ async function run(options: Options) {
   const joinStarted = performance.now();
   const joinGapMs = 1_000 / options.joinsPerSecond;
   let sessionTimed = false;
+  const refused: Bot[] = [];
   for (const [i, bot] of bots.entries()) {
     const due = joinStarted + i * joinGapMs;
     const wait = due - performance.now();
     if (wait > 0) await Bun.sleep(wait);
     await server.join(bot.socket, bot.actorId, { admin: false });
+    if (bot.socket.closed) refused.push(bot);
     if (!sessionTimed && internals.session) {
       for (const name of SESSION_PHASES) {
         timePhase(phases, internals.session, name, `session.${name}`);
@@ -341,12 +346,19 @@ async function run(options: Options) {
     }
   }
   const joinSeconds = (performance.now() - joinStarted) / 1_000;
-  const residents =
-    (internals.session as { actorIds(): string[] } | null)!.actorIds().length - options.players;
+  const seated = bots.length - refused.length;
+  const session = internals.session;
+  const residents = session ? session.actorIds().filter((id) => session.isResident(id)).length : 0;
+  const refusal =
+    refused.length === 0
+      ? null
+      : `the server refused ${refused.length} of ${options.players} players ` +
+        `(closed with ${[...new Set(refused.map((bot) => bot.closeCode))].join(", ")})`;
   console.error(
-    `[crowd] seated ${options.players} in ${joinSeconds.toFixed(1)}s; ` +
+    `[crowd] seated ${seated} of ${options.players} in ${joinSeconds.toFixed(1)}s; ` +
       `warming up ${options.warmupSeconds}s, then measuring ${options.seconds}s`,
   );
+  if (refusal) console.error(`[crowd] ${refusal}`);
 
   await Bun.sleep(options.warmupSeconds * 1_000);
 
@@ -392,10 +404,11 @@ async function run(options: Options) {
   for (let i = 1; i < tickStarts.length; i++) gaps.push(tickStarts[i]! - tickStarts[i - 1]!);
   gaps.sort((a, b) => a - b);
   const delta = (key: keyof Counters) => counters[key] - before[key];
-  const perPlayerPerSecond = (key: keyof Counters) => delta(key) / options.players / seconds;
+  const perPlayerPerSecond = (key: keyof Counters) => delta(key) / Math.max(1, seated) / seconds;
 
   const report = {
-    players: options.players,
+    players: seated,
+    refused: refused.length,
     residents,
     scenario: `${options.clustered ? "clustered" : "spread"}${options.idle ? ", idle" : ""}`,
     deflate: options.deflate,
@@ -446,6 +459,10 @@ async function run(options: Options) {
   await store.flush();
   await db.close?.();
   await rm(directory, { recursive: true, force: true });
+  if (refusal) {
+    console.error(`\n[crowd] ${refusal}, so every figure above is for ${seated} players`);
+    process.exit(1);
+  }
   process.exit(0);
 }
 
