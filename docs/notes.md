@@ -5896,7 +5896,7 @@ right and `[t, t]` a faithful probe. Both are asserted in
 band rolled some other way fails loudly instead of drifting. `combat.test.ts`'s
 draw-count assertions are the other half of that net: a *new* roll in a swing —
 a block, a crit — changes what a swing costs the dice and fails there first.
-- **`app/game/arena.ts` assembles a body**, and `app/routes/arena.tsx` draws it.
+- **`app/game/arena.ts` assembles a body**, and `app/routes/admin/arena.tsx` draws it.
 
 **There is one duel loop, and `duel.test.ts` uses it.** That file used to hold a
 private one, and an assertion about whether the numbers add up to a game is
