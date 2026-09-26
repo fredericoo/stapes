@@ -284,3 +284,10 @@ function issuePath(path: ReadonlyArray<{ key: unknown }> | undefined): string {
 export function isBattler(def: TileDef): boolean {
   return resolveBattler(def) !== null;
 }
+
+export function isImmune(
+  body: { readonly immuneTo?: readonly string[] } | null,
+  statusId: string,
+): boolean {
+  return body?.immuneTo?.includes(statusId) ?? false;
+}

@@ -6,7 +6,7 @@ import { isRanged, resolveWeapon, type WeaponItem } from "../lib/item";
 import { experienceMultiplier, type Mastery, rating } from "../lib/mastery";
 import { COMBAT_STATUS_ID, statusesById } from "../lib/status";
 import { normalizeTiles } from "../lib/types";
-import { MIN_ATTACK_TICKS, rollAttack, swingIntervalMs } from "./combat";
+import { MIN_ATTACK_TICKS, rollAttack, swingIntervalMs, swingWindupMs } from "./combat";
 import { TICK_MS } from "./constants";
 import { Duel, type DuelEvent, type DuelResult, MAX_DUEL_TICKS, runDuel, type Side } from "./duel";
 import { Rng } from "./rng";
@@ -423,16 +423,25 @@ describe("the duel loop", () => {
     expect(opening(slow, quick)).toEqual(["b"]);
   });
 
-  it("takes the killing blow's target out before it can answer", () => {
-    const killer = dummy({ spd: 100, hitChance: 1, damage: 999, variance: 0 });
-    const victim = dummy({ spd: 100, hitChance: 1, damage: 999, variance: 0, flee: 0 });
-    for (let seed = 0; seed < 50; seed++) {
-      const duel = new Duel({ swings: [killer] }, { swings: [victim] }, new Rng(seed));
-      const events = duel.tick();
-      const answered = events.some((event) => event.kind === "swing" && event.by === "b");
-      if (duel.winner !== "a") continue;
-      expect(answered).toBe(false);
+  it("lands both blows due on one tick, so two fighters who kill each other draw", () => {
+    const lethal = dummy({ spd: 100, hitChance: 1, damage: 999, variance: 0, flee: 0 });
+    let mutual = 0;
+    for (let seed = 0; seed < 20; seed++) {
+      const duel = new Duel({ swings: [lethal] }, { swings: [lethal] }, new Rng(seed));
+      const swings = tickUntilSwing(duel).filter((event) => event.kind === "swing");
+      expect(swings.map((swing) => swing.by)).toEqual(["a", "b"]);
+      if (swings.some((swing) => swing.outcome.damage === 0)) continue;
+
+      mutual++;
+      expect(duel.finished).toBe(true);
+      expect(duel.winner).toBeNull();
+      expect(runDuel({ swings: [lethal] }, { swings: [lethal] }, new Rng(seed))).toEqual({
+        winner: null,
+        ticks: Math.round(duel.elapsedMs / TICK_MS),
+        survivorHealth: 0,
+      });
     }
+    expect(mutual).toBeGreaterThan(0);
   });
 
   it("leaves a venomous weapon inert when nothing is authored", () => {
@@ -466,6 +475,109 @@ describe("the duel loop", () => {
     for (const run of bitten) {
       expect(run.ailments.every((hp) => hp < 0)).toBe(true);
     }
+  });
+
+  it("never gives a fighter a status it is immune to", () => {
+    const venomous = dummy({ hitChance: 1, statuses: [{ id: "poison", chance: 100 }] });
+    const target = dummy({ hitChance: 0, flee: 0, maxHp: 500 });
+    const everPoisoned = (immuneTo: readonly string[]) => {
+      const duel = new Duel({ swings: [venomous] }, { swings: [target], immuneTo }, new Rng(1), {
+        statusDefs,
+      });
+      for (let tick = 0; tick < 300; tick++) {
+        duel.tick();
+        if (duel.b.statuses.some((status) => status.defId === "poison")) return true;
+      }
+      return false;
+    };
+
+    expect(everPoisoned([])).toBe(true);
+    expect(everPoisoned(["poison"])).toBe(false);
+  });
+
+  it("does not swing while incapacitated, and winds up afresh once it can act", () => {
+    const lullaby = dummy({
+      spd: 0,
+      hitChance: 1,
+      damage: 0,
+      statuses: [{ id: "sleep", chance: 100, fromMs: 1_000, toMs: 1_000 }],
+    });
+    const quick = dummy({ spd: 100, damage: 0, flee: 0 });
+    const duel = new Duel({ swings: [lullaby] }, { swings: [quick] }, new Rng(1), { statusDefs });
+    const ticks = Array.from({ length: 1_500 }, () => ({
+      swung: duel.tick().some((event) => event.kind === "swing" && event.by === "b"),
+      asleep: duel.b.statuses.some((status) => status.defId === "sleep"),
+    }));
+
+    const fellAsleep = ticks.findIndex((tick) => tick.asleep);
+    const woke = ticks.findIndex((tick, index) => index > fellAsleep && !tick.asleep);
+    const swungAgain = ticks.findIndex((tick, index) => index >= woke && tick.swung);
+    expect(fellAsleep).toBeGreaterThanOrEqual(0);
+    expect((woke - fellAsleep) * TICK_MS).toBeGreaterThan(swingIntervalMs(quick));
+
+    expect(ticks.slice(fellAsleep + 1, woke).some((tick) => tick.swung)).toBe(false);
+    expect((swungAgain - woke) * TICK_MS).toBeGreaterThanOrEqual(swingWindupMs(quick));
+  });
+
+  it("wakes a sleeper with a blow that does damage, and not with a miss", () => {
+    const lullaby = dummy({
+      spd: 100,
+      hitChance: 1,
+      damage: 0,
+      statuses: [{ id: "sleep", chance: 100 }],
+    });
+    const blow = dummy({ spd: 100, hitChance: 0.5, damage: 5, variance: 0 });
+    const sleeper = dummy({ damage: 0, def: 0, flee: 0, maxHp: 5_000 });
+    const duel = new Duel({ swings: [lullaby, blow] }, { swings: [sleeper] }, new Rng(1), {
+      statusDefs,
+    });
+    const asleep = () => duel.b.statuses.some((status) => status.defId === "sleep");
+
+    let woken = 0;
+    let missed = 0;
+    for (let tick = 0; tick < 3_000; tick++) {
+      const before = asleep();
+      for (const event of duel.tick()) {
+        if (!before || event.kind !== "swing" || event.by !== "a") continue;
+        if (event.outcome.damage > 0) {
+          expect(asleep()).toBe(false);
+          woken++;
+        }
+        if (event.outcome.missed) {
+          expect(asleep()).toBe(true);
+          missed++;
+        }
+      }
+    }
+    expect(woken).toBeGreaterThan(0);
+    expect(missed).toBeGreaterThan(0);
+  });
+
+  it("wakes a sleeper when a status it holds does damage", () => {
+    const venom = dummy({
+      spd: 0,
+      hitChance: 1,
+      damage: 0,
+      statuses: [
+        { id: "poison", chance: 100 },
+        { id: "sleep", chance: 100 },
+      ],
+    });
+    const sleeper = dummy({ damage: 0, flee: 0, maxHp: 500 });
+    const duel = new Duel({ swings: [venom] }, { swings: [sleeper] }, new Rng(1), { statusDefs });
+    const asleep = () => duel.b.statuses.some((status) => status.defId === "sleep");
+
+    for (let tick = 0; tick < 1_500; tick++) {
+      const before = asleep();
+      const bitten = duel
+        .tick()
+        .some((event) => event.kind === "ailment" && event.defId === "poison" && event.hp < 0);
+      if (!bitten) continue;
+      expect(before).toBe(true);
+      expect(asleep()).toBe(false);
+      return;
+    }
+    throw new Error("the poison never bit");
   });
 
   it("survives a weapon whose status the catalogue has never heard of", () => {
@@ -504,7 +616,7 @@ describe("the duel loop", () => {
     expect(without.b.statuses).toEqual([]);
   });
 
-  it("calls a draw when neither side can get through", () => {
+  it("stops at maxTicks with no winner when neither side can get through", () => {
     const stone = dummy({ damage: 0, def: 99, maxHp: 50 });
     const result = runDuel({ swings: [stone] }, { swings: [stone] }, new Rng(1), {
       maxTicks: 500,

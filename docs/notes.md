@@ -5904,11 +5904,57 @@ worth nothing if the fight it ran was an approximation of the one the world
 runs. Extracting it left every seeded assertion in that file green, which is the
 evidence the two were the same fight.
 
+**Blows due on the same tick land together.** `Duel.exchangeBlows` decides which
+sides swing, and works out both sides' stats, before either blow lands, then
+rolls `a`'s blow and `b`'s in that order. A killing blow does not cancel the
+other one, and when both kill, both fall: `winner` is null, `finished` is true,
+and `runDuel` returns at that tick. In `runDuel`'s result, a null `winner` with
+`ticks` below `maxTicks` means both fell; at `maxTicks` it means nobody
+finished. The Arena shows "draw" between the two fighters.
+
+Before this, `a` swung first and a kill ended the tick, so side `a` won every
+exchange that was lethal both ways. Over 5,000 seeds that gave side `a` 55–64%
+of its own mirror matches (rat 55%, player 58%, cat 61%, wolf 63%, bat 64%).
+Now the two sides are within two points of each other and 9–29% of mirror
+matches are draws. No seeded figure in `duel.test.ts` moved: none of those
+fights ends on a tick where both blows are lethal.
+
+The world does not resolve it this way. `GameSession` runs attacks one actor at
+a time and a melee blow lands inside `tryAttack`, so there whichever body acts
+first on a shared tick wins a lethal exchange and the other never swings. What
+decides that is where each body sits in `actors`, and whether it attacks from
+its brain's turn or from a standing target. None of it is a fact about either
+creature, so the duel does not copy it.
+
 **Statuses are off unless a catalogue is passed**, and that is a setting rather
 than an oversight. An inflicted status costs a draw, so handing `Duel` a
 catalogue moves the dice for everything after it — which is why `duel.test.ts`
 passes none and gets the stream it always had, and why a caller comparing two
 damage curves can take the venom out of the comparison.
+
+**With a catalogue, a status follows the world's rules.** `Duel` calls the same
+functions `GameSession` calls, so each rule is written once. The exception is
+the windup after incapacitation, which the duel copies by hand:
+
+- **Immunity.** `DuelSetup.immuneTo` carries the body's `immuneTo` list, which
+  `duelSetupOf` in `arena.ts` fills from the battler, and a status a blow
+  inflicts is skipped when `isImmune` says so, which is the check
+  `GameSession.grantStatus` makes. A refused status takes no draw, as in the
+  world. Before this, the Arena poisoned the cyclops, which is immune to
+  poison, in 56 of 200 fights against the snake.
+- **Incapacitation.** A fighter holding a status that `incapacitates` does not
+  swing (`incapacitated`). Its cooldown keeps running, and when it can act
+  again the cooldown is raised to at least `swingWindupMs` of its current
+  stats. That is the duel's form of `GameSession.tryAttack`, which calls
+  `disengage` to drop the windup of a body that cannot act, arms a full one
+  when it can, and swings only once both the windup and `attackCooldownMs` are
+  spent.
+- **Ending on damage.** Damage above zero runs `endOnDamage` on the body that
+  takes it, whether it came from a blow or from a status tick such as poison,
+  in `Duel.applyDamage` as in `GameSession.applyDamage`. A miss, a dodge, a
+  blow that armour reduces to 0, and a heal end nothing. A blow that does
+  damage and inflicts sleep ends the sleep already held before it grants the
+  new one, in the same order as `GameSession.landSwing`.
 
 **Masteries and equipment are overridable; a natural weapon is not.** The first
 two are things the world can produce — a mastery is earned, a weapon is picked
@@ -8301,9 +8347,11 @@ cloth tunic) won 1–10% of duels against the melee imps. At 12, measured with
 Each armour piece is 25%, so most imps are near the first row: about a wolf in
 contact, plus the stone and, on a quarter of them, a bow that opens the fight
 from eight cells. That is "a little stronger than a wolf". The bow row is low
-because a duel starts both bodies in contact, where a bow inside its
-`reach.min` does not fire. In the world the imp shoots from range and backs off
-to keep it.
+because `duel.ts` has no distance in it. It fires the bow point-blank like the
+other three weapons, so the imp pays for the bow's reach in accuracy — the
+hunting bow is authored at 40 against the knight's sword's 90, and the imp
+lands about a third of its shots — and never gets to use that reach. In the
+world the imp shoots from range and backs off to keep it.
 
 **Throw stone is its second spell and the hunt names it by position.** A bolt
 at the target for 12, variance 30, 500ms to cast, eight seconds to cool, nine

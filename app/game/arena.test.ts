@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import tilesJson from "../../data/tiles.json";
+import { resolveBattler } from "../lib/battler";
 import { resolveWeapon } from "../lib/item";
 import { normalizeTiles } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import { equipmentOf, fighterForTile, statsOf, swingsOf } from "./arena";
+import { duelSetupOf, equipmentOf, fighterForTile, statsOf, swingsOf } from "./arena";
 
 describe("what the Arena reports", () => {
   const tilesById = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]));
@@ -78,6 +79,12 @@ describe("what the Arena reports", () => {
       equipment: { ...muddled.equipment, armor: "knights-sword" },
     };
     expect(equipmentOf(wrong, tilesById).armor).toBeNull();
+  });
+
+  it("brings the body's immunities into the duel", () => {
+    const immune = resolveBattler(tilesById.cyclops!)!.immuneTo;
+    expect(immune?.length).toBeGreaterThan(0);
+    expect(duelSetupOf(fighterForTile("cyclops", tilesById), tilesById).immuneTo).toEqual(immune);
   });
 
   it("has nothing to say about a tile that is not a battler", () => {
