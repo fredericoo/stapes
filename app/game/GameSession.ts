@@ -230,7 +230,7 @@ import {
   type SpellButton,
 } from "./casting";
 import { type Progress, windProgress } from "./progress";
-import { countDown, reached } from "./ticks";
+import { countDown, reached, TICK_SLACK_MS } from "./ticks";
 import { type Attributes, attributesOf } from "./attributes";
 import { equipmentForBody } from "./battlerKit";
 import {
@@ -669,14 +669,6 @@ type ActorRuntime = {
     chunk: ChunkCells | undefined;
   } | null;
 };
-
-/**
- * Slack for comparing accumulated ticks against a step size. `TICK_MS` is
- * 1000/30, which is not exactly representable, so thirty ticks of it sum to
- * 1000.0000000000005, and a plain comparison against the round number would
- * read a step late about half the time.
- */
-const COOLDOWN_EPSILON_MS = 1e-6;
 
 const STANDING_STATUS_EVERY_MS = 1000;
 
@@ -1927,9 +1919,9 @@ export class GameSession implements PlaySession {
 
   private advanceStoneCooldowns(tickMs: number) {
     this.stoneClockMs += tickMs;
-    if (this.stoneClockMs + COOLDOWN_EPSILON_MS < COOLDOWN_STEP_MS) return;
+    if (!reached(this.stoneClockMs, COOLDOWN_STEP_MS)) return;
 
-    const steps = Math.floor((this.stoneClockMs + COOLDOWN_EPSILON_MS) / COOLDOWN_STEP_MS);
+    const steps = Math.floor((this.stoneClockMs + TICK_SLACK_MS) / COOLDOWN_STEP_MS);
     this.stoneClockMs -= steps * COOLDOWN_STEP_MS;
     const spent = steps * COOLDOWN_STEP_MS;
 
@@ -4764,8 +4756,7 @@ export class GameSession implements PlaySession {
     for (const actor of this.actors.values()) {
       if (actor.fall) continue;
       actor.standingStatusMs += tickMs;
-      const stoodMs = actor.standingStatusMs + COOLDOWN_EPSILON_MS;
-      if (stoodMs < STANDING_STATUS_EVERY_MS) continue;
+      if (!reached(actor.standingStatusMs, STANDING_STATUS_EVERY_MS)) continue;
       actor.standingStatusMs -= STANDING_STATUS_EVERY_MS;
       this.clearStandingStatus(actor);
       this.grantStandingStatus(actor);

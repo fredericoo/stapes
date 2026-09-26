@@ -5892,6 +5892,10 @@ does not fall on. The only timers it moves are the ones that were a tick late.
   client's prediction of every step. Paralysis makes a step ten times as long,
   and most of those ran long the same way: the player's 2000ms, the rat's
   1500ms and the wolf's 1400ms.
+- Status cadences and expiry (`advanceStatuses`, `snapToTick`), the
+  standing-status clock, the stone clock and an endured status (`EndureIndex`)
+  were on time already, each against a 1e-6ms slack of its own. They use
+  `reached` and `TICK_SLACK_MS` now, so there is one slack to reason about.
 
 **It is a balance change.** At their authored pace every shipped weapon and
 creature gets a tick back somewhere. The rusty sword, iron sword, simple hammer,
@@ -5911,9 +5915,7 @@ on their tick, and the strike lean is not a whole number of ticks. A noise's
 snapshot's `noises`. The decay index runs one clock that never resets, so
 its drift grows (about 1e-3ms after a day of ticks); a slack cannot absorb
 that, and it can only move a lifetime that is a whole number of ticks, by one
-tick in minutes. Status cadences and expiry, the standing-status clock, the
-stone clock and an endured status each compare against a 1e-6ms slack of their
-own.
+tick in minutes.
 
 **`damagePerSecond` in `duel.test.ts` still counts the old way.** It keeps a
 private cooldown loop. Counting it with `countDown` gives the iron sword at the
@@ -8576,7 +8578,8 @@ there was anything to grant at all.
 spends hit points once a second — so a helping per payout means the two clocks
 do not beat against each other. It is also exactly thirty ticks, which is what
 lets `ActorRuntime.standingStatusMs` be compared against it with nothing but the
-float slack `COOLDOWN_EPSILON_MS` absorbs. The accumulator is *drained* rather
+float slack `reached` allows (see "A clock counted in ticks runs out on its last
+tick"). The accumulator is *drained* rather
 than zeroed on each payout, for the same reason a status's own is: a tick is not
 a whole number of milliseconds, and zeroing would lose the remainder every
 second and drift a standing body a tick further behind each time.
