@@ -12,6 +12,7 @@ import type { Rng } from "./rng";
 import {
   advanceStatuses,
   applyStatus,
+  endOnDamage,
   enterCombat,
   incapacitated,
   NO_STATUSES,
@@ -144,10 +145,8 @@ export class Duel {
 
     for (const change of changes) {
       if (change.hp === 0) continue;
-      fighter.hp =
-        change.hp < 0
-          ? Math.max(0, fighter.hp + change.hp)
-          : Math.min(this.statsOf(side).maxHp, fighter.hp + change.hp);
+      if (change.hp < 0) this.applyDamage(fighter, -change.hp);
+      else fighter.hp = Math.min(this.statsOf(side).maxHp, fighter.hp + change.hp);
       events.push({
         kind: "ailment",
         on: side,
@@ -223,7 +222,7 @@ export class Duel {
     }
 
     const outcome = cappedToHealth(rollAttack(attackerStats, defenderStats, this.rng), defender.hp);
-    defender.hp -= outcome.damage;
+    this.applyDamage(defender, outcome.damage);
     events.push({ kind: "swing", by: side, outcome, hpLeft: defender.hp });
 
     if (defender.hp === 0) return;
@@ -236,6 +235,11 @@ export class Duel {
           : { fromMs: grant.fromMs, toMs: grant.toMs };
       defender.statuses = applyStatus(defender.statuses, def, this.rng, range);
     }
+  }
+
+  private applyDamage(fighter: DuelFighter, amount: number) {
+    if (amount > 0) fighter.statuses = endOnDamage(fighter.statuses, this.statusDefs);
+    fighter.hp = Math.max(0, fighter.hp - amount);
   }
 }
 

@@ -5949,6 +5949,12 @@ the windup after incapacitation, which the duel copies by hand:
   `disengage` to drop the windup of a body that cannot act, arms a full one
   when it can, and swings only once both the windup and `attackCooldownMs` are
   spent.
+- **Ending on damage.** Damage above zero runs `endOnDamage` on the body that
+  takes it, whether it came from a blow or from a status tick such as poison,
+  in `Duel.applyDamage` as in `GameSession.applyDamage`. A miss, a dodge, a
+  blow that armour reduces to 0, and a heal end nothing. A blow that does
+  damage and inflicts sleep ends the sleep already held before it grants the
+  new one, in the same order as `GameSession.landSwing`.
 
 **Masteries and equipment are overridable; a natural weapon is not.** The first
 two are things the world can produce — a mastery is earned, a weapon is picked

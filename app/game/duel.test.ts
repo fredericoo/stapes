@@ -519,6 +519,67 @@ describe("the duel loop", () => {
     expect((swungAgain - woke) * TICK_MS).toBeGreaterThanOrEqual(swingWindupMs(quick));
   });
 
+  it("wakes a sleeper with a blow that does damage, and not with a miss", () => {
+    const lullaby = dummy({
+      spd: 100,
+      hitChance: 1,
+      damage: 0,
+      statuses: [{ id: "sleep", chance: 100 }],
+    });
+    const blow = dummy({ spd: 100, hitChance: 0.5, damage: 5, variance: 0 });
+    const sleeper = dummy({ damage: 0, def: 0, flee: 0, maxHp: 5_000 });
+    const duel = new Duel({ swings: [lullaby, blow] }, { swings: [sleeper] }, new Rng(1), {
+      statusDefs,
+    });
+    const asleep = () => duel.b.statuses.some((status) => status.defId === "sleep");
+
+    let woken = 0;
+    let missed = 0;
+    for (let tick = 0; tick < 3_000; tick++) {
+      const before = asleep();
+      for (const event of duel.tick()) {
+        if (!before || event.kind !== "swing" || event.by !== "a") continue;
+        if (event.outcome.damage > 0) {
+          expect(asleep()).toBe(false);
+          woken++;
+        }
+        if (event.outcome.missed) {
+          expect(asleep()).toBe(true);
+          missed++;
+        }
+      }
+    }
+    expect(woken).toBeGreaterThan(0);
+    expect(missed).toBeGreaterThan(0);
+  });
+
+  it("wakes a sleeper when a status it holds does damage", () => {
+    const venom = dummy({
+      spd: 0,
+      hitChance: 1,
+      damage: 0,
+      statuses: [
+        { id: "poison", chance: 100 },
+        { id: "sleep", chance: 100 },
+      ],
+    });
+    const sleeper = dummy({ damage: 0, flee: 0, maxHp: 500 });
+    const duel = new Duel({ swings: [venom] }, { swings: [sleeper] }, new Rng(1), { statusDefs });
+    const asleep = () => duel.b.statuses.some((status) => status.defId === "sleep");
+
+    for (let tick = 0; tick < 1_500; tick++) {
+      const before = asleep();
+      const bitten = duel
+        .tick()
+        .some((event) => event.kind === "ailment" && event.defId === "poison" && event.hp < 0);
+      if (!bitten) continue;
+      expect(before).toBe(true);
+      expect(asleep()).toBe(false);
+      return;
+    }
+    throw new Error("the poison never bit");
+  });
+
   it("survives a weapon whose status the catalogue has never heard of", () => {
     const attacker = dummy({
       hitChance: 1,
